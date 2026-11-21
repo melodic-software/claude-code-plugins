@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261103T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"When a test fails before any edit to its code, run it on the base commit before debugging it as caused by this change.\", \"source_id\": \"#42\", \"kind\": \"applied\"}\n"
+          }
+        }
+      ],
+      "why": "applied row with the PR"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261103T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"When a test fails before any edit to its code, run it on the base commit before debugging it as caused by this change.\", \"source_id\": \"#42\"}\n"
+          }
+        }
+      ],
+      "why": "kind missing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/notes/20261103T120000Z.jsonl",
+            "content": "{\"producer\": \"corrections/codify-note\", \"signal\": \"x\", \"source_id\": \"session:20261103T120000Z\", \"kind\": \"applied\"}\n"
+          }
+        }
+      ],
+      "why": "PR dropped from source_id"
+    }
+  ]
+}

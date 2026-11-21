@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The soak run of four schedulers showed zero double runs in six hours.",
+      "why": "states the soak result"
+    },
+    {
+      "answer": "Soak: no double-runs across 4 schedulers.",
+      "why": "hyphenated form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The handoff records no soak result.",
+      "why": "read only the hot file"
+    },
+    {
+      "answer": "The backfill last logged batch 41/120.",
+      "why": "another fact"
+    },
+    {
+      "answer": "The lease table exists to guarantee no double runs; the handoff records no soak result yet.",
+      "why": "paraphrases the hot file's goal without the hop file's soak facts"
+    }
+  ]
+}

@@ -3,6 +3,56 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.1] - 2026-11-21
+
+### Fixed
+
+- Notes host: P, R, A, M and N now work while focus is inside the mockup. Before, the frame passed only Escape and T up to the host, so the shortcuts did nothing after a click into the mockup. A key the mockup handles and cancels with `preventDefault`, as the switcher does, stays in the mockup, so on a variant with motion R inside the mockup replays; keys typed in a field, or held with Ctrl, Alt or Meta, stay in the mockup ([#17917](https://github.com/melodic-software/claude-code-plugins/issues/17917)).
+
+## [0.44.0] - 2026-11-21
+
+### Added
+
+- **explore-directions says how to mount the notes harness on a real-stack route, and step 5
+  removes it.** `reference/real-stack.md` gains "The notes harness": start the notes bridge with
+  `--dev-origin`, keep every harness file in one `prototype-harness/` directory (copies of the
+  frame helper, `harness-fence.mjs` and the `dev-origin.mjs` it imports), load the helper behind
+  the switcher's environment gate, mount the fence as dev-server middleware, and add only whole
+  lines to a kept file, each marked `data-prototype-harness`. Step 5 deletes the harness and confirms
+  `git grep -n data-prototype-harness` prints nothing. The new eval case
+  `ed-real-stack-harness-removed` grades that removal on a scaffolded Vite app
+  ([#17751](https://github.com/melodic-software/claude-code-plugins/issues/17751)).
+
+### Fixed
+
+- Notes host: the move arrow's shortcut is now A. It shared M with the marker toggle, which caught the key first, so the arrow could not be started from the keyboard ([#17883](https://github.com/melodic-software/claude-code-plugins/issues/17883)).
+
+## [0.43.0] - 2026-11-21
+
+### Added
+
+- **After a reload, the notes host lists the run's notes and drafts again.** Sent notes come from a new `GET /api/notes` bridge route. It needs the page token and serves only the running bridge's own data dir. Drafts are kept in the tab's sessionStorage under the run's token and are never sent to the server. Notes are listed oldest first, numbered as their markers are. Hovering a row draws its note's box on the mockup. Clicking a row, or its marker, restores the note's variant, screen state and content set, scrolls to the note, and keeps the box drawn until you click elsewhere. A marker takes a click only on its own box, and only outside a pick mode ([#17801](https://github.com/melodic-software/claude-code-plugins/issues/17801)).
+
+## [0.42.0] - 2026-11-21
+
+### Added
+
+- **A move-arrow note says "move this element to there" on the mockup.** On the notes host page,
+  Draw a move arrow (M) picks the element to move, then the element it should go to (or, with
+  Shift and a click, a point when no element fits), then opens the note. The frame draws the arrow
+  from one end to the other and redraws it from the elements when the page re-flows. The note's
+  `kind` is `move`: `anchor` and `rect` are the element to move, and the new `to` field holds the
+  destination's `point` and, when there is one, its `anchor`. The note schema's `x-version` moves
+  to 6. `relocate-note.mjs` runs the anchor ladder on both ends and reports the destination under
+  `to`. explore-directions restates both ends of a move arrow before acting on it.
+  ([#17803](https://github.com/melodic-software/claude-code-plugins/issues/17803))
+
+## [0.41.1] - 2026-11-21
+
+### Changed
+
+- **The notes host page now reports a framed page that never says it is ready.** If the frame helper's first ready message has not arrived within 10 seconds, the host page says so, on a real-stack route and on a mockup alike. On a real-stack route it adds that the dev server may refuse to be framed or the route may not load the helper. It does not judge by the frame's load event. The new `notes-bridge/frame-channel.mjs` holds the host page's channel rules. A message is taken only from the frame's window and, on a real-stack route, from the dev origin. Every message to a real-stack frame names the dev origin as `targetOrigin` ([#17748](https://github.com/melodic-software/claude-code-plugins/issues/17748)).
+
 ## [0.41.0] - 2026-11-21
 
 ### Added

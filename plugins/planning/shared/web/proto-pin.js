@@ -8,6 +8,7 @@
 // index in that scope, role attribute, tag, and its path from that scope) and the view snapshot; never the page's
 // markup. Hosts that ask for more get more: a region the person drags or moves with the keys (its box, the element
 // holding it and the test-id elements it crosses, or the holder's child elements it crosses when it crosses none),
+// a move arrow (the element to move, then the element or point it should go to, each end with its own anchor),
 // and the selected text as a quote with a little visible text either
 // side, both only on a model-written page (docs/contracts/rendered-views, rule 9). The host checks every message it
 // receives and keeps only what its contract admits. For a script re-locating a note, window.uiFeedbackRelocate
@@ -23,8 +24,12 @@
   const STEP = /^([a-z]+)(?::([a-z0-9]+))?$/; // a data control's data-data-control value: op, or op:argument
   const MAX_DEPTH = 32;
   const NUDGE = 10; // pixels an arrow key moves or resizes a region
+  const SVG = "http://www.w3.org/2000/svg";
+  const KINDS = ["element", "region", "move"];
   let mode = false, kind = "element", pins = [], layer = null, hover = null, region = null, drag = null, maxElements = 0;
+  let moving = null, arrow = null;
   let holding = false, held = null, markers = true;
+  let hovered = null, selected = null, badges = [], markerClicks = false;
   const hold = h => { if (holding) { held = h; draw(); } };
   const log = []; // the data controls pressed and content sets shown since the page loaded, in order
 
@@ -205,6 +210,7 @@
     if (layer) return layer;
     layer = document.createElement("div");
     layer.setAttribute("aria-hidden", "true");
+    layer.setAttribute("data-ui-feedback-layer", "");
     Object.assign(layer.style, { position: "absolute", left: "0", top: "0", width: "0", height: "0", zIndex: "2147483647", pointerEvents: "none" });
     root.append(layer);
     return layer;
@@ -232,12 +238,68 @@
     Object.assign(o.style, { position: "absolute", left: `${b.left + scrollX}px`, top: `${b.top + scrollY}px`, width: `${b.width}px`, height: `${b.height}px`, ...style });
     return o;
   }
+  /** A listed note's box now, in client pixels: an element note's element while its path still finds one shown in the
+   *  note's scope, else the stored box; null when it has neither. */
+  function noteBox(t) {
+    if (t.kind === "element" && typeof t.cssPath === "string") {
+      const scope = scopeOf(t.variant, t.state);
+      let el = null;
+      try { el = scope && (t.cssPath === "" ? scope : scope.querySelector(`:scope > ${t.cssPath}`)); } catch { el = null; }
+      if (el && el.getClientRects?.().length) return el.getBoundingClientRect();
+    }
+    const r = t.rect;
+    if (!r || ![r.x, r.y, r.w, r.h].every(Number.isFinite)) return null;
+    const page = box();
+    return { left: (r.x / 100) * page.w - scrollX, top: (r.y / 100) * page.h - scrollY, width: (r.w / 100) * page.w, height: (r.h / 100) * page.h };
+  }
+  /** The marker under a pointer event, outside a pick mode and a held pick; null elsewhere. Only its own box counts. */
+  function markerAt(e) {
+    if (!markerClicks || mode || held || !markers || typeof e.clientX !== "number") return null;
+    if (e.isTrusted === false || (e.detail === 0 && !e.pointerType)) return null;
+    const hit = badges.find(({ el }) => { const b = el.getBoundingClientRect(); return e.clientX >= b.left && e.clientX <= b.left + b.width && e.clientY >= b.top && e.clientY <= b.top + b.height; });
+    return hit ? hit.n : null;
+  }
+  /** The middle of a move arrow's end in page pixels: its element while the page still holds it, else the element its
+   *  path finds, else its stored box or point. */
+  function endOf(end) {
+    let el = end.el && root.contains(end.el) ? end.el : null;
+    if (!el && end.selector) try { el = document.querySelector(end.selector); } catch { el = null; }
+    if (el) { const b = el.getBoundingClientRect(); return { x: b.left + scrollX + b.width / 2, y: b.top + scrollY + b.height / 2 }; }
+    const page = box(), r = end.rect || end.point;
+    return { x: ((r.x + (r.w || 0) / 2) / 100) * page.w, y: ((r.y + (r.h || 0) / 2) / 100) * page.h };
+  }
+  function arrowShape(a, b) {
+    const page = box(), svg = document.createElementNS(SVG, "svg"), line = document.createElementNS(SVG, "line"), tip = document.createElementNS(SVG, "polygon");
+    svg.setAttribute("width", String(page.w));
+    svg.setAttribute("height", String(page.h));
+    Object.assign(svg.style, { position: "absolute", left: "0", top: "0", overflow: "visible" });
+    for (const [k, v] of Object.entries({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "#f59e0b", "stroke-width": 3 })) line.setAttribute(k, String(v));
+    const t = Math.atan2(b.y - a.y, b.x - a.x), side = d => `${b.x - 14 * Math.cos(t + d)},${b.y - 14 * Math.sin(t + d)}`;
+    tip.setAttribute("points", `${b.x},${b.y} ${side(-0.45)} ${side(0.45)}`);
+    tip.setAttribute("fill", "#f59e0b");
+    svg.append(line, tip);
+    return svg;
+  }
   function draw() {
     const l = ensureLayer();
     l.replaceChildren();
-    if (markers) for (const p of pins) { const at = placeOf(p); l.append(badge(p.n, at.x, at.y, p.active)); }
-    if (hover && mode && kind === "element") {
+    badges = [];
+    if (markers) for (const p of pins) { const at = placeOf(p), b = badge(p.n, at.x, at.y, p.active); badges.push({ n: p.n, el: b }); l.append(b); }
+    for (const [t, which, style] of [[hovered, "hover", { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }],
+      [selected, "selected", { outline: "3px solid #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.12)" }]]) {
+      const b = t && !mode && noteBox(t);
+      if (!b) continue;
+      const o = outline(b, style);
+      o.dataset.note = which;
+      l.append(o);
+    }
+    if (arrow) l.append(arrowShape(endOf(arrow.from), endOf(arrow.to)));
+    if (hover && mode && kind !== "region") {
       l.append(outline(hover.getBoundingClientRect(), { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }));
+    }
+    if (moving && mode && kind === "move") {
+      l.append(outline(moving.from.el.getBoundingClientRect(), { outline: "2px solid #f59e0b", outlineOffset: "1px" }));
+      if (moving.at) l.append(arrowShape(endOf(moving.from), moving.at));
     }
     if (region && mode && kind === "region") {
       l.append(outline({ left: region.x, top: region.y, width: region.w, height: region.h }, { outline: "2px dashed #f59e0b", background: "rgb(245 158 11 / 0.12)" }));
@@ -272,6 +334,9 @@
     draw();
   }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const HOST_KEYS = new Set(["p", "r", "a", "m", "n"]);
+  const inField = e => e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable);
+  const chorded = e => e.metaKey || e.ctrlKey || e.altKey;
 
   const over = e => {
     if (!mode) return;
@@ -281,17 +346,44 @@
     }
     if (skip(e.target)) return;
     hover = pathOf(e.target).el;
+    if (moving) moving.at = { x: e.clientX + scrollX, y: e.clientY + scrollY };
     draw();
   };
-  const stop = e => { if (mode || held) { e.preventDefault(); e.stopImmediatePropagation(); } };
+  const swallow = e => { e.preventDefault(); e.stopImmediatePropagation(); };
+  const stop = e => { if (mode || held || markerAt(e) !== null) swallow(e); };
   function pick(e) {
-    if (!mode) { stop(e); return; }
+    if (!mode) {
+      const n = markerAt(e);
+      if (n !== null) { swallow(e); post({ type: "marker", n }); return; }
+      if (selected && !held) { selected = null; draw(); post({ type: "unselected" }); }
+      stop(e);
+      return;
+    }
     stop(e);
-    if (kind !== "element" || skip(e.target)) return;
+    if (kind === "region" || skip(e.target)) return;
     const { path, el } = pathOf(e.target);
+    if (kind === "move") return pickMove(e, path, el);
     if (!path) return;
     post({ type: "pinned", selector: path, rect: rectOf(el), label: label(el), anchor: anchorOf(el), snapshot: snapshot(el) });
     hold({ el });
+  }
+  /** A move arrow's first click picks the element to move; the second picks where it goes: the element clicked, or the
+   *  point alone with Shift, on the page's root or body, on the element being moved, or outside the scope the note's
+   *  anchors are counted in. */
+  function pickMove(e, path, el) {
+    if (!moving) {
+      if (path) { moving = { from: { el, selector: path, rect: rectOf(el) } }; draw(); }
+      return;
+    }
+    const page = box(), at = v => Math.min(100, Math.max(0, r2(v)));
+    const point = { x: at(((e.clientX + scrollX) / page.w) * 100), y: at(((e.clientY + scrollY) / page.h) * 100) };
+    const fits = path && !e.shiftKey && el !== root && el !== document.body && el !== moving.from.el;
+    const onto = fits && viewOf(el).scope === viewOf(moving.from.el).scope ? el : null;
+    const { from } = moving;
+    moving = null;
+    arrow = { from, to: onto ? { el: onto, selector: path, point } : { point } };
+    post({ type: "move", selector: from.selector, rect: from.rect, anchor: anchorOf(from.el), to: onto ? { anchor: anchorOf(onto), point } : { point }, snapshot: snapshot(from.el) });
+    draw();
   }
   addEventListener("pointermove", over, true);
   addEventListener("click", pick, true);
@@ -310,9 +402,12 @@
       else if (e.key === "Enter") { stop(e); sendRegion(); }
       return;
     }
-    const field = e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable);
-    if ((e.key === "t" || e.key === "T") && !field && !e.metaKey && !e.ctrlKey && !e.altKey && !getSelection().isCollapsed) post({ type: "want-text" });
+    if ((e.key === "t" || e.key === "T") && !inField(e) && !chorded(e) && !getSelection().isCollapsed) post({ type: "want-text" });
   }, true);
+  addEventListener("keydown", e => {
+    const key = (e.key || "").toLowerCase();
+    if (HOST_KEYS.has(key) && !e.defaultPrevented && !inField(e) && !chorded(e)) post({ type: "key", key });
+  });
   // The data log: a press of a data control the page marks, and each content set the switcher shows.
   addEventListener("click", e => {
     if (mode) return;
@@ -325,7 +420,13 @@
     post({ type: "content", name: root.dataset.vsContent });
   }).observe(root, { attributes: true, attributeFilter: ["data-vs-content"] });
   addEventListener("resize", draw);
-  if (window.ResizeObserver) new ResizeObserver(() => { if (pins.length || mode) draw(); }).observe(root); // late images move elements
+  let drawQueued = false;
+  addEventListener("scroll", () => {
+    if (drawQueued) return;
+    drawQueued = true;
+    (window.requestAnimationFrame || (fn => fn()))(() => { drawQueued = false; draw(); });
+  }, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(() => { if (pins.length || mode || arrow) draw(); }).observe(root);
 
   addEventListener("message", e => {
     if (e.source !== window.parent || !e.data || typeof e.data !== "object") return;
@@ -333,10 +434,13 @@
     if (m.type === "mode") {
       mode = !!m.on;
       holding = m.hold === true;
-      kind = m.kind === "region" ? "region" : "element";
+      kind = KINDS.includes(m.kind) ? m.kind : "element";
       maxElements = Number.isInteger(m.max) && m.max > 0 ? m.max : 0;
       hover = null;
       drag = null;
+      if (mode) hovered = selected = null;
+      moving = null;
+      if (mode) arrow = null;
       // A region starts in the middle of the view, so the keys alone can place it.
       region = mode && kind === "region" ? { x: Math.max(0, innerWidth / 2 - 80), y: Math.max(0, innerHeight / 2 - 50), w: 160, h: 100 } : null;
       root.style.cursor = mode ? "crosshair" : "";
@@ -358,7 +462,22 @@
     }
     else if (m.type === "release") { held = null; draw(); }
     else if (m.type === "pins" && Array.isArray(m.pins)) { pins = m.pins.slice(0, 500); draw(); }
-    else if (m.type === "markers") { markers = m.on !== false; draw(); }
+    else if (m.type === "clear-arrow") { arrow = null; draw(); }
+    else if (m.type === "markers") { markers = m.on !== false; markerClicks = m.clicks === true; draw(); }
+    else if (m.type === "show") { hovered = m.target && typeof m.target === "object" ? m.target : null; draw(); }
+    else if (m.type === "select") {
+      selected = m.target && typeof m.target === "object" && !mode ? m.target : null;
+      if (selected) {
+        const detail = {};
+        for (const k of ["variant", "state", "content"]) if (typeof selected[k] === "string") detail[k] = selected[k];
+        document.dispatchEvent(new CustomEvent("vs:show", { detail }));
+        const b = noteBox(selected);
+        post({ type: "shown", n: selected.n, found: !!b });
+        const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+        if (b) scrollTo({ top: Math.max(0, b.top + scrollY - innerHeight / 3), behavior });
+      }
+      draw();
+    }
     else if (m.type === "set") setControls(m.values);
     else if (m.type === "press" && !mode) replay([m.step]);
     else if (m.type === "focus") {

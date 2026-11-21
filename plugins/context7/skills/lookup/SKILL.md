@@ -5,6 +5,8 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   - "Bash(ctx7 --version*)"
+  - 'Bash(node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:lookup --data-dir "${CLAUDE_PLUGIN_DATA}")'
+  - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest ${CLAUDE_PLUGIN_ROOT} --for skill:lookup --data-dir ${CLAUDE_PLUGIN_DATA})'
 metadata:
   upstream-version: upstash/context7@4087030ad2dc16578130e2dab1e48ba735f8ea38
   synced: 2026-11-16
@@ -18,6 +20,10 @@ shell: bash
 ## Pre-computed context
 
 Installed CLI version: !`ctx7 --version 2>/dev/null || echo "not installed (run: npm install -g ctx7@latest)"`
+
+Latest release, checked at most once a day: !`node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:lookup --data-dir "${CLAUDE_PLUGIN_DATA}" || echo "not checked (node did not run)"`
+
+When that line names a newer release or a missing CLI, tell the user once. Add the update hint after this colon when one is set, and nothing when it is empty or still a placeholder: ${user_config.cli_update_hint}
 
 MCP availability: if `mcp__context7__resolve-library-id` and `mcp__context7__query-docs` are in your tool list, the MCP path is configured.
 

@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.2] - 2026-11-21
+
+### Fixed
+
+- The `simple-system-prompt` lever now describes `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=0`, which gives every model the full system prompt, beside `=1`. Its lean-prompt probe record now says that from Claude Code 2.1.330 an unrecognized model name gets the shorter prompt, including a name containing sonnet or haiku.
+
 ## [2.1.1] - 2026-11-20
 
 ### Changed

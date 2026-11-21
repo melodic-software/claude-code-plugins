@@ -57,7 +57,7 @@ async page => {
     ok("a note sent after the reload draws no marker while they are hidden", (await markers()) === "", await markers());
     await page.click("#markers");
     await marker("2");
-    ok("the toggle shows the markers again after the reload", (await markers()) === "2" && (await page.textContent("#markers")) === "Hide markers (M)", await markers());
+    ok("the toggle shows the markers again after the reload, the run's earlier note's too", (await markers()) === "1,2" && (await page.textContent("#markers")) === "Hide markers (M)", await markers());
   } catch (err) {
     R.push("ERROR " + String(err && err.message || err).slice(0, 300));
   }

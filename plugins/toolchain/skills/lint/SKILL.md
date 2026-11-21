@@ -41,6 +41,8 @@ Use `/toolchain:lint` for quick feedback during development. Use `/verification:
 
 **The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `lint-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback of an attended run only. The consumer's file always wins.
 
+**The secret scan is lint's own.** It runs from this skill, not from a record or a bundled default, under its opt-in, in attended and unattended runs alike: see [Secret scan](#secret-scan).
+
 **Two mutators, two gates.** Format-only and code-changing autofixes are separate keys and separate flags. Bare `--fix` must never run semantic lint autofixes (ruff `check --fix`, golangci-lint `--fix`, biome `check --write`, …).
 
 ## Arguments
@@ -114,7 +116,7 @@ Auto-detection algorithm:
 3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed. This binary run/skip treatment applies cleanly when `opt-in` describes a single condition for the whole `check-cmd` (dotnet, python): unmet → excluded from the run but still reported (see sections 2 and 3 below, `skip (opt-in unmet: ...)`; never silently omitted). When `opt-in` instead describes multiple independent per-tool conditions bundled into one opaque command string (bash's shellcheck-always/shfmt-conditional split; cross-cutting's per-tool config-file list), this rule does not apply. `check-cmd`/`fix-cmd`/`code-fix-cmd` is a single opaque string with no way to run one sub-tool's portion without the other, so run it whole and report its real output. The known atomicity limitation this leaves open is in `/toolchain:check`'s Gotchas.
 4. A changed file is unclaimed when no resolved ecosystem's `globs` match it, cross-cutting's `**` aside: that glob is never a claim by itself, whether cross-cutting runs or is disabled. A match by any other ecosystem counts, even one that is disabled or skipped for an unmet opt-in: that row already reports the consumer's choice. Collect each unclaimed text file for the report's two fixed lines (section 3). Under `all` the changed files still come from the detection paths above; an ecosystem filter skips this step. A deleted file is not named. A binary file stays quiet. Decide binary with `git ls-files --eol -c -o -- <file>`: the file is binary when Git identifies its working-tree content as not text ([`--eol`](https://git-scm.com/docs/git-ls-files#Documentation/git-ls-files.txt---eol)). A path with no working-tree content is deleted or not a regular file, never binary. One command serves a working-tree change, the branch diff and a caller-supplied changed-file list.
 
-If neither detection path yields changes and no filter specified: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>` for a specific filter." and stop. If files changed but no ecosystem runs, print the unclaimed-file line (when it names any file) instead of the table, and stop.
+If neither detection path yields changes and no filter specified: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>` for a specific filter." and stop. If files changed but no ecosystem runs, print the unclaimed-file line (when it names any file) instead of the table, and stop, unless a `.gitleaks.toml` sits at the root: then run the [Secret scan](#secret-scan), record the Overall line (section 5), and report its row, the unclaimed-file lines and the Overall line.
 
 ### 2. Run linters per ecosystem
 
@@ -158,6 +160,18 @@ elif command -v editorconfig-checker >/dev/null 2>&1; then EC_BIN=editorconfig-c
 elif command -v ec-windows-amd64 >/dev/null 2>&1; then EC_BIN=ec-windows-amd64
 fi
 ```
+
+### Secret scan
+
+In check mode, when a `.gitleaks.toml` sits at the repository root, run the secret scan from the repository root:
+
+```bash
+gitleaks detect --source . --redact --no-banner --no-git
+```
+
+The skill states the command, so the ladder does not resolve it, and an unattended run runs it like an attended one and logs it as `assumed: secret-scan.check-cmd=gitleaks detect --source . --redact --no-banner --no-git (SKILL.md, .gitleaks.toml)`. It runs on every check-mode run with changed files, `all` and an ecosystem filter included, whether or not any record exists or any ecosystem runs. It runs even when another command already ran `gitleaks`: a compound `check-cmd` exits with its last line's status, so its row can read `pass` over a secret finding.
+
+Report it as its own `secret-scan` row with one Lint column: `pass` on exit 0, `FAIL` on a finding or any other non-zero exit, and `skip (tool missing: gitleaks)` with the hint `winget install Gitleaks.Gitleaks | brew install gitleaks` when `gitleaks` is not on `PATH`, an environment skip that leaves the run `INCOMPLETE`. With no `.gitleaks.toml` at the root it reads `skip (opt-in unmet: no .gitleaks.toml at the repo root)`. The row counts toward the table's totals like an ecosystem row, and it claims no file for the unclaimed-file lines. `--fix` and `--code-fix` do not run it.
 
 ### Code-fix confirmation gate
 
@@ -242,7 +256,7 @@ In check mode, before writing the report, record the settled Overall line for th
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill lint --dir "$REPO_ROOT" --overall '<the Overall line>'
 ```
 
-The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found" or with no ecosystem to run. A failed record (exit 2, for example where a sandbox blocks the git calls that hash the tree, or exit 1 for a line it rejects) changes nothing in the report: put one `Not recorded: <the script's reason>` line above the table, and still end the reply with the full report, its table, the lines below it and the Overall line.
+The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found" or with no ecosystem to run and no secret scan run. A run with no ecosystem to run that did run the [Secret scan](#secret-scan) (section 1's `.gitleaks.toml` case) records its Overall line like any other check-mode run, so a `secret-scan` FAIL reaches the Stop hook. A failed record (exit 2, for example where a sandbox blocks the git calls that hash the tree, or exit 1 for a line it rejects) changes nothing in the report: put one `Not recorded: <the script's reason>` line above the table, and still end the reply with the full report, its table, the lines below it and the Overall line.
 
 ## Edge cases
 

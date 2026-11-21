@@ -65,13 +65,17 @@ choice, the mandatory redaction pass, the handoff-file write, and the rails resu
 in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps. On the full path the file is
-shape 3: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
-skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched from).
+the shape `new` writes: `save_point.py validate <file>` must exit 0 before anything launches (an
+unfinished skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched
+from).
 
 The launched session has its own session id, so hand it this session's worktree claims exactly as
 the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full
 path the payload ends at the `Read @` directive, so the file carries the handover: the Environment
-to re-establish entry and the first item of `Remaining actions, in order`. On prompt-only the first
+to re-establish entry and the first item of `Remaining actions, in order`. Confirm both by name
+with `save_point.py read <file> --section "<name>"`, never by position, so every handoff shape
+reads alike ([`structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md) "How this document is
+referenced elsewhere"). On prompt-only the first
 remaining-work bullet carries it, in the resume region the payload includes. Either way the
 successor runs the handover before `check-enter`. `--cloud` skips it: the cloud session has no
 local worktree to re-lock.

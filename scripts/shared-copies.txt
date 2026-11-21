@@ -122,6 +122,7 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/improvement/re
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/prototype/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/toolchain/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/corrections/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/mutation-testing/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
@@ -318,6 +319,7 @@ lib/ui-feedback/notes-bridge.sh plugins/prototype/notes-bridge/notes-bridge.sh
 lib/ui-feedback/host.html plugins/prototype/notes-bridge/host.html
 lib/ui-feedback/proto-pin.js plugins/prototype/notes-bridge/proto-pin.js
 lib/ui-feedback/note-model.mjs plugins/prototype/notes-bridge/note-model.mjs
+lib/ui-feedback/frame-channel.mjs plugins/prototype/notes-bridge/frame-channel.mjs
 lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
 lib/ui-feedback/controls.schema.json plugins/prototype/notes-bridge/controls.schema.json
 lib/ui-feedback/controls.js plugins/prototype/notes-bridge/controls.js
@@ -1002,3 +1004,6 @@ lib/enabled-plugin-roots.mjs plugins/plugin-diagnostics/lib/enabled-plugin-roots
 lib/enabled-plugin-roots.mjs plugins/harness-ops/lib/enabled-plugin-roots.mjs
 lib/lane-instance-collision-check.md plugins/source-control/skills/babysit-loop/reference/lane-instance-collision-check.md
 lib/lane-instance-collision-check.md plugins/work-items/skills/work-loop/reference/lane-instance-collision-check.md
+lib/cli-version-check.mjs plugins/context7/lib/cli-version-check.mjs
+lib/cli-version-check.mjs plugins/firecrawl/lib/cli-version-check.mjs
+lib/cli-version-check.mjs plugins/playwright/lib/cli-version-check.mjs

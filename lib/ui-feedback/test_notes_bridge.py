@@ -98,7 +98,8 @@ class TestHostAndPage(NotesCase):
     def test_the_host_page_is_served_with_its_policy(self):
         code, body = self.request("GET", "/", token=False)
         self.assertEqual(code, 200)
-        self.assertEqual(body, (HERE / "host.html").read_bytes())
+        raw = (HERE / "host.html").read_bytes()
+        self.assertEqual(body, raw.replace(nb.SANDBOX, nb.MOCKUP_FRAME))
         self.assertEqual(self.last_headers["Content-Security-Policy"], nb.HOST_CSP)
         self.assertEqual(self.last_headers["X-Frame-Options"], "DENY")
         self.assertNotIn(self.hub.token.encode(), body)
@@ -222,6 +223,8 @@ class TestRealStack(NotesCase):
         self.assertEqual(code, 200)
         attrs = frame_of(body)
         self.assertNotIn("sandbox", attrs)
+        self.assertNotIn("data-mockup-target", attrs)
+        self.assertNotIn(b'"*"', body, "the real-stack host page holds no wildcard target")
         self.assertEqual(attrs["data-dev-origin"], DEV)
         policy = self.last_headers["Content-Security-Policy"]
         self.assertEqual(policy, f"{nb.HOST_CSP}; frame-src {DEV}")
@@ -239,6 +242,7 @@ class TestRealStack(NotesCase):
         self.hub.dev_origin = None
         code, body = self.request("GET", "/", token=False)
         self.assertEqual(frame_of(body)["sandbox"], "allow-scripts")
+        self.assertEqual(frame_of(body)["data-mockup-target"], "*")
         self.assertNotIn("frame-src", self.last_headers["Content-Security-Policy"])
 
     def test_ping_names_the_dev_origin(self):
@@ -278,7 +282,11 @@ class TestOneHostSpelling(NotesCase):
 
     def test_the_origin_check_the_frame_url_and_frame_ancestors_share_one_host(self):
         host = (HERE / "host.html").read_text(encoding="utf-8")
-        self.assertIn("if (devOrigin && e.origin !== devOrigin) return;", host)
+        self.assertIn("if (!fromFrame(e, frame.contentWindow, devOrigin)", host)
+        self.assertIn(
+            "const target = frameTarget(devOrigin, frame.dataset.mockupTarget || null);",
+            host,
+        )
         self.assertIn("if (devOrigin) frame.src = `${devOrigin}/`;", host)
         self.assertEqual(
             self.hub.hosts, {f"{h}:{self.port}" for h in nb.BRIDGE_HOSTS}
@@ -394,6 +402,85 @@ class TestGuards(NotesCase):
         self.assertEqual(len(self.hub.read_log()["events"]), nb.MAX_NOTES)
 
 
+class TestNoteHistory(NotesCase):
+    """GET /api/notes: the run's sent notes, for the host page to list again after a reload."""
+
+    def other_run(self):
+        """A second bridge on its own data dir, as another prototype run would have."""
+        other = self.tmp / "other"
+        other.mkdir()
+        handler = type("Handler", (nb.NotesHandler,), {})
+        httpd, hub = sb.start(
+            handler, lambda p: FastHub(p, other, "explore-directions.html"), 0
+        )
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return other, hub
+
+    def test_the_runs_notes_come_back_oldest_first_with_their_seq(self):
+        first = {**NOTE, "text": "First note."}
+        second = {**NOTE, "text": "Second note."}
+        self.note(first)
+        self.note(second)
+        code, body = self.request("GET", "/api/notes")
+        self.assertEqual(code, 200)
+        self.assertEqual(
+            [(n["seq"], n["text"]) for n in body["notes"]],
+            [(1, "First note."), (2, "Second note.")],
+        )
+        self.assertEqual({k: body["notes"][1][k] for k in second}, second)
+        self.assertNotIn("deliveredAt", body["notes"][0])
+
+    def test_a_request_without_the_token_or_with_a_wrong_one_is_refused(self):
+        self.note({**NOTE, "text": "Private words."})
+        for headers in (
+            {},
+            {"X-Notes-Token": "not-the-token"},
+            {"X-Notes-Token": self.hub.watch_token},
+        ):
+            code, body = self.request("GET", "/api/notes", headers=headers, token=False)
+            self.assertEqual(code, 403, headers)
+            self.assertNotIn(b"Private words.", json.dumps(body).encode())
+
+    def test_another_runs_notes_are_never_returned(self):
+        other, hub = self.other_run()
+        self.note({**NOTE, "text": "This run's note."})
+        conn = http.client.HTTPConnection("127.0.0.1", hub.port, timeout=TIMEOUT)
+        try:
+            conn.request(
+                "POST",
+                "/api/note",
+                body=json.dumps({**NOTE, "text": "The other run's note."}),
+                headers={
+                    "X-Notes-Token": hub.token,
+                    "Content-Type": "application/json",
+                },
+            )
+            self.assertEqual(conn.getresponse().status, 200)
+        finally:
+            conn.close()
+        for path in (
+            "/api/notes",
+            f"/api/notes?dir={other}",
+            "/api/notes?dir=../other",
+        ):
+            code, body = self.request("GET", path)
+            self.assertEqual(code, 200, path)
+            self.assertEqual(
+                [n["text"] for n in body["notes"]], ["This run's note."], path
+            )
+        code, _ = self.request(
+            "GET", "/api/notes", headers={"X-Notes-Token": hub.token}, token=False
+        )
+        self.assertEqual(code, 403)
+
+    def test_a_foreign_host_is_refused_even_with_the_token(self):
+        self.note()
+        code, _ = self.request("GET", "/api/notes", headers={"Host": "evil.example"})
+        self.assertEqual(code, 403)
+
+
 class TestNotes(NotesCase):
     def test_every_fixture_note_is_judged_as_the_fixtures_say(self):
         for case in FIXTURES["valid"]:
@@ -453,6 +540,25 @@ class TestNotes(NotesCase):
         self.assertEqual(code, 200)
         self.assertEqual(body["note"], sb.DATA_NOTE)
         self.assertEqual(body["events"][0]["text"], NOTE["text"])
+
+    def test_a_move_arrow_reaches_the_session_naming_both_anchors(self):
+        move = next(
+            c["note"]
+            for c in FIXTURES["valid"]
+            if c["note"]["kind"] == "move" and "anchor" in c["note"]["to"]
+        )
+        self.assertEqual(self.note(move)[0], 200)
+        code, body = self.request(
+            "GET",
+            "/api/wait?after=handled&timeout=5",
+            headers={"X-Notes-Token": self.hub.watch_token},
+            token=False,
+        )
+        self.assertEqual(code, 200)
+        event = body["events"][0]
+        self.assertEqual(event["anchor"], move["anchor"])
+        self.assertEqual(event["to"]["anchor"], move["to"]["anchor"])
+        self.assertEqual(event["to"]["point"], move["to"]["point"])
 
     def test_the_page_name_is_a_plain_html_file_name(self):
         for bad in ("../x.html", "a/b.html", "x.txt", ".hidden.html"):
@@ -601,6 +707,7 @@ class TestLoop(unittest.TestCase):
             "host.html",
             "proto-pin.js",
             "note-model.mjs",
+            "frame-channel.mjs",
             "note.schema.json",
             "controls.schema.json",
             "controls.js",
@@ -728,6 +835,62 @@ class TestLoop(unittest.TestCase):
             conn.close()
         hosts = {urlsplit(u).hostname for u in (checked, f"{checked}/", source)}
         self.assertEqual(hosts, {urlsplit(DEV).hostname})
+
+    @unittest.skipUnless(shutil.which("node"), "dev-origin.mjs runs on node")
+    def test_a_note_taken_on_a_real_stack_route_reaches_the_session_through_the_bridge(
+        self,
+    ):
+        r = self.control("ensure-running", "--dev-origin", DEV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        origin = json.loads(r.stdout)["origin"]
+        port = self.session()["port"]
+        host = {"Host": urlsplit(origin).netloc}
+
+        def call(method, path, headers, body=None):
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT)
+            try:
+                conn.request(method, path, body=body, headers=headers)
+                resp = conn.getresponse()
+                return resp.status, resp.read()
+            finally:
+                conn.close()
+
+        code, page = call("GET", "/", host)
+        self.assertEqual(code, 200)
+        self.assertEqual(frame_of(page)["data-dev-origin"], DEV)
+        code, raw = call("GET", "/api/token", {**host, **SAME_ORIGIN})
+        self.assertEqual(code, 200)
+        note = {
+            **NOTE,
+            "text": "On the real /shipments route: the arrival date wraps.",
+        }
+        post = {
+            **host,
+            "Content-Type": "application/json",
+            "X-Notes-Token": json.loads(raw)["token"],
+        }
+        code, body = call(
+            "POST", "/api/note", {**post, "Origin": DEV}, json.dumps(note)
+        )
+        self.assertEqual(code, 403, "the dev origin cannot post a note itself")
+        self.assertEqual(json.loads(body), {"error": "bad host or origin"})
+        code, _ = call(
+            "POST", "/api/note", {**post, "Origin": origin}, json.dumps(note)
+        )
+        self.assertEqual(code, 200)
+
+        watch = subprocess.run(
+            ["bash", str(self.bin / "watch.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT + 15,
+            env=self.env,
+        )
+        self.assertEqual(watch.returncode, 0, watch.stderr)
+        line = json.loads(watch.stdout)
+        self.assertEqual(line["note"], sb.DATA_NOTE)
+        self.assertEqual([e["text"] for e in line["events"]], [note["text"]])
+        self.assertEqual(line["events"][0]["anchor"], NOTE["anchor"])
 
     def test_ensure_running_with_another_page_restarts_on_that_page(self):
         for name in ("first.html", "second.html"):

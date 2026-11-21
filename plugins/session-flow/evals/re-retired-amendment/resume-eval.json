@@ -19,7 +19,6 @@
       "config/export.toml": "[export]\nschedule = \"monday 05:00\"\nbucket = \"reports\"\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "report-export",
       "lane": "report-export",
       "hops": 4,

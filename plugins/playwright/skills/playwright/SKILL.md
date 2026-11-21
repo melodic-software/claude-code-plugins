@@ -3,7 +3,11 @@ description: "Live browser automation through Microsoft's @playwright/cli, writi
 argument-hint: "[update] [--check|--apply]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Bash(playwright-cli:*)
+allowed-tools:
+  - "Bash(playwright-cli:*)"
+  - 'Bash(node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:playwright --data-dir "${CLAUDE_PLUGIN_DATA}")'
+  - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest ${CLAUDE_PLUGIN_ROOT} --for skill:playwright --data-dir ${CLAUDE_PLUGIN_DATA})'
+shell: bash
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
@@ -19,6 +23,10 @@ metadata:
 Wraps Microsoft's [`@playwright/cli`](https://github.com/microsoft/playwright-cli) for token-efficient browser automation. Snapshots and screenshots write to disk; only paths come back into context, a substantial token reduction versus Playwright MCP's in-context payloads.
 
 Requires `playwright-cli` on PATH (`npm install -g @playwright/cli`). If it is missing, tell the user to install it rather than substituting a different automation surface.
+
+Latest release, checked at most once a day: !`node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:playwright --data-dir "${CLAUDE_PLUGIN_DATA}" || echo "not checked (node did not run)"`
+
+When that line names a newer release or a missing CLI, tell the user once. Add the update hint after this colon when one is set, and nothing when it is empty or still a placeholder: ${user_config.cli_update_hint}
 
 ## Quick start (90% of use)
 

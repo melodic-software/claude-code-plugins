@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nconst plugins = [react()];\nexport default defineConfig({ plugins });\n",
+      "why": "the two marked lines are gone and the app's own config is back"
+    },
+    {
+      "answer": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n// Dev server for the shipments app.\nexport default defineConfig({ plugins: [react()], server: { port: 5173 } });\n",
+      "why": "an unrelated comment and server option stay"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nimport { harnessFence } from './prototype-harness/harness-fence.mjs'; // data-prototype-harness\nconst plugins = [react()];\nexport default defineConfig({ plugins });\n",
+      "why": "the marked import is left behind"
+    },
+    {
+      "answer": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nconst plugins = [react()];\nplugins.push({ name: 'notes-fence', configureServer: () => {} });\nexport default defineConfig({ plugins });\n",
+      "why": "the marker comment was stripped but the fence plugin is still registered"
+    }
+  ]
+}

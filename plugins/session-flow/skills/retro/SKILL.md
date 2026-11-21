@@ -137,8 +137,11 @@ When the sibling `handoff` skill's save-points exist (the resolved `<memory_dir>
 default `.work/handoffs/`; or the consuming repo's documented location), the retro spans the
 whole session chain, not just the current session: the
 parser's `--chain-from` walks `previous_handoff` frontmatter pointers
-backwards from the newest handoff file and aggregates metrics across every chained transcript. See
-[context/session.md](context/session.md) Phase 1.
+backwards from the newest handoff file, adds every hop whose hot file is gone but whose hop file
+remains, and aggregates metrics across every chained transcript. Its `handoff_journey` gives each
+hop's Direction changes, This session and Observations, read from the hop files where a section
+moved; reconstruct each hop's journey from it. See [context/session.md](context/session.md)
+Phase 1.
 
 **State the discovery basis, and never present a low-coverage chain retro silently.** The walk
 follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file,

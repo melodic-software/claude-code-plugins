@@ -566,7 +566,10 @@ real-time deadline. A hold that lands after the merge is not a hold.
   that posts the paired result adds a line
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
   and shows no loss. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
-  `do-not-merge` and a `reason=eval` comment in the same step. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
+  `do-not-merge` and a `reason=eval` comment in the same step. The same pr-merge step that releases
+  the hold also adds it, label first, to any open PR that closes an `eval-gated` issue, whoever
+  opened it, unless the PR already carries `do-not-merge`, was held for eval before, or its newest
+  record names its head. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
   removes `do-not-merge`, after a comment naming the record and the head, when that record is the
   newest since the label went on and names the current head, the record is by a listed human, the reason line by a listed human or the lanes App, both on a
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands

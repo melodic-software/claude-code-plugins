@@ -67,11 +67,10 @@ max-mutants: <n>
 # Optional. The project's own test command for runs restricted to named test
 # files, used by `audit --exercised` under the manual protocol. `{tests}` must
 # be a standalone, unquoted word; it is replaced with the test paths, each
-# single-quoted as its own argument, so the runner
-# must take file paths (`python -m pytest {tests}`, `npx vitest run {tests}`).
+# single-quoted as its own argument, so the runner must take file paths.
 # `dotnet test {tests}` is the one name-filter form: the audit runs it once per
 # test project, with `{tests}` replaced by that project and a class filter.
-# Other runners that only filter by name (Maven `-Dtest`) cannot use it.
+# Other runners that only filter by name cannot use it.
 test-command: <command containing {tests}>
 
 # Optional. How much independent checking the audit runs: off | light | standard

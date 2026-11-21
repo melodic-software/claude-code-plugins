@@ -20,7 +20,9 @@ while calling the real `save_point.py new` / `emit` / `validate`. `--budget`
 generates a 20-hop chain through `new` with deterministic filler sized from the
 shape-1 corpus median, cumulative entries sized to the audited per-hop growth,
 and reports the size at hops 1, 5, and 20 and the median growth per hop; its
-shape-3 projection runs to the longest audited chain's 56 hops.
+shape-3 and shape-4 projections run to the longest audited chain's 56 hops,
+the shape-4 one through `save_point.py fill`, reporting per hop the size and the
+sections `fill` moved, or its OVER-CAP line.
 
 Stdlib only; Python 3.10+. Every file is opened UTF-8 and every subprocess runs
 with `text=True, encoding="utf-8"`.
@@ -380,19 +382,23 @@ class FillerSize:
     width: int = 88
 
 
-def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
-    """Replace every FILL slot in a freshly-created skeleton with deterministic
-    filler that satisfies validate_doc.
+def fill_skeleton(
+    path: Path, hop: int, size: FillerSize, write: bool = True
+) -> dict[str, str]:
+    """Deterministic filler for every FILL slot in a freshly-created skeleton,
+    satisfying validate_doc: written in place when `write`, and returned as the
+    slot values `save_point.py fill` takes.
 
-    Shape 3 ids its open questions and decisions: hop 1 writes them, and later
-    hops carry them off disk unchanged and add none through the `-new` slots."""
+    Shapes 3 and 4 id their open questions and decisions: hop 1 writes them, and
+    later hops carry them off disk unchanged and add none through the `-new` slots."""
     lines = path.read_text(encoding="utf-8").split("\n")
     ids = (
         {"open-questions": "Q", "decisions": "D"}
-        if frontmatter_value(path, "handoff_shape") == "3"
+        if frontmatter_value(path, "handoff_shape") in ("3", "4")
         else {}
     )
     out: list[str] = []
+    values: dict[str, str] = {}
     counter = 0
     for line in lines:
         match = FILL_RE.search(line)
@@ -402,91 +408,83 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
         slot = match.group(1)
         prefix = line[: match.start()]
         counter += 1
-        if slot in DELETED_SLOTS:
-            continue
-        if slot == "amended":
-            out.append(prefix + "None.")
-            continue
-        if slot == "drift-check":
-            out.append(
-                prefix
-                + "the first remaining action writes the next save-point, which is the goal."
-            )
+        if slot in DELETED_SLOTS or (
+            slot.removesuffix("-new") in ids and slot.endswith("-new")
+        ):
             continue
         if slot == "did":
-            rest = line[match.end() :]
-            second = FILL_RE.search(rest)
             did = f"generated hop {hop} filler"
             left = f"hops after {hop} still to generate"
+            values["did"] = did
+            rest = line[match.end() :]
+            second = FILL_RE.search(rest)
             if second is not None:
+                values[second.group(1)] = left
                 out.append(
                     prefix + did + rest[: second.start()] + left + rest[second.end() :]
                 )
             else:
                 out.append(prefix + did + rest)
             continue
-        if slot == "left":
-            out.append(prefix + f"hops after {hop} still to generate")
-            continue
-        if slot == "rescan":
-            out.append(
-                prefix
-                + "the re-scan read the lossless on-disk transcript; no compaction occurred."
-            )
-            continue
-        if slot == "goal":
-            out.append(
-                "> Measure what a save-point resume prompt costs to read at hop 20."
-            )
-            continue
-        if slot == "next":
-            out.extend(
-                [
-                    f"Generate hop {hop + 1} of the measured chain.",
-                    "Report lines and chars/4 tokens for the generated file.",
-                ]
-            )
-            continue
-        if slot == "rules":
-            out.extend(
-                f"- [R{i + 1}] {filler_line(slot, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
-                for i in range(SHAPE3_RULES)
-            )
-            continue
-        if slot == "preferences":
-            out.append("None. A generated chain records no standing preference.")
-            continue
-        if slot in ("trail", "trail-new"):
-            out.append(f"- [h{hop}] {filler_line(slot, counter, size.width)}")
-            continue
-        if slot.removesuffix("-new") in ids:
-            if slot.endswith("-new"):
-                continue
-            count, width = (
-                (CUMULATIVE_ENTRIES_PER_HOP, CUMULATIVE_ENTRY_WIDTH)
-                if slot == "decisions"
-                else (size.pad_lines, size.width)
-            )
-            out.extend(
-                f"- [{ids[slot]}{i + 1}] {filler_line(slot, counter + i, width)}"
-                for i in range(count)
-            )
-            continue
-        base = slot.removesuffix("-new")
-        if base in CUMULATIVE_SLOTS:
-            out.extend(
-                f"- [h{hop}] {filler_line(base, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
-                for i in range(CUMULATIVE_ENTRIES_PER_HOP)
-            )
-            continue
-        if slot in PADDED_SLOTS:
-            out.extend(
-                filler_line(slot, counter + i, size.width)
-                for i in range(size.pad_lines)
-            )
-            continue
-        out.append(prefix + filler_line(slot, counter, size.width))
-    path.write_text("\n".join(out), encoding="utf-8", newline="\n")
+        inline, block = _slot_filler(slot, hop, size, counter, ids)
+        values[slot] = "\n".join(block)
+        out.extend([prefix + block[0], *block[1:]] if inline else block)
+    if write:
+        path.write_text("\n".join(out), encoding="utf-8", newline="\n")
+    return values
+
+
+def _slot_filler(
+    slot: str, hop: int, size: FillerSize, counter: int, ids: dict[str, str]
+) -> tuple[bool, list[str]]:
+    """One slot's filler lines, and whether they continue the slot line's prefix."""
+    fixed = {
+        "amended": "None.",
+        "drift-check": "the first remaining action writes the next save-point, which is the goal.",
+        "left": f"hops after {hop} still to generate",
+        "rescan": "the re-scan read the lossless on-disk transcript; no compaction occurred.",
+    }
+    if slot in fixed:
+        return True, [fixed[slot]]
+    if slot == "goal":
+        return False, [
+            "> Measure what a save-point resume prompt costs to read at hop 20."
+        ]
+    if slot == "next":
+        return False, [
+            f"Generate hop {hop + 1} of the measured chain.",
+            "Report lines and chars/4 tokens for the generated file.",
+        ]
+    if slot == "rules":
+        return False, [
+            f"- [R{i + 1}] {filler_line(slot, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
+            for i in range(SHAPE3_RULES)
+        ]
+    if slot == "preferences":
+        return False, ["None. A generated chain records no standing preference."]
+    if slot in ("trail", "trail-new"):
+        return False, [f"- [h{hop}] {filler_line(slot, counter, size.width)}"]
+    if slot in ids:
+        count, width = (
+            (CUMULATIVE_ENTRIES_PER_HOP, CUMULATIVE_ENTRY_WIDTH)
+            if slot == "decisions"
+            else (size.pad_lines, size.width)
+        )
+        return False, [
+            f"- [{ids[slot]}{i + 1}] {filler_line(slot, counter + i, width)}"
+            for i in range(count)
+        ]
+    base = slot.removesuffix("-new")
+    if base in CUMULATIVE_SLOTS:
+        return False, [
+            f"- [h{hop}] {filler_line(base, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
+            for i in range(CUMULATIVE_ENTRIES_PER_HOP)
+        ]
+    if slot in PADDED_SLOTS:
+        return False, [
+            filler_line(slot, counter + i, size.width) for i in range(size.pad_lines)
+        ]
+    return True, [filler_line(slot, counter, size.width)]
 
 
 def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerSize:
@@ -1203,10 +1201,15 @@ def report(outcome: ChainOutcome) -> int:
 # --- --budget ---------------------------------------------------------------
 
 
-def generate_chain(root: Path, hops: int, shape: int = 2) -> list[Path]:
+def generate_chain(
+    root: Path, hops: int, shape: int = 2, over_caps: dict[int, str] | None = None
+) -> list[Path]:
     """Generate `hops` handoff files of `shape` through the real
     `save_point.py new`, each filled with deterministic filler, each validated
-    strictly."""
+    strictly. Shape 4 fills through `save_point.py fill`, which fits the hot file;
+    a hop whose only FAILs are OVER-CAP is kept, its first OVER-CAP line recorded
+    in `over_caps`."""
+    over_caps = {} if over_caps is None else over_caps
     repo = root / "repo"
     memory = repo / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -1250,7 +1253,15 @@ def generate_chain(root: Path, hops: int, shape: int = 2) -> list[Path]:
         if hop == 1:
             lines, chars, slots = measure_skeleton(path)
             size = size_filler(lines, chars, slots)
-        fill_skeleton(path, hop, size)
+        if shape == 4:
+            over_cap = _fill_4(path, hop, size, projects=root / "projects")
+            if over_cap:
+                over_caps[hop] = over_cap
+                files.append(path)
+                previous = path
+                continue
+        else:
+            fill_skeleton(path, hop, size)
         checked = run_save_point(
             [
                 "validate",
@@ -1273,6 +1284,47 @@ def generate_chain(root: Path, hops: int, shape: int = 2) -> list[Path]:
                 f"budget: newest of {hops} hops carries {found} re-scan attestation lines, expected 1"
             )
     return files
+
+
+def _fill_4(path: Path, hop: int, size: FillerSize, projects: Path) -> str | None:
+    """Fill a shape-4 skeleton through `save_point.py fill`; return its first
+    OVER-CAP line when OVER-CAP is its only FAIL, else None once it validates."""
+    values = fill_skeleton(path, hop, size, write=False)
+    slots = path.with_suffix(".slots.json")
+    slots.write_text(json.dumps(values), encoding="utf-8", newline="\n")
+    try:
+        filled = run_save_point(["fill", str(path), "--slots", str(slots)])
+    finally:
+        slots.unlink()
+    if filled.returncode != 0:
+        raise SystemExit(
+            f"budget: `fill` failed at hop {hop}: {filled.stdout}{filled.stderr}"
+        )
+    checked = run_save_point(
+        ["validate", str(path), "--projects-root", str(projects), "--strict-transcript"]
+    )
+    if checked.returncode == 0:
+        return None
+    fails = [ln for ln in checked.stdout.splitlines() if ln.startswith("FAIL: ")]
+    if fails and all(ln.startswith("FAIL: OVER-CAP:") for ln in fails):
+        return fails[0].removeprefix("FAIL: ")
+    raise SystemExit(
+        f"budget: generated hop {hop} does not validate:\n{checked.stdout}"
+    )
+
+
+def moved_sections(path: Path) -> list[str]:
+    """The sections `fill` moved out of a shape-4 hot file, from their pointers."""
+    from handoff_fit import MOVED_PREFIX
+
+    moved = []
+    title = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            title = line[3:].strip()
+        elif line.startswith(MOVED_PREFIX) and title:
+            moved.append(title)
+    return moved
 
 
 def make_work_dir(cfg: argparse.Namespace, prefix: str) -> Path:
@@ -1326,6 +1378,24 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
+        over_caps: dict[int, str] = {}
+        fourth = generate_chain(
+            root / "shape4", SHAPE3_BUDGET_HOPS, shape=4, over_caps=over_caps
+        )
+        print(f"shape 4: {len(fourth)} hops filled through save_point.py fill")
+        print("hop\tbytes\tmoved")
+        for hop, path in enumerate(fourth, 1):
+            if hop in over_caps:
+                print(f"{hop}\t{path.stat().st_size}\t{over_caps[hop]}")
+                continue
+            moved = ", ".join(moved_sections(path)) or "none"
+            print(f"{hop}\t{path.stat().st_size}\t{moved}")
+            if path.stat().st_size > HOT_FILE_MAX_BYTES:
+                print(
+                    f"budget: shape-4 hop {hop} is {path.stat().st_size} bytes, over the {HOT_FILE_MAX_BYTES}-byte cap with no OVER-CAP line",
+                    file=sys.stderr,
+                )
+                return 1
         if cfg.live_hop1:
             live = Path(cfg.live_hop1)
             if not live.is_file():
@@ -1476,7 +1546,10 @@ def make_fake_runner(defects: dict[int, set[str]]):
             prelude.append(_record(call.session_id, now, list(blocks)))
 
         def write_block(block_id: str, name: str) -> dict:
-            write = {"file_path": (handoff_dir / name).as_posix(), "content": "free-hand"}
+            write = {
+                "file_path": (handoff_dir / name).as_posix(),
+                "content": "free-hand",
+            }
             return _tool_use(block_id, "Write", write)
 
         def skill_block(block_id: str) -> dict:

@@ -21,7 +21,7 @@ tool documentation that defines the vocabulary everyone else borrows. Reference 
 | Mutant states (killed/survived/no-coverage/timeout), operator catalogs, what a mutation actually is | [operators-and-states.md](reference/operators-and-states.md) |
 | Mutation score, covered-code score, test strength, MSI, the oracle gap, what to report | [metrics.md](reference/metrics.md) |
 | Cost, diff-scoping, arid nodes, productive vs unproductive mutants, suppression, why not to gate | [scaling-and-suppression.md](reference/scaling-and-suppression.md) |
-| Which tool for which ecosystem, what each supports, what to do when no tool exists | [tooling.md](reference/tooling.md) |
+| What each tool the audit drives supports, what to do when no tool exists | [tooling.md](reference/tooling.md) |
 | Equivalent mutants, coupling effect, competent programmer hypothesis, the theory | [theory.md](reference/theory.md) |
 
 ## Quick decision guide (no load required)

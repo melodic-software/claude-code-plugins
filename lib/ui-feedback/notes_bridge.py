@@ -22,7 +22,8 @@ wrote. `/` serves host.html, the checked-in host page. It fetches the page at `/
 the mockup policy (PAGE_CSP) put first and the pin helper (proto-pin.js) appended, and frames it
 through `srcdoc` with sandbox="allow-scripts" and never allow-same-origin, so the page has an
 opaque origin, no storage, and no network. The host page alone holds the token and posts each
-note to `POST /api/note`, which takes one note that note.schema.json accepts. Notes go into `actions.json`, the view app's event log, and the
+note to `POST /api/note`, which takes one note that note.schema.json accepts, and reads the
+run's sent notes back from `GET /api/notes` with the same token after a reload. Notes go into `actions.json`, the view app's event log, and the
 session's replies into `replies.json`, so this app reuses the view app's hub, token route, expiry and
 apply (lib/session-bridge/README.md, "The view app"). Nothing here acts on a note: the watcher
 prints it under session_bridge.DATA_NOTE and the session decides (docs/contracts/ui-feedback).
@@ -83,6 +84,11 @@ PAGE_CSP = (
 )
 FRAME = b'<iframe id="page"'
 SANDBOX = FRAME + b' sandbox="allow-scripts"'
+# The mockup route's frame alone carries the targetOrigin the host page posts to it with
+# (frame-channel.mjs frameTarget): a sandboxed srcdoc document has an opaque origin, which only the
+# wildcard target matches, so the real-stack host page never holds that target.
+# https://html.spec.whatwg.org/multipage/web-messaging.html#posting-messages
+MOCKUP_FRAME = SANDBOX + b' data-mockup-target="*"'
 PAGE_CSP_META = (
     f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'.encode()
 )
@@ -92,6 +98,7 @@ DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype[^>]*>", re.IGNORECASE)
 FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTALL)
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
+    "/frame-channel.mjs": ("frame-channel.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
     "/controls.schema.json": ("controls.schema.json", "application/json"),
     "/controls.js": ("controls.js", "text/javascript"),
@@ -240,12 +247,13 @@ class NotesHub(view.ViewHub):
         return {**found, "devOrigin": self.dev_origin} if self.dev_origin else found
 
     def host_page(self):
-        """host.html and its policy; a real-stack session's frame loses its sandbox and gains frame-src."""
+        """host.html and its policy. The mockup's frame gains the wildcard target its opaque origin
+        needs; a real-stack session's frame loses its sandbox and gains frame-src."""
         raw = (HERE / "host.html").read_bytes()
-        if not self.dev_origin:
-            return raw, HOST_CSP
         if raw.count(SANDBOX) != 1:
             raise RuntimeError(f"host.html must hold {SANDBOX.decode()} exactly once")
+        if not self.dev_origin:
+            return raw.replace(SANDBOX, MOCKUP_FRAME), HOST_CSP
         mark = FRAME + f' data-dev-origin="{html.escape(self.dev_origin)}"'.encode()
         return raw.replace(SANDBOX, mark), f"{HOST_CSP}; frame-src {self.dev_origin}"
 
@@ -317,6 +325,17 @@ class NotesHandler(view.ViewHandler):
             return self.send(200, body + f"{PIN_HELPER}\n".encode(), "text/plain")
         if url.path == "/api/token":
             return super().route_get(url, query)
+        if url.path == "/api/notes":
+            if not self.token_ok():
+                return self.send(403, {"error": "token required"})
+            try:
+                events = self.hub.read_log().get("events", [])
+            except (OSError, ValueError) as e:
+                return self.send(
+                    503, {"error": f"cannot read the notes: {type(e).__name__}"}
+                )
+            notes = [{k: v for k, v in e.items() if k != "deliveredAt"} for e in events]
+            return self.send(200, {"notes": notes})
         return self.send(404, {"error": "not found"})
 
     def route_post(self, path, msg):

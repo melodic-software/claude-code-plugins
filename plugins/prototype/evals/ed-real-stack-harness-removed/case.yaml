@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-real-stack-harness-removed
+description: "contract-change: head's explore-directions step 5 removes the real-stack notes harness (reference/real-stack.md 'The notes harness'): the prototype-harness/ directory and every line marked data-prototype-harness, then checks that git grep -n data-prototype-harness prints nothing. Base text names only the mount block's fence comments, so a base run may leave the harness's marked lines behind. The graders grade the harness removal only; the decision record, the variant deletion and the mount-block revert are graded by other cases."
+tags: [explore-directions, contract-change, hard]
+runs: 3
+expected_outcome: "The agent records the single-winner reply (variant B, Cards; A and C skipped with their reasons) in docs/decisions/ui-shipments.md, keeps B's layout in the /shipments page, deletes the switcher and variant files, reverts the mount block, deletes prototype-harness/, and removes the marked lines from vite.config.js and src/main.jsx, so git grep -n data-prototype-harness prints nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions Here is my reply on the /shipments variants, built on the real stack (sub-shape A, with the notes harness mounted):\n\nscreen: /shipments\ndirection: B\nskip: A because the table hides the delivery date\nskip: C because the map crowds out the parcel list\ntest-ids: B: shipments-parcel-card\nnext-target: returns panel\n\nRecord the decision and close out the run."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 50
+  timeout_seconds: 900

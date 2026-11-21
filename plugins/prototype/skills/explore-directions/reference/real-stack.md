@@ -25,3 +25,24 @@ The real-stack switcher is a small floating bar, fixed at the bottom center of t
 | Reuse | One shared component that sub-shape A and sub-shape B both mount |
 | Production | Never rendered in a production build; an environment check gates it |
 | Look | Built from none of the app's own colors or components (black on yellow over a blue-and-white `/shipments`), so no reviewer judges it as part of a variant |
+
+## The notes harness
+
+When the person wants to pin notes on the real-stack route, the notes bridge frames the route
+from the app's dev server. Start it as [feedback.md](feedback.md) step 1 says, with
+`--dev-origin <dev origin>` in place of `--page`. Write the dev origin with no path or trailing
+slash (`http://localhost:5173`, not the `http://localhost:5173/` a dev server prints), on host
+`localhost` or `127.0.0.1`. Give the person the `url` it prints, unchanged. The harness is what
+the route adds for this. It is part of the mount block's prototype and follows the same rules:
+dev-only, failing closed, and removed in one pass.
+
+| Part | Where it sits |
+|---|---|
+| Directory | One `prototype-harness/` directory at the app's root holds every harness file; each file opens with a comment naming `data-prototype-harness` |
+| Helper | A copy of `<plugin-root>/notes-bridge/proto-pin.js` in that directory, loaded into the route by one script element that carries the `data-prototype-harness` attribute, behind the switcher's environment gate |
+| Fence | `harnessFence(<bridge origin>)` from copies of `<plugin-root>/notes-bridge/harness-fence.mjs` and the `dev-origin.mjs` it imports, both in that directory, mounted as dev-server middleware, so only the host page on the bridge origin may frame the route. `<bridge origin>` is the `origin` that `ensure-running` printed; when a later `ensure-running` prints another, update the fence to it |
+| Marker | The harness adds only whole lines to a file the app keeps (the dev-server config, the entry that loads the helper), never edits an existing one, and each line it adds carries `data-prototype-harness` in a comment or attribute |
+
+Step 5 deletes `prototype-harness/` and every marked line in the same change that merges the
+winner. Then `git grep -n data-prototype-harness` prints nothing, and neither does a grep of the
+build output for it.

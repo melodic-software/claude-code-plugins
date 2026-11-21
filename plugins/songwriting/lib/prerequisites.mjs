@@ -62,6 +62,7 @@ const ID_RE = /^[a-z0-9][a-z0-9._+-]*$/;
 const FOR_RE = /^(plugin|(skill|hook|mcp):[A-Za-z0-9._/-]+)$/;
 const CHECK_RE = /^\/[a-z0-9-]+:[a-z0-9-]+( [^\n]+)?$/;
 const MIN_RE = /^\d+(\.\d+)*$/;
+const LATEST_RE = /^(npm:(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*|github:[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*)$/;
 const MODULE_RE = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/;
 const NPM_RE = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
 const ENV_RE = /^[A-Za-z_]\w*$/;
@@ -121,7 +122,10 @@ function detectErrors(kind, detect, where) {
     if (!isObject(v)) {
       errors.push(`${vw} must be an object`);
     } else {
-      errors.push(...keysErrors(v, ["args", "pattern", "min", "below"], vw));
+      errors.push(...keysErrors(v, ["args", "pattern", "min", "below", "latest"], vw));
+      if ("latest" in v && !matches(v.latest, LATEST_RE)) {
+        errors.push(`${vw}.latest must be npm:<package> or github:<owner>/<repo>`);
+      }
       if (!Array.isArray(v.args) || !v.args.every((a) => typeof a === "string")) {
         errors.push(`${vw}.args must be a list of strings`);
       }
@@ -410,9 +414,10 @@ function isExecutable(file, platform, fs = FS) {
 
 // which(name) -> absolute path of the first PATH match, or null. fs is injectable for tests.
 // rejectStoreAlias skips WindowsApps directories on win32, so no App Execution Alias matches.
-export function which(name, env = process.env, platform = process.platform, fs = FS, rejectStoreAlias = false) {
+export function which(name, env = process.env, platform = process.platform, fs = FS, rejectStoreAlias = false, runnable = false) {
   const pathVar = env.PATH ?? env.Path ?? "";
-  const exts = platform === "win32" ? ["", ...(env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)] : [""];
+  const pathExts = (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const exts = platform !== "win32" ? [""] : runnable ? pathExts : ["", ...pathExts];
   for (const dir of pathVar.split(path.delimiter)) {
     if (!dir || (rejectStoreAlias && platform === "win32" && isWindowsApps(dir))) continue;
     for (const ext of exts) {
@@ -440,7 +445,11 @@ function findLocalBin(rels, cwd, platform, fs) {
 // file is resolved against the caller's directory first, where which() found it
 // (a relative PATH entry gives a relative match), since the probe runs from HERE.
 function run(file, args, env) {
-  const r = spawnSync(path.resolve(file), args, {
+  const viaCmd = process.platform === "win32" && /\.(bat|cmd)$/i.test(file);
+  const line = [path.resolve(file), ...args].map((a) => `"${a}"`).join(" ");
+  const [command, argv] = viaCmd ? [env?.ComSpec ?? process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${line}"`]] : [path.resolve(file), args];
+  const r = spawnSync(command, argv, {
+    windowsVerbatimArguments: viaCmd,
     cwd: HERE,
     encoding: "utf8",
     timeout: PROBE_TIMEOUT_MS,
@@ -450,9 +459,9 @@ function run(file, args, env) {
   return { ok: !r.error && r.status === 0, out: `${r.stdout ?? ""}${r.stderr ?? ""}`, stdout: r.stdout ?? "" };
 }
 
-function firstOnPath(names, ctx, rejectStoreAlias = false) {
+function firstOnPath(names, ctx, rejectStoreAlias = false, runnable = false) {
   for (const name of names) {
-    const found = which(name, ctx.env, ctx.platform, ctx.fs, rejectStoreAlias);
+    const found = which(name, ctx.env, ctx.platform, ctx.fs, rejectStoreAlias, runnable);
     if (found) return found;
   }
   return null;
@@ -518,7 +527,8 @@ export function detectEntry(entry, ctx) {
         return { status: "missing", detail: `${d.any.join(" or ")} was not found ${where}` };
       }
       if (!d.version) return { status: "present", detail: found };
-      const match = new RegExp(d.version.pattern).exec(run(found, d.version.args).out);
+      const runnable = firstOnPath(d.any, ctx, d.reject_store_alias, true) ?? found;
+      const match = new RegExp(d.version.pattern).exec(run(runnable, d.version.args).out);
       if (!match?.[1] || !MIN_RE.test(match[1])) {
         return { status: "unverified", detail: `${found}: could not read a version to compare with ${d.version.min}` };
       }
@@ -621,13 +631,14 @@ const USAGE = [
   "usage: prerequisites.mjs report --plugin-root <dir> [--plugin-root <dir>...]",
   "       prerequisites.mjs check <plugin-root> [--for <scope>] [--data-dir <dir>]",
   "       prerequisites.mjs probe <plugin-root> [--run-if-unset-or-true <OPTION>]",
+  "       prerequisites.mjs latest <plugin-root> [--for <scope>] [--data-dir <dir>]",
 ].join("\n");
 
 class UsageError extends Error {}
 
 function parseArgs(argv) {
   const [mode, ...rest] = argv;
-  if (!["report", "check", "probe"].includes(mode))
+  if (!["report", "check", "probe", "latest"].includes(mode))
     throw new UsageError(mode ? `unknown mode: ${mode}` : "no mode given");
   const opts = { mode, roots: [], scope: null, dataDir: null, gate: null };
   for (let i = 0; i < rest.length; i++) {
@@ -635,10 +646,10 @@ function parseArgs(argv) {
     if (arg === "--plugin-root" && mode === "report") {
       if (!rest[i + 1]) throw new UsageError("--plugin-root needs a directory");
       opts.roots.push(rest[++i]);
-    } else if (arg === "--for" && mode === "check") {
+    } else if (arg === "--for" && (mode === "check" || mode === "latest")) {
       if (!rest[i + 1] || !FOR_RE.test(rest[i + 1])) throw new UsageError("--for needs a scope such as skill:<name>");
       opts.scope = rest[++i];
-    } else if (arg === "--data-dir" && mode === "check") {
+    } else if (arg === "--data-dir" && (mode === "check" || mode === "latest")) {
       if (!rest[i + 1]) throw new UsageError("--data-dir needs a directory");
       opts.dataDir = rest[++i];
     } else if (arg === "--run-if-unset-or-true" && mode === "probe") {
@@ -726,6 +737,33 @@ function cmdCheck(opts, ctx, out) {
   }
   out.stdout(`${plugin}: failed=${counts.failed} warned=${counts.warned} passed=${counts.passed}`);
   return counts.failed ? 1 : 0;
+}
+
+async function cmdLatest(opts, ctx, out) {
+  const root = opts.roots[0];
+  const { plugin, manifest, errors, absent } = loadManifest(root);
+  if (absent) return 0;
+  if (errors.length) {
+    out.stderr(schemaFailure(plugin, errors));
+    return 2;
+  }
+  const local = { ...ctx, root, dataDir: opts.dataDir };
+  const entries = manifest.requires.filter((e) => inScope(e, opts.scope) && e.detect.version?.latest);
+  if (entries.length === 0) return 0;
+  const stateDir = ownDataDir(local);
+  if (!stateDir) {
+    out.stderr(`${plugin}: the plugin data directory is unknown; pass --data-dir "\${CLAUDE_PLUGIN_DATA}"`);
+    return 2;
+  }
+  const { checkVersion } = await import("./cli-version-check.mjs");
+  for (const entry of entries) {
+    const d = entry.detect;
+    const found = firstOnPath(d.any, local, d.reject_store_alias, true) ?? findLocalBin(d.local_bin, local.cwd, local.platform, local.fs);
+    const installed = found ? (new RegExp(d.version.pattern).exec(run(found, d.version.args).out)?.[1] ?? "") : "";
+    const result = await checkVersion({ stateDir, cli: entry.id, installed, source: d.version.latest, fetch: ctx.fetch });
+    if (result.message) out.stdout(result.message);
+  }
+  return 0;
 }
 
 // report(roots, ctx, out) -> exit code. The fleet table for any number of plugin roots,
@@ -827,6 +865,7 @@ export function main(argv, ctx = {}, out = {}) {
     cwd: ctx.cwd ?? process.cwd(),
     fs: ctx.fs ?? FS,
     stdin: ctx.stdin ?? (() => (process.stdin.isTTY ? "" : readFileSync(0, "utf8"))),
+    fetch: ctx.fetch,
   };
   const io = { stdout: out.stdout ?? ((s) => console.log(s)), stderr: out.stderr ?? ((s) => console.error(s)) };
   let opts;
@@ -839,6 +878,7 @@ export function main(argv, ctx = {}, out = {}) {
   }
   if (opts.mode === "report") return report(opts.roots, context, io);
   if (opts.mode === "check") return cmdCheck(opts, context, io);
+  if (opts.mode === "latest") return cmdLatest(opts, context, io);
   return cmdProbe(opts, context, io);
 }
 
@@ -853,5 +893,7 @@ function realPath(p) {
 }
 
 if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
-  process.exitCode = main(process.argv.slice(2));
+  Promise.resolve(main(process.argv.slice(2))).then((code) => {
+    process.exitCode = code;
+  });
 }

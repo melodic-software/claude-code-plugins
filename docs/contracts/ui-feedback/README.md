@@ -12,7 +12,8 @@ The canonical files live in `lib/ui-feedback/`:
 | Path | Holds |
 |---|---|
 | `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
-| `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
+| `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text, regions and move arrows, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
+| `lib/ui-feedback/frame-channel.mjs` | The host page's message channel rules: which messages it takes from the frame, the `targetOrigin` it posts to the frame with, and the ready timeout that reports a blocked frame |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
 | `lib/ui-feedback/note.schema.json` | The note contract |
 | `lib/ui-feedback/note-model.mjs` | The host page's validator of notes and controls manifests, which the relocation script also uses. It reads every limit from the schema it is handed; `notes_bridge.py` holds the bridge's validator over the same subset |
@@ -62,6 +63,17 @@ none.
 A region note's `elements` are the elements with a test id that the region crosses. When it
 crosses none, they are the children of the element holding it that it crosses, so a region over
 unmarked content still names what it covers.
+
+A move arrow (`kind` `move`) says "move this element to there". The person picks the element to
+move, then where it should go: the element clicked, or a point alone when no element fits (Shift
+and a click). `anchor` and `rect` are the element to move. `to.point` is the destination in
+percent of the page, and `to.anchor` is the destination element when there is one inside the
+note's variant and screen state, the scope both ends' anchors are counted in. Each end runs its own
+anchor ladder, with the stored box or point as its position-only last rung. The frame
+helper draws the arrow from the middle of one end to the middle of the other, and redraws it from
+the elements whenever the layout re-flows. The relocation script reports the destination's rungs,
+match and `positionOnly` under `to`. The session that acts on a move arrow restates both ends: the
+element to move and the element or point it goes to.
 
 The frame helper owns both rules a re-located note depends on: the data log (the presses of the
 controls the page marks with `data-data-control`, and each content set the switcher shows) and the
@@ -126,7 +138,21 @@ the host page reach the frame only by message.
   a CSP source can hold (letters, digits, `.` and `-`), so an IPv6 literal is refused. The host page stays on the
   bridge origin with no relay frame. It frames the route with no `sandbox` attribute, since the
   app needs its own origin. Its policy adds `frame-src <dev origin>` and keeps
-  `frame-ancestors 'none'`. Messages pass only to and from that origin.
+  `frame-ancestors 'none'`. Messages pass only to and from that origin: the host page takes a
+  message only when `e.source` is the frame's window and `e.origin` is the dev origin, and every
+  `postMessage` it sends to the frame names the dev origin as `targetOrigin`. Only the sandboxed
+  mockup's frame gets `"*"`, because its opaque origin matches no named target, and the bridge
+  writes that target on the mockup route's frame tag alone (`data-mockup-target`), so the
+  real-stack host page and `frame-channel.mjs` hold no `"*"`
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage) states the same
+  rule for `data:` URLs, which also have opaque origins).
+- **A blocked frame is found by a missing ready message.** Firefox fires neither a load nor an
+  error event on a frame a CSP blocks, while Chrome fires load
+  ([bug 1552504](https://bugzilla.mozilla.org/show_bug.cgi?id=1552504), open). So load shows
+  neither a refused route nor a running one, and the host page does not judge by it. If the frame
+  helper's first ready message does not arrive within `READY_MS` (`frame-channel.mjs`), the host
+  page says the route may refuse framing, or may not load the helper. A ready message that arrives
+  later still enables the page.
 - **The dev server lets only the bridge origin frame the route.** The harness fence mounts
   `harness-fence.mjs` on the app's dev server, which sends
   `Content-Security-Policy: frame-ancestors <bridge origin>` as a response header. The fence adds
@@ -169,8 +195,12 @@ levels.
 ## Consumers
 
 - **`/prototype:explore-directions`, HTML mockup.** Adopts first.
+- **`/prototype:explore-directions`, real-stack route.** Its notes harness copies `proto-pin.js`,
+  `harness-fence.mjs` and `dev-origin.mjs` from the plugin's copies into the app for the run.
+  Every harness file and every line it adds to the app carry `data-prototype-harness`, and step 5
+  removes them.
 - **`/planning:interview` shared page.** Takes its copy of `proto-pin.js` from here.
-- **Later adopters.** The explore-directions real-stack route, the `/prototype:pressure-test` HTML
+- **Later adopters.** The `/prototype:pressure-test` HTML
   demo, `/prototype:build-generator` (controls only), `/visualization:visualize`'s UI-mockup row,
   and `/pixel-art:scene` (region notes).
 - **Builder pages never adopt.** The interactive validator profile admits one hash-pinned runtime

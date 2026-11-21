@@ -129,6 +129,33 @@
         "apt": "curl"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "typos",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:handoff",
+        "skill:step-away"
+      ],
+      "detect": {
+        "any": [
+          "typos"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "typos(?:-cli)? v?([0-9]+\\.[0-9]+\\.[0-9]+)",
+          "min": "1.16.19"
+        }
+      },
+      "degrade": "Without typos, handoff files and away reports keep the spelling the model wrote instead of being corrected to American spelling.",
+      "install": {
+        "cargo": "cargo install typos-cli",
+        "docs": "https://github.com/crate-ci/typos#install"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

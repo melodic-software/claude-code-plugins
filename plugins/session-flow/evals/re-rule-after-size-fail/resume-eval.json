@@ -21,7 +21,6 @@
       "migrations/0042_payouts_created_at_index.sql": "CREATE INDEX CONCURRENTLY payouts_created_at_idx ON payouts (created_at);\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "payouts-api",
       "lane": "payouts-api",
       "hops": 6,
@@ -29,7 +28,7 @@
       "expected_fail": [
         {
           "hop": 6,
-          "fail": "size:"
+          "fail": "^(size|OVER-CAP):"
         }
       ],
       "start": "2026-10-05T08:00:00Z",

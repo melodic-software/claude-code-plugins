@@ -3,6 +3,23 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.5] - 2026-11-21
+
+### Fixed
+
+- The audit-performance reference and script comment spell unmodeled in American English.
+
+## [10.5.4] - 2026-11-21
+
+### Fixed
+
+- **A broken native-drift item now says why the extraction broke.** `native_drift.py summarize`
+  keeps the inventory's `integrity.problems` and adds why the binary source was unavailable, such
+  as no `claude` executable found. An
+  `inventory-broken` or `inventory-degraded` item leads its facts with those problems. A broken
+  item also says that a broken extraction is not kept as the baseline, which is why the next run
+  can report no previous summary.
+
 ## [10.5.3] - 2026-11-20
 
 ### Fixed
