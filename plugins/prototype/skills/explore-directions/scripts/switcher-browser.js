@@ -63,6 +63,18 @@ async page => {
       return { dx: Math.round(h.left - c.left), dy: Math.round(h.top - c.top), dw: Math.round(h.width - c.width) };
     });
     ok("at 390px the highlight sits on the current variant", Math.abs(mark.dx) <= 1 && Math.abs(mark.dy) <= 1 && Math.abs(mark.dw) <= 1, mark);
+    for (const [variant, keys] of [["1", ["ArrowDown", "w", "s"]], ["4", ["w", "s"]]]) {
+      await page.keyboard.press(variant);
+      await page.waitForTimeout(400);
+      for (const key of keys) await page.keyboard.press(key);
+      await page.waitForTimeout(400);
+      const after = await page.evaluate(() => {
+        const h = document.querySelector(".vs-highlight").getBoundingClientRect();
+        const c = document.querySelector(".vs-item[aria-current='true']").getBoundingClientRect();
+        return { dx: Math.round(h.left - c.left), dy: Math.round(h.top - c.top), dw: Math.round(h.width - c.width) };
+      });
+      ok(`at 390px the highlight stays on variant ${variant} after ${keys.join(", ")} change control labels`, Math.abs(after.dx) <= 1 && Math.abs(after.dy) <= 1 && Math.abs(after.dw) <= 1, after);
+    }
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);
   }

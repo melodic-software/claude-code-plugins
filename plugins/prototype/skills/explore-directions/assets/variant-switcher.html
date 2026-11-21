@@ -258,6 +258,8 @@
     contentButton.addEventListener("click", flipContent);
     speedButton.addEventListener("click", stepSpeed);
     window.addEventListener("resize", place);
+    const resized = new ResizeObserver(place);
+    nav.querySelectorAll(".vs-item").forEach((b) => resized.observe(b));
 
     document.addEventListener("keydown", (e) => {
       const t = e.target;
