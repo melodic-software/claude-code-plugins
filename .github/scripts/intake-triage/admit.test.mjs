@@ -3294,6 +3294,7 @@ describe("unrunnable-rules.json", () => {
     "A before-and-after eval run is recorded; the cache warm-up is not part of this work.",
     "A before-and-after eval run is recorded on the changed SKILL.md; the full-suite eval run is not part of this work.",
     "The full-suite eval run is not part of this work; a before-and-after eval of the changed skill is in the PR body.",
+    "A before-and-after trigger rate is recorded, and the eval run is not part of this work.",
   ]) {
     test(`flags an eval run beside an exclusion: ${line.slice(0, 60)}`, () => {
       assert.equal(first(line), "eval", line);
