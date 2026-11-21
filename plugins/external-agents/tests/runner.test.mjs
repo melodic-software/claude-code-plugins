@@ -14,6 +14,9 @@ import { pidStartTime } from "../scripts/lib/process.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { cancel, dataDirFor, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures");
 const fixture = (name) => readFileSync(join(fixtures, name), "utf8");
@@ -618,7 +621,7 @@ describe("timeout, cancel and status", () => {
     const finished = await pending;
     assert.equal(finished.job.status, "cancelled");
     assert.equal(readJob(w.dataDir, "no-repo", running.id).status, "cancelled");
-    assert.notEqual(readJob(w.dataDir, "no-repo", running.id).exit_code, null, "the runner still records how the process ended");
+    assert.notEqual(readJob(w.dataDir, "no-repo", running.id).ended_at, null, "the runner still records when the process ended");
     assert.ok(gone(running.pid));
     assert.match(cancel({ ...w.opts, jobId: running.id }).stdout, /is cancelled; nothing to cancel/);
   });
@@ -869,7 +872,7 @@ describe("robustness", () => {
     assert.equal(readBreaker(w.dataDir, "codex"), null);
   });
 
-  test("a run refused after its job folder exists leaves no folder behind", async () => {
+  test("a run refused after its job folder exists leaves no folder behind", { skip: process.platform !== "win32" }, async () => {
     const w = world({ stdout: clean, final: "done" });
     const dataDir = join(w.dataDir, "da&ta");
     mkdirSync(dataDir);

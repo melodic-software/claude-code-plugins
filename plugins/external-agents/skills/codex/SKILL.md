@@ -68,19 +68,18 @@ process tree; stopping the background Bash task alone may leave Codex running.
 
 ## Gotchas
 
-- **Codex exiting 0 is not success.** Codex exits 0 when its sandbox refused the commands it
-  needed. The command reads Codex's event stream and records such a run `blocked-by-mode`, exits
-  `3`, and still prints the final message, which may describe work that never happened. Say the
-  run was blocked, give the blocked count and commands from the first line, and never report the
-  task done.
+- **`blocked-by-mode` is not success.** The command records a run `blocked-by-mode`, exits `3`,
+  and still prints the final message whenever the sandbox refused a command, whatever Codex's own
+  exit was; that message may describe work that never happened. Say the run was blocked, give the
+  blocked count and commands from the first line, and never report the task done.
 - **A review can be blocked and still count as `ran`.** `codex: ran (...)` with a blocked-commands
   part means Codex tried something the read-only sandbox refused; the findings stand, and the
   blocked part is worth one line in the reply.
-- **MCP servers and hooks run outside the sandbox.** The read-only ceiling is Codex's sandbox only.
-  MCP servers and hooks from the user's Codex config, or from a `.codex/` folder in the branch
-  under review, can run commands outside it; the command prints a `notice:` when the reviewed
-  change touches `.codex/`. Relay that notice. Where this comes from:
-  [Non-interactive mode § Permissions and safety](https://learn.chatgpt.com/docs/non-interactive-mode#permissions-and-safety).
+- **The ceiling is Codex's sandbox only.** What Codex config can run outside that sandbox is
+  upstream's to state: read
+  [Non-interactive mode § Permissions and safety](https://learn.chatgpt.com/docs/non-interactive-mode#permissions-and-safety)
+  when it matters. The command prints a `notice:` when the reviewed change touches `.codex/`;
+  relay that notice.
 - **The mode is a ceiling, not a request.** `--mode write` on a use whose configured mode is
   read-only runs read-only; the notice names `codex.uses.<use>.mode`. Only the user changes that
   key, in `<home>/external-agents.yaml` or `.local.yaml`.

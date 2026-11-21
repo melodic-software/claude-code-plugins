@@ -11,7 +11,7 @@ Options:
           Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`.
           Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed
           as TOML. If it fails to parse as TOML, the raw string is used as a literal.
-          
+
           Examples: - `-c model="o3"` - `-c 'sandbox_permissions=["disk-full-read-access"]'` - `-c
           shell_environment_policy.inherit=all`
 
@@ -57,7 +57,7 @@ Options:
       --cyber-access-program <PROGRAM>
           Request an experimental Cyber access program for this turn (OpenAI provider only). Omit to
           use server defaults. Not supported with review; fork requires a prompt
-          
+
           [possible values: standard, daybreak_blue, daybreak_red]
 
       --skip-git-repo-check

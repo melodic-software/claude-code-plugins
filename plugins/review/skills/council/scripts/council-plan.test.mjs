@@ -357,7 +357,7 @@ esac
 
   test("fanout's briefed second run passes its bundled brief and reads back through the same path", () => {
     const brief = join(HERE, "..", "..", "fanout", "context", "codex-adversarial-brief.md");
-    assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the parse contract's finding line");
+    assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the finding line the parser reads");
     const out = call(withStub, "ran", `--base origin/main --brief-file "${brief}"`);
     assert.equal(out.status, "ran");
     assert.equal(out.findings.split("\n")[0], `argv: review codex --council --base origin/main --brief-file ${brief}`);

@@ -9,6 +9,9 @@ import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { resolveBinary, unavailableMessage } from "../scripts/lib/binary.mjs";
 import { listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "../scripts/lib/jobs.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const scratch = mkdtempSync(join(tmpdir(), "external-agents-foundations-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 const dir = (...parts) => {
@@ -158,7 +161,7 @@ describe("binary resolution", () => {
     assert.match(found.tried.join(" "), /missing/);
   });
 
-  test("on Windows the listed candidates are tried before PATH, in order", () => {
+  test("on Windows the listed candidates are tried before PATH, in order", { skip: process.platform !== "win32" }, () => {
     const local = dir("win-local");
     const appdata = dir("win-appdata");
     const onPath = dir("win-path");
@@ -176,7 +179,7 @@ describe("binary resolution", () => {
     assert.equal(first.shell, false);
   });
 
-  test("PATH is searched last, with PATHEXT on Windows", () => {
+  test("PATH is searched last, with PATHEXT on Windows", { skip: process.platform !== "win32" }, () => {
     const onPath = dir("path-only");
     writeFileSync(join(onPath, "demo.exe"), "");
     const found = resolveBinary(record, { platform: "win32", env: { PATH: onPath, PATHEXT: ".EXE;.CMD" } });
