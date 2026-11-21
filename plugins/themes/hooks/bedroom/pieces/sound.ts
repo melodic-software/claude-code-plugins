@@ -979,7 +979,7 @@ async function mixerWords($: EngineInterface): Promise<string> {
   return ` mixer last heard ${Math.max(0, Math.round((await $.clock.now()) - m.heardAt))} ms ago; its voices: ${said}.${failed}`
 }
 
-const WHAT ='the television, the room\'s things, cicadas from mid-afternoon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
+const WHAT = 'the television, the room\'s things, cicadas from mid-afternoon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
 
 /**
  * /bedroom sound on|off|test|volume N|pick KIND NAME|objects on|off. test plays only the silent file, and looks without
