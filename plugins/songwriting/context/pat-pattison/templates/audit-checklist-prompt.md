@@ -40,7 +40,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 - [ ] No greedy spots? (unstressed forced to strong beat, or stressed to weak)
 - [ ] "into" handled per ínto rule (*Songwriting Without Boundaries* (2011), Challenge 4)?
 - [ ] Compound words primary-stressed on first syllable?
-- [ ] Grey-area stress flagged, not silently resolved?
+- [ ] Gray-area stress flagged, not silently resolved?
 - [ ] Sing-check passed?
 
 **Rhyme stability** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Writing Better Lyrics* (2009), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 4-6), if rhyme position

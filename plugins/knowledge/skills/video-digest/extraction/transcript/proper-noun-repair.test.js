@@ -96,8 +96,8 @@ describe("repairProperNouns", () => {
   });
 
   it("does not repair ordinary words within fuzzy reach of nothing", () => {
-    const result = repairProperNouns("the cloud is grey today", ["Claude"]);
-    expect(result.text).toBe("the cloud is grey today");
+    const result = repairProperNouns("the cloud is gray today", ["Claude"]);
+    expect(result.text).toBe("the cloud is gray today");
     expect(result.replacementCount).toBe(0);
   });
 

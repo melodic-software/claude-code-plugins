@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.7.1] - 2026-11-21
+
+### Fixed
+
+- The deepening report's key names the solid and dotted gray arrows, and the HTML report guide
+  spells gray, in American English.
+
 ## [5.7.0] - 2026-11-21
 
 ### Added

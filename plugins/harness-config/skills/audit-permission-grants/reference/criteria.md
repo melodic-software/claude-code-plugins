@@ -87,6 +87,13 @@ the scan root that holds `.claude-plugin/plugin.json`, which covers an installed
 when that table moves `skills/`, `agents/` or `commands/` off the plugin root). Everything else is
 excluded and counted. Filtering to *installed* plugin versions needs an `installed_plugins.json`
 oracle this detector does not consult.
+A nested `.claude/skills/` inside a plugin root stays audited, though
+[2.1.325](https://code.claude.com/docs/en/changelog#2-1-325) stopped loading one inside a plugin
+passed to `--plugin-dir` from a session started above it. The tree does not record whether a root
+was passed to `--plugin-dir`; that is a launch flag. Without the flag, the same directory is an
+ordinary subdirectory whose nested skills do load, so the detector keeps auditing it. The cost is an
+over-report on a `--plugin-dir` root, which is the safe direction for an `error`-tier check. As of
+2026-11-21. Recheck trigger: the skills page section above names a `--plugin-dir` exception.
 An exclusion whose count is printed cannot suppress anything silently, which is the property that
 matters.
 

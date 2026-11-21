@@ -709,7 +709,7 @@ expect "an unparsed workflow shape is inconclusive, never a pass" 2 "unrecognize
 
 f="$scratch/bad-needs-entry.yml"
 xform_replace_line "$base" "      - select-tests # the resolver" "      - [select-tests]" "$f"
-expect "an unmodelled needs entry is inconclusive, never a bogus defect" 2 "unsupported needs entry" --check "$f"
+expect "an unmodeled needs entry is inconclusive, never a bogus defect" 2 "unsupported needs entry" --check "$f"
 
 # A sequence item at the key's own indent is valid YAML and must not read as a
 # missing edge — a gate that cries wolf on a legal shape gets switched off.

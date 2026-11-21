@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.15] - 2026-11-21
+
+### Fixed
+
+- The Pattison research notes, their quoted passages and the audit checklist template spell gray
+  in American English. In-place correction to the released 0.8.4 entry that called "got" an
+  unclear-stress syllable: it now spells the term gray-area.
+
 ## [2.0.14] - 2026-11-19
 
 ### Changed
@@ -2846,7 +2854,7 @@ answers reach this public repository.
   got home the house was dark" was scanned with "got" stressed, giving four
   stresses. Pat's figure marks "when," "I," and "got" all unstressed: **three
   stresses**. The code block also contradicted the file's own prose two lines
-  below it, which already described "got" as a grey-area syllable. This is the
+  below it, which already described "got" as a gray-area syllable. This is the
   model scansion the skill hands users, so it was teaching the error.
 - **"Too cold" was defined as a stress failure. It is not a stress failure at
   all.** `meter.md` had it as "an unstressed syllable where the structure wants

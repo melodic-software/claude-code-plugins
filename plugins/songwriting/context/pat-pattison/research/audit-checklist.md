@@ -233,7 +233,7 @@ Pat frames this as Goldilocks. Too hot, too cold, just right:
       to melody, you will remember to relegate prepositions to secondary
       rhythmic positions in the bar." (same challenge)
 
-*This file's own additions, not book claims:* flag grey-area stress rather than
+*This file's own additions, not book claims:* flag gray-area stress rather than
 silently resolving it; read the line aloud (or sing it against the melody if
 one exists) before locking.
 
