@@ -111,8 +111,9 @@ sandbox.
 | Claude-written mods | A [mod runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox). From v2.1.321 mods Claude writes turn on without asking in auto and bypass modes, even with managed `allowUnsandboxedCommands: false` or `allowManagedDomainsOnly`, and do not load in `dontAsk` mode ([changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321)) | not treated as closed by strict mode in any mode; which mods can run is `/harness-ops:audit-mod-posture`'s check |
 
 **Claim, basis, as of, recheck:** the `excludedCommands`, PermissionRequest and mod rows,
-[sandboxing](https://code.claude.com/docs/en/sandboxing), the
-[hooks reference](https://code.claude.com/docs/en/hooks#permissionrequest) and changelog 2.1.321,
+[sandboxing: excludedCommands](https://code.claude.com/docs/en/sandboxing#run-commands-outside-the-sandbox-with-excludedcommands),
+[sandboxing: what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox),
+the [hooks reference](https://code.claude.com/docs/en/hooks#permissionrequest) and changelog 2.1.321,
 2.1.327 and 2.1.328, 2026-11-21, and the sandboxing page naming the permission-check case, the
 hook rewrite or Claude-written mods turning on unasked, or a release note changing any of them.
 
