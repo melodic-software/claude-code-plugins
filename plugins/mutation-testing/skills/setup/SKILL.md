@@ -66,7 +66,7 @@ run a mutation analysis. That is `/mutation-testing:audit`.
 
 1. **Ecosystem and tool resolved**. The configured `tool` key (probe 6) is this choice's record;
    read it first. With none, resolve the ecosystem and its mutation tool by steps 3, 4 and 7 of
-   [`reference/ecosystem-resolution.md`](../../reference/ecosystem-resolution.md), asking and
+   [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md), asking and
    recording nothing here. Report the tool and the file it came from. Nothing resolves → INFO
    naming the manual path in the `principles` skill's `tooling.md`, not FAIL.
 2. **Tool present and runnable**. Invoke the tool's own version command. Absent → FAIL with the
@@ -164,7 +164,7 @@ unambiguous; ask only where the answer is genuinely the user's.
 1. **Read the effective config first, across all layers**, and summarize it before proposing
    changes. Nothing is dropped without the user confirming.
 2. **Resolve and propose the tool.** Resolve it by the steps in
-   [`reference/ecosystem-resolution.md`](../../reference/ecosystem-resolution.md); the configured
+   [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md); the configured
    `tool` key is its record, written in step 7. Name the tool and the install command its own
    documentation gives for this repository, and ask before installing anything. With nothing
    resolved, propose `tool: manual`. Installing a dependency into the consumer's project is the
@@ -188,7 +188,7 @@ unambiguous; ask only where the answer is genuinely the user's.
    code, vendored directories, and test code itself. Mutating tests measures nothing. Then propose
    `test-command` when the repository's runner takes test file paths: the command the repository
    already runs its tests with, resolved by the steps in
-   [`reference/ecosystem-resolution.md`](../../reference/ecosystem-resolution.md), with `{tests}`
+   [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md), with `{tests}`
    where the paths go. The audit fills `{tests}` with each path quoted as its own argument. When the
    detected runner is `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test
    project, with `{tests}` replaced by that project and a name filter for the test files' classes.
