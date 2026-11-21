@@ -797,8 +797,7 @@ is nothing it could conformingly write. Three kinds of surface qualify, in any c
   decision, and the agent runs the fix only on the operator's yes
   ([When a check fails](contracts/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
-Check-only is therefore a consequence of having nothing conforming to write, never a preference and
-never a shortcut. A plugin with even one writable owned artifact takes the narrow-write shape
+Check-only follows only from having nothing conforming to write. A plugin with even one writable owned artifact takes the narrow-write shape
 instead, with `apply` bounded to that artifact, while every unwritable surface is still handled the
 check-only way above. Which shape a plugin takes is settled by its surface, not by its author, and
 both are conforming when the surface is what selected them. Two plugins with the same unwritable
