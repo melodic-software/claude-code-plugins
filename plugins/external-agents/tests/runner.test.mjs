@@ -569,7 +569,7 @@ describe("availability and the breaker", () => {
   test("a run that finishes well does not close a breaker another run opened meanwhile", async () => {
     const w = world({ stdout: clean, final: "done", sleep_ms: 2500 });
     const slow = run({ ...w.opts, use: "task", prompt: "one", now: () => noon });
-    for (let i = 0; i < 200 && !listJobs(w.dataDir, "no-repo").some((j) => j.status === "running"); i += 1) await new Promise((r) => setTimeout(r, 25));
+    for (let i = 0; i < 200 && launched(w).length === 0; i += 1) await new Promise((r) => setTimeout(r, 25));
     w.set({ stdout: events(...opened, { type: "error", message: "You've hit your usage limit." }), exit: 1 });
     await run({ ...w.opts, use: "task", prompt: "two", now: () => noon + 1000 });
     assert.equal((await slow).job.status, "ok");
