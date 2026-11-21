@@ -3006,7 +3006,7 @@ def question_id(bare):
 
 def round_segments(lines):
     """[(label, qid, lines)] of a round file's lines: the header (label "header"), then per
-    question its title, each labelled field with the lines that continue it up to the next blank
+    question its title, each labeled field with the lines that continue it up to the next blank
     line or label, and each blank or other line on its own. A line that starts with a protected
     label word in any form starts a segment of its own, kept at every level. Fenced lines stay in
     their segment."""
