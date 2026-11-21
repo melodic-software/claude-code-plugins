@@ -1,5 +1,5 @@
 // @generated from lights.glsl by glsl2dsl.mjs. Edit the .glsl, not this file.
-// build: pieces=time,weather,claude-tv,hallway,sound,no-shader without=claude-tv.rough,hallway.edge
+// build: pieces=time,weather,claude-tv,hallway,sound,no-shader without=none
 import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
 
 const v = values({ tv: [0, 1], lava: [0, 1], pc: [0, 1], lamp: [0, 1], light: [0, 1], clock: [0, 719], screen: [0, 63], world: [0, 255] })
@@ -142,6 +142,29 @@ function win_land(p: vec2, top: number, rn: number): vec4 {
     pole = max(sbox(p, vec2(424.4, 510), vec2(1.25 + 0.0018 * (p.y - 436), 74), 0.35), sbox(p, vec2(424.25, 442.2), vec2(5.75, 0.6), 0.35))
   }
   return vec4(vec4(near, far, (1 - max(near, far)) * (1 - pole), pole))
+}
+// The distance from p to the segment a to b.
+function hw_seg(p: vec2, a: vec2, b: vec2): number {
+  let ab = vec2(b - a)
+  return length(p - a - ab * clamp(dot(p - a, ab) / dot(ab, ab), 0, 1))
+}
+// A walker seen side on, facing +x, in room units: q.x along the walk from the body's middle, q.y above the floor; st
+// the stride, how far each foot is from the middle (the arms swing against the legs). 1 inside, 0 outside, with soft
+// edges, since the walker is beyond the gap and out of focus. The head's top is at 541 (the gap's at 622).
+function hw_body(q: vec2, st: number): number {
+  let d = (length((q - vec2(5, 505)) / vec2(30, 36)) - 1) * 30
+  d = min(d, max(abs(q.x - 2) - 11, abs(q.y - 462) - 18))
+  let tq = vec2(abs(q - vec2(0, 380)) - vec2(22, 60))
+  let torso = length(max(tq, vec2(0))) + min(max(tq.x, tq.y), 0) - 18
+  let lh = clamp(q.y / 300, 0, 1)
+  let lc = st * (1 - lh)
+  let legs = max(min(abs(q.x - lc), abs(q.x + lc)) - mix(9, 25, lh * lh), q.y - 320)
+  legs = min(legs, min(hw_seg(q, vec2(lc - 6, 6), vec2(lc + 20, 4)), hw_seg(q, vec2(-lc - 6, 6), vec2(-lc + 20, 4))) - 6)
+  let k = clamp(0.5 + 0.5 * (legs - torso) / 20, 0, 1)
+  d = min(d, mix(legs, torso, k) - 20 * k * (1 - k))
+  let sa = 0.7 * st
+  d = min(d, min(hw_seg(q, vec2(0, 440), vec2(-sa, 300)), hw_seg(q, vec2(0, 440), vec2(sa, 300))) - 10)
+  return 1 - smoothstep(-4, 4, d)
 }
 function pic(uv: vec2): vec4 {
   let now_tv = state.at(vec2(0, 0)).x
@@ -330,8 +353,13 @@ function pic(uv: vec2): vec4 {
   dc = vec3(mix(dc, vec3(0.004, 0.006, 0.014) * night + vec3(0.06, 0.035, 0.012) * (wl * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y) * (1 - 0.6 * state.at(vec2(11, 0)).y))) + vec3(0.36, 0.2, 0.06) * wf, hs))
 let hw_src = 0
 let hw_don = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
-let hw_cast = 1 - 0.75 * state.at(vec2(15, 0)).y * (1 - smoothstep(3, 7.5, abs(at.x - 1448 - 25 * state.at(vec2(15, 0)).z))) * hs
+let hw_go = step(0.0001, state.at(vec2(15, 0)).y)
+let hw_b = (state.at(vec2(15, 0)).z - 0.5) * 625
+let hw_occ = hw_go * hw_body(vec2((at.x - 1460.5) * 1.3 - hw_b, 856 - at.y), 36 * sin(hw_b * 0.0175))
+let hw_cast = 1 - hs * (0.7 * hw_occ + 0.2 * hw_go * exp(-hw_b * hw_b / 50000))
 dc = vec3((dc + vec3(0.34, 0.22, 0.10) * (hw_don * hs * (1 - 0.6 * smoothstep(0, 1, abs((at.y - 234) / 622 - hw_src))))) * hw_cast)
+let hw_edge = smoothstep(1469.6, 1470.6, at.x) * (1 - smoothstep(1470.8, 1472.4, at.x)) * smoothstep(250, 450, at.y)
+dc = vec3(dc + vec3(0.07, 0.042, 0.015) * (hw_don * 1.5 * (1 - 0.7 * hw_occ) * hw_edge))
   }
   }
   }
@@ -342,7 +370,15 @@ dc = vec3((dc + vec3(0.34, 0.22, 0.10) * (hw_don * hs * (1 - 0.6 * smoothstep(0,
   dc = vec3(dc + vec3(0.045, 0.026, 0.008) * (wedge * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y) * (1 - 0.6 * state.at(vec2(11, 0)).y))))
 let hw_fon = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
 let hw_fx = at.x - 1460 + 0.5 * fy
-dc = vec3(dc + vec3(0.17, 0.11, 0.045) * (hw_fon * clamp(1 - abs(hw_fx) / (4 + 0.45 * fy), 0, 1) * (1 - smoothstep(860, 935, at.y)) * (1 - 0.75 * state.at(vec2(15, 0)).y * (1 - smoothstep(3, 9, abs(hw_fx + 12 - 25 * state.at(vec2(15, 0)).z))))))
+let hw_fw = 4 + 0.45 * fy
+let hw_fgo = step(0.0001, state.at(vec2(15, 0)).y)
+let hw_fb = (state.at(vec2(15, 0)).z - 0.5) * 625
+let hw_fo = hw_fgo * hw_body(vec2(hw_fx / hw_fw * 13.6 - hw_fb, 30 + 2.5 * fy), 36 * sin(hw_fb * 0.0175))
+dc = vec3(dc + vec3(0.17, 0.11, 0.045) * (hw_fon * clamp(1 - abs(hw_fx) / hw_fw, 0, 1) * (1 - smoothstep(860, 935, at.y)) * (1 - 0.75 * hw_fo - 0.2 * hw_fgo * exp(-hw_fb * hw_fb / 50000))))
+let hw_ux = at.x - 1478.6
+let hw_uy = at.y - 860.2 + max(-0.42 * hw_ux, 0.057 * hw_ux)
+let hw_under = smoothstep(-8.6, -6.6, hw_ux) * (1 - smoothstep(4, 30, hw_ux)) * (clamp(1 - abs(hw_uy) / 2.2, 0, 1) + 0.35 * smoothstep(-1, 1.5, hw_uy) * (1 - smoothstep(1.5, 10, hw_uy)))
+dc = vec3(dc + vec3(0.13, 0.078, 0.028) * (hw_fon * 1.5 * (1 - 0.6 * state.at(vec2(15, 0)).y) * hw_under))
   }
   let vr = vec2((at - vec2(800, 500)) * vec2(0.00104, 0.00163))
   m = m * (1 - 0.6 * clamp(dot(vr, vr) - 0.3, 0, 0.75))
@@ -689,6 +725,12 @@ let ct_d = vec2(abs(c) - vec2(73, 55.5))
 let ct_glass = (1 - smoothstep(-2, 1.5, max(ct_d.x, ct_d.y))) * now_tv
 let ct_a = ct_glass * state.at(vec2(14, 0)).x * (0.025 + 0.0125 * (1 + sin(time * 2.9) * sin(time * 1.7 + 1.3)))
 acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
+// As the context fills, a second soft band rolls down the glass once every 13 s, streaked along its length, at up to 8%.
+// It is off the glass at the turn of its 13 s (y 70 units from the center), so it never jumps in view.
+let ct_dy = c.y + 70 - 140 * fract(time / 13)
+let ct_streak = 0.55 + 0.45 * sin(at.x * 0.13 + time * 0.7) * sin(at.x * 0.047 + 1.3)
+let ct_b = ct_glass * state.at(vec2(14, 0)).y * 0.08 * exp(-ct_dy * ct_dy / 40) * ct_streak
+acc = vec4(vec4(acc.rgb * (1 - ct_b) + vec3(0.82, 0.86, 0.96) * ct_b, acc.a * (1 - ct_b) + ct_b))
   }
   if (abs(at.x - 1376.0) < 85.0 && abs(at.y - 530.0) < 112.0) {
   // l_glowDim lowers the lava lamp's and the desk lamp's light by day.

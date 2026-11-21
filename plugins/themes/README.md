@@ -70,12 +70,14 @@ bottom-left corner of the front of the dresser.
   draws every strike, pass and hall light, and takes none in its first 30 seconds after it starts
   (after the app loads, and after a change to the room shows it alone for a few seconds): asked then,
   the command sends nothing and says how many seconds to wait.
-- **The television and Claude.** While a turn runs, the screen flickers faintly.
-  `/bedroom signal off` stops it.
+- **The television and Claude.** While a turn runs, the screen flickers faintly, and as the
+  context fills a faint band rolls down the glass. `/bedroom signal off` stops both.
 - **The hallway.** The gap beside the door looks into a hall with a ceiling light. With it off, a
   faint light spills low in the gap, fainter late at night. About once an hour someone passes the
-  door, and their shadow crosses the gap; now and then the hall light comes on for three minutes,
-  lighting the whole gap, brightest at the top, and laying a wedge of light on the floor.
+  door: with the hall light on you see them walk across the gap, head and shoulders and then
+  their legs in stride, and their legs cut the light on the floor. Now and then the hall light
+  comes on for three minutes, lighting the whole gap, brightest at the top, and laying a wedge of
+  light on the floor, with a thin line of light at the door's edge and under it.
   `/bedroom hall pass` and `/bedroom hall light` show one now (the light turns off again if it is
   on); `/bedroom hall off` keeps the hallway still.
 - **Sound.** Off by default, and nothing plays until you turn it on: `/bedroom sound on` plays a

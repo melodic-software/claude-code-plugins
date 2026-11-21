@@ -15,4 +15,4 @@ export const EVENTS = {"after":30} as const
 /** The pieces built in, from shader/pieces.json or --pieces. A piece reads these here, never from pieces/index.js. */
 export const BUILT: readonly string[] = ["time","weather","claude-tv","hallway","sound","no-shader"]
 /** The picture parts left out (piece.part). */
-export const WITHOUT: readonly string[] = ["claude-tv.rough","hallway.edge"]
+export const WITHOUT: readonly string[] = []
