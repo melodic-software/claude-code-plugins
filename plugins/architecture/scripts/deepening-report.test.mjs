@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { escapeHtml } from "../lib/html-escape.mjs";
-import { CSP, mermaidSource, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
+import { CSP, edgeList, legendLines, mermaidSource, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
 
 const fixture = JSON.parse(readFileSync(new URL("./testdata/deepening-candidates.json", import.meta.url), "utf8"));
 
@@ -32,6 +32,8 @@ const candidate = (overrides = {}) => ({
 const record = (overrides = {}, candidates = [candidate()]) => ({
   schema_version: 1,
   repo: "example/billing",
+  scope: "billing/",
+  commit: "0123456789abcdef0123456789abcdef01234567",
   date: "2026-11-21",
   verification: "standard",
   counts: ["3 call sites repeat the sequence"],
@@ -152,10 +154,76 @@ test("the validator refuses an added script, an event handler or a widened polic
   assert.equal(validateDeepeningPage(page.replace('<pre class="mermaid">', '<pre class="mermaid">%%{init: {"securityLevel": "loose"}}%%\n')).ok, false);
 });
 
-test("the 24-candidate fixture renders every card with a solution, wins and a diagram and no empty part", () => {
+test("scope and commit are required, and the commit must be a hex SHA", () => {
+  const { scope, ...noScope } = record();
+  assert.match(failure(noScope), /record: scope is missing/);
+  assert.match(failure(record({ scope: " " })), /record: scope/);
+  assert.match(failure(record({ commit: "HEAD" })), /record: commit/);
+  assert.match(failure(record({ commit: "ABCDEF1" })), /record: commit/);
+  assert.equal(failure(record({ commit: "abcdef1" })), null);
+  const page = renderDeepening(parseDeepening(record({ commit: "abcdef1" })));
+  assert.match(page, /scope: billing\/ · commit <span class="mono">abcdef1<\/span>/);
+});
+
+test("verification must start with a level, and the header says what that level checked", () => {
+  assert.match(failure(record({ verification: "medium" })), /record: verification/);
+  assert.equal(failure(record({ verification: "light (default; no team layer)" })), null);
+  const page = renderDeepening(parseDeepening(record({ verification: "light (default; no team layer)" })));
+  assert.match(page, /Verification: light \(default; no team layer\): nothing was reproduced/);
+});
+
+test("the bars pattern is no longer a diagram pattern", () => {
+  const diagram = { ...candidate().diagram, after: { pattern: "bars", modules: [{ label: "x", interface: 1, implementation: 2 }] } };
+  assert.match(failure(record({}, [candidate({ diagram })])), /diagram.after.pattern/);
+});
+
+test("the text fallback lists each edge as from → to, with its label and its leak or pointer mark", () => {
+  const lines = edgeList({
+    nodes: [
+      { id: "a", label: "jobs/nightly.py" },
+      { id: "b", label: "InvoiceExport", deep: true },
+      { id: "c", label: "orphan.py" },
+    ],
+    edges: [
+      { from: "a", to: "b", label: null, dashed: false, leak: false },
+      { from: "b", to: "a", label: "reads store", dashed: true, leak: true },
+    ],
+  });
+  assert.deepEqual(lines, ["Deep module: InvoiceExport", "jobs/nightly.py → InvoiceExport", "InvoiceExport → jobs/nightly.py: reads store (leak, pointer)", "orphan.py"]);
+});
+
+test("a graph with edges goes to Mermaid beside its text fallback; one with no edges is drawn as boxes", () => {
+  const page = renderDeepening(parseDeepening(record()));
+  assert.match(page, /<pre class="mermaid">[^<]*<\/pre><ul class="edge-list"><li>jobs\/nightly.py → InvoiceLoader: reads store \(leak\)<\/li><\/ul>/);
+  const edgeless = { ...candidate().diagram, before: { pattern: "graph", nodes: [{ id: "a", label: "one.md" }, { id: "b", label: "two.md" }] } };
+  const boxes = renderDeepening(parseDeepening(record({}, [candidate({ diagram: edgeless })])));
+  assert.doesNotMatch(boxes, /class="mermaid"/);
+  assert.match(boxes, /<div class="drawn boxes v"><div class="box">one.md<\/div><div class="box">two.md<\/div><\/div>/);
+});
+
+test("the index row carries the Verified word and links the candidate it depends on", () => {
+  const first = candidate({ verified: "corrected: two call sites, not five" });
+  const second = candidate({ id: "tax-rounding", title: "Move rounding into TaxCalculator", depends_on: "invoice-export" });
+  const page = renderDeepening(parseDeepening(record({}, [first, second])));
+  assert.match(page, /<thead><tr><th>Candidate<\/th><th>Badge<\/th><th>Verified<\/th><th>Depends on<\/th><th>Solution<\/th><\/tr><\/thead>/);
+  assert.match(page, /<td>corrected<\/td><td><\/td>/);
+  assert.match(page, /<td>reproduced<\/td><td><a href="#c-invoice-export">Fold the invoice export steps into one module<\/a><\/td>/);
+});
+
+test("the legend names the drawing styles, badges and terms the page uses and no others", () => {
+  const terms = (data) => legendLines(parseDeepening(data)).map(([term]) => term);
+  const leakOnly = terms(record());
+  for (const term of ["Rust arrow, solid or dotted", "Dark, heavy-bordered box", "Strong", "in-process", "leverage", "locality", "reproduced"]) assert.ok(leakOnly.includes(term), term);
+  for (const term of ["Dotted grey arrow", "Solid grey arrow", "Worth exploring", "mock", "interface", "unverified"]) assert.ok(!leakOnly.includes(term), term);
+  const before = { pattern: "graph", nodes: [{ id: "a", label: "A" }, { id: "b", label: "B" }], edges: [{ from: "a", to: "b", dashed: true }] };
+  const dotted = terms(record({}, [candidate({ category: "mock", diagram: { ...candidate().diagram, before } })]));
+  assert.ok(dotted.includes("Dotted grey arrow") && dotted.includes("mock") && !dotted.includes("Rust arrow, solid or dotted"));
+});
+
+test("the 23-candidate fixture renders every card with a solution, wins and a diagram and no empty part", () => {
   const page = renderDeepening(parseDeepening(fixture));
   const cards = page.split("<article ").slice(1).filter((card) => card.includes('class="card'));
-  assert.equal(cards.length, 24);
+  assert.equal(cards.length, 23);
   for (const card of cards) {
     for (const part of ["solution", "wins", "diagram"]) assert.ok(card.includes(`data-part="${part}"`), part);
   }

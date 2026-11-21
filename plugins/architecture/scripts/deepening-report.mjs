@@ -10,13 +10,47 @@ export const BANDS = [
   ["Worth exploring", "explore", "badge-explore"],
   ["Speculative", "speculative", "badge-speculative"],
 ];
-const CATEGORIES = ["in-process", "local-substitutable", "ports-and-adapters", "mock"];
-const TERMS = ["module", "interface", "implementation", "seam", "adapter", "depth", "leverage", "locality"];
+const BAND_MEANING = {
+  Strong: "passes the deletion test and the two-adapter rule; its signal was reproduced unless marked unverified",
+  "Worth exploring": "likely worth doing; the evidence does not yet carry Strong",
+  Speculative: "rests on judgment, or on an abstraction with only one adapter",
+};
+const CATEGORY_MEANING = {
+  "in-process": "a test calls the deepened module directly; no I/O, nothing to substitute",
+  "local-substitutable": "a test runs the module against a stand-in started locally, such as an embedded database",
+  "ports-and-adapters": "a test plugs an in-memory adapter into a port, where production plugs in a client for a service the organization runs",
+  mock: "a test passes a mock adapter for a third-party service through a port",
+};
+const CATEGORIES = Object.keys(CATEGORY_MEANING);
+const TERM_MEANING = {
+  module: "whatever a finding is about, at any size, from a function to a package",
+  interface: "everything a caller has to get right to use the module",
+  implementation: "the lines and logic a module carries",
+  seam: "where one adapter comes out and another goes in with no edit at that spot",
+  adapter: "the code plugged in at a seam",
+  depth: "what a caller gets back for what the interface makes it learn",
+  leverage: "the callers' share of depth: many callers, one interface, one test suite",
+  locality: "the maintainers' share of depth: a fix and its test stay inside one module",
+};
+const TERMS = Object.keys(TERM_MEANING);
+const VERIFIED_MEANING = {
+  reproduced: "checked against the code; it held as stated",
+  corrected: "checked against the code; it held after the correction shown",
+  unverified: "not checked against the code",
+};
+const LEVEL_MEANING = {
+  strict: "every Strong candidate and every live-defect or dead-code claim was reproduced against the code",
+  standard: "every Strong candidate and every live-defect or dead-code claim was reproduced against the code",
+  light: "nothing was reproduced; claims stand as the scan reported them",
+  off: "nothing was reproduced; claims stand as the scan reported them",
+};
 const WIN_WORDS = 6;
 const ID = /^[a-z0-9-]{1,32}$/;
 const MERMAID_LABEL = /^[A-Za-z0-9 _./:-]+$/;
 const VERIFIED = /^(?:reproduced|unverified|corrected: [^;]*\S)$/;
+const LEVEL = /^(off|light|standard|strict)\b/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const COMMIT = /^[0-9a-f]{7,40}$/;
 
 export class DeepeningRecordError extends Error {}
 
@@ -47,11 +81,6 @@ function label(value, at) {
   if (!MERMAID_LABEL.test(read)) fail(at, "may hold only letters, digits, spaces and _ . / : -");
   return read;
 }
-function score(value, at) {
-  if (!Number.isInteger(value) || value < 0 || value > 10) fail(at, "must be a whole number from 0 to 10");
-  return value;
-}
-
 function win(value, at) {
   const read = text(value, at);
   const match = /^([a-z]+): (\S.*)$/.exec(read);
@@ -90,16 +119,6 @@ const PATTERNS = {
   stack: (value, at) => {
     keys(value, at, ["pattern", "layers"], ["caption"]);
     return { pattern: "stack", layers: list(value.layers, `${at}.layers`, text) };
-  },
-  bars: (value, at) => {
-    keys(value, at, ["pattern", "modules"], ["caption"]);
-    return {
-      pattern: "bars",
-      modules: list(value.modules, `${at}.modules`, (module, moduleAt) => {
-        keys(module, moduleAt, ["label", "interface", "implementation"]);
-        return { label: text(module.label, `${moduleAt}.label`), interface: score(module.interface, `${moduleAt}.interface`), implementation: score(module.implementation, `${moduleAt}.implementation`) };
-      }),
-    };
   },
   collapse: (value, at) => {
     keys(value, at, ["pattern", "calls"], ["module", "caption"]);
@@ -140,9 +159,12 @@ function candidateOf(value, at) {
 
 /** The record, read strictly: every part present and non-empty, no unknown key, every reference resolved. */
 export function parseDeepening(record) {
-  keys(record, "record", ["schema_version", "repo", "date", "verification", "counts", "top", "top_why", "candidates"]);
+  keys(record, "record", ["schema_version", "repo", "scope", "commit", "date", "verification", "counts", "top", "top_why", "candidates"]);
   if (record.schema_version !== 1) fail("record", "schema_version must be 1");
   if (!DATE.test(record.date)) fail("record: date", "must be YYYY-MM-DD");
+  if (typeof record.commit !== "string" || !COMMIT.test(record.commit)) fail("record: commit", "must be the scanned commit's SHA, 7 to 40 lowercase hex digits");
+  const verification = text(record.verification, "record: verification");
+  if (!LEVEL.test(verification)) fail("record: verification", "must start with off, light, standard or strict");
   const candidates = list(record.candidates, "record: candidates", candidateOf);
   const ids = candidates.map((candidate) => candidate.id);
   if (new Set(ids).size !== ids.length) fail("record: candidates", "repeat a candidate id");
@@ -152,8 +174,11 @@ export function parseDeepening(record) {
   if (!ids.includes(record.top)) fail("record: top", "names no candidate");
   return {
     repo: text(record.repo, "record: repo"),
+    scope: text(record.scope, "record: scope"),
+    commit: record.commit,
     date: record.date,
-    verification: text(record.verification, "record: verification"),
+    verification,
+    level: LEVEL.exec(verification)[1],
     counts: list(record.counts, "record: counts", text, { min: 0 }),
     top: record.top,
     topWhy: text(record.top_why, "record: top_why"),
@@ -182,17 +207,20 @@ const CHROME_STYLE = chromePart(/<style>\n([\s\S]*?)<\/style>/, "style block");
 const CHROME_BAR = chromePart(/^(<div class="rv-bar">.*<\/div>)$/m, "theme toggle");
 const CHROME_SCRIPT = chromePart(/<script>\n([\s\S]*?)<\/script>/, "toggle script");
 const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
-    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false } });
+    document.documentElement.classList.add("rv-mermaid");
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false } });
   }
 `;
 const SCRIPTS = [`<script src="${TAILWIND}"></script>`, `<script src="${MERMAID}"></script>`, `<script>\n${INLINE_SCRIPT}</script>`];
 
 const REPORT_STYLE = `
-  :root { --rust: #B04A3F; --amber: #B45309; }
+  :root { --amber: #B45309; --muted: #6B6A64; }
   body { max-width: 1040px; }
   h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
   h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 .25rem; }
   header p { margin: .2rem 0; }
+  header, td, .files { overflow-wrap: anywhere; }
+  .legend { margin: .75rem 0 0; padding-left: 1.2rem; list-style: disc; font-size: .92rem; }
   .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0 0 2.5rem; display: grid; gap: 1rem; }
   .top { border-width: 3px; }
   .part p, .part ul { margin: 0; }
@@ -205,26 +233,33 @@ const REPORT_STYLE = `
   .badge-speculative { border-color: var(--muted); }
   .tag { font-family: var(--mono); font-size: .85rem; border: 1px solid var(--muted); border-radius: 6px; padding: 0 .4rem; }
   .adr { border-left: 4px solid var(--amber); padding-left: .75rem; }
-  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
-  figure { margin: 0; }
+  .panels { display: flex; flex-wrap: wrap; gap: 1rem; }
+  figure { margin: 0; flex: 1 1 18rem; min-width: 0; }
+  figure.graph { flex: 1 1 auto; }
   figcaption { font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
-  .paper { background: var(--white); color: var(--slate); border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; overflow-x: auto; max-height: 360px; }
-  .paper pre { margin: 0; font-size: .8rem; }
+  .paper { background: var(--white); color: var(--slate); border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; width: fit-content; max-width: 100%; box-sizing: border-box; }
+  .paper svg { display: block; max-width: 100%; height: auto; }
+  pre.mermaid { display: none; margin: 0; }
+  .rv-mermaid pre.mermaid { display: block; }
+  .rv-mermaid .edge-list { display: none; }
+  .edge-list { margin: 0; padding-left: 1.1rem; font-size: .85rem; }
   .drawn { border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; display: grid; gap: .35rem; }
+  .drawn.boxes { display: flex; flex-wrap: wrap; }
   .box { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
   .layer { border-left-width: 6px; }
   .deep { background: var(--fg); color: var(--bg); border: 3px solid var(--fg); }
   .nest { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem .5rem; font-size: .75rem; }
   .nest .nest { margin-top: .3rem; }
   .faded { opacity: .6; }
-  .bar-row { display: grid; grid-template-columns: 9rem 1fr; gap: .5rem; align-items: center; font-size: .75rem; }
-  .bars span { display: block; height: .55rem; border-radius: 2px; margin: .1rem 0; }
-  .bar-i { background: var(--clay); }
-  .bar-m { background: var(--olive); }
-  ${Array.from({ length: 11 }, (_, n) => `.w-${n} { width: ${n * 10}%; }`).join(" ")}
-  .seam { border-style: dashed; }
-  .leak { color: var(--rust); }
-  #index table td:first-child { white-space: nowrap; }
+  @media (max-width: 600px) {
+    .card, .top { padding: 1rem; }
+    #index thead { display: none; }
+    #index tr { display: block; border-bottom: 1px solid var(--gray-300); padding: .5rem 0; }
+    #index td { display: block; border: 0; padding: .1rem 0; }
+    #index td:empty { display: none; }
+    #index td:nth-child(3)::before { content: "Verified: "; color: var(--muted); }
+    #index td:nth-child(4)::before { content: "Depends on: "; color: var(--muted); }
+  }
 `;
 
 const esc = escapeHtml;
@@ -232,16 +267,29 @@ const cardId = (id) => `c-${id}`;
 const bandOf = (recommendation) => BANDS.find(([word]) => word === recommendation);
 const part = (name, heading, body, extra = "") => `<div class="part${extra}" data-part="${name}"><h4>${esc(heading)}</h4>${body}</div>`;
 
+/** The graph as text lines, for a reader the diagram library never reached. */
+export function edgeList({ nodes, edges }) {
+  const name = new Map(nodes.map((node) => [node.id, node.label]));
+  const linked = new Set(edges.flatMap((edge) => [edge.from, edge.to]));
+  const marks = (edge) => [edge.leak && "leak", edge.dashed && "pointer"].filter(Boolean);
+  return [
+    ...nodes.filter((node) => node.deep).map((node) => `Deep module: ${node.label}`),
+    ...edges.map((edge) => `${name.get(edge.from)} → ${name.get(edge.to)}${edge.label ? `: ${edge.label}` : ""}${marks(edge).length ? ` (${marks(edge).join(", ")})` : ""}`),
+    ...nodes.filter((node) => !linked.has(node.id) && !node.deep).map((node) => node.label),
+  ];
+}
+
+const isMermaid = (panelData) => panelData.pattern === "graph" && panelData.edges.length > 0;
+
 function drawn(panelData) {
   switch (panelData.pattern) {
     case "graph":
-      return `<div class="paper v"><pre class="mermaid">${esc(mermaidSource(panelData))}</pre></div>`;
+      if (!isMermaid(panelData)) {
+        return `<div class="drawn boxes v">${panelData.nodes.map((node) => `<div class="box${node.deep ? " deep" : ""}">${esc(node.label)}</div>`).join("")}</div>`;
+      }
+      return `<div class="paper v"><pre class="mermaid">${esc(mermaidSource(panelData))}</pre><ul class="edge-list">${edgeList(panelData).map((line) => `<li>${esc(line)}</li>`).join("")}</ul></div>`;
     case "stack":
       return `<div class="drawn v">${panelData.layers.map((layer) => `<div class="box layer${panelData.layers.length === 1 ? " deep" : ""}">${esc(layer)}</div>`).join("")}</div>`;
-    case "bars":
-      return `<div class="drawn v">${panelData.modules
-        .map((module) => `<div class="bar-row"><span>${esc(module.label)}</span><div class="bars"><span class="bar-i w-${module.interface}"></span><span class="bar-m w-${module.implementation}"></span></div></div>`)
-        .join("")}<p class="faded">clay: interface, olive: implementation</p></div>`;
     case "collapse":
       if (panelData.module !== null) {
         return `<div class="drawn v"><div class="box deep">${esc(panelData.module)}<div class="faded">${panelData.calls.map((call) => `<div>${esc(call)}</div>`).join("")}</div></div></div>`;
@@ -252,7 +300,7 @@ function drawn(panelData) {
 
 function figure(side, panelData) {
   const caption = panelData.caption === null ? side : `${side}: ${panelData.caption}`;
-  return `<figure><figcaption>${esc(caption)}</figcaption>${drawn(panelData)}</figure>`;
+  return `<figure${isMermaid(panelData) ? ' class="graph"' : ""}><figcaption>${esc(caption)}</figcaption>${drawn(panelData)}</figure>`;
 }
 
 function card(candidate, titles) {
@@ -274,6 +322,34 @@ function card(candidate, titles) {
   ].join("\n");
 }
 
+const verifiedWord = (verified) => verified.split(":")[0];
+
+/** One line per drawing style, badge and term the page uses, and none it does not. */
+export function legendLines(report) {
+  const panels = report.candidates.flatMap((candidate) => [candidate.diagram.before, candidate.diagram.after]);
+  const graphs = panels.filter((panelData) => panelData.pattern === "graph");
+  const edges = graphs.flatMap((graphData) => graphData.edges);
+  const used = (values, meaning) => Object.keys(meaning).filter((key) => values.includes(key)).map((key) => [key, meaning[key]]);
+  const drawing = [
+    [panels.some((p) => (p.pattern === "graph" && p.nodes.some((node) => node.deep)) || (p.pattern === "stack" && p.layers.length === 1) || (p.pattern === "collapse" && p.module !== null)), "Dark, heavy-bordered box", "a deep module, a small interface over a lot of behavior"],
+    [true, "Plain box", "any other module"],
+    [edges.some((edge) => !edge.dashed && !edge.leak), "Solid grey arrow", "one module calls or reads another"],
+    [edges.some((edge) => edge.dashed && !edge.leak), "Dotted grey arrow", "a pointer: one file refers the reader to another, with no call"],
+    [edges.some((edge) => edge.leak), "Rust arrow, solid or dotted", "a leak, one module reaching past another's interface; its label says how"],
+    [graphs.some((graphData) => graphData.edges.length === 0), "Boxes side by side", "the separate places that hold one thing"],
+    [panels.some((p) => p.pattern === "stack" && p.layers.length > 1), "Stacked rows", "the layers one call passes through"],
+    [panels.some((p) => p.pattern === "collapse" && p.module === null), "Nested boxes", "calls that pass through one another"],
+    [panels.some((p) => p.pattern === "collapse" && p.module !== null), "Faded text in a dark box", "calls the deep module makes internal"],
+  ].filter(([shown]) => shown).map(([, term, meaning]) => [term, meaning]);
+  return [
+    ...drawing,
+    ...used(report.candidates.map((candidate) => candidate.recommendation), BAND_MEANING),
+    ...used(report.candidates.map((candidate) => candidate.category), CATEGORY_MEANING),
+    ...used(report.candidates.flatMap((candidate) => candidate.wins.map(({ term }) => term)), TERM_MEANING),
+    ...used(report.candidates.map((candidate) => verifiedWord(candidate.verified)), VERIFIED_MEANING),
+  ];
+}
+
 /** The report page for a record parseDeepening read. */
 export function renderDeepening(report) {
   const titles = new Map(report.candidates.map((candidate) => [candidate.id, candidate.title]));
@@ -283,9 +359,11 @@ export function renderDeepening(report) {
     const cards = report.candidates.filter((candidate) => candidate.recommendation === word);
     return cards.length ? `<section class="band" id="band-${slug}">\n<h2>${esc(word)}</h2>\n${cards.map((candidate) => card(candidate, titles)).join("\n")}\n</section>` : "";
   }).filter(Boolean);
+  const link = (id) => `<a href="#${cardId(id)}">${esc(titles.get(id))}</a>`;
   const index = report.candidates
-    .map((candidate) => `<tr><td><a href="#${cardId(candidate.id)}">${esc(candidate.title)}</a></td><td><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span></td><td>${esc(candidate.solution)}</td></tr>`)
+    .map((candidate) => `<tr><td>${link(candidate.id)}</td><td><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span></td><td>${esc(verifiedWord(candidate.verified))}</td><td>${candidate.dependsOn === null ? "" : link(candidate.dependsOn)}</td><td>${esc(candidate.solution)}</td></tr>`)
     .join("\n");
+  const legend = legendLines(report).map(([term, meaning]) => `<li><strong>${esc(term)}:</strong> ${esc(meaning)}</li>`).join("\n");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -303,10 +381,12 @@ ${CHROME_BAR}
 <main>
 <header>
 <h1>Deepening review: ${esc(report.repo)}</h1>
-<p>${esc(report.date)}</p>
-<p>Legend: a dark, heavy-bordered box is a deep module; a plain box is any other module; a dashed line is a seam; a rust-colored arrow is leakage.</p>
+<p>${esc(report.date)} · scope: ${esc(report.scope)} · commit <span class="mono">${esc(report.commit)}</span></p>
 ${report.counts.length ? `<p>Evidence: ${esc(report.counts.join(" · "))}</p>\n` : ""}<p>Candidates: ${report.candidates.length} (${esc(tally)})</p>
-<p>Verification: ${esc(report.verification)}</p>
+<p>Verification: ${esc(report.verification)}: ${esc(LEVEL_MEANING[report.level])}.</p>
+<ul class="legend">
+${legend}
+</ul>
 </header>
 <section id="top-recommendation">
 <h2>Top recommendation</h2>
@@ -315,7 +395,7 @@ ${report.counts.length ? `<p>Evidence: ${esc(report.counts.join(" · "))}</p>\n`
 <section id="index">
 <h2>Every candidate</h2>
 <table>
-<thead><tr><th>Candidate</th><th>Badge</th><th>Solution</th></tr></thead>
+<thead><tr><th>Candidate</th><th>Badge</th><th>Verified</th><th>Depends on</th><th>Solution</th></tr></thead>
 <tbody>
 ${index}
 </tbody>

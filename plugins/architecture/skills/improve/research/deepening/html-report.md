@@ -2,7 +2,7 @@
 
 The deepening review is one HTML page that `node "<plugin-root>/scripts/build-view.mjs" deepening --record <record.json>` builds from the report record below. The skill writes the record, never the page's markup. The builder writes the page to one private path under the OS temp directory and prints it; the path is handed back for the user to open, so the file outlives the invocation.
 
-The page is built on this plugin's chrome reference, [reference/html-chrome.html](../../../../reference/html-chrome.html): its palette, type stacks, light and dark schemes, theme toggle and accessibility floor. Two libraries come from jsDelivr at exact versions: `mermaid` 12.3.0 for graph diagrams and `@tailwindcss/browser` 4.3.5. The content security policy names each file, never the CDN's origin:
+The page is built on this plugin's chrome reference, [reference/html-chrome.html](../../../../reference/html-chrome.html): its palette, type stacks, light and dark schemes, theme toggle and accessibility floor. The page darkens the chrome's light-scheme muted gray so that every label and caption, small text included, keeps at least 4.5:1 contrast on its background in both schemes. Two libraries come from jsDelivr at exact versions: `mermaid` 12.3.0 for graph diagrams and `@tailwindcss/browser` 4.3.5. The content security policy names each file, never the CDN's origin:
 
 ```text
 default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'
@@ -12,7 +12,7 @@ As of 2026-11-15 both versions were the latest on the npm registry and rendered 
 
 **Security.** Every record string is untrusted: paths, glossary terms, ADR excerpts, the repo name, module labels. The builder escapes each into element text, generates the Mermaid source itself, runs Mermaid with `securityLevel: "strict"` and HTML labels off, and refuses to write a page that fails its validator (exactly the two library tags and the one checked-in inline script, no other script, no event-handler attribute, only fragment links). A Mermaid label keeps only letters, digits, spaces and `_ . / : -`: Mermaid reads a label after the browser has undone the escaping, so escaping alone does not hold there, and the builder rejects any other character rather than strip it. Probe: headless Chromium against the pinned Mermaid version, a flowchart label holding an escaped `<img>` tag; with HTML labels on the tag became an element, with them off it did not.
 
-**When the CDN cannot be reached** the page still reads: the chrome's rules and the page's own style lay it out, each Mermaid block shows its source, and the hand-built diagrams draw as they are.
+**When the CDN cannot be reached** the page still reads: the chrome's rules and the page's own style lay it out, each Mermaid panel shows its graph as a text list (`exporters.py → ledger register`, with a leak or pointer named in words) in place of its source, and the hand-built diagrams draw as they are.
 
 ## Report record
 
@@ -22,8 +22,10 @@ One JSON object. Every listed field is required unless marked optional, every te
 |---|---|
 | `schema_version` | `1` |
 | `repo` | the repository name |
+| `scope` | the paths Phase 1 scanned, as the scope step chose them |
+| `commit` | the scanned commit's SHA (`git rev-parse HEAD`), 7 to 40 lowercase hex digits |
 | `date` | `YYYY-MM-DD` |
-| `verification` | the resolved verification level |
+| `verification` | the resolved verification level line, starting with `off`, `light`, `standard` or `strict` |
 | `counts` | the evidence counts, each a number with its noun; `[]` when none (see Header) |
 | `top` | the `id` of the top recommendation |
 | `top_why` | one sentence saying why it comes first |
@@ -38,7 +40,7 @@ Each candidate:
 | `recommendation` | `Strong`, `Worth exploring` or `Speculative` |
 | `category` | `in-process`, `local-substitutable`, `ports-and-adapters` or `mock` |
 | `problem` | the artifact's `problem`, one sentence |
-| `solution` | the artifact's `solution`, one sentence |
+| `solution` | the artifact's `solution`, one sentence naming a change; a candidate that proposes none was dropped in Phase 2 |
 | `wins` | the artifact's `wins`, one entry per gain (see Wins) |
 | `verified` | `reproduced`, `corrected: <one clause>` or `unverified` |
 | `files` | one entry per path, written in full |
@@ -48,9 +50,9 @@ Each candidate:
 
 ## Page order
 
-1. **Header**: the repo name, the date and a one-line legend (a dark, heavy-bordered box is a deep module, a plain box is any other module, a dashed line is a seam, a rust-colored arrow is leakage), then on separate lines the evidence counts, the candidate tally per badge and the verification level.
-2. **Top recommendation**: the candidate's title linked to its card, and `top_why`.
-3. **Index**: every candidate as a row with its title linked to its card, its badge and its solution.
+1. **Header**: the repo name; the date, scope and commit; then on separate lines the evidence counts, the candidate tally per badge, and the verification level with what it checked. A legend follows, one short line per item the page uses and none it does not: each drawing style (deep box, plain box, solid grey arrow for a call or read, dotted grey arrow for a pointer, rust arrow for a leak, and the box, stack and nesting patterns), each badge, each dependency category, each win term, and each Verified value. The builder writes the legend from the record; the definitions follow [vocabulary.md](../../../../reference/vocabulary.md) and [dependencies.md](dependencies.md).
+2. **Top recommendation**: the candidate's title linked to its card, and `top_why`. A `top_why` that cites dependents names the ones `depends_on` links, no more.
+3. **Index**: every candidate as a row with its title linked to its card, its badge, its Verified word, the candidate it depends on (linked) and its solution. Below 600 px wide each row stacks into a block, so the index never scrolls sideways.
 4. **Cards** in one band per badge, `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every count, with no cap, pagination or collapse: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
 
 ## Header
@@ -67,14 +69,15 @@ The card holds these parts in this order and nothing else: title and badges (rec
 
 ## Diagram patterns
 
-Each side of a diagram is one panel, `before` the current state and `after` the deepened one. Pick per side whichever pattern shows the problem best, and vary them across one report so the cards do not all look alike. Every panel takes an optional `caption`.
+Each side of a diagram is one panel, `before` the current state and `after` the deepened one. Pick per side whichever pattern shows the problem best, and vary them across one report so the cards do not all look alike. Every panel takes an optional `caption`, which states what the drawing shows: a count in the caption matches the nodes or edges drawn.
 
 | `pattern` | Shows | Fields |
 |---|---|---|
-| `graph` | which module calls which, and where it leaks; the builder writes it as a Mermaid flowchart | `nodes`: `{id, label, deep?}`, `edges` (optional): `{from, to, label?, dashed?, leak?}`, `direction` (optional): `LR` or `TB`. A `leak` edge is drawn rust, a `deep` node dark; labels follow the Mermaid label rule |
+| `graph` | which module calls which, and where it leaks; the builder writes it as a Mermaid flowchart | `nodes`: `{id, label, deep?}`, `edges` (optional): `{from, to, label?, dashed?, leak?}`, `direction` (optional): `LR` or `TB`. A `dashed` edge is a pointer (one file refers the reader to another, with no call) and is drawn dotted; a `leak` edge is drawn rust; a `deep` node dark; labels follow the Mermaid label rule. A graph with no edges is drawn as plain boxes side by side, without Mermaid |
 | `stack` | shallowness spread over layers | `layers`: one row per layer a call passes through; one row alone is drawn as the deep module |
-| `bars` | an interface nearly as large as its implementation | `modules`: `{label, interface, implementation}`, each size a whole number from 0 to 10 |
 | `collapse` | calls that should become internal | `calls`: nested on the before side; with `module`, the calls drawn faded inside that one deep box |
+
+Each Mermaid panel takes the width its drawing needs, up to the card's width, and never scrolls inside the card: two narrow panels sit side by side, a wide one takes the card's full width.
 
 ## Wording
 
