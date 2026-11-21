@@ -764,7 +764,7 @@ function duck($: EngineInterface, ms: number): void {
 let ducks = 0
 
 /**
- * Under `cicadas auto`, through the mixer, a nearer cicada now and then over the chorus: the swell loop rises over
+ * Under a cicadas entry with a swell, through the mixer, a nearer cicada now and then over the chorus: the swell loop rises over
  * SWELL.inMs, holds, and falls over SWELL.outMs, SWELL.minMs to SWELL.maxMs in all, at SWELL.peak of the chorus, after
  * a gap of SWELL.gapMin to SWELL.gapMax minutes hashed from the minute (the first one too, so never in the bed's first
  * minute). Only while the chorus plays at full level at the golden hour or dusk, the bed not ducked: anything else (the
@@ -926,7 +926,7 @@ async function setPick(ctx: Ctx, kind: string | undefined, name: string | undefi
   return `${known} plays ${picked}`
 }
 
-const WHAT = 'the television, the room\'s things, cicadas from mid-afternoon through dusk (a nearer one now and then at the golden hour and dusk) and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
+const WHAT = 'the television, the room\'s things, cicadas from mid-afternoon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
 
 /**
  * /bedroom sound on|off|test|volume N|pick KIND NAME|objects on|off. test plays only the silent file, and looks without

@@ -112,10 +112,7 @@ bottom-left corner of the front of the dresser.
     plays nothing); the card steps it by ten.
   - A small bank of sounds: each kind has named entries and a default, chosen by
     `/bedroom sound pick <kind> <name>` or on the card, and kept. Cicadas: `auto` (the default:
-    the `chorus` bed, and through the Windows mixer, at the golden hour and dusk, a nearer cicada
-    from the `river` recording swelling in over it now and then, every 3 to 8 minutes for 25 to
-    45 seconds, at 0.6 of the chorus; elsewhere the chorus alone), `chorus` or `river` (one bed
-    alone); night: `auto` (the default: crickets and katydids in the evening, crickets alone
+    the `chorus` bed alone), `chorus` or `river` (one bed alone); night: `auto` (the default: crickets and katydids in the evening, crickets alone
     at night and before dawn), `katydids` (crickets and katydids all night) or `crickets` (crickets
     alone all night); rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
     `distant` (rolls only); television: `tube`. `sounds/bedroom/sources.md` lists each recording,
