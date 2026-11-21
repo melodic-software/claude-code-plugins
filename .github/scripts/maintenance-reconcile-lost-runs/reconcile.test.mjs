@@ -20,7 +20,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2859,6 +2859,15 @@ test("the defer band starts at most DEFER_MAX re-runs a pass, a head's two lanes
   assert.equal(outputs[`record-${DEFER_MAX + 1}`], "");
   assert.equal(outputs.clean, "");
   assert.ok(log.mock.calls.some((c) => c.arguments[0] === `reconcile: #${DEFER_MAX / 2 + 1}: its deferred reviews wait, only 0 of ${DEFER_MAX} recovery places left this pass`));
+});
+
+test("the workflow has one scanned upload step for each record the plan can name", () => {
+  const text = readFileSync(new URL("../../workflows/maintenance-reconcile-lost-runs.yml", import.meta.url), "utf8");
+  const uploads = [...text.matchAll(/^ {6}- name: Record re-run ([0-9]+)$/gm)].map((m) => Number(m[1]));
+  assert.deepEqual(uploads, Array.from({ length: RECORD_SLOTS }, (_, i) => i + 1));
+  for (const n of uploads) {
+    assert.match(text, new RegExp(`name: \\$\\{\\{ steps\\.plan\\.outputs\\.record-${n} \\}\\}`), `record-${n}`);
+  }
 });
 
 test("a stopped review with no defer notice takes a re-run place now, as a switch stop does", async () => {
