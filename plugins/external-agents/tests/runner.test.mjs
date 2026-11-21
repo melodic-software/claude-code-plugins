@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { resolveBinary } from "../scripts/lib/binary.mjs";
 import { readBreaker } from "../scripts/lib/breaker.mjs";
 import { listJobs, readJob, repoKey, writeJob } from "../scripts/lib/jobs.mjs";
+import { conventionHome } from "../scripts/lib/config.mjs";
 import { classify } from "../scripts/lib/outcome.mjs";
 import { pidStartTime } from "../scripts/lib/process.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
@@ -749,5 +750,51 @@ describe("the command", () => {
     const empty = spawnSync(process.execPath, [bin, "run", "codex", "--use", "task"], { encoding: "utf8", env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "cli-data") }, cwd: scratch, input: "" });
     assert.equal(empty.status, 2);
     assert.match(empty.stdout, /no prompt was given/);
+  });
+
+  test("a review usage error still prints the status line first, with the usage on stderr", () => {
+    const env = { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "cli-data") };
+    const missing = invoke(["review", "codex", "--base", "main", "--brief-file", join(scratch, "no-such-brief.md")], env);
+    assert.match(missing.stdout, /^codex: failed \(.*no-such-brief\.md.*\)\n$/);
+    assert.match(missing.stderr, /usage: external-agents/);
+    assert.equal(missing.status, 2);
+    const option = invoke(["review", "codex", "--base", "main", "--yolo"], env);
+    assert.equal(option.stdout, "codex: failed (review: unknown option --yolo)\n");
+    assert.equal(option.status, 2);
+    assert.equal(invoke(["run", "codex", "--yolo"], env).stdout, "", "only review owes its caller a status line");
+  });
+});
+
+describe("robustness", () => {
+  test("a denied command holding a newline stays on the one status line", async () => {
+    const denied = { type: "item.completed", item: { id: "item_1", type: "command_execution", command: "echo one\necho two > x.txt", aggregated_output: "Access is denied", exit_code: 1, status: "failed" } };
+    const w = world({ stdout: events(...opened, denied, said, completed), final: "done" });
+    const got = await run({ ...w.opts, use: "investigate", prompt: "write" });
+    assert.equal(got.stdout, "codex: blocked-by-mode (1 command blocked by read-only mode: echo one echo two > x.txt)\ndone\n");
+  });
+
+  test("a login check that cannot run is failed, and the breaker stays closed", async () => {
+    const w = world();
+    const got = await run({ ...w.opts, binary: { path: join(scratch, "no-such-cli"), args: [], shell: false }, use: "task", prompt: "fix it" });
+    assert.match(got.stdout, /^codex: failed \(could not check the login state: .*ENOENT.*\)\n$/);
+    assert.equal(got.code, 1);
+    assert.equal(readBreaker(w.dataDir, "codex"), null);
+  });
+
+  test("a run refused after its job folder exists leaves no folder behind", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const dataDir = join(w.dataDir, "da&ta");
+    mkdirSync(dataDir);
+    const got = await run({ ...w.opts, dataDir, binary: fakeCmd, use: "task", prompt: "fix it" });
+    assert.equal(got.code, 2);
+    assert.match(got.stdout, /^codex: refused: .*da&ta.*cannot be passed safely/);
+    assert.deepEqual(readdirSync(join(dataDir, "jobs", "no-repo")), []);
+  });
+
+  test("a convention-home helper that cannot run is named, with the home that is read instead", () => {
+    const broken = conventionHome(scratch, join(scratch, "no-such-helper.sh"));
+    assert.equal(broken.home, "docs/conventions");
+    assert.match(broken.problem, /convention-home helper did not run/);
+    assert.deepEqual(conventionHome(scratch), { home: "docs/conventions", problem: null });
   });
 });

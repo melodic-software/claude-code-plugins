@@ -61,6 +61,10 @@ export async function main(argv) {
     const file = options.promptFile ?? options.briefFile;
     text = file ? readFileSync(file, "utf8") : command === "run" ? readFileSync(0, "utf8") : undefined;
   } catch (error) {
+    if (command === "review") {
+      const product = /^[a-z][a-z0-9-]*$/.test(rest[0] ?? "") ? rest[0] : "external-agents";
+      process.stdout.write(`${product}: failed (${error.message.replace(/\s+/g, " ").trim()})\n`);
+    }
     return usageError(error.message);
   }
   const [first] = options.positional;

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, sep, win32 } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
 import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
@@ -145,7 +145,9 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   const promptInArgv = record.prompt.form.includes("{prompt}");
   guardValues(record, binary, { model, profile: settings.profile, effort: settings.effort, base: plan.base, thread: plan.thread }, promptInArgv && plan.prompt !== null);
 
-  if (record.login_status && query(binary, record.login_status.args, { env: ctx.env, cwd: ctx.cwd }).code !== 0) {
+  const login = record.login_status && query(binary, record.login_status.args, { env: ctx.env, cwd: ctx.cwd });
+  if (login && login.code === null) throw new Stop("failed", `could not check the login state: ${login.error?.message ?? "the query was stopped"}`);
+  if (login && login.code !== 0) {
     trip(ctx, record, config, "not-logged-in", "not logged in");
     throw new Stop("unavailable", `not logged in. Log in with ${record.binary.name}, then run: external-agents update ${product}`);
   }
@@ -170,6 +172,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   });
   if (binary.shell) {
     const bad = [binary.path, ...args].find(shellUnsafe);
+    if (bad !== undefined) rmSync(folder, { recursive: true, force: true });
     if (bad !== undefined) throw refuse(`${JSON.stringify(bad)} cannot be passed safely to ${binary.path}, which runs through cmd.exe; set ${product}.binary_path in <home>/external-agents.local.yaml to the real executable`);
   }
 
@@ -236,7 +239,8 @@ function details(job) {
   return parts;
 }
 
-const within = (parts) => (parts.length ? ` (${parts.join("; ")})` : "");
+const oneLine = (text) => String(text).replace(/\s+/g, " ").trim();
+const within = (parts) => (parts.length ? ` (${parts.map(oneLine).join("; ")})` : "");
 const runLine = (job) => `${job.product}: ${job.status}${within([job.reason, ...details(job)].filter(Boolean))}`;
 const exitFor = (status) => (status === "ok" ? EXIT.ok : status === "blocked-by-mode" ? EXIT.blocked : EXIT.failed);
 const body = (message) => (message === "" || message.endsWith("\n") ? message : `${message}\n`);
@@ -247,12 +251,11 @@ function stopped(name, error, review, state) {
   const product = name ?? "external-agents";
   if (!(error instanceof Stop)) throw error;
   const stderr = state ? noticeLines(state.notices, state.announced) : "";
-  if (review) {
-    const word = error.kind === "refused" ? "failed" : "skipped";
-    return { code: error.kind === "refused" ? EXIT.usage : EXIT.unavailable, stdout: `${product}: ${word} (${error.message})\n`, stderr };
-  }
-  const line = error.kind === "skipped" ? `${product}: skipped (${error.message})` : `${product}: ${error.kind}: ${error.message}`;
-  return { code: error.kind === "refused" ? EXIT.usage : EXIT.unavailable, stdout: `${line}\n`, stderr };
+  const code = error.kind === "refused" ? EXIT.usage : error.kind === "failed" ? EXIT.failed : EXIT.unavailable;
+  const why = oneLine(error.message);
+  if (review) return { code, stdout: `${product}: ${["refused", "failed"].includes(error.kind) ? "failed" : "skipped"} (${why})\n`, stderr };
+  const line = ["skipped", "failed"].includes(error.kind) ? `${product}: ${error.kind} (${why})` : `${product}: ${error.kind}: ${why}`;
+  return { code, stdout: `${line}\n`, stderr };
 }
 
 export async function run(opts) {

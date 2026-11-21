@@ -8,12 +8,17 @@ export const pluginRoot = join(dirname(fileURLToPath(import.meta.url)), "..", ".
 const readJson = (file) => JSON.parse(readFileSync(join(pluginRoot, file), "utf8"));
 
 const HELPER_FAIL = 3;
+const HELPER_NO_HOME = [1, 4, 5];
 
 /** The convention home the repository's pointer region binds; an unbound repository gets the default. */
-export function conventionHome(projectRoot) {
-  const done = spawnSync("bash", [join(pluginRoot, "lib", "resolve-convention-home.sh"), "--root", projectRoot], { cwd: pluginRoot, encoding: "utf8", timeout: 15_000, windowsHide: true });
+export function conventionHome(projectRoot, helper = join(pluginRoot, "lib", "resolve-convention-home.sh")) {
+  const done = spawnSync("bash", [helper, "--root", projectRoot], { cwd: pluginRoot, encoding: "utf8", timeout: 15_000, windowsHide: true });
   if (done.status === 0 && done.stdout.trim()) return { home: done.stdout.trim(), problem: null };
-  return { home: "docs/conventions", problem: done.status === HELPER_FAIL ? done.stderr.trim() : null };
+  const fallback = { home: "docs/conventions", problem: null };
+  if (HELPER_NO_HOME.includes(done.status)) return fallback;
+  if (done.status === HELPER_FAIL) return { ...fallback, problem: done.stderr.trim() };
+  const how = done.error?.message ?? `exit ${done.status}: ${done.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`;
+  return { ...fallback, problem: `the convention-home helper did not run (${how})` };
 }
 
 const isTracked = (root, file) =>
