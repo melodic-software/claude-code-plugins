@@ -168,6 +168,7 @@ report_clean "$routeout" \
 # #17836: the probe record keeps the unrecognized-name rule and the =0 setting,
 # and never brings back the legacy model-id fallback claim. The record lives
 # in the repository's docs/, absent from an installed plugin copy: skip there.
+# https://github.com/melodic-software/claude-code-plugins/issues/17836
 RECORD="$SCRIPT_DIR/../../../../../docs/upstream/claude-code-lean-prompt-selector.md"
 if [[ -f "$RECORD" ]]; then
   recordout="$(node -e '
