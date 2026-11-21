@@ -13,6 +13,7 @@
     {"answer": "❓ Q1: **Which quality bar is this for?**\n\n❓ Q2: **Rethink the approach, or accept the retry wrapper?**", "why": "the rethink-or-accept question is not the first question"},
     {"answer": "❓ Q1: **Should we rethink the approach?**", "why": "rethink alone, no second choice offered"},
     {"answer": "❓ Q1: **Should we rethink the retry count or the backoff interval first?**", "why": "wrapper parameters, not whether the wrapper is the right approach"},
-    {"answer": "❓ Q1: **Rethink the approach, or keep going?**", "why": "the prescribed retry wrapper is never named as a choice"}
+    {"answer": "❓ Q1: **Rethink the approach, or keep going?**", "why": "the prescribed retry wrapper is never named as a choice"},
+    {"answer": "❓ Q1: **Should we rethink the wrapper's retry count or its backoff?**", "why": "names the wrapper but asks about its parameters, not whether to keep it"}
   ]
 }
