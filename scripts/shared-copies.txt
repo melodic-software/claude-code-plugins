@@ -322,6 +322,7 @@ lib/ui-feedback/host.mjs plugins/prototype/notes-bridge/host.mjs
 lib/ui-feedback/proto-pin.js plugins/prototype/notes-bridge/proto-pin.js
 lib/ui-feedback/note-model.mjs plugins/prototype/notes-bridge/note-model.mjs
 lib/ui-feedback/frame-channel.mjs plugins/prototype/notes-bridge/frame-channel.mjs
+lib/ui-feedback/bar-edges.mjs plugins/prototype/notes-bridge/bar-edges.mjs
 lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
 lib/ui-feedback/controls.schema.json plugins/prototype/notes-bridge/controls.schema.json
 lib/ui-feedback/controls.js plugins/prototype/notes-bridge/controls.js
