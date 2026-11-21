@@ -144,7 +144,8 @@ https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 and `verify:too-old` wait for the lanes to judge the head again.
-`verify:repeated-fail` never clears at its FAILed head (`VERIFY_FINAL`), so
+`verify:repeated-fail` clears at its FAILed head only when that FAIL is
+later superseded there; otherwise it stands (`VERIFY_FINAL`), so
 the gate never merges such a pull request unattended: the pr-merge lane
 closes a lanes App one for a fresh attempt (`capped_close`), and
 address-feedback and fix-ci start no
