@@ -328,6 +328,116 @@ round product.md \
   'Basis: reference/product-principles.md, principle 4 (a real person with the problem)'
 run "a product-action round with a Strong answer: line passes" 0 product.md 'bare=0 status=ok structure=0'
 
+runx() {
+  local label="$1" want="$2" ledger="$TMP/$3" file="$TMP/$4" pattern="$5" out got
+  shift 5
+  out="$(bash "$SUT" --ledger "$ledger" "$@" "$file" 2>&1)"
+  got=$?
+  if [[ "$got" -ne "$want" ]] || { [[ -n "$pattern" ]] && ! grep -qE -- "$pattern" <<<"$out"; }; then
+    fail "$label (want exit $want and /$pattern/, got exit $got)"
+    printf '%s\n' "$out" | sed 's/^/       /' >&2
+    return
+  fi
+  pass "$label"
+}
+nox() {
+  local label="$1" ledger="$TMP/$2" file="$TMP/$3" pattern="$4" out
+  shift 4
+  out="$(bash "$SUT" --ledger "$ledger" "$@" "$file" 2>&1)"
+  if grep -qE -- "$pattern" <<<"$out"; then
+    fail "$label (/$pattern/ printed)"
+    printf '%s\n' "$out" | sed 's/^/       /' >&2
+    return
+  fi
+  pass "$label"
+}
+
+round single-preamble.md \
+  "Of the five open decisions, I'm starting with what happens to an event after its last failed attempt." \
+  '### Round 2' \
+  '' \
+  'Scope check: 4 of 27 questions registered' \
+  '' \
+  '❓ Q4: **After the last failed attempt, should the sender keep the event?**' \
+  'Context:' \
+  '- Webhooks are delivered at least once (user, round 1).' \
+  '➡️ My recommendation: **Yes: keep it.** Dropping breaks at-least-once delivery (verified, user, round 1).'
+runx "under single pacing a header line that previews the frontier fails" 1 ledger.md single-preamble.md '^extra=1:single-header$' --pacing single
+runx "under round pacing the same header note passes" 0 ledger.md single-preamble.md 'bare=0 status=ok structure=0'
+round single-header.md \
+  '## Round 2, one question at a time' \
+  'Scope check: 4 of 27 questions registered' \
+  'Later: replay controls' \
+  'Held: Q6 (alert threshold), waiting on the principle map' \
+  'Settled by evidence: Q7 (log format), JSON lines, Basis: verified, src/log.ts:12' \
+  '---' \
+  '' \
+  '❓ Q4: **After the last failed attempt, should the sender keep the event?**' \
+  'Context:' \
+  '- Webhooks are delivered at least once (user, round 1).' \
+  '➡️ My recommendation: **Yes: keep it.** Dropping breaks at-least-once delivery (verified, user, round 1).'
+runx "under single pacing the prescribed header lines pass" 0 ledger.md single-header.md 'structure=0$' --pacing single
+runx "single pacing prints its self-check at line 1" 0 ledger.md single-header.md '^check=1:single-pacing$' --pacing single
+nox "round pacing prints no single-pacing self-check" ledger.md single-header.md 'single-pacing'
+out="$(bash "$SUT" --ledger "$TMP/ledger.md" --pacing sometimes "$TMP/single-header.md" 2>&1)"
+got=$?
+if [[ "$got" -eq 2 ]]; then
+  pass "an unknown pacing value is a usage error"
+else
+  fail "an unknown pacing value is a usage error (exit $got: $out)"
+fi
+
+cat >"$TMP/term-ledger.md" <<'MD'
+## Open-question register
+
+- Q1 | open | round 2 | Agree the two upstream terms? |
+- Q2 | open | round 2 | Add a cluster step? |
+
+## Terminology matrix
+
+| Term | Definition | Source | Status |
+|---|---|---|---|
+| cluster step | the step that attaches a report to the open cluster with the same dedupe fingerprint | vendor/upstream-triage/README.md:8-10 | proposed |
+| `dedupe fingerprint` | a SHA-1 of the normalized first error line | vendor/upstream-triage/README.md:7 | proposed |
+MD
+round term-elsewhere.md \
+  'Scope check: 2 of 27 questions registered' \
+  'Q1: **Do these two upstream terms mean what you mean by them?**' \
+  'Context:' \
+  '- **cluster step:** the step that attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10).' \
+  'My recommendation: agree to both as written.' \
+  '---' \
+  'Q2: **Should triage gain a cluster step?**' \
+  'Context:' \
+  '- Upstream keeps a fingerprint-to-issue map (vendor/upstream-triage/README.md:8-10).' \
+  'My recommendation: yes, add the cluster step.'
+runx "a matrix term used where only another question's Context defines it fails" 1 term-ledger.md term-elsewhere.md '^undefined=7:cluster step$'
+runx "the undefined term counts in the structure total" 1 term-ledger.md term-elsewhere.md 'structure=1$'
+round term-own.md \
+  'Scope check: 2 of 27 questions registered' \
+  'Q1: **Do these two upstream terms mean what you mean by them?**' \
+  'Context:' \
+  '- **cluster step:** the step that attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10).' \
+  'My recommendation: agree to both as written.' \
+  '---' \
+  'Q2: **Should triage gain cluster steps?**' \
+  "Context: Upstream's cluster step attaches a report to the open cluster with the same dedupe fingerprint (vendor/upstream-triage/README.md:8-10)." \
+  'My recommendation: yes, add the cluster step.'
+runx "a matrix term each question's own Context mentions passes" 0 term-ledger.md term-own.md 'bare=0 status=ok structure=0'
+runx "a question after the first prints its own-context-terms self-check" 0 term-ledger.md term-own.md '^check=7:own-context-terms$'
+nox "the first question prints no own-context-terms self-check" term-ledger.md term-own.md '^check=2:own-context-terms$'
+
+round judged.md \
+  'Scope check: 2 of 27 questions registered' \
+  '❓ Q9: **Should the limiter fail open when its store is down?**' \
+  'Context:' \
+  '- The limiter keeps its counts in the session Redis (src/limit.ts:4).' \
+  '➡️ My recommendation: **Yes: fail open.** A short over-admit beats refusing all traffic (verified, src/limit.ts:4).' \
+  'Flips if: a burst during a limiter outage hurts more than briefly over-admitting does'
+runx "a Flips if: line prints its flips-if-fact self-check" 0 term-ledger.md judged.md '^check=6:flips-if-fact$'
+runx "a recommendation prints its existing-control self-check" 0 term-ledger.md judged.md '^check=5:existing-control$'
+runx "self-checks leave a clean round passing" 0 term-ledger.md judged.md 'bare=0 status=ok structure=0$'
+
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2
   exit 1

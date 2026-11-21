@@ -49,13 +49,25 @@ usage() {
   sed -n '/^# Bare-code gate/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   cat <<'TXT'
 
-Two structure checks run beside the bare-code check:
+`--pacing round|single` (default round) names the round's question pacing.
+
+Four structure checks run beside the bare-code check:
 
   answer line     each question block holds exactly one `My recommendation:`,
                   `Withheld:`, `Discovery:` or (the product action)
                   `Strong answer:` line
   scope check     the lines before the first question hold exactly one
                   `Scope check:` line
+
+  ledger terms    each term in the ledger's `## Terminology matrix` table
+                  (first column) that a question uses is also in that
+                  question's own Context (from its `Context:` line to its
+                  answer line); a use with no Context mention prints
+                  `undefined=<question line>:<term>`
+  single header   with `--pacing single`, the header holds only the round
+                  title (`Round <N>`, as a heading or not), `Scope check:`,
+                  `Later:`, `Held:` and `Settled by evidence:` lines; any
+                  other line prints `extra=<line>:single-header`
 
 A list item (`- Q4: ...`, `1. Q4: ...`) never opens a question.
 
@@ -64,7 +76,16 @@ such as an emoji) and sit in bold; round.py show reads labels the same way.
 Each failure prints `missing=<line>:<what>` (`recommendation` or
 `single-recommendation` at the question line, `scope-check` or
 `single-scope-check` at line 1), and
-the closing line gains ` structure=<n>`.
+the closing line gains ` structure=<n>`, which also counts the `undefined=`
+and `extra=` lines.
+
+Self-checks need judgment, so they print a `check=<line>:<name>` line and
+never change the exit code:
+
+  own-context-terms  at each question after the first
+  flips-if-fact      at each `Flips if:` line
+  existing-control   at each `My recommendation:` line
+  single-pacing      at line 1, with `--pacing single`
 TXT
 }
 
@@ -75,6 +96,7 @@ die() {
 
 ledger=""
 round=""
+pacing="round"
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
@@ -84,6 +106,11 @@ while [[ $# -gt 0 ]]; do
   --ledger)
     [[ $# -ge 2 && -n "$2" ]] || die "--ledger needs a value"
     ledger="$2"
+    shift 2
+    ;;
+  --pacing)
+    [[ $# -ge 2 && ( "$2" == round || "$2" == single ) ]] || die "--pacing needs round or single"
+    pacing="$2"
     shift 2
     ;;
   -*)
@@ -146,6 +173,20 @@ LC_ALL=C awk '
     if (before ~ /[A-Za-z][^()]*\([ \t]*$/ && after ~ /^[ \t]*[),;]/) return 1
     return 0
   }
+  function has_term(hay, t,    pos, off, len, prev, next1) {
+    off = 0
+    while ((pos = index(substr(hay, off + 1), t)) > 0) {
+      pos += off
+      len = length(t)
+      prev = (pos > 1) ? substr(hay, pos - 1, 1) : ""
+      next1 = substr(hay, pos + len, 1)
+      if (next1 == "s" && substr(hay, pos + len + 1, 1) !~ /[a-z0-9_-]/) { len++; next1 = substr(hay, pos + len, 1) }
+      off = pos + len - 1
+      if (prev ~ /[a-z0-9_-]/ || next1 ~ /[a-z0-9_-]/) continue
+      return 1
+    }
+    return 0
+  }
   function grade(line, lno,    i, hay, c, pos, off, len, prev, next1, wordch) {
     for (i = 1; i <= n_codes; i++) {
       c = code[i]
@@ -188,6 +229,20 @@ LC_ALL=C awk '
     if (fence($0) || in_fence) next
   }
   FILENAME == ledger_file {
+    if ($0 ~ /^#+[ \t]/) in_matrix = ($0 ~ /^##[ \t]+Terminology matrix[ \t]*$/)
+    if (in_matrix && $0 ~ /^[ \t]*\|/) {
+      t = $0
+      sub(/^[ \t]*\|[ \t]*/, "", t)
+      sub(/[ \t]*\|.*/, "", t)
+      gsub(/[`*_]/, "", t)
+      t = tolower(t)
+      if (t != "" && t != "term" && t !~ /^[-: ]+$/ && !(t in seen_term)) {
+        seen_term[t] = 1
+        n_terms++
+        term[n_terms] = t
+      }
+      next
+    }
     if ($0 ~ /^[ \t]*- [QCFSP][0-9]+[ \t]*\|/) {
       c = $0
       sub(/^[ \t]*- /, "", c)
@@ -219,6 +274,12 @@ LC_ALL=C awk '
       missing++
       printf "missing=%d:%s\n", block_line, (block_answers ? "single-recommendation" : "recommendation")
     }
+    for (i = 1; i <= n_terms; i++) {
+      if (tused[i] && !tctx[i]) {
+        missing++
+        printf "undefined=%d:%s\n", block_line, term[i]
+      }
+    }
   }
   {
     if (!block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Scope check(\*\*|__)?:/) has_scope++
@@ -233,17 +294,38 @@ LC_ALL=C awk '
       # The Q<N> that opens a question line is the handle of that question,
       # named by the question itself whatever separator follows it.
       used[c] = 1
+      delete tused
+      delete tctx
+      in_ctx = 0
+      if (++n_blocks > 1) printf "check=%d:own-context-terms\n", FNR
+    }
+    if (block_line) {
+      if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Context(\*\*|__)?:/) in_ctx = 1
+      else if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer)(\*\*|__)?:/) in_ctx = 0
+      hay = tolower($0)
+      for (i = 1; i <= n_terms; i++) {
+        if (has_term(hay, term[i])) {
+          tused[i] = 1
+          if (in_ctx) tctx[i] = 1
+        }
+      }
+      if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Flips if(\*\*|__)?:/) printf "check=%d:flips-if-fact\n", FNR
+      if ($0 ~ /^[^ -~]*[ \t]*(\*\*|__)?My recommendation(\*\*|__)?:/) printf "check=%d:existing-control\n", FNR
+    } else if (pacing == "single" && $0 !~ /^[ \t]*$/ && $0 !~ /^[^ -~]*[ \t]*((#+[ \t]+)?(\*\*|__)?Round[ \t]+[0-9]|(\*\*|__)?(Scope check|Later|Held|Settled by evidence)(\*\*|__)?:|---+[ \t]*$)/) {
+      missing++
+      printf "extra=%d:single-header\n", FNR
     }
     grade($0, FNR)
   }
   END {
     if (in_fence) exit 4
     close_block()
+    if (pacing == "single") print "check=1:single-pacing"
     if (has_scope != 1) { missing++; print "missing=1:" (has_scope ? "single-scope-check" : "scope-check") }
     printf "codes=%d bare=%d status=%s structure=%d\n", n_codes, bare, ((bare || missing) ? "fail" : "ok"), missing
     exit ((bare || missing) ? 1 : 0)
   }
-' ledger_file="$ledger" "$ledger" pass=1 "$round" pass=2 "$round"
+' ledger_file="$ledger" pacing="$pacing" "$ledger" pass=1 "$round" pass=2 "$round"
 status=$?
 case $status in
 0 | 1) exit "$status" ;;

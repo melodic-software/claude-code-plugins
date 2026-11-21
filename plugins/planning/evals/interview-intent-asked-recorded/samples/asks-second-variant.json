@@ -7,6 +7,10 @@
     {
       "answer": "Q3: Will other clients need a different validation vendor, or is Loqate the only one?",
       "why": "asks about per-client variation"
+    },
+    {
+      "answer": "❓ Q10: **Should this be built for Loqate and delivery addresses only, with no layer for swapping providers?**\n\n➡️ My recommendation: **Yes: build for Loqate and delivery addresses only.** No second provider appears anywhere.",
+      "why": "the yes-accepts form of the intent question: yes accepts the recommendation that no second provider is expected"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "No other provider is coming, so should the Pay button stay disabled?",
       "why": "states the intent answer, then asks a different question"
+    },
+    {
+      "answer": "Q4: Should the check run only on delivery addresses at launch, with no billing address check yet?",
+      "why": "a scope question in the yes-accepts form, but it asks nothing about a second provider or variant"
     }
   ]
 }
