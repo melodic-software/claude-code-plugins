@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "<main><article class=\"card\" id=\"c-a\"><h3 class=\"v\" data-part=\"title\">Fold the export</h3><p class=\"badges\" data-part=\"badges\"><span>Strong</span></p><div class=\"part\" data-part=\"problem\"><h4>problem</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"solution\"><h4>solution</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"diagram\"><h4>diagram</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"wins\"><h4>wins</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"verified\"><h4>verified</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"files\"><h4>files</h4><p class=\"v\">text</p></div></article><article class=\"card\" id=\"c-a\"><h3 class=\"v\" data-part=\"title\">Fold the export</h3><p class=\"badges\" data-part=\"badges\"><span>Strong</span></p><div class=\"part\" data-part=\"problem\"><h4>problem</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"solution\"><h4>solution</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"diagram\"><h4>diagram</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"wins\"><h4>wins</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"verified\"><h4>verified</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"files\"><h4>files</h4><p class=\"v\">text</p></div></article></main>",
+      "why": "two cards with every part filled"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no card"
+    },
+    {
+      "answer": "<main><article class=\"card\" id=\"c-a\"><h3 class=\"v\" data-part=\"title\">Fold the export</h3><p class=\"badges\" data-part=\"badges\"><span>Strong</span></p><div class=\"part\" data-part=\"problem\"><h4>problem</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"solution\"><h4>solution</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"diagram\"><h4>diagram</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"wins\"><h4>wins</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"verified\"><h4>verified</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"files\"><h4>files</h4><p class=\"v\">text</p></div></article><article class=\"card\" id=\"c-a\"><h3 class=\"v\" data-part=\"title\">Fold the export</h3><p class=\"badges\" data-part=\"badges\"><span>Strong</span></p><div class=\"part\" data-part=\"problem\"><h4>problem</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"diagram\"><h4>diagram</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"wins\"><h4>wins</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"verified\"><h4>verified</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"files\"><h4>files</h4><p class=\"v\">text</p></div></article></main>",
+      "why": "the second card has no solution part"
+    },
+    {
+      "answer": "<main><article class=\"card\" id=\"c-a\"><h3 class=\"v\" data-part=\"title\">Fold the export</h3><p class=\"badges\" data-part=\"badges\"><span>Strong</span></p><div class=\"part\" data-part=\"problem\"><h4>problem</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"solution\"><h4>solution</h4><p class=\"v\"></p></div><div class=\"part\" data-part=\"diagram\"><h4>diagram</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"wins\"><h4>wins</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"verified\"><h4>verified</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"files\"><h4>files</h4><p class=\"v\">text</p></div></article></main>",
+      "why": "an empty solution"
+    },
+    {
+      "answer": "<main><article class=\"card\" id=\"c-a\"><h3 class=\"v\" data-part=\"title\">Fold the export</h3><p class=\"badges\" data-part=\"badges\"><span>Strong</span></p><div class=\"part\" data-part=\"problem\"><h4>problem</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"solution\"><h4>solution</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"diagram\"><h4>diagram</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"verified\"><h4>verified</h4><p class=\"v\">text</p></div><div class=\"part\" data-part=\"files\"><h4>files</h4><p class=\"v\">text</p></div></article></main>",
+      "why": "no wins part"
+    }
+  ]
+}

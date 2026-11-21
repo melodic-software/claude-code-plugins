@@ -1,162 +1,80 @@
 # HTML Report Format
 
-Deepening review rendered as one HTML file in the OS temp directory: created through the platform's temp API, resolved deterministically rather than by branching on an injected scratchpad path or `CLAUDE_JOB_DIR`. The path is handed back for the user to open, so the file is never deleted before returning; it outlives the invocation, which is why one run writes exactly one file.
+The deepening review is one HTML page that `node "<plugin-root>/scripts/build-view.mjs" deepening --record <record.json>` builds from the report record below. The skill writes the record, never the page's markup. The builder writes the page to one private path under the OS temp directory and prints it; the path is handed back for the user to open, so the file outlives the invocation.
 
-The page is built on this plugin's bundled chrome reference, [reference/html-chrome.html](../../../../reference/html-chrome.html): its palette, type stacks, light and dark schemes, theme toggle and accessibility floor. Two libraries come from a CDN: Tailwind for layout and Mermaid for graph-shaped diagrams. Hand-built divs and inline SVG draw the rest. Use both kinds in one report; a report drawn only with Mermaid looks generic.
+The page is built on this plugin's chrome reference, [reference/html-chrome.html](../../../../reference/html-chrome.html): its palette, type stacks, light and dark schemes, theme toggle and accessibility floor. Two libraries come from jsDelivr at exact versions: `mermaid` 12.3.0 for graph diagrams and `@tailwindcss/browser` 4.3.5. The content security policy names each file, never the CDN's origin:
 
-**Security baseline.** The report holds to the rendered-views security baseline as stated in Phase 2 of [../../actions/deepening.md](../../actions/deepening.md). Three additions are specific to this report:
-
-- The untrusted data is every repository-derived string: paths, glossary terms, ADR excerpts, repo names, module labels, the `{{repo name}}` in the scaffold's `<title>`, and any other string taken from the scanned repository. Each is escaped before it lands in element text or an attribute.
-- Hand-built diagrams are inline SVG shapes and text only, with no `<script>` element inside the SVG: SVG script runs like any page script.
-- A repository-derived string inside a Mermaid block keeps only letters, digits, spaces and `_ . / : -`, sits inside a quoted label (`A["src/orders/handler.ts"]`), and is then escaped like any other text. Mermaid reads a label after the browser has undone the escaping, so escaping alone does not hold there. Mermaid runs with `securityLevel: "strict"` and HTML labels off, as the scaffold sets them. Probe: headless Chromium against the pinned Mermaid version, a flowchart label holding an escaped `<img>` tag; with HTML labels on the tag became an element, with them off it did not.
-
-## Scaffold
-
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Deepening review: {{repo name}}</title>
-    <style>
-      /* CHROME: every rule of the chrome reference's <style> block, copied verbatim. */
-
-      /* Report layer: only what the chrome and Tailwind do not cover. */
-      :root { --rust: #B04A3F; --amber: #B45309; }
-      body { max-width: 1040px; }
-      .badge { border-left: 4px solid var(--muted); padding-left: .5rem; }
-      .badge-strong { border-color: var(--olive); }
-      .badge-explore { border-color: var(--amber); }
-      .badge-speculative { border-color: var(--muted); }
-      .seam { stroke-dasharray: 4 4; }
-      .leak { stroke: var(--rust); }
-      .deep { background: var(--fg); color: var(--bg); }
-      .paper { background: var(--white); color: var(--slate); }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js"></script>
-  </head>
-  <body>
-    <!-- CHROME: the theme toggle (the .rv-bar element), copied verbatim. -->
-    <main class="space-y-12">
-      <header>...</header>
-      <section id="candidates" class="space-y-10">
-        <section class="band space-y-8" id="band-strong"><h2>Strong</h2>...</section>
-        <section class="band space-y-8" id="band-explore"><h2>Worth exploring</h2>...</section>
-        <section class="band space-y-8" id="band-speculative"><h2>Speculative</h2>...</section>
-      </section>
-      <section id="top-recommendation">...</section>
-    </main>
-    <!-- CHROME: the toggle's inline script, copied verbatim. -->
-    <script>
-      if (window.mermaid) {
-        mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false } });
-      }
-    </script>
-  </body>
-</html>
+```text
+default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'
 ```
 
-Read the chrome reference and put its three parts where the `CHROME` comments stand. The comment box is left out: a report is read, not answered.
+As of 2026-11-15 both versions were the latest on the npm registry and rendered together under this policy in headless Chromium. Recheck trigger: either package publishes a new major version, or a security advisory names a pinned one; change the pins in `scripts/deepening-report.mjs` and this file together and build the test record again.
 
-The two library versions are exact, and each URL appears twice: in the policy and on its `<script>` tag. The policy names each file, never the CDN's origin. As of 2026-11-15: `mermaid` 12.3.0 and `@tailwindcss/browser` 4.3.5, the latest on the npm registry, rendered together under this policy in headless Chromium. Recheck trigger: either package publishes a new major version, or a security advisory names a pinned one; change all four URLs together and render the scaffold again.
+**Security.** Every record string is untrusted: paths, glossary terms, ADR excerpts, the repo name, module labels. The builder escapes each into element text, generates the Mermaid source itself, runs Mermaid with `securityLevel: "strict"` and HTML labels off, and refuses to write a page that fails its validator (exactly the two library tags and the one checked-in inline script, no other script, no event-handler attribute, only fragment links). A Mermaid label keeps only letters, digits, spaces and `_ . / : -`: Mermaid reads a label after the browser has undone the escaping, so escaping alone does not hold there, and the builder rejects any other character rather than strip it. Probe: headless Chromium against the pinned Mermaid version, a flowchart label holding an escaped `<img>` tag; with HTML labels on the tag became an element, with them off it did not.
 
-**When the CDN cannot be reached** the page still reads: the chrome's own rules style the text, each Mermaid block shows its source in its `<pre>`, and the hand-built diagrams draw as they are. So nothing in a card may depend on a library to be legible: no content hidden until a script runs, and no diagram whose only form is a Mermaid block the reader could not follow as text.
+**When the CDN cannot be reached** the page still reads: the chrome's rules and the page's own style lay it out, each Mermaid block shows its source, and the hand-built diagrams draw as they are.
+
+## Report record
+
+One JSON object. Every listed field is required unless marked optional, every text is non-empty, and any other key fails the build with exit 1 and a message naming the candidate and field.
+
+| Field | Holds |
+|---|---|
+| `schema_version` | `1` |
+| `repo` | the repository name |
+| `date` | `YYYY-MM-DD` |
+| `verification` | the resolved verification level |
+| `counts` | the evidence counts, each a number with its noun; `[]` when none (see Header) |
+| `top` | the `id` of the top recommendation |
+| `top_why` | one sentence saying why it comes first |
+| `candidates` | one object per candidate, below |
+
+Each candidate:
+
+| Field | Holds |
+|---|---|
+| `id` | `[a-z0-9-]{1,32}`, unique; the card's anchor |
+| `title` | a few words naming the deepening, such as "Fold the invoice export steps into one module" |
+| `recommendation` | `Strong`, `Worth exploring` or `Speculative` |
+| `category` | `in-process`, `local-substitutable`, `ports-and-adapters` or `mock` |
+| `problem` | the artifact's `problem`, one sentence |
+| `solution` | the artifact's `solution`, one sentence |
+| `wins` | the artifact's `wins`, one entry per gain (see Wins) |
+| `verified` | `reproduced`, `corrected: <one clause>` or `unverified` |
+| `files` | one entry per path, written in full |
+| `diagram` | `{ "before": <panel>, "after": <panel> }` (see Diagram patterns) |
+| `depends_on` | optional: the `id` of the candidate that must be done first |
+| `adr` | optional: the recorded decision the candidate touches, one sentence |
+
+## Page order
+
+1. **Header**: the repo name, the date and a one-line legend (a dark, heavy-bordered box is a deep module, a plain box is any other module, a dashed line is a seam, a rust-colored arrow is leakage), then on separate lines the evidence counts, the candidate tally per badge and the verification level.
+2. **Top recommendation**: the candidate's title linked to its card, and `top_why`.
+3. **Index**: every candidate as a row with its title linked to its card, its badge and its solution.
+4. **Cards** in one band per badge, `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every count, with no cap, pagination or collapse: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
 
 ## Header
 
-The header holds the repo name, the date, and a one-line legend: a dark, heavy-bordered box is a
-deep module, a plain box is any other module, a dashed line is a seam, and a rust-colored arrow is
-leakage.
-
-Under the legend sits one line of evidence counts, up to four, each a number with its noun: call
-sites that go through the shallow interface, copies of one function, tests that cover the area.
-Every count comes from a `shallow-signal` or `runtime-claim` that Phase 1.5 reproduced, and is the
-number the reproduction found, not the scan's. A count nothing reproduced is left out; when the
-verification level skipped Phase 1.5, or no reproduced claim carries a number, there is no counts
-line.
-
-The candidates follow at once, with no opening paragraph.
+Each evidence count comes from a `shallow-signal` or `runtime-claim` that Phase 1.5 reproduced, and is the number the reproduction found, not the scan's: call sites that go through the shallow interface, copies of one function, tests that cover the area. Keep up to four. A count nothing reproduced is left out; when the verification level skipped Phase 1.5, or no reproduced claim carries a number, `counts` is `[]` and the page has no counts line.
 
 ## Candidate card
 
-One `<article>` per candidate, holding these parts in this order:
+The card holds these parts in this order and nothing else: title and badges (recommendation and dependency category), problem, solution, the before and after diagram, wins, the Verified line, files, then depends-on and the recorded decision when present. A candidate that will not read without a paragraph has a drawing that leaves out the relation the paragraph would explain; add that relation to the diagram data.
 
-- **Title**: a few words naming the deepening, such as "Fold the invoice export steps into one module"
-- **Badge row**: the recommendation strength (`Strong` uses `.badge-strong`, olive; `Worth exploring` uses `.badge-explore`, amber; `Speculative` uses `.badge-speculative`, muted grey), each `.badge` with its word in the text color, and the dependency category shown as a tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
-- **Files**: one path per line in `var(--mono)`, one step smaller than the body text
-- **Before / After diagram**: the two states in adjacent columns; patterns below
-- **Problem**: a single sentence
-- **Solution**: a single sentence
-- **Wins**: one gain per bullet, short enough to take in at a glance, each named with a vocabulary term, for example "locality: a rounding fix now touches one file", "leverage: twelve call sites share one interface", "interface: four entry points become one"
-- **ADR callout**, when one applies: a box with an amber border
-- **Depends on**, when the candidate needs another one done first: one line naming that candidate, linked to its card
+**Wins.** Each entry is `<term>: <gain>`, the term one of the eight in [vocabulary.md](../../../../reference/vocabulary.md) and the gain at most six words, such as `locality: a rounding fix, one file` or `leverage: twelve callers, one interface`. Write at least one `leverage` and one `locality` win. A gain written as "more maintainable" fails the wording rule below; restate it as the leverage or locality it stands for.
 
-A card carries nothing beyond these parts. A candidate that will not read without a paragraph has a
-drawing that leaves out the relation the paragraph would explain; add that relation to the drawing.
-
-## Badge bands
-
-Cards sit in one band per recommendation badge, in badge order: `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every candidate count, with no cap, no pagination, and no `<details>` or other collapse around a band or a card: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
+**Verified.** `reproduced` when Phase 1.5 reproduced the candidate's signal or claim as stated, `corrected: <one clause>` when it held only after a correction (the clause says what changed), `unverified` when nothing was reproduced, including every candidate under a `light` or `off` level. The full notes stay in the artifact's `verification-notes`, never on the card.
 
 ## Diagram patterns
 
-Choose per candidate whichever pattern shows its problem best, and use several across one report
-so the cards do not all look alike. Every pattern puts the current state in the left column and
-the deepened state in the right; the two columns may use different patterns, such as a Mermaid
-graph of the tangle on the left and one hand-built deep module on the right.
+Each side of a diagram is one panel, `before` the current state and `after` the deepened one. Pick per side whichever pattern shows the problem best, and vary them across one report so the cards do not all look alike. Every panel takes an optional `caption`.
 
-| Pattern | Shows | Drawing |
+| `pattern` | Shows | Fields |
 |---|---|---|
-| Mermaid graph | which module calls which, and where it leaks | a Mermaid `flowchart`; a `linkStyle` line gives each leakage edge the rust stroke, by the edge's position in the block counted from 0, and a `classDef` gives the deep module a dark fill |
-| Mermaid sequence | fewer seam crossings, such as five round-trips cut to one | a Mermaid `sequenceDiagram` per column; the two arrow counts carry the comparison |
-| Boxes and arrows by hand | a deep module that has to look heavy | bordered `<div>`s and inline SVG arrows, ending in one thick-bordered `.deep` box with greyed internals, a weight Mermaid does not draw |
-| Layer stack | shallowness spread over layers | one fixed-height row with a heavy left border per layer a call passes through: six thin rows on the left, one tall row named for the merged responsibility on the right |
-| Size bars | an interface nearly as large as its implementation | an interface bar and an implementation bar per module: similar heights on the left (shallow), a short bar over a tall one on the right (deep) |
-| Collapsed call tree | calls that should become internal | the call tree as nested boxes on the left; on the right the same tree inside one box, its calls faded |
-
-A Mermaid block sits in a `.paper` card, which stays light in both schemes: Mermaid sets its
-colors once when the page loads, and the toggle can change the scheme afterwards.
-
-```html
-<div class="paper rounded-lg border border-(--gray-300) p-4">
-  <pre class="mermaid">
-flowchart LR
-  A["InvoiceController"] --> B["InvoiceChecker"]
-  B --> C["InvoiceStore"]
-  C -. leak .-> D["TaxClient"]
-  linkStyle 2 stroke:#B04A3F,stroke-width:2px;
-  </pre>
-</div>
-```
-
-A hand-built panel takes its colors from the chrome's tokens, so it follows the scheme:
-
-```html
-<div class="rounded-lg border border-(--gray-300) bg-(--panel) p-4">
-  <svg viewBox="0 0 400 120" width="100%" height="120" aria-label="call flow">
-    <rect x="10" y="40" width="80" height="40" rx="4" fill="var(--bg)" stroke="var(--muted)"/>
-    <text x="50" y="65" text-anchor="middle" font-size="10" fill="var(--fg)">InvoiceController</text>
-    <!-- arrows, additional boxes, leak styling -->
-  </svg>
-</div>
-```
-
-## Top recommendation section
-
-A single, larger card: the candidate's name, a sentence saying why it comes first, and an in-page link
-to the full card.
-
-## Style guidance
-
-- Layout: Tailwind utilities for grid, spacing, borders and type size; the chrome's rules win where both set a property
-- Color: only the chrome's tokens, written as `bg-(--panel)`, `text-(--muted)`, `border-(--gray-300)` or `var(--token)` in SVG; never a Tailwind palette class such as `bg-stone-50`, which does not follow the theme toggle. Rust marks leakage and amber marks warnings; apart from those, one palette accent (clay or olive), never as the only signal
-- Scripts: the two libraries, the toggle's script and the Mermaid start call in the scaffold; nothing else, and no interaction beyond the toggle
-- Size: diagrams stay near 320px high, so a card's two columns are visible without scrolling
-- Labels: module names inside a hand-built diagram are set small, in capitals, with extra letter spacing
-- Overall feel: a magazine page with room around each card, not an operations dashboard
+| `graph` | which module calls which, and where it leaks; the builder writes it as a Mermaid flowchart | `nodes`: `{id, label, deep?}`, `edges` (optional): `{from, to, label?, dashed?, leak?}`, `direction` (optional): `LR` or `TB`. A `leak` edge is drawn rust, a `deep` node dark; labels follow the Mermaid label rule |
+| `stack` | shallowness spread over layers | `layers`: one row per layer a call passes through; one row alone is drawn as the deep module |
+| `bars` | an interface nearly as large as its implementation | `modules`: `{label, interface, implementation}`, each size a whole number from 0 to 10 |
+| `collapse` | calls that should become internal | `calls`: nested on the before side; with `module`, the calls drawn faded inside that one deep box |
 
 ## Wording
 
@@ -169,12 +87,8 @@ Name things only with the [vocabulary.md](../../../../reference/vocabulary.md) t
 | seam | boundary |
 | implementation, depth, deep, shallow, adapter, leverage, locality | (no synonym) |
 
-Each finding is its own sentence and opens with the claim. Lines in the intended style:
+Each sentence opens with the claim. Lines in the intended style:
 
 - "Seam justified: the mail port has an SMTP adapter in production and a recording adapter in tests."
 - "Leak: tax rounding happens in three callers instead of inside `TaxCalculator`."
 - "`InvoiceExport` is shallow; its seven methods take as long to learn as the code behind them."
-- "After deepening, callers learn `quote(order)` and the tests target it alone."
-
-A win written as "more maintainable" or "nicer structure" fails this rule; restate it as the
-leverage or locality gain it stands for.
