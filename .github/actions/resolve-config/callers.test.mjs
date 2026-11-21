@@ -172,7 +172,7 @@ for (const [file, job, lane, laneSwitch] of [
   test(`${file}: the review runs only when the check-kill-switch job says proceed`, () => {
     const review = jobs[job];
     const gate = jobs["check-kill-switch"];
-    assertKillSwitchJob(gate);
+    assertKillSwitchJob(gate, { defers: true });
     for (const proceed of ["true", "false", ""]) {
       const context = {
         "github.event.pull_request.draft": false,
@@ -272,7 +272,7 @@ function importClosure(entry) {
 // The check-kill-switch job reads the action from the default branch with a
 // read-only token and passes it the org and repository switches; a gate
 // that starts new work also passes budget "true".
-function assertKillSwitchJob(gate, { starts = false } = {}) {
+function assertKillSwitchJob(gate, { starts = false, defers = false } = {}) {
   assert.deepEqual(gate.permissions, { contents: "read" });
   const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
   assertMainTip(gate.steps, checkout);
@@ -285,6 +285,7 @@ function assertKillSwitchJob(gate, { starts = false } = {}) {
     value: "${{ vars.CLAUDE_LANES_DISABLED }}",
     "repo-value": "${{ vars.CLAUDE_LANES_REPO_DISABLED }}",
     ...(starts && { budget: "true" }),
+    ...(defers && { defer: "true", "defer-job": "review", "resolved-config": "${{ runner.temp }}/defer-config.json" }),
   });
 }
 

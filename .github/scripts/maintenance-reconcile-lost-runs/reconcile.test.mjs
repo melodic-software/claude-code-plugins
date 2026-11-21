@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 // Expected values come from the reconciler's spec: a CI run on a PR's current
 // head whose newest attempt ended cancelled, timed_out or startup_failure,
 // with no newer run of that workflow on the head, is re-run once; at most 3
