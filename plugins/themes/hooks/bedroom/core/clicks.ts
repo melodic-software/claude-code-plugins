@@ -1,5 +1,6 @@
 import type { EngineInterface } from 'claude-code'
 
+import { purr } from '../pieces/sound.js'
 import { HITS } from '../scene/lib.ts'
 import { readNow } from './clock.js'
 import { ctxOf } from './context.js'
@@ -77,6 +78,7 @@ export async function handleClick($: EngineInterface, point: { readonly x: numbe
   if (keys.length === 0) {
     if (!struck.includes('cat')) return undefined
     $.ui.toast('the cat purrs')
+    purr($)
     return 'cat'
   }
   const state = { ...ctx.saved.state }
