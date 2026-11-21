@@ -3218,6 +3218,7 @@ describe("unrunnable-rules.json", () => {
     assert.equal(first("A before-and-after eval run on Amazon Bedrock is recorded; the full-suite eval run is not part of this work."), PAID_EVAL);
     assert.equal(first("Before/after triggers are recorded on Bedrock; the eval run is out of scope."), PAID_EVAL);
     assert.equal(first("A before-and-after eval-gated run on Bedrock is recorded; the eval run is not part of this work."), PAID_EVAL);
+    assert.equal(first("The eval run is out of scope, but show no loss on Amazon Bedrock."), PAID_EVAL);
     const result = decide(facts({ issue: doneWhen(line) }));
     assert.equal(result.hold, true);
     assert.equal(result.hostRun, undefined);
@@ -3300,6 +3301,8 @@ describe("unrunnable-rules.json", () => {
     "A before-and-after eval-suite run is recorded; the full eval run is not part of this work.",
     "A before-and-after eval-gated run is recorded; the eval run is not part of this work.",
     "An eval-gated run shows no loss; the eval run is out of scope.",
+    "The eval run is out of scope, but show no loss.",
+    "The eval run is not part of this work, so no loss is shown.",
   ]) {
     test(`flags an eval run beside an exclusion: ${line.slice(0, 60)}`, () => {
       assert.equal(first(line), "eval", line);
