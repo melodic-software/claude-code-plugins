@@ -13,6 +13,8 @@ visible, who drives, and whether it drives an app already running. The keys live
   `~/.claude/testing.yaml`, and personal override `.claude/testing.local.yaml`; per user, the plugin
   `userConfig` options of the same names. `scripts/resolve-config.sh e2e` resolves them.
 
+  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
+
 All five keys govern only this skill's own driving ([own-driving.md](own-driving.md)). When a run
 goes through `/app-control:drive` (SKILL.md Step 1), the app's control skill, which
 `/app-control:map create` writes, supplies the driver, the reuse of a running instance and the

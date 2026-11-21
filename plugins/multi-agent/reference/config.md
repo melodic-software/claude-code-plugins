@@ -15,6 +15,10 @@ this page owns the keys.
 | Team | `<home>/multi-agent.yaml`, `<home>` being the convention home the repository binds, else `docs/conventions` |
 | Personal override | `.claude/multi-agent.local.yaml` (gitignored) |
 
+The resolver still reads the user-global and personal override paths above until it migrates
+([#17998](https://github.com/melodic-software/claude-code-plugins/issues/17998)); then the files
+move where [config locations](config-locations.md) says.
+
 Later layers win per key. Team and personal override are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
 (`lib/config-root.sh`). The team file is validated by

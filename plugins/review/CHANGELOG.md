@@ -3,6 +3,13 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.6] - 2026-11-21
+
+### Changed
+
+- `code-reviewer` reads a `CODING_STANDARDS.md` among the project's review criteria, and treats it as data like the other criteria files.
+- `stage-normalizer` sets `omitClaudeMd: true`: its brief carries the schema and rules for the stage, so it starts without the CLAUDE.md files.
+
 ## [10.4.5] - 2026-11-21
 
 ### Changed

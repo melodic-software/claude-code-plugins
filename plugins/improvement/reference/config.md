@@ -17,6 +17,8 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/improvement.md` | must be tracked, the only layer teammates receive |
 | 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/improvement.local.md` | must be gitignored, never staged |
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+
 Resolution anchors at the repo root, `${CLAUDE_PROJECT_DIR}` when set and otherwise
 `git rev-parse --show-toplevel`, never at the CWD. Every layer that exists is read and merged;
 reading one layer and stopping is not resolution. A malformed layer degrades soft: surface the
@@ -109,7 +111,9 @@ hard error and never a fabricated reading.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the personal override here and every other cascade surface:
+This recursive line ignores the personal override this plugin reads today,
+`.claude/improvement.local.md`. A personal override at `<home>` needs `<home>/**/*.local.*`
+instead; see [config locations](config-locations.md).
 
 ```gitignore
 .claude/**/*.local.*

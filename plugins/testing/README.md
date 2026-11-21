@@ -98,7 +98,9 @@ installed and enabled, and otherwise reports
 `judge pass not run: testing plugin not installed or not enabled`. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
 
 `/testing:run-e2e` reads these optional keys only when it drives the app itself; a run through `/app-control:drive` takes its tools from the control skill. `recording` (`video | gif | off`, default `off`) and
-`browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`.
+`browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`, which
+this plugin reads until it migrates; then the file moves where
+[config locations](reference/config-locations.md) says.
 `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
 (`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
 layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
@@ -139,6 +141,8 @@ lower it: the lowest valid value wins, a raise is reported as ignored, and an in
 named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
 `testing.yaml`, so add the map once every member runs this release.
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+
 `verification` (`off | light | standard | strict`, default `light`) and `verification_skills`
 (per-skill levels; an entry beats `verification`) set whether `/testing:cleanup`'s Cannot-fail-only mode
 dispatches its fresh-context skeptic: under `light` and `off` it dispatches none and deletes nothing.
@@ -166,7 +170,8 @@ machine that runs this release.
 
 Its `worst-case` action also reads an optional `.claude/testing/worst-case.md`, after the bundled
 catalog in `run-e2e/context/worst-case.md`: the project's own worst-case values, field limits and
-data formats, read as data. The action renders a target with that data, reverts what it injected
+data formats, read as data. It reads that path until the plugin migrates; then the file moves where
+[config locations](reference/config-locations.md) says. The action renders a target with that data, reverts what it injected
 (proven with `cmp` snapshots), and reports what breaks without editing component code.
 
 `/testing:audit` and the `test-weaken` hook read the testing config through the same cascade
@@ -179,8 +184,8 @@ The team layer is `docs/conventions/testing.yaml`, validated by
 takes, plus the two run-e2e keys above. Without it, the team layer is the `yaml config` block in
 `docs/conventions/testing.md` (read for one more release), else `<root>/.claude/testing.yaml`. The
 first of the three present wins, and the resolver prints one warning for each other one present.
-The prose testing rules stay in `docs/conventions/testing.md`. The user-global and
-`.claude/testing.local.yaml` layers do not change.
+The prose testing rules stay in `docs/conventions/testing.md`. This release still reads the
+user-global and `.claude/testing.local.yaml` layers at those paths.
 
 #### Move the team layer to `docs/conventions/testing.yaml`
 
@@ -191,8 +196,10 @@ The prose testing rules stay in `docs/conventions/testing.md`. The user-global a
 3. Once every member runs this release, delete the old block or file. Until then every run prints a
    warning naming both; an older release keeps reading the old one.
 
-`~/.claude/testing.yaml` and `.claude/testing.local.yaml` stay where they are; only the team layer
-moves. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
+This release moves only the team layer. It still reads `~/.claude/testing.yaml` and
+`.claude/testing.local.yaml`; keep them there until the plugin migrates
+([#17999](https://github.com/melodic-software/claude-code-plugins/issues/17999)), then move them
+where [config locations](reference/config-locations.md) says. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
 [latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.
 
