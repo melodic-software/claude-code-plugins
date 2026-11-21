@@ -1,31 +1,18 @@
 #!/usr/bin/env bash
-# Resolve the GitHub repository a pull-request phase reads and writes, once, so
-# every later gh call names it (`-R <owner>/<repo>` for gh pr and gh issue,
-# `repos/<owner>/<repo>/...` for gh api) instead of leaving gh to choose.
-#
-# Resolution order:
-#   0. GH_REPO, when set (a HOST/ prefix is dropped);
-#   1. when the remotes name two or more github.com repositories, the fork among
-#      them: a remote's repository the caller can push to whose parent is the
-#      recorded gh default or another remote's repository, `origin` checked
-#      first; a failed repository read stops with exit 1. A checkout of a fork
-#      works on the fork, even after a stock fork clone recorded upstream as gh's
-#      default; a pull request meant for upstream names its base explicitly;
-#   2. the default `gh repo set-default` recorded for this checkout;
-#   3. with none recorded, the one github.com repository the remotes name;
-#   4. with no github.com remote at all, gh's own resolution (an Enterprise host).
-# Two or more github.com repositories, none a pushable fork of another, with no
-# recorded default is refused: gh would then pick one by remote name.
-#
-# Usage: target-repo.sh [--dir <checkout>]
-# Exit 0: owner/repo on stdout, "target repository: owner/repo" on stderr.
-# Exit 1: refused or unresolved; the reason, and the fix when there is one, on stderr.
-# Exit 2: usage error.
+# GENERATED from lib/target-repo.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../../../lib/github-remote.sh
-source "${SCRIPT_DIR}/../../../lib/github-remote.sh"
+github_repo_of() {
+  local url="${1%/}"
+  url="${url%.git}"
+  case "${url,,}" in
+  https://github.com/*) echo "${url:19}" ;;
+  ssh://git@github.com/*) echo "${url:21}" ;;
+  git@github.com:*) echo "${url:15}" ;;
+  *) ;;
+  esac
+}
 
 usage() {
   echo "usage: target-repo.sh [--dir <checkout>]" >&2
@@ -51,8 +38,6 @@ found() {
   exit 0
 }
 
-# GH_REPO is the caller's choice, or the repository an earlier block resolved
-# and exported, so it wins. It may carry a HOST/ prefix.
 if [[ -n "${GH_REPO:-}" ]]; then
   repo="${GH_REPO%/}"
   [[ "$repo" == */*/* ]] && repo="${repo#*/}"
@@ -62,7 +47,6 @@ fi
 ERR_FILE=$(mktemp) || exit 1
 trap 'rm -f "$ERR_FILE"' EXIT
 
-# --view exits 0 whether or not a default is recorded, so read its output.
 VIEW=$(gh repo set-default --view 2>"$ERR_FILE" | tr -d '\r') || {
   cat "$ERR_FILE" >&2
   exit 1

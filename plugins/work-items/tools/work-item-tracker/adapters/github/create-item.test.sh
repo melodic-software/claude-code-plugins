@@ -22,6 +22,7 @@ assert_usage_error "$S" --title x --type # --type needs a value
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   PROJECT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$PROJECT" init -q
   cat >"$STUB/gh" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$1" == "--version" ]]; then
@@ -55,7 +56,15 @@ case "$1 $2" in
   ;;
 esac
 case "$1" in
-issue | repo)
+repo)
+  if [[ "$2 $3" == "set-default --view" ]]; then
+    printf 'No default remote repository has been set for this directory.\n' >&2
+    exit 0
+  fi
+  printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
+  exit 1
+  ;;
+issue)
   printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
   exit 1
   ;;
@@ -75,7 +84,7 @@ EOF
   chmod +x "$STUB/gh"
   run_create() {
     : >"$STUB/calls.log"
-    CLAUDE_PROJECT_DIR="$PROJECT" GH_STUB_DIR="$STUB" PATH="$STUB:$PATH" bash "$S" "$@"
+    (cd "$PROJECT" && CLAUDE_PROJECT_DIR="$PROJECT" GH_STUB_DIR="$STUB" PATH="$STUB:$PATH" bash "$S" "$@")
   }
 
   OUT="$(GH_STUB_VERSION=2.45.0 run_create --title t --body b --labels a,b --repo o/r)"

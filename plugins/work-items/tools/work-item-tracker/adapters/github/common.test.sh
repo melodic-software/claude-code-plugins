@@ -79,12 +79,18 @@ issue)
   exit 1
   ;;
 repo)
+  if [[ "$2 $3" == "set-default --view" ]]; then
+    printf 'No default remote repository has been set for this directory.\n' >&2
+    exit 0
+  fi
   printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
   exit 1
   ;;
 api)
   case "$*" in
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
+  "api repos/me/r --jq"*) printf 'up/r\n' ;;
+  "api repos/up/r --jq"* | "api repos/a/r --jq"* | "api repos/b/r --jq"*) ;;
   *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z","milestone":{"number":1,"title":"After zero"}}\n' ;;
   esac
   exit 0
@@ -153,11 +159,31 @@ EOF
   (CLAUDE_CODE_REMOTE='' wit_require_graphql_session "--parent" >/dev/null 2>&1)
   assert_eq "wit_require_graphql_session passes in a local session" "0" "$?"
 
+  NO_REMOTE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$NO_REMOTE" init -q
   : >"$EMIT_STUB/calls.log"
-  REPO="$(GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "")"
-  assert_eq "wit_resolve_repo resolves over REST" "o/r" "$REPO"
+  REPO="$(cd "$NO_REMOTE" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo with no github.com remote resolves over REST" "o/r" "$REPO"
   assert_not_contains "wit_resolve_repo skips repo view" "$(<"$EMIT_STUB/calls.log")" "repo view"
   assert_eq "wit_resolve_repo keeps an explicit override" "x/y" "$(wit_resolve_repo x/y)"
+
+  FORK="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$FORK" init -q
+  git -C "$FORK" remote add origin git@github.com:me/r.git
+  git -C "$FORK" remote add upstream https://github.com/up/r
+  ERR="$(cd "$FORK" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>&1 >/dev/null)"
+  REPO="$(cd "$FORK" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo in a fork checkout targets the fork, not upstream" "me/r" "$REPO"
+  assert_contains "wit_resolve_repo names the target on stderr" "$ERR" "target repository: me/r"
+
+  TWO="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$TWO" init -q
+  git -C "$TWO" remote add origin https://github.com/a/r
+  git -C "$TWO" remote add other https://github.com/b/r
+  ERR="$(cd "$TWO" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>&1 >/dev/null)"
+  rc=$?
+  assert_eq "wit_resolve_repo refuses undecidable remotes with exit 3" "3" "$rc"
+  assert_contains "wit_resolve_repo refusal prints the set-default fix" "$ERR" "gh repo set-default <owner>/<repo>"
 
   rm -rf "$EMIT_STUB"
 
