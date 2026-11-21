@@ -1770,13 +1770,10 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
-// The fetch a main run from the full base checkout hands createGitHubApi: each
-// attempt's rate-limit reading goes to the job-end api-calls notice
-// (rate-guard.mjs countRequests), and nothing else changes. It loads here, at
-// run time: publish-feedback.mjs and apply-dependency-verdict.mjs import this
-// module from a copy of this directory alone, which cannot reach .github/actions.
-export const countedFetch = async (fetchImpl = globalThis.fetch) =>
-  (await import("../../actions/log-api-budget/rate-guard.mjs")).countRequests(fetchImpl);
+export const guardedFetch = async (fetchImpl = globalThis.fetch, latch) => {
+  const guard = await import("../../actions/log-api-budget/rate-guard.mjs");
+  return (latch ?? guard.rateLimitLatch).guard(fetchImpl, { floorGraceMs: guard.DISPATCH_FLOOR_GRACE_MS });
+};
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
@@ -2182,7 +2179,7 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  const fetch = api ? undefined : await countedFetch();
+  const fetch = api ? undefined : await guardedFetch();
   const client = withLaneBinding(
     api ??
       createGitHubApi({

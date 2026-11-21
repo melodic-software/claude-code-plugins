@@ -32,7 +32,7 @@ import { runAsScript } from "../lib/run-main.mjs";
 import { loadRules, webHostsFrom } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
-import { anyListed, countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, laneReader, need, positive, readTriggers, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom, withLaneBinding } from "./address-feedback.mjs";
+import { anyListed, guardedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, laneReader, need, positive, readTriggers, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom, withLaneBinding } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
@@ -360,7 +360,7 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   const trustedHumans = trustedHumansFrom(trustedActors);
   // The review lanes' findings and hold comments count only when bound to
   // their runs, read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
-  const fetch = api ? undefined : await countedFetch();
+  const fetch = api ? undefined : await guardedFetch();
   const client = withLaneBinding(
     api ??
       createGitHubApi({

@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -3668,6 +3669,37 @@ test("createGitHubApi reads a comparison and a tree", async () => {
   await api.compare("a".repeat(40), "b".repeat(40));
   await api.getTree("c".repeat(40));
   assert.deepEqual(sent, [`GET https://api/repos/o/r/compare/${"a".repeat(40)}...${"b".repeat(40)}`, `GET https://api/repos/o/r/git/trees/${"c".repeat(40)}`]);
+});
+
+test("createGitHubApi refuses to build without a fetch, so no importer falls back to one the rate guard never sees", () => {
+  assert.throws(() => createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api" }), TypeError);
+});
+
+test("createGitHubApi over the rate guard's fetch, as its checkout importers build it, sends nothing while the stop file holds the REST pool", async () => {
+  const dir = tempDir("apply-patch-stop-");
+  try {
+    const nowMs = 1_800_000_000_000;
+    const stopFile = join(dir, "stop");
+    const compareOnce = async (stopLine) => {
+      writeFileSync(stopFile, stopLine);
+      const sent = [];
+      const stub = async (url, init = {}) => {
+        sent.push(`${init.method ?? "GET"} ${url}`);
+        return new Response(JSON.stringify({ ok: 1 }), { status: 200 });
+      };
+      const latch = createRateLimitLatch({ stopFile, now: () => nowMs, log: () => {}, fail: () => {}, limits: () => ({}) });
+      const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", fetch: latch.guard(stub), sleep: async () => {} });
+      return { sent, result: api.compare("a".repeat(40), "b".repeat(40)) };
+    };
+    const held = await compareOnce(`core ${nowMs / 1000 + 3600}\n`);
+    await assert.rejects(held.result, { name: "RateLimitStop" });
+    assert.deepEqual(held.sent, []);
+    const open = await compareOnce("");
+    await open.result;
+    assert.deepEqual(open.sent, [`GET https://api/repos/o/r/compare/${"a".repeat(40)}...${"b".repeat(40)}`]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // The shared-copies row: a clean merge of the pinned base that takes the base
