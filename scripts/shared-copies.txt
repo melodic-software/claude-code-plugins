@@ -1007,6 +1007,7 @@ lib/lane-instance-collision-check.md plugins/work-items/skills/work-loop/referen
 lib/cli-version-check.mjs plugins/context7/lib/cli-version-check.mjs
 lib/cli-version-check.mjs plugins/firecrawl/lib/cli-version-check.mjs
 lib/cli-version-check.mjs plugins/playwright/lib/cli-version-check.mjs
+docs/contracts/config-cascade/locations.md plugins/ai-slop/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/attribution/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/bugs/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/code-metrics/reference/config-locations.md
@@ -1017,6 +1018,7 @@ docs/contracts/config-cascade/locations.md plugins/docs-naming/reference/config-
 docs/contracts/config-cascade/locations.md plugins/harness-config/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/improvement/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/instruction-placement/reference/config-locations.md
+docs/contracts/config-cascade/locations.md plugins/multi-agent/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/mutation-testing/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/overengineering/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/plugin-quality/reference/config-locations.md
