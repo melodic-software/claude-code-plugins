@@ -116,7 +116,7 @@ const ACTIONS_BOT = 41898282;
 const MELODIC_AI = 288071998;
 const CLAUDE_BOT = 209825114;
 const LANES_APP = 337595936;
-const BOT_SETTERS = [41898282, 300666570, 288071998, 296023097, 300690090, 302525172, 337859524];
+const BOT_SETTERS = [41898282, 300666570, 288071998, 296023097, 300690090, 337859524];
 
 test("read: github-actions[bot] setting needs-human reads needs-human, and melodic-ai[bot] setting confirmed reads confirmed", () => {
   assert.equal(issueStatus([{ field: FIELD, option: OPTIONS["needs-human"] }], ACTIONS_BOT), "needs-human");
