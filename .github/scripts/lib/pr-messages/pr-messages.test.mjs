@@ -49,6 +49,7 @@ for (const v of vectors.section) {
     assert.equal(sectionHeading(v.kind, v.fields), v.line);
     const store = memoryStore({ comments: [comment({ body: `${MARKER}\n## Title\n${v.line}\nline one\nline two\n` })] });
     const got = await thread(store).read(v.kind, KEY);
+    assert.equal(got.preamble, "## Title");
     assert.deepEqual(got.sections, [{ fields: v.fields, text: "line one\nline two\n" }]);
   });
 }

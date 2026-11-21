@@ -129,16 +129,18 @@ export function prMessages({ store, repo, number, kinds }) {
     const [head, ...rest] = c.body.split("\n");
     const out = { id: c.id, fields: k.marker.parse(head) };
     if (!k.section) return out;
+    const preamble = [];
     const sections = [];
     for (const line of rest) {
       if (!line.startsWith(k.section.prefix)) {
-        sections.at(-1)?.lines.push(line);
+        (sections.at(-1)?.lines ?? preamble).push(line);
         continue;
       }
       const fields = k.section.parse(line);
       if (fields === null) throw new MessageReadError(`comment ${c.id} on #${number} carries a malformed ${k.name} section marker`);
       sections.push({ fields, lines: [] });
     }
+    out.preamble = preamble.join("\n");
     out.sections = sections.map((s) => ({ fields: s.fields, text: s.lines.join("\n") }));
     return out;
   }

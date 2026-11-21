@@ -8,23 +8,28 @@ import process from "node:process";
 import { test } from "node:test";
 import { SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { prMessages } from "../lib/pr-messages/pr-messages.mjs";
+import { memoryStore } from "../lib/pr-messages/stores.mjs";
 import {
   escapeCell,
   failureRows,
+  MAX_BODY,
   MAX_ROWS,
   MAX_WAIT_SECONDS,
   main,
-  marker,
-  render,
+  parseSection,
+  renderSection,
+  reportOf,
   secondaryWait,
   templatePath,
 } from "./post.mjs";
 
-const BOT = { login: "github-actions[bot]" };
+const BOT = "github-actions[bot]";
 const ENV = {
   LANE: "read",
   ACTIVITY: "fix-ci",
   RUN_ID: "123",
+  GITHUB_RUN_ATTEMPT: "1",
   PULL: "42",
   REPOSITORY: "o/r",
   GITHUB_SERVER_URL: "https://github.com",
@@ -36,32 +41,36 @@ const ENV = {
     dropped: 0,
   }),
 };
-const MARKER =
-  "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->";
+const MARKER = "<!-- lane-run-report activity=read/fix-ci -->";
+const OLD_MARKER = "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->";
+const heading = (run, attempt, rung, leg) => `<!-- lane-run-report-section run=${run} attempt=${attempt} rung=${rung} leg=${leg} -->`;
+const headings = (body) => body.split("\n").filter((line) => line.startsWith("<!-- lane-run-report-section "));
+const current = (store) => prMessages({ store, repo: "o/r", number: 42 }).read("lane-run-report", { activity: "read/fix-ci" });
 
-function fakeGitHub(comments = [], { fail = false } = {}) {
+async function run(env, deps = {}) {
+  const lines = [];
+  const waits = [];
+  const original = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const code = await main({ ...ENV, ...env }, { sleep: async (ms) => waits.push(ms), ...deps });
+    return { code, lines, waits };
+  } finally {
+    console.log = original;
+  }
+}
+
+const page = (nodes) => ({ data: { repository: { pullRequest: { comments: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } } });
+
+function fakeGitHub(nodes = [], { fail = false } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     if (fail) throw new Error("boom");
-    return method === "GET" ? comments : {};
+    if (path === "/graphql") return page(nodes);
+    return method === "POST" ? { id: 77 } : {};
   };
-  return {
-    github,
-    calls,
-    writes: () => calls.filter((c) => c.method !== "GET"),
-  };
-}
-
-async function run(env, github) {
-  const lines = [];
-  const original = console.log;
-  console.log = (line) => lines.push(line);
-  try {
-    return { code: await main({ ...ENV, ...env }, { github }), lines };
-  } finally {
-    console.log = original;
-  }
+  return { github, calls, writes: () => calls.filter((c) => c.path !== "/graphql") };
 }
 
 test("only rows of the recorded shape pass, duplicates fold, and the rest count as dropped", () => {
@@ -123,77 +132,44 @@ test("a cell is escaped for markdown and HTML", () => {
   );
 });
 
-test("the body opens with the marker and lists the activity, outcome, commits and failures", () => {
-  const body = render({
-    lane: "write",
-    activity: "fix-docs",
-    runId: "9",
-    runUrl: "https://github.com/o/r/actions/runs/9",
-    runResult: "success",
-    actOutcome: "failure",
-    commit: "a".repeat(40),
-    readLane: false,
-    failures: failureRows(
-      JSON.stringify({
-        rows: [
-          {
-            method: "PATCH",
-            path: "/repos/o/r/git/refs/heads/my_branch",
-            status: 422,
-          },
-        ],
-        dropped: 2,
-      }),
-    ),
-  });
-  assert.ok(
-    body.startsWith(
-      "<!-- lane-run-report activity=write/fix-docs run=9 rung=0 leg=base -->\n",
-    ),
+const report = (more = {}) =>
+  reportOf({ runId: "9", attempt: "1", rung: "0", leg: "base", runResult: "success", actOutcome: "success", readLane: true, failures: { rows: [], dropped: 0 }, ...more });
+
+test("a section opens with its marker and lists the rung, leg, outcome, commits and failures", () => {
+  const text = renderSection(
+    report({
+      rung: "1",
+      leg: "handoff",
+      actOutcome: "failure",
+      commit: "a".repeat(40),
+      readLane: false,
+      failures: failureRows(JSON.stringify({ rows: [{ method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 }], dropped: 2 })),
+    }),
+    (runId) => `https://github.com/o/r/actions/runs/${runId}`,
   );
-  assert.match(body, /\| Activity \| write\/fix-docs \|/);
-  assert.match(body, /\| Run job \| success \|/);
-  assert.match(body, /\| Activity step \| failure \|/);
-  assert.match(
-    body,
-    new RegExp(`\\| Commits pushed \\| ${"a".repeat(40)} \\|`),
-  );
-  assert.match(
-    body,
-    /\| PATCH \| \/repos\/\{repo\}\/git\/refs\/heads\/&#42; \| 422 \|/,
-  );
-  assert.match(body, /more rows not shown/i);
-  assert.doesNotMatch(body, /\b2 more/);
+  assert.ok(text.startsWith(`${heading(9, 1, 1, "handoff")}\n`));
+  assert.match(text, /\| Model rung \| 1 \|/);
+  assert.match(text, /\| Leg \| handoff \|/);
+  assert.match(text, /\| Run job \| success \|/);
+  assert.match(text, /\| Activity step \| failure \|/);
+  assert.match(text, new RegExp(`\\| Commits pushed \\| ${"a".repeat(40)} \\|`));
+  assert.match(text, /\| Run \| \[9\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/9\) \|/);
+  assert.match(text, /\| PATCH \| \/repos\/\{repo\}\/git\/refs\/heads\/&#42; \| 422 \|/);
+  assert.match(text, /more rows not shown/i);
+  assert.doesNotMatch(text, /\b2 more/);
 });
 
 test("a read lane pushes no commits, and a run with no failures says so", () => {
-  const body = render({
-    lane: "read",
-    activity: "fix-ci",
-    runId: "1",
-    runResult: "success",
-    actOutcome: "success",
-    readLane: true,
-    failures: { rows: [], dropped: 0 },
-  });
-  assert.match(body, /\| Commits pushed \| none \(read lane\) \|/);
-  assert.match(body, /No failed call recorded by the run job's scripts\./);
+  const text = renderSection(report());
+  assert.match(text, /\| Commits pushed \| none \(read lane\) \|/);
+  assert.match(text, /No failed call recorded by the run job's scripts\./);
 });
 
 const TAG_MISS = { method: "GET", path: "/repos/o/r/git/ref/tags/main", status: 404 };
-const reportOf = (rows) =>
-  render({
-    lane: "read",
-    activity: "fix-ci",
-    runId: "1",
-    runResult: "success",
-    actOutcome: "success",
-    readLane: true,
-    failures: failureRows(JSON.stringify({ rows, dropped: 0 })),
-  });
+const reportWith = (rows) => renderSection(report({ failures: failureRows(JSON.stringify({ rows, dropped: 0 })) }));
 
 test("a run whose only failed call is a tag-ref 404 reports no failed call", () => {
-  const body = reportOf([TAG_MISS, { ...TAG_MISS, path: "/repos/o/r/git/ref/tags/release/v1" }]);
+  const body = reportWith([TAG_MISS, { ...TAG_MISS, path: "/repos/o/r/git/ref/tags/release/v1" }]);
   assert.match(body, /No failed call recorded by the run job's scripts\./);
   assert.doesNotMatch(body, /More rows not shown/);
   assert.deepEqual(failureRows(JSON.stringify({ rows: [TAG_MISS], dropped: 0 })), { rows: [], dropped: 0 });
@@ -216,136 +192,289 @@ test("a 404 on another path, a non-404 status or a non-GET method on a tag ref i
 });
 
 test("a tag-ref 404 beside a real failure leaves only the real failure in the table", () => {
-  const body = reportOf([TAG_MISS, { method: "GET", path: "/repos/o/r/pulls/42", status: 502 }]);
+  const body = reportWith([TAG_MISS, { method: "GET", path: "/repos/o/r/pulls/42", status: 502 }]);
   assert.match(body, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 502 \|/);
   assert.doesNotMatch(body, /tags/);
   assert.doesNotMatch(body, /More rows not shown/);
 });
 
 test("a forged outcome or commit renders as unknown or none, never as given", () => {
-  const body = render({
-    lane: "write",
-    activity: "x",
-    runId: "1",
-    runResult: "neutral",
-    actOutcome: "pwned",
-    commit: "zz",
-    readLane: false,
-    failures: { rows: [], dropped: 0 },
-  });
+  const body = renderSection(report({ runResult: "neutral", actOutcome: "pwned", commit: "zz", readLane: false }));
   assert.match(body, /\| Run job \| unknown \|/);
   assert.match(body, /\| Activity step \| unknown \|/);
   assert.match(body, /\| Commits pushed \| none recorded \|/);
 });
 
-test("main posts the report on the pull request", async () => {
-  const api = fakeGitHub([
-    { id: 1, user: { login: "someone" }, body: `${MARKER}\nquoted` },
-  ]);
-  const out = await run({}, api.github);
+test("a section parsed back from its text renders the same", () => {
+  const original = report({
+    readLane: false,
+    commit: "b".repeat(40),
+    actOutcome: "failure",
+    failures: failureRows(
+      JSON.stringify({
+        rows: [
+          { method: "GET", path: "/repos/o/r/pulls/42", status: 502 },
+          { method: "POST", path: "/graphql", status: 0 },
+          { method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 },
+        ],
+        dropped: 1,
+      }),
+    ),
+  });
+  const text = renderSection(original);
+  const [head, ...rest] = text.split("\n");
+  assert.equal(head, heading(9, 1, 0, "base"));
+  const parsed = parseSection({ fields: original.fields, text: rest.join("\n") });
+  assert.equal(renderSection(parsed), text);
+});
+
+test("main posts the report on the pull request after one GraphQL list", async () => {
+  const api = fakeGitHub([{ fullDatabaseId: "1", author: { __typename: "User", login: "someone" }, editor: null, body: `${MARKER}\nquoted`, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: null, isMinimized: false }]);
+  const out = await run({}, { github: api.github });
   assert.equal(out.code, 0);
-  const [write] = api.writes();
-  assert.equal(write.method, "POST");
-  assert.equal(write.path, "/repos/o/r/issues/42/comments");
-  assert.ok(write.body.body.startsWith(`${MARKER}\n`));
-  assert.match(
-    write.body.body,
-    /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 502 \|/,
-  );
-});
-
-test("a rerun of the same run edits its comment", async () => {
-  const api = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nold` }]);
-  assert.equal((await run({}, api.github)).code, 0);
   assert.deepEqual(
-    api.writes().map((c) => [c.method, c.path]),
-    [["PATCH", "/repos/o/r/issues/comments/5"]],
+    api.calls.map((c) => [c.method, c.path]),
+    [
+      ["POST", "/graphql"],
+      ["POST", "/repos/o/r/issues/42/comments"],
+    ],
+  );
+  const body = api.writes()[0].body.body;
+  assert.ok(body.startsWith(`${MARKER}\n`));
+  assert.deepEqual(headings(body), [heading(123, 1, 0, "base")]);
+  assert.match(body, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 502 \|/);
+  assert.ok(out.lines.includes("::notice::posted the lane run report on #42"));
+});
+
+test("two runs of one activity leave one comment holding only the newer run", async () => {
+  const store = memoryStore();
+  await run({ RUN_ID: "123" }, { store });
+  await run({ RUN_ID: "124", LEG: "handoff" }, { store });
+  assert.equal(store.comments.length, 1);
+  assert.deepEqual(headings(store.comments[0].body), [heading(124, 1, 0, "handoff")]);
+});
+
+test("every leg and every same-activity call of one run keeps its own section", async () => {
+  const store = memoryStore();
+  await run({}, { store });
+  await run({ LEG: "handoff" }, { store });
+  await run({ MODEL_RUNG: "1" }, { store });
+  await run({}, { store });
+  assert.equal(store.comments.length, 1);
+  assert.deepEqual(headings(store.comments[0].body), [heading(123, 1, 0, "base"), heading(123, 1, 0, "handoff"), heading(123, 1, 1, "base"), heading(123, 1, 0, "base")]);
+});
+
+test("a re-run attempt replaces the newest earlier-attempt section of its rung and leg", async () => {
+  const store = memoryStore();
+  await run({}, { store });
+  await run({ LEG: "handoff" }, { store });
+  await run({}, { store });
+  await run({ GITHUB_RUN_ATTEMPT: "2" }, { store });
+  assert.deepEqual(headings(store.comments[0].body), [heading(123, 1, 0, "base"), heading(123, 1, 0, "handoff"), heading(123, 2, 0, "base")]);
+  await run({ GITHUB_RUN_ATTEMPT: "2" }, { store });
+  assert.deepEqual(headings(store.comments[0].body), [heading(123, 2, 0, "base"), heading(123, 1, 0, "handoff"), heading(123, 2, 0, "base")]);
+});
+
+test("an older run's report leaves the comment unchanged and goes to the job summary", async () => {
+  const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
+  writeFileSync(summary, "");
+  const store = memoryStore();
+  await run({ RUN_ID: "1000000000000" }, { store });
+  const before = store.comments[0].body;
+  const out = await run({ RUN_ID: "999999999999", GITHUB_STEP_SUMMARY: summary }, { store });
+  assert.equal(out.code, 0);
+  assert.equal(store.comments[0].body, before);
+  assert.equal(store.comments.length, 1);
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(999999999999, 1, 0, "base")]);
+  assert.ok(out.lines.some((line) => line.startsWith("::notice::") && line.includes("newer run")));
+});
+
+test("a person-edited comment, then two more runs, leaves exactly one current bot comment", async () => {
+  const store = memoryStore({
+    comments: [{ id: 1, author: BOT, body: `${MARKER}\n${heading(122, 1, 0, "base")}\nmy note`, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: "2026-11-21T00:01:00Z", editor: "octocat", isMinimized: false }],
+  });
+  await run({ RUN_ID: "123" }, { store });
+  await run({ RUN_ID: "124" }, { store });
+  assert.equal(store.comments.length, 2);
+  assert.equal(store.comments[0].body, `${MARKER}\n${heading(122, 1, 0, "base")}\nmy note`);
+  const own = await current(store);
+  assert.equal(own.id, 2);
+  assert.deepEqual(
+    own.sections.map((s) => s.fields.run),
+    ["124"],
   );
 });
 
-test("no pull request, or a bad lane, activity, run id or repository, makes no call", async () => {
+test("an old per-run comment is ignored and left as it is", async () => {
+  const old = { id: 1, author: BOT, body: `${OLD_MARKER}\nold`, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: null, editor: null, isMinimized: false };
+  const store = memoryStore({ comments: [{ ...old }] });
+  await run({}, { store });
+  assert.deepEqual(store.comments[0], old);
+  assert.equal(store.comments.length, 2);
+  assert.ok(store.comments[1].body.startsWith(`${MARKER}\n`));
+});
+
+test("planted text in a kept section is not carried forward", async () => {
+  const planted = [
+    MARKER,
+    heading(123, 1, 0, "base"),
+    "| Run job | pwned |",
+    "| Activity step | success |",
+    "| Commits pushed | [click](https://example.com) |",
+    "[click me](https://example.com/sk-ant-AAAA)",
+    "| GET | /repos/{repo}/sk-ant-AAAA | 500 |",
+    "| GET | /repos/{repo}/pulls/&#42; | 007 |",
+    "| GET | /repos/{repo}/pulls/&#42; | 404 |",
+    "",
+  ].join("\n");
+  const store = memoryStore({ comments: [{ id: 1, author: BOT, body: planted, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: null, editor: null, isMinimized: false }] });
+  await run({ LEG: "handoff" }, { store });
+  const body = store.comments[0].body;
+  assert.equal(store.comments.length, 1);
+  assert.deepEqual(headings(body), [heading(123, 1, 0, "base"), heading(123, 1, 0, "handoff")]);
+  assert.doesNotMatch(body, /sk-ant|example\.com|pwned|007/);
+  const [kept] = body.split(heading(123, 1, 0, "handoff"));
+  assert.match(kept, /\| Run job \| unknown \|/);
+  assert.match(kept, /\| Commits pushed \| none recorded \|/);
+  assert.match(kept, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 404 \|/);
+  assert.match(kept, /More rows not shown/);
+});
+
+test("a body past 60,000 characters drops the oldest sections' rows, then the oldest sections, and says how many", async () => {
+  const rows = Array.from({ length: MAX_ROWS }, (_, i) => ({ method: "GET", path: "/repos/o/r/pulls/1", status: 400 + i }));
+  const store = memoryStore();
+  const reports = 130;
+  for (let i = 0; i < reports; i++) await run({ API_FAILURES: JSON.stringify({ rows, dropped: 0 }) }, { store });
+  const body = store.comments[0].body;
+  assert.equal(store.comments.length, 1);
+  const size = body.length - MARKER.length - 1;
+  assert.ok(size <= MAX_BODY && size > MAX_BODY - 3000, String(size));
+  const note = /^Not shown, to keep this comment under 60,000 characters: ([0-9]+) failure rows and ([0-9]+) sections\.$/m.exec(body);
+  assert.ok(note, "the trim note");
+  const [rowsCut, sectionsCut] = [Number(note[1]), Number(note[2])];
+  assert.ok(sectionsCut > 0, "sections were dropped");
+  assert.equal(headings(body).length + sectionsCut, reports);
+  assert.equal(rowsCut, (reports - 1) * MAX_ROWS);
+  const sections = body.split(/^(?=<!-- lane-run-report-section )/m).slice(1);
+  assert.match(sections.at(-1), /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 449 \|/);
+  for (const kept of sections.slice(0, -1)) {
+    assert.doesNotMatch(kept, /\| GET \|/);
+    assert.match(kept, /More rows not shown/);
+  }
+});
+
+test("a newer run clears the trim note with the older run's sections", async () => {
+  const rows = Array.from({ length: MAX_ROWS }, (_, i) => ({ method: "GET", path: "/repos/o/r/pulls/1", status: 400 + i }));
+  const store = memoryStore();
+  for (let i = 0; i < 30; i++) await run({ API_FAILURES: JSON.stringify({ rows, dropped: 0 }) }, { store });
+  assert.match(store.comments[0].body, /^Not shown/m);
+  await run({ RUN_ID: "124" }, { store });
+  assert.doesNotMatch(store.comments[0].body, /Not shown/);
+});
+
+test("a list past its time limit falls back to the job summary without a write", async () => {
+  const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
+  writeFileSync(summary, "");
+  const calls = [];
+  const github = (method, path, body, headers, options) => {
+    calls.push(path);
+    return new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(options.signal.reason)));
+  };
+  const out = await run({ GITHUB_STEP_SUMMARY: summary }, { github, listTimeoutMs: 20 });
+  assert.equal(out.code, 0);
+  assert.deepEqual(calls, ["/graphql"]);
+  assert.deepEqual(out.waits, []);
+  assert.ok(out.lines.some((line) => line.startsWith("::warning::could not post")));
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(123, 1, 0, "base")]);
+});
+
+test("no pull request, or a bad lane, activity, run id, attempt, rung, leg or repository, makes no call", async () => {
   for (const env of [
     { PULL: "" },
     { PULL: "0" },
     { LANE: "Read" },
     { ACTIVITY: "a b" },
     { RUN_ID: "x" },
+    { GITHUB_RUN_ATTEMPT: "" },
+    { GITHUB_RUN_ATTEMPT: "0" },
+    { MODEL_RUNG: "2" },
+    { LEG: "base" },
+    { LEG: "Fallback" },
+    { LEG: "x -->" },
     { REPOSITORY: "o" },
   ]) {
     const api = fakeGitHub();
-    assert.equal((await run(env, api.github)).code, 0, JSON.stringify(env));
+    assert.equal((await run(env, { github: api.github })).code, 0, JSON.stringify(env));
     assert.deepEqual(api.calls, [], JSON.stringify(env));
   }
 });
 
+test("each runner leg and model rung renders as its own section", async () => {
+  const store = memoryStore();
+  for (const LEG of ["", "handoff", "credit-stop", "no-key", "fallback"]) await run({ LEG }, { store });
+  await run({ MODEL_RUNG: "" }, { store });
+  await run({ MODEL_RUNG: "1" }, { store });
+  assert.deepEqual(
+    headings(store.comments[0].body),
+    [...["base", "handoff", "credit-stop", "no-key", "fallback", "base"].map((leg) => heading(123, 1, 0, leg)), heading(123, 1, 1, "base")],
+  );
+});
+
 test("a posting failure warns and does not fail the step", async () => {
   const api = fakeGitHub([], { fail: true });
-  const out = await run({}, api.github);
+  const out = await run({}, { github: api.github });
   assert.equal(out.code, 0);
-  assert.ok(
-    out.lines.some((line) => line.startsWith("::warning::could not post")),
-  );
+  assert.ok(out.lines.some((line) => line.startsWith("::warning::could not post")));
 });
 
 // A thrown GitHubError's shape: its status and responseDetail's line.
 const refusal = (status, detail) =>
   Object.assign(new Error(`POST /repos/o/r/issues/42/comments failed with status ${status}`), { status, detail });
 
-async function runWith(env, github) {
-  const lines = [];
-  const waits = [];
-  const original = console.log;
-  console.log = (line) => lines.push(line);
-  try {
-    const code = await main({ ...ENV, GITHUB_RUN_ATTEMPT: "1", ...env }, { github, sleep: async (ms) => waits.push(ms) });
-    return { code, lines, waits };
-  } finally {
-    console.log = original;
-  }
-}
-
 test("a refused post names GitHub's answer and writes the report to the job summary", async () => {
   const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
   writeFileSync(summary, "");
   const detail = 'status=403 x-ratelimit-remaining=2575 x-ratelimit-reset=1 x-ratelimit-resource=core body="{\\"message\\":\\"Resource not accessible by integration\\"}"';
-  const github = async () => {
+  const github = async (method, path) => {
+    if (path === "/graphql") return page([]);
     throw refusal(403, detail);
   };
-  const out = await runWith({ GITHUB_STEP_SUMMARY: summary }, github);
+  const out = await run({ GITHUB_STEP_SUMMARY: summary }, { github });
   assert.equal(out.code, 0);
   assert.deepEqual(out.waits, []);
   const warning = out.lines.find((line) => line.startsWith("::warning::could not post"));
   assert.ok(warning.endsWith(`status 403 [${detail}]; the report is in this job's summary`), warning);
-  assert.ok(readFileSync(summary, "utf8").startsWith(`${MARKER}\n`));
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(123, 1, 0, "base")]);
 });
 
-test("a secondary rate limit is retried once after its retry-after", async () => {
+test("a secondary rate limit on the list is retried once, list and write together, after its retry-after", async () => {
   const calls = [];
-  const github = async (method, path, body) => {
-    calls.push({ method, path, body });
+  const github = async (method, path) => {
+    calls.push(path);
     if (calls.length === 1) throw refusal(403, 'status=403 x-ratelimit-remaining=4000 x-ratelimit-reset=1 x-ratelimit-resource=core retry-after=7 body="{}"');
-    return {};
+    return path === "/graphql" ? page([]) : { id: 5 };
   };
-  const out = await runWith({}, github);
+  const out = await run({}, { github });
   assert.equal(out.code, 0);
   assert.deepEqual(out.waits, [7000]);
-  assert.equal(calls.length, 2);
-  assert.ok(out.lines.some((line) => line === "::notice::posted the lane run report on #42"));
+  assert.deepEqual(calls, ["/graphql", "/graphql", "/repos/o/r/issues/42/comments"]);
+  assert.ok(out.lines.includes("::notice::posted the lane run report on #42"));
 });
 
 test("a secondary limit named only in the body waits the default, and a second refusal goes to the summary", async () => {
   const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
   writeFileSync(summary, "");
   let calls = 0;
-  const github = async () => {
+  const github = async (method, path) => {
+    if (path === "/graphql") return page([]);
     calls += 1;
     throw refusal(429, 'status=429 x-ratelimit-remaining=4000 x-ratelimit-reset=1 x-ratelimit-resource=core body="You have exceeded a secondary rate limit"');
   };
-  const out = await runWith({ GITHUB_STEP_SUMMARY: summary }, github);
+  const out = await run({ GITHUB_STEP_SUMMARY: summary }, { github });
   assert.equal(out.code, 0);
   assert.equal(calls, 2);
   assert.deepEqual(out.waits, [SIGNALS.fallbackSeconds * 1000]);
-  assert.ok(readFileSync(summary, "utf8").startsWith(`${MARKER}\n`));
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(123, 1, 0, "base")]);
 });
 
 test("secondaryWait leaves a primary limit, other statuses, an unexplained 403 and a retry-after past the cap alone", () => {
@@ -391,15 +520,7 @@ test("planted text never reaches the comment", () => {
     path: `/repos/o/r/${key}${i}`,
     status: 404,
   }));
-  const body = render({
-    lane: "read",
-    activity: "fix-ci",
-    runId: "1",
-    runResult: "success",
-    actOutcome: "success",
-    readLane: true,
-    failures: failureRows(JSON.stringify({ rows, dropped: 0 })),
-  });
+  const body = reportWith(rows);
   assert.doesNotMatch(body, /sk-ant|AAAA/);
 });
 
@@ -416,110 +537,6 @@ test("rows that template alike fold into one before the cap", () => {
     { method: "GET", path: "/repos/{repo}/issues/*", status: 500 },
   ]);
   assert.equal(out.dropped, MAX_ROWS + 19);
-});
-
-test("each model rung of one run has its own marker; an unknown rung posts nothing", async () => {
-  assert.equal(
-    marker({ lane: "read", activity: "fix-ci", runId: "5", rung: "1" }),
-    "<!-- lane-run-report activity=read/fix-ci run=5 rung=1 leg=base -->",
-  );
-  const rung0 = `${MARKER}\nold`;
-  const api = fakeGitHub([{ id: 5, user: BOT, body: rung0 }]);
-  assert.equal((await run({ MODEL_RUNG: "1" }, api.github)).code, 0);
-  const [write] = api.writes();
-  assert.equal(write.method, "POST");
-  assert.ok(
-    write.body.body.startsWith(
-      "<!-- lane-run-report activity=read/fix-ci run=123 rung=1 leg=base -->\n",
-    ),
-  );
-  const empty = fakeGitHub([{ id: 5, user: BOT, body: rung0 }]);
-  await run({ MODEL_RUNG: "" }, empty.github);
-  assert.deepEqual(
-    empty.writes().map((c) => c.method),
-    ["PATCH"],
-  );
-  const bad = fakeGitHub();
-  assert.equal((await run({ MODEL_RUNG: "2" }, bad.github)).code, 0);
-  assert.deepEqual(bad.calls, []);
-});
-
-test("a first attempt posts without listing comments; a re-run attempt lists them", async () => {
-  const first = fakeGitHub();
-  await run({ GITHUB_RUN_ATTEMPT: "1" }, first.github);
-  assert.deepEqual(
-    first.calls.map((c) => c.method),
-    ["POST"],
-  );
-  const rerun = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nold` }]);
-  await run({ GITHUB_RUN_ATTEMPT: "2" }, rerun.github);
-  assert.deepEqual(
-    rerun.calls.map((c) => c.method),
-    ["GET", "PATCH"],
-  );
-});
-
-test("each leg of one call has its own marker; an unknown leg posts nothing", async () => {
-  assert.notEqual(
-    marker({ lane: "read", activity: "fix-ci", runId: "5", leg: "base" }),
-    marker({ lane: "read", activity: "fix-ci", runId: "5", leg: "handoff" }),
-  );
-  const legs = [];
-  for (const LEG of ["", "handoff", "credit-stop", "no-key", "fallback"]) {
-    const api = fakeGitHub();
-    await run({ LEG, GITHUB_RUN_ATTEMPT: "1" }, api.github);
-    legs.push(api.writes()[0].body.body.split("\n")[0]);
-  }
-  assert.deepEqual(
-    legs,
-    ["base", "handoff", "credit-stop", "no-key", "fallback"].map(
-      (leg) =>
-        `<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=${leg} -->`,
-    ),
-  );
-  const rerun = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nbase leg` }]);
-  await run({ LEG: "fallback", GITHUB_RUN_ATTEMPT: "2" }, rerun.github);
-  assert.deepEqual(
-    rerun.writes().map((c) => c.method),
-    ["POST"],
-  );
-  const own = fakeGitHub([
-    {
-      id: 6,
-      user: BOT,
-      body: `${marker({ lane: "read", activity: "fix-ci", runId: "123", leg: "fallback" })}\nold`,
-    },
-  ]);
-  await run({ LEG: "fallback", GITHUB_RUN_ATTEMPT: "2" }, own.github);
-  assert.deepEqual(
-    own.calls.map((c) => c.method),
-    ["GET", "PATCH"],
-  );
-  for (const LEG of ["base", "Fallback", "x -->"]) {
-    const bad = fakeGitHub();
-    const out = await run({ LEG }, bad.github);
-    assert.equal(out.code, 0);
-    assert.deepEqual(bad.calls, [], LEG);
-    assert.ok(
-      out.lines.some((line) => line.startsWith("::warning::")),
-      LEG,
-    );
-  }
-});
-
-test("the model rung renders as its own row", async () => {
-  for (const [MODEL_RUNG, shown] of [
-    ["", "0"],
-    ["0", "0"],
-    ["1", "1"],
-  ]) {
-    const api = fakeGitHub();
-    await run({ MODEL_RUNG, GITHUB_RUN_ATTEMPT: "1" }, api.github);
-    assert.match(
-      api.writes()[0].body.body,
-      new RegExp(`\\| Model rung \\| ${shown} \\|`),
-    );
-  }
 });
 
 // The run job's carry step, as each run-activity workflow writes it.
