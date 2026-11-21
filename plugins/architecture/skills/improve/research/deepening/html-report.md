@@ -20,7 +20,7 @@ One JSON object. Every listed field is required unless marked optional, every te
 
 | Field | Holds |
 |---|---|
-| `schema_version` | `1` |
+| `schema_version` | `2` |
 | `repo` | the repository name |
 | `scope` | the paths Phase 1 scanned, as the scope step chose them |
 | `commit` | the scanned commit's SHA (`git rev-parse HEAD`), 7 to 40 lowercase hex digits |
@@ -40,6 +40,7 @@ Each candidate:
 | `title` | a few words naming the deepening, such as "Fold the invoice export steps into one module" |
 | `recommendation` | `Strong`, `Worth exploring` or `Speculative` |
 | `category` | `in-process`, `local-substitutable`, `ports-and-adapters` or `mock` |
+| `size` | the artifact's `size`: `S`, `M` or `L`, then `: ` and a basis of at most twelve words (see Size) |
 | `problem` | the artifact's `problem`, one sentence |
 | `solution` | the artifact's `solution`, one sentence naming a change; a finding that proposes none goes in `kept` instead |
 | `wins` | the artifact's `wins`, one entry per gain (see Wins) |
@@ -51,9 +52,9 @@ Each candidate:
 
 ## Page order
 
-1. **Header**: the repo name; the date, scope and commit; then on separate lines the evidence counts, the candidate tally per badge, and the verification level with what it checked. A key follows, collapsed by default so the top recommendation stays near the top, with one short line per item the page uses and none it does not: each drawing style (deep box, plain box, solid gray arrow for a call or read, dotted gray arrow for a pointer, rust arrow for a leak, and the box, stack and nesting patterns), each badge (Strong defines the deletion test and the two-adapter rule it rests on), each dependency category, each win term, and each Verified value. The builder writes the key from the record; the definitions follow [vocabulary.md](../../../../reference/vocabulary.md), [dependencies.md](dependencies.md) and the acceptance heuristics in [deepening.md](../../actions/deepening.md).
+1. **Header**: the repo name; the date, scope and commit; then on separate lines the evidence counts, the candidate tally per badge, and the verification level with what it checked. A key follows, collapsed by default so the top recommendation stays near the top, with one short line per item the page uses and none it does not: each drawing style (deep box, plain box, solid gray arrow for a call or read, dotted gray arrow for a pointer, rust arrow for a leak, and the box, stack and nesting patterns), each badge (Strong defines the deletion test and the two-adapter rule it rests on), each dependency category, each size, each win term, and each Verified value. The builder writes the key from the record; the definitions follow [vocabulary.md](../../../../reference/vocabulary.md), [dependencies.md](dependencies.md) and the acceptance heuristics in [deepening.md](../../actions/deepening.md).
 2. **Reader**: below the header, a sidebar lists every candidate beside one card at a time. Below 900 px wide the sidebar follows the card.
-   - **Sidebar**: one group per badge, `Strong`, then `Worth exploring`, then `Speculative`, each headed with its count; a badge with no candidates is left out. The top recommendation leads its group and carries a "Top recommendation" mark. Each item shows the short id (the `id` in capitals, such as `S1`) and title, the badge, the Verified word, the file count, the candidate it depends on, the problem and the solution, and opens that candidate's card. Every candidate is listed, with no cap, pagination or collapse: a reader who ran the scan needs every candidate.
+   - **Sidebar**: one group per badge, `Strong`, then `Worth exploring`, then `Speculative`, each headed with its count; a badge with no candidates is left out. The top recommendation leads its group and carries a "Top recommendation" mark. Each item shows the short id (the `id` in capitals, such as `S1`) and title, the badge, the size badge, the Verified word, the file count, the candidate it depends on, the problem and the solution, and opens that candidate's card. Every candidate is listed, with no cap, pagination or collapse: a reader who ran the scan needs every candidate.
    - **Card pane**: the page opens on the top recommendation's card, which carries a "Top recommendation" mark beside its badges, with a box naming it, `top_why` and a "Built on it" list above it that the builder derives from `depends_on`: each candidate that depends on it, directly or through another. `top_why` gives the reason and leaves the names to that list. Previous and next buttons above and below the card step through the sidebar's order, with the card's position (`3 of 23`). The selected card is in the page address, so the back button and a shared link return to it. Every card is in the page, hidden until selected or until find-in-page matches its text.
    - **Diagrams**: clicking a before or after diagram, or its Enlarge button, opens it enlarged in an overlay that closes on Esc, a click outside it, or its Close button.
 3. **Looked at, no change**, when `kept` holds any: each finding's title, reason and files, with no badge and no card, opened from a link at the end of the sidebar and from the header's candidate line, which carries its count.
@@ -64,11 +65,13 @@ Each evidence count comes from a `shallow-signal` or `runtime-claim` that Phase 
 
 ## Candidate card
 
-The card holds these parts in this order and nothing else: short id and title, badges (recommendation and dependency category, plus the Top recommendation mark on that card), problem, solution, the before and after diagram, wins, the Verified line, files, then depends-on and the recorded decision when present, and last a link back to the candidate list. A candidate that will not read without a paragraph has a drawing that leaves out the relation the paragraph would explain; add that relation to the diagram data.
+The card holds these parts in this order and nothing else: short id and title, badges (recommendation, dependency category, and size with its basis, plus the Top recommendation mark on that card), problem, solution, the before and after diagram, wins, the Verified line, files, then depends-on and the recorded decision when present, and last a link back to the candidate list. A candidate that will not read without a paragraph has a drawing that leaves out the relation the paragraph would explain; add that relation to the diagram data.
 
 **Wins.** Each entry is `<term>: <gain>`, the term one of the eight in [vocabulary.md](../../../../reference/vocabulary.md) and the gain at most six words, such as `locality: a rounding fix, one file` or `leverage: twelve callers, one interface`. Write at least one `leverage` or `locality` win; the builder refuses a card with neither. A gain written as "more maintainable" fails the wording rule below; restate it as the leverage or locality it stands for.
 
 **Verified.** `reproduced` when Phase 1.5 reproduced the candidate's signal or claim as stated, `corrected: <one clause>` when it held only after a correction (the clause says what changed), `unverified` when nothing was reproduced, including every candidate under a `light` or `off` level. The full notes stay in the artifact's `verification-notes`, never on the card.
+
+**Size.** `S` is one small PR, one module and its callers; `M` is one PR that changes several modules or callers; `L` is more than one PR, a staged migration under the repository's PR-size policy. The basis says what sets the band in at most twelve words, such as `M: one PR across the gate, page merge and schema`. The builder refuses a candidate without one.
 
 ## Diagram patterns
 
