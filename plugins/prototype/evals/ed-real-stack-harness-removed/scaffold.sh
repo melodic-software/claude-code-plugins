@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A shipments app mid-way through a real-stack explore-directions run (sub-shape A): three variant
-# files and a switcher beside the /shipments page, its mount block, and the notes harness
-# (prototype-harness/ plus the marked lines in vite.config.js and src/main.jsx). The person has
-# replied, so step 5 records the pick and removes every prototype part.
 set -euo pipefail
 
 git init -q -b main .
