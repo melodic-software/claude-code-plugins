@@ -398,6 +398,31 @@ esac
   });
 });
 
+describe("antigravity member", () => {
+  const RUN = parse(readFileSync(join(HERE, "..", "adapters", "antigravity.yaml"), "utf8")).run;
+
+  test("the adapter runs the bare external-agents review command with the council gate", () => {
+    assert.equal(RUN, "external-agents review antigravity --council");
+  });
+
+  test("routes like a script member: review, adversarial-review with a brief, no effort, committed only", () => {
+    const out = selectPanel({ ...base, config: configWith({ plain: { provider: "antigravity" }, adv: { provider: "antigravity", brief: "adversarial", model: "gemini-x" } }) });
+    const row = (id) => out.members.find((m) => m.id === id);
+    assert.equal(row("plain").route, "review");
+    assert.equal(row("plain").model, "provider setting");
+    assert.equal(row("adv").route, "adversarial-review");
+    assert.equal(statusOf(selectPanel({ ...base, config: configWith({ x: { provider: "antigravity", effort: "high" } }) }), "x"), "skipped (effort cannot be set on antigravity)");
+    assert.equal(statusOf(selectPanel({ ...base, config: configWith({ x: { provider: "antigravity", model: "antigravity/flagship" } }) }), "x"), "skipped (antigravity/flagship cannot be resolved yet)");
+    assert.match(statusOf(selectPanel({ ...base, dirty: true, config: configWith({ x: { provider: "antigravity" } }) }), "x"), /^skipped \(reviews committed changes only/);
+  });
+
+  test("the runner's review lines parse: ran with scope detail, and the council gate's skip", () => {
+    const ran = memberResult({ product: "antigravity", output: "notice: the reviewed change touches .agents/ (1 file)\nantigravity: ran (reviewed 2 changed files against 0123abcd)\nNo findings.\n", exit: 0 });
+    assert.deepEqual(ran, { status: "ran", note: "reviewed 2 changed files against 0123abcd", findings: "No findings." });
+    assert.equal(memberResult({ product: "antigravity", output: "antigravity: skipped (antigravity.council.enabled is false)\n", exit: 4 }).status, "skipped (antigravity.council.enabled is false)");
+  });
+});
+
 describe("cli", () => {
   test("config prints JSON; a bad verb exits 2", () => {
     const ok = spawnSync("node", [SCRIPT, "config", "--root", repo()], { encoding: "utf8" });

@@ -3,7 +3,7 @@ description: "Council review: a panel of configured reviewer members (provider, 
 argument-hint: "[--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs:*)", "Bash(bash \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh\")", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh)", "Bash(external-agents review codex:*)"]
+allowed-tools: ["Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/council-plan.mjs:*)", "Bash(bash \"${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh\")", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/council/scripts/snapshot-tree.sh)", "Bash(external-agents review codex:*)", "Bash(external-agents review antigravity:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -298,12 +298,12 @@ changed any file adds: "Fixes from the council's rounds are unbuilt and untested
   tool. A shell redirect into `.work/` is blocked by guardrails in this marketplace.
 - Editing a round file after fix consumed it changes its digest, so fix admits it again on its next
   run and reapplies its rows. Corrections go in the run file.
-- A Codex member reviews committed history only: it is skipped on a dirty tree and in every round
+- A Codex or Antigravity member reviews committed history only: it is skipped on a dirty tree and in every round
   after the first, by its adapter record, not by name.
 
 ## What this skill does NOT do
 
 - **Post anything.** Findings stay on disk; no PR comment, no score table in a PR body.
 - **Commit, build or run the suite between rounds.**
-- **Run a task through another vendor's CLI.** Codex members run `external-agents review` only (`adapters/codex.yaml`).
+- **Run a task through another vendor's CLI.** Codex and Antigravity members run `external-agents review` only (`adapters/codex.yaml`, `adapters/antigravity.yaml`).
 - **Substitute a member.** A missing provider, unresolvable flagship or unsettable field is a skip.
