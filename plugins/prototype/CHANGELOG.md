@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.3] - 2026-11-21
+
+### Fixed
+
+- The notes host draws a note's marker only while the variant and screen state it was made on are shown in the mockup, and hovering a note from another variant no longer outlines its box over the variant on screen ([#17949](https://github.com/melodic-software/claude-code-plugins/issues/17949)).
+
 ## [0.44.2] - 2026-11-21
 
 ### Changed
