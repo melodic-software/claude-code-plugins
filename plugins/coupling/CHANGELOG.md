@@ -3,6 +3,12 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.5.4] - 2026-11-19
 
 ### Changed

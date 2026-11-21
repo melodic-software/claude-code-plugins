@@ -154,10 +154,10 @@ the lane-telemetry contract below. Seam keys and defaults in the config referenc
 ## Stop modes
 
 **Standing (default).** The lane keeps watching indefinitely; idle cycles back the wakeup delay off
-toward the `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per
-the convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
+toward the `ScheduleWakeup` ceiling. The `/loop` expiry (30 days for a loop created on Claude Code
+2.1.330 or later, 7 days for an older one) bounds a standing lane per the convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
 
-- **Pointer**: when the wakeup ceiling or the loop expiry matters, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) and [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
+- **Pointer**: when the wakeup ceiling or the loop expiry matters, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval), [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) and the [2.1.330 changelog entry](https://code.claude.com/docs/en/changelog#2-1-330) live; the changelog entry governs where the two disagree on the figure.
 
 **Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs and 0 open
 issues** in the target repository. This deliberately outlives the worker lane's exit (all issues
@@ -314,7 +314,8 @@ block, re-read at every cycle start:
 `cycle`, `backoff_level`, `no_progress_streak` and `demotion_events` are the loop's durable counters;
 `demotion_events` totals the demotion issues this instance's post-merge check filed (cycle-shape
 step 1), and a block without it reads as 0;
-`loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
+`loop_started_at` makes the approaching `/loop` expiry visible (30 days for a loop created on
+2.1.330 or later, 7 days for an older one); `restart_request` is where a
 budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. Every counter
 is **per-instance**: the marker partitions the block, so each measures *this* instance's experience,
 not an average of two lanes'. The four instance fields carry the collision check that
@@ -444,7 +445,8 @@ babysit-prs engine snapshot supplies `recommended_cadence`, map it per the caden
 babysit-prs [loop reference](../babysit-prs/reference/loop.md) §5.3, which owns the
 seconds. Idle backs off toward the 3600s ceiling (standing mode's one-hour wakeups), and a genuine
 daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a
-cycle-budget or seven-day-expiry hit, write a restart-request into the telemetry state block and
+cycle-budget or `/loop` expiry hit (30 days for a loop created on 2.1.330 or later, 7 days for an
+older one), write a restart-request into the telemetry state block and
 stop the loop cleanly: the budget restarts the session, never ends the loop, and every budget hit
 is a manual-restart state, per the convention. A forge rate-limit error ends the cycle's forge work; wake no earlier than the [API budget](../../reference/providers/github/README.md#api-budget) reset, never retry.
 

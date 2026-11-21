@@ -494,6 +494,14 @@
       "reason": "Manual inspection only; no workflow reads it after the run.",
       "scan": "none"
     },
+    "selection-trace-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/pr-require-checks.yml a pull request author reading a failed test-selection trace"
+      ],
+      "reason": "Manual inspection only; uploaded when the trace fails, and no workflow reads it after the run.",
+      "scan": "none"
+    },
     "branch-cleanup-candidates-*": {
       "retention-days": 1,
       "readers": [

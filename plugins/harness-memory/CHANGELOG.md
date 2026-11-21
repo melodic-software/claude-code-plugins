@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.2] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [2.4.1] - 2026-11-20
 
 ### Changed

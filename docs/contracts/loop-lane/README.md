@@ -324,8 +324,8 @@ each later alert run retries, with no label; and a red-main record gets `needs-h
 check got no fix issue because it was over the cap or outside the name charset, which no retry can
 file. This convention adds no second escalation channel; the telemetry comment (§4)
 is the report surface, never the sole path when human action is required. The escalation record
-write and the out-of-band notification seam below are notification depth on the one filed
-escalation, the fan-out posture the runner design
+write and the out-of-band notification section below are further ways to notify about the one
+filed escalation, the fan-out posture the runner design
 ([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names, never a
 second channel: the tracker item remains the single escalation of record.
 
@@ -597,7 +597,7 @@ escalation the tracker item already holds:
  "summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}
 ```
 
-`kind` mirrors the marker comment's `kind` token. The write is signal, not storage: no lane reads
+`kind` mirrors the marker comment's `kind` token. The write is a signal. No lane reads
 the record back, and the tracker item stays the escalation of record.
 
 **Ignoring the record directory is the lane's own preflight, not a consumer obligation.** Because
@@ -948,10 +948,13 @@ reports and stops cleanly rather than idling forever. Without it, an overnight d
 the first unanswered escalation. An issue in a cordoned milestone (§2, "The phase's zero") is not
 backlog to either exit; a repository without `admission-rules.json` has no cordoned milestones.
 
-A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**,
-which we treat as binding both launch shapes (§5), idle backoff notwithstanding. Pointer:
-[Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry). As of:
-2026-07-27. Recheck trigger: a Claude Code release note changes `/loop` expiry. A standing lane
+A standing lane is additionally bounded by the `/loop` launch surface's **expiry**, which we treat
+as binding both launch shapes (§5), idle backoff notwithstanding: a `/loop` or recurring scheduled
+task created on Claude Code 2.1.330 or later runs up to 30 days while its session keeps running, and
+one created before 2.1.330 still ends at 7 days. Pointer: when the expiry matters, fetch the
+[2.1.330 changelog entry](https://code.claude.com/docs/en/changelog#2-1-330) and
+[Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live; the
+changelog entry governs where the two disagree on the figure. As of: 2026-11-21. Recheck trigger: a Claude Code release note changes `/loop` expiry. A standing lane
 therefore requires a relaunch owner, today always the operator, for whom `harness-ops` `lanes`
 `restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
 below). The lane records its loop-started timestamp in the lane's #502 telemetry block so the
@@ -1265,8 +1268,9 @@ documented at the site, per the [seam-phrasing convention](../seam-phrasing/READ
 **Two launch shapes, selected per invocation, and neither deprecates the other.** Supplying an interval
 (`/loop 15m …`) gives the fixed-interval shape, a cron schedule; omitting it gives the self-paced shape, with
 each delay inside the §4 bounds. We treat `ScheduleWakeup` as the pacing mechanism of
-the self-paced shape only. The §4 seven-day expiry binds both shapes. Both are current; this note
-reconciles which applies where and changes neither. Pointer: for both shapes, see
+the self-paced shape only. The §4 `/loop` expiry (30 days for a loop created on 2.1.330 or later, 7
+days for an older one) binds both shapes. Both are current; this note reconciles which applies
+where and changes neither. Pointer: for both shapes, see
 [Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval)
 and
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval);
@@ -1308,9 +1312,9 @@ and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/do
 A lane launched below the floor keeps the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
 wake, and the lane cannot end itself, so a **drain** lane there deadlocks on the first unanswered
 escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
-the seven-day expiry. No lane detects the provider or the version today, so this is recorded as a
-known gap rather than left as an unstated assumption, on the model §6 uses for the single-account
-assumption.
+the §4 `/loop` expiry (30 days for a loop created on 2.1.330 or later, 7 days for an older one). No
+lane detects the provider or the version today, so this is recorded as a known gap rather than left
+as an unstated assumption, on the model §6 uses for the single-account assumption.
 
 ### Permission modes
 
@@ -1649,7 +1653,7 @@ of its plan or PR body, naming the mechanism that answers it:
 | How does a person do what the agent does? | The manual way in beside each agent way in: a dispatch input, a label or a skill a person can run on the same item |
 | What does it look like drawn? | A diagram with one lane per place a step runs (person, tracker, runner, git host, orchestrator, token broker), each step in the lane where it happens, not where it was decided, and the person's way in drawn |
 
-A question the design cannot answer is a gap to close before the build, not after.
+A question the plan or PR body cannot answer is a gap to close before the build starts.
 
 ## Versioning
 
@@ -1665,7 +1669,8 @@ no-drift firing refreshes the record's as-of date in place, with no entry and no
 - Any change to this convention, or to a consuming lane, that relies on an upstream-pointed record
   re-reads that record's pointer first and refreshes its as-of date with the outcome.
 
-The upstream surfaces these records point at, the `/loop` seven-day expiry, the `ScheduleWakeup`
-bounds, model-alias semantics, and the rate-limit windows, move on a research-preview cadence. Where
+The upstream surfaces these records point at, the `/loop` expiry (30 days for a loop created on
+2.1.330 or later, 7 days for an older one), the `ScheduleWakeup` bounds, model-alias semantics,
+and the rate-limit windows, move on a research-preview cadence. Where
 re-verification finds drift, the changed value lands here as a recorded entry rather than silently
 inside a lane body.
