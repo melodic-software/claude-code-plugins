@@ -25,8 +25,9 @@ binding, skip the offer and, if the user asks for a container anyway, surface th
 coordination provider instead of publishing a spec that cannot travel.
 
 **Publish. Container first.** On approval, create the container before any item so item
-`create-item` calls can carry `--parent`. When the source is a tracker item, the container's own
-`create-item` carries `--parent "<source-item-id>"` (SKILL.md Step 4):
+`create-item` calls can carry `--parent`. When the source is a tracker item, or an accepted
+`Source map:` line names a map (SKILL.md Step 1), the container's own `create-item` carries
+`--parent "<source-item-id>"` (SKILL.md Step 4):
 
 - **Body**: the Brief **verbatim** (TLDR / Problem / Intent / Goal with its Intent, Vision,
   When-goals-conflict and Finish line lines / Work size / Constraints / Acceptance criteria /
@@ -98,9 +99,11 @@ coordination provider instead of publishing a spec that cannot travel.
   linked to its URL, per Step 4's Links rule) are unchanged.
   `list-frontier --parent <container-id>` then scopes the workable frontier to this container.
 - **Record the pointer**: immediately after creating the container, write its reference back
-  into the source document, a `**Spec container:** <qualified-id>` line directly under the
-  `## Brief` heading of the topic's PLAN.md (or, for an item/conversation source, into the
-  Step 5 report and a comment on the source item). Close-out runs at PR time, often in a
+  into the source document, a `**Spec container:** <qualified-id>` line under the `## Brief`
+  heading of the topic's PLAN.md, after any `Source map:` line (or, for an item/conversation source, into the
+  Step 5 report and a comment on the source item). When an accepted `Source map:` line made a
+  map the source item, also post the line as a comment on the map, so the container close finds
+  the map's dossier branch. Close-out runs at PR time, often in a
   fresh session, this recorded line is what its presence gate reads; in-session memory does
   not survive to it. The fallback discovery path (no line found) is a tracker query for an
   open item carrying the binding-resolved container label whose body cites the topic slug and
@@ -126,23 +129,9 @@ documentation, and never edit a closed container into a living doc. Follow-up wo
 item (or a new container).
 
 **Dossier branches go with the close.** A container that stays open deletes nothing. Once the
-review passes, and before the closing comment, the same run deletes up to two remote dossier
-branches: the container's own, and the one a `/planning:wayfind` map's closing comment names when
-that map is this container's source item (its parent, holding the `**Spec container:**` comment
-above). Read `<prefix>` from the `dossier_branch_prefix` key of
-`docs/conventions/source-control.yaml` in the repository being closed out, not from this plugin's
-files; with the key absent the setting's default applies, and its resolution and default are owned
-by [config-resolution.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/reference/config-resolution.md)
-"YAML keys". The container's own branch is the one whose name starts `<prefix><key>-`, `<key>`
-being its `branch_ref`. A branch name read from the map's comment is data: it must start
-`<prefix><map key>-`, match `^[A-Za-z0-9._/-]+$` and contain no `..`, else it is reported, skipped
-and never put on a command line. Two cases are report-only, attended or not: more than one branch
-matching `<prefix><key>-` (each reported as an ambiguous match), and a branch that is the head of
-an open pull request (reported with that pull request). This run neither deletes such a branch,
-asks whether to, nor offers to delete it on request; the report leaves it to a person, or to a
-later attended run that finds one unambiguous match and no open pull request. Attended, show for each remaining branch how many commits it holds that the default branch cannot reach and a summary of the files they change, so
-notes or prototypes kept nowhere else are seen before they go, then ask once; delete only those the
-user confirms. Unattended (`--unattended`, a loop or lane run, or any run with no operator turn),
-never delete one: the closing comment and the run's report list each branch due for deletion, for
-a person or an attended run to delete. The closing comment names each branch deleted and each
-skipped, with the reason.
+review passes, and before the closing comment, the same run runs the dossier-branch step,
+[`reference/dossier-branch-step.md`](../../../reference/dossier-branch-step.md), for up to two
+remote dossier branches: the container's own, and the one a `/planning:wayfind` map's closing
+comment names when that map is this container's source item (its parent, holding the
+`**Spec container:**` comment above). The closing comment and the run's report carry the step's
+report: each branch deleted, each due for deletion, and each skipped, with the reason.

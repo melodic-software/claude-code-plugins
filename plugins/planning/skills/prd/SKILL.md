@@ -157,6 +157,8 @@ Stop asking once every required section has either a resolved answer or an expli
 
 Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the same slug `/planning:interview`, `/planning:design`, and `/planning:plan` use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
 
+When the task description carries a `Source map: #<n>` line (a `/planning:wayfind` map closed to this PRD), copy it verbatim on the line after the frontmatter: `/planning:plan` and `/work-items:decompose` read it from there.
+
 When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note capturing why before rewriting.
 
 Frontmatter:

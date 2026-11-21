@@ -338,19 +338,29 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    ruled out of scope by the user, which moves it to Out-of-scope with the reason; that ruling is
    the one way fog leaves without being charted. Then post a closing comment on the map that states every resolved decision in full: for
    each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
-   resolution comment records, not only the link, and names the dossier branch when one exists. Then close the map issue and hand the decisions
+   resolution comment records, not only the link, and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then close the map issue and hand the decisions
    to the destination's skill in a source form it accepts:
 
    | Destination | Closes to |
    |---|---|
-   | A PRD | `/planning:prd`, with the closing comment's decisions as its task description |
-   | A set of build items (a spec or plan) | `/planning:plan`, with the closing comment's decisions as its task description, then `/work-items:decompose` from that plan. A map whose decisions already read as slices goes straight to `/work-items:decompose #<map-number>`; its item source reads the map's body and comments, so it finds the decisions in the closing comment |
+   | A PRD | `/planning:prd`, with the closing comment's decisions and a `Source map: #<map-number>` line as its task description |
+   | A set of build items (a spec or plan) | `/planning:plan`, with the closing comment's decisions and a `Source map: #<map-number>` line as its task description, then `/work-items:decompose` from that plan. A map whose decisions already read as slices goes straight to `/work-items:decompose #<map-number>`; its item source reads the map's body and comments, so it finds the decisions in the closing comment |
    | One change | `/work-items:work` on the item `/work-items:track add` files for it, its body carrying the decisions |
    | A decision record | `/architecture:record-decision` when enabled, else the repository's ADR convention, given the decisions |
    | A general summary | The closing comment is the summary; no further skill |
 
-   Keep the map's dossier branch, if one exists, until the destination's container closes, then
-   delete it.
+   The map's dossier branch, if one exists, goes through the work-items dossier-branch step, which
+   decides whether to delete or report it, at one point per destination:
+   - **A PRD or a set of build items.** Keep the branch at map close, and have the closing comment
+     say it is kept for `/work-items:decompose`. Decompose handles it when it publishes from the
+     map, straight or through the `Source map:` line: with a container, the container's close runs
+     the step; without one, decompose runs it at the end of publish.
+   - **One change, a decision record or a general summary.** No container will exist, so map close
+     runs the step: before posting the closing comment, run
+     `/work-items:track dossier-branches <map-id>` via the Skill tool, adding `--unattended` on an
+     unattended run, and carry its report in the closing comment. When the reply shows the action
+     table or calls the action unknown, that work-items release predates the action: list the
+     branch in the closing comment as due for deletion.
 
 ## Escalation. Pull the user back to charting at choke points
 
