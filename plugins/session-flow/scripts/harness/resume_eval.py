@@ -2013,6 +2013,10 @@ def other_nondelivery(row: dict) -> bool:
     return bool(row.get("nondelivery")) and not row.get("hook_blocked")
 
 
+def hook_blocked(row: dict) -> bool:
+    return bool(row.get("hook_blocked"))
+
+
 def hook_counts(rows) -> str:
     rows = list(rows)
     blocked = sum(bool(r.get("hook_blocked")) for r in rows)
@@ -2042,10 +2046,11 @@ class Cell:
     def accuracy(self, probes: frozenset[str] | None = None) -> float | None:
         return _mean(self.scores(probes))
 
-    def nondelivery_rate(self) -> float | None:
+    def rate(self, counted) -> float | None:
+        """The share of kept runs `counted` holds true for."""
         if not self.runs:
             return None
-        return sum(map(other_nondelivery, self.runs)) / len(self.runs)
+        return sum(map(counted, self.runs)) / len(self.runs)
 
     def reader_m1(self) -> float | None:
         return _mean(v for v in map(row_reader_m1, self.runs) if v is not None)
@@ -2189,32 +2194,40 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
     lines.say(
         f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)"
     )
-    rates = [
-        o_cells[n].nondelivery_rate() - b_cells[n].nondelivery_rate()
-        for n in names
-        if b_cells[n].runs and o_cells[n].runs
-    ]
+    def rate_change(counted) -> tuple[str, float | None]:
+        return _paired(
+            [
+                o_cells[n].rate(counted) - b_cells[n].rate(counted)
+                for n in names
+                if b_cells[n].runs and o_cells[n].runs
+            ],
+            -1.0,
+            1.0,
+        )
+
     counts = [
         sum(other_nondelivery(r) for n in names for r in cells[n].runs)
         for cells in (b_cells, o_cells)
     ]
-    text, upper = _paired(rates, -1.0, 1.0)
+    nondelivery, nondelivery_upper = rate_change(other_nondelivery)
     lines.say(
-        f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {text}"
+        f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {nondelivery}"
     )
+    blocked, blocked_upper = rate_change(hook_blocked)
     lines.say(
         f"pair {pair}: hooks {o_label} {hook_counts(r for n in names for r in o_cells[n].runs)};"
-        f" {b_label} {hook_counts(r for n in names for r in b_cells[n].runs)}"
+        f" {b_label} {hook_counts(r for n in names for r in b_cells[n].runs)};"
+        f" hook-blocked rate change {blocked}"
     )
-    if (
-        args.nondelivery_margin is not None
-        and upper is not None
-        and upper > args.nondelivery_margin + 1e-9
+    for rise, upper, margin in (
+        ("non-delivery rise", nondelivery_upper, args.nondelivery_margin),
+        ("hook-blocked rise", blocked_upper, args.hook_margin),
     ):
-        lines.say(
-            f"non-delivery rise: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {args.nondelivery_margin:.2f}",
-            fail=True,
-        )
+        if margin is not None and upper is not None and upper > margin + 1e-9:
+            lines.say(
+                f"{rise}: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {margin:.2f}",
+                fail=True,
+            )
     for metric, read, margin in (
         ("reader m1 to first action", Cell.reader_m1, None),
         ("whole-run reader m1", Cell.whole_m1, args.token_margin),
@@ -2248,8 +2261,8 @@ def cmd_report(args) -> int:
     """Per (arm, reader): a plugin-eval result file and accuracy, reader tokens and pass
     counts on every case; with `--baseline`, one shared-probe result pair per compared
     group. Accuracy counts delivered runs only; non-delivery is compared as a per-case
-    rate. Exits 1 on any `left out`, `case drop:`, `pass-to-fail:`, `non-delivery rise:`,
-    `token rise:`, `untagged:` or `seed mismatch:` line, 2 on an unknown baseline."""
+    rate, and hook-blocked runs as a rate of their own. Exits 1 on any `left out`,
+    `case drop:`, `pass-to-fail:`, `non-delivery rise:`, `hook-blocked rise:`, `token rise:`, `untagged:` or `seed mismatch:` line, 2 on an unknown baseline."""
     groups = load_groups(args.graded)
     if args.baseline and args.baseline not in groups:
         print(
@@ -2344,6 +2357,10 @@ def cmd_report(args) -> int:
             (
                 args.nondelivery_margin,
                 "nondelivery-margin: none given, so no non-delivery check ran",
+            ),
+            (
+                args.hook_margin,
+                "hook-margin: none given, so no hook-blocked check ran",
             ),
             (
                 args.token_margin,
@@ -2465,6 +2482,11 @@ def main(argv=None) -> int:
         "--nondelivery-margin",
         type=float,
         help="M_nondelivery: fail a pair whose per-case non-delivery rate change has a 95%% upper end above it",
+    )
+    report.add_argument(
+        "--hook-margin",
+        type=float,
+        help="M_hook: fail a pair whose per-case hook-blocked rate change has a 95%% upper end above it",
     )
     report.add_argument(
         "--token-margin",
