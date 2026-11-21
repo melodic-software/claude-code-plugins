@@ -4216,7 +4216,7 @@ jobs:
             exit 1
           fi
           rc=0
-          scripts/selection-audit.sh trace --strict --jobs 4 --budget 720 \
+          scripts/selection-audit.sh trace --strict --jobs 3 --budget 720 \
             --out "$RUNNER_TEMP/selection-audit" "${suites[@]}" || rc=$?
           case "$rc" in
           0) ;;
