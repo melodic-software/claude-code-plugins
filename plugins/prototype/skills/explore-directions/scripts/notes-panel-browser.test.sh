@@ -7,7 +7,7 @@
 # and to handled with the reply once the session applies its ops; a note and a reply holding
 # `<img src=x onerror=...>` show as text, create no element and run no handler.
 # SKIPs without playwright-cli, python3 or curl.
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

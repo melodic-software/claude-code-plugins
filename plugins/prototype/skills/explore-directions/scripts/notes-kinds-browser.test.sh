@@ -8,7 +8,7 @@
 # With the server stopped under the open page, the page says no session, keeps a new note, and Copy
 # all notes makes a block that notes-bridge.sh import takes, skipping the notes already logged.
 # SKIPs without playwright-cli, node, python3 or curl.
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
