@@ -1632,7 +1632,7 @@ merge:
   # schedule alone 60 ends the wait first; 60 caps it whatever else starts
   # runs (judgment). 0 in either: no skips.
   skip-unchanged:
-    max-minutes: 60
+    max-minutes: 0
     max-skips: 3
   # pr-verify FAILs at this many distinct heads of one PR hold it, never to
   # merge unattended, whatever a later pass says, so pushing until the
