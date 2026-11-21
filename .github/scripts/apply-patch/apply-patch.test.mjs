@@ -1256,8 +1256,7 @@ test("a row with no requires list throws before any git or API work", async (t) 
   assert.deepEqual(api.calls, []);
 });
 
-// One blob per file plus seven calls, so the 300 cap bounds the writes.
-test("a fix-ci patch of 300 files pushes with 307 API calls, and one of 301 is refused with none", async (t) => {
+test("a fix-ci patch of 300 files pushes with 309 API calls, and one of 301 is refused with none", async (t) => {
   const files = (count) => (repo) => {
     mkdirSync(join(repo, "gen"));
     for (let i = 0; i < count; i += 1) {
@@ -1267,7 +1266,7 @@ test("a fix-ci patch of 300 files pushes with 307 API calls, and one of 301 is r
   const atCap = repoWithPatch(t, files(300));
   const api = fakeApi(atCap.repo, atCap.head);
   assert.equal((await pushWith(atCap, api, { row: row("ci-context") })).outcome, "pushed");
-  assert.equal(api.calls.length, 307);
+  assert.equal(api.calls.length, 309);
   const over = repoWithPatch(t, files(301));
   const refused = fakeApi(over.repo, over.head);
   assert.deepEqual(await pushWith(over, refused, { row: row("ci-context") }), { outcome: "escalate", escalationReason: "ci-fix-invalid" });
@@ -3511,7 +3510,7 @@ test("select under the merge-base row: a clean merge proceeds with no patch, an 
 // holds upload nothing, two files both sides changed that merged cleanly and
 // the one resolved conflict upload one blob each; the patch is the
 // resolution alone, so max-files counts one path.
-test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolution makes exactly 3 blobs, 1 tree, 1 commit and 1 ref update", async (t) => {
+test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolution makes exactly 3 blobs, 5 chained trees, 1 commit and 1 ref update", async (t) => {
   const many = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`gen/f${i}.txt`, `${i} from main\n`]));
   const fix = mergeFixture(t, {
     base: { "a.txt": "one\n", "two/x.txt": "1\n2\n3\n4\n5\n", "two/y.txt": "1\n2\n3\n4\n5\n" },
@@ -3521,7 +3520,7 @@ test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolutio
   });
   const api = fakeApi(fix.repo, fix.head);
   assert.equal((await mergePush(fix, api)).outcome, "pushed");
-  assert.deepEqual(callNames(api), ["getPull", "listLabels", "readBranch", "createBlob", "createBlob", "createBlob", "createTree", "createCommit", "updateRef", "readBranch"]);
+  assert.deepEqual(callNames(api), ["getPull", "listLabels", "readBranch", "createBlob", "createBlob", "createBlob", ...Array(5).fill("createTree"), "createCommit", "updateRef", "readBranch"]);
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
   assert.equal(git(fix.repo, ["rev-parse", `${createCommit.tree}:gen/f399.txt`]), git(fix.repo, ["rev-parse", `${fix.base}:gen/f399.txt`]));
