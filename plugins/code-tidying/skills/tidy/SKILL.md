@@ -133,7 +133,7 @@ Read the resolved lane file in full at Phase A entry; do not infer scope from th
 
 ### Ad hoc scope when no lane fits
 
-When no bundled or project lane covers the target files (for example a lone `.github/scripts/*.mjs` tree tested with `node --test`), pass globs in place of a lane name: `dry-run <glob>...` to plan, `<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is ad hoc scope. The run then:
+When no bundled or project lane covers the target files, pass globs in place of a lane name: `dry-run <glob>...` to plan, `<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is ad hoc scope. The run then:
 
 - takes its scope from those globs, still filtered by the global exclusions below;
 - borrows the watch-for list, the lane-specific extra exclusions, and the Conventional Commits type from the closest template (`templates/polyglot-services-lane.template.md` for source code, the `docs-prose` lane for markdown), filling each template `<placeholder>` from the scoped files or dropping just that placeholder's clause when nothing in scope fills it;
@@ -216,7 +216,6 @@ Examples:
 
 - `refactor(core): rename result helpers for reading order`
 - `docs(skills): repair stale cross-references`
-- `chore(tools): apply shellcheck/shfmt drift across tools/*.sh`
 
 Body facts to supply:
 

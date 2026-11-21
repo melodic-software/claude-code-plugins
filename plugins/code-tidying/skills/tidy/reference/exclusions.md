@@ -22,7 +22,7 @@ Claude Code surface: `.claude/**` in full. The whole directory is agent surface:
 
 ### Consumer-declared protections
 
-The consuming project's own `CLAUDE.md` / `.claude/rules` may declare additional protected paths. Read them during Phase A and treat every declared protection as HARD. Typical examples: central build/analyzer infrastructure (`Directory.Build.props`, `Directory.Packages.props`, banned-API lists, custom analyzer source trees), solution/workspace files and SDK pins, architecture-test suites whose rules are behavioral, and bootstrap/install scripts.
+The consuming project's own `CLAUDE.md` / `.claude/rules` may declare additional protected paths. Read them during Phase A and treat every declared protection as HARD. Typical examples: central build/analyzer infrastructure (banned-API lists, custom analyzer source trees), solution/workspace files and SDK pins, architecture-test suites whose rules are behavioral, and bootstrap/install scripts.
 
 ### Security & branch protection
 
@@ -135,7 +135,6 @@ Shape: a `## Overrides` heading followed by one fenced block, one root-relative 
 
 ```text
 # The team hand-reviews every lint-config diff, so tidying may reach them.
-ruff.toml
 .editorconfig
 ```
 ````
