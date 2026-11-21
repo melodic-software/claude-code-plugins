@@ -565,6 +565,7 @@ edit the canonical source, then rerun the script. -->
     if (focused) document.querySelector(`[data-key="${focused}"]`)?.focus();
   }
 
+  const FRAME_KEYS = new Set(["p", "r", "a", "m", "n"]);
   addEventListener("message", (e) => {
     if (!fromFrame(e, frame.contentWindow, devOrigin) || loads > 1) return;
     const m = e.data;
@@ -593,6 +594,7 @@ edit the canonical source, then rerun the script. -->
     else if (m.type === "shown" && m.found === false && chosen) say("That note's place is not on the mockup now, so no box is drawn.");
     else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
     else if (m.type === "want-text") askText();
+    else if (m.type === "key" && FRAME_KEYS.has(m.key)) shortcut(m.key);
     else if (m.type === "pinned" && picking === "element") {
       const note = noteFrom(m, "element");
       if (note) openComposer(note, () => buttons.element);
@@ -645,6 +647,17 @@ edit the canonical source, then rerun the script. -->
     });
   }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  function shortcut(key) {
+    if (key === "n") setPanel($("panel").hidden);
+    else if (key === "m") setMarkers(!markersShown);
+    else if (!ready) return false;
+    else if (key === "p") setPick(picking === "element" ? null : "element");
+    else if (key === "r") setPick(picking === "region" ? null : "region");
+    else if (key === "a") setPick(picking === "move" ? null : "move");
+    else if (key === "t") askText();
+    else return false;
+    return true;
+  }
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { if (draft) closeComposer(); else setPick(null); return; }
     if (e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable)) return;
@@ -656,14 +669,7 @@ edit the canonical source, then rerun the script. -->
       else toFrame({ type: "nudge", dx: ARROWS[e.key][0], dy: ARROWS[e.key][1], grow: e.shiftKey });
       return;
     }
-    const key = e.key.toLowerCase();
-    if (key === "n") { e.preventDefault(); return setPanel($("panel").hidden); }
-    if (key === "m") { e.preventDefault(); return setMarkers(!markersShown); }
-    if (!ready) return;
-    if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
-    else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
-    else if (key === "a") { e.preventDefault(); setPick(picking === "move" ? null : "move"); }
-    else if (key === "t") { e.preventDefault(); askText(); }
+    if (shortcut(e.key.toLowerCase())) e.preventDefault();
   });
 
   try {

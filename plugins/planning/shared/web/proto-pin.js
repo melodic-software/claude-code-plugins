@@ -334,6 +334,9 @@
     draw();
   }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const HOST_KEYS = new Set(["p", "r", "a", "m", "n"]);
+  const inField = e => e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable);
+  const chorded = e => e.metaKey || e.ctrlKey || e.altKey;
 
   const over = e => {
     if (!mode) return;
@@ -399,9 +402,12 @@
       else if (e.key === "Enter") { stop(e); sendRegion(); }
       return;
     }
-    const field = e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable);
-    if ((e.key === "t" || e.key === "T") && !field && !e.metaKey && !e.ctrlKey && !e.altKey && !getSelection().isCollapsed) post({ type: "want-text" });
+    if ((e.key === "t" || e.key === "T") && !inField(e) && !chorded(e) && !getSelection().isCollapsed) post({ type: "want-text" });
   }, true);
+  addEventListener("keydown", e => {
+    const key = (e.key || "").toLowerCase();
+    if (HOST_KEYS.has(key) && !e.defaultPrevented && !inField(e) && !chorded(e)) post({ type: "key", key });
+  });
   // The data log: a press of a data control the page marks, and each content set the switcher shows.
   addEventListener("click", e => {
     if (mode) return;
