@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.22.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.22.0] - 2026-11-21
 
 ### Added

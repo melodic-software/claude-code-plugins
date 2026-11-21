@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.9.2] - 2026-11-20
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.3] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [2.2.2] - 2026-11-21
 
 ### Changed
