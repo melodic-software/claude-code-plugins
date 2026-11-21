@@ -17,7 +17,7 @@ Arguments: `$ARGUMENTS`. The action defaults to `status`. Empty container = disc
 | Action | Does | Steps |
 |---|---|---|
 | `status` (default) | Reads, states the shape's discipline, routes the next step; mutates nothing | Process below |
-| `run` | Runs the container's ready items under its shape, attended only: claims them, hands them to `/implementation:implement-dispatch`, lands them one at a time, closes them | [actions/run.md](actions/run.md), after Process Steps 1 to 3 |
+| `run` | Runs the container's ready items under its shape, or a non-container parent's ready children as per-item PRs, attended only: claims them, hands them to `/implementation:implement-dispatch`, lands them one at a time, closes them | [actions/run.md](actions/run.md), after Process Steps 1 to 3 |
 
 ## Shared tracker context
 
@@ -36,7 +36,7 @@ body changes what this skill does.
 
 Answer *where is this spec container's journey, and what's next?* This skill owns the macro map
 (the phases spanning a whole container, with micro cycles inside each item), routes, and with
-`run` runs one container; every mechanic (building an item, PR lifecycle, re-slicing) belongs to
+`run` runs one container or non-container parent; every mechanic (building an item, PR lifecycle, re-slicing) belongs to
 the skill that owns it. Execution shapes, their disciplines, and the journey vocabulary (item /
 checkpoint / phase boundary) are defined in
 [`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md);
@@ -53,8 +53,13 @@ From `$ARGUMENTS`:
   container label (`config.container_label`, default `spec-container`. Warn loudly when defaulting) and
   a body with the `**Execution shape:**` line decompose appends to every container it publishes
   (a wayfind map that also carries the container label never writes that line). A labeled item without the line is
-  reported as not a spec container, and only an item without the container label that has a
-  native parent routes to that parent with a note.
+  reported as not a spec container. An item without the container label resolves in this order:
+  - **`run` only: open sub-items make it the run's parent.** When `"$TRACKER" list-sub-items <id>
+    --state open` returns any item, it is a **non-container parent** (such as the source item
+    decompose attaches items to when its container offer is declined): `run` takes it as-is and
+    works its ready children ([actions/run.md](actions/run.md)). `status` stays container-only.
+  - **Otherwise, a native parent routes.** An item with no open sub-items, or any item under
+    `status`, that has a native parent routes to that parent with a note.
 - `<topic-slug>` or empty. Read the topic's PLAN.md (`<memory_dir>/<slug>/PLAN.md`)
   for the `**Spec container:** <qualified-id>` line under `## Brief`. Fallback discovery: query the
   bound adapter for **open** items carrying the resolved container label (body citing the slug when
@@ -120,10 +125,12 @@ every session joining the journey (cloud or local) must hear the same rules:
   carries the journey. This shape is worked on the shared branch directly or by `run`, not
   through `/work-items:work`'s default-branch worktree path.
 - **Line absent** (a container taken from PLAN.md's `**Spec container:**` line, which skips the
-  label test; a `#<number>` parent route, which re-runs no label or shape-line check; or a body
+  label test; a native-parent route from Step 1, which re-runs no label or shape-line check; or a body
   hand-edited after publish). Apply the `per-item PRs` default loudly and offer to record the
   line (an ordinary body edit through the bound adapter, mutation-gated like any tracker write).
-  An unrecognized value is reported, not obeyed.
+  An unrecognized value is reported, not obeyed. A non-container parent under `run` (Step 1) is
+  the exception: it runs as `per-item PRs`, stated in the run's item list, and no line is offered
+  or written onto it ([actions/run.md](actions/run.md) step 4).
 
 ### 4. Route the next step
 
@@ -159,7 +166,7 @@ One compact macro map, then the recommendation:
 ## Next
 
 - One item to work next: `/work-items:work`.
-- Several ready items in one container: `/work-items:ship run #<container-id>`.
+- Several ready items in one container, or under one non-container parent: `/work-items:ship run #<id>`.
 
 ## What this skill does not do
 
