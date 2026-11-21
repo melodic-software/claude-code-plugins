@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.6] - 2026-11-21
+
+### Fixed
+
+- `worktree` says that since Claude Code 2.1.330, `ExitWorktree` with `action: "remove"` and the worktree exit dialog no longer delete a worktree another running Claude Code session is working in, where it named only the path-entered exception, and that since 2.1.327 `remove` asks before deleting a worktree that may hold unsaved work and is refused in don't-ask mode or with nobody to answer unless an allow rule, auto mode or bypass permissions mode allows it. Routing is unchanged: leave with `action: "keep"` and remove with `cleanup` ([#17829](https://github.com/melodic-software/claude-code-plugins/issues/17829)).
+
 ## [13.3.5] - 2026-11-21
 
 ### Fixed

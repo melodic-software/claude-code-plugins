@@ -64,6 +64,16 @@ A region note's `elements` are the elements with a test id that the region cross
 crosses none, they are the children of the element holding it that it crosses, so a region over
 unmarked content still names what it covers.
 
+A region is kept in page coordinates, so it can run past the frame's view: a drag held near the
+frame's top or bottom edge scrolls the page. A drawn region moves when dragged and resizes from its
+edges and corners, or by the arrow keys (Shift and an arrow resizes) and Enter, before its note is
+sent or after. A sent note's new box goes to `POST /api/note/change` as a change (`$defs/change` in
+`note.schema.json`): `change` is the note's seq, and `anchor`, `rect` and `elements` replace the
+note's own in the log, so the relocation script, `status` and the host page's reload see the
+current box. The bridge also logs the change as an event of its own, which wakes the watcher, so
+the session reads it as that note changed, not as a new note. The host page lists no row for a
+change.
+
 A move arrow (`kind` `move`) says "move this element to there". The person picks the element to
 move, then where it should go: the element clicked, or a point alone when no element fits (Shift
 and a click). `anchor` and `rect` are the element to move. `to.point` is the destination in

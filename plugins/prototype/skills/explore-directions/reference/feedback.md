@@ -103,7 +103,12 @@ carries the view a reload loses:
 - **Mark a region (R).** The person drags a box over the mockup, or moves the box with the arrow
   keys (Shift and an arrow resizes it) and presses Enter. The note's `kind` is `region`, its
   `rect` is the box, `anchor` is the element holding it, and `elements` lists the test-id elements
-  it crosses, or, when it crosses none, the holding element's children it crosses.
+  it crosses, or, when it crosses none, the holding element's children it crosses. A drag held
+  near the frame's top or bottom edge scrolls the mockup, so a region can cover a list taller than
+  the frame. The person can move or resize a region, before sending its note or after: an event
+  that carries `change` is not a new note but note `<change>` moved or resized, with its new
+  `anchor`, `rect` and `elements`, which the log's note now carries too. Restate that note with its
+  new region, and re-locate it by its own seq.
 - **Draw a move arrow (A).** The person clicks the element to move, then the element it should
   go to, or Shift-clicks a point when no element fits. The note's `kind` is `move`, `anchor` and
   `rect` are the element to move, `to.point` is the destination in percent of the page, and

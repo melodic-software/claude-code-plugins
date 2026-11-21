@@ -106,7 +106,7 @@ t = r["events"][1]
 assert t["kind"] == "text" and t["anchor"]["textQuote"]["exact"] == "PT-1012", t
 assert t["anchor"]["testid"] == "shipments-row" and t["anchor"]["testidIndex"] == 12, t
 assert t["data"]["log"] == [{"op": "seed", "n": 10}, {"op": "clear"}, {"op": "reset"}, {"op": "seed", "n": 10}], t
-assert t["viewport"]["w"] == 960 and t["viewport"]["h"] == 800 and t["viewport"]["colorScheme"] in ("light", "dark"), t' "$status"
+assert t["viewport"]["w"] == 1280 and t["viewport"]["h"] == 800 and t["viewport"]["colorScheme"] in ("light", "dark"), t' "$status"
 check "the region note carries its box and the rows it crosses" '
 g = r["events"][2]
 assert g["kind"] == "region" and set(g["rect"]) == {"x", "y", "w", "h"}, g
