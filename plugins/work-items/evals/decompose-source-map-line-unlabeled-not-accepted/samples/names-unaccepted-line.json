@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Not accepted:** the PLAN.md line `Source map: #512`. Item 512 carries no `wayfind: map` label, so the items get no `--parent` and no dossier-branch step runs.",
+      "why": "not accepted, then the line"
+    },
+    {
+      "answer": "Step 5 report\n\n- 2 items created: #513, #514 (#514 blocked by #513)\n- `Source map: #512` was not accepted: item 512 has labels `documentation` and `needs-triage`, not `wayfind: map`.",
+      "why": "the line, then not accepted"
+    },
+    {
+      "answer": "Source map line `Source map: #512` ignored: #512 is not a wayfind map.",
+      "why": "ignored wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Every item is created with `--parent 512`, the map the Source map line names.",
+      "why": "accepts the line, never names it as refused"
+    },
+    {
+      "answer": "Published 2 items. `Source map: #512` accepted as the source item; each body opens Refs #512.",
+      "why": "accepted"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

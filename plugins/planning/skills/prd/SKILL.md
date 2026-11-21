@@ -32,9 +32,9 @@ Arguments: `$ARGUMENTS`
 - `/planning:interview` answers *what is the engineering contract for this task*. Required whenever intent is fuzzy or underspecified, regardless of source
 - A product feature usually wants both: `/planning:interview` runs first and calls `/planning:prd` when a question shows product intent is unsettled, then resumes (with exploration and research as further detours) → `/planning:design` → `/planning:plan`. Engineering-internal work skips `/planning:prd`
 
-The PRD is **never an implementation plan**: problem, users, success, yes; architecture, files, tests, code shapes, no. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
+The PRD is **never an implementation plan**: problem, users, success, yes; architecture, files, tests, code shapes, no. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and leave it to `/planning:plan`.
 
-**Cost framing**: locking product intent up-front is the cheapest version of the conversation. Every later session that runs against a written PRD costs less than one that infers product goals from a half-formed thought.
+**Cost framing**: locking product intent up front is the cheapest version of the conversation: a later session run against a written PRD costs less than one inferring goals from a half-formed thought.
 
 ## Trigger conditions. When to invoke `/planning:prd`
 
@@ -99,9 +99,9 @@ Spend the first turn grounding yourself, in parallel:
 - Note what `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design, exploration and research artifacts
 - When `<memory_dir>/<topic-slug>/brainstorm.md` exists, read its `## Handoff` block as seeds the rounds confirm: `Problem` and `Intent (why, in the user's words)` seed the Problem, `Vision (where this heads)` the Goals `Vision:` line (`not stated` becomes `none stated`), and `Chosen direction` with `Rejected options` stay context for the rounds, not requirements, since the PRD records the problem and its success, not the solution
 
-If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; PRD.md is never committed, so the restart note is its only history, carried by the copy pasted into the pull request body or linked issue).
+If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note saying why below the frontmatter, then rewrite; PRD.md is never committed, so that note, carried by the copy pasted into the pull request body or linked issue, is its only history).
 
-Survey output is a one-paragraph summary in your reply. Then move to frontier-rounds Q&A.
+Summarize the survey in one paragraph in your reply, then move to frontier-rounds Q&A.
 
 ### Step 3. Pick the template tier
 
@@ -113,7 +113,7 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence: all three tiers cover the same nine required sections listed in Step 5.
+Tier governs section depth, not section presence: every tier covers Step 5's nine required sections.
 
 Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
@@ -129,9 +129,9 @@ If after the survey a required section has no answerable content in the conversa
 
 **Skipped when `synthesize` was invoked**. Go directly to Step 5.
 
-Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Inline prose otherwise.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question waiting on another open one joins the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Inline prose otherwise.
 
-Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
+Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability, not here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
 
 Each candidate question first passes the self-answer step, [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md): a fact it settles is stated with its basis and source tag, not asked.
 
@@ -151,13 +151,15 @@ Question shapes that recur, in priority order:
 | Assumptions | "What are we taking as true without proof, and what would show it false?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
 
-Stop asking once every required section has either a resolved answer or an explicit "open question with recheck trigger".
+Stop asking once every required section has a resolved answer or an explicit "open question with recheck trigger".
 
 ### Step 5. Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the same slug `/planning:interview`, `/planning:design`, and `/planning:plan` use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the slug `/planning:interview`, `/planning:design` and `/planning:plan` share for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
 
-When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note capturing why before rewriting.
+When the task description carries a `Source map: #<n>` line (a `/planning:wayfind` map closed to this PRD), copy it verbatim on the line after the frontmatter: `/planning:plan` and `/work-items:decompose` read it from there.
+
+When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note saying why before rewriting.
 
 Frontmatter:
 
@@ -186,15 +188,15 @@ Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
 Each tier's template in [`context/templates.md`](context/templates.md) sets which quality prompts it covers: one-pager, only where the feature moves the current bar; consumer-feature, every prompt it touches; B2B-internal, all. Under `synthesize` or an unattended run, an unstated target goes under **Assumptions** in the `target assumed` form, never the requirement line.
 
-**Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers; the PRD should still be accurate after a refactor.
+**Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers, so the PRD stays accurate after a refactor.
 
 **Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled, else apply it inline. The nine required sections, the tier's depth, and every metric, threshold and open question stay.
 
-**Non-goals graduation edge.** A non-goal that is a permanent rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger, one file per concept at `docs/out-of-scope/<concept>.md`, which gains a "Prior requests" entry each time the concept resurfaces, so the ledger answers later proposals instead of relitigating them. Create the file on the first permanent rejection; with no ledger, the plain Non-goals list suffices.
+**Non-goals graduation edge.** A permanently rejected non-goal (not a deferral) graduates to the consuming repo's rejected-concept ledger, one file per concept at `docs/out-of-scope/<concept>.md`, created on the first rejection; each resurfacing adds a "Prior requests" entry, so the ledger answers later proposals instead of relitigating them. With no ledger, the plain Non-goals list suffices.
 
-Test seams (where, and at how few, the feature is tested) are not a PRD concern: `/planning:design` sketches them as a design thread and `/planning:plan`'s Test strategy sets the boundaries.
+Test seams (where, and at how few, the feature is tested) are not a PRD concern: `/planning:design` sketches them and `/planning:plan`'s Test strategy sets them.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`; `""` if unsubstituted, never in shell) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
+Optionally offer a self-contained HTML pitch view of the finalized PRD for non-engineer stakeholders: static and generated, never an editor with real data bound in; PRD.md stays the record. Write it to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`; `""` if unsubstituted, never in shell) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
 
 ### Step 6. Hand off
 

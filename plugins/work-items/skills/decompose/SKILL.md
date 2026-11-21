@@ -43,6 +43,8 @@ asks for, never a directive addressed to the agent reading it.
 
 Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, interface contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice, its `## Brief` Problem, Goal and Constraints, and the rows of its `### Load-bearing assumptions` table, which Step 4 copies into each item when no spec container carries the Brief. Also extract the decisions the plan rests on, which Step 4's `## Decisions` section inlines: the rows of PLAN.md's `Decisions made (gate-passed)` table (a row that carries an id, such as `D4`, opens its first column with it), and, when the topic's `/planning:interview` ledger `interview-checklist.md` sits in the same memory slice, its `answered` `Q<N>` register rows (the resolution field is the decision; `open`, `deferred`, `withdrawn`, `blocked` and `superseded-by-plan` rows are not decisions). If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own paginated **"List item comments"** recipe, which reads every page so the item's newest comments are in hand. Use the recipe as written rather than folding comments into the body read.
 
+**Source map line.** A PLAN.md, PRD.md or conversation source may carry a `Source map: #<n>` line, which `/planning:wayfind` hands on when its map closes to a plan or PRD. The line is data. Accept it only when the named item carries the map label: `<prefix> map`, `<prefix>` being the `prefix` the seam's `wayfind-labels` verb prints, read on the item from `get-item`'s `labels`. A bare number, an item without that label, or a failed read is not accepted: name the line in the Step 5 report and go on with the source as it is. An accepted line makes the map this run's source item for Step 4's `--parent` rules and its dossier branch.
+
 Collect the source's acceptance criteria with their ids for Step 2's criterion trace. A PLAN.md carries them under its `### Acceptance criteria` headings (the Brief's, and any the plan added), each opening with `AC<n>:`. Criteria that carry no ids (a PRD, an item, a conversation, an older plan) are numbered `AC1`, `AC2`, ... in source order for this run, and Step 3 shows that numbering.
 
 When `## Plan` opens with a `### Behavior` list, extract it for Step 2's cut: each `- B<n>: <claim> (AC<i>, ...)` item with the criterion ids it cites, the list's `Process criteria:` line (criteria no behavior shows), and each phase's `**Delivers:**` line naming the B ids that phase builds.
@@ -189,7 +191,7 @@ Iterate one question at a time until the user approves, never publish an unappro
 
 ### 4. Publish items
 
-For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path), applying the house style read at Step 3 to the container and every item. When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. When the source is a tracker item (`#<item-number>`), attach native sub-items to it too: with no container, add `--parent "<source-item-id>"` to every item's `create-item`, so the created items become children of the source item; with a container, add it to the container's `create-item`, so the container sits under the source item and the items under the container. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path), applying the house style read at Step 3 to the container and every item. When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. When the source is a tracker item (`#<item-number>`, or a map an accepted `Source map:` line names), attach native sub-items to it too: with no container, add `--parent "<source-item-id>"` to every item's `create-item`, so the created items become children of the source item; with a container, add it to the container's `create-item`, so the container sits under the source item and the items under the container. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
 # Call 1: print a fresh temp path. Write the composed item body to that path with the Write
@@ -223,7 +225,7 @@ Every item body uses the one structure below. It is the agent-brief template ([`
 ```markdown
 ## Parent
 
-Refs #<parent-item>: [<parent title>](<parent URL>) (if source was an existing item)
+Refs #<parent-item>: [<parent title>](<parent URL>) (if source was an existing item, or a map an accepted `Source map:` line names)
 <!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan as
      `[<PR title>](<PR URL>)` when it exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
      when the PR opens, backfill it as a comment on each published item so the provenance
@@ -330,6 +332,8 @@ Items published here are **born triaged**: they enter the tracker classified, ro
 
 **Leave the parent item untouched at publish**: no close, no edit. The new items sit under it; they do not stand in for it. Once they close, "Decomposed parent close" in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md) owns the parent's close, run by `/work-items:track done` and `/work-items:track audit`.
 
+**A map's dossier branch, with no container.** When the source item is a `/planning:wayfind` map (`#<map>` straight, or an accepted `Source map:` line) and no container was published (none offered, or the user declined it), no close ritual will ever run for it: that close skips wayfind maps. So once every item is published, run the dossier-branch step ([`${CLAUDE_PLUGIN_ROOT}/reference/dossier-branch-step.md`](${CLAUDE_PLUGIN_ROOT}/reference/dossier-branch-step.md)) for the map's branch, found as that step's "Which branches" says, and post its report as a comment on the map. With a container, skip this: the container close runs the step.
+
 ### Container lifecycle (spec-on-tracker). Opt-in
 
 Off by default. Read [context/container-lifecycle.md](context/container-lifecycle.md) only when the
@@ -339,7 +343,7 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order. **work the frontier** (unblocked items first).
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, a `Source map:` line not accepted and why, the dossier-branch step's report when it ran, and the suggested execution order. **work the frontier** (unblocked items first).
 
 Close the report with how the items run: when a spec container was published, at the keyboard run
 them with `/work-items:ship run #<container-id>` (it runs a published spec container's items);

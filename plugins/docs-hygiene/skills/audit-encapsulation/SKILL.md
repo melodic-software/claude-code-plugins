@@ -213,7 +213,7 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 ## What this skill does not do
 
 - Detect content duplication / Rule of Three clusters → `/docs-hygiene:extract-ssot`
-- Enforce code-side public/private (TypeScript `export`, .NET `internal`, Python `_prefix`) → language-level tooling (compiler, lint)
+- Enforce code-side public/private → language-level tooling (compiler, lint)
 - Refactor skill bodies that are legitimately self-contained (no external violations) → general refactoring, out of scope
 - File work items without classification. Path A vs Path B must be picked first
 - Auto-fix without user review. Each Path B route changes call-site invocation; the user inspects the diff

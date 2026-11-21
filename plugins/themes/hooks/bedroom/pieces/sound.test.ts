@@ -25,7 +25,7 @@ test('in the plugin, sound off ends the playing child at once, and a change of w
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000, tokens: 20_000, percent: 10 }, rateLimits: [] } }))
   on('session.info', () => ({ value: { platform: 'linux', isHosted: false } as never }))
   on('env.get', (_, e) => ({ value: e.name === 'PATH' ? '/usr/bin' : undefined }))
-  on('fs.exists', (_, e) => ({ value: e.path === '/usr/bin/ffplay' }))
+  on('fs.exists', (_, e) => ({ value: String(e.path).replace(/^[A-Za-z]:/, '').replace(/\\/g, '/') === '/usr/bin/ffplay' }))
   on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('audio.play', () => ({ value: undefined }))
   on('process.spawn', async function* (_, e) {

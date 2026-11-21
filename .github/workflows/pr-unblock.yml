@@ -536,7 +536,7 @@ jobs:
   resolve-conflicts:
     name: Resolve Conflicts
     needs: resolve-conflicts-select
-    if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' }}
+    if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
@@ -1663,7 +1663,7 @@ jobs:
   address-feedback:
     name: Address Feedback
     needs: address-feedback-select
-    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
+    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
@@ -3446,7 +3446,7 @@ jobs:
   review-dependency:
     name: Review Dependency
     needs: review-dependency-select
-    if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
@@ -4166,7 +4166,7 @@ jobs:
   fix-ci:
     name: Fix CI
     needs: fix-ci-context
-    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
+    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read

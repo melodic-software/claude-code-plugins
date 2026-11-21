@@ -34,7 +34,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 1. Cite by exact heading text (markdown), exact identifier (code), exact anchor (config), never by line number or section number
 2. After any heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps every form in its pattern library, not just pure-token grep
 3. The SSOT file should include a `## Recheck triggers` section, where a rename row triggers the sweep
-4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
+4. For code: prefer a language-aware refactor over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
 
 ## 2. Over-indirection
 
@@ -82,7 +82,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 1. Cite-by-name and inline 1-line summary at every call site. Template: `per <file>.md "<heading>": <≤80 char shape description>`
 2. The 1-line summary should let a reader skim the caller and understand the shape of the cited rule without clicking through
 3. Code: name imports for what they do, not where they live; cluster related imports; brief comment at non-obvious call sites
-4. Config: name anchors descriptively (`&dotnet-build-defaults` not `&base`); short comment above the alias if intent isn't obvious
+4. Config: name anchors for what they hold, not a generic `&base`; short comment above the alias if intent isn't obvious
 5. Full markdown contract in `citation-form.md`
 
 ## 5. Reference resolution failure

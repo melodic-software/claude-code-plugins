@@ -56,11 +56,7 @@ tidy sweep (that is `/code-tidying:tidy`).
    declaration by reference (the shape `apply` writes, `Merge semantics: per the bundled lane's
    declaration`) or states a disposition for every required section the lane omits. An empty,
    unrelated, or silent-on-an-omitted-section declaration is FAIL (malformed merge declaration;
-   remediation: adopt the bundled declaration by reference or state the missing dispositions). FAIL
-   too when the lane overrides a section the bundled lane keys at `###` granularity
-   (`shell-tooling`'s `Verification commands` and `Preferred research sources`) without keying its
-   own entries under those `###` language headings, since unkeyed entries name no language to
-   replace. Framing prose above the first `###` is fine.
+   remediation: adopt the bundled declaration by reference or state the missing dispositions).
 3. **No unreplaced placeholders.** A leftover template `<placeholder>` is a broken scope glob or
    watch-for pattern: FAIL, naming the file and the token.
 4. **Tracked, not ignored.** Per lane file, run both halves of the tracked-file pair:
@@ -122,7 +118,7 @@ answer unambiguous; ask only where a lane's scope genuinely needs the user's cal
    - **polyglot-services** (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/polyglot-services-lane.template.md`):
      non-primary-language services, MCP servers, sidecars.
    - **bundled-lane override**: a project override of `shell-tooling` or `docs-prose` only when the
-     repo's tooling or doc directories diverge from the bundled scope globs.
+     repo's tooling or doc directories diverge from the bundled scope.
    Under `apply <lane>`, scope this to that lane.
 3. **Interview, one lane at a time**, recommendation first and the highest-blast-radius lane
    first. Present each candidate with its inferred globs and source template; let the user accept,
@@ -134,8 +130,7 @@ answer unambiguous; ask only where a lane's scope genuinely needs the user's cal
      (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/<pattern>-lane.template.md`).
    - **Bundled-lane overrides** have no template: read `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md`
      and write **only** the sections this repo diverges on (usually `## Scope`, sometimes extra
-     exclusions) plus a `## Merge semantics` section adopting the bundled lane's declaration. Where
-     the bundled lane keys a section at `###` granularity, key the override the same way.
+     exclusions) plus a `## Merge semantics` section adopting the bundled lane's declaration.
    - **Custom lanes** start from the closest template, or, when none fits, a new file with the same
      six sections. Never emit a lane missing a section.
    Fill scope globs from real paths, watch-for patterns tuned to the stack, lane-specific exclusions

@@ -36,7 +36,7 @@ after a read, or confirming a change, is not an action and is answered from
 
 ## Preflight
 
-Print every field, in order, before anything else (`leftover_sandboxes` and `tmp_free`: [probe](reference/sandboxes.md); `eval_tmpdir`: [Sandbox start](reference/sandboxes.md#sandbox-start)):
+Print every field, in order, before anything else (`leftover_sandboxes` and `tmp_free`: [probe](reference/sandboxes.md); `stale_run_roots`: [Stale run roots](reference/sandboxes.md#stale-run-roots); `eval_tmpdir`: [Sandbox start](reference/sandboxes.md#sandbox-start)):
 
 ```text
 cli_version:         <claude --version>
@@ -51,14 +51,13 @@ estimate_usd:        roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:             <n> USD | unlimited
 leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
+stale_run_roots:     <n> run roots (<m> claude-eval-* sandboxes, <total size>): <paths> | 0 | unknown | n/a
 eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) | n/a
 ```
 
-`eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, else `n/a`.
-**Refuse before any spend** when it is longer than 24 characters, the longest length measured to
-work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is a shorter `<dir>`, as in Run step 3.
+`stale_run_roots` lists the run roots under `$HOME/.ev` older than 3 days on Linux and WSL2, else `n/a`. `eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, the run directory `$HOME/.ev/<short-run-id>` with each `X` of Run step 3's template standing for one character of the id, else `n/a`. **Refuse before any spend** when it is longer than 24 characters, the longest length measured to work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is fewer `X`s in Run step 3's template, and when even three do not fit, `$HOME` is too long for the bound: say so and stop.
 
-Preflight removes nothing and blocks on neither `leftover_sandboxes` nor `tmp_free`. It prints no removal command either: `<tmp>` can be shared with another session's run, whose live or kept sandboxes a glob over `<tmp>/claude-eval-*` would delete. When `leftover_sandboxes` is above zero, point at the removal by results file instead ([sandboxes.md](reference/sandboxes.md#leftover-sandboxes)). Report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on none of `leftover_sandboxes`, `stale_run_roots` and `tmp_free`. It prints no removal command either: `<tmp>` can be shared with another session's run, whose live or kept sandboxes a glob over `<tmp>/claude-eval-*` would delete, and a stale run root can still be one a session keeps for a later read. When `leftover_sandboxes` is above zero, point at the removal by results file instead ([sandboxes.md](reference/sandboxes.md#leftover-sandboxes)); when `stale_run_roots` is above zero, point at [Removing a run root](reference/sandboxes.md#removing-a-run-root). Report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
@@ -253,7 +252,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    script first, since it runs as you outside the sandbox (see Gotchas), then add `--scaffold`.
    Without it those cases run against an unstaged workspace, both arms score the same, and their
    delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
-   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a directory of at most 24 characters outside the system temp directories that you create first, on disk (for example `$HOME/.ev` when that stays within 24 characters; not the `/run/user` tmpfs, which kept sandboxes can fill). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
+   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, `$HOME/.ev` is the required eval temp root: create the run directory with `mkdir -p "$HOME/.ev"` and then `mktemp -d "$HOME/.ev/XXXXXX"` (with the fewer `X`s preflight's `eval_tmpdir` settled on, when it did), note the path it prints, and run the CLI as `env TMPDIR=<dir> claude plugin eval …` with `<dir>` that path, `$HOME/.ev/<short-run-id>`. Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
 
    A non-TTY run against an untrusted directory needs `--trust-plugin` ([Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory)).
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
@@ -277,8 +276,9 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
 
-Where a harness guard other than the worktree refusal above blocks a Bash command containing the
-bare word `eval`, run the same command text, unchanged, through the PowerShell tool instead.
+5. Close the run: remove the run directory from step 3 by [sandboxes.md, Removing a run root](reference/sandboxes.md#removing-a-run-root), whether or not a read happened, after the read when there is one and as soon as the run ends without one (a failed CLI call, a refusal or a stop after the directory exists). Skip it only when the user explicitly asks to keep the run, and then name the directory in the answer. `--keep-temp` does not keep it: step 3 always passes that flag.
+
+Where a harness guard other than the worktree refusal above blocks a Bash command containing the bare word `eval`, run the same command text, unchanged, through the PowerShell tool instead.
 
 ## Reading the delta
 
@@ -382,7 +382,7 @@ means (with-only graders, `arm: both`, the ablation mode, a plugin directory nam
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
 noise report's verdict is that the interval excludes 0 with the with-arm ahead, the spot-read found
 no verdict it disagrees with, every counted run did the task, and a gap claimed beyond one model has
-its second-model run; otherwise `do not promote`, followed by the first condition that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
+its second-model run; otherwise `do not promote`, followed by the first condition that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes), or, for a run this session made under a run directory, Run step 5.
 
 A no-loss two-version compare ships a cut only after a detection control, the before text with the
 changed rule removed, scores clearly lower on the same cases and model; otherwise report it as
@@ -407,7 +407,7 @@ claude plugin eval <out> --trust-plugin --ablation none --threshold 0 --runs 3 -
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" score --manifest <out>/manifest.json <out>/results.json
 ```
 
-`--threshold 0` keeps the CLI's exit code about errors, since must-fail cases are meant to score 0.
+`--threshold 0` keeps the CLI's exit code about errors, since must-fail cases are meant to score 0. On Linux and WSL2 the calibration run gets its own run directory and `env TMPDIR` prefix as in Run step 3, and closes as in Run step 5.
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
 the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
@@ -461,7 +461,7 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
-  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). On Claude Code 2.1.316, when cases grant Bash or load a skill with a pre-computed (``!`command` ``) line, a run's `TMPDIR` must not sit under `/tmp` or `/var/tmp`; the run step's `$HOME` directory avoids it. The gate's `session started` check fails a run whose failed Bash result reports a read-only file system in the run's workspace or `TMPDIR`. Its `skill loaded` check fails a run whose skill never loaded because a pre-computed command failed or its permission check refused it, as when the case grants no Bash. That holds even when the skill-fired grader saw the Skill call, so a "did not fire" and a "failed to load" verdict name different faults; in an invocation probe or `--measured-fire` case a failed Skill call only warns. Recheck when a release note touches `plugin eval` sandbox paths or `TMPDIR` ([records.md](reference/records.md#sandbox-and-credential-store)).
+  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). On Claude Code 2.1.316, when cases grant Bash or load a skill with a pre-computed (``!`command` ``) line, a run's `TMPDIR` must not sit under `/tmp` or `/var/tmp`; the run step's `$HOME/.ev` run directory avoids it. The gate's `session started` check fails a run whose failed Bash result reports a read-only file system in the run's workspace or `TMPDIR`. Its `skill loaded` check fails a run whose skill never loaded because a pre-computed command failed or its permission check refused it, as when the case grants no Bash. That holds even when the skill-fired grader saw the Skill call, so a "did not fire" and a "failed to load" verdict name different faults; in an invocation probe or `--measured-fire` case a failed Skill call only warns. Recheck when a release note touches `plugin eval` sandbox paths or `TMPDIR` ([records.md](reference/records.md#sandbox-and-credential-store)).
 - Pass `--no-publish` on a terminal run whose report must stay local. When a report publishes, and when a session-started run keeps it local: [HTML report](https://code.claude.com/docs/en/plugin-evals#html-report).
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
   plugin's own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with
@@ -480,7 +480,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Git floor | <https://code.claude.com/docs/en/plugin-evals#requirements>; refusal at <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> | 2026-10-10 | That section changes the floor or its no-git exemption |
 | Sandbox backend table and the no-backend refusal | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-04 | Either names a Windows backend, or adds or drops a package or WSL note |
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
-| `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start) | 2026-10-31 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
+| `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start); the three-`X` template minimum in GNU [mktemp invocation](https://www.gnu.org/software/coreutils/manual/html_node/mktemp-invocation.html) | 2026-11-21 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
 | Sandbox network denial report, read by the permission denials check | [Sandboxing, The unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch) says only that the result names the denied host; no page documents the report's format, observed in a with-arm Bash result on Claude Code 2.1.317 (issue #12988), its shape kept in `scripts/fixtures/run-validity/traces/network-denied.jsonl` | 2026-11-04 | That page documents the violation report, a release note touches sandbox violation reporting, or a kept trace shows a network denial the check missed |
 | Cloud route host and packages | [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) (host), [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) |  |  |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |

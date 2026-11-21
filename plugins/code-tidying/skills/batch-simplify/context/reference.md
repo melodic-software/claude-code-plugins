@@ -8,7 +8,7 @@ Group files by project/ecosystem relatedness. Each group should contain files th
 
 **Grouping rules** (in priority order):
 
-1. **Same project directory**: files in the same project (identified by the nearest `*.csproj`, `package.json`, `pyproject.toml`, `Cargo.toml`, or equivalent manifest) go together
+1. **Same project directory**: files in the same project (identified by the nearest build or package manifest) go together
 2. **Source vs tests**: separate source code from test code within the same project if the combined count exceeds ~15 files
 3. **Root config files**: all root-level config files (`.editorconfig`, build-system props, formatter configs) form one group
 4. **Standalone scripts**: skill/tool scripts group by parent directory

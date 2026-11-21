@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
 """The merge gate's trust in github-actions[bot] lane comments: a footed
 comment is its lane's only when the lane-binding check accepts it, a legacy
 one (no binding) by the legacy rule, and every parser reads the body without
