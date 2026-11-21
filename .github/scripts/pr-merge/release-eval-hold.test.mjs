@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 
 import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
-import { decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, ownLines, RELEASES_PER_RUN } from "./release-eval-hold.mjs";
+import { citedRun, decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, ownLines, RELEASES_PER_RUN, runVouches } from "./release-eval-hold.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -41,6 +41,7 @@ const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1", user = APP } 
   user,
   state: "open",
   head: { sha: head },
+  base: { repo: { default_branch: "main" } },
   body,
   labels: labels.map((name) => ({ name })),
 });
@@ -168,10 +169,15 @@ const outputFile = () => {
   return path;
 };
 
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls) } = {}) {
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {} } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    const runPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)$/.exec(path);
+    if (method === "GET" && runPath) {
+      if (!(runPath[1] in runs)) throw new Error("HTTP 404");
+      return runs[runPath[1]];
+    }
     if (method === "POST" && path === "/graphql") {
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: open } } } };
     }
@@ -255,6 +261,103 @@ test("main releases a hold whose eval reason line is the lanes App's", async () 
     console.log = log;
   }
   assert.ok(calls.some((call) => call.method === "DELETE" && call.path === `/repos/${REPO}/issues/7/labels/${LABEL}`));
+});
+
+const WORKFLOW = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
+const RUN_ID = "44900000001";
+const compareRun = (overrides = {}) => ({
+  id: Number(RUN_ID),
+  path: ".github/workflows/pr-run-plugin-evals.yml",
+  event: "workflow_dispatch",
+  head_branch: "main",
+  status: "completed",
+  conclusion: "success",
+  display_title: `eval-compare pr=7 head=${HEAD}`,
+  repository: { full_name: REPO },
+  head_repository: { full_name: REPO },
+  ...overrides,
+});
+const ciRecord = (head = HEAD, { id = RUN_ID, user = WORKFLOW } = {}) =>
+  comment(`Compare eval: PASS.\n\n${recordLine(head)}\n<!-- eval-pair-run id=${id} -->\n`, { user, app: { id: 15368, slug: "github-actions" } });
+
+const vouched = (run) => {
+  const vouch = runVouches(run, REPO, "main");
+  return vouch === null ? new Map() : new Map([[RUN_ID, vouch]]);
+};
+
+test("a compare run's record releases the hold once the run reads back as this pull request's at this head", () => {
+  const result = run({ comments: [holdComment(), ciRecord()], vouched: vouched(compareRun()) });
+  assert.equal(result.release, true);
+  assert.equal(result.head, HEAD);
+});
+
+test("a compare run's record whose run does not vouch for it releases nothing", () => {
+  const cases = {
+    "forged run id (the run never read)": new Map(),
+    "wrong workflow path": vouched(compareRun({ path: ".github/workflows/pr-review-hosted.yml" })),
+    "a branch other than the default": vouched(compareRun({ head_branch: "feature" })),
+    "not a dispatch": vouched(compareRun({ event: "workflow_run" })),
+    "a failed run": vouched(compareRun({ conclusion: "failure" })),
+    "a run still going": vouched(compareRun({ status: "in_progress", conclusion: null })),
+    "another repository's run": vouched(compareRun({ repository: { full_name: "someone/fork" } })),
+    "a run for another head": vouched(compareRun({ display_title: `eval-compare pr=7 head=${OLD}` })),
+    "a valid run of another pull request": vouched(compareRun({ display_title: `eval-compare pr=8 head=${HEAD}` })),
+    "a run name in another shape": vouched(compareRun({ display_title: "PR Run Plugin Evals" })),
+  };
+  for (const [name, map] of Object.entries(cases)) {
+    assert.equal(run({ comments: [holdComment(), ciRecord()], vouched: map }).reason, "no-record", name);
+  }
+});
+
+test("a run that vouches counts only for a github-actions[bot] comment whose record head is the run's", () => {
+  const good = vouched(compareRun());
+  assert.equal(run({ comments: [holdComment(), ciRecord(HEAD, { user: STRANGER })], vouched: good }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment(), ciRecord(HEAD, { user: APP })], vouched: good }).reason, "no-record");
+  assert.equal(run({ comments: [holdComment(), ciRecord(OLD)], vouched: good }).reason, "no-record");
+  const twoRuns = comment(`${recordLine(HEAD)}\n<!-- eval-pair-run id=${RUN_ID} -->\n<!-- eval-pair-run id=1 -->`, { user: WORKFLOW });
+  assert.equal(citedRun(twoRuns), null);
+  assert.equal(citedRun(comment(`<!-- eval-pair-run id=${RUN_ID} -->`, { user: WORKFLOW })), null);
+});
+
+test("a listed human's record still releases with no run read", () => {
+  assert.equal(run({ vouched: new Map() }).release, true);
+});
+
+test("mayRelease lets a cited run through to be read, and nothing without a record", () => {
+  assert.equal(mayRelease([holdComment(), ciRecord()], HUMANS), null);
+  assert.equal(mayRelease([holdComment(), ciRecord(HEAD, { user: STRANGER })], HUMANS), "no-record");
+});
+
+const quietMain = async (github) => {
+  const log = console.log;
+  const lines = [];
+  console.log = (line) => lines.push(line);
+  try {
+    const code = await main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_OUTPUT: outputFile() }, github, now: () => Date.parse("2026-11-06T11:30:00Z") });
+    return { code, lines };
+  } finally {
+    console.log = log;
+  }
+};
+
+test("main reads the cited run and releases on a compare run of this pull request at its head", async () => {
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), ciRecord()] } }, { runs: { [RUN_ID]: compareRun() } });
+  const { code } = await quietMain(github);
+  assert.equal(code, 0);
+  assert.ok(calls.some((call) => call.method === "GET" && call.path === `/repos/${REPO}/actions/runs/${RUN_ID}`));
+  const writes = calls.filter(isWrite);
+  assert.deepEqual(writes.map((call) => call.method), ["POST", "DELETE"]);
+  assert.ok(writes[0].body.body.includes(`compare run ${RUN_ID}`));
+});
+
+test("main keeps the hold when the cited run is another pull request's or does not exist", async () => {
+  for (const runs of [{ [RUN_ID]: compareRun({ display_title: `eval-compare pr=8 head=${HEAD}` }) }, {}]) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), ciRecord()] } }, { runs });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter(isWrite), []);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"));
+  }
 });
 
 test("main stops on the kill switch before any read, and names nothing to wake", async () => {
