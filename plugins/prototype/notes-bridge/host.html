@@ -13,7 +13,8 @@ edit the canonical source, then rerun the script. -->
   is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
   screen through textContent. When the server stops answering, the notes written here stay on this
   page and Copy all notes makes one prototype-notes block for the session to import. A draft stays
-  on this page, out of that block, until it is sent, so a reload loses it; the run's sent notes come
+  on this page, out of that block, until it is sent; it is kept in this tab's sessionStorage under the
+  run's token, never on the server, so a reload of the same run lists it again. The run's sent notes come
   back from /api/notes, the token in the request's header, each kept only as note.schema.json admits
   it. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
   note's view and keeps the box drawn; the frame gets keys, a path and a box, never note text. The Controls tab renders the framed page's
@@ -99,7 +100,7 @@ edit the canonical source, then rerun the script. -->
 </aside>
 <script src="/controls.js"></script>
 <script type="module">
-  import { problems, use } from "/note-model.mjs";
+  import { draftStore, problems, use } from "/note-model.mjs";
 
   const $ = (id) => document.getElementById(id);
   const frame = $("page"), composer = $("composer"), text = $("text");
@@ -299,6 +300,15 @@ edit the canonical source, then rerun the script. -->
     } catch (err) {
       console.warn("ui-feedback: the run's earlier notes were not listed", err);
     }
+  }
+
+  /** This tab's drafts for this run, kept in sessionStorage under the run's token so a reload lists them again. */
+  let draftsKept = null;
+  function restoreDrafts() {
+    let tab;
+    try { tab = sessionStorage; } catch (err) { console.warn("ui-feedback: no tab storage, so drafts last this load only", err); return; }
+    draftsKept = draftStore(tab, token, schema);
+    for (const note of draftsKept.load()) mine.push({ id: ++ids, note, where: where(note), seq: null, draft: true });
   }
 
   /** Open the editor on a new note (`entry` null) or on a draft; `from` gives back the control
@@ -518,7 +528,8 @@ edit the canonical source, then rerun the script. -->
       return li;
     };
     const drafts = mine.filter((m) => m.draft);
-    const pin = (m) => ({ n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    draftsKept?.save(drafts.map((m) => m.note));
+    const pin =(m) => ({ n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
     toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(pin) });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
@@ -643,6 +654,7 @@ edit the canonical source, then rerun the script. -->
     use(s, cs);
     token = t.token;
     await loadHistory();
+    restoreDrafts();
     render();
     frame.addEventListener("load", () => {
       loads += 1;

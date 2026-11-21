@@ -35,18 +35,26 @@ async page => {
     await inFrame.locator('nav.vs [aria-label="Next variant"]').click();
     await frame.waitForFunction(() => !document.querySelector('[data-variant="B"]').hidden, null, { timeout: 5000 });
     await sendNote(inFrame.locator(CARD).nth(0), `${XSS}Cards need dates first.`, 2);
+    await page.click("#pick");
+    await inFrame.locator(CARD).nth(1).click();
+    await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
+    await page.keyboard.insertText(`${XSS}A draft left unsent.`);
+    await page.click("#save");
+    await page.waitForSelector("#composer", { state: "hidden", timeout: 5000 });
 
     await page.reload();
     frame = await loaded();
     const rows = page.locator("#notes li");
-    await page.waitForFunction(() => document.querySelectorAll("#notes li").length === 2, null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelectorAll("#notes li").length === 3, null, { timeout: 5000 }).catch(() => {});
     const listed = await rows.allTextContents();
-    ok("after a reload both notes are listed, oldest first, numbered as their markers",
-      listed.length === 2 && listed[0].startsWith("#1") && listed[0].includes("Bolder parcel ids.") && listed[1].startsWith("#2"), JSON.stringify(listed));
+    ok("after a reload both sent notes are listed, oldest first, numbered as their markers",
+      listed.length === 3 && listed[0].startsWith("#1") && listed[0].includes("Bolder parcel ids.") && listed[1].startsWith("#2"), JSON.stringify(listed));
+    ok("the unsent draft is listed again as draft D1 with its text",
+      listed[2]?.startsWith("D1") && listed[2].includes(`${XSS}A draft left unsent.`) && (await rows.nth(2).locator(".state").textContent()) === "draft", listed[2]);
     ok("a note's markup is listed as text and makes no element",
       listed[1]?.includes(`${XSS}Cards need dates first.`) && (await page.$$("#notes img")).length === 0 && (await page.evaluate(() => window.__xss)) === undefined);
-    await frame.waitForFunction(() => ["1", "2"].every((n) => [...document.querySelector("[data-ui-feedback-layer]").children].some((e) => e.textContent === n)), null, { timeout: 5000 }).catch(() => {});
-    ok("both notes' markers are drawn again after the reload", (await frame.evaluate(() => [...document.querySelector("[data-ui-feedback-layer]").children].filter((e) => e.textContent).map((e) => e.textContent).join())) === "1,2");
+    await frame.waitForFunction(() => ["1", "2", "D1"].every((n) => [...document.querySelector("[data-ui-feedback-layer]").children].some((e) => e.textContent === n)), null, { timeout: 5000 }).catch(() => {});
+    ok("both notes' markers and the draft's are drawn again after the reload", (await frame.evaluate(() => [...document.querySelector("[data-ui-feedback-layer]").children].filter((e) => e.textContent).map((e) => e.textContent).join())) === "1,2,D1");
     ok("the reload starts on variant A", (await shownVariant()) === "A");
 
     await rows.nth(0).hover();
