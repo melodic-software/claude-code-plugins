@@ -98,7 +98,8 @@ class TestHostAndPage(NotesCase):
     def test_the_host_page_is_served_with_its_policy(self):
         code, body = self.request("GET", "/", token=False)
         self.assertEqual(code, 200)
-        self.assertEqual(body, (HERE / "host.html").read_bytes())
+        raw = (HERE / "host.html").read_bytes()
+        self.assertEqual(body, raw.replace(nb.SANDBOX, nb.MOCKUP_FRAME))
         self.assertEqual(self.last_headers["Content-Security-Policy"], nb.HOST_CSP)
         self.assertEqual(self.last_headers["X-Frame-Options"], "DENY")
         self.assertNotIn(self.hub.token.encode(), body)
@@ -222,6 +223,8 @@ class TestRealStack(NotesCase):
         self.assertEqual(code, 200)
         attrs = frame_of(body)
         self.assertNotIn("sandbox", attrs)
+        self.assertNotIn("data-mockup-target", attrs)
+        self.assertNotIn(b'"*"', body, "the real-stack host page holds no wildcard target")
         self.assertEqual(attrs["data-dev-origin"], DEV)
         policy = self.last_headers["Content-Security-Policy"]
         self.assertEqual(policy, f"{nb.HOST_CSP}; frame-src {DEV}")
@@ -239,6 +242,7 @@ class TestRealStack(NotesCase):
         self.hub.dev_origin = None
         code, body = self.request("GET", "/", token=False)
         self.assertEqual(frame_of(body)["sandbox"], "allow-scripts")
+        self.assertEqual(frame_of(body)["data-mockup-target"], "*")
         self.assertNotIn("frame-src", self.last_headers["Content-Security-Policy"])
 
     def test_ping_names_the_dev_origin(self):
@@ -278,7 +282,11 @@ class TestOneHostSpelling(NotesCase):
 
     def test_the_origin_check_the_frame_url_and_frame_ancestors_share_one_host(self):
         host = (HERE / "host.html").read_text(encoding="utf-8")
-        self.assertIn("if (devOrigin && e.origin !== devOrigin) return;", host)
+        self.assertIn("if (!fromFrame(e, frame.contentWindow, devOrigin)", host)
+        self.assertIn(
+            "const target = frameTarget(devOrigin, frame.dataset.mockupTarget || null);",
+            host,
+        )
         self.assertIn("if (devOrigin) frame.src = `${devOrigin}/`;", host)
         self.assertEqual(
             self.hub.hosts, {f"{h}:{self.port}" for h in nb.BRIDGE_HOSTS}
@@ -454,6 +462,25 @@ class TestNotes(NotesCase):
         self.assertEqual(body["note"], sb.DATA_NOTE)
         self.assertEqual(body["events"][0]["text"], NOTE["text"])
 
+    def test_a_move_arrow_reaches_the_session_naming_both_anchors(self):
+        move = next(
+            c["note"]
+            for c in FIXTURES["valid"]
+            if c["note"]["kind"] == "move" and "anchor" in c["note"]["to"]
+        )
+        self.assertEqual(self.note(move)[0], 200)
+        code, body = self.request(
+            "GET",
+            "/api/wait?after=handled&timeout=5",
+            headers={"X-Notes-Token": self.hub.watch_token},
+            token=False,
+        )
+        self.assertEqual(code, 200)
+        event = body["events"][0]
+        self.assertEqual(event["anchor"], move["anchor"])
+        self.assertEqual(event["to"]["anchor"], move["to"]["anchor"])
+        self.assertEqual(event["to"]["point"], move["to"]["point"])
+
     def test_the_page_name_is_a_plain_html_file_name(self):
         for bad in ("../x.html", "a/b.html", "x.txt", ".hidden.html"):
             with (
@@ -601,6 +628,7 @@ class TestLoop(unittest.TestCase):
             "host.html",
             "proto-pin.js",
             "note-model.mjs",
+            "frame-channel.mjs",
             "note.schema.json",
             "controls.schema.json",
             "controls.js",

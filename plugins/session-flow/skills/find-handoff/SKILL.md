@@ -71,12 +71,15 @@ has two forms on disk and both are read: the shape-2 two-slot form
 `Handoff origin: <remote URL> <repo-relative path>` (a slot with whitespace double-quoted) and the
 legacy form `Handoff origin: <identity>, relative path <path>.`.
 
-**A shape-2 or shape-3 file stores its own resume prompt.** Files carrying `handoff_shape: 2` or `3` end with a
+**A shape-2, shape-3 or shape-4 file stores its own resume prompt.** Files carrying `handoff_shape: 2`, `3` or `4` end with a
 `## Resume prompt` section holding the rails prompt exactly as it was emitted (both regions when a
 goal applied), so rung 1 can hand back the prompt from the file alone, without a transcript
 (`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
 that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
-is named as such and never presented as the lost handoff.
+is named as such and never presented as the lost handoff. When the operator asks what a candidate
+says beyond its metadata and prompt, read that section by name with
+`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py read <file> --section "<name>"`, which follows a
+section moved to the hop file; reading it changes nothing and the confirm gate still holds.
 
 **The resume prompt this skill recovers is the resume region plus the goal region (when one
 applies) plus every below-rail `/loop` re-arm message** (save-point.md "Detection contract"). The
@@ -98,7 +101,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
    the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the
    unfinished-skeleton skip, the mtime ranking, the short-circuit bar and where a short-circuit
-   jumps to, how a shape-2 or shape-3 candidate's stored `## Resume prompt` is printed, and the
+   jumps to, how a shape-2, shape-3 or shape-4 candidate's stored `## Resume prompt` is printed, and the
    repo-correlation check that stops a merely recent candidate from being presented as this
    work's. A strong, recent candidate ends the ladder here.
 

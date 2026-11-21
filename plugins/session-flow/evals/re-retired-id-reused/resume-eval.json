@@ -22,7 +22,6 @@
       "docs/releases/1.8.0.md": "# 1.8.0\n\n- Sync retries back off exponentially (#4418).\n- Ledger exports carry the account currency (#4424).\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "ledger-sync-release",
       "lane": "ledger-sync",
       "hops": 5,

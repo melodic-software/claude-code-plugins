@@ -3,6 +3,17 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## A CDN library carries an integrity hash, 2026-11-21
+
+- **The pinned CDN library is checked, not only pinned.** Every CDN `<script>` and `<link>` tag
+  carries `crossorigin="anonymous"` and an `integrity` hash of the exact file its pinned URL serves,
+  so a changed or republished file at that URL does not load. The exact-version pin stays; a
+  version range cannot carry a hash. The `/architecture:improve` deepening report, the one shipped
+  template that loads a CDN library, carries the hashes.
+- **The clause gains two qualifiers.** `rendered-views-security-baseline` holds each inline copy to
+  the `integrity` hash and `crossorigin="anonymous"`; the `/adhd:clarify` and `/architecture:improve`
+  copies carry both.
+
 ## The architecture plugin carries the chrome, 2026-11-16
 
 - **A fourth adopter.** `plugins/architecture/reference/html-chrome.html` is generated from the

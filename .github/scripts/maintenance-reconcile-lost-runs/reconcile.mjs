@@ -52,8 +52,11 @@
 //   list): it succeeded with a `held: ` notice and no verdict. Re-run once, as
 //   a lane run is, with the same record, so a hold is retried on the next pass
 //   that reads; one where any job's verdict write started is held for a
-//   person, and a pr-review-main run waits out the upstream gate, as a lost
-//   lane run does. Their succeeded runs are listed
+//   person, a run whose held job names a rate-limit reset (heldReset) waits
+//   until RATE_RESET_GRACE_MS past it, as a floor does, and a pr-review-main
+//   run waits out the upstream gate, as a lost lane run does. Held runs
+//   matched to an open head go ahead of its other lane runs (laneOrder).
+//   Their succeeded runs are listed
 //   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
 //   earlier: the last pass that read, or the oldest first attempt that pass
 //   saw still going, inside the lookback. Only those an open head may own
@@ -460,7 +463,8 @@ const carriedJobsEntry = (e) =>
   typeof e.updated_at === "string" &&
   Array.isArray(e.jobs) &&
   e.jobs.every(isObject) &&
-  (e.held === undefined || e.held === true);
+  (e.held === undefined || e.held === true) &&
+  (e.reset === undefined || (Number.isSafeInteger(e.reset) && e.reset > 0));
 
 const isTime = (value) => typeof value === "string" && !Number.isNaN(Date.parse(value));
 const passesKey = (pr, head) => `${pr}:${head}`;
@@ -774,14 +778,22 @@ const FLOOR_TIME = /(?:until|before) ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{
  * when none names a time. A floor-stopped run re-run before then fails at the
  * floor again, and its one re-run is spent.
  */
-export const floorReset = (annotations) => {
+const namedReset = (annotations, counts) => {
   const named = (Array.isArray(annotations) ? annotations : [])
-    .filter((a) => a?.annotation_level === "failure" && FLOOR_NOTE.test(String(a.message ?? "")))
+    .filter((a) => counts(a) && FLOOR_NOTE.test(String(a.message ?? "")))
     .flatMap((a) => [...String(a.message).matchAll(FLOOR_TIME)].map((m) => ({ at: Date.parse(m[1]), guess: m[2] !== undefined })))
     .filter((t) => !Number.isNaN(t.at));
   const real = named.filter((t) => !t.guess);
   return Math.max(0, ...(real.length > 0 ? real : named).map((t) => t.at));
 };
+export const floorReset = (annotations) => namedReset(annotations, (a) => a?.annotation_level === "failure");
+/**
+ * The reset a fault-held job's refusals name, read as floorReset reads a
+ * floor's, at any level: a holding step's refusals are notices
+ * (api-budget.bash api_budget_level), and the `held: ` notice names no time.
+ * 0 when none names one, as a hold on a server error does not.
+ */
+export const heldReset = (annotations) => namedReset(annotations, () => true);
 // GitHub's primary rate limit resets each hour
 // (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
 // so a run that ended longer ago than this has had its pool reset since.
@@ -908,8 +920,14 @@ const followsNoOpenHead = (run, openChecks) => {
   return starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
 };
 
-// The lane items in place order: those matched to an open head, oldest first,
-// then the rest, oldest first. A lane run's listing names main's tip, not its
+// The lane items in place order: those matched to an open head, held runs
+// (fault-held) oldest first ahead of the other matched runs oldest first,
+// then the rest, oldest first. A rate limit holds every open head's
+// pr-verify run at once, since the runs' tokens draw on one shared limit
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+// and older failed runs would take the three places pass after pass while
+// each held head keeps its old verdict.
+// A lane run's listing names main's tip, not its
 // PR, so a run is matched by time: each open head's checks completion takes the
 // closest run of each lane created inside the match window, and each run is
 // taken once, so a duplicate run for a head and a run whose PR is gone sort
@@ -945,7 +963,8 @@ function laneOrder(lanes, openChecks, drop) {
   }
   const superseded = drop ? lanes.filter((l) => l.kind === "lane" && followsNoOpenHead(l, openChecks)) : [];
   const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
-  return { order: [...lanes.filter((l) => matched.has(l)).sort(byAge), ...rest.sort(byAge)], superseded };
+  const owned = lanes.filter((l) => matched.has(l)).sort(byAge);
+  return { order: [...owned.filter((l) => l.kind === "fault-held"), ...owned.filter((l) => l.kind !== "fault-held"), ...rest.sort(byAge)], superseded };
 }
 
 // A job whose steps did not list in full may have lost its runner, which cuts
@@ -1102,7 +1121,7 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   const carried = carry.get(key);
   if (carried?.held === true && carried.head === run.head_sha && carried.updated_at === run.updated_at) {
     keep.set(key, carried);
-    return { held: true, final: false };
+    return { held: true, final: false, reset: carried.reset };
   }
   const listing = await firstAttemptJobs(call, repo, run.id);
   if (run.path === RATER) {
@@ -1127,11 +1146,13 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
     return { held: false, final: true, written: true };
   }
   for (const job of marked) {
-    if (heldNoted(await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`))) {
+    const annotations = await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+    if (heldNoted(annotations)) {
+      const reset = heldReset(annotations) || undefined;
       if (typeof run.updated_at === "string" && wholeListing(listing) && listing.jobs.every((j) => stepsKnown(j))) {
-        keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true });
+        keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true, ...(reset === undefined ? {} : { reset }) });
       }
-      return { held: true, final: false };
+      return { held: true, final: false, reset };
     }
   }
   return { held: false, final: wholeListing(listing) && listing.jobs.every((job) => stepsKnown(job)) };
@@ -1281,9 +1302,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     .sort(byMergeCriticality);
   let failed = 0;
   let waits = 0;
-  const waitReset = (what, reset) => {
+  const waitReset = (what, reset, how = "failed at the rate-limit floor") => {
     waits += 1;
-    say(`${what} failed at the rate-limit floor; ${sayReset(reset)}`);
+    say(`${what} ${how}; ${sayReset(reset)}`);
   };
   let inFlight = 0;
   const ready = [];
@@ -1815,7 +1836,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         break;
       }
       try {
-        const { held, final, written } = await faultHeld(call, repo, r, carriedJobs, keepJobs);
+        const { held, final, written, reset } = await faultHeld(call, repo, r, carriedJobs, keepJobs);
         if (written) {
           settle.push({ id: r.id, reason: WRITTEN });
           sayHeld(r, WRITTEN);
@@ -1824,8 +1845,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           heldSince = Math.min(heldSince, Date.parse(r.created_at));
           // A gated lane's re-run during an npm or Actions outage would
           // spend its one re-run on a run the upstream gate stops again.
-          const hold = GATED_LANES.has(r.path) ? await gateHold() : "";
-          if (hold) {
+          const hold = beforeReset(reset, now) || !GATED_LANES.has(r.path) ? "" : await gateHold();
+          if (beforeReset(reset, now)) {
+            waitReset(`lane run ${r.id} (${r.path})`, reset, "held on a GitHub rate limit");
+          } else if (hold) {
             say(`lane run ${r.id} (${r.path}) held on a GitHub fault; waiting, ${hold}`);
           } else {
             lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.path === RATER ? "success (kill switch stop)" : r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });

@@ -1303,6 +1303,60 @@ test("a lane run created more than 60 s before or 15 minutes after a head's chec
   assert.deepEqual(reruns, [244, 240, 241], "head 2's checks done at 15:00 match no run, and keep every run created after them");
 });
 
+test("a held verify run on an open head's current checks is re-run within two passes, ahead of older failed lane runs", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const at = (minutes) => new Date(Date.parse("2026-10-19T17:00:00Z") + minutes * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const plus4s = (minutes) => new Date(Date.parse(at(minutes)) + 4000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const pulls = [1, 2, 3, 4, 5, 6, 7].map((n) => pr(n));
+  const checks = [5, 6, 7, 1, 2, 3, 4].map((n, i) => doneChecks(100 + n, n, at(i * 10)));
+  const failedLanes = [5, 6, 7].map((n, i) => ({ ...verifyRun(250 + n, { conclusion: "failure", created: plus4s(i * 10) }), jobs: verifyJob("failure") }));
+  const held = (n, opts = {}) => heldRun(350 + n, { created: plus4s((n + 2) * 10), ...opts });
+  const first = await reconcile({ pulls, runs: [...checks, ...failedLanes, ...[1, 2, 3, 4].map((n) => held(n))] });
+  assert.equal(first.code, 0);
+  assert.deepEqual(first.reruns, [351, 352, 353], "heads 1-4 are all held on one rate limit; the held runs take the three places, oldest first, ahead of heads 5-7's older failed runs");
+  assert.deepEqual(deferredLanes(log), [354, 255, 256, 257]);
+  const finishedAtAttempt2 = [1, 2, 3].map((n) => held(n, { attempt: 2 }));
+  const second = await reconcile({ pulls, runs: [...checks, ...failedLanes, ...finishedAtAttempt2, held(4)] });
+  assert.equal(second.code, 0);
+  assert.deepEqual(second.reruns, [354, 255, 256], "head 4's held run, the newest, is re-run on the second pass, then the failed runs");
+});
+
+const rateHeldVerify = (id, reset) =>
+  heldRun(id, {}, {
+    notes: [
+      { annotation_level: "notice", title: "pr-verify", message: "held: pr-verify's trigger gate met a GitHub fault (read-fault); nothing is judged" },
+      { annotation_level: "notice", message: `'gh api repos/${REPO}/pulls/1' was not sent: GitHub's core API rate limit holds until ${reset}` },
+    ],
+  });
+
+test("a verify run held on a rate limit is not re-run until a minute past the reset its job names, and the reset is carried", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const first = await reconcile({ pulls: [], runs: [rateHeldVerify(361, "2026-10-19T19:59:30Z")], carry: null });
+  assert.equal(first.code, 0);
+  assert.deepEqual(first.reruns, []);
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: lane run 361 (.github/workflows/pr-verify.yml) held on a GitHub rate limit; waiting for the rate-limit reset at 2026-10-19T19:59:30.000Z"));
+  assert.equal(first.settled.jobs[0].reset, Date.parse("2026-10-19T19:59:30Z"), "the reset is carried with the hold");
+  const carried = await reconcile({ pulls: [], runs: [rateHeldVerify(361, "2026-10-19T19:59:30Z")], carry: JSON.stringify(first.settled) });
+  assert.deepEqual(heldReads(carried.calls, 361), [], "the carried hold is not read again");
+  assert.deepEqual(carried.reruns, [], "the carried reset still holds the re-run");
+  const exact = await reconcile({ pulls: [], runs: [rateHeldVerify(364, "2026-10-19T19:59:00Z")] });
+  assert.deepEqual(exact.reruns, [], "at the reset plus the grace exactly (19:59:00Z plus RATE_RESET_GRACE_MS is NOW, 20:00:00Z), it still waits");
+});
+
+test("a verify run held on a rate limit is re-run, its own run id at attempt 2, once a minute past the reset has passed", async () => {
+  const live = await reconcile({ pulls: [], runs: [rateHeldVerify(362, "2026-10-19T19:58:59Z")] });
+  assert.equal(live.code, 0);
+  assert.deepEqual(live.reruns, [362]);
+  assert.deepEqual(records(live.outputs), [`reconcile-rerun-362-2-${MAIN_TIP}`, "", ""]);
+  const first = await reconcile({ pulls: [], runs: [rateHeldVerify(363, "2026-10-19T19:59:30Z")], carry: null });
+  const passed = { ...first.settled, jobs: first.settled.jobs.map((e) => ({ ...e, reset: Date.parse("2026-10-19T19:58:00Z") })) };
+  const later = await reconcile({ pulls: [], runs: [rateHeldVerify(363, "2026-10-19T19:59:30Z")], carry: JSON.stringify(passed) });
+  assert.equal(later.code, 0);
+  assert.deepEqual(heldReads(later.calls, 363), [], "a carried reset that has passed needs no read of its jobs");
+  assert.deepEqual(later.reruns, [363], "the carried reset that has passed lets the re-run go, though its annotations name a later one");
+  assert.deepEqual(records(later.outputs), [`reconcile-rerun-363-2-${MAIN_TIP}`, "", ""]);
+});
+
 test("a lost lane run created before every open head's checks completed is not re-run, while the head's newest run is, and the pass writes clean", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const { code, reruns, outputs, calls } = await reconcile({

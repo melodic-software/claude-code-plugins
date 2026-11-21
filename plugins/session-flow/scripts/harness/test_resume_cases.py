@@ -47,6 +47,9 @@ CHECK_KINDS = {
 }
 
 
+CHECKOUT_ARM = "after"
+
+
 @pytest.fixture(scope="session")
 def built(tmp_path_factory):
     """Every case built once: {name: (spec, chain, history)}."""
@@ -56,7 +59,9 @@ def built(tmp_path_factory):
         spec = resume_cases.load_case(case_dir)
         repo = root / spec["name"]
         repo.mkdir()
-        chain = resume_cases.build_predecessor_chain(spec, repo)
+        chain = resume_cases.build_predecessor_chain(
+            spec, repo, save_point=SAVE_POINT, arm=CHECKOUT_ARM
+        )
         out[spec["name"]] = (spec, chain, resume_cases.seed_history(spec, chain))
     return out
 
@@ -115,7 +120,7 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
     spec, chain, _ = built[name]
     projects = chain[0].parents[1] / "predecessor-transcripts"
     stated = resume_cases._expected_fail(
-        spec["seed"]["predecessor"], spec["name"], len(chain), None
+        spec["seed"]["predecessor"], spec["name"], len(chain), CHECKOUT_ARM
     )
     for hop, path in enumerate(chain, 1):
         done = subprocess.run(
@@ -133,7 +138,11 @@ def test_every_hop_validates_and_the_next_hop_builds_clean(built, name, tmp_path
             encoding="utf-8",
         )
         if hop in stated:
-            fails = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL:")]
+            fails = [
+                ln.removeprefix("FAIL: ")
+                for ln in done.stdout.splitlines()
+                if ln.startswith("FAIL: ")
+            ]
             assert done.returncode == 1 and fails, done.stdout
             assert all(stated[hop].search(ln) for ln in fails), done.stdout
         else:
@@ -182,7 +191,7 @@ def test_sizes_follow_the_audit(built, name):
     assert len(chain) == pred["hops"]
     # The audit's growth and cumulative-share figures describe shape-2 chains; a
     # shape-3 hot file moves its history into hop files instead.
-    if pred.get("shape") == 3:
+    if resume_cases.seed_shape(spec, SAVE_POINT) >= 3:
         return
     if pred.get("target_bytes"):
         assert abs(sizes[-1] - pred["target_bytes"]) <= 0.10 * pred["target_bytes"]
@@ -282,10 +291,10 @@ def test_injections_land_where_the_spec_says(built, name):
     spec, chain, history = built[name]
     newest = sections(chain[-1])
     seen = "\n".join(t["result"] for t in history if t["role"] == "tool")
-    shape = spec["seed"]["predecessor"].get("shape", 2)
+    shape = resume_cases.seed_shape(spec, SAVE_POINT)
     for item in spec["seed"]["predecessor"].get("injections", []):
         hop = item["hop"]
-        if shape == 3:
+        if shape >= 3:
             _landed_3(item, chain, newest)
         else:
             title = resume_cases.SECTION_SLOTS[item["section"]]
@@ -476,13 +485,13 @@ def test_a_case_without_a_shape_seeds_in_the_shape_its_arm_copy_writes(tmp_path)
     assert resume_cases.seed_shape(spec, three) == 2
 
 
-def test_shape_4_is_an_unsupported_seed_shape(tmp_path):
+def test_shape_5_is_an_unsupported_seed_shape(tmp_path):
     spec = resume_cases.load_case(EVALS / "re-stale-github-fact")
     spec["seed"]["predecessor"].pop("shape", None)
-    four = _stub_copy(tmp_path / "four", "X = 1\nHANDOFF_SHAPE = 4\n")
+    five = _stub_copy(tmp_path / "five", "X = 1\nHANDOFF_SHAPE = 5\n")
     repo = tmp_path / "repo"
-    with pytest.raises(ValueError, match="unsupported seed shape 4"):
-        resume_cases.build_predecessor_chain(spec, repo, save_point=four)
+    with pytest.raises(ValueError, match="unsupported seed shape 5"):
+        resume_cases.build_predecessor_chain(spec, repo, save_point=five)
     assert not (repo / ".work" / "handoffs").exists()
 
 
@@ -515,7 +524,7 @@ def test_the_seed_hash_ignores_where_the_run_lives_and_sees_any_content_change(
 
 def _shape3_target_spec(target: int) -> dict:
     spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-retired-amendment"))
-    spec["seed"]["predecessor"].update(hops=8, target_bytes=target)
+    spec["seed"]["predecessor"].update(hops=8, target_bytes=target, shape=3)
     return spec
 
 
@@ -527,6 +536,20 @@ def test_a_shape3_chain_is_steered_to_its_target_hot_file_size(tmp_path):
     newest = chain[-1]
     assert "handoff_shape: 3" in newest.read_text(encoding="utf-8")
     assert abs(newest.stat().st_size - target) <= 0.10 * target
+
+
+def test_a_shape4_chain_is_steered_to_its_target_hot_file_size(tmp_path):
+    target = 20_000
+    spec = _shape3_target_spec(target)
+    spec["seed"]["predecessor"]["shape"] = 4
+    chain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "repo", arm=CHECKOUT_ARM
+    )
+    newest = chain[-1]
+    assert "handoff_shape: 4" in newest.read_text(encoding="utf-8")
+    assert abs(newest.stat().st_size - target) <= 0.10 * target
+    hop_files = list((newest.parent / "archive").glob("*/h*-*.md"))
+    assert len(hop_files) == len(chain)
 
 
 def test_a_steered_shape3_build_is_deterministic(tmp_path):
@@ -572,6 +595,7 @@ def _oversize_spec(expected_fail: list[dict] | None) -> dict:
         }
     ]
     pred["final"] = {}
+    pred["shape"] = 3
     if expected_fail is not None:
         pred["expected_fail"] = expected_fail
     return spec
@@ -685,11 +709,17 @@ def _reuse_spec(retire_hop: int) -> dict:
         },
     ]
     pred["final"] = {}
+    pred["expected_fail"] = [
+        {"hop": hop, "fail": "id_reuse", "arms": ["after"]}
+        for hop in range(3, pred["hops"] + 1)
+    ]
     return spec
 
 
 def test_a_reuse_injection_takes_the_id_a_retired_injection_held(tmp_path):
-    chain = resume_cases.build_predecessor_chain(_reuse_spec(2), tmp_path / "repo")
+    chain = resume_cases.build_predecessor_chain(
+        _reuse_spec(2), tmp_path / "repo", arm=CHECKOUT_ARM
+    )
     hop_file = next((chain[0].parent / "archive").glob("*/h2-*.md"))
     old = re.search(
         r"^- (\[R\d+\]) Export files are written in UTC dates only\.$",
