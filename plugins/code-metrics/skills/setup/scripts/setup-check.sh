@@ -108,7 +108,7 @@ old_local="$REPO_ROOT/.claude/code-metrics.local.yaml"
 personal_file="$REPO_ROOT/docs/conventions/code-metrics.local.yaml"
 row INFO "layer userConfig" "none: the plugin declares no userConfig option"
 if [[ -f "$old_user" ]]; then
-  row WARN "layer user-global location" "$old_user is the old user-global file, still read below the team layer during the dual-read window; /code-metrics:setup apply --copy-old copies the keys this repository needs to $personal_file"
+  row WARN "layer user-global location" "$old_user is the old user-global file, still read below the team layer during the dual-read window; /code-metrics:setup apply --copy-old copies the keys this repository needs to $personal_file; keep the old file until each repository that relies on it has copied its keys"
   check_layer "user-global" "$old_user" n/a
 fi
 team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
@@ -122,8 +122,16 @@ if [[ -f "$retired_file" && ! "$retired_file" -ef "$old_user" ]]; then
 fi
 check_layer "team" "$team_file" yes
 if [[ -f "$old_local" && -f "$personal_file" ]]; then
-  row WARN "layer local location" "$old_local is the old personal override and is not read because $personal_file exists; delete it once its keys are there"
-  check_layer "local" "$personal_file" no
+  # The resolver keeps reading the old file while the new one is outside the
+  # YAML subset (resolve-config.py surface_layer_paths), so both are checked.
+  if "${PY[@]}" "$SCRIPTS/yaml_subset.py" "$personal_file" >/dev/null 2>&1; then
+    row WARN "layer local location" "$old_local is the old personal override and is not read because $personal_file exists; delete it once its keys are there"
+    check_layer "local" "$personal_file" no
+  else
+    row WARN "layer local location" "$old_local is the old personal override, still read because $personal_file is outside the YAML subset; fix $personal_file, then delete the old file"
+    check_layer "local" "$old_local" no
+    check_layer "local" "$personal_file" no
+  fi
 elif [[ -f "$old_local" ]]; then
   row WARN "layer local location" "$old_local is the old personal override, still read during the dual-read window; /code-metrics:setup apply --copy-old copies its keys to $personal_file"
   check_layer "local" "$old_local" no

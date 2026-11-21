@@ -416,9 +416,13 @@ def copy_old(root: str, home: str, preview: bool) -> int:
         print(f"setup-apply.py: {exc}; nothing written", file=sys.stderr)
         return 1
     print(f"written: {target}")
-    for old in (old_user, old_local):
-        if os.path.isfile(old):
-            print(f"left in place: {old}; delete it once check shows the values you expect")
+    if os.path.isfile(old_user):
+        print(
+            f"left in place: {old_user}; it applies to every repository, so keep it "
+            "until each repository that relies on it has run --copy-old"
+        )
+    if os.path.isfile(old_local):
+        print(f"left in place: {old_local}; delete it once check shows the values you expect")
     return 0
 
 

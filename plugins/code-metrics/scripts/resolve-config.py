@@ -292,8 +292,9 @@ def surface_layer_paths(
         warnings.append(
             f"{old['user-global']} is the old user-global file, still read below the "
             "team layer; the plugin has no userConfig option, so copy the keys this "
-            f"repository needs to {personal} (/code-metrics:setup apply --copy-old) "
-            "and delete the old file"
+            f"repository needs to {personal} (/code-metrics:setup apply --copy-old); "
+            "it applies to every repository, so keep it until each repository that "
+            "relies on it has copied its keys"
         )
     if os.path.isfile(personal) and os.path.isfile(old["local"]):
         if _load_layer(personal, []) is None:

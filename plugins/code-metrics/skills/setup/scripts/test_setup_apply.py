@@ -310,7 +310,12 @@ class SetupApplyTests(unittest.TestCase):
                 result.stdout,
             )
             self.assertTrue(old_user.is_file() and old_local.is_file())
-            self.assertIn("left in place", result.stdout)
+            self.assertIn(
+                f"left in place: {old_user}; it applies to every repository, so keep it",
+                result.stdout,
+            )
+            self.assertIn(f"left in place: {old_local}; delete it once", result.stdout)
+            self.assertNotIn("and delete the old file", before.stderr)
 
             after = self._resolve(home, root)
 

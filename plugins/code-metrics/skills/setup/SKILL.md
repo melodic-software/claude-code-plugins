@@ -116,8 +116,10 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    the team file sets it, since the team file already wins over that file and the personal override
    would win over the team. A key the personal override already sets is kept. On an explicit yes,
    run the same command without `--preview`, which writes
-   `docs/conventions/code-metrics.local.yaml` and leaves the old files in place for the operator to
-   delete. Without a yes, write nothing.
+   `docs/conventions/code-metrics.local.yaml` and leaves the old files in place. The old
+   `.claude/code-metrics.local.yaml` is the operator's to delete once `check` shows the values they
+   expect. The old user-global file applies to every repository: tell the operator to keep it until
+   each repository that relies on it has run the copy. Without a yes, write nothing.
 5. **Verify.** Re-run `check`; report the persisted values from its table, never from the write
    alone. The tracked-file pair decides the outcome: a WARN `written but untracked` means "commit
    it to share with the team", never success; an ignored team file is FAIL and the operator's
