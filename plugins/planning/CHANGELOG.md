@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.11.3] - 2026-11-21
+
+### Changed
+
+- The shared frame helper `shared/web/proto-pin.js` also posts a `key` message when the person presses P, R, A, M or N inside the framed page and the page does not handle the key. The planning page ignores the message; the prototype notes host uses it to run its shortcuts ([#17917](https://github.com/melodic-software/claude-code-plugins/issues/17917)).
+
 ## [5.11.2] - 2026-11-21
 
 ### Changed
