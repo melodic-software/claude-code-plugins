@@ -259,7 +259,7 @@ edit the canonical source, then rerun the script. -->
   /** A row's number, as its marker shows it: the seq once sent, D1, D2... for drafts, null for a note no marker shows. */
   const numberOf = (m) => m.seq ?? (m.draft ? `D${mine.filter((x) => x.draft).indexOf(m) + 1}` : null);
   /** What the frame needs to find a note's box and restore its view: contract keys, a path and a box, never its text. */
-  function target(m) {
+  function noteTarget(m) {
     const n = m.note, t = { n: numberOf(m), kind: n.kind, cssPath: n.anchor.cssPath };
     if (n.rect) t.rect = { x: n.rect.x, y: n.rect.y, w: n.rect.w, h: n.rect.h };
     if (n.variant) t.variant = n.variant.key;
@@ -271,7 +271,7 @@ edit the canonical source, then rerun the script. -->
   function choose(m) {
     if (picking) setPick(null);
     chosen = m;
-    toFrame({ type: "select", target: target(m) });
+    toFrame({ type: "select", target: noteTarget(m) });
     markChosen();
   }
   function unchoose(tellFrame) {
@@ -498,7 +498,7 @@ edit the canonical source, then rerun the script. -->
         li.tabIndex = 0;
         li.dataset.key = `row-${entry.id}`;
         if (chosen === entry) li.setAttribute("aria-current", "true");
-        const peek = (on) => () => toFrame({ type: "show", target: on ? target(entry) : null });
+        const peek = (on) => () => toFrame({ type: "show", target: on ? noteTarget(entry) : null });
         li.addEventListener("mouseenter", peek(true));
         li.addEventListener("mouseleave", peek(false));
         li.addEventListener("focus", peek(true));
