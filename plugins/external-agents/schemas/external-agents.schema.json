@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/external-agents/schemas/external-agents.schema.json",
+  "title": "External-agents team config",
+  "description": "Schema for a repository's <home>/external-agents.yaml (<home> defaults to docs/conventions): the team layer of the external-agents plugin. A personal <home>/external-agents.local.yaml overrides it per key. Layers: docs/contracts/config-cascade/README.md. Each product is one top-level key holding the same per-product keys; an unset model, effort or profile leaves the CLI's own configuration in charge.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema"],
+  "properties": {
+    "schema": {
+      "description": "The layer format version. The resolver skips a layer that declares any other value.",
+      "type": "integer",
+      "enum": [1]
+    },
+    "codex": {
+      "description": "Settings for the OpenAI Codex CLI.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "description": "Model passed to the CLI. Unset: the CLI's configured or recommended default." },
+        "effort": { "type": "string", "description": "Reasoning effort passed to the CLI. Unset: the CLI's own setting." },
+        "profile": { "type": "string", "description": "CLI configuration profile to run under. Unset: none." },
+        "binary_path": { "type": "string", "description": "Absolute path to the CLI binary, tried before every other location. Read from the personal layer only: a value in the committed team file is ignored, since it picks the executable that runs." },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "default": 1800, "description": "Seconds before a run is stopped and recorded timed-out." },
+        "update_hint": { "type": "string", "description": "Text shown beside the daily check's line when the CLI is behind its latest release, such as how your machines update it." },
+        "uses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "task": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "mode": { "type": "string", "enum": ["read-only", "write"], "default": "write", "description": "Default and ceiling for task runs." } }
+            },
+            "investigate": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "mode": { "type": "string", "enum": ["read-only", "write"], "default": "read-only", "description": "Default and ceiling for investigate runs." } }
+            },
+            "review": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "mode": { "type": "string", "enum": ["read-only"], "default": "read-only", "description": "Reviews always run read-only." } }
+            }
+          }
+        },
+        "council": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean", "default": true, "description": "Whether review:council may run this CLI as a member." } }
+        }
+      }
+    },
+    "breaker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cooldown_hours": { "type": "integer", "minimum": 1, "default": 24, "description": "Hours a CLI stays refused after an unavailable-class failure, unless the CLI names its own reset time." }
+      }
+    },
+    "jobs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keep": { "type": "integer", "minimum": 1, "default": 50, "description": "Newest job files kept per repository." }
+      }
+    }
+  }
+}

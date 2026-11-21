@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+const { join } = require("node:path");
+const { pathToFileURL } = require("node:url");
+
+import(pathToFileURL(join(__dirname, "..", "scripts", "external-agents.mjs")).href)
+  .then(({ main }) => main(process.argv.slice(2)))
+  .then((code) => { process.exitCode = code; });

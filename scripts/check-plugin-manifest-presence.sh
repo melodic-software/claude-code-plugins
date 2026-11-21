@@ -158,6 +158,7 @@ if [[ -d "$PLUGINS_ROOT" ]]; then
   # from a checkout, not content (git tracks no empty directory), so it passes.
   for plugin_dir in "$PLUGINS_ROOT"/*/; do
     [[ -d "$plugin_dir" ]] || continue
+    [[ "$(basename "$plugin_dir")" == external-agents ]] && continue # its command must be on PATH; org sync skips it: https://claude.com/docs/plugins/org-sync
     bin_path="${plugin_dir%/}/bin"
     if [[ -d "$bin_path" && ! -L "$bin_path" ]]; then
       [[ -n "$(find "$bin_path" -mindepth 1 -print -quit 2>/dev/null)" ]] || continue
@@ -175,9 +176,9 @@ if ((errors > 0)); then
     echo "Every $MARKETPLACE entry must resolve to a plugin directory that"
     echo "carries a readable .claude-plugin/plugin.json whose own \"name\""
     echo "matches the catalog key, every plugin directory must be"
-    echo "registered in the catalog, and no plugin may have a top-level bin/."
+    echo "registered in the catalog, and no plugin but external-agents may have a top-level bin/."
   } >&2
   exit 1
 fi
 
-echo "Every catalog entry resolves to a present, name-matching plugin manifest; no unregistered plugin directories; no top-level bin/."
+echo "Every catalog entry resolves to a present, name-matching plugin manifest; no unregistered plugin directories; no top-level bin/ outside external-agents."

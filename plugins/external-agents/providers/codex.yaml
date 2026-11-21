@@ -1,0 +1,44 @@
+schema: 1
+product: codex
+docs_index: https://learn.chatgpt.com/docs/llms.txt
+binary:
+  name: codex
+  candidates:
+    win32:
+      - "{LOCALAPPDATA}/Programs/OpenAI/Codex/bin/codex.exe"
+      - "{APPDATA}/npm/codex.cmd"
+version:
+  args: [--version]
+  sources:
+    standalone: github:openai/codex
+    npm: npm:@openai/codex
+login_status:
+  args: [login, status]
+unset_model: cli-default
+model_flag: -m
+profile_flag: -p
+effort_config: model_reasoning_effort
+always_args: [-c, 'approval_policy="never"']
+modes:
+  read-only:
+    enforcement: sandbox
+    args:
+      run: [--sandbox, read-only]
+      resume: [-c, 'sandbox_mode="read-only"']
+      review: [-c, 'sandbox_mode="read-only"']
+  write:
+    enforcement: sandbox
+    args:
+      run: [--sandbox, workspace-write]
+      resume: [-c, 'sandbox_mode="workspace-write"']
+      review: [-c, 'sandbox_mode="read-only"']
+soft_deny:
+  - kind: json_item_failed
+    item_types: [command_execution, file_change]
+    text_field: aggregated_output
+    patterns:
+      - "is denied"
+      - "Access is denied"
+      - "Permission denied"
+      - "Operation not permitted"
+      - "Read-only file system"
