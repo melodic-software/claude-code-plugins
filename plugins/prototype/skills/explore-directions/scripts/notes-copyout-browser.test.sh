@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/lib/browser-test-helpers.sh plugins/prototype/skills/explore-directions/scripts/notes-copyout-browser-take.js
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/lib/browser-test-helpers.sh plugins/prototype/skills/explore-directions/scripts/notes-copyout-browser-take.js plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
