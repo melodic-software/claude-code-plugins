@@ -97,3 +97,9 @@ test("a change select-plugins refuses, a change to cases only, or no change unde
   assert.equal(run(fixture({ [CASE]: 'plugins: ["../.."]\nname: c1\ndescription: more\n' })).status, 1);
   assert.equal(run(fixture({ "plugins/p/tests/x.sh": "echo new\n" })).status, 1);
 });
+
+test("a change to plugin text the arms do not carry, such as a reference file, builds nothing", () => {
+  const r = run(fixture({ [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n", "plugins/p/reference/x.md": "cut\n" }));
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /plugins\/p\/reference\/x\.md/);
+});

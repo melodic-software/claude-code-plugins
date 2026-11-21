@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 
 import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
-import { citedRun, decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, ownLines, RELEASES_PER_RUN, runVouches } from "./release-eval-hold.mjs";
+import { citedRun, decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, onDefaultBranch, ownLines, RELEASES_PER_RUN, runVouches } from "./release-eval-hold.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -169,10 +169,13 @@ const outputFile = () => {
   return path;
 };
 
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {} } = {}) {
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, compareStatus = "ahead" } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (method === "GET" && /^\/repos\/[^/]+\/[^/]+\/compare\/[0-9a-f]{40}\.\.\.main$/.test(path)) {
+      return { status: compareStatus };
+    }
     const runPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)$/.exec(path);
     if (method === "GET" && runPath) {
       if (!(runPath[1] in runs)) throw new Error("HTTP 404");
@@ -273,6 +276,7 @@ const compareRun = (overrides = {}) => ({
   status: "completed",
   conclusion: "success",
   run_attempt: 1,
+  head_sha: "e".repeat(40),
   display_title: `eval-compare pr=7 head=${HEAD}`,
   repository: { full_name: REPO },
   head_repository: { full_name: REPO },
@@ -350,6 +354,19 @@ test("main reads the cited run and releases on a compare run of this pull reques
   const writes = calls.filter(isWrite);
   assert.deepEqual(writes.map((call) => call.method), ["POST", "DELETE"]);
   assert.ok(writes[0].body.body.includes(`compare run ${RUN_ID}`));
+});
+
+test("main keeps the hold when the cited run's commit is not on the default branch, as a tag named main's is", async () => {
+  for (const compareStatus of ["diverged", "behind"]) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), ciRecord()] } }, { runs: { [RUN_ID]: compareRun() }, compareStatus });
+    const { lines } = await quietMain(github);
+    assert.deepEqual(calls.filter(isWrite), [], compareStatus);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), compareStatus);
+  }
+  assert.equal(onDefaultBranch({ status: "identical" }), true);
+  assert.equal(onDefaultBranch({ status: "ahead" }), true);
+  assert.equal(onDefaultBranch(undefined), false);
+  assert.equal(runVouches(compareRun({ head_sha: "main" }), REPO, "main"), null, "a run whose commit is not a SHA");
 });
 
 test("main keeps the hold when the cited run is another pull request's or does not exist", async () => {

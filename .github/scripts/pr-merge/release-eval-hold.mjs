@@ -138,8 +138,15 @@ export function runVouches(run, repo, defaultBranch) {
     return null;
   }
   const title = COMPARE_TITLE.exec(String(run.display_title ?? ""));
-  return title === null ? null : { pr: Number(title[1]), head: title[2] };
+  return title === null || !/^[0-9a-f]{40}$/.test(String(run.head_sha)) ? null : { pr: Number(title[1]), head: title[2] };
 }
+
+/**
+ * Whether GET compare/{run head}...{default branch} shows the run's commit on
+ * the default branch. head_branch is only a ref name, which a tag can share,
+ * and a tag runs its own copy of the workflow.
+ */
+export const onDefaultBranch = (compare) => compare?.status === "identical" || compare?.status === "ahead";
 
 /**
  * Whether `comment` is a record that counts for pull request `number`: a
@@ -371,7 +378,17 @@ async function readRuns(github, repo, comments, defaultBranch) {
       continue;
     }
     const vouch = runVouches(run, repo, defaultBranch);
-    if (vouch !== null) {
+    if (vouch === null) {
+      continue;
+    }
+    let compare;
+    try {
+      compare = await github("GET", `/repos/${repo}/compare/${run.head_sha}...${encodeURIComponent(defaultBranch)}`);
+    } catch (error) {
+      console.log(`release-eval-hold: run ${id}'s commit did not compare with ${defaultBranch}: ${escapeCommand(error?.message ?? error)}`);
+      continue;
+    }
+    if (onDefaultBranch(compare)) {
       vouched.set(id, vouch);
     }
   }

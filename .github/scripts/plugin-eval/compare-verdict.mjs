@@ -26,10 +26,16 @@ export const recordLines = (head, runId) => [`<!-- eval-pair verdict=no-loss val
 
 const valid = (validity) => /^verdict: VALID(?: |$)/.test(String(validity ?? "").trimEnd().split("\n").at(-1) ?? "");
 
-/** Per case name: { runs, scores, passes: grader -> passing runs }, from results.json's `with` arm. */
+/**
+ * Per case name: { runs, scores, passes: grader -> passing runs }, from
+ * results.json's `with` arm, and the names more than one case carries, whose
+ * results cannot be told apart.
+ */
 export function readArm(results) {
   const cases = new Map();
+  const duplicates = new Set();
   for (const entry of results?.cases ?? []) {
+    if (cases.has(String(entry?.name))) duplicates.add(String(entry?.name));
     const rows = Array.isArray(entry?.arms?.with) ? entry.arms.with : [];
     const passes = new Map();
     for (const row of rows) {
@@ -39,7 +45,7 @@ export function readArm(results) {
     }
     cases.set(String(entry?.name), { runs: rows.length, scores: rows.map((row) => Number(row?.score) || 0), passes, cost: rows.reduce((sum, row) => sum + (Number(row?.costUsd) || 0), 0) });
   }
-  return cases;
+  return Object.assign(cases, { duplicates });
 }
 
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -57,6 +63,7 @@ export function judge({ before, after, beforeValidity, afterValidity }) {
   const a = readArm(after);
   const names = [...new Set([...b.keys(), ...a.keys()])].sort();
   if (names.length === 0) reasons.push("no case ran");
+  if (b.duplicates.size > 0 || a.duplicates.size > 0) reasons.push("two cases share a name, so their results cannot be told apart");
   const cases = [];
   let blind = 0;
   let cost = 0;

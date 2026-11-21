@@ -30,6 +30,12 @@ if [[ ${#files[@]} -eq 0 ]]; then
   echo "::error::the pull request changes nothing under plugins/$PLUGIN/skills, agents or evals"
   exit 1
 fi
+mapfile -t unmeasured < <(git -C "$REPO" diff --no-renames --name-only "$merge_base" "$HEAD_SHA" -- "plugins/$PLUGIN" \
+  ":(exclude)plugins/$PLUGIN/skills" ":(exclude)plugins/$PLUGIN/agents" ":(exclude)plugins/$PLUGIN/evals" ":(exclude)plugins/$PLUGIN/tests")
+if [[ ${#unmeasured[@]} -gt 0 ]]; then
+  echo "::error::the arms would not carry ${unmeasured[*]}, so a record could vouch for text no run read; compare this pull request at the desk"
+  exit 1
+fi
 printf '%s\n' "${files[@]}" | node "$here/select-plugins.mjs" --repo "$REPO" --base "$merge_base" --head "$HEAD_SHA" >/dev/null || {
   echo "::error::select-plugins.mjs refuses the pull request's change to plugins/$PLUGIN, so no arm runs it beside the credential"
   exit 1

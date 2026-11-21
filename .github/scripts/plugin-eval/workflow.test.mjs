@@ -184,6 +184,7 @@ test("compare mode leaves the suite legs out, and its run name is the one the re
     status: "completed",
     conclusion: "success",
     run_attempt: 1,
+    head_sha: "f".repeat(40),
     display_title: `eval-compare pr=12 head=${head}`,
     repository: { full_name: "o/r" },
     head_repository: { full_name: "o/r" },

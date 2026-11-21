@@ -56,6 +56,12 @@ test("an arm that does not read VALID, a case on one arm only, or no case is voi
   assert.equal(judge({ before: { cases: [] }, after: { cases: [] }, beforeValidity: VALID, afterValidity: VALID }).verdict, "VOID");
 });
 
+test("two cases with one name are void, so a lost case cannot hide behind its namesake", () => {
+  const twice = (first, second) => ({ cases: [...arm(first).cases, ...arm(second).cases] });
+  const result = judge({ before: twice({ g1: 3 }, { g1: 3 }), after: twice({ g1: 0 }, { g1: 3 }), beforeValidity: VALID, afterValidity: VALID });
+  assert.equal(result.verdict, "VOID");
+});
+
 test("graders that failed in every before run are counted as unable to show a loss", () => {
   assert.equal(judge({ before: arm({ g1: 0, g2: 3 }), after: arm({ g1: 0, g2: 3 }), beforeValidity: VALID, afterValidity: VALID }).blind, 1);
 });
