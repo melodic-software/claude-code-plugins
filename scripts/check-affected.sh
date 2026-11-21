@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Run the diff-scoped lint checks CI runs, over what this branch changed, before
-# a push spends a CI round on them. One entrypoint, so a person, an agent and the
-# pre-push hook (.claude/hooks/check-affected-pre-push.sh) all run the same set.
-#
 #   scripts/check-affected.sh                 the lint checks
 #   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
 #   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
@@ -95,18 +91,6 @@
 # `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
 # is covered, and scripts/check-affected-gates.test.sh fails when a gate in
 # the workflow's hygiene jobs is in neither column.
-#
-# Code runs from the tree holding this script, and the files checked are that
-# tree's too, whatever the working directory, unless CHECK_DATA_ROOT names
-# another tree. The pre-push hook runs a merge-base copy of this script with
-# CHECK_DATA_ROOT naming the branch tree, so the two differ: then every check
-# script runs from the copy with CHECK_DATA_ROOT passed on, markdownlint
-# reads the copy's configs plus each branch config the copy proves is data (a
-# branch config can load a custom rule, which is code, so any other is refused),
-# and checks that run the branch's own code skip: --tests, changed-skills, and the
-# validate-plugins steps that report `SKIP` themselves. plugin-options-docs
-# skips when the branch changes its generator, whose output the copy's older
-# generator would reject.
 #
 # CI is still the gate that decides: this covers the diff-scoped LINT tier and
 # the plugin and skill contract checks above, not CI's whole-repo scanners, and
@@ -505,12 +489,6 @@ step_input() {
     }' "$hygiene_workflow"
 }
 
-# typos: the exclusions are the `exclude:` input of the workflow's typos step,
-# read as data, so a branch that exempts files is judged by its own exemption;
-# no workflow or no globs fails closed. Any non-zero exit is a finding, never
-# run_check's "could not run" 2; a missing binary was skipped above. The config
-# is the copy's, else the checked tree's (a copy made by the pre-push hook
-# carries none).
 typos_check() {
   local g
   local -a excludes=()
@@ -573,10 +551,6 @@ for f in ${changed[@]+"${changed[@]}"}; do
   done
 done
 
-# machine_paths_load: defines the HPP_* regex bodies from the merge-base's
-# patterns file. Sourcing runs it, and the pre-push hook's TOOLING list does not
-# name it, so the branch's own copy is never the one loaded; CI scans with
-# ci-workflows' copy, not this tree's, either way.
 machine_paths_load() {
   git show "$merge_base:$machine_paths_lib" >"$out.patterns" 2>/dev/null || return 1
   # shellcheck source=../plugins/guardrails/lib/path-detection/machine-path-patterns.sh

@@ -53,8 +53,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
-# script (the pre-push hook runs a merge-base copy against the branch).
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 case "${1:-}" in
@@ -124,8 +122,14 @@ if ((${#files[@]} > 0)); then
   # One `<file>\t<line>` per offending paragraph, keyed by its first line.
   found="$(LC_ALL=C awk '
     function figure(t) {
+      if (t !~ /[0-9]/) return 0
+      if (t !~ /[$€£%]|percent|usd|eur|gbp|dollar|cent|price|pricing|cheaper/) return 0
       gsub(/`[^`]*`/, "", t)
-      return t ~ money || t ~ amount || t ~ multiple || t ~ pct1 || t ~ pct2 || t ~ pct3 || t ~ pct4 || t ~ cheaper
+      if (t ~ money || t ~ amount) return 1
+      if (t ~ /%|percent/ && (t ~ pct1 || t ~ pct2 || t ~ pct3 || t ~ pct4)) return 1
+      if (t ~ /price|pricing/ && t ~ multiple) return 1
+      if (t ~ /cheaper/ && t ~ cheaper) return 1
+      return 0
     }
     function rate(t) {
       gsub(/`[^`]*`/, "", t)
@@ -135,7 +139,12 @@ if ((${#files[@]} > 0)); then
     function flush(   t) {
       if (buf == "") return
       t = tolower(buf)
-      sect = sect " " t
+      if (skill) {
+        if (!s_lpe && index(t, "list-price estimate") > 0) s_lpe = 1
+        if (!s_date && t ~ /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) s_date = 1
+        if (!s_ver && t ~ /[0-9]+\.[0-9]+\.[0-9]+/) s_ver = 1
+        if (!s_recheck && t ~ /re-?check/) s_recheck = 1
+      }
       if (figure(t) && !(upstream && t ~ /vendor-reported/)) {
         if (rate(t)) print file "\t" start
         else held = held file "\t" start "\n"
@@ -146,8 +155,8 @@ if ((${#files[@]} > 0)); then
     # meets the measured-run exception.
     function close_section() {
       flush()
-      if (held != "" && !(skill && sect ~ /list-price estimate/ && sect ~ /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ && sect ~ /[0-9]+\.[0-9]+\.[0-9]+/ && sect ~ /re-?check/)) printf "%s", held
-      held = ""; sect = ""
+      if (held != "" && !(skill && s_lpe && s_date && s_ver && s_recheck)) printf "%s", held
+      held = ""; s_lpe = 0; s_date = 0; s_ver = 0; s_recheck = 0
     }
     function close_file() { close_section(); fence = 0 }
     BEGIN {
