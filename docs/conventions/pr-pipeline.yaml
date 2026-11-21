@@ -1220,13 +1220,11 @@ limits:
   # decision Q109).
   refire-queue-per-slot: 2
   # Re-fires of runs the start gate stopped on a low GITHUB_TOKEN budget keep
-  # the unfinished runs at this many per slot, inside that room. One per slot
-  # (2026-11-19) kept a second run from waiting past the 20-minute window after
-  # the reset; two per slot (2026-11-21) drains a deferred backlog faster now
-  # that window peaks sit far under the limit, and the start gate still stops a
-  # run that starts late (owner decision:
-  # https://github.com/melodic-software/architecture/blob/d4804179a43b794c5d3b0958fceedf48d1e90e7c/docs/owner-decisions.md#L306).
-  refire-budget-per-slot: 2
+  # the unfinished runs at this many per slot, inside that room: a second run
+  # per slot often waited past the 20-minute window after the reset and the
+  # gate stopped it again (owner decision, 2026-11-19:
+  # https://github.com/melodic-software/architecture/blob/c3a36f0e86c268cd6a427abd344c69d76c03d654/docs/owner-decisions.md#L237).
+  refire-budget-per-slot: 1
   # A work-resolve-issue run still `queued` this many minutes after it was
   # created is not counted toward that room. The check-admission job runs on a
   # GitHub-hosted runner and the slot wait comes after it, so a healthy run
