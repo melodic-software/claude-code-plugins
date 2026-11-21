@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- Intake refinement counts an open factory-monitor incident as a duplicate candidate, so a person's issue about a failure the monitoring lane already tracks is flagged. A github-actions[bot] issue counts only while it is open and its first body line is the `<!-- factory-monitor key=… fp=… -->` marker; other github-actions[bot] issues are still left out.
+- Intake refinement flags a person's issue as a duplicate of an open factory-monitor incident the monitoring lane already tracks. The match is made in code, with no model: an open github-actions[bot] issue whose first body line is the `<!-- factory-monitor key=… fp=… -->` marker matches when the new issue's title or body contains its key, or when the two titles are equal after lowercasing and collapsing punctuation. The model sees only the incident's number and key, never its title or body; a match is listed as a duplicate and turns an exact refinement into a question whether to close the issue.

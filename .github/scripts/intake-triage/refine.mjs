@@ -211,20 +211,43 @@ export function searchTerms(title) {
   return [...new Set(words)].slice(0, 4);
 }
 
-const openMonitorIncident = (item) => item?.user?.id === ACTIONS_BOT_ID && !item.pull_request && item.state === "open" && readMarker(item.body) !== null;
+const normalTitle = (title) =>
+  String(title ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const monitorKey = (key) => typeof key === "string" && readMarker(`<!-- factory-monitor key=${key} fp=${"0".repeat(16)} -->`)?.key === key;
+
+function monitorDuplicate(issue, item) {
+  if (item?.user?.id !== ACTIONS_BOT_ID || item.pull_request || item.state !== "open" || !Number.isInteger(item.number) || item.number === issue.number) {
+    return null;
+  }
+  const key = readMarker(item.body)?.key;
+  if (!monitorKey(key)) {
+    return null;
+  }
+  const title = normalTitle(issue.title);
+  const named = String(issue.title ?? "").includes(key) || String(issue.body ?? "").includes(key);
+  return named || (title !== "" && normalTitle(item.title) === title) ? { number: item.number, key } : null;
+}
 
 async function candidates(github, repository, issue, trusted) {
-  const titleMayReachModel = (item) => trusted(item.user?.id) || openMonitorIncident(item);
   const terms = searchTerms(issue.title);
   if (terms.length === 0) {
-    return [];
+    return { candidates: [], monitor_duplicates: [] };
   }
   const found = [];
+  const monitor = [];
   for (const kind of ["is:issue", "is:pr is:merged"]) {
     const q = encodeURIComponent(`repo:${repository} ${kind} ${terms.join(" OR ")}`);
     const answer = await github("GET", `/search/issues?q=${q}&per_page=${CANDIDATES}`);
     for (const item of answer?.items ?? []) {
-      if (item?.number !== issue.number && Number.isInteger(item?.number) && titleMayReachModel(item) && !found.some((seen) => seen.number === item.number)) {
+      const match = monitorDuplicate(issue, item);
+      if (match !== null && !monitor.some((seen) => seen.number === match.number)) {
+        monitor.push(match);
+      }
+      if (item?.number !== issue.number && Number.isInteger(item?.number) && trusted(item.user?.id) && !found.some((seen) => seen.number === item.number)) {
         found.push({
           number: item.number,
           kind: item.pull_request ? "pull request" : "issue",
@@ -236,7 +259,7 @@ async function candidates(github, repository, issue, trusted) {
       }
     }
   }
-  return found;
+  return { candidates: found, monitor_duplicates: monitor };
 }
 
 // A size split (owner Q93): an issue admission parked at a SPLIT_PENDING reason
@@ -665,7 +688,7 @@ export async function selectRefinement({ github, repository, number, humans, app
       attended: { ...(splitConfig().attended ?? {}) },
       triage: String(lane.body),
       comments: kept.map(({ comment }) => ({ author: comment.user?.login ?? "", created_at: comment.created_at ?? null, body: String(comment.body ?? "") })),
-      candidates: await candidates(github, repository, issue, (id) => humans.has(id) || (appId !== undefined && id === appId)),
+      ...(await candidates(github, repository, issue, (id) => humans.has(id) || (appId !== undefined && id === appId))),
     },
   };
 }
@@ -701,7 +724,7 @@ function externalOf(value, classes) {
 // The model's output, checked; related work outside `known` (the candidate
 // numbers) is dropped. `split` is the context's split, or null; `classes`,
 // the context's attended classes. Throws on any other shape.
-export function validateOutput(output, known, split = null, classes = {}) {
+export function validateOutput(output, known, split = null, classes = {}, monitor = []) {
   const keys = ["exact", "outcome", "criteria", "dependencies", "related", "questions", "sources", "split", "external"];
   if (output === null || typeof output !== "object" || Array.isArray(output) || Object.keys(output).sort().join() !== [...keys].sort().join()) {
     throw new Error(`the refinement must hold exactly ${keys.join(", ")}`);
@@ -717,6 +740,11 @@ export function validateOutput(output, known, split = null, classes = {}) {
     "related",
     (item) => item && Number.isInteger(item.number) && RELATIONS.has(item.relation) && isText(item.note) && Object.keys(item).length === 3,
   ).filter((item) => known.has(item.number));
+  for (const { number, key } of (Array.isArray(monitor) ? monitor : []).filter((entry) => entry !== null && typeof entry === "object")) {
+    if (Number.isInteger(number) && monitorKey(key) && !related.some((item) => item.number === number)) {
+      related.push({ number, relation: "duplicate", note: `factory-monitor incident key=${key}` });
+    }
+  }
   let questions = list(
     output.questions,
     "questions",
@@ -1299,7 +1327,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           writeOutputs({ redispatch: "false", children: result.children.join(" ") });
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));
-          const output = validateOutput(raw(), known, context.split ?? null, context.attended ?? {});
+          const output = validateOutput(raw(), known, context.split ?? null, context.attended ?? {}, context.monitor_duplicates ?? []);
           const { set: setStatus } = await statusWriter({ env, github, repository });
           const statusOf = statusReader({ env, github, repository });
           const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context, setStatus, statusOf });
