@@ -1733,7 +1733,7 @@ export async function main(env, deps = {}) {
 }
 
 async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
-  const budget = api ? null : budgetedFetch({ log });
+  const budget = api ? null : budgetedFetch({ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   const reads =
     api ??
