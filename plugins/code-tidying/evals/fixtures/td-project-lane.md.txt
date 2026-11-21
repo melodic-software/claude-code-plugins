@@ -3,7 +3,7 @@
 ## Merge semantics
 
 Per the bundled `shell-tooling` lane's declaration: `Scope` overrides, watch-for patterns and
-extra exclusions are additive, verification commands override per `###` subsection.
+extra exclusions are additive, verification commands override as one section.
 
 ## Scope
 

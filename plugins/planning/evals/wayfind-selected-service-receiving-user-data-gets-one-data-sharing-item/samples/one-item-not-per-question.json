@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "One interview item, 'Formly data sharing', groups the three questions: fields, agreement, BAA.",
+      "answer": "One interview item, 'Formly data sharing', groups the two questions: fields and agreement.",
       "why": "one item holds the questions"
     }
   ],
   "fail": [
     {
-      "answer": "Create three items: 'Formly fields', 'Formly agreement', 'Formly BAA'.",
+      "answer": "Create two items: 'Formly fields' and 'Formly agreement'.",
       "why": "one item per question"
     }
   ]

@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.11.0] - 2026-11-21
+
+### Added
+
+- `/work-items:ship run` takes a non-container parent: an item with no spec-container label that
+  has open sub-items, such as the source item decompose attaches items to when its container offer
+  is declined. The run works the parent's ready children as per-item PRs and says so in the item
+  list it shows for approval, without writing a shape line onto the parent. Once every child is
+  closed, an open parent closes through "Decomposed parent close" and a closed one needs nothing.
+  `status` stays container-only. A new eval case, `sh-run-non-container-parent-per-item`, covers a
+  run over such a parent with two ready children.
+
+### Changed
+
+- Repaired two links in the work skill's candidate-discovery context that pointed at an unresolvable `<plugin-root>` placeholder target.
+
+## [15.10.2] - 2026-11-21
+
+### Changed
+
+- Shared `lane-binding.mjs` synced where this plugin carries it: a lane run still going now throws a typed `LaneRunPending`; no other change to this plugin.
+
 ## [15.10.1] - 2026-11-20
 
 ### Changed

@@ -28,7 +28,7 @@ Typical markdown extraction shapes the workflow handles:
 
 Extraction is dangerous, for the reason the record in context/decision-framework.md, "The SkillsBench record", points at. This skill encodes the guardrails (Rule of Three, categorical-shape test, the size bound and one-level depth rule `/playbooks:skill-authoring` `## Body` and `## Reference files` record, Metz unwind procedure) so each invocation is reversible and reviewable.
 
-**Code / config escape-hatch.** Repeated string literals, magic constants, helper functions in source code, or repeated CI / settings / MCP stanzas in config files are also extractable in principle (Rule of Three applies). This skill flags such clusters during `identify` but does not ship a citation contract for them, the caller uses the language-idiomatic form (`import` / `using` / `source`, YAML anchor, JSON `$ref`, build-tool include) and language-aware refactoring tools (IDE rename, Roslyn / ts-morph). Markdown is the only file class with no language-level rename safety net. That is where the contract here adds value.
+**Code / config escape-hatch.** Repeated string literals, magic constants, helper functions in source code, or repeated CI / settings / MCP stanzas in config files are also extractable in principle (Rule of Three applies). This skill flags such clusters during `identify` but does not ship a citation contract for them, the caller uses the language-idiomatic form (`import` / `using` / `source`, YAML anchor, JSON `$ref`, build-tool include) and language-aware refactoring tools. Markdown is the only file class with no language-level rename safety net. That is where the contract here adds value.
 
 ## Evidence discipline
 
@@ -45,7 +45,7 @@ Every extraction decision must be grounded in **direct evidence captured this se
 
 **Out-of-scope, but flagged during `identify`:**
 
-- **Code clusters** (`.cs`, `.ts`, `.py`, `.sh`, `.ps1`, …). Repeated literal, magic constant, regex, helper function. Use language-idiomatic extraction (constants file, shared module, IDE rename refactor / Roslyn / ts-morph). Compiler + lint catch missed call sites. Citation rot is structurally prevented.
+- **Code clusters** (`.cs`, `.ts`, `.py`, `.sh`, `.ps1`, …). Repeated literal, magic constant, regex, helper function. Use language-idiomatic extraction (constants file, shared module, language-aware rename refactor). Compiler + lint catch missed call sites. Citation rot is structurally prevented.
 - **Config clusters** (`.yml`, `.json`, `.toml`, `.editorconfig`). Repeated CI step, MCP entry, settings stanza. Use the tooling's native include / anchor / `$ref` mechanism. Schema validation catches mismatches.
 - **Mixed clusters** spanning markdown + code + config. Pick the canonical owner (usually code/schema where runtime authority lives), then each file class cites in its native form. This skill handles the markdown half; the code/config half follows that file class's own conventions.
 

@@ -14,17 +14,17 @@ When a test failure needs diagnosis: never dismiss it, never retry blindly.
    |---------|-------------|-------------------|
    | Assertion mismatch (expected vs actual) | Logic bug or stale expectation | Compare expected/actual, trace the code path |
    | NullReferenceException in test | Missing setup or DI registration | Check Arrange section, verify DI container |
-   | Process-global singleton "frozen" / "already initialized" error | Multiple WebApplicationFactory (or equivalent) instances | Check the consuming project's fixture conventions. Apply the named fixture/collection pattern; avoid ad-hoc workarounds |
-   | "Unknown option" from test runner | Bad CLI flags (e.g. a classic-runner flag such as `--nologo` against a Microsoft Testing Platform run; its own switches are in [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options)) | Strip the offending flag; confirm which runner and version the project uses. An unrecognized option exits with the invalid-argument code ([Testing platform troubleshooting § Exit codes](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-troubleshooting#exit-codes)), not a zero-test result |
-   | Timeout / hung test | Async deadlock, missing cancellation | Check for sync-over-async (`.Result` / `.Wait()`) |
+   | Process-global singleton "frozen" / "already initialized" error | Several fixture instances initializing the same singleton | Check the consuming project's fixture conventions. Apply the named fixture/collection pattern; avoid ad-hoc workarounds |
+   | "Unknown option" from test runner | Bad CLI flags | Strip the offending flag; confirm which runner and version the project uses |
+   | Timeout / hung test | Async deadlock, missing cancellation | Check for a blocking wait on async work |
    | Intermittent pass/fail | Shared static state, race condition | Check for process-global singletons, parallel execution |
    | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build by invoking `/toolchain:check` via the Skill tool first; verify project references |
 
-3. **Reproduce deterministically**. Run the failing test in isolation with the framework's filter syntax (e.g. `--filter "FullyQualifiedName~TestClassName.TestMethodName"` for xUnit; `-k <pattern>` for pytest; `--testNamePattern` for vitest).
+3. **Reproduce deterministically**. Run the failing test in isolation with the framework's filter syntax.
 
    Passes in isolation but fails with others: shared state problem. Check the consuming project's fixture conventions for known workarounds.
 
-   When the runner shuffles order or seeds randomness, replay with the seed the first failure printed before trying anything else. Read the flag from the runner's own docs; two examples: pytest-randomly's `--randomly-seed=<seed>` ([README](https://github.com/pytest-dev/pytest-randomly#readme)), and Go's `go test -shuffle=<N>` ([testing flags](https://pkg.go.dev/cmd/go/internal/test)).
+   When the runner shuffles order or seeds randomness, replay with the seed the first failure printed before trying anything else. Read the flag from the runner's own docs.
 
 4. **Trace the root cause**. Read the code path from test setup through assertion; add logging or breakpoints if needed. Tag every debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`) so cleanup before commit is a single grep. Find *why* it fails, not just *where*
 

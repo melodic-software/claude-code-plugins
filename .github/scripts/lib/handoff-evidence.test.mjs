@@ -103,6 +103,18 @@ test("a repeated read sends the page's ETag, and a 304 gives back the body that 
   assert.equal(out.output, "posted=true\n");
 });
 
+test("a call skipped whole reads posted false at once, and its subscription call's posted check answers for the round", () => {
+  const skipped = { name: "Address Feedback", conclusion: "skipped", steps: [] };
+  const subscription = { name: "Address Feedback Subscription / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
+  const alone = run([[answer("200 OK", {}, listing(skipped)), 0]], "0 0 0", { calls: "address-feedback" });
+  assert.equal(alone.status, 0, alone.stdout + alone.stderr);
+  assert.equal(alone.output, "posted=false\n");
+  assert.equal(alone.args.length, 1, "one read");
+  const both = run([[answer("200 OK", {}, listing(skipped, subscription)), 0]], "0 0 0", { calls: "address-feedback address-feedback-subscription" });
+  assert.equal(both.status, 0, both.stdout + both.stderr);
+  assert.equal(both.output, "posted=true\n");
+});
+
 test("a run started before the rename is read by its job ids", () => {
   const out = run([[answer("200 OK", {}, listing({ ...POSTED, name: "fix-docs / report" })), 0]]);
   assert.equal(out.status, 0, out.stdout + out.stderr);

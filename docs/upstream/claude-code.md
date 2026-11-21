@@ -118,6 +118,7 @@ with "Deferred" names the issue that tracks it.
 | Nested `.claude/skills` folders inside `~/.claude/plugins` no longer load; the detector counts them as non-loadable | 321-098 | harness-config audit-permission-grants `scripts/permission-rule-check.sh`, `reference/criteria.md` | [#15413](https://github.com/melodic-software/claude-code-plugins/pull/15413) |
 | Fast mode also covers Fable 5.2; the fast-tier note points at the fast mode page instead of naming Opus | 321-001, 322-001 | `docs/contracts/loop-lane/README.md` | [#15422](https://github.com/melodic-software/claude-code-plugins/pull/15422) |
 | The Sonnet 5.5 chapter's fast mode pointer still holds after Fable 5.2 fast mode; only its as-of date moved | 321-001 | playbooks model-adaptation `sonnet-5-5.md` | [#15414](https://github.com/melodic-software/claude-code-plugins/pull/15414) |
+| The Read-deny scope reads `cp` and `mv` coverage, and the sandbox's read-only command escape, from the 2.1.321 release by client version; a spelling or file the sources do not name is reported uncovered, and the file a `cp` or `mv` reads stays unverified. The mods item 321-094 in the same handoff is out of scope by the owner decision below | 321-004, 321-005, 321-006, 321-111 | harness-config `required-permissions.md` | [#17793](https://github.com/melodic-software/claude-code-plugins/pull/17793) |
 | After removing its own worktree, the session runs later commands with `git -C` or an absolute path and re-issues a command that failed because its directory is gone | 325-010 | source-control worktree `context/cleanup.md` Step 4b | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
 | The sandbox auto-allow remedy names `sandbox.autoAllowBashIfSandboxed: true`, in the highest-ranked managed source under managed settings, and stays flag-only. [settings-reference, `sandbox.autoAllowBashIfSandboxed`](https://code.claude.com/docs/en/settings-reference#sandbox-autoallowbashifsandboxed) states the new default, so the docs-lag pair for these items is settled | 325-096, 325-097 | performance go-faster `reference/catalog/harness.md` | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
 | A remote-marketplace plugin counts as the organization's once managed settings enable it, declare its marketplace and list it in `prependPlugins` or `appendPlugins`. [mods admin, Install your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#install-your-organizations-mods) states it, so the docs-lag pair is settled | 325-104 | `docs/adr/0052-adopt-claude-code-mods.md` | [#17591](https://github.com/melodic-software/claude-code-plugins/pull/17591) |
@@ -263,6 +264,20 @@ and did not yet state the release's behavior; recheck the row when it does.
 | Topic | Items | Release | Page |
 |---|---|---|---|
 | Nested `.claude/skills` inside `~/.claude/plugins` | 321-098 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the plugins-directory exception |
+
+The rest of the `2.1.321` docs-lag handoffs in
+[#14843](https://github.com/melodic-software/claude-code-plugins/issues/14843) were recorded on
+2026-11-21. Each page was fetched that day and did not yet state the release's behavior; recheck a
+row when its page does. The `best` row runs the other way: the page states the alias move and the
+`2.1.321` changelog block does not. The mods admin handoff (321-095) is out of scope by the
+2026-11-11 owner decision above.
+
+| Topic | Items | Release | Page |
+|---|---|---|---|
+| Deny rules and protected-file prompts on the file a `cp` or `mv` into a directory writes, and on a `cp` or `mv` spelled by a path | 321-006, 321-111 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [permissions, Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit); recheck when its list of recognized file commands names `cp` or `mv` |
+| Long background commands shortened in notifications and TaskStop results | 321-112 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [tools-reference, Background commands](https://code.claude.com/docs/en/tools-reference#background-commands); recheck when it states the shortening |
+| Options and secrets kept from a managed `extraKnownMarketplaces` take-over until `claude plugin restore-set-aside` | 321-116 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [claude-directory, Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically); it lists `plugins/data/.set-aside/` for the set-aside data, and names neither the kept options and secrets nor `claude plugin restore-set-aside`; recheck when it does |
+| `best` resolving to the same model as `opus` | 321-001 | [2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) | [model-config, Version history](https://code.claude.com/docs/en/model-config#version-history) states it; recheck when a changelog entry lists the alias move |
 
 The `2.1.325` read, on 2026-11-20, recorded the topics below. Each page was fetched that day and did
 not yet state the release's behavior; recheck a row when its page does. The `failIfUnavailable` row

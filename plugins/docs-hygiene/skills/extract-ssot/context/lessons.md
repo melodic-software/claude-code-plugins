@@ -140,7 +140,7 @@ This file is private surface. External consumers don't cite `lessons.md "Lesson 
 1. **Section-header presence** counted as duplicate (e.g. 18 skills have a `## What this skill does NOT do` header; bodies are unique per skill, so this is a template, not duplication)
 2. **Concept mention** counted as block reproduction (a file mentions a verification tier once → flagged as a duplicate of the full tier-ladder definition)
 3. **Correct citation to SSOT** counted as "still inlined" (a `per X.md "Y"` token treated as inline duplication)
-4. **Language-native dedup** flagged as duplication (bash `source utils.sh` in 34 files counted as code duplication; that is the dedup mechanism)
+4. **Language-native dedup** flagged as duplication (34 files loading one shared helper counted as code duplication; that loading is the dedup mechanism)
 5. **Per-prompt/per-skill unique lists** confused with shared boilerplate (an exclusion list per prompt has unique scope-specific entries; template structure ≠ content duplication)
 
 The subagent also under-counts in some cases: a verbatim 5-place reproduction of a dependency-direction rule was flagged as 2 instances. Heuristic asymmetry: keyword-density inflates structural matches, deflates verbatim-rule clusters.
@@ -152,7 +152,7 @@ The subagent also under-counts in some cases: a verbatim 5-place reproduction of
 1. The identify prompt must require a verbatim-body excerpt per cluster + reproduction-count via discriminating-phrase grep
 2. The identify prompt must distinguish: (a) verbatim block reproduction, (b) section-header presence, (c) concept mention, (d) correct citation, (e) per-instance unique data with shared template. Only (a) and (e)+(framing-only) count
 3. Identify scope must be `git ls-files` only, excluding gitignored, untracked, and ephemeral/vendored/fixture content dirs
-4. Per-language native dedup (bash `source`, Python `import`, JSON `$ref`, MSBuild `<Import>`) is already-extracted; flag as out-of-scope, not as a candidate
+4. Per-language native dedup is already-extracted; flag as out-of-scope, not as a candidate
 5. The `verify` action becomes a hard gate for batches ≥5 candidates (not an optional pre-filter), refusing fast before any plan/execute
 
 **Source.** An exhaustive-mode session in which the survey subagent produced a 60-candidate roster. Tier 0 manual verify on the top 15 candidates yielded 1 PROCEED (a verbatim 5-instance dependency-direction rule), 14 REFUSE. Spot checks on the remaining ~45 candidates confirmed the pattern (header-only matches, concept mentions, SSOT-cites, language-native dedup). Overall ~95% FP rate. Cost: ~30+ Tier 0 grep calls to disprove the subagent synthesis.
