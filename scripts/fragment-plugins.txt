@@ -42,6 +42,7 @@ eol-normalizer
 evals
 event-storming
 explainer-video
+external-agents
 firecrawl
 fleet
 formal-verification

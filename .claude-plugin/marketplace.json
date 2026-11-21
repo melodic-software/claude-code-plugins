@@ -973,6 +973,19 @@
       "defaultEnabled": false
     },
     {
+      "name": "external-agents",
+      "source": "./plugins/external-agents",
+      "category": "workflow",
+      "tags": [
+        "codex",
+        "external-agents",
+        "cross-vendor",
+        "delegation",
+        "review",
+        "cli"
+      ]
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",

@@ -1,0 +1,21 @@
+{
+  "name": "external-agents",
+  "description": "Hands tasks and reviews to other vendors' official coding-agent CLIs (Codex first) through their documented headless surfaces: one skill per CLI, one shared runner with per-use sandbox ceilings, job files and a breaker, and the external-agents command that review:council calls.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "0.0.0",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "external-agents",
+    "cross-vendor",
+    "delegation",
+    "review",
+    "cli"
+  ],
+  "metadata": {
+    "category": "workflow"
+  }
+}
