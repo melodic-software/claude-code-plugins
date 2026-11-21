@@ -13,7 +13,8 @@ capability-tier or §4 invariant changed.
 - **A compare run's record releases an eval hold (Cross-lane PR hold).** `pr-run-plugin-evals.yml`'s
   compare mode posts the eval-pair record as `github-actions[bot]` with the run's id beside it, and
   `release-eval-hold.mjs` counts it only when that run reads back as a successful dispatch on the
-  default branch whose run name names the pull request and the record's head (owner decision Q136,
+  default branch whose run name names the pull request and the record's head, and whose Compare
+  Record job ran to success (owner decision Q136,
   [#17854](https://github.com/melodic-software/claude-code-plugins/issues/17854)). A listed human's
   record counts as before.
 

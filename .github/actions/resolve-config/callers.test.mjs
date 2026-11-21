@@ -8,6 +8,7 @@
 // the head whether or not its model and reply jobs run, and a fix-ci check when
 // fix-ci-context skips, and
 // work-resolve-issue.yml caps its concurrent runs.
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

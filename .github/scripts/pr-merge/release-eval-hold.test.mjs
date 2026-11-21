@@ -170,10 +170,19 @@ const outputFile = () => {
 };
 
 const TIP = "9".repeat(40);
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, compareStatus = "ahead", tip = TIP } = {}) {
+const RAN = { total_count: 2, jobs: [
+  { name: "Compare Prepare", status: "completed", conclusion: "success" },
+  { name: "Compare Record", status: "completed", conclusion: "success" },
+] };
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, jobs = {}, compareStatus = "ahead", tip = TIP } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    const jobsPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?/.exec(path);
+    if (method === "GET" && jobsPath) {
+      if (!(jobsPath[1] in runs)) throw new Error("HTTP 404");
+      return jobs[jobsPath[1]] ?? RAN;
+    }
     if (method === "GET" && path === `/repos/${REPO}/git/ref/heads/main`) {
       if (tip === null) throw new Error("HTTP 404");
       return { ref: "refs/heads/main", object: { sha: tip } };
@@ -356,6 +365,7 @@ test("main reads the cited run and releases on a compare run of this pull reques
   const { code } = await quietMain(github);
   assert.equal(code, 0);
   assert.ok(calls.some((call) => call.method === "GET" && call.path === `/repos/${REPO}/actions/runs/${RUN_ID}`));
+  assert.ok(calls.some((call) => call.method === "GET" && call.path.startsWith(`/repos/${REPO}/actions/runs/${RUN_ID}/jobs?`)), "reads the run's jobs");
   assert.ok(calls.some((call) => call.path === `/repos/${REPO}/compare/${"e".repeat(40)}...${TIP}`), "compares against the branch tip's SHA");
   const writes = calls.filter(isWrite);
   assert.deepEqual(writes.map((call) => call.method), ["POST", "DELETE"]);
@@ -378,6 +388,24 @@ test("main keeps the hold when the cited run's commit is not on the default bran
   assert.equal(onDefaultBranch({ status: "ahead" }), true);
   assert.equal(onDefaultBranch(undefined), false);
   assert.equal(runVouches(compareRun({ head_sha: "main" }), REPO, "main"), null, "a run whose commit is not a SHA");
+});
+
+test("main keeps the hold when the cited run did not run Compare Record to success, as a run whose jobs all skipped did not", async () => {
+  const skipped = (name) => ({ name, status: "completed", conclusion: "skipped" });
+  const cases = {
+    "every job skipped": { total_count: 3, jobs: [skipped("Compare Prepare"), skipped("Compare Verdict"), skipped("Compare Record")] },
+    "no Compare Record job": { total_count: 1, jobs: [{ name: "Compare Prepare", status: "completed", conclusion: "success" }] },
+    "Compare Record failed": { total_count: 1, jobs: [{ name: "Compare Record", status: "completed", conclusion: "failure" }] },
+    "a jobs list past one page": { total_count: 101, jobs: RAN.jobs },
+    "an unreadable answer": {},
+  };
+  for (const [name, answer] of Object.entries(cases)) {
+    const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), ciRecord()] } }, { runs: { [RUN_ID]: compareRun() }, jobs: { [RUN_ID]: answer } });
+    const { code, lines } = await quietMain(github);
+    assert.equal(code, 0, name);
+    assert.deepEqual(calls.filter(isWrite), [], name);
+    assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), name);
+  }
 });
 
 test("main keeps the hold when the cited run is another pull request's or does not exist", async () => {

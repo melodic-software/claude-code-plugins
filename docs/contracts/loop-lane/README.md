@@ -574,7 +574,8 @@ real-time deadline. A hold that lands after the merge is not a hold.
   removes `do-not-merge`, after a comment naming the record and the head, when that record is the
   newest since the label went on and names the current head, the record is by a listed human or
   is a compare record whose cited run reads back as a successful dispatch of that workflow on the
-  default branch with this PR and this head in its run name (the author alone counts for nothing),
+  default branch with this PR and this head in its run name and its Compare Record job run to
+  success (the author alone counts for nothing),
   the reason line by a listed human or the lanes App, both on a
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not

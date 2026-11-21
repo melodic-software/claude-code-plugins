@@ -2172,9 +2172,10 @@ jobs:
   # hook, workflow or manifest of either runs. Each arm runs on the API key
   # alone. The record job is the only one that writes: it holds issues: write,
   # checks out only this branch, and posts nothing unless every job before it
-  # passed and the head has not moved, so the run concludes success only on a
-  # posted PASS. release-eval-hold.mjs trusts the record only by reading this
-  # run back.
+  # passed and the head has not moved. A run whose jobs all skipped (a dispatch
+  # on a tag, which compare-prepare's ref gate skips) still concludes success,
+  # so release-eval-hold.mjs trusts the record only by reading this run back
+  # and finding its Compare Record job (that name, RECORD_JOB there) succeeded.
   compare-prepare:
     name: Compare Prepare
     if: >-

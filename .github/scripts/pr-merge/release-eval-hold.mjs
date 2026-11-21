@@ -5,7 +5,7 @@
 // a compare run of pr-run-plugin-evals.yml that this script reads back: a
 // successful workflow_dispatch run on the default branch whose run name
 // (`eval-compare pr=<n> head=<sha>`, set from its inputs) names this pull
-// request and the record's head. The comment's author alone counts for
+// request and the record's head, and whose Compare Record job ran to success. The comment's author alone counts for
 // nothing, since any workflow can post as github-actions[bot] (owner decision
 // Q136: https://github.com/melodic-software/claude-code-plugins/issues/17854).
 // No model. The hold convention is in docs/contracts/loop-lane/README.md
@@ -148,6 +148,26 @@ export function runVouches(run, repo, defaultBranch) {
  * refs/heads/ first, since a bare name resolves to a tag before a branch.
  */
 export const onDefaultBranch = (compare) => compare?.status === "identical" || compare?.status === "ahead";
+
+export const RECORD_JOB = "Compare Record";
+export const JOBS_PER_RUN = 100;
+
+/**
+ * Whether GET actions/runs/{id}/jobs shows RECORD_JOB completed with success,
+ * read from one complete page. A skipped job also reads as success in the
+ * run's conclusion, so a run whose jobs all skipped (a dispatch on a tag,
+ * where compare-prepare's ref gate skips everything after it) vouches for
+ * nothing; RECORD_JOB runs only after the dispatcher check, both arms and
+ * the verdict passed.
+ */
+export function recordJobRan(answer) {
+  const jobs = Array.isArray(answer?.jobs) ? answer.jobs : null;
+  if (jobs === null || !Number.isSafeInteger(answer.total_count) || answer.total_count > jobs.length) {
+    return false;
+  }
+  const named = jobs.filter((job) => job?.name === RECORD_JOB);
+  return named.length === 1 && named[0].status === "completed" && named[0].conclusion === "success";
+}
 
 /**
  * Whether `comment` is a record that counts for pull request `number`: a
@@ -393,6 +413,17 @@ async function readRuns(github, repo, comments, defaultBranch) {
     }
     const vouch = runVouches(run, repo, defaultBranch);
     if (vouch === null) {
+      continue;
+    }
+    let jobs;
+    try {
+      jobs = await github("GET", `/repos/${repo}/actions/runs/${id}/jobs?filter=all&per_page=${JOBS_PER_RUN}`);
+    } catch (error) {
+      console.log(`release-eval-hold: run ${id}'s jobs did not read: ${escapeCommand(error?.message ?? error)}`);
+      continue;
+    }
+    if (!recordJobRan(jobs)) {
+      console.log(`release-eval-hold: run ${id} did not run ${RECORD_JOB} to success`);
       continue;
     }
     let compare;
