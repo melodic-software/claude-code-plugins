@@ -1,5 +1,5 @@
 ---
-description: "Hands a task, investigation or review to Google's Antigravity CLI (agy, Gemini models) and reads back its jobs. Use when the user asks for Gemini or Antigravity: 'ask Gemini', 'have Gemini do X', 'Gemini second opinion', 'Antigravity review of this branch', 'run this through agy', 'is the Gemini job done', 'cancel the agy run', 'is agy ready', 'update antigravity'. A multi-reviewer panel is /review:council."
+description: "Hands a task, investigation or review to Google's Antigravity CLI (agy, Gemini models) as a background job and reads back its jobs. Use when the user asks for Gemini or Antigravity: 'ask Gemini', 'have Gemini do X', 'Gemini second opinion', 'Antigravity review of this branch', 'run this through agy', 'is the Gemini job done', 'cancel the agy run', 'is agy ready', 'update antigravity'. A multi-reviewer panel is /review:council."
 argument-hint: "[run <prompt>|review --base <ref>|status [<job>]|result <job>|cancel <job>|update]"
 user-invocable: true
 disable-model-invocation: false
@@ -59,8 +59,9 @@ files by path and cannot search or list directories.
 
 ## Background runs
 
-Run the same command with the Bash tool's `run_in_background`; you are notified when it exits, so
-do not poll. The job id prints only at the end, so while it runs, find it with bare
+Run every `run` and `review` with the Bash tool's `run_in_background`: a run can last up to
+`antigravity.timeout_seconds`, longer than a foreground Bash call may wait, and a call cut off by
+its own timeout leaves the job without its result. You are notified when it exits, so do not poll. The job id prints only at the end, so while it runs, find it with bare
 `external-agents status`. Stop a run with `external-agents cancel <job>`, which stops agy's whole
 process tree; stopping the background Bash task alone may leave agy running.
 
