@@ -70,7 +70,7 @@ The first three pillars (protection, resistance, feedback) are **mutually exclus
 |------|---------|-----------|---------|
 | **End-to-end tests** | Protection + Resistance | Fast feedback | Full system test through UI |
 | **Trivial tests** | Resistance + Feedback | Protection | Testing a getter/setter |
-| **Brittle tests** | Protection + Feedback | Resistance | Verifying SQL string literal |
+| **Brittle tests** | Protection + Feedback | Resistance | Checking which internal methods the SUT calls, in what order |
 
 ### The Strategic Trade-off
 
