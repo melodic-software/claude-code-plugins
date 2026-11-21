@@ -26,7 +26,7 @@ Sources, one adapter each:
               an action-guard
   ecosystems  .claude/ecosystems/*.yaml: each command line of check-cmd is an
               analyzer-pack-rule, of test-cmd a behavior-test, of build-cmd a
-              compiler-setting
+              compiler-setting, of fix-cmd a formatter
   test files  tracked files named *.test.*, *.spec.*, *_test.*, test_*.* or
               *Tests.*, outside fixtures and testdata directories, one
               behavior-test row per file (a unit of files, not of test cases)
@@ -259,6 +259,7 @@ for f in .claude/ecosystems/*.yaml; do
     check-cmd) rung=analyzer-pack-rule ;;
     test-cmd) rung=behavior-test ;;
     build-cmd) rung=compiler-setting ;;
+    fix-cmd) rung=formatter ;;
     *) continue ;;
     esac
     emit "$name $key: $cmd" "$f" "$rung" "$cmd"
@@ -266,17 +267,20 @@ for f in .claude/ecosystems/*.yaml; do
     function val(v) { sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); return v }
     block && /^[^[:space:]#]/ { block = "" }
     block { l = val($0); if (l != "" && l !~ /^#/) print block "\t" l; next }
-    /^(check|test|build)-cmd:/ {
+    /^(check|test|build|fix)-cmd:/ {
       k = $0; sub(/:.*/, "", k); v = $0; sub(/^[^:]*:/, "", v); v = val(v)
+      if (v !~ /^["\047]/) sub(/[[:space:]]+#.*$/, "", v)
       if (v == "|" || v == ">" || v == "|-" || v == ">-") { block = k; next }
       if (v == "" || v == "null" || v == "~") next
-      if (v ~ /^".*"$/ || v ~ /^\047.*\047$/) v = substr(v, 2, length(v) - 2)
+      if (match(v, /^"[^"]*"/) && substr(v, RLENGTH + 1) ~ /^([[:space:]]+#.*)?$/ ||
+        match(v, /^\047[^\047]*\047/) && substr(v, RLENGTH + 1) ~ /^([[:space:]]+#.*)?$/) v = substr(v, 2, RLENGTH - 2)
+      else if (v ~ /^".*"$/ || v ~ /^\047.*\047$/) v = substr(v, 2, length(v) - 2)
       print k "\t" v
     }
   ' "$f")
 done
 if [[ "$eco_n" -eq 0 ]]; then
-  note "ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test or check command"
+  note "ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
 else
   note "ecosystems: $eco_n record(s) read"
 fi

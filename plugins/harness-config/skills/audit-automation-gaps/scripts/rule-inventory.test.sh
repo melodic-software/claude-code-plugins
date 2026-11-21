@@ -123,7 +123,7 @@ for t in "2 Static analysis" "3 Verification" "4 Guidance" "5 Human only"; do
 done
 assert_line "C: settings absent named" "$out" "- settings: .claude/settings.json absent"
 assert_line "C: declared absent named" "$out" "- declared: docs/conventions/harness-config.yaml absent, so no declared rows"
-assert_line "C: no ecosystem record named" "$out" "- ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test or check command"
+assert_line "C: no ecosystem record named" "$out" "- ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
 assert_line "C: review absent named" "$out" "- review: REVIEW.md absent"
 
 D="$TMP/records"
@@ -131,13 +131,13 @@ new_repo "$D"
 mkdir -p "$D/.claude/ecosystems" "$D/docs/conventions" "$D/src" "$D/tests/fixtures"
 cat >"$D/.claude/ecosystems/shell.yaml" <<'EOF'
 globs: ["*.sh"]
-build-cmd: null
+build-cmd: null # no build step
 test-cmd: "bash run-tests.sh"
 check-cmd: |
   shellcheck <files>
   # a comment line is not a command
   shfmt -d <files>
-fix-cmd: "shfmt -w <files>"
+fix-cmd: "shfmt -w <files>" # shellcheck has no fix mode
 EOF
 cat >"$D/docs/conventions/harness-config.yaml" <<'EOF'
 rule_inventory:
@@ -179,7 +179,9 @@ rows="$(bash "$GEN" --root "$D" --rows)"
 assert_line "D: check-cmd line 1" "$rows" "$(printf 'shell check-cmd: shellcheck <files>\t.claude/ecosystems/shell.yaml\tanalyzer-pack-rule\t2')"
 assert_line "D: check-cmd line 2" "$rows" "$(printf 'shell check-cmd: shfmt -d <files>\t.claude/ecosystems/shell.yaml\tanalyzer-pack-rule\t2')"
 assert_line "D: test-cmd" "$rows" "$(printf 'shell test-cmd: bash run-tests.sh\t.claude/ecosystems/shell.yaml\tbehavior-test\t2')"
-assert_no "D: fix-cmd is not a check" "$rows" "fix-cmd"
+assert_line "D: fix-cmd is the formatter rung, not a check rung" "$rows" "$(printf 'shell fix-cmd: shfmt -w <files>\t.claude/ecosystems/shell.yaml\tformatter\t2')"
+assert_no "D: no analyzer-pack-rule row carries fix-cmd" "$(grep -F "	analyzer-pack-rule	" <<<"$rows")" "fix-cmd"
+assert_no "D: a null command with a trailing comment records nothing" "$rows" "build-cmd"
 assert_line "D: alias read as new id" "$rows" "$(printf 'no eval of request text\tdeclared in docs/conventions/harness-config.yaml\tsyntax-pattern-rule\t2')"
 assert_no "D: unknown rung not emitted" "$rows" "bogus-rung"
 assert_line "D: paragraph joined" "$rows" "$(printf 'One paragraph that wraps onto a second line is one rule.\tCLAUDE.md:19\tinstruction\t4')"
