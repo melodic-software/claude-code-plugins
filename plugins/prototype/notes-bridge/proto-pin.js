@@ -331,7 +331,7 @@
     const m = e.data;
     if (m.type === "mode") {
       mode = !!m.on;
-      if (mode) holding = m.hold === true;
+      holding = m.hold === true;
       kind = m.kind === "region" ? "region" : "element";
       maxElements = Number.isInteger(m.max) && m.max > 0 ? m.max : 0;
       hover = null;
