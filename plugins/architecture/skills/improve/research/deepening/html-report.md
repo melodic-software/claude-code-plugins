@@ -77,7 +77,7 @@ Each side of a diagram is one panel, `before` the current state and `after` the 
 | `stack` | shallowness spread over layers | `layers`: one row per layer a call passes through; one row alone is drawn as the deep module |
 | `collapse` | calls that should become internal | `calls`: nested on the before side; with `module`, the calls drawn faded inside that one deep box |
 
-Each Mermaid panel takes the width its drawing needs, up to the card's width, and never scrolls inside the card: two narrow panels sit side by side, a wide one takes the card's full width.
+Each Mermaid panel takes the width its drawing needs, up to the card's width: two narrow panels sit side by side, a wide one takes the card's full width. A node label wraps only between words, at 260 px. Below 600 px wide a drawing keeps its own size and the panel scrolls sideways, so its text never shrinks below reading size.
 
 ## Wording
 

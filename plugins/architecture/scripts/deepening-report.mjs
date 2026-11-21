@@ -208,7 +208,7 @@ const CHROME_BAR = chromePart(/^(<div class="rv-bar">.*<\/div>)$/m, "theme toggl
 const CHROME_SCRIPT = chromePart(/<script>\n([\s\S]*?)<\/script>/, "toggle script");
 const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
     document.documentElement.classList.add("rv-mermaid");
-    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false } });
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false, wrappingWidth: 260 } });
   }
 `;
 const SCRIPTS = [`<script src="${TAILWIND}"></script>`, `<script src="${MERMAID}"></script>`, `<script>\n${INLINE_SCRIPT}</script>`];
@@ -221,7 +221,7 @@ const REPORT_STYLE = `
   header p { margin: .2rem 0; }
   header, td, .files { overflow-wrap: anywhere; }
   .legend { margin: .75rem 0 0; padding-left: 1.2rem; list-style: disc; font-size: .92rem; }
-  .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0 0 2.5rem; display: grid; gap: 1rem; }
+  .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0 0 2.5rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .top { border-width: 3px; }
   .part p, .part ul { margin: 0; }
   .part ul { padding-left: 1.2rem; list-style: disc; }
@@ -253,6 +253,8 @@ const REPORT_STYLE = `
   .faded { opacity: .6; }
   @media (max-width: 600px) {
     .card, .top { padding: 1rem; }
+    .paper { overflow-x: auto; }
+    .paper svg { max-width: none; }
     #index thead { display: none; }
     #index tr { display: block; border-bottom: 1px solid var(--gray-300); padding: .5rem 0; }
     #index td { display: block; border: 0; padding: .1rem 0; }
