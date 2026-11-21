@@ -1645,6 +1645,25 @@ assert_contains "false zero: a REST check that fails is count unavailable too" \
   "$(section "$(MB_GH_FIXTURES="$FALSE0" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")" "== Queues")" \
   "needs-human              count unavailable"
 
+# --- A split parent with open sub-issues is not counted beside its children ---
+PARENTS="$TMP/gql-parents"
+cp -r "$CAPS" "$PARENTS"
+cat >"$PARENTS/issue-list-label-needs-triage.json" <<'EOF'
+[{"number": 10, "subIssuesSummary": {"total": 2, "completed": 0, "percentCompleted": 0}},
+ {"number": 11, "subIssuesSummary": {"total": 0, "completed": 0, "percentCompleted": 0}},
+ {"number": 12, "subIssuesSummary": {"total": 0, "completed": 0, "percentCompleted": 0}}]
+EOF
+QUEUES_PARENTS="$(section "$(MB_GH_FIXTURES="$PARENTS" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")" "== Queues")"
+assert_contains "parents: one parent and two open children count 2, the parent listed beside them" "$QUEUES_PARENTS" \
+  "$(printf '  %-24s %s' needs-triage '2 (+1 with open sub-issues)')"
+assert_not_contains "parents: the parent is not in the count" "$QUEUES_PARENTS" "$(printf '  %-24s %s' needs-triage 3)"
+jq '.[1:] + [{"number": 13, "subIssuesSummary": {"total": 1, "completed": 1, "percentCompleted": 100}}]' \
+  "$PARENTS/issue-list-label-needs-triage.json" >"$PARENTS/finished.json"
+mv "$PARENTS/finished.json" "$PARENTS/issue-list-label-needs-triage.json"
+assert_contains "parents: a parent whose sub-issues are all completed counts as an open item" \
+  "$(section "$(MB_GH_FIXTURES="$PARENTS" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")" "== Queues")" \
+  "$(printf '  %-24s %s' needs-triage 3)"
+
 # --- Stranded: paging stops at the cutoff; the bookmark widens the window ----
 # Pages are newest-updated first. NOW is 2026-07-20T08:00Z, so the 3-day floor
 # is 2026-07-17T08:00Z. Page c1's oldest PR was updated before both the floor

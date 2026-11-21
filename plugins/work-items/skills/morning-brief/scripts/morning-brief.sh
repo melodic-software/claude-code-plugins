@@ -1033,6 +1033,7 @@ STATUS_QUERY='
           pageInfo { hasNextPage endCursor }
           nodes {
             number title url
+            subIssuesSummary { total completed }
             labels(first:100) { nodes { name } }
             issueFieldValues(first:25) {
               pageInfo { hasNextPage }
@@ -1071,10 +1072,11 @@ fetch_status_pages() {
 
 # status_items: STATUS_STATE none (no model), rest (the field needs GraphQL,
 # which this session does not serve) or ok, with $WORK/status.items holding
-# each open issue as {number, title, url, labels, events}: labels as its Work
-# status decides them, events its label events and its field events as label
-# events. STATUS_CAPPED is 1 when the read stopped at its page cap. 1 with
-# LAST_ERR on a failed read.
+# each open issue as {number, title, url, parent, labels, events}: parent true
+# when it has sub-issues not yet completed, labels as its Work status decides
+# them, events its label events and its field events as label events.
+# STATUS_CAPPED is 1 when the read stopped at its page cap. 1 with LAST_ERR on a
+# failed read.
 STATUS_STATE=""
 STATUS_CAPPED=0
 STATUS_PARTIAL_NOTE="the Work status field needs GraphQL, which this session does not serve"
@@ -1120,6 +1122,7 @@ status_items() {
     | if $v == null and .issueFieldValues.pageInfo.hasNextPage == true
       then error("#\(.number): Work status is not among its first 25 field values") else . end
     | {number, title: ((.title // "") | gsub("[\\r\\n]+"; " ")), url,
+       parent: ((.subIssuesSummary.total // 0) > (.subIssuesSummary.completed // 0)),
        labels: ([.labels.nodes[]?.name] | effective($v)),
        events: ([.labelEvents.nodes[]? | select(.createdAt != null)]
                 + [.fieldEvents.nodes | try synthetic catch error("#\($n.number): \(.)")])}
@@ -1142,7 +1145,8 @@ status_with_label() {
 count_label_gql() {
   # count_label_gql OUTFILE label
   gh_read "$WORK/count.raw" issue list "${REPO_ARGS[@]}" --state open --label "$2" \
-    --limit "$COUNT_LIMIT" --json number -q 'length' || return 1
+    --limit "$COUNT_LIMIT" --json number,subIssuesSummary \
+    -q '"\(length) \(map(select((.subIssuesSummary.total // 0) > (.subIssuesSummary.completed // 0))) | length)"' || return 1
   tr -d '\r' <"$WORK/count.raw" >"$1"
 }
 
@@ -1151,7 +1155,9 @@ count_label_rest() {
   # matches what `gh issue list` reports.
   rest_paginate_array "$WORK/count.rest" \
     "repos/$REPO/issues?state=open&per_page=100&labels=$(urlencode "$2")" || return 1
-  jq '[ .[] | select(has("pull_request") | not) ] | length' "$WORK/count.rest" >"$1"
+  jq -r '[ .[] | select(has("pull_request") | not) ]
+    | "\(length) \(map(select((.sub_issues_summary.total // 0) > (.sub_issues_summary.completed // 0))) | length)"' \
+    "$WORK/count.rest" >"$1"
 }
 
 # A search read can answer an empty result with nothing in the reply to say the
@@ -1163,7 +1169,9 @@ SEARCH_ZERO_NOTE="the search read 0 and the REST issue listing did not confirm i
 search_zero_unconfirmed() {
   count_label_rest "$WORK/count.check" "$1" || return 0
   [[ "${2:-}" == prs ]] && jq 'length' "$WORK/count.rest" >"$WORK/count.check"
-  [[ "$(cat "$WORK/count.check")" != "0" ]]
+  local total=""
+  read -r total _ <"$WORK/count.check"
+  [[ "$total" != "0" ]]
 }
 
 print_queues() {
@@ -1195,7 +1203,7 @@ print_queues() {
   else
     labels_to_show=("${QUEUE_LABELS[@]}")
   fi
-  local rows=() capped=() unavailable=() via_list
+  local rows=() capped=() unavailable=() via_list via_rest total parents
   if [[ -n "$STATUS_JSON" || (-z "$COUNTS_JSON" && -n "$REPO") ]]; then
     status_items || {
       unreadable queues "$LAST_ERR"
@@ -1203,41 +1211,46 @@ print_queues() {
     }
   fi
   for label in "${labels_to_show[@]}"; do
-    via_list=0
+    via_list=0 total="" parents=0
     if [[ "$STATUS_STATE" == ok ]]; then
-      n="$(status_with_label "$label" | wc -l | tr -d ' ')"
+      read -r total parents < <(status_with_label "$label" | jq -rs '"\(length) \(map(select(.parent == true)) | length)"')
     elif [[ -n "$COUNTS_JSON" ]]; then
-      n="$(jq -r --arg l "$label" 'if type == "object" then (.[$l] // 0) else 0 end' "$COUNTS_JSON" 2>/dev/null)"
+      total="$(jq -r --arg l "$label" 'if type == "object" then (.[$l] // 0) else 0 end' "$COUNTS_JSON" 2>/dev/null)"
     else
+      via_rest=0
       if [[ "$TRANSPORT" == "gh" ]]; then
         if count_label_gql "$WORK/count" "$label"; then
           via_list=1
         elif graphql_blocked "$LAST_ERR"; then
           TRANSPORT="rest"
+        elif [[ "$LAST_ERR" == *"Unknown JSON field"* ]]; then
+          via_rest=1
         else
           unreadable queues "$label: $LAST_ERR"
           return
         fi
       fi
-      if [[ "$TRANSPORT" == "rest" ]]; then
+      if [[ "$TRANSPORT" == "rest" ]] || ((via_rest)); then
         count_label_rest "$WORK/count" "$label" || {
           unreadable queues "$label: $LAST_ERR"
           return
         }
       fi
-      n="$(cat "$WORK/count")"
+      read -r total parents <"$WORK/count"
     fi
-    [[ "$n" =~ ^[0-9]+$ ]] || {
+    [[ "$total" =~ ^[0-9]+$ && "$parents" =~ ^[0-9]+$ ]] || {
       unreadable queues "$label: count not numeric"
       return
     }
-    if ((via_list && n >= COUNT_LIMIT)); then
+    n=$((total - parents))
+    if ((via_list && total >= COUNT_LIMIT)); then
       capped+=("$label")
       n="$n+"
-    elif ((via_list && n == 0)) && search_zero_unconfirmed "$label"; then
+    elif ((via_list && total == 0)) && search_zero_unconfirmed "$label"; then
       unavailable+=("$label")
       n="count unavailable"
     fi
+    ((parents)) && n="$n (+$parents with open sub-issues)"
     rows+=("$(printf '  %-24s %s' "$label" "$n")")
   done
   printf '%s\n' "${rows[@]}"
