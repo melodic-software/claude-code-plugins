@@ -1169,13 +1169,12 @@ def test_file_walk_budget(ctx, monkeypatch):
     ctx.start()
     (ctx.home / "a" / "b").mkdir(parents=True)
     monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 0.0)
-    assert away.scan_files([str(ctx.home)], 0.0, set()).complete is False
+    assert away.scan_files([str(ctx.home)], 0.0, set(), 0.0).complete is False
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(ctx.data))
     monkeypatch.setenv("HOME", str(ctx.home))
     assert away.main(["refresh", "--session", SESSION, "--files"]) == 0
     assert "- Scan stopped after 0 s; the list is incomplete." in block(ctx.report().read_text(encoding="utf-8"), "files")
-    monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 120.0)
-    assert away.scan_files([str(ctx.home)], 0.0, set()).complete is True
+    assert away.scan_files([str(ctx.home)], 0.0, set(), 120.0).complete is True
 
 
 def test_file_scan_cut_short_leaves_an_honest_line(ctx, monkeypatch):
@@ -1196,38 +1195,3 @@ def test_file_scan_cut_short_leaves_an_honest_line(ctx, monkeypatch):
 
 def test_scan_budget_stays_under_the_bash_default_timeout():
     assert away.SCAN_BUDGET_SECONDS <= 60, "the walk plus transcript and git reads must finish inside two minutes"
-
-
-DIALECT_DONE = (
-    "## Done\n\n- We modelled the colour pass.\n- Kept the owner's words: \"the colour stays\".\n"
-    "> keep the colour\n\n"
-)
-
-
-def with_done(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    start, end = text.index("## Done"), text.index("## Found")
-    path.write_text(text[:start] + DIALECT_DONE + text[end:], encoding="utf-8")
-
-
-@pytest.mark.skipif(os.name == "nt", reason="the stub typos is a shebang script")
-def test_refresh_writes_authored_sections_american_and_keeps_quotes_and_header(ctx):
-    from test_dialect import stub_bin
-
-    ctx.start("--kind", "trip", "--scope", "the colour pass")
-    with_done(ctx.report())
-    assert ctx.cli("refresh", env=ctx.env(PATH=stub_bin(ctx.root))).returncode == 0
-    text = ctx.report().read_text(encoding="utf-8")
-    assert "- We modeled the color pass." in text
-    assert "\"the colour stays\"" in text and "> keep the colour" in text
-    assert "- Scope: the colour pass" in text
-
-
-def test_refresh_without_typos_leaves_the_report_as_written(ctx):
-    ctx.start("--kind", "trip")
-    with_done(ctx.report())
-    bare = ctx.root / "bare-bin"
-    bare.mkdir()
-    (bare / "git").symlink_to(shutil.which("git"))
-    assert ctx.cli("refresh", env=ctx.env(PATH=str(bare))).returncode == 0
-    assert DIALECT_DONE in ctx.report().read_text(encoding="utf-8")

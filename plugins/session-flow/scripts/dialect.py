@@ -4,9 +4,9 @@
 `americanize(text, cwd)` runs `typos --locale en-us` over the text and applies each finding
 that has exactly one correction, returning the new text and the `(typo, correction)` pairs it
 applied. Text a file quotes rather than authors is masked first and never changed: fenced code
-blocks, inline code spans, `>` blockquote lines, double-quoted spans, and tokens shaped like a
-path, URL or file name. With no `typos` on PATH the text comes back unchanged and nothing is
-printed; a `typos` that fails or times out leaves the text unchanged and writes one stderr line.
+blocks, inline code spans, `>` blockquote lines, double-quoted spans, tokens shaped like a path,
+URL or file name, and any span the caller's `keep` pattern matches. With no `typos` on PATH the
+text comes back unchanged and nothing is printed; a `typos` that fails or times out leaves the text unchanged and writes one stderr line.
 Stdlib only; Python 3.10+.
 """
 
@@ -26,8 +26,9 @@ QUOTED_RE = re.compile(r"`[^`\n]*`|\"[^\"\n]*\"|“[^”\n]*”|[^\s\"“”`]*[
 
 
 def _blank(match: re.Match[str]) -> str:
-    """Spaces with the matched text's UTF-8 byte length, so typos' byte offsets still fit."""
-    return " " * len(match.group(0).encode("utf-8"))
+    """Spaces with the matched text's UTF-8 byte length per line, so typos' line numbers and byte
+    offsets still fit."""
+    return "\n".join(" " * len(part.encode("utf-8")) for part in match.group(0).split("\n"))
 
 
 def _masked_lines(lines: list[str]) -> list[str]:
@@ -76,12 +77,16 @@ def _findings(masked: str, cwd: Path | None) -> list[dict]:
     return found
 
 
-def americanize(text: str, cwd: Path | None = None) -> tuple[str, list[tuple[str, str]]]:
-    """`text` with each single-correction typos finding applied outside quoted spans."""
+def americanize(
+    text: str, cwd: Path | None = None, keep: re.Pattern[str] | None = None
+) -> tuple[str, list[tuple[str, str]]]:
+    """`text` with each single-correction typos finding applied outside quoted spans and outside
+    the spans `keep` matches."""
     if not text.strip():
         return text, []
     lines = text.split("\n")
-    findings = _findings("\n".join(_masked_lines(lines)), cwd)
+    unkept = keep.sub(_blank, text).split("\n") if keep else lines
+    findings = _findings("\n".join(_masked_lines(unkept)), cwd)
     if not findings:
         return text, []
     encoded = [line.encode("utf-8") for line in lines]
