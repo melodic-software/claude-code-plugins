@@ -2270,6 +2270,17 @@ def test_a_reader_refused_by_block_cd_prefix_is_hook_blocked_under_the_hooks_nam
     assert resume_eval.exclusion(S.READER, 0, "", "", _refused()) is None
 
 
+def test_only_the_readers_turns_are_hook_blocked():
+    S, K = resume_eval.Source, resume_eval.Kind
+    refused = _refused(("Bash", "t1"))
+    assert resume_eval.exclusion(S.FOLLOW_UP, 0, "", "", refused).kind is K.HOOK_BLOCKED
+    writer = resume_eval.exclusion(S.WRITER, 0, "", "", refused)
+    assert writer.kind is K.DENIED and writer.cause is resume_eval.Cause.BEHAVIOR
+    graded = {"probes": {}}
+    resume_eval.mark_excluded(graded, writer, {"probes": []}, "after")
+    assert "hook_blocked" not in graded and graded["nondelivery"] == writer.text
+
+
 def test_hook_refusals_count_from_the_main_turn_and_the_follow_up():
     refused, clean = _refused(), _result()
     hook = resume_eval.read_hook_blocks

@@ -150,7 +150,8 @@ infrastructure exclusions remain (re-run the same command).
 `pairs/<group>--vs--<baseline>/{<group>,<baseline>}.json`, scored only on the probes both arms
 grade. Accuracy and the result files hold delivered runs only; a run that did not deliver
 (a denial, no handoff, zero turns, a result error) is counted as a per-case non-delivery rate
-instead. A reader whose denials were all refusals by a plugin's PreToolUse hook (the
+instead. A reader whose denials, in its main turn or its follow-up, were all refusals by a
+plugin's PreToolUse hook (a writer refused this way stays a plain denial; the
 guardrails hooks stay loaded, as the owner runs them) is `hook-blocked`, named by the hook's
 plugin, event and refusal line: it scores no accuracy and is counted apart from the
 non-delivery rate. Each group line and each pair's `hooks` line print the hook-blocked runs

@@ -812,6 +812,9 @@ class Exclusion:
         }
 
 
+READER_TURNS = frozenset({Source.READER, Source.FOLLOW_UP})
+
+
 def exclusion(
     source: Source,
     returncode: int,
@@ -823,7 +826,14 @@ def exclusion(
 ) -> Exclusion | None:
     """Why a call's run cannot be graded as delivered, classed by its source, or None.
     `label` prefixes the text (default: the source)."""
-    found = exclusion_reason(returncode, stdout, stderr, events, allowed_denials)
+    found = exclusion_reason(
+        returncode,
+        stdout,
+        stderr,
+        events,
+        allowed_denials,
+        hooks=source in READER_TURNS,
+    )
     if found is None:
         return None
     kind, detail = found
@@ -877,9 +887,16 @@ def _read_rows(path: Path) -> list[dict]:
 
 
 def exclusion_reason(
-    returncode: int, stdout: str, stderr: str, events: list[dict], allowed_denials=()
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    events: list[dict],
+    allowed_denials=(),
+    hooks: bool = False,
 ) -> tuple[Kind, str] | None:
-    """What kind of failure keeps a run from counting (PLAN.md run rule d), and why."""
+    """What kind of failure keeps a run from counting (PLAN.md run rule d), and why.
+    With `hooks`, a reader's turn whose denials were all hook refusals is hook-blocked;
+    any other stage refused by a hook stays a plain denial."""
     if returncode != 0 and not events:
         return Kind.CLI_NO_OUTPUT, f"CLI exited {returncode}: {stderr.strip()[:200]}"
     result = _result_event(events)
@@ -914,7 +931,7 @@ def exclusion_reason(
             if d.get("tool_name") not in allowed_denials
         ]
         blocks = hook_blocks(events)
-        if denials and all(d.get("tool_use_id") in blocks for d in denials):
+        if hooks and denials and all(d.get("tool_use_id") in blocks for d in denials):
             hooks = sorted({blocks[d["tool_use_id"]] for d in denials})
             return Kind.HOOK_BLOCKED, f"hook blocked: {hooks}"
         if denials:
