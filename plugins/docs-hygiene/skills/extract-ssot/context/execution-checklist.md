@@ -42,7 +42,7 @@ Run for EACH call site. The callsite list is locked in the working notes from th
 | 5 | Heading text on one line at the call site (markdown only) | Diff inspection | `citation-form.md` "Line-wrap edge case" |
 | 6 | Encapsulation violation handled | If the consumer's content was promoted out of a skill: citation rewritten to the new home. If routed: the caller invokes `/<skill> <action>` instead of reading an internal file. If no public action exists: side observation filed, NOT a silent workaround | `/docs-hygiene:audit-encapsulation` |
 | 7 | No leaky-abstraction context-bleed introduced | Markdown: no `prior`, `earlier`, `above`, `as discussed`, `the X we mentioned` referring outside the call site. Code: no implicit dependency on caller-side global state. Config: no implicit variable inheritance | `anti-patterns.md` #3 (leaky abstraction) |
-| 8 | Lint clean on the edited file (per file class) | Markdown: `npx markdownlint-cli2 <file>` (or the repo's markdown linter) exits 0. Code/config: the repo's language-native linter | The consuming repository's lint conventions |
+| 8 | Lint clean on the edited file (per file class) | Markdown: the repo's markdown linter exits 0 on the file. Code/config: the repo's language-native linter | The consuming repository's lint conventions |
 
 If a callsite fails any check, fix in place before moving to the next callsite. Do NOT batch failures across callsites, because single-callsite review is the smallest reviewable unit.
 
@@ -69,7 +69,7 @@ Final gates before the phase-boundary user gate.
 | 1 | SSOT reads sensibly in isolation (leaky-abstraction self-test) | Open the SSOT fresh; read top-to-bottom; confirm meaning is clear without surrounding context | `anti-patterns.md` #3 |
 | 2 | All cross-references / imports resolve | For each `per X.md "Y"` in the new SSOT, grep X.md for the literal heading "Y", an exact match. For code: build/typecheck pass. For config: schema-validate passes | Tier 0 verification at citation resolution |
 | 3 | SSOT file size within bound | Markdown: `wc -l <ssot-file>` under the line cap in `/playbooks:skill-authoring` `## Body`. Code/config: per language idiom | `decision-framework.md` test #5 |
-| 4 | Lint clean across all edited files | Markdown: `npx markdownlint-cli2` (or the repo's markdown linter). Code/config: the repo's per-ecosystem linter | The consuming repository's lint conventions |
+| 4 | Lint clean across all edited files | Markdown: the repo's markdown linter. Code/config: the repo's per-ecosystem linter | The consuming repository's lint conventions |
 | 5 | The repo's own verification reports green for all changed ecosystems | Build + test + lint pass per the consuming repository's verification workflow | The consuming repository's verification conventions |
 | 6 | Working notes updated: phase marked done + next action recorded | Status entry in the working notes | SKILL.md "Phases per invocation" |
 | 7 | Handoff entry written so a fresh session can resume | Dated entry in the working notes: what changed, what's next | SKILL.md "Phases per invocation" |
@@ -84,7 +84,7 @@ Every phase ends with a Sanity Check item in the working notes. For an `execute`
   - SSOT file at `<path>` exists and is within the line cap of `/playbooks:skill-authoring` `## Body`
   - All N callsites migrated (list in the phase handoff entry)
   - `/docs-hygiene:rename-references` sweep ran clean
-  - markdownlint clean
+  - The repo's markdown linter reports clean
   - The repo's verification reports green
   - Cross-references in the SSOT resolve to real headings
 ```
