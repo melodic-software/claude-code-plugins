@@ -95,7 +95,8 @@ import { isDeepStrictEqual } from "node:util";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
+import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -210,8 +211,11 @@ export function searchTerms(title) {
   return [...new Set(words)].slice(0, 4);
 }
 
-// Only items a listed human or the lanes App opened: anyone can open an issue
-// here, and its title reaches the model.
+const openMonitorIncident = (item) => item?.user?.id === ACTIONS_BOT_ID && !item.pull_request && item.state === "open" && readMarker(item.body) !== null;
+
+// Only items a listed human or the lanes App opened, and open incidents the
+// monitoring lane filed as github-actions[bot]: anyone can open an issue here,
+// and its title reaches the model.
 async function candidates(github, repository, issue, trusted) {
   const terms = searchTerms(issue.title);
   if (terms.length === 0) {
@@ -222,7 +226,7 @@ async function candidates(github, repository, issue, trusted) {
     const q = encodeURIComponent(`repo:${repository} ${kind} ${terms.join(" OR ")}`);
     const answer = await github("GET", `/search/issues?q=${q}&per_page=${CANDIDATES}`);
     for (const item of answer?.items ?? []) {
-      if (item?.number !== issue.number && Number.isInteger(item?.number) && trusted(item.user?.id) && !found.some((seen) => seen.number === item.number)) {
+      if (item?.number !== issue.number && Number.isInteger(item?.number) && (trusted(item.user?.id) || openMonitorIncident(item)) && !found.some((seen) => seen.number === item.number)) {
         found.push({
           number: item.number,
           kind: item.pull_request ? "pull request" : "issue",

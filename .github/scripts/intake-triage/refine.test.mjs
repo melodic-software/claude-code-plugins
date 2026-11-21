@@ -205,6 +205,30 @@ describe("selectRefinement", () => {
     assert.equal(writes(fake.calls).length, 0, "selection writes nothing");
   });
 
+  test("an open factory-monitor incident is a candidate; other github-actions[bot] issues are not", async () => {
+    const actions = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
+    const marker = "<!-- factory-monitor key=incident:main-red fp=0123456789abcdef -->\n**Signal:** 1 main red";
+    const fake = fakeGitHub({
+      issue: issueOf({ title: "Restore the failing required checks" }),
+      comments: [laneComment()],
+      search: {
+        items: [
+          { number: 20, title: "Restore the failing required checks on main", state: "open", body: marker, user: actions },
+          { number: 21, title: "Restore the failing required checks", state: "open", body: "No marker here.", user: actions },
+          { number: 22, title: "Restore the failing required checks", state: "open", body: `Quoted:\n${marker}`, user: actions },
+          { number: 23, title: "Restore the failing required checks on main", state: "closed", state_reason: "completed", body: marker, user: actions },
+          { number: 24, title: "Restore the failing required checks", state: "open", body: marker, user: { id: OUTSIDER } },
+          { number: 25, title: "Restore the failing required checks", state: "open", body: marker, pull_request: {}, user: actions },
+        ],
+      },
+    });
+    const result = await select(fake);
+    assert.equal(result.refine, true);
+    assert.deepEqual(result.context.candidates, [
+      { number: 20, kind: "issue", title: "Restore the failing required checks on main", state: "open", state_reason: null, closed_at: null },
+    ]);
+  });
+
   const skips = [
     ["a closed issue", { issue: issueOf({ state: "closed" }), comments: [laneComment()] }, /open issue/],
     ["an outsider's issue", { issue: issueOf({ user: { id: OUTSIDER } }), comments: [laneComment()] }, /author/],
