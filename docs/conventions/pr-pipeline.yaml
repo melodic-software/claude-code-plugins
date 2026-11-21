@@ -1624,15 +1624,8 @@ merge:
   # (judgment), so a review still running at the head, which scores MED,
   # finishes first.
   risk-escalation-minutes: 60
-  # A candidate the last run refused on unchanged inputs is reported with that
-  # refusal instead of gated again (babysit_merge_skip.py, and for a lanes
-  # App pull request's lane refusal enable-auto-merge.mjs); it is gated again
-  # once its refusal is max-minutes old or has been skipped max-skips runs in
-  # a row. 3 skips at the 30-minute schedule span about 90 minutes, so on the
-  # schedule alone 60 ends the wait first; 60 caps it whatever else starts
-  # runs (judgment). 0 in either: no skips.
   skip-unchanged:
-    max-minutes: 60
+    max-minutes: 0
     max-skips: 3
   # pr-verify FAILs at this many distinct heads of one PR hold it, never to
   # merge unattended, whatever a later pass says, so pushing until the
