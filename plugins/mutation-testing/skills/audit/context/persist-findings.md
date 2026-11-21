@@ -126,7 +126,7 @@ The order below is what makes the per-write form hold:
    other producers' findings files and the consumer's own records are the ordinary steady state and
    must not trip this, and the OS entries would otherwise refuse a perfectly good memory root on
    Windows or macOS for a file no human put there. What the rule excludes is a root that looks like
-   source: a `.py`, a `.cs`, a `Makefile`. It is a heuristic and is stated as one; it narrows the
+   source. It is a heuristic and is stated as one; it narrows the
    residual rather than closing it.
    The precondition itself is the self-ignore guard's, not this producer's; what is stated here is
    only how this producer discharges it before its own writes.

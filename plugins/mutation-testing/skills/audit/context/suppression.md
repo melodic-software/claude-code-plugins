@@ -149,7 +149,7 @@ suppressions:
     check: mutation-testing/operator/SBR
     claim: arid(kind=log-call)
     sites:
-      - surface: src/pricing.ts
+      - surface: <repo-relative source path>
         anchor/v1: "e:<excerpt-hash>:<discriminator>"
     reason: "Structured-logging call; killing this mutant would assert on log emission, which no consumer depends on."
     date: 2026-08-10
