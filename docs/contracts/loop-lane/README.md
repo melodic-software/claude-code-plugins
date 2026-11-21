@@ -1457,7 +1457,7 @@ miss a copy nobody registered.
 **Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
-way for the guard to detect it. Same-machine account rotation happens: the owner rotates accounts
+way for the guard to detect it. Same-machine account rotation happens because the owner rotates accounts
 by hand on the rate-limit alerts.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
