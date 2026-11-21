@@ -25,7 +25,7 @@ function sbox(p: vec2, c: vec2, h: vec2, e: number): number {
   let d = vec2(abs(p - c) - h)
   return 1 - smoothstep(-e, e, max(d.x, d.y))
 }
-// The television's light on the room, k strong, its color following the screen: blue idle, green-grey tape,
+// The television's light on the room, k strong, its color following the screen: blue idle, green-gray tape,
 // dim violet console (the tape wins over the console).
 function tvl(tape: number, con: number, k: number): vec3 {
   let kc = con * (1 - tape)
@@ -290,8 +290,8 @@ function pic(uv: vec2): vec4 {
   if (at.x > 1066.0 && at.x < 1402.0 && at.y < 905.0) {
   let dt = clamp((at.y - 612) / 256, 0, 1)
   let sd = 1 - smoothstep(1108, 1112, at.x)
-  // The faces keep little of their lit orange and take a grey bounce off the screen, strongest on the top row, so
-  // they read as the neutral dark grey of the hand-drawn dusk room (fitted to it on the three rows of drawers).
+  // The faces keep little of their lit orange and take a gray bounce off the screen, strongest on the top row, so
+  // they read as the neutral dark gray of the hand-drawn dusk room (fitted to it on the three rows of drawers).
   let du = clamp(1 - dt * 2, 0, 1) * (1 - 0.3 * smoothstep(1200, 1340, at.x))
   let dw = 1 - dt
   let dg = (0.007 + 0.05 * dw * dw * (1 - 0.3 * smoothstep(1200, 1340, at.x))) * (1 - sd) * state.at(vec2(0, 0)).x * (1 - 0.6 * max(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x))
