@@ -359,7 +359,7 @@ At session end, ask user: "Delete persona temp files? (They can be archived for 
 
 ### Differentiating Agent Output: Simulating Siloed Knowledge (Brandolini Ch. 2, 3, 6)
 
-Brandolini's core insight: <!-- spellchecker:off -->"Silos minimize the learning newcomers need to start contributing. But the grey, unexplored areas will stay.<!-- spellchecker:on --> Possibly for a very long time." (Ch. 2). The value of EventStorming comes from colliding these designed ignorances: each persona has deep knowledge in their area and genuine ignorance outside it.
+Brandolini's core insight: "Silos minimize the learning newcomers need to start contributing. But the gray, unexplored areas will stay. Possibly for a very long time." (Ch. 2). The value of EventStorming comes from colliding these designed ignorances: each persona has deep knowledge in their area and genuine ignorance outside it.
 
 **Agent prompts must define three things per persona:**
 

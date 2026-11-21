@@ -324,10 +324,8 @@ You make everything so clear                     (withholding)   [image_rsrc32V]
 And I'm getting closer than I ever thought that I might   [image_rsrc32W]
 ```
 
-<!-- spellchecker:off -->
-> (All the grey areas in the last phrase give the music a chance to yank it into
+> (All the gray areas in the last phrase give the music a chance to yank it into
 > even triples. I scanned it deferring to the musical yanking.)
-<!-- spellchecker:on -->
 
 > The delay is maddening. The long last phrase accelerates its rhythm but slows
 > down because of its length. It still refuses to state the resolving 5-stress
