@@ -408,6 +408,7 @@ fi
 # mode set do not), so those runs get a diff for a transition they never make
 # unless the precondition is stated. And the docs say dropped rules are restored
 # on leaving auto mode, which "dropped" alone does not convey.
+# Start-mode table: https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in
 BASE_IN=$(
   cat <<'EOF'
 user settings present <userhome>/.claude/settings.json

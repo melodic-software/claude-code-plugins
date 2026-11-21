@@ -286,6 +286,7 @@ echo "DIFF-NOTE: dropped and suspended rules alike are RESTORED when the session
 # verdict for a transition they never make. The note states that precondition
 # and points at the live start-mode table instead of copying it, so an upstream
 # change to the table cannot make the note false.
+# Start-mode table: https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in
 echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Not every session does: a 'claude -p' or Agent SDK run with no permission mode set starts in Manual and never makes this transition. Which sessions start in auto mode depends on the Claude Code version, how it is run, the provider and model, and settings such as disableAutoMode; read the current conditions at https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in before acting on this diff."
 
 printf '%s' "$diff_lines"
