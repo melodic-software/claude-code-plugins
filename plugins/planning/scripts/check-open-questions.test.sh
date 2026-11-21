@@ -213,6 +213,41 @@ EOF
 )"
 expect_exit "gap in Q numbering -> 2" 2 --ledger "$gap"
 
+declared_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap | Q2-Q4 | the shared session's ids ran ahead
+- Q5 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a declared gap -> 0" 0 --ledger "$declared_gap"
+expect_stdout "a declared gap grades clean" "registered=2 " --ledger "$declared_gap"
+part_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap | Q2-Q3 | dropped before the page
+- Q6 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a gap declared only in part -> 2" 2 --ledger "$part_gap"
+part_err="$(stderr_of --ledger "$part_gap")"
+if [[ "$part_err" == *"no row for Q4 to Q5"* && "$part_err" == *"- gap | Q4-Q5 |"* && "$part_err" != *"no row for Q2"* ]]; then pass "only the undeclared part of a gap is reported"; else fail "only the undeclared part of a gap is reported (stderr: '$part_err')"; fi
+fenced_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+```text
+- gap | Q2-Q2 | an example
+```
+- Q3 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a fenced gap line declares nothing -> 2" 2 --ledger "$fenced_gap"
+for bad_gap in '- gap | Q2 | no range' '- gap | Q3-Q2 | reversed' '- gap | Q2-Q2 |'; do
+  bad_gap_ledger="$(printf -- '- Q1 | answered | round 1 | Who writes? | admin\n%s\n- Q3 | answered | round 1 | What format? | markdown\n' "$bad_gap" | mkledger)"
+  expect_exit "malformed gap line '$bad_gap' -> 2" 2 --ledger "$bad_gap_ledger"
+  if [[ "$(stderr_of --ledger "$bad_gap_ledger")" == *"malformed gap line"* ]]; then pass "'$bad_gap' is named malformed"; else fail "'$bad_gap' is named malformed"; fi
+done
+
 # 14b. A row that lost its first pipe must exit 2, not vanish. Skipping it
 #      silently would hide Q2 from the contiguity check and grade the register
 #      clean with a question missing — the failure this gate exists to refuse.
@@ -877,6 +912,7 @@ expect_stdout "row errors keep the counts of the valid rows" "registered=2 open=
 #     messages, neither reported as the other.
 gap_err="$(stderr_of --ledger "$gap")"
 if [[ "$gap_err" == *"gap in question ids: no row for Q2"* && "$gap_err" != *"out of order"* ]]; then pass "a missing id reads as a gap"; else fail "a missing id reads as a gap (stderr: '$gap_err')"; fi
+if [[ "$gap_err" == *"- gap | Q2-Q2 | <why>"* ]]; then pass "an undeclared gap names the line that declares it"; else fail "an undeclared gap names the line that declares it (stderr: '$gap_err')"; fi
 swapped="$(
   mkledger <<'EOF'
 - Q2 | answered | round 1 | Format? | markdown

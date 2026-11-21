@@ -4377,6 +4377,81 @@ class TestGappedLedgerIds(DirCase):
         self.assertFalse([r for r in rows if "[Q" in r], rows)
 
 
+class TestNextId(DirCase):
+    """next-id prints the ids after the highest the ledger, and the data dir when given, holds."""
+
+    REGISTER = "# Interview ledger\n\n## Open-question register\n\n"
+
+    def ledger(self, rows):
+        path = self.tmp / "interview-checklist.md"
+        path.write_bytes((self.REGISTER + rows).encode("utf-8"))
+        return str(path)
+
+    def next_id(self, *args):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "next-id", *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    def test_a_stray_high_id_is_never_filled_below(self):
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n"
+            "- Q2 | open | round 1 | Two? |\n"
+            "- Q600 | open | round 1 | Stray? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q601\n")
+
+    def test_count_prints_one_id_per_line(self):
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n- Q2 | open | round 1 | Two? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger, "--count", "3")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q3\nQ4\nQ5\n")
+
+    def test_a_declared_gap_is_never_reused(self):
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n"
+            "- gap | Q2-Q9 | the shared session's ids ran ahead\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q10\n")
+
+    def test_the_data_dir_counts_its_page_ids_and_their_export_numbers(self):
+        doc = base_doc()
+        doc["questions"].append(question("J1", group="g2", round=1))
+        self.write_doc(doc)
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n- Q2 | open | round 1 | Two? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger, "--dir", str(self.dir))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q5\n")
+
+    def test_a_file_with_no_register_heading_is_refused(self):
+        path = self.tmp / "notes.md"
+        path.write_bytes(b"# Notes\n\n- Q1 | open | round 1 | One? |\n")
+        rc, out, err = self.next_id("--ledger", str(path))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertEqual(out, "")
+        self.assertIn("open-question register heading", err)
+
+    def test_a_count_below_one_is_refused(self):
+        ledger = self.ledger("- Q1 | open | round 1 | One? |\n")
+        rc, out, err = self.next_id("--ledger", ledger, "--count", "0")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertEqual(out, "")
+        self.assertIn("--count", err)
+        rc, out, err = self.next_id("--ledger", ledger, "--count", "1")
+        self.assertEqual((rc, out), (0, "Q2\n"), err)
+
+
 class TestSupersedeResolve(DirCase):
     """supersede and resolve edit one register row of a ledger and need no data dir."""
 

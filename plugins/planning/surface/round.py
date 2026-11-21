@@ -2896,6 +2896,15 @@ def cmd_resolve(d, a):
     )
 
 
+def cmd_next_id(d, a):
+    if a.count < 1:
+        sys.exit(f"refused: --count must be 1 or more, not {a.count}")
+    text = read_input(a.ledger, "ledger")
+    exporters.check_ledger(text, a.ledger)
+    top = exporters.highest_id(text, d)
+    print("\n".join(f"Q{top + k}" for k in range(1, a.count + 1)))
+
+
 def cmd_import_ledger(d, a):
     text = read_input(a.ledger, "ledger")
     with sidecar_lock(d):
@@ -3396,6 +3405,17 @@ def main(argv=None):
     )
     s.set_defaults(fn=cmd_ledger_check)
 
+    s = sub.add_parser(
+        "next-id",
+        help="print the next question ids, one per line: the highest id the ledger (and the data "
+        "dir, when --dir is given) holds plus 1; never a reused or gap-filling id",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "--count", type=int, default=1, help="how many ids to print (default 1)"
+    )
+    s.set_defaults(fn=cmd_next_id)
+
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_import_ledger)
@@ -3518,7 +3538,7 @@ def main(argv=None):
         )
     if extra:
         p.error(f"unrecognized arguments: {' '.join(extra)}")
-    if a.fn in (cmd_supersede, cmd_resolve):
+    if a.fn in (cmd_supersede, cmd_resolve) or (a.fn is cmd_next_id and not a.dir):
         a.fn(None, a)
         return
     if (

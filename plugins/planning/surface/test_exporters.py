@@ -253,7 +253,7 @@ class TestExportLedger(SessionCase):
         held = {**term, "rev": 5}
         self.assertIsNone(exporters.latest_decision({**q, "terminal": held}, {}))
 
-    def test_non_contiguous_ids_are_renumbered_with_the_original_id(self):
+    def test_non_contiguous_ids_are_never_renumbered(self):
         self.session(
             [question("J2"), question("J1"), question("Q7")],
             [
@@ -264,39 +264,120 @@ class TestExportLedger(SessionCase):
         )
         ledger = self.export("ledger")
         rows = register_rows(ledger)
-        self.assertEqual([r.split(" | ")[0] for r in rows], ["- Q1", "- Q2", "- Q3"])
-        self.assertIn("[J1]", rows[0])
-        self.assertIn("[J2]", rows[1])
-        self.assertIn("[Q7]", rows[2])
+        self.assertEqual([r.split(" | ")[0] for r in rows], ["- Q7", "- Q8", "- Q9"])
+        self.assertNotIn("[Q7]", rows[0])
+        self.assertIn("[J1]", rows[1])
+        self.assertIn("[J2]", rows[2])
         rc, out = self.check("--ledger", ledger)
-        self.assertEqual(rc, 0, out)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("no row for Q1 to Q6", out)
+        self.assertIn("- gap | Q1-Q6 |", out)
 
-    def test_numbering_keeps_gapped_q_ids_only_for_a_gapped_ledger(self):
-        gapped = ["Q500", "Q1", "Q2", "Q501"]
+    def test_numbering_keeps_ledger_numbers_and_numbers_only_new_ids(self):
         self.assertEqual(
-            exporters.numbering(gapped, gaps=True),
-            ({"Q1": 1, "Q2": 2, "Q500": 500, "Q501": 501}, True),
+            exporters.numbering(["J1", "Q7"], {"Q7": 1, "J1": 2}), {"Q7": 1, "J1": 2}
         )
         self.assertEqual(
-            exporters.numbering(gapped),
-            ({"Q1": 1, "Q2": 2, "Q500": 3, "Q501": 4}, False),
+            exporters.numbering(["Q1", "Q2", "Q600"]),
+            {"Q1": 1, "Q2": 2, "Q600": 600},
         )
         self.assertEqual(
-            exporters.numbering(["Q2", "Q1", "Q3"]),
-            ({"Q1": 1, "Q2": 2, "Q3": 3}, True),
+            exporters.numbering(
+                ["Q1", "Q2", "Q3", "Q4", "J1"], {"Q1": 1, "Q2": 2, "Q3": 3}
+            ),
+            {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "J1": 5},
         )
         self.assertEqual(
-            exporters.numbering(["Q7", "J1"], gaps=True), ({"J1": 1, "Q7": 2}, False)
+            exporters.numbering(["J1", "Q3"], {"J1": 3}), {"J1": 3, "Q3": 4}
         )
 
-    def test_ledger_gapped_reads_the_register_row_numbers(self):
-        def ledger(*ns):
-            rows = "".join(f"- Q{n} | open | round 1 | Q{n}? |\n" for n in ns)
-            return "# Interview ledger\n\n## Open-question register\n\n" + rows
+    RENUMBERED = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Question Q7? | [Q7] free-text: first\n"
+        "- Q2 | answered | round 1 | Question J1? | [J1] free-text: second\n"
+    )
 
-        self.assertTrue(exporters.ledger_gapped(ledger(1, 5)))
-        self.assertFalse(exporters.ledger_gapped(ledger(1, 2)))
-        self.assertFalse(exporters.ledger_gapped(None))
+    def test_a_renumbered_ledger_exports_twice_with_the_numbers_it_holds(self):
+        self.session([question("J1"), question("Q7")], [])
+        text = self.RENUMBERED
+        for export in ("first", "second"):
+            _, rows, _ = exporters.merged_register(self.dir, text)
+            self.assertEqual(
+                [(r["n"], r["id"]) for r in rows],
+                [("Q1", "Q7"), ("Q2", "J1")],
+                f"{export} export",
+            )
+            self.assertTrue(rows[0]["resolution"].startswith("[Q7]"), rows[0])
+            self.assertTrue(rows[1]["resolution"].startswith("[J1]"), rows[1])
+            text = exporters.export_ledger(self.dir, text)
+
+    def test_export_ledger_keeps_each_hand_written_gap_line_in_place(self):
+        self.session([question("Q1"), question("Q5"), question("Q9")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- gap | Q2-Q4 | dropped before the page\n"
+            "- Q5 | open | round 1 | Question Q5? |\n"
+            "- gap | Q6-Q8 | the shared session's ids ran ahead\n"
+            "- Q9 | open | round 1 | Question Q9? |\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        register = out.read_text(encoding="utf-8").split("## Open-question register")[1]
+        lines = [x for x in register.splitlines() if x.startswith("- ")]
+        self.assertEqual(
+            [x.split(" | ")[:2] for x in lines[:5]],
+            [
+                ["- Q1", "open"],
+                ["- gap", "Q2-Q4"],
+                ["- Q5", "open"],
+                ["- gap", "Q6-Q8"],
+                ["- Q9", "open"],
+            ],
+        )
+        self.assertIn("- gap | Q6-Q8 | the shared session's ids ran ahead", lines)
+        rc, verdict = self.check("--ledger", out)
+        self.assertEqual(rc, 1, verdict)
+        self.assertIn("registered=3 open=3", verdict)
+
+    def test_a_q_id_new_to_the_ledger_keeps_its_number(self):
+        self.session([question("Q1"), question("Q2"), question("Q600")], [])
+        _, rows, _ = exporters.merged_register(
+            self.dir,
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question Q2? |\n",
+        )
+        self.assertEqual([r["n"] for r in rows], ["Q1", "Q2", "Q600"])
+        self.assertFalse([r for r in rows if r["resolution"].startswith("[")])
+
+    def test_a_new_q_id_whose_number_the_ledger_holds_takes_the_next_number(self):
+        self.session([question("Q1"), question("J1"), question("Q2")], [])
+        _, rows, _ = exporters.merged_register(
+            self.dir,
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question J1? | [J1]\n",
+        )
+        self.assertEqual(
+            [(r["n"], r["id"]) for r in rows],
+            [("Q1", "Q1"), ("Q2", "J1"), ("Q3", "Q2")],
+        )
+        self.assertTrue(rows[2]["resolution"].startswith("[Q2]"), rows[2])
+
+    def test_numbering_keeps_every_q_id_and_numbers_others_after_the_highest(self):
+        self.assertEqual(
+            exporters.numbering(["Q500", "Q1", "Q2", "Q501"]),
+            {"Q1": 1, "Q2": 2, "Q500": 500, "Q501": 501},
+        )
+        self.assertEqual(
+            exporters.numbering(["Q2", "Q1", "Q3"]), {"Q1": 1, "Q2": 2, "Q3": 3}
+        )
+        self.assertEqual(exporters.numbering(["Q7", "J1"]), {"Q7": 7, "J1": 8})
 
     def test_gapped_q_ids_keep_their_number_with_no_lead(self):
         self.session(
@@ -830,7 +911,7 @@ class TestBriefIds(SessionCase):
         self.assertNotIn("internal tool only", constraints)
         self.assertIn("- C2 (inherited):", constraints)
 
-    def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
+    def test_without_a_ledger_a_gap_keeps_every_id_with_no_lead(self):
         events, revs = confirmed(
             [
                 event(1, "Q1", "accept"),
@@ -842,12 +923,20 @@ class TestBriefIds(SessionCase):
             [question("Q1"), question("Q3"), question("Q4")], events, restatements=revs
         )
         text = self.export("brief").read_text(encoding="utf-8")
-        self.assertIn("- Q2 [Q3]: Question Q3?, defer until later;", text)
-        self.assertIn("- Q3 [Q4] Short Q4: accepted:", text)
-        self.assertNotIn("[Q3] [Q3]", text)
-        rc, out = self.check(
-            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        self.assertIn("- Q3: Question Q3?, defer until later;", text)
+        self.assertIn("- Q4 Short Q4: accepted:", text)
+        self.assertNotIn("[Q3]", text)
+        self.assertNotIn("[Q4]", text)
+        ledger = self.export("ledger")
+        brief = self.export("brief")
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("- gap | Q2-Q2 |", out)
+        declared = ledger.read_text(encoding="utf-8").replace(
+            "\n- Q3 |", "\n- gap | Q2-Q2 | dropped before the page\n- Q3 |", 1
         )
+        ledger.write_text(declared, encoding="utf-8", newline="\n")
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
