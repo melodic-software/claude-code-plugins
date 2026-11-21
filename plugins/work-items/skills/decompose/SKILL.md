@@ -261,7 +261,7 @@ Constraints:
 
 ## Decisions
 
-- <Q/D id>: <the decision this vertical slice rests on, redacted, in one or two lines>
+- <Q/D id>: <the decision this vertical slice rests on, redacted, in one or two lines>; rejected: <each option the source records as rejected, with its reason>
 
 ## Key interfaces
 
@@ -309,7 +309,10 @@ Fill the sections this way:
   depends on none of its rows.
 - **Decisions** makes the body stand on its own in a public tracker. List each decision of the
   source thread that this vertical slice rests on, inline, with its Q/D id (`Q3`, `D7`, as the
-  source numbers them) and the decision's content in a line or two. Take them from the decisions Step 1 extracted, or for an item or conversation
+  source numbers them) and the decision's content in a line or two. Where the source records an
+  option it considered and rejected, and why, add it after `rejected:` with that reason, so a
+  picker does not reopen a settled choice; list only options the source records, never invent
+  one, and drop the `rejected:` part when it records none. Take them from the decisions Step 1 extracted, or for an item or conversation
   source, from the decisions its body, comments or discussion record. A decision whose source gives
   it no id is inlined without one; never coin an id. Redact as for the other Brief fields: replace a file path with the module or type
   it names, and drop or generalize a machine-specific path, hostname or credential-shaped value.
