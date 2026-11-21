@@ -47,11 +47,15 @@
     z-index: 2147483647;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
     inline-size: max-content;
+    max-inline-size: calc(100vw - 16px);
+    box-sizing: border-box;
     white-space: nowrap;
     gap: 2px;
     padding: 4px;
-    border-radius: 999px;
+    border-radius: 18px;
     background: rgb(10 10 10 / 0.86);
     box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08) inset, 0 8px 24px rgb(0 0 0 / 0.24);
     font: 13px/1 system-ui, sans-serif;
@@ -165,7 +169,7 @@
 
     function place() {
       const el = items[current];
-      highlight.style.transform = `translateX(${el.offsetLeft}px) scaleX(${el.offsetWidth / 100})`;
+      highlight.style.transform = `translate(${el.offsetLeft}px, ${el.offsetTop - 4}px) scaleX(${el.offsetWidth / 100})`;
     }
 
     // Applies the speed to every running animation outside the switcher itself.

@@ -22,9 +22,9 @@ async page => {
       ok(`at ${width}px every switcher item, motion controls shown, sits on one line`, all.length === 10 && wrapped.length === 0, wrapped.length ? wrapped : all.length);
       const bar = await page.evaluate(() => {
         const n = document.querySelector(".vs"), b = n.getBoundingClientRect();
-        return { overflow: n.scrollWidth - n.clientWidth, center: Math.round(b.left + b.width / 2), right: Math.round(b.right) };
+        return { overflow: n.scrollWidth - n.clientWidth, center: Math.round(b.left + b.width / 2), right: Math.round(b.right), height: Math.round(b.height) };
       });
-      ok(`at ${width}px the bar holds its items without overflow, centered`, bar.overflow <= 0 && Math.abs(bar.center - width / 2) <= 1 && bar.right <= width, bar);
+      ok(`at ${width}px the bar is one row holding its items without overflow, centered`, bar.overflow <= 0 && bar.height <= 40 && Math.abs(bar.center - width / 2) <= 1 && bar.right <= width, bar);
     }
 
     for (const [sel, label] of [[".vs-speed", "Motion speed (S)"], [".vs-replay", "Replay the variant (R)"]]) {
@@ -42,7 +42,27 @@ async page => {
     await page.keyboard.press("s");
     ok("S still steps the motion speed to 0.5×", (await page.locator(".vs-speed").textContent()) === "0.5×");
     await page.keyboard.press("2");
-    ok("2 still switches to the second variant", (await page.locator(".vs-item[aria-current='true']").textContent()) === "B Split board with long label");
+    ok("2 still switches to the second variant", (await page.locator(".vs-item[aria-current='true']").textContent()) === "B Split board");
+
+    await page.keyboard.press("1");
+    await page.setViewportSize({ width: 390, height: 800 });
+    const narrow = await lines();
+    ok("at 390px every switcher item still sits on one line", narrow.length === 10 && narrow.every((x) => x.lines === 1), narrow);
+    const outside = await page.evaluate(() => [...document.querySelectorAll(".vs .vs-item")]
+      .filter((b) => b.offsetParent !== null)
+      .map((b) => ({ label: b.textContent, r: b.getBoundingClientRect() }))
+      .filter(({ r }) => r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)
+      .map(({ label, r }) => ({ label, left: Math.round(r.left), right: Math.round(r.right) })));
+    const rows = await page.evaluate(() => Math.round(document.querySelector(".vs").getBoundingClientRect().height));
+    ok("at 390px the bar wraps onto more rows and every switcher control is inside the viewport", rows > 40 && outside.length === 0, { rows, outside });
+    await page.keyboard.press("4");
+    await page.waitForTimeout(400);
+    const mark = await page.evaluate(() => {
+      const h = document.querySelector(".vs-highlight").getBoundingClientRect();
+      const c = document.querySelector(".vs-item[aria-current='true']").getBoundingClientRect();
+      return { dx: Math.round(h.left - c.left), dy: Math.round(h.top - c.top), dw: Math.round(h.width - c.width) };
+    });
+    ok("at 390px the highlight sits on the current variant", Math.abs(mark.dx) <= 1 && Math.abs(mark.dy) <= 1 && Math.abs(mark.dw) <= 1, mark);
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);
   }

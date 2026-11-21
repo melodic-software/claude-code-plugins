@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -22,9 +22,9 @@ page="$d/switcher.html"
   <div data-screen-state="full" data-screen-state-label="Full"><p class="card" data-content-set="demo">Demo</p><p data-content-set="worst">Worst</p></div>
   <div data-screen-state="empty" data-screen-state-label="Empty"><p>Nothing yet</p></div>
 </section>
-<section data-variant="B" data-variant-label="Split board with long label"><p class="card">B</p></section>
-<section data-variant="C" data-variant-label="Dense operations grid"><p class="card">C</p></section>
-<section data-variant="D" data-variant-label="Timeline with side panel"><p class="card">D</p></section>
+<section data-variant="B" data-variant-label="Split board"><p class="card">B</p></section>
+<section data-variant="C" data-variant-label="Dense grid"><p class="card">C</p></section>
+<section data-variant="D" data-variant-label="Timeline"><p class="card">D</p></section>
 HTML
   cat "$skill/assets/variant-switcher.html"
   printf '</body>\n</html>\n'
