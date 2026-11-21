@@ -290,6 +290,57 @@
       }
     },
     {
+      "why": "a move arrow from one element to another, each end with its own anchor",
+      "note": {
+        "kind": "move",
+        "variant": {
+          "key": "A"
+        },
+        "anchor": {
+          "testid": "shipments-export",
+          "testidIndex": 0,
+          "tag": "button",
+          "cssPath": "div:nth-of-type(2) > button:nth-of-type(3)"
+        },
+        "rect": {
+          "x": 70,
+          "y": 5,
+          "w": 10,
+          "h": 4
+        },
+        "to": {
+          "anchor": {
+            "testid": "shipments-filter",
+            "testidIndex": 0,
+            "tag": "button",
+            "cssPath": "div:nth-of-type(2) > button:nth-of-type(1)"
+          },
+          "point": {
+            "x": 8.5,
+            "y": 6
+          }
+        },
+        "text": "Put Export first in the toolbar."
+      }
+    },
+    {
+      "why": "a move arrow to a point no element fits",
+      "note": {
+        "kind": "move",
+        "anchor": {
+          "tag": "aside",
+          "cssPath": "aside:nth-of-type(1)"
+        },
+        "to": {
+          "point": {
+            "x": 0,
+            "y": 100
+          }
+        },
+        "text": "Move this panel to the bottom."
+      }
+    },
+    {
       "why": "control values for the manifest's ids",
       "note": {
         "kind": "element",
@@ -610,6 +661,76 @@
             "cssPath": ""
           }
         },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a move arrow's destination with no point",
+      "note": {
+        "kind": "move",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "to": {
+          "anchor": {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(1)"
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a move arrow's point outside the page",
+      "note": {
+        "kind": "move",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "to": {
+          "point": {
+            "x": 101,
+            "y": 0
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a move arrow's destination anchor outside the anchor contract",
+      "note": {
+        "kind": "move",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "to": {
+          "anchor": {
+            "tag": "p",
+            "cssPath": "p"
+          },
+          "point": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a move arrow's destination as a bare point array",
+      "note": {
+        "kind": "move",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "to": [
+          1,
+          1
+        ],
         "text": "x"
       }
     },

@@ -12,7 +12,7 @@ The canonical files live in `lib/ui-feedback/`:
 | Path | Holds |
 |---|---|
 | `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
-| `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
+| `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text, regions and move arrows, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
 | `lib/ui-feedback/frame-channel.mjs` | The host page's message channel rules: which messages it takes from the frame, the `targetOrigin` it posts to the frame with, and the ready timeout that reports a blocked frame |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
 | `lib/ui-feedback/note.schema.json` | The note contract |
@@ -63,6 +63,17 @@ none.
 A region note's `elements` are the elements with a test id that the region crosses. When it
 crosses none, they are the children of the element holding it that it crosses, so a region over
 unmarked content still names what it covers.
+
+A move arrow (`kind` `move`) says "move this element to there". The person picks the element to
+move, then where it should go: the element clicked, or a point alone when no element fits (Shift
+and a click). `anchor` and `rect` are the element to move. `to.point` is the destination in
+percent of the page, and `to.anchor` is the destination element when there is one inside the
+note's variant and screen state, the scope both ends' anchors are counted in. Each end runs its own
+anchor ladder, with the stored box or point as its position-only last rung. The frame
+helper draws the arrow from the middle of one end to the middle of the other, and redraws it from
+the elements whenever the layout re-flows. The relocation script reports the destination's rungs,
+match and `positionOnly` under `to`. The session that acts on a move arrow restates both ends: the
+element to move and the element or point it goes to.
 
 The frame helper owns both rules a re-located note depends on: the data log (the presses of the
 controls the page marks with `data-data-control`, and each content set the switcher shows) and the

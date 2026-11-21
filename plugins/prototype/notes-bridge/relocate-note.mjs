@@ -98,46 +98,47 @@ export async function relocate(page, input, decide) {
     if (note.content) out.restored.content = (await fl.locator(`:root[data-vs-content="${note.content}"]`).count()) === 1;
 
     const count = async (l) => (scoped ? l.count() : 0);
-    const path = a.cssPath === "" ? scope : scope.locator(`:scope > ${a.cssPath}`);
-    const pathCount = await count(path);
-    const found = {};
-
-    if (a.testid !== undefined) {
-      // The pin helper counts the scope itself first, then the elements with the id inside it.
-      const self = (await count(scope.and(fl.getByTestId(a.testid)))) === 1;
-      const inner = scope.getByTestId(a.testid);
-      const total = (await count(inner)) + (self ? 1 : 0);
-      const i = a.testidIndex ?? (total === 1 ? 0 : -1);
-      let t = null;
-      if (i >= 0 && i < total) t = self ? (i === 0 ? scope : inner.nth(i - 1)) : inner.nth(i);
-      // The id can sit on an ancestor of the noted element, whatever its tag: a path that finds one
-      // element inside the id's element is the noted element. Without that, the id's element is
-      // the noted one only when the tags agree; otherwise it stands in as a container.
-      if (t && pathCount === 1 && (await path.and(t.locator("*")).count()) === 1) t = path;
-      else if (t && (await t.and(fl.locator(a.tag)).count()) !== 1) out.container = true;
-      found.testid = t;
-      out.rungs.push({ rung: "testid", candidates: total, hit: !!t, broken: !t });
+    const ladder = async (a) => {
+      const rungs = [], found = {};
+      let container = false;
+      const path = a.cssPath === "" ? scope : scope.locator(`:scope > ${a.cssPath}`);
+      const pathCount = await count(path);
+      if (a.testid !== undefined) {
+        const self = (await count(scope.and(fl.getByTestId(a.testid)))) === 1;
+        const inner = scope.getByTestId(a.testid);
+        const total = (await count(inner)) + (self ? 1 : 0);
+        const i = a.testidIndex ?? (total === 1 ? 0 : -1);
+        let t = null;
+        if (i >= 0 && i < total) t = self ? (i === 0 ? scope : inner.nth(i - 1)) : inner.nth(i);
+        if (t && pathCount === 1 && (await path.and(t.locator("*")).count()) === 1) t = path;
+        else if (t && (await t.and(fl.locator(a.tag)).count()) !== 1) container = true;
+        found.testid = t;
+        rungs.push({ rung: "testid", candidates: total, hit: !!t, broken: !t });
+      }
+      if (a.role !== undefined) {
+        const r = scope.locator(`${a.tag}[role~="${a.role}"]`);
+        const n = await count(r);
+        found.role = n === 1 ? r : null;
+        rungs.push({ rung: "role", candidates: n, hit: n === 1, broken: n === 0 });
+      }
+      found.cssPath = pathCount === 1 ? path : null;
+      rungs.push({ rung: "cssPath", candidates: pathCount, hit: pathCount === 1, broken: pathCount === 0 });
+      if (a.textQuote !== undefined) {
+        const q = { variant: note.variant?.key, state: note.state?.key, quote: a.textQuote };
+        const n = scoped ? await frame.evaluate((x) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.findQuote(x) : 0), q) : 0;
+        found.textQuote = n === 1 ? fl.locator("[data-relocate-quote]") : null;
+        rungs.push({ rung: "textQuote", candidates: n, hit: n === 1, broken: n === 0 });
+      }
+      const result = { rungs, found, ...decide(rungs) };
+      if (result.matched === "testid" && container) Object.assign(result, { container, confirmed: false });
+      return result;
+    };
+    const { found, ...source } = await ladder(a);
+    Object.assign(out, source);
+    if (note.kind === "move") {
+      const { found: _f, ...to } = note.to?.anchor ? await ladder(note.to.anchor) : { rungs: [], matched: null, confirmed: false };
+      out.to = { ...to, positionOnly: !to.matched };
     }
-    if (a.role !== undefined) {
-      // The pin helper keeps the role attribute's first token, so match it as one token of the list.
-      const r = scope.locator(`${a.tag}[role~="${a.role}"]`);
-      const n = await count(r);
-      found.role = n === 1 ? r : null;
-      out.rungs.push({ rung: "role", candidates: n, hit: n === 1, broken: n === 0 });
-    }
-    found.cssPath = pathCount === 1 ? path : null;
-    out.rungs.push({ rung: "cssPath", candidates: pathCount, hit: pathCount === 1, broken: pathCount === 0 });
-    if (a.textQuote !== undefined) {
-      // The frame helper finds the quote in the scope's visible text, as it took it, and marks the
-      // element holding the one match; the quote reaches the frame only as an argument.
-      const q = { variant: note.variant?.key, state: note.state?.key, quote: a.textQuote };
-      const n = scoped ? await frame.evaluate((x) => (window.uiFeedbackRelocate ? window.uiFeedbackRelocate.findQuote(x) : 0), q) : 0;
-      found.textQuote = n === 1 ? fl.locator("[data-relocate-quote]") : null;
-      out.rungs.push({ rung: "textQuote", candidates: n, hit: n === 1, broken: n === 0 });
-    }
-    Object.assign(out, decide(out.rungs));
-    // An ancestor standing in for an element the ladder never found is a guess, never a confirmed match.
-    if (out.matched === "testid" && out.container) out.confirmed = false;
     // A text note is about its text: an element found while the quote is not is unconfirmed.
     if (note.kind === "text" && out.rungs.at(-1).rung === "textQuote" && out.rungs.at(-1).broken) {
       out.quoteMissing = true;
