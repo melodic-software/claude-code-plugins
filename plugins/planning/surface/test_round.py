@@ -4910,6 +4910,55 @@ class TestReopen(DirCase):
         self.assertIn("fact", err)
         self.assertEqual(self.text(), before)
 
+    def gate(self):
+        p = subprocess.run(
+            [shutil.which("bash"), str(HERE.parent / "scripts" / "check-open-questions.sh"),
+             "--ledger", str(self.ledger)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout
+
+    def test_reopen_and_rechecked_keep_a_rows_stale_mark(self):
+        self.write(
+            "- Q1 | answered | round 1 | Which store? | accepted: Postgres; stale:: C1\n"
+            "- Q2 | answered | round 1 | Which schema? | accepted: one table; depends:: Q1; "
+            "stale:: C2\n"
+        )
+        self.reopen("Q1", 3, "the host has no Postgres")
+        rows = [
+            x for x in self.text().splitlines() if re.match(r"^- Q[12] \| (open|answered) ", x)
+        ]
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | open | round 1 | Which store? | reopened:: round 3; stale:: C1",
+                "- Q2 | answered | round 1 | Which schema? | accepted: one table; depends:: Q1; "
+                "recheck:: Q1; stale:: C2",
+            ],
+        )
+        rc, out, err = self.cmd("--rechecked", "Q2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            "- Q2 | answered | round 1 | Which schema? | accepted: one table; depends:: Q1; "
+            "stale:: C2\n",
+            self.text(),
+        )
+        rc, verdict = self.gate()
+        self.assertEqual(rc, 1, verdict)
+        self.assertIn("stale=2", verdict)
+
+    def test_a_new_section_goes_after_the_registers_deferred_questions(self):
+        self.TAIL = "\n### Deferred questions\n\n- none\n" + TestReopen.TAIL
+        self.write("\n".join(self.ROWS) + "\n")
+        self.reopen("Q5", 2, "logs go to a file")
+        self.assertIn(
+            "### Deferred questions\n\n- none\n\n## Reopened answers\n\n- Q5 | round 2 | was: "
+            "stdout | fact: logs go to a file\n\n## Notes",
+            self.text(),
+        )
+
     def test_a_reopen_lists_its_entry_under_the_sections_own_text(self):
         intro = "\n## Reopened answers\n\nOne line per reopened answer.\n"
         self.TAIL = intro + TestReopen.TAIL

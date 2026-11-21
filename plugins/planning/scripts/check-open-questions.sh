@@ -246,7 +246,7 @@ rows_outside() {
     fenced { next }
     /^#+[[:space:]]/ { reopened = (tolower($0) ~ /^#+[[:space:]]+reopened answers[[:space:]]*$/) }
     NR >= lo && NR <= hi { next }
-    reopened { next }
+    reopened && /^[[:space:]]*-[[:space:]]+[Qq][1-9][0-9]*[[:space:]]*[|][[:space:]]*round[[:space:]]+[1-9][0-9]*[[:space:]]*[|][[:space:]]*was:.*[|][[:space:]]*fact:/ { next }
     /^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*[|]/ { print NR }
   ' "$3"
 }

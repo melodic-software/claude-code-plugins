@@ -131,6 +131,23 @@ EOF
 )"
 expect_exit "tags, Problems rows and Reopened answers rows -> 1 only for the stale row" 1 --ledger "$tagged"
 expect_stdout "tags are not counted as recheck" "superseded=0 brief=unchecked stale=1 status=open" --ledger "$tagged"
+reopened_row="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes
+
+## Reopened answers
+
+- Q1 | round 2 | was: accepted: no | fact: ops.md:3 says yes
+- Q2 | open | round 2 | b |
+EOF
+)"
+expect_exit "a register row under Reopened answers is still outside the register -> 2" 2 --ledger "$reopened_row"
+if [[ "$(stderr_of --ledger "$reopened_row")" == *"line 14: question row outside the register section"* &&
+  "$(stderr_of --ledger "$reopened_row")" != *"line 13:"* ]]; then
+  pass "only the entry-shaped line under Reopened answers is skipped"
+else
+  fail "only the entry-shaped line under Reopened answers is skipped (stderr: '$(stderr_of --ledger "$reopened_row")')"
+fi
 recheck_row="$(
   mkledger <<'EOF'
 - Q1 | open | round 1 | a | reopened:: round 2

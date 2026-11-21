@@ -7,7 +7,9 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  and keeps its `- gap |` lines, in range order, each right before
                  the first row numbered past its range (after the last row when none is);
                  it refuses a gap line the gate would read as malformed, and writes
-                 `- gap | Q<a>-Q<b> | never assigned` for ids nothing held (never_assigned)
+                 `- gap | Q<a>-Q<b> | never assigned` for ids nothing held (never_assigned);
+                 it writes the ledger's `## Problems` above the register and its
+                 `## Reopened answers` last (carried_section)
   sync_ledger    a ledger's text with only its register rows and gap lines replaced by the
                  merged rows and those gap lines, placed as export_ledger places them; it
                  refuses a malformed gap line and writes never-assigned lines as export_ledger does
@@ -228,13 +230,13 @@ def join_tags(res, tail):
     return f"{lead.rstrip()} {tail}" if lead else tail
 
 
-def parse_tags(tail, where):
-    """{tag name: value} of a tag tail; refuses a tag written twice."""
+def parse_tags(tail, row, where):
+    """{tag name: value} of the register row `row`'s tag tail; refuses a tag written twice."""
     tags = {}
     for part in split_fields(tail) if tail else ():
         name, _, value = part.partition(":: ")
         if name in tags:
-            refuse(f"tag {name + '::'!r} repeated", where)
+            refuse(f"{row}: tag {name + '::'!r} repeated", where)
         tags[name] = value
     return tags
 
@@ -967,9 +969,10 @@ def page_held(d):
 
 def never_assigned(d, rows, gaps, text):
     """`- gap | Q<a>-Q<b> | never assigned` lines for each run of numbers below the highest row
-    that no row, no gap line and nothing the data dir recorded holds, above the highest number
-    the ledger text holds: a number the ledger held is never declared, so a dropped row still
-    fails the gate."""
+    that no row, no gap line and nothing the data dir recorded (page_held) holds, and that is
+    above the highest number the ledger's current text holds (highest_id). A row dropped from
+    below that floor still fails the gate; a row the ledger once held above it, deleted before
+    this export with no record in the data dir, is declared."""
     nums = {int(r["n"][1:]) for r in rows}
     floor = highest_id(text) if text else 0
     held = nums | page_held(d)
@@ -999,12 +1002,30 @@ def export_ledger(d, text=None, where="the ledger"):
     for r in rows:
         mark = " " if r["status"] in UNSETTLED else "x"
         out.append(f"- [{mark}] {r['n']} {r['short']}: {r['status']}")
-    out += ["", "## Open-question register", ""]
+    out += ["", *carried_section(text, "problems"), "## Open-question register", ""]
     out += register_lines(rows, gaps)
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
-    return "\n".join(out) + "\n"
+    reopened = carried_section(text, "reopened answers")
+    return "\n".join(out + ([""] + reopened[:-1] if reopened else [])) + "\n"
+
+
+def carried_section(text, name):
+    """The lines of the ledger section headed `name` (the first one outside fences), heading
+    through its last non-blank line, then one blank line; [] with no such section. export_ledger
+    writes the ledger's `## Problems` and `## Reopened answers` back with it, as sync-ledger
+    leaves them."""
+    lines = (text or "").splitlines()
+    heads = headings(lines)
+    own = [h for h, _, t in heads if t == name]
+    if not own:
+        return []
+    start, end = section_span(heads, own[0], len(lines))
+    body = lines[start:end]
+    while body and not body[-1].strip():
+        body.pop()
+    return [*body, ""]
 
 
 # Longest answer, in characters, a live question's recap line keeps before it is cut; the recap
@@ -2007,15 +2028,20 @@ def edit_row(text, qid, where, change):
 def rewrite_row(lines, i, start, change, retag=None):
     """Rewrite the register row lines[i], whose status cell starts at `start`: change(status,
     resolution) returns the new (status, resolution) from the row's stripped cells, its tag tail
-    peeled off, and retag(tail) the new tail (else the tail stays). Each cell keeps its own
-    surrounding whitespace and the line keeps its ending, so nothing else in the ledger moves.
-    The status is passed as written, so only the lowercase statuses the exporter writes match:
-    restore could not give back another case."""
+    peeled off. With retag, retag(tail) is the new tail and the row's `stale::` mark stays after
+    it; without, the tail stays and the stale mark is dropped, as supersede and resolve always
+    did. Each cell keeps its own surrounding whitespace and the line keeps its ending, so nothing
+    else in the ledger moves. The status is passed as written, so only the lowercase statuses
+    the exporter writes match: restore could not give back another case."""
     bare = lines[i].rstrip("\r\n")
     cells = bare[start:].split("|", 3)
-    res, tail = split_tags(drop_stale(cells[3]).strip())
+    whole = cells[3].strip()
+    fresh = drop_stale(whole)
+    res, tail = split_tags(fresh)
     new_status, new_res = change(cells[0].strip(), res)
     new_res = join_tags(new_res, retag(tail) if retag else tail)
+    if retag and fresh != whole:
+        new_res = join_tags(new_res, re.search(STALE_LIST, whole).group())
 
     def put(cell, value):
         core = cell.strip()
@@ -2143,25 +2169,33 @@ def resolve_row(text, qid, how, note, where):
 
 
 def headings(lines):
-    """[(index, text lowercased, #s dropped)] of each heading outside fenced blocks."""
+    """[(index, level, text lowercased, #s dropped)] of each heading outside fenced blocks."""
     out, fenced = [], False
     for i, line in enumerate(lines):
         if FENCE.match(line):
             fenced = not fenced
         elif not fenced and re.match(r"^#+\s", line):
-            out.append((i, line.lstrip("#").strip().lower()))
+            text = line.lstrip("#")
+            out.append((i, len(line) - len(text), text.strip().lower()))
     return out
 
 
+def section_span(heads, start, total):
+    """(start, end) of the section headed at line `start`: up to the next heading at its level
+    or above (a sub-heading stays inside it), else the end of the file."""
+    level = next(lv for h, lv, _ in heads if h == start)
+    return start, next((h for h, lv, _ in heads if h > start and lv <= level), total)
+
+
 def add_reopened(lines, entry):
-    """Append `entry` to the ledger's `## Reopened answers` section, creating the section right
-    after the register when the ledger has none. `lines` keep their endings."""
+    """Append `entry` to the ledger's `## Reopened answers` section. A ledger with none gets it
+    where the checklist template puts it: after the register's whole level-2 section, its
+    `### Deferred questions` included. `lines` keep their endings."""
     eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
     bare = [x.rstrip("\r\n") for x in lines]
     heads = headings(bare)
-    own = [h for h, t in heads if t == "reopened answers"]
-    start = own[0] if own else scan_register(bare)[0][0]
-    at = next((h for h, _ in heads if h > start), len(lines))
+    own = [h for h, _, t in heads if t == "reopened answers"]
+    start, at = section_span(heads, own[0] if own else scan_register(bare)[0][0], len(lines))
     last = max([i for i in range(start + 1, at) if lines[i].strip()], default=None)
     new = [entry + eol]
     if not own:
@@ -2202,15 +2236,16 @@ def reopen_row(text, qid, rnd, fact, where):
         return "open", lead.rstrip()
 
     def reopened(tail):
-        return format_tags({**parse_tags(tail, where), "reopened": f"round {rnd}"})
+        return format_tags({**parse_tags(tail, n, where), "reopened": f"round {rnd}"})
 
     rewrite_row(lines, i, len(prefix), change, reopened)
     rows, dependents = scan_register(bare)[1], {}
     for _, m in rows:
         cells = m.group(2).split("|", 3)
+        row = f"Q{int(m.group(1))}"
         tail = split_tags(drop_stale(cells[3]).strip())[1] if len(cells) == 4 else ""
-        for dep in (parse_tags(tail, where).get("depends") or "").split(", "):
-            dependents.setdefault(dep, set()).add(f"Q{int(m.group(1))}")
+        for dep in (parse_tags(tail, row, where).get("depends") or "").split(", "):
+            dependents.setdefault(dep, set()).add(row)
     marked, todo = set(), [n]
     while todo:
         for dep in dependents.get(todo.pop(), ()):
@@ -2218,16 +2253,20 @@ def reopen_row(text, qid, rnd, fact, where):
                 marked.add(dep)
                 todo.append(dep)
 
-    def recheck(tail):
-        tags = parse_tags(tail, where)
-        ids = [x for x in (tags.get("recheck") or "").split(", ") if x]
-        return format_tags({**tags, "recheck": ", ".join(ids + [n] * (n not in ids))})
+    def recheck(row):
+        def add(tail):
+            tags = parse_tags(tail, row, where)
+            ids = [x for x in (tags.get("recheck") or "").split(", ") if x]
+            return format_tags({**tags, "recheck": ", ".join(ids + [n] * (n not in ids))})
+
+        return add
 
     order = []
     for j, m in rows:
-        if f"Q{int(m.group(1))}" in marked:
-            rewrite_row(lines, j, m.start(2), lambda s, r: (s, r), recheck)
-            order.append(f"Q{int(m.group(1))}")
+        row = f"Q{int(m.group(1))}"
+        if row in marked:
+            rewrite_row(lines, j, m.start(2), lambda s, r: (s, r), recheck(row))
+            order.append(row)
     add_reopened(lines, f"- {n} | round {rnd} | was: {was[0]} | fact: {fact}")
     return "".join(lines), order
 
@@ -2239,7 +2278,7 @@ def clear_recheck(text, qids, where):
         i, prefix, _, _ = locate_row([x.rstrip("\r\n") for x in lines], qid, where)
 
         def cleared(tail, qid=qid):
-            tags = parse_tags(tail, where)
+            tags = parse_tags(tail, qid, where)
             if not tags.pop("recheck", None):
                 refuse(f"{qid} carries no recheck::", where)
             return format_tags(tags)

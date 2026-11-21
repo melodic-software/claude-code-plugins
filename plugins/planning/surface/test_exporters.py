@@ -5242,9 +5242,8 @@ class TestRegisterTags(SessionCase):
         "- P1 | Staff cannot find the queue | agreed\n\n"
         "## Open-question register\n\n"
         + "\n".join(ROWS)
-        + "\n\n## Reopened answers\n\n"
-        "- Q3 | round 3 | was: accepted: Redis | fact: the host has no Redis (ops.md:12)\n\n"
-        "### Deferred questions\n\n- none\n"
+        + "\n\n### Deferred questions\n\n- none\n\n## Reopened answers\n\n"
+        "- Q3 | round 3 | was: accepted: Redis | fact: the host has no Redis (ops.md:12)\n"
     )
 
     NAMED = {
@@ -5285,6 +5284,43 @@ class TestRegisterTags(SessionCase):
         stale = exporters.drop_stale("accepted: x; depends:: Q1; stale:: C2")
         self.assertEqual(exporters.split_tags(stale), ("accepted: x", "depends:: Q1"))
 
+    PARITY = [
+        "accepted: x; kind:: discovery",
+        "accepted: x; recheck:: Q1",
+        "recheck:: Q1",
+        "[J1] depends:: Q1, Q2",
+        "answer:: a\\; recheck:: Q1",
+        "answer:: a\\\\; recheck:: Q1; stale:: C1",
+        "accepted: x; problem:: P0",
+        "accepted: x; depends:: Q1,Q2",
+        "accepted: x; reopened:: round 2; recheck:: Q3",
+        "kind:: decision",
+        "problem:: P3; recheck:: Q2, Q4",
+    ]
+
+    def test_the_tag_grammar_matches_the_gate(self):
+        rows, rechecks, empty = [], 0, set()
+        for n, res in enumerate(self.PARITY, start=1):
+            rows.append(f"- Q{n} | answered | round 1 | Row {n}? | {res}")
+            body, tail = exporters.split_tags(exporters.drop_stale(res))
+            rechecks += "recheck" in exporters.parse_tags(tail, f"Q{n}", "the test")
+            if tail and not exporters.split_lead(body)[1]:
+                empty.add(f"Q{n}")
+        self.assertEqual((rechecks, empty), (5, {"Q3", "Q4", "Q11"}))
+        ledger = self.tmp / "parity.md"
+        ledger.write_bytes(
+            ("# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n").encode()
+        )
+        _, out = self.check("--ledger", ledger, "--procedure")
+        self.assertIn(f" recheck={rechecks} ", out)
+        named = set(re.findall(r"(Q\d+): answered row has an empty resolution", out))
+        self.assertEqual(named, empty)
+
+    def test_a_repeated_tag_is_refused_naming_its_row(self):
+        with self.assertRaises(SystemExit) as raised:
+            exporters.parse_tags("depends:: Q1; depends:: Q2", "Q7", "the ledger")
+        self.assertIn("Q7: tag 'depends::' repeated", str(raised.exception))
+
     def test_import_keeps_each_tail_beside_the_answer(self):
         _, fresh = self.imported()
         doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
@@ -5322,6 +5358,20 @@ class TestRegisterTags(SessionCase):
         rc, out = self.rp("sync-ledger", "--ledger", str(ledger), d=fresh)
         self.assertEqual(rc, 0, out)
         self.assertEqual(ledger.read_bytes(), newer.encode("utf-8"))
+
+    def test_export_ledger_keeps_the_problems_and_reopened_answers_sections(self):
+        ledger, fresh = self.imported()
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out), d=fresh)
+        self.assertEqual(rc, 0, text)
+        exported = out.read_text(encoding="utf-8")
+        want = self.exported(self.LEDGER).split("## Problems")[1]
+        self.assertTrue(exported.endswith("## Problems" + want), exported)
+        self.assertEqual(exported.count("## Reopened answers"), 1)
+        again = self.tmp / "again.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(out), "--out", str(again), d=fresh)
+        self.assertEqual(rc, 0, text)
+        self.assertEqual(again.read_bytes(), out.read_bytes())
 
     def test_export_import_export_is_a_fixed_point(self):
         _, fresh = self.imported()
@@ -5445,6 +5495,20 @@ class TestNeverAssigned(SessionCase):
         self.assertNotIn("never assigned", ledger.read_text(encoding="utf-8"))
         rc, verdict = self.check("--ledger", ledger)
         self.assertEqual(rc, 2, verdict)
+
+    def test_an_id_only_the_last_ledger_check_recorded_is_never_declared(self):
+        self.session([question("Q1"), question("Q2"), question("Q3")], [])
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | answered | round 1 | Question Q2? | free-text: settled here\n"
+            "- Q3 | open | round 1 | Question Q3? |\n"
+        )
+        rc, out = self.rp("ledger-check", "--ledger", str(ledger))
+        self.assertEqual(rc, 6, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["meta"]["ledgerSync"]["rows"], ["Q2"])
+        self.drop_question("Q2")
+        self.assertNotIn("never assigned", self.export("ledger").read_text(encoding="utf-8"))
 
     def test_a_question_lost_with_no_record_is_declared_the_limit(self):
         self.session([question("Q1"), question("Q2"), question("Q3")], [])
