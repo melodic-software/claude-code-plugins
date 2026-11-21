@@ -21,11 +21,14 @@ failed read, a list cut short or no such run keeps the FAIL.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- counted FAILs at `max_fails` or more distinct heads of this pull request
-  (tied as in the item after next): `verify:repeated-fail`, whatever a pass
-  says, a FAIL at the head included. Before a FAIL at the head or a pass
-  decides, FAILs of other pull requests in this repository that are not
-  merged, nor a closed lanes App attempt (`_counts`), and close one of its
+- a counted FAIL at the head, under any pull request number, that is not
+  superseded (the next item), with counted FAILs at `max_fails` or more
+  distinct heads of this pull request (tied as in the item after next), that
+  head included: `verify:repeated-fail`. FAILs at other heads alone never
+  cap: a head whose newest verdicts pass, or whose FAIL is superseded, goes
+  on to the items below (owner decision Q245, 2026-11-20). Before a FAIL at
+  the head decides, FAILs of other pull requests in this repository that are
+  not merged, nor a closed lanes App attempt (`_counts`), and close one of its
   issues (its closing issues, or its `Refs:` issue) count too, at their own
   heads, and so does every FAIL of such a pull request whose name carries one
   of those issues, a `Refs:` pull request's FAILs among them (a FAIL among
@@ -43,10 +46,11 @@ failed read, a list cut short or no such run keeps the FAIL.
   at least one from the first FAIL's creation for a pass that records other
   linked issues than each FAIL does (a relink), else at least one body edit
   from the last FAIL's creation (a body fix judged at the same head).
-  A superseded FAIL still counts toward `max_fails`, and the passes then
-  decide as below; the report's `supersededAtHead` names it, for pr-unblock
-  to resolve that FAIL's fail-note threads. Any record, time or read that
-  fails keeps `verify:fail`;
+  Supersession is judged before the cap. A superseded FAIL caps nothing at
+  its own head, and the passes then decide as below; it still counts toward
+  `max_fails` when a later head FAILs. The report's `supersededAtHead` names
+  it, for pr-unblock to resolve that FAIL's fail-note threads. Any record,
+  time or read that fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json) for a pull request that
@@ -140,9 +144,10 @@ https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 and `verify:too-old` wait for the lanes to judge the head again.
-`verify:repeated-fail` never clears (`VERIFY_FINAL`), so the gate never merges
-such a pull request unattended: the pr-merge lane closes a lanes App one for a
-fresh attempt (`capped_close`), and address-feedback and fix-ci start no
+`verify:repeated-fail` never clears at its FAILed head (`VERIFY_FINAL`), so
+the gate never merges such a pull request unattended: the pr-merge lane
+closes a lanes App one for a fresh attempt (`capped_close`), and
+address-feedback and fix-ci start no
 round on a pull request at `verify:repeated-fail` (pr-unblock
 verify-cap.mjs). A
 `verify:fail` or `verify:earlier-fail` only waits:
@@ -1826,7 +1831,6 @@ class Reader:
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
     )
-    # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
     # `merge.agent-identity`, the lanes App's login: its trusted-list id is
     # the author a size split's sub-issue needs (`_split_child`); unset, no
@@ -4361,10 +4365,14 @@ class Reader:
         refusal: str | None
         detail = unreadable
         head_superseded = False
-        if len(failed) >= self.max_fails:
+        if (
+            head in failed
+            and not (head_superseded := superseded(head))
+            and len(failed) >= self.max_fails
+        ):
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-        elif head in failed and not (head_superseded := superseded(head)):
+        elif head in failed and not head_superseded:
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             heads = failed | elsewhere()[1]
@@ -4393,19 +4401,15 @@ class Reader:
             # Every pass of the run that started last must allow
             # (`_newest`), so listing order decides nothing; any unreadable
             # one refuses (`_Unreadable`).
-            live, others = elsewhere()
-            heads = failed | others
-            if len(heads) >= self.max_fails:
-                refusal, detail = REPEATED_FAIL, capped(heads)
-            else:
-                refusals = {
-                    self._pass_refusal(run_id, name, number, head, live, pr, artifact)
-                    for run_id, name, artifact in self._newest(passes)
-                }
-                refusal = next(
-                    (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
-                    None,
-                )
+            live = elsewhere()[0]
+            refusals = {
+                self._pass_refusal(run_id, name, number, head, live, pr, artifact)
+                for run_id, name, artifact in self._newest(passes)
+            }
+            refusal = next(
+                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
+                None,
+            )
         elif unread_pass:
             refusal, detail = UNREADABLE, unread_pass
         elif too_old:
@@ -4854,7 +4858,8 @@ class Reader:
         A relink at a merge-only head needs its body edit from the last
         FAIL's creation, as a body fix does: a FAIL created after an edit
         already judged that edit.
-        A superseded FAIL still counts toward `max_fails`. A record, time or
+        A superseded FAIL still counts toward a later FAILed head's
+        `max_fails`. A record, time or
         read that fails is False."""
         judged_at = judged_at or sha
         fails = fail_artifacts.get(sha, [])

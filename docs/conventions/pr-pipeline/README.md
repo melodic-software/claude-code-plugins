@@ -2113,8 +2113,7 @@ work in any spelling, and none ever removed by a non-human or through an App, so
 after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
 `issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
 issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
-no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
-heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
+no FAIL is at it, no earlier FAIL is uncleared, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
@@ -2963,12 +2962,14 @@ other artifact with such a name is ignored. The resolver and the gate each hold 
 dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
 head:
 
-- counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
-  request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
-  says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
-  non-scalar one included, is 1, so any earlier `fail` holds. Before a `fail` at the head or a
-  pass decides, counted `fail` verdicts of other pull requests in this repository, for its linked
-  issues, count too, at their own heads, unless that pull request merged or is a closed lanes App
+- a counted `fail` at the head that is not superseded (the next item), with counted `fail`
+  verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull request, tied
+  as in the item after next, that head included, refuses (`verify:repeated-fail`). `fail` verdicts
+  at other heads alone never cap: a head whose newest verdicts pass, or whose `fail` is superseded,
+  goes on to the items below (owner decision Q245, 2026-11-20). A value that is not a count of 1 or
+  more, an empty or non-scalar one included, is 1, so any `fail` standing at the head caps. Before a
+  `fail` at the head decides, counted `fail` verdicts of other pull requests in this repository,
+  for its linked issues, count too, at their own heads, unless that pull request merged or is a closed lanes App
   attempt, so a second pull request for the same issue, closing or `Refs:`, does not reset the
   count. Every `fail` of such a pull request that closes one of the issues counts. Every counted
   `fail` of one whose name carries the issue counts too, from the listing the gate already reads:
@@ -3009,8 +3010,9 @@ head:
   relink), else at least one body edit from the last `fail`'s run's creation (a body fix). The
   lanes App, any other Bot, an actor GitHub cannot name, a read that fails or is cut short, a time
   that cannot be read, or the same linked issues with no body edit keep the refusal. Both the
-  resolver and the gate read these acts in one GraphQL query, only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
-  passes then decide as below. A judgment on an older listing (pr-merge's provisional one) can
+  resolver and the gate read these acts in one GraphQL query, only on this path. Supersession is judged before the cap: a superseded `fail` caps
+  nothing at its own head, and the passes then decide as below; it still counts toward
+  `merge.max-verify-fails` when a later head fails. A judgment on an older listing (pr-merge's provisional one) can
   still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from
@@ -3113,7 +3115,7 @@ round (`pr-dispatch-feedback.yml`, above), whose push the verifier judges again.
 ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
 `verify:too-old` waits for the fresh pass above, with no label. `verify:repeated-fail` never
-clears for the pull request, so it never merges unattended, and no person's label goes on for it
+clears at its failed head, so the pull request never merges unattended there, and no person's label goes on for it
 (owner decision 2026-10-29). Instead, while `merge.report-only` is false, the pr-merge lane closes
 a lanes App pull request at it for a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
 `enable-auto-merge.mjs` through the reader's `capped-close` command, or by the gate under
