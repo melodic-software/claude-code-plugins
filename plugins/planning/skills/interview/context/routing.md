@@ -72,7 +72,7 @@ first `<n>` output lines are the new ids; the last line is the `Scope check:` li
 printed: the questions registered against the limit, this round's new rows included, and what each
 of the last two rounds added and settled. On the page lane the call adds `--dir '<data_dir>'`.
 For a round that adds no row, `round.sh scope-check` with the same `--round`, `--limit` and
-`--rounds-dir` prints the counts alone, to follow `Scope check: `. Those counts are the measured
+`--rounds-dir` prints the counts alone, to follow `Scope check:`. Those counts are the measured
 half of the question-count pointer and the fog trigger below; the fog trigger still counts the branches the next round would add. With no Bash, count the
 same from the ledger by the rules of `scope-check` in
 [`../../../surface/README.md`](../../../surface/README.md) and write the line yourself.
