@@ -7,6 +7,7 @@ allowed-tools:
   - "Bash(playwright-cli:*)"
   - 'Bash(node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest *)'
   - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest *)'
+shell: bash
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
