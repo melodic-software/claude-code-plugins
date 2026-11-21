@@ -186,7 +186,7 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
     const bot = env.LANES_BOT_LOGIN || LANES_APP_LOGIN;
     const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
+    const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}&sort=created&direction=asc`)).filter(
       (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
     );
     const counts = { kept: 0, failed: 0 };

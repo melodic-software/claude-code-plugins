@@ -283,4 +283,6 @@ test("main releases at most RELEASES_PER_RUN a run", async () => {
     console.log = log;
   }
   assert.equal(calls.filter((call) => call.method === "DELETE").length, RELEASES_PER_RUN);
+  const list = calls.find((call) => call.path.startsWith(`/repos/${REPO}/issues?state=open&labels=${LABEL}`));
+  assert.match(list.path, /[?&]sort=created&direction=asc(&|$)/, "the oldest held pull request is read first, so the cap never strands it");
 });
