@@ -4117,11 +4117,13 @@ jobs:
             exit 1
           }
 
-      # One comment per lane run on the PR (lane-run-report/post.mjs), found
-      # by a marker naming the activity, run id, model rung and leg, so a
-      # re-run edits it. A checked-out base without the script, or a failed
-      # post, warns and leaves the job green. A broker kill-switch refusal or
-      # budget stop ran no lane, so it posts none.
+      # One comment per activity on the PR (lane-run-report/post.mjs), found
+      # by the marker `<!-- lane-run-report activity=<lane>/<activity> -->`,
+      # with a section per report job of the newest run:
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md
+      # A checked-out base without the script, or a failed post, warns and
+      # leaves the job green. A broker kill-switch refusal or budget stop ran
+      # no lane, so it posts none.
       - name: Post the lane run report comment
         if: always() && needs.check-broker.outputs.skip-reason != 'kill-switch' && needs.check-broker.outputs.skip-reason != 'budget'
         continue-on-error: true

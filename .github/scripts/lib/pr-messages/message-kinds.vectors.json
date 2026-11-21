@@ -1,0 +1,48 @@
+{
+  "parse": [
+    { "name": "the marker for the key", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci -->", "key": { "activity": "read/fix-ci" }, "match": true },
+    { "name": "another activity's marker", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-docs -->", "key": { "activity": "read/fix-ci" }, "match": false },
+    { "name": "an activity with no lane", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=fix-ci -->", "key": { "activity": "read/fix-ci" }, "match": false },
+    { "name": "an activity in capitals", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=Read/fix-ci -->", "key": { "activity": "read/fix-ci" }, "match": false },
+    { "name": "the old per-run marker, with extra fields", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->", "key": { "activity": "read/fix-ci" }, "match": false },
+    { "name": "a trailing space", "kind": "lane-run-report", "line": "<!-- lane-run-report activity=read/fix-ci --> ", "key": { "activity": "read/fix-ci" }, "match": false }
+  ],
+  "render": [
+    { "kind": "lane-run-report", "fields": { "activity": "pr-unblock/fix-ci" }, "line": "<!-- lane-run-report activity=pr-unblock/fix-ci -->" }
+  ],
+  "badFields": [
+    { "name": "an activity with no lane", "kind": "lane-run-report", "fields": { "activity": "fix-ci" } },
+    { "name": "an activity carrying a marker end", "kind": "lane-run-report", "fields": { "activity": "read/x -->" } },
+    { "name": "an extra field", "kind": "lane-run-report", "fields": { "activity": "read/fix-ci", "run": "1" } }
+  ],
+  "section": [
+    { "name": "a base leg", "kind": "lane-run-report", "fields": { "run": "123", "attempt": "1", "rung": "0", "leg": "base" }, "line": "<!-- lane-run-report-section run=123 attempt=1 rung=0 leg=base -->" },
+    { "name": "a rung-up fallback leg on a re-run", "kind": "lane-run-report", "fields": { "run": "44835219344", "attempt": "2", "rung": "1", "leg": "fallback" }, "line": "<!-- lane-run-report-section run=44835219344 attempt=2 rung=1 leg=fallback -->" }
+  ],
+  "badSection": [
+    { "name": "rung 2", "kind": "lane-run-report", "fields": { "run": "1", "attempt": "1", "rung": "2", "leg": "base" } },
+    { "name": "an unknown leg", "kind": "lane-run-report", "fields": { "run": "1", "attempt": "1", "rung": "0", "leg": "other" } },
+    { "name": "run 0", "kind": "lane-run-report", "fields": { "run": "0", "attempt": "1", "rung": "0", "leg": "base" } },
+    { "name": "no attempt", "kind": "lane-run-report", "fields": { "run": "1", "rung": "0", "leg": "base" } }
+  ],
+  "login": [
+    { "name": "the Actions bot, which GraphQL spells without its suffix", "actor": { "__typename": "Bot", "login": "github-actions" }, "login": "github-actions[bot]" },
+    { "name": "an App bot", "actor": { "__typename": "Bot", "login": "melodic-automation-lanes" }, "login": "melodic-automation-lanes[bot]" },
+    { "name": "a person", "actor": { "__typename": "User", "login": "octocat" }, "login": "octocat" },
+    { "name": "a deleted account", "actor": null, "login": null }
+  ],
+  "trust": [
+    { "name": "the Actions bot", "kind": "lane-run-report", "author": "github-actions[bot]", "trusted": true },
+    { "name": "a person quoting the marker", "kind": "lane-run-report", "author": "octocat", "trusted": false },
+    { "name": "a person whose login reads like the bot's", "kind": "lane-run-report", "author": "github-actions", "trusted": false },
+    { "name": "another App", "kind": "lane-run-report", "author": "melodic-automation-lanes[bot]", "trusted": false },
+    { "name": "a deleted account", "kind": "lane-run-report", "author": null, "trusted": false }
+  ],
+  "void": [
+    { "name": "never edited", "comment": { "author": "github-actions[bot]", "lastEditedAt": null, "editor": null, "isMinimized": false }, "voided": false },
+    { "name": "edited by the bot", "comment": { "author": "github-actions[bot]", "lastEditedAt": "2026-11-21T00:05:22Z", "editor": "github-actions[bot]", "isMinimized": false }, "voided": false },
+    { "name": "edited by a person", "comment": { "author": "github-actions[bot]", "lastEditedAt": "2026-11-21T00:05:22Z", "editor": "octocat", "isMinimized": false }, "voided": true },
+    { "name": "edited, editor unreadable", "comment": { "author": "github-actions[bot]", "lastEditedAt": "2026-11-21T00:05:22Z", "editor": null, "isMinimized": false }, "voided": true },
+    { "name": "minimized, never edited", "comment": { "author": "github-actions[bot]", "lastEditedAt": null, "editor": null, "isMinimized": true }, "voided": true }
+  ]
+}
