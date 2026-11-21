@@ -604,6 +604,7 @@ class TestLoop(unittest.TestCase):
             "note.schema.json",
             "controls.schema.json",
             "controls.js",
+            "dev-origin.mjs",
         ):
             shutil.copy(HERE / f, self.bin / f)
         (self.bin / "session-bridge.conf").write_text(
@@ -694,6 +695,39 @@ class TestLoop(unittest.TestCase):
         time.sleep(0.2)
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
+
+    @unittest.skipUnless(
+        shutil.which("node"), "dev-origin.mjs and harness-fence.mjs run on node"
+    )
+    def test_ensure_running_with_a_dev_origin_prints_the_origin_the_fence_names(self):
+        r = self.control("ensure-running", "--dev-origin", DEV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        started = json.loads(r.stdout)
+        port = self.session()["port"]
+        self.assertEqual(started["origin"], f"http://localhost:{port}")
+        self.assertEqual(started["url"], started["origin"] + "/")
+        fence = subprocess.run(
+            ["node", str(HERE / "harness-fence.mjs"), started["origin"]],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        )
+        name, value = fence.stdout.strip().split(": ", 1)
+        self.assertEqual(name, "Content-Security-Policy")
+        directive, source = value.split(" ", 1)
+        self.assertEqual(directive, "frame-ancestors")
+        self.assertEqual(source, started["origin"])
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/", headers={"Host": urlsplit(source).netloc})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            checked = frame_of(resp.read())["data-dev-origin"]
+        finally:
+            conn.close()
+        hosts = {urlsplit(u).hostname for u in (checked, f"{checked}/", source)}
+        self.assertEqual(hosts, {urlsplit(DEV).hostname})
 
     def test_ensure_running_with_another_page_restarts_on_that_page(self):
         for name in ("first.html", "second.html"):
