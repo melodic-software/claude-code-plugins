@@ -78,10 +78,16 @@ form selects several repositories, resolved, counted and listed as
 Three scripts produce the facts. Run them in order and build the plan on what
 they emit.
 
+The inventory and the sweep each take `--user-config` with this plugin's
+`file_names` option, `${user_config.file_names}`, as one single-quoted argument
+(escape any single quote in it). A Bash command never sees the option
+otherwise, and an empty value or the literal `${user_config.…}` placeholder
+means unset.
+
 1. **Inventory** the tree:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/inventory.sh --root <repo>
+   ${CLAUDE_SKILL_DIR}/scripts/inventory.sh --root <repo> --user-config '<option>'
    ```
 
    It emits `OFFENDER`, `COLLISION`, `EXEMPT`, and `SCANNED` rows. A `COLLISION`
@@ -97,7 +103,7 @@ they emit.
 2. **Sweep** for references, feeding it the offender pairs:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/sweep.sh --root <repo> --pairs <pairs.tsv>
+   ${CLAUDE_SKILL_DIR}/scripts/sweep.sh --root <repo> --pairs <pairs.tsv> --user-config '<option>'
    ```
 
    Each `REF` row carries the citing file, the line, the form, the tier, the

@@ -27,9 +27,9 @@ this marketplace's.
 Three layers, discovered independently and applied over the plugin's bundled
 defaults:
 
-| Layer | Path | Git |
+| Layer | Where | Git |
 |---|---|---|
-| User-global | `docs-naming.json` under `~/.claude/` | the operator's machine |
+| `userConfig` | the plugin's `file_names` option: one JSON object of `file_names` keys, e.g. `{"exempt_basenames":["NOTES.md"]}` | none; Claude Code keeps it in the operator's user settings |
 | Team | `<home>/docs-naming.yaml` | committed, team-shared |
 | Personal override | `<home>/docs-naming.local.yaml` | gitignored |
 
@@ -37,9 +37,31 @@ defaults:
 the marked region of `AGENTS.md` (else `CLAUDE.md`) names, `docs/conventions`
 when there is none. The `layers` and `paths` actions of the resolver report which
 layer supplied each key and which file each layer was read from, naming the
-layers `user-global`, `team` and `personal-override`. The user-global
-layer stays a JSON document (`"schema": 1` and a `file_names` object), because
-it is a machine-wide file outside any repository.
+layers `userConfig`, `team` and `personal-override`. An option value that is not
+one JSON object is named on stderr and ignored, so the layers above it and the
+bundled defaults still apply. A value holding a whole old user file
+(`{"schema": 1, "file_names": {...}}`) is read as its `file_names` object. Set
+the option with `/plugin configure docs-naming@<marketplace>`.
+
+### Old user files
+
+The user-global file layer is retired: a per-person value goes in the option.
+Until a later change removes the read, the old files are still read so no
+setting in them is lost:
+
+- While the option is unset or invalid, `~/.claude/docs-naming.json`, else
+  `~/.claude/docs-hygiene.json`, is read in the `userConfig` layer's place, as a
+  JSON document (`"schema": 1` and a `file_names` object). Its values merge
+  exactly as the option's would: a nearest-wins key applies where the team
+  layer and personal override set none, and a policy-floor list gains its
+  entries.
+- With a valid option set, the option wins and neither old file is read.
+- Every `resolve` run that finds either file prints one warning on stderr
+  naming each old file and the option to move its keys into.
+- `/docs-naming:setup check` shows an `old user file` row for each one, and
+  `/docs-naming:setup apply` previews the keys it would copy into the option and,
+  on a yes, gives the native command that saves them. It leaves the old file in
+  place.
 
 The JSON files under `.claude/` the team layer and personal override used to live in
 (`docs-naming.json`, `docs-naming.local.json`, and their retired `docs-hygiene`
@@ -48,11 +70,6 @@ finds. While the team YAML is absent, the first `/docs-naming:setup apply` write
 copies the old team file's keys into it and leaves that file in place; an old
 personal override file's keys are moved by hand.
 
-A user-global file absent under `docs-naming.json` but present under the retired
-`docs-hygiene` name (`~/.claude/docs-hygiene.json`) is read from there, with a
-stderr warning from `resolve` and a WARN row from `/docs-naming:setup check`. The
-new name wins when both exist. Rename the file to retire the warning.
-
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
 
 All three absent is a valid state: every key has a bundled default, and the
@@ -60,8 +77,8 @@ defaults are this marketplace's own values, except `generated`, which is empty. 
 the personal override is `<home>/*.local.*`; `/docs-naming:setup check` reports a
 missing one and never edits a consumer's `.gitignore`.
 
-The user-global JSON layer declares
-`"schema": 1`. A layer that omits it, or names a schema this version does not
+An old user file declares
+`"schema": 1`. One that omits it, or names a schema this version does not
 implement, stops the run rather than being skipped: a silently ignored layer is a
 configuration the operator believes is in effect and is not. A YAML layer
 carries no schema number, and one the YAML-subset parser rejects stops the run
@@ -213,8 +230,8 @@ differences are the clock rather than the change.
 
 ## What this surface does not cover
 
-- Plugin `userConfig` options. This plugin declares none, and a layer that names
-  one is an inert unknown key.
+- Plugin `userConfig` options other than `file_names`. The plugin declares only
+  that one, and a key inside it that is not a `file_names` key is inert.
 - The audit's findings artifact, whose home is defined in
   `plugins/docs-naming/context/file-name-findings.md`.
 - Version bumping for a renamed file's consumers. A repository whose plugins,
@@ -227,18 +244,28 @@ differences are the clock rather than the change.
 ## Reading it from a script
 
 ```bash
-plugins/docs-naming/scripts/resolve-config.sh resolve --root <repo>
-plugins/docs-naming/scripts/resolve-config.sh layers --root <repo>
+plugins/docs-naming/scripts/resolve-config.sh resolve --root <repo> --user-config '<option>'
+plugins/docs-naming/scripts/resolve-config.sh layers --root <repo> --user-config '<option>'
 ```
 
 `resolve` prints the merged document; `layers` prints one `key<TAB>layers` line
 per key plus an `!inert:<key>` line for every ignored declaration; `paths` prints
-one `layer<TAB>path<TAB>state` line per layer, the state being `present`,
-`absent`, `legacy` (the user-global file at the retired `docs-hygiene` name) or a
-not-applicable reason. All three take
-`--root`, which is the repository the team layer and personal override are read
-from, so a second worktree or a fixture is addressed explicitly rather than
-inherited from the environment. A `--root` that is the home directory (or an
-ancestor of it) or is not a git working tree has no team layer or personal
-override: `paths` reports
-both as not-applicable and only the user-global file is read.
+one `layer<TAB>path<TAB>state` line per source:
+
+| Row | States |
+|---|---|
+| `userConfig<TAB>file_names` | `present`, `absent`, `invalid` (not one JSON object, ignored) |
+| `userConfig<TAB><old user file>`, one per file that exists | `legacy` (read in the option's place), `legacy-unread` |
+| `team<TAB><path>`, `personal-override<TAB><path>` | `present`, `absent`, or a not-applicable reason |
+
+All three take `--user-config`, the option's value (default:
+`$CLAUDE_PLUGIN_OPTION_FILE_NAMES`, which Claude Code exports only to hooks, so a
+skill passes the substituted `${user_config.file_names}`); an empty value or the
+literal placeholder is unset. The inventory, sweep, gate emitter, rename
+applier and `setup-check.sh` take the same flag and pass it on. `--home` names
+the directory whose `.claude/` holds the old user files. `--root` is the
+repository the team layer and personal override are read from, so a second
+worktree or a fixture is addressed explicitly rather than inherited from the
+environment. A `--root` that is the home directory (or an ancestor of it) or is
+not a git working tree has no team layer or personal override: `paths` reports
+both as not-applicable and only the `userConfig` layer is read.

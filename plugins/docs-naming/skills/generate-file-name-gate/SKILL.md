@@ -38,9 +38,13 @@ unproven.
 ## Emit
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root <repo> [--out-dir <dir>] [--rule] [--force]
+${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root <repo> --user-config '<option>' [--out-dir <dir>] [--rule] [--force]
 ```
 
+- `--user-config` takes this plugin's `file_names` option,
+  `${user_config.file_names}`, as one single-quoted argument (escape any single
+  quote in it). A Bash command never sees the option otherwise, and an empty
+  value or the literal `${user_config.…}` placeholder means unset.
 - `--out-dir` places the pair somewhere other than `scripts/`. The emitted
   checker resolves the repository from its own location, so any depth works.
 - `--rule` also writes `.claude/rules/file-names.md`.

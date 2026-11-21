@@ -35,8 +35,12 @@ Ask for this finding, by id. Nothing else.
 
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/apply-rename.sh \
-  --artifact <resolved>/file-names.md --id FN-9a1c4e70 --root <repo>
+  --artifact <resolved>/file-names.md --id FN-9a1c4e70 --root <repo> \
+  --user-config '<option>'
 ```
+
+`<option>` is the `file_names` option value the skill's "Run the loop" section
+names.
 
 `--dry-run` prints the same decisions without touching the tree, plus a
 `WOULD-TIER` row per tier naming which reference forms it would rewrite and
