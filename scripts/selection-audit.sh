@@ -143,6 +143,7 @@ trace_one() {
   fi
   case "$suite" in
   *.py) runner=("$AUDIT_PYTHON" -m pytest -q -p no:cacheprovider "$suite") ;;
+  *.test.mjs) runner=(node --test "$suite") ;;
   *) runner=(bash "$suite") ;;
   esac
   start="$(date +%s)"
