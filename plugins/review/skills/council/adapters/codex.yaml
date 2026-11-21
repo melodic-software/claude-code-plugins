@@ -1,6 +1,6 @@
 # Capability record for codex members, read by scripts/council-plan.mjs select.
 kind: script
-run: external-agents review codex
+run: external-agents review codex --council
 sets: [model, brief]
 sees: committed
 briefs: any

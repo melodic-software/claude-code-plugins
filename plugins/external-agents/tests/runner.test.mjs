@@ -301,6 +301,15 @@ describe("review", () => {
     assertNoBypass(got.job.argv);
   });
 
+  test("a council review is skipped before anything starts when council.enabled is false; a direct review still runs", async () => {
+    const w = world({ stdout: clean, final: "No findings." }, { local: "schema: 1\ncodex:\n  council:\n    enabled: false\n" });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    const got = await review({ ...w.opts, base: "main", council: true });
+    assert.equal(got.stdout, "codex: skipped (codex.council.enabled is false)\n");
+    assert.equal(launched(w).length, 0);
+    assert.match((await review({ ...w.opts, base: "main" })).stdout, /^codex: ran/);
+  });
+
   test("a review without a brief passes --base and no prompt argument", async () => {
     const w = world({ stdout: clean, final: "No findings." });
     gitRepo(w.cwd, { "a.txt": "two\n" });
@@ -481,11 +490,11 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     assert.match(got.stdout, /^antigravity: ran \(reviewed 1 changed file against [0-9a-f]{8}\)\nNo findings\.\n$/);
   });
 
-  test("with no model configured the run is skipped and the CLI is not started", async () => {
+  test("with no model configured the run uses agy's own default and passes no --model", async () => {
     const w = world({ envelope: { status: "SUCCESS", response: "x" } });
     const got = await run(agy(w, { use: "investigate", prompt: "x", model: undefined }));
-    assert.equal(got.stdout, "antigravity: skipped (no model is configured; set antigravity.model)\n");
-    assert.equal(w.calls().length, 0);
+    assert.equal(got.job.status, "ok");
+    assert.ok(!cliArgs(got.job).includes("--model"));
   });
 });
 
@@ -624,6 +633,14 @@ describe("timeout, cancel and status", () => {
     assert.equal(readJob(w.dataDir, "no-repo", "live-job").status, "running");
   });
 
+  test("a job whose CLI exited stays running while its runner is still recording the result", () => {
+    const w = world();
+    const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+    writeJob(w.dataDir, "no-repo", { id: "recording-job", product: "codex", use: "task", mode: "write", status: "running", pid: dead, pid_started_at: "2026-11-21T12:00:00.0000000Z", runner_pid: process.pid, runner_started_at: pidStartTime(process.pid), started_at: "2026-11-21T12:00:00.000Z", notices: [] });
+    assert.equal(status({ ...w.opts }).stdout, "recording-job  task  codex: running\n");
+    assert.equal(readJob(w.dataDir, "no-repo", "recording-job").status, "running");
+  });
+
   test("cancel never kills a pid whose start time is not the job's", () => {
     const w = world();
     writeJob(w.dataDir, "no-repo", { id: "reused", product: "codex", use: "task", mode: "write", status: "running", pid: process.pid, pid_started_at: "1999-01-01T00:00:00.0000000Z", started_at: "2026-11-21T12:00:00.000Z", notices: [] });
@@ -703,7 +720,7 @@ describe("which executable runs", () => {
   test("a relative PATH entry is never searched", () => {
     const local = mkdtempSync(join(here, ".tmp-path-"));
     try {
-      writeFileSync(join(local, windows ? "demo.exe" : "demo"), "");
+      writeFileSync(join(local, windows ? "demo.exe" : "demo"), "", { mode: 0o755 });
       const entry = relative(process.cwd(), local) || ".";
       const record = { product: "demo", binary: { name: "demo" } };
       const env = { PATH: entry, PATHEXT: ".EXE" };

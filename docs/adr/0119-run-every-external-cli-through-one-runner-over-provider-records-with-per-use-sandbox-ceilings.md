@@ -47,7 +47,8 @@ configurable method".
    `external-agents-*`, because the Bash environment can carry another plugin's value.
 7. **Config lives in `external-agents.yaml` on the config-cascade layers.** These are the plugin
    default, userConfig, the team file and the personal `.local` file. Nothing is kept under
-   `~/.claude`, and no model or flag is pinned.
+   `~/.claude`, and no model or flag is pinned. With no model configured, the runner passes none,
+   and the CLI runs on its own default model (agy included, by owner decision of 2026-11-21).
 
 ## Considered options
 
