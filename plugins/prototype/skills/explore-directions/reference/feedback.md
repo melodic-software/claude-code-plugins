@@ -102,7 +102,7 @@ carries the view a reload loses:
   keys (Shift and an arrow resizes it) and presses Enter. The note's `kind` is `region`, its
   `rect` is the box, `anchor` is the element holding it, and `elements` lists the test-id elements
   it crosses, or, when it crosses none, the holding element's children it crosses.
-- **Draw a move arrow (M).** The person clicks the element to move, then the element it should
+- **Draw a move arrow (A).** The person clicks the element to move, then the element it should
   go to, or Shift-clicks a point when no element fits. The note's `kind` is `move`, `anchor` and
   `rect` are the element to move, `to.point` is the destination in percent of the page, and
   `to.anchor` is the destination element when there is one. The re-locating script reports the

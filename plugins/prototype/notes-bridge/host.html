@@ -69,7 +69,7 @@ edit the canonical source, then rerun the script. -->
   <p id="session" class="state"></p>
   <button type="button" id="pick" aria-pressed="false" disabled>Pick an element (P)</button>
   <button type="button" id="region" aria-pressed="false" disabled>Mark a region (R)</button>
-  <button type="button" id="move" aria-pressed="false" disabled>Draw a move arrow (M)</button>
+  <button type="button" id="move" aria-pressed="false" disabled>Draw a move arrow (A)</button>
   <button type="button" id="quote" disabled>Note on selected text (T)</button>
   <div id="composer" hidden>
     <p id="picked" class="where"></p>
@@ -577,7 +577,7 @@ edit the canonical source, then rerun the script. -->
       takeControls(m);
       setMarkers(markersShown);
       render(); // the run's earlier notes, listed before the frame was ready, get their markers
-      say("Pick an element (P), mark a region (R), draw a move arrow (M), or select text in the mockup and press Note on selected text (T).");
+      say("Pick an element (P), mark a region (R), draw a move arrow (A), or select text in the mockup and press Note on selected text (T).");
     } else if (m.type === "escape") setPick(null);
     else if (m.type === "marker") {
       // The frame names a marker's number; only a row of this list with that number is selected.
@@ -662,7 +662,7 @@ edit the canonical source, then rerun the script. -->
     if (!ready) return;
     if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
     else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
-    else if (key === "m") { e.preventDefault(); setPick(picking === "move" ? null : "move"); }
+    else if (key === "a") { e.preventDefault(); setPick(picking === "move" ? null : "move"); }
     else if (key === "t") { e.preventDefault(); askText(); }
   });
 
