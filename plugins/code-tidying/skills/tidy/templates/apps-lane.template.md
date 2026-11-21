@@ -8,7 +8,7 @@ User-facing applications and their tests. Higher churn than library code, so dri
 
 ```text
 <apps-root>/<app-name>/**
-<apps-root>/<app-name>.Tests/**
+<apps-root>/<app-tests>/**
 ```
 
 ## Watch-for patterns
@@ -24,7 +24,7 @@ User-facing applications and their tests. Higher churn than library code, so dri
 Beyond the global HARD/SOFT lists:
 
 - **HTTP route signatures**, endpoint URL, method, request/response DTO shapes: behavioral, never tidy
-- **Browser-rendered UI** (`<ui-glob>` e.g. `**/*.razor`, `**/components/**`) is SOFT: CLI verification can't see rendering; defer
+- **Browser-rendered UI** (`<ui-glob>`) is SOFT: CLI verification can't see rendering; defer
 - **<auth-wiring-glob>**: identity/auth flows need a real handshake to verify; defer
 
 ## Verification commands
