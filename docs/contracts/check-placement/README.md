@@ -350,7 +350,7 @@ returns no such decision.
 and plain shared hooks read `.githooks/`, from the branch that is checked out. Once a clone has
 installed hooks, a commit or push on a contributor's branch runs whatever that branch puts in
 `lefthook.yml`, `lefthook-local.yml`, `.lefthook/`, `.lefthook-local/`, `.husky/` or `.githooks/`.
-Pinning the check scripts to the merge-base, as this repository's pre-push job does, does not
+Pinning check scripts to the merge-base does not
 reach the config file itself. Before committing or pushing on a branch you do not trust, read its
 diff to those paths: pre-commit and commit-msg hooks run at commit, before any push.
 
@@ -500,8 +500,8 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | actionlint `actionlint-check` | pre-commit | 0.01 s; 0.01 s; 0.01 s; 0.10 s | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | instruction-placement `index-check` | pre-commit | 0.03 s on every sample | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | javascript-format, python-format, go-format, powershell-format entries | pre-commit | 0.01-0.02 s each on every sample (no file of their types, or a few `.mjs`) | 1; 10; 44; 45 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
-| `scripts/check-affected.sh` lint tier, which includes the `plugin-imports` boundary check | pre-push | 4.0 s (4.0-4.1); 18.6 s (18.2-18.6) | 1 file; 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
-| `scripts/check-plugin-imports.sh` alone | pre-push | 1.24 s (1.21-1.30), 10 runs | whole tree | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| `scripts/check-affected.sh` lint tier, which includes the `plugin-imports` boundary check | CI / on-demand (previously pre-push) | 4.0 s (4.0-4.1); 18.6 s (18.2-18.6) | 1 file; 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| `scripts/check-plugin-imports.sh` alone | CI / on-demand (previously pre-push) | 1.24 s (1.21-1.30), 10 runs | whole tree | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `pre-push-content` | pre-push | 0.17 s (0.15-0.19), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `reference-verify` | pre-push | 1.25 s (1.18-1.27), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | bash-format `lint-full`, dataflow analysis on the pushed scripts over 2,000 lines | pre-push | 11.8 s (10.7-13.0), 5 runs, largest ShellCheck process 5.38 GB | 44 files (`83fb17c179` on its parent as one pushed range, work tree at the tip) | Linux, WSL2, 24 CPUs | 2026-11-17 |
@@ -513,15 +513,17 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | `scripts/check-cost-figures.sh --check` (before; after) | CI / on-demand | 20.1 s; 7.1 s | whole tree | Windows, Git Bash | 2026-11-21 |
 | `scripts/check-as-of-recheck.sh --check` (before; after) | CI / on-demand | 6.5 s; 3.1 s | whole tree | Windows, Git Bash | 2026-11-21 |
 | guardrails `pre-push-content` | pre-push | 0.54 s (3 files); 0.67 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
-| guardrails `reference-verify` | pre-push (skipped in this repository's `lefthook.yml`) | 43.6-66.8 s (3 files); 47.5 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
+| guardrails `reference-verify` | pre-push (skipped on Windows in this repository's `lefthook.yml`) | 43.6-66.8 s (3 files); 47.5 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
 
-The `pre-push` set on the 28-file sample totals 20.0 s on Linux WSL2: 18.6 s, 0.17 s and 1.25 s.
+On Linux WSL2, `guardrails` `pre-push-content` (0.17 s) and `reference-verify` (1.25 s) total
+1.42 s on the 28-file sample, while `scripts/check-affected.sh` alone took 18.6 s.
 On native Windows Git Bash, process-spawn overhead pushes `scripts/check-affected.sh` to
 191-328 s (over both the 60 s push budget and, combined with `reference-verify`, GitHub's 360 s
 idle SSH timeout for `git-receive-pack`) and `reference-verify` alone to 44-67 s. This
-repository's `lefthook.yml` therefore sets `skip_lfs: true`, keeps only
-`guardrails-remote-pre-push-content` (~0.5-0.7 s) active on `pre-push`, and leaves
-`scripts/check-affected.sh` to CI and on-demand runs. Change-scoped tests stay in CI: `--tests`
+repository's `lefthook.yml` therefore sets `skip_lfs: true`, keeps
+`guardrails-remote-pre-push-content` (~0.5-0.7 s on Windows) active everywhere, skips
+`guardrails-remote-reference-verify` on Windows hosts (preserving its 1.25 s run on Linux), and
+leaves `scripts/check-affected.sh` to CI and on-demand runs. Change-scoped tests stay in CI: `--tests`
 adds 1.0 s on a change that selects no suite, 90.7 s on a one-file script edit and 145.7 s on the
 28-file change, so a typical push goes over the 60 s budget.
 

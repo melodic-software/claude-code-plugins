@@ -4,7 +4,8 @@ pre-push:
   jobs:
     - name: guardrails-remote-reference-verify
       script: guardrails-reference-verify.sh
-      skip: true
+      skip:
+        - run: test -n "${MSYSTEM:-}${WINDIR:-}"
 
 remotes:
   - git_url: https://github.com/melodic-software/claude-code-plugins

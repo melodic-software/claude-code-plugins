@@ -34,12 +34,12 @@ if grep -q 'name: guardrails-remote-reference-verify' "$CONFIG" &&
   awk '
     /name: guardrails-remote-reference-verify/ { in_job = 1; next }
     in_job && /^ *- name:/ { in_job = 0 }
-    in_job && /skip: true/ { found = 1 }
+    in_job && /run: test -n "\$\{MSYSTEM:-\}\$\{WINDIR:-\}"/ { found = 1 }
     END { exit !found }
   ' "$CONFIG"; then
-  ok "lefthook.yml skips guardrails-remote-reference-verify on pre-push"
+  ok "lefthook.yml skips guardrails-remote-reference-verify on Windows"
 else
-  fail "lefthook.yml must skip guardrails-remote-reference-verify on pre-push"
+  fail "lefthook.yml must skip guardrails-remote-reference-verify on Windows"
 fi
 
 if ! grep -q 'guardrails-remote-pre-push-content' "$CONFIG"; then
@@ -101,14 +101,20 @@ if command -v lefthook >/dev/null 2>&1; then
     dump="$(cd "$work" && lefthook dump 2>/dev/null)"
     if ! grep -q 'skip_lfs: true' <<<"$dump" ||
       ! grep -q 'name: guardrails-remote-pre-push-content' <<<"$dump" ||
-      grep -q 'name: check-affected' <<<"$dump"; then
+      grep -q 'name: check-affected' <<<"$dump" ||
+      ! awk '
+        /name: guardrails-remote-reference-verify/ { in_job = 1; next }
+        in_job && /^ *- name:/ { in_job = 0 }
+        in_job && /test -n "\$\{MSYSTEM:-\}\$\{WINDIR:-\}"/ { found = 1 }
+        END { exit !found }
+      ' <<<"$dump"; then
       echo "FAIL_DUMP:$dump"
       exit 11
     fi
     printf '# clean\n' >"$work/clean.md"
     git -C "$work" add clean.md
     git -C "$work" commit -q --no-verify -m "docs: clean note"
-    if ! push_out="$(cd "$work" && git push origin HEAD:refs/heads/main 2>&1)"; then
+    if ! push_out="$(cd "$work" && MSYSTEM=MINGW64 git push origin HEAD:refs/heads/main 2>&1)"; then
       echo "FAIL_CLEAN_PUSH:$push_out"
       exit 12
     fi
@@ -117,7 +123,7 @@ if command -v lefthook >/dev/null 2>&1; then
     git -C "$work" add secret.md
     git -C "$work" commit -q --no-verify -m "docs: leak"
     rc=0
-    push_out="$(cd "$work" && git push origin HEAD:refs/heads/main 2>&1)" || rc=$?
+    push_out="$(cd "$work" && MSYSTEM=MINGW64 git push origin HEAD:refs/heads/main 2>&1)" || rc=$?
     if ((rc == 0)) || ! grep -q 'secret or credential pattern' <<<"$push_out"; then
       echo "FAIL_SECRET_PUSH:rc=$rc:$push_out"
       exit 13
