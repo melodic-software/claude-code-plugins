@@ -9,8 +9,10 @@ reviewer-facing rationale, not a copy of it.
 
 ## The gap
 
-A loop lane that hits its per-session cycle budget or the `/loop` expiry
-([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry))
+A loop lane that hits its per-session cycle budget or the `/loop` expiry (30 days
+for a loop created on Claude Code 2.1.330 or later, 7 days for an older one;
+[scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry),
+[2.1.330 changelog](https://code.claude.com/docs/en/changelog#2-1-330))
 writes a restart ask into the `restart_request` field of its telemetry state block
 and stops cleanly. A running loop cannot relaunch itself, and `SKILL.md` documents
 that a relaunch is the only fresh-context reset a lane gets. Nothing in the harness

@@ -5,6 +5,19 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.0.3] - 2026-11-21
+
+Patch. An upstream value corrected; no topology, escalation-contract mechanism, capability-tier or
+§4 invariant changed.
+
+- **The `/loop` expiry figure follows Claude Code 2.1.330 (§4, §5, Versioning).** The standing-lane
+  expiry record and the three sentences that cite it say a `/loop` or recurring scheduled task
+  created on 2.1.330 or later runs up to 30 days while its session keeps running, and one created
+  before 2.1.330 still ends at 7 days, where they said seven days for every loop. The record points
+  at the 2.1.330 changelog entry beside the scheduled-tasks section and its as-of date moves to
+  2026-11-21. The relaunch owner, the restart-request and the clean stop on an expiry hit are
+  unchanged.
+
 ## [20.0.2] - 2026-11-20
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

@@ -1,14 +1,17 @@
 # Standing mode (default)
 
 The lane keeps watching the backlog indefinitely. Idle cycles back the wakeup delay off toward the
-longest delay `ScheduleWakeup` allows. The `/loop` expiry bounds a standing lane per the
-loop-lane convention: `loop_started_at` in durable state makes the approaching expiry visible, and
-an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
+longest delay `ScheduleWakeup` allows. The `/loop` expiry (30 days for a loop created on Claude
+Code 2.1.330 or later, 7 days for an older one) bounds a standing lane per the loop-lane
+convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry
+hit is handled exactly like a budget hit (restart-request + clean stop).
 
 - **Pointer**: when sizing the idle backoff or the stale-heartbeat threshold, fetch
   [scheduled tasks § Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
   live; when timing the expiry, fetch
-  [§ Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
+  [§ Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) and the
+  [2.1.330 changelog entry](https://code.claude.com/docs/en/changelog#2-1-330) live; the changelog
+  entry governs where the two disagree on the figure.
 
 ## Exit condition
 
