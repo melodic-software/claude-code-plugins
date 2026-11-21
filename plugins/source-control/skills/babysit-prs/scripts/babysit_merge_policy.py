@@ -1951,6 +1951,12 @@ GREEN_SPANS = 53
 # cut from the one or two cells that cover it.
 GREEN_GRID = datetime(2026, 1, 5, 10, tzinfo=UTC)
 GREEN_CELL_PAGES = 2 * GREEN_PAGES
+RECOVERIES_ENV = "BABYSIT_DEMOTION_RECOVERIES"
+RECOVERIES_WRITE_ENV = "BABYSIT_DEMOTION_RECOVERIES_WRITE"
+RECOVERIES_VERSION = 1
+_RECOVERY_KEY = re.compile(
+    r"[1-9][0-9]{0,15}\|[0-9TZ:-]{20}\|(?:OPEN|CLOSED)\|(?:[0-9TZ:-]{20})?\|[0-9a-f]{40}"
+)
 # A canary, revert or read-back record, which `_lift` lifts. A canary record
 # may be a post-merge-failure one, which holds nothing but is closed the same
 # way (babysit_lift.py close).
@@ -2138,6 +2144,8 @@ class _GreenMain:
         self.compares: dict[tuple[str, str], str | None] = {}
         # babysit_postmerge's `_Context` for local ancestry; False: unavailable.
         self.local: Any = None
+        self.carried: dict[str, str] = {}
+        self.proven: dict[str, str] = {}
 
     def _read(self, endpoint: str) -> Any:
         """One retry for no answer (a timeout included) or a 5xx, each read a
@@ -2324,13 +2332,82 @@ def _recovered_at(
     if marker is None or _edits_refusal(issue, human):
         return None
     created = _time(issue.get("createdAt"))
+    key = _recovery_key(issue, created, marker[1])
+    if key in green.carried:
+        green.proven[key] = green.carried[key]
+        return _time(green.carried[key])
     for run in green.listed(created, now):
         if _time(run.get("created_at")) <= created:
             continue
         head = str(run["head_sha"])
         if green.ahead(marker[1], head) and green.on_main(head):
-            return _time(run.get("created_at"))
+            recovered = _time(run.get("created_at"))
+            if key:
+                green.proven[key] = _stamp(recovered)
+            return recovered
     return None
+
+
+def _recovery_key(issue: dict[str, Any], created: datetime, sha: str) -> str:
+    """The record's recovery key: number, creation, state, newest close (empty
+    when none) and SHA, so a reopened or re-closed record misses the cache."""
+    closes = json_array(json_object(issue.get("timelineItems")).get("nodes"))
+    closed = json_object(closes[-1]).get("createdAt") if closes else None
+    key = "|".join(
+        [
+            str(issue.get("number")),
+            _stamp(created),
+            str(issue.get("state")),
+            _stamp(_time(closed)) if closed else "",
+            sha,
+        ]
+    )
+    return key if _RECOVERY_KEY.fullmatch(key) else ""
+
+
+def _carried_recoveries(repo: str) -> dict[str, str]:
+    """The recoveries in RECOVERIES_ENV's file for `repo`; any unusable file,
+    or entry, is none."""
+    path = os.environ.get(RECOVERIES_ENV)
+    if not path or not Path(path).is_file():
+        return {}
+    try:
+        data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+        if data.get("version") != RECOVERIES_VERSION or data.get("repo") != repo:
+            raise ValueError("another version or repository")
+        return {
+            key: stamp
+            for key, stamp in json_object(data.get("recoveries")).items()
+            if _RECOVERY_KEY.fullmatch(key)
+            and isinstance(stamp, str)
+            and _time(stamp) > _time(key.split("|")[1])
+        }
+    except (OSError, ValueError, PolicyReadError) as exc:
+        text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")
+        print(f"demotion recoveries not used: {text[:300]}", file=sys.stderr)
+        return {}
+
+
+def _save_recoveries(repo: str, proven: Mapping[str, str]) -> None:
+    """Write the recoveries this read proved or used to RECOVERIES_ENV's file,
+    only when RECOVERIES_WRITE_ENV is "true". Best effort: a failure is
+    logged, and the file is left as it was."""
+    path = os.environ.get(RECOVERIES_ENV)
+    if not path or os.environ.get(RECOVERIES_WRITE_ENV) != "true":
+        return
+    payload = {
+        "version": RECOVERIES_VERSION,
+        "repo": repo,
+        "recoveries": dict(sorted(proven.items())),
+    }
+    try:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staged = target.with_name(f"{target.name}.tmp")
+        staged.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
+        os.replace(staged, target)
+    except OSError as exc:
+        print(f"demotion recoveries not written: {type(exc).__name__}", file=sys.stderr)
 
 
 def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
@@ -2683,6 +2760,7 @@ def read_demotion(
     held: Demotion | None = None
     held_since: datetime | None = None
     green = _GreenMain(owner, name)
+    green.carried = _carried_recoveries(repo)
     # One clock for every record's green-run spans (`_GreenMain.listed`).
     clock = now or datetime.now(UTC)
     try:
@@ -2745,6 +2823,8 @@ def read_demotion(
         if held:
             return held
         raise
+    finally:
+        _save_recoveries(repo, green.proven)
     if held:
         # The floor in force when the hold began: a later clear would skip
         # the merges the holding record cites.

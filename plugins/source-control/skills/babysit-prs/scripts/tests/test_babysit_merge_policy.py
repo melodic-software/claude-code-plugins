@@ -1485,6 +1485,72 @@ class AutoClearOnGreen(unittest.TestCase):
             result.cleared_at, policy.datetime.fromisoformat("2026-10-20T11:00:00Z")
         )
 
+    def closed(self, at: str = "2026-10-12T10:30:00Z") -> dict[str, Any]:
+        return {
+            "state": "CLOSED",
+            "timelineItems": {
+                "nodes": [{"createdAt": at, "actor": bot("github-actions"), "closer": None}]
+            },
+        }
+
+    def recoveries(self, write: bool = True) -> tuple[pathlib.Path, Any]:
+        path = pathlib.Path(tempfile.mkdtemp()) / "recoveries.json"
+        self.addCleanup(shutil.rmtree, path.parent)
+        env = {policy.RECOVERIES_ENV: str(path)}
+        if write:
+            env[policy.RECOVERIES_WRITE_ENV] = "true"
+        return path, mock.patch.dict(os.environ, env)
+
+    @staticmethod
+    def run_listings(gh: GhFake) -> list[Any]:
+        return [c for c in gh.calls if any("/runs?" in str(a) for a in c)]
+
+    def test_a_carried_recovery_answers_with_no_run_listing(self) -> None:
+        path, env = self.recoveries()
+        with env:
+            first = self.fake(**self.closed())
+            proven = read_demotion()
+            self.assertTrue(self.run_listings(first))
+            second = self.fake(runs=502, **self.closed())
+            carried = read_demotion()
+        self.assertEqual(self.run_listings(second), [])
+        self.assertEqual(
+            (carried.active, carried.cleared_at), (proven.active, proven.cleared_at)
+        )
+        self.assertEqual(
+            list(json.loads(path.read_text())["recoveries"].values()),
+            ["2026-10-12T11:00:00Z"],
+        )
+
+    def test_a_reopened_or_reclosed_record_walks_the_green_runs(self) -> None:
+        for name, issue in (
+            ("reopened", {"state": "OPEN", "timelineItems": {"nodes": []}}),
+            ("re-closed", self.closed("2026-10-13T08:00:00Z")),
+        ):
+            with self.subTest(name):
+                _, env = self.recoveries()
+                with env:
+                    self.fake(**self.closed())
+                    read_demotion()
+                    gh = self.fake(runs={"workflow_runs": []}, **issue)
+                    result = read_demotion()
+                self.assertTrue(self.run_listings(gh))
+                self.assertTrue(result.active, result.reason)
+
+    def test_only_a_writer_keeps_recoveries_and_a_bad_file_is_none(self) -> None:
+        path, env = self.recoveries(write=False)
+        with env:
+            self.fake(**self.closed())
+            read_demotion()
+        self.assertFalse(path.exists())
+        for text in ("not json", json.dumps({"version": 1, "repo": "other/repo", "recoveries": {}})):
+            with self.subTest(text):
+                path.write_text(text)
+                with env:
+                    gh = self.fake(**self.closed())
+                    self.assertFalse(read_demotion().active)
+                self.assertTrue(self.run_listings(gh))
+
     def test_a_lane_closed_record_holds_while_main_is_still_red(self) -> None:
         # A lane takes up the record and may close it; with no later green
         # full run it still holds the rung off.
