@@ -21,7 +21,7 @@ Interpreter- or runner-led frontmatter grants (shapes like `Bash(bash <script>:*
 forms (a globbed script target, a package runner) are exactly what auto mode drops.
 When a grant is dropped the failure is silent: it parses, looks correct, and does nothing the moment
 the session enters auto mode, so the action falls through to the classifier and can be denied even when
-the operator intended to pre-approve it. A convention plus an enforceable check is the durable fix.
+the operator intended to pre-approve it.
 
 ## Write every rule for the auto-mode case
 
