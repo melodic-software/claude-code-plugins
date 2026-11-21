@@ -13,6 +13,7 @@ import {
   changesHoldPath,
   checkRawLog,
   commitNetTree,
+  driftKeyOf,
   fetchSynthetic,
   fileReleaseHandoffs,
   handoffMarker,
@@ -1172,6 +1173,86 @@ test("a stopped plan whose issue filing fails rejects, so publish fails and the 
     return f.api(path, opts);
   };
   await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: failing }), /answered 502/);
+});
+
+const DRIFT = "native-drift:inventory-broken:unknown:inventory";
+const driftHandoff = (rel, driftKey = DRIFT) => ({
+  key: `changelog:${rel}..${rel}:native-drift:inventory`,
+  kind: "native-drift",
+  title: "harness-ops/inventory: extraction broken on Claude Code unknown",
+  body: `> \`status: broken\`\nDrift key: ${driftKey}\nFiled by /harness-ops:changelog apply (native drift, ${rel}..${rel})`,
+});
+const trackerApi = (issues = []) => {
+  const calls = [];
+  const api = async (path, opts = {}) => {
+    const method = opts.method ?? "GET";
+    calls.push({ path, method, body: opts.body });
+    if (path.startsWith("/search/issues")) {
+      const q = decodeURIComponent(path.match(/q=([^&]+)/)[1]);
+      const phrase = q.match(/"([^"]+)"/)[1];
+      return { items: issues.filter((i) => i.body.includes(phrase) && (!q.includes("is:open") || i.state === "open")) };
+    }
+    if (method === "POST" && path === `/repos/${REPO}/issues`) {
+      const filed = { number: 100 + issues.length, user: APP, state: "open", body: opts.body.body, type: { name: "Task" } };
+      issues.push(filed);
+      return filed;
+    }
+    return method === "GET" ? [] : {};
+  };
+  return { api, calls, issues, writes: () => calls.filter((c) => c.method !== "GET") };
+};
+const holdsDrift = (issue, driftKey = DRIFT) => issue.body.split("\n").some((l) => l.trim() === `Drift key: ${driftKey}`);
+
+test("two releases producing the same drift key end with one open issue holding it, and the second run names it", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (m) => logs.push(String(m)));
+  const f = trackerApi();
+  await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: [driftHandoff("2.1.300")], api: f.api });
+  assert.equal(f.issues.length, 1);
+  const second = await fileReleaseHandoffs({ repo: REPO, release: "2.1.301", handoffs: [driftHandoff("2.1.301"), handoff(9)], api: f.api });
+  assert.equal(f.issues.filter((i) => i.state === "open" && holdsDrift(i)).length, 1);
+  assert.equal(f.issues.length, 2, "the second release files only its handoff with no open drift key");
+  assert.equal(holdsDrift(f.issues[1]), false);
+  assert.ok(f.issues[1].body.includes(handoffMarker(handoff(9).key)));
+  assert.match(second, /filed 1 handoffs/);
+  assert.ok(logs.some((l) => l.includes(`drift key ${DRIFT} is already open in #100`)));
+});
+
+test("a release whose only handoff's drift key is open files nothing; a stopped one files its stop line alone", async () => {
+  const open = { number: 5, user: APP, state: "open", body: `x\n\n  Drift key: ${DRIFT}\n` };
+  const f = trackerApi([open]);
+  const said = await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], api: f.api });
+  assert.equal(f.writes().length, 0);
+  assert.match(said, /already open; nothing filed/);
+  const s = trackerApi([{ ...open }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], stop: "cap-exceeded", api: s.api });
+  assert.equal(s.writes().length, 1);
+  assert.equal(s.writes()[0].body.title, `Claude Code v${REL} changelog: 0 handoffs`);
+});
+
+test("a drift key counts as filed only on an open lanes App issue holding the exact line", async () => {
+  const others = [
+    { number: 1, user: APP, state: "closed", body: `Drift key: ${DRIFT}\n` },
+    { number: 2, user: OUTSIDER, state: "open", body: `Drift key: ${DRIFT}\n` },
+    { number: 3, user: APP, state: "open", body: `Drift key: ${DRIFT}-x\nsee Drift key: ${DRIFT}\n` },
+  ];
+  const f = trackerApi(others);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], api: f.api });
+  assert.equal(f.writes().length, 1);
+  assert.equal(f.writes()[0].path, `/repos/${REPO}/issues`);
+  const q = decodeURIComponent(f.calls[0].path.match(/q=([^&]+)/)[1]);
+  assert.match(q, /(^| )is:open( |$)/);
+  assert.match(q, /(^| )author:app\/melodic-automation-lanes( |$)/);
+});
+
+test("a drift key outside the searchable shape is not searched, and its handoff is filed", async () => {
+  assert.equal(driftKeyOf(`Drift key: native-drift:x:"q":y\n`), null);
+  assert.equal(driftKeyOf(`Drift key: native-drift:${"s".repeat(200)}\n`), null);
+  assert.equal(driftKeyOf(`a\n  Drift key: ${DRIFT}  \r\nb`), DRIFT);
+  const f = trackerApi();
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL, 'native-drift:x:"q":y')], api: f.api });
+  assert.equal(f.calls.filter((c) => c.path.includes("Drift%20key")).length, 0);
+  assert.equal(f.writes().length, 1);
 });
 
 test("a key marker in an outsider's comment does not count as filed", async () => {
