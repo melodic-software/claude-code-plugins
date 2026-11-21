@@ -118,8 +118,7 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
    preview read of the deeper file instead of a full read.
 2. **Condition attached**: the pointer states when to read the target ("For a schema change:
    read MIGRATIONS.md"); Claude may never follow a bare link.
-3. **Intent marked**: execute vs read ("Run `fetch.py` to pull the rows" vs "Read `fetch.py`
-   for the retry rules").
+3. **Intent marked**: the pointer says whether to execute the target or read it.
 4. **Self-describing target name**: `retry_policy.md`, not `notes2.md` / `helper` / `utils`;
    organize by domain.
 5. **Navigable target**: long references open with a TOC so partial reads still see the scope;
