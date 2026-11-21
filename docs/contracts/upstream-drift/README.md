@@ -539,8 +539,8 @@ After a failed write the other upstreams still run, and the run then exits nonze
   fragment, and changes only markdown files under the plugin's `skills/`, markdown, `.jsonc` and
   `LICENSE` files in its `vendor/` baselines, plus that fragment, never a script, hook, library,
   manifest, MCP config or eval suite. A `SKILL.md` outside `vendor/` is the one such file Claude
-  Code runs from: its frontmatter declares hooks and grants tools, and a `` !` `` line or a
-  ```` ```! ```` block runs a shell command when the skill loads. So a sync adds, renames and
+  Code runs from: its frontmatter declares hooks and grants tools, and a `` !` `` line or a block
+  opened by ```` ```! ```` runs a shell command when the skill loads. So a sync adds, renames and
   removes no `SKILL.md` there, and in one it changes no frontmatter line but the
   `upstream-version`, `upstream-sha` and `synced` values and adds or changes no `` !` `` line or
   fenced block; pr-verify and the merge gate read the file at the merge base and the head to check
