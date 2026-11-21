@@ -15,8 +15,7 @@ export const RESTART_GAP_MS = 3000;
 const NAME_REFUSED = new Set([400, 422]);
 // The state whose write starts the issue lane.
 const AGENT_READY = "agent-ready";
-// The state a host-run or park stop writes.
-const STOPPED = "confirmed";
+const HOST_RUN_OR_PARK_STOP_STATE = "confirmed";
 const fold = (name) => String(name).toLowerCase();
 const notFound = (error) => error?.status === 404 || /\bstatus 404\b/.test(String(error?.message ?? error));
 const titleCased = (name) => name.charAt(0).toUpperCase() + name.slice(1);
@@ -150,7 +149,9 @@ export async function writeState({ github, repository, number, state, config, cu
 // back.
 // A `set` that writes confirmed or a hold removes the agent-ready label after
 // the field write lands (dropAgentReadyLabel), so label queries stop reading
-// the issue as lane-ready; a removal that fails is logged, not thrown. A queue
+// the issue as lane-ready
+// (https://github.com/melodic-software/claude-code-plugins/issues/17860); a
+// removal that fails is logged, not thrown. A queue
 // state keeps the label: admission reads its `unlabeled` event as a stop.
 // A config that cannot be read makes every call throw StatusWriteError; a
 // trusted-actor list that cannot be read, every call that reads the field.
@@ -244,7 +245,7 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
       }
     }
   };
-  const stopsLane = async (state) => state === STOPPED || (await import("./read-status.mjs")).HOLD_STATES.includes(state);
+  const stopsLane = async (state) => state === HOST_RUN_OR_PARK_STOP_STATE || (await import("./read-status.mjs")).HOLD_STATES.includes(state);
   const set = async (number, state, { fields, keepHold, releases, from } = {}) => {
     if (failure) {
       throw failure;

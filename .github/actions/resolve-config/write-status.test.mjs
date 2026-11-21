@@ -2,6 +2,7 @@
 // state's option name, checked against the mapped option id; a write that
 // does not land throws, so the caller's run fails rather than leave the field
 // wrong. Option ids are written by hand from the org field.
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
