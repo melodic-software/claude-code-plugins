@@ -532,7 +532,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "53ff69a1cc4af1af5f7df38a03b272977431a6e8374c52df8f9ca044e70e7ef6"
+  "e059b8a9bdadf3a44593745098d9365d46b80fe2e2e9bdb3d449ab124d0481b0"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -766,7 +766,6 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # the user's `confirm-understanding` event); that moves where the gate is shown, not whether
 # it runs, and the sweep still runs before it.
 # The re-grounding paragraph checks open recommendations on resume, before a queued round and on a new constraint; it adds a check and resolves no row.
-# The pre-round contradiction pass revises a draft recommendation or asks one question naming both sides before a round is shown; it resolves no row and qualifies neither STOP-on-gap nor the auto-guard.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
@@ -777,7 +776,7 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "91e71ea48b46fdefdb4fa77f32cd6d48b47245f04c0c1bbdcf4884427211fff4"
+  "f332b13eda79cde79825d912827e70b18971870c60accde42f0ff5c79ca3bcea"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -831,7 +830,6 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
   "493b9e062228d39672b85ea3256e8a3c360fce9df183d08de9ea081666e20076"
-# The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
@@ -847,7 +845,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "2054938d89851cd80602ba2d80aed3bd49722420cd836155c9ccdfe8e0f47e2a"
+  "4d1a6e8c8789645fb58bbae26822fc34d2fdcefda674e0d7210247dcccc8f0f3"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -898,7 +896,6 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 31 (ship-it-drops-questions-not-gates) moves the open rows to deferred as `USER-RESERVED` on the user's own ship-it, never answered with an invented answer, and keeps the confirmation gate, so it agrees with cases 15 and 16.
 # Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
 # Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
-# Case 36 (pre-round-contradiction-pass) has the draft fixed or asked as one question naming both sides before the round is shown and registers no row, so it agrees with cases 15 and 16.
 # Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
 # Case 38 (person-deferred-routes-to-document) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends the interview's document surface, so it agrees with cases 15 and 16.
 # Cases 46-50 move the document cases into this skill: each interviews only the send, writes the questions to a document under open register rows, and resolves none on the recipient's behalf; case 51 resolves a returned row only when its answer takes the recommendation, and reads back any other, which stays open until the user confirms it, so cases 15 and 16 hold.
@@ -911,7 +908,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "9f9747c65eb92352e3b940f53808bac632a4f2691a95dfd08ac74a152818d713"
+  "7bd78ae7a7bc7a32988b8a7b526a189373ac3fa961f79f7aa56c826a280d588b"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
