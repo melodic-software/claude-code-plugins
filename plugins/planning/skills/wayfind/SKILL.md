@@ -311,9 +311,8 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    being unphrasable, only by an explicit scope ruling at closure (step 8). If the resolution sharpened previously-foggy uncertainty, chart the new sharp
    items now (create, then wire, as chart step 4) and delete that bullet from Not-yet-specified.
    **Data-sharing item.** When the resolution selects an outside service that will receive user
-   data, chart one `interview` item for that service: which fields cross to it, under what
-   agreement, and, in a regulated repository, what must be in place before build (for example
-   whether a business associate agreement is needed). One item per selected service, its questions
+   data, chart one `interview` item for that service: which fields cross to it and under what
+   agreement. One item per selected service, its questions
    grouped inside it; none when no user data crosses. Its resolution feeds the PRD through the
    closing comment (step 8). Mode follows "Readiness".
 7. **Sweep the map after every resolution.** Reread the open items and closed decisions against

@@ -400,13 +400,13 @@
     {
       "id": 33,
       "name": "selected-service-receiving-user-data-gets-one-data-sharing-item",
-      "prompt": "/planning:wayfind work 'Map: clinic intake' (#700). Destination: a PRD. The repository holds regulated health software. The claimed item 'Choose the intake vendors' (#702, wayfind: interview) just resolved: Formly will host the patient intake form and receive each patient's name, date of birth and symptoms; Statusly will host the public status page and receive no user data. Finish the item.",
-      "expected_output": "After graduating #702, work charts one interview item for Formly, the selected service that receives user data, covering which fields cross to it (name, date of birth, symptoms), under what agreement, and, since the repository is regulated, whether a business associate agreement is needed before build. It is one item holding those questions, not one item per question, and its resolution feeds the PRD. Statusly receives no user data, so it gets no such item.",
+      "prompt": "/planning:wayfind work 'Map: clinic intake' (#700). Destination: a PRD. The claimed item 'Choose the intake vendors' (#702, wayfind: interview) just resolved: Formly will host the patient intake form and receive each patient's name, date of birth and symptoms; Statusly will host the public status page and receive no user data. Finish the item.",
+      "expected_output": "After graduating #702, work charts one interview item for Formly, the selected service that receives user data, covering which fields cross to it (name, date of birth, symptoms) and under what agreement. It is one item holding those questions, not one item per question, and its resolution feeds the PRD. Statusly receives no user data, so it gets no such item.",
       "files": [],
       "expectations": [
         "Output charts one data-sharing interview item for Formly",
         "Output charts no data-sharing item for Statusly",
-        "The Formly item covers which fields cross, under what agreement, and whether a business associate agreement (or the regulated repository's equivalent) is needed before build",
+        "The Formly item covers which fields cross and under what agreement",
         "Output creates one item for those questions, not a separate item per question",
         "Output says the item's resolution feeds the PRD"
       ]

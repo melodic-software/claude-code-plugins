@@ -298,7 +298,7 @@ If `/planning:prd` is invoked without an explicit tier, use this to drive the ti
 | Single team owns end-to-end? | Yes | Usually | Often no, multiple teams |
 | Stakeholders beyond the team? | No | Maybe (PM, design) | Yes (sponsor, sec, ops, compliance) |
 | User-facing in consumer app? | Maybe | Yes | Sometimes, internal tools too |
-| Compliance / audit / regulated data? | No | Rarely | Often |
+| Compliance / audit? | No | Rarely | Often |
 | Phased rollout / feature flag? | No | Sometimes | Yes |
 | Verbosity | ½ page | 1 page | 2 pages |
 
