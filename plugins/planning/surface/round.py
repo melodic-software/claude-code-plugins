@@ -54,6 +54,7 @@ ops, and supersede and resolve read their text from a file.
                   from those rows. Needs no data dir; backs up and prints the verdict as supersede
   show            print a saved round file at --level full (byte for byte), standard or minimal
   scope-check     print the counts half of a round header's Scope check: line from --ledger F
+                  (next-id --round n --limit m prints that line after the ids, the new rows counted)
   measures        print rounds, median lines per shown round, reopened rows and those after a
                   lookup, from --ledger F and --rounds-dir D (show, scope-check and measures need no
                   data dir)
@@ -2935,10 +2936,13 @@ def cmd_reopen(d, a):
 def cmd_next_id(d, a):
     if a.count < 1:
         sys.exit(f"refused: --count must be 1 or more, not {a.count}")
+    if (a.round is None) != (a.limit is None):
+        sys.exit("refused: --round and --limit go together")
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
+    scope = [] if a.round is None else [f"Scope check: {scope_counts(text, a, a.count)}"]
     top = exporters.highest_id(text, d)
-    print("\n".join(f"Q{top + k}" for k in range(1, a.count + 1)))
+    print("\n".join([*(f"Q{top + k}" for k in range(1, a.count + 1)), *scope]))
 
 
 LEVELS = ("full", "standard", "minimal")
@@ -3106,24 +3110,30 @@ def shown_rounds(rounds_dir):
     }
 
 
-def cmd_scope_check(d, a):
+def scope_counts(text, a, new=0):
+    """The counts half of round a.round's Scope check: line, counting `new` rows the round is
+    about to register beside the register's own."""
     if a.round < 1:
         sys.exit(f"refused: --round must be 1 or more, not {a.round}")
     if a.limit < 0:
         sys.exit(f"refused: --limit must be 0 or more, not {a.limit}")
-    text = read_input(a.ledger, "ledger")
-    exporters.check_ledger(text, a.ledger)
     rows = exporters.parse_register(text)
     if a.rounds_dir:
         earlier = sorted((n for n in shown_rounds(a.rounds_dir) if n < a.round), reverse=True)
     else:
         earlier = range(a.round - 1, 0, -1)
-    parts = [f"{len(rows)} of {a.limit} questions registered"]
+    parts = [f"{len(rows) + new} of {a.limit} questions registered"]
     for n in list(earlier)[:2]:
         mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
         settled = sum(status in exporters.SETTLED for status in mine)
         parts.append(f"round {n} added {len(mine)}, settled {settled}")
-    print("; ".join(parts))
+    return "; ".join(parts)
+
+
+def cmd_scope_check(d, a):
+    text = read_input(a.ledger, "ledger")
+    exporters.check_ledger(text, a.ledger)
+    print(scope_counts(text, a))
 
 
 def cmd_measures(d, a):
@@ -3658,6 +3668,14 @@ def main(argv=None):
     s.add_argument(
         "--count", type=int, default=1, help="how many ids to print (default 1)"
     )
+    s.add_argument(
+        "--round",
+        type=int,
+        help="with --limit, also print the round's Scope check: line after the ids, as "
+        "scope-check prints it for this round with the --count new rows counted in",
+    )
+    s.add_argument("--limit", type=int, help="the resolved wayfind_suggest_questions value")
+    s.add_argument("--rounds-dir", dest="rounds_dir", help="as scope-check --rounds-dir")
     s.set_defaults(fn=cmd_next_id)
 
     s = sub.add_parser(

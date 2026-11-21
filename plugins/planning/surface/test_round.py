@@ -6087,6 +6087,26 @@ class TestScopeCheck(unittest.TestCase):
         self.assertEqual(out, b"")
         self.assertIn("--round", err)
 
+    def test_next_id_with_round_prints_the_ids_then_the_line_counting_them(self):
+        rc, out, err = run_bytes(
+            "next-id", "--ledger", str(self.ledger), "--count", "2",
+            "--round", "4", "--limit", "12",
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(
+            out.decode("utf-8").replace("\r\n", "\n"),
+            "Q10\nQ11\nScope check: 11 of 12 questions registered; "
+            "round 3 added 2, settled 1; round 2 added 4, settled 3\n",
+        )
+
+    def test_next_id_refuses_round_without_limit(self):
+        rc, out, err = run_bytes(
+            "next-id", "--ledger", str(self.ledger), "--count", "2", "--round", "4"
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out, b"")
+        self.assertIn("--limit", err)
+
 
 class TestMeasures(unittest.TestCase):
     """measures prints rounds, median lines per shown round, reopened rows and those reopened

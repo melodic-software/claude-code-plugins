@@ -54,6 +54,10 @@ standards through the "Resolution ladder" section of
 only the files whose `Applies when` matches the task's surfaces or its design and architecture
 concerns; a prototype reads only standards already in context. When a consumer standard
 contradicts a bundled default, apply the standard and record, under `### Captured assumptions`, `- Overrides bundled default <principle> per <standards file>`.
+That line is required, word for word with the principle and the file's path filled in, whenever a
+standard decides a recommendation a bundled default would otherwise decide, the variation-intent
+recommendation included, in every action and lane, `lock` and unattended runs too: naming the
+standard elsewhere in the Brief does not replace it.
 Stumble: `/planning:plan` grounds in the consumer's standards, the interview did not, so a Brief
 could lock a default the plan then had to overturn.
 
@@ -393,6 +397,8 @@ The register, not the transcript, is the authority here. After a compaction the 
 Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open; your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
 
 **Read back an answer that departs from the recommendation.** In the same check, an answer that departs from the recommendation, or that arrives dictated or unclear, is restated in your own words, one line per question, naming each interpretation you made (a misheard term, such as "fee chair flag" taken as "feature flag"), and its row stays `open` until the user confirms or corrects that restatement. An answer that accepts the recommendation, dictated or not, needs no read-back and resolves at once, and a hedged reply follows "Hedged flag" instead. This rule holds in every lane; R-D in [`surface.md`](surface.md) adds only how the page shows the read-back and takes the confirmation. Eval evidence: `interview-readback-dictated-answer`.
+
+**A rejected technical recommendation gets one crux question.** When the user rejects a recommendation whose basis is a fact about the system (load, cost, what is deployed) and names another answer, never re-recommend the rejected one and never argue it again. Ask one question, in the withheld or discovery shape, on the crux: what would have to be true for their answer, or the rejected one, to be right, or the one check that would settle it, with the facts behind the rejected recommendation in its Context; if they hold to their answer, it stands. A rejection that rests on preference alone (a name, a style the user likes) is accepted as given, with no crux question. Eval evidence: `interview-crux-on-rejection`.
 
 **Discussing.** A reply that asks to talk a question through ("let's discuss Q3", "can we go over Q3 first") is not an answer and not drift: move that row from `open` to `discussing` at once, before the discussion, so the register shows a discussion under way and a compaction cannot lose it. When the discussion ends, ask the question again in the whole question layout, the recommendation revised old → new → why (or stated unchanged, with why). Only an answer to that question moves the row on, to `answered` or another terminal status; a discussion that wanders off leaves it `discussing`, restated as *"Q3 is still under discussion"*. The gate holds a `discussing` row like an `open` one. `discussing` is a terminal-lane status: the page has no such state and syncs the ledger from page state, so on `surface=page` a question under discussion keeps its `open` row and the discussion is tracked on the page. Before a ledger is loaded into the page (start or resume), set each `discussing` row back to `open`; it is asked again there.
 

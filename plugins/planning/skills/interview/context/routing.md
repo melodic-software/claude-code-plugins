@@ -62,13 +62,18 @@ trigger of its own.
 
 ## The scope-check line
 
-Every round header, the intake round's included, carries one `Scope check:` line. Before writing
-round `<N>`'s file, run
-`bash "<plugin-root>/surface/round.sh" scope-check --ledger <memory_dir>/<topic-slug>/interview-checklist.md --round <N> --limit <wayfind_suggest_questions> --rounds-dir <memory_dir>/<topic-slug>`,
-`<wayfind_suggest_questions>` being the value resolved below, and put its output on that line:
-the questions registered against the limit, and what each of the last two rounds added and
-settled. Those counts are the measured half of the question-count pointer and the fog trigger
-below; the fog trigger still counts the branches the next round would add. With no Bash, count the
+Every round header, the intake round's included, carries one `Scope check:` line. Once round
+`<N>`'s questions are drafted and before its file is written, take its ids and this line in one
+call:
+`bash "<plugin-root>/surface/round.sh" next-id --ledger <memory_dir>/<topic-slug>/interview-checklist.md --count <n> --round <N> --limit <wayfind_suggest_questions> --rounds-dir <memory_dir>/<topic-slug>`.
+`<n>` is the round's new rows (SKILL.md, the `Q<N>` numbering paragraph). `--limit` takes an
+integer: the `wayfind_suggest_questions` value resolved below, `27` when no layer sets it. The
+first `<n>` output lines are the new ids; the last line is the `Scope check:` line, pasted as
+printed: the questions registered against the limit, this round's new rows included, and what each
+of the last two rounds added and settled. On the page lane the call adds `--dir '<data_dir>'`.
+For a round that adds no row, `round.sh scope-check` with the same `--round`, `--limit` and
+`--rounds-dir` prints the counts alone, to follow `Scope check: `. Those counts are the measured
+half of the question-count pointer and the fog trigger below; the fog trigger still counts the branches the next round would add. With no Bash, count the
 same from the ledger by the rules of `scope-check` in
 [`../../../surface/README.md`](../../../surface/README.md) and write the line yourself.
 

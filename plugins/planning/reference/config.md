@@ -205,8 +205,9 @@ root rule above applies to the two file layers, and the unset and invalid-value 
 layer. Report the value and the layer that supplied it in
 one line.
 
-The `wayfind_suggest_questions` default is `judgment`, set from a measurement that did not separate
-the groups. Across 26 interview efforts in one operator's transcripts (2026-09-27 to 2026-10-28),
+The `wayfind_suggest_questions` default is the integer `27` (what `round.sh next-id` and
+`scope-check` take as `--limit` when no layer sets the key). Its Basis is judgment, set from a
+measurement that did not separate the groups. Across 26 interview efforts in one operator's transcripts (2026-09-27 to 2026-10-28),
 first-session question counts ran 6 to 98 for the 17 efforts that spanned more than one session and
 8 to 27 for the 9 that did not (AUC 0.80). `27` is the largest single-session count, so it errs
 toward not suggesting: 10 of the 17 and none of the 9 pass it. None of the 26 invoked wayfind in the

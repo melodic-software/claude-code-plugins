@@ -532,7 +532,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "913182d8f122427687e3daa10eb5a74f25cd0af1df918c68a094d162ac4bb128"
+  "7624ab78474a662bce553d6918e1378709f2466d28ee6fdf18ec7db789e920b5"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -587,7 +587,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "272e5524066f4072445dcf55f67574eb3ed49ceeee681fcbcc71f86d075df83f"
+  "2245b2d67eb587d33f4a226a0eb0e1ffb26d56613619a8ce2459c68590cbc463"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -714,7 +714,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "368743e50f46c68695014cc10793b89a1cf2c0b2e84258798579c4fbe0e5c36d"
+  "da5d48aeabdf5a52a6827112557feba7fc4736a285c9b13a5565def7bd4de359"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -745,7 +745,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "d1aedd09a3cc54f12763212381e7ef7b0731165303cf4b18ba6e1da2c9526533"
+  "927479bb736f24a9e1c16aef9570c608b2529b2c2ab04682982c338833beccb6"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
@@ -854,7 +854,7 @@ pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shap
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
 pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts itself and nothing else)" \
   "$COVERAGE" \
-  "39485364e728eebe86218c577aefc3dc91d345bf118fe6d9656cf84961ff3f6a"
+  "74402dc04b272878c6351109cdfbafbf2ace9bcdcc976f53d1f2246986526c20"
 # The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical

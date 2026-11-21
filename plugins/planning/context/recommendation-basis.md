@@ -25,7 +25,11 @@ convention, with its boundary and adopters, is
   bar; any other may rest on judgment if its label says so.
 - **Three outcomes.** Every recommendation ends in exactly one:
   - **verified**: presented with `Basis: verified` plus what verified it (a
-    `file:line`, tool output, or URL fetched this session);
+    `file:line`, tool output, or URL fetched this session). A source verifies
+    what it holds, not what it describes: a control (a protection, ruleset,
+    check or policy) read only in a document, not in its enforcing source (the
+    ruleset, the workflow, the setting a tool reports), is labelled
+    `documented, unverified` with the document's `file:line`, never `verified`;
   - **judgment**: presented with `Basis: judgment`; only for a
     recommendation that is not consequential;
   - **withheld**: a consequential recommendation that cannot be settled. It

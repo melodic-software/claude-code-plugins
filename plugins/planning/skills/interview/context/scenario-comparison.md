@@ -72,6 +72,11 @@ to Thursday. Tests: is the moved visit the same booking?
 Recommend (a): forces "reschedule" as an action on a booking, and the deposit stays with it.
 ```
 
+Build only scenarios whose recommendation the facts in hand settle. A scenario whose answer turns
+on a policy or fact only the user holds (a cancellation or refund policy, say) stays out of the
+walk: name it on the round header's `Later:` line, or ask it as its own question, withheld or
+discovery as its kind requires. A walk never holds a scenario with no recommendation.
+
 The scenarios are cases built to test the terms, so the comparison's "invent only to probe an edge"
 rule does not apply to them. The per-scenario picks roll up into the question's one
 `My recommendation:` line ("(a) for each", or the picks listed) with its `Basis:`; the scenario

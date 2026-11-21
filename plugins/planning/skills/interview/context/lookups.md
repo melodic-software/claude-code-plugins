@@ -24,6 +24,11 @@ A decision the evidence leaves one viable answer is settled by evidence, not ask
 the evidence-settled decisions in the round header"). An unknown that needs a fact before it is a
 choice is a lookup now and a decision question once the lookup returns.
 
+A doubt that a solution the request names, beside its stated problem, will cover that problem is
+none of the three kinds: it goes under the Brief's `### Captured assumptions` with the condition
+that would revisit it, per [`problem-framing.md`](../../../context/problem-framing.md) "Prescribed
+solution", and is never a question in any round.
+
 ## The intake round
 
 When the triage leaves discovery questions, round 1 is the intake round. It asks only those, each
@@ -31,13 +36,26 @@ registered `open` with `kind:: discovery`, and keeps the round header and the cl
 round. Decision questions wait for round 2, because their recommendations rest on the intake
 answers.
 
+The problem questions of [`problem-framing.md`](../../../context/problem-framing.md) are intake
+questions, asked in this round in discovery shape:
+
+- A request that names a solution and no problem: its problem question is the rethink-or-accept
+  question of "Prescribed solution" there. Its Context states the problem worked back out with its
+  evidence rating (`(inferred, user, round 1)`, or `observed` with the artifact that shows it),
+  and its title asks whether to rethink the approach against that problem or accept the named
+  solution. This is how "an attended run always asks" is met under the intake round, never by a
+  second question.
+- A stated problem whose evidence is only `reported`: one question asks the user to confirm the
+  restated problem and to give the last concrete instance, what it cost and who hit it, as
+  "Reported-only evidence" there says.
+
 Three things still go out in round 1 and are not intake questions:
 
 - a routing suggestion: brainstorm, prd or blindspot by SKILL.md "Intake the starting point", and
   the wayfind question of [`routing.md`](routing.md) "Round 1". Each is one plain line after the
   round's questions and before the closing probe, naming the skill, why, with its evidence label
   and source, and what yes does: `Suggested next: /planning:prd, because who uses this and how
-  success is measured are not settled (your request). Say yes to run it first.` It is never a
+  success is measured are not settled (user, round 1). Say yes to run it first.` It is never a
   `My recommendation:` block, which an intake round does not show; the wayfind line is still
   registered at ask-time;
 - a candidate a lookup found for an unknown Problem field, stated with its source and a request to

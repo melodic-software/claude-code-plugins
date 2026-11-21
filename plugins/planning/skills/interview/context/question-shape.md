@@ -64,13 +64,17 @@ Before the recommendation, `context` carries what drives the decision and nothin
 - which parts of an absorbed idea come from the source and which are ours, labeled;
 - every term the question relies on that a reader with none of the session's knowledge may not
   share, defined inline with its source (a sourced term's agreement: SKILL.md "Agree a term where
-  it first appears").
+  it first appears"). The step, feature or topic the question decides about is such a term: a
+  question that names it ("the cluster step") says what it is, in every question that relies on
+  it.
 
 This holds in every lane and is the one home for which terms a question defines: no lane puts a
 terms table at the top of a round in its place.
 
 Every factual claim carries a link or `file:line` the reader can open in one click (a URL with its
-section anchor, a timestamp for a video, a repo path); a claim with no source is labeled
+section anchor, a timestamp for a video, a repo path); a claim the user stated cites
+`user, round <N>`, `<N>` being the round whose reply stated it, and the opening request counts as
+round 1 (`user, round 1`), never a bare "(your request)"; a claim with no source is labeled
 `judgment`. Write one claim per line so each carries its own reference. If removing a line would
 not change how a reasonable person decides, remove it; long material goes behind a link. Every
 lane carries the whole block, the terminal included; `basis` then names which of its sources the
