@@ -510,6 +510,10 @@ for (const c of cues) {
   }));
 }
 bar.addEventListener("scroll", showEdges, { passive: true });
+bar.addEventListener("focusin", (e) => {
+  e.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  showEdges();
+});
 addEventListener("resize", showEdges);
 if (window.ResizeObserver) {
   const sized = new ResizeObserver(showEdges);
