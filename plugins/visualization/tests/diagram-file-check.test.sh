@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/visualization/lib/diagram-file-check.mjs
+# test-scope: plugins/visualization/lib/diagram-file-check.mjs plugins/visualization/templates/shape-palette.excalidraw
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

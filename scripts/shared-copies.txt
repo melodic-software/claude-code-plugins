@@ -322,6 +322,8 @@ lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
 lib/ui-feedback/controls.schema.json plugins/prototype/notes-bridge/controls.schema.json
 lib/ui-feedback/controls.js plugins/prototype/notes-bridge/controls.js
 lib/ui-feedback/relocate-note.mjs plugins/prototype/notes-bridge/relocate-note.mjs
+lib/ui-feedback/dev-origin.mjs plugins/prototype/notes-bridge/dev-origin.mjs
+lib/ui-feedback/harness-fence.mjs plugins/prototype/notes-bridge/harness-fence.mjs
 lib/ui-feedback/proto-pin.js plugins/planning/shared/web/proto-pin.js
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js

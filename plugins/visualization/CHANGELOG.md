@@ -3,6 +3,15 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-11-21
+
+### Added
+
+- The `visualize` skill's `excalidraw-file` target starts a diagram from a bundled shape palette,
+  `templates/shape-palette.excalidraw`. The palette holds a lane frame, a step, a decision, a start
+  or end, an arrow, a divider line and a note. The skill copies the elements it needs into the new
+  diagram, then runs the existing check and write steps.
+
 ## [1.3.3] - 2026-11-20
 
 ### Changed

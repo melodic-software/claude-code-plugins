@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.3] - 2026-11-21
+
+### Changed
+
+- **`/code-tidying:tidy` drops eight examples tied to one stack.** The skill and its exclusions and tidyings references dropped a `node --test` scope example, a `shellcheck`/`shfmt` commit title, `Directory.Build.props` and `Directory.Packages.props` as typical protected paths, `ruff.toml` in the overrides-file example, the Roslyn, ruff and biome analyzer list, a C#/TS/Python/C language list, a `.cs` file name and an `npx markdownlint-cli2` example. The rules around them are unchanged; each consumer's own tools and paths apply instead ([#17758](https://github.com/melodic-software/claude-code-plugins/issues/17758)).
+
+## [0.55.2] - 2026-11-21
+
+### Changed
+
+- **The vendored git-hook installer renders a format and lint pair as one piped lefthook group.** `lib/git-hooks/install.mjs` and the setup skill's `git-hook-decisions.md` now return a plugin's pre-commit `format` and `lint` entries as one `lefthook-config` decision, carrying `entries`, so lint runs after format even under `parallel: true`. This plugin's own entries render as before ([#16911](https://github.com/melodic-software/claude-code-plugins/issues/16911)).
+
+## [0.55.1] - 2026-11-21
+
+### Fixed
+
+- **The comment lint accepts the shell-portability markers.** Under the `necessary` posture, a `portability-ok: <reason>` comment and a comment line that opens with `portability-scope: <reason>` now pass as tool directives, like `shellcheck disable=` and `gitleaks:allow`. Before, the comment the portability check asks for was the comment the lint reported, so a repository with `comment_lint: block` could not pass both. A comment that only mentions `portability-scope:` in the middle of a sentence still fails ([#17414](https://github.com/melodic-software/claude-code-plugins/issues/17414)).
+
 ## [0.55.0] - 2026-11-20
 
 ### Added

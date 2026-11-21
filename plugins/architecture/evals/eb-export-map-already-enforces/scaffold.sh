@@ -118,8 +118,6 @@ printf '.tools/\n' >>.gitignore
 cat >>AGENTS.md <<'MD'
 
 Node for this repository is `.tools/node`; run it as `PATH="$PWD/.tools:$PATH" node`. `scripts/check.sh` puts it on `PATH` itself.
-
-Read a file outside this repository with the Read tool, never with a shell command.
 MD
 
 git add -A

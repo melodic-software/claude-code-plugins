@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-run-non-container-parent-per-item
+graders:
+  - name: 'states-per-item-prs'
+    type: 'regex'
+    pattern: 'execution[- ]shape[\s*_`:]{1,6}(?:[^\n]{0,20}\s)?per[- ]item[\s*_`]{0,4}PRs?\b|per[- ]item[\s*_`]{0,4}PRs?\b[^\n]{0,120}\b(?:item list|the list)|\b(?:item list|the list)\b[^\n]{0,120}per[- ]item[\s*_`]{0,4}PRs?\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship run session does with the stated state. PASS only if it satisfies every point: (1) Takes #370 as the run''s parent although it carries no spec-container label, rather than reporting it as not a spec container or stopping; (2) States per-item PRs as the execution shape in the item list it shows for approval, and asks for approval before any claim; (3) Works both children, #371 and #372: claims them and hands both to /implementation:implement-dispatch, each getting its own PR against the default branch; (4) Neither writes nor offers to write an execution-shape line onto #370; (5) Once both children close, runs no container close-out and closes the open parent through Decomposed parent close. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fakeActions as api, bound, HEAD, recordEntry as entry, RUN, zipOf } from "./lane-binding.fixtures.mjs";
 
-import { bindingOf, laneChecker, laneFooter, legacyCounts, wasEdited, withoutBinding, withoutLaneFooters, zipEntry } from "./lane-binding.mjs";
+import { bindingOf, LaneRunPending, laneChecker, laneFooter, legacyCounts, wasEdited, withoutBinding, withoutLaneFooters, zipEntry } from "./lane-binding.mjs";
 
 const OLD = "b".repeat(40);
 
@@ -172,7 +172,7 @@ test("a finished run with no record proves its comments by time; one still runni
   assert.equal(await check({ kind: "review_comment", id: 11, body, createdAt: "2026-01-01T00:30:00Z" }), true);
   assert.equal(await check({ kind: "review_comment", id: 12, body, createdAt: "2026-01-01T00:30:00Z", lastEditedAt: "2026-02-01T00:00:00Z" }), false);
   const running = api({ [RUN]: { path: PATH, status: "in_progress", artifacts: [] } });
-  await assert.rejects(laneChecker({ pr: 7, ...running })({ kind: "review_comment", id: 11, body }), /may not be uploaded yet/);
+  await assert.rejects(laneChecker({ pr: 7, ...running })({ kind: "review_comment", id: 11, body }), (error) => error instanceof LaneRunPending && /may not be uploaded yet/.test(error.message));
 });
 
 test("zipEntry refuses a record over the size cap", () => {

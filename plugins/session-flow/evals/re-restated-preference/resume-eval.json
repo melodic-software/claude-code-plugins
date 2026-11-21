@@ -143,6 +143,12 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/feat/skip-draft-prs",
+      "refs/heads/feat/skipped-draft-telemetry",
+      "refs/pull/4277/head",
+      "refs/pull/4280/head"
+    ],
     "gh_fixture": {
       "repo": "example-org/merge-lane",
       "responses": [
@@ -153,7 +159,7 @@
         },
         {
           "match": "\\bpr view #?4277\\b",
-          "stdout": "{\"number\": 4277, \"title\": \"feat(merge-lane): skip draft PRs in the frontier\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"labels\": [], \"comments\": [], \"files\": [{\"path\": \"lane/frontier.py\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
+          "stdout": "{\"number\": 4277, \"headRefName\": \"feat/skip-draft-prs\", \"title\": \"feat(merge-lane): skip draft PRs in the frontier\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"labels\": [], \"comments\": [], \"files\": [{\"path\": \"lane/frontier.py\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
           "exit": 0
         },
         {
@@ -163,7 +169,7 @@
         },
         {
           "match": "\\bpr view #?4280\\b",
-          "stdout": "{\"number\": 4280, \"title\": \"feat(merge-lane): telemetry for skipped drafts\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"FAILURE\"}]}",
+          "stdout": "{\"number\": 4280, \"headRefName\": \"feat/skipped-draft-telemetry\", \"title\": \"feat(merge-lane): telemetry for skipped drafts\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"FAILURE\"}]}",
           "exit": 0
         },
         {
