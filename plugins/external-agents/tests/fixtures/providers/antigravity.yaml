@@ -1,6 +1,9 @@
 schema: 1
 product: antigravity
 docs_index: https://antigravity.google/docs/cli
+help:
+  agy: [--help]
+  models: [models]
 binary:
   name: agy
   candidates:

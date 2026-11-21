@@ -106,8 +106,13 @@ export async function update(opts) {
         skipped.push(`${name}: ${args.join(" ")} exited ${got.code ?? reasonOf(got.error)}`);
         continue;
       }
-      writeFileSync(join(facts, `${name}.txt`), got.stdout);
-      help += got.stdout;
+      const text = got.stdout.trim() ? got.stdout : got.stderr;
+      if (!text.trim()) {
+        skipped.push(`${name}: ${args.join(" ")} printed nothing`);
+        continue;
+      }
+      writeFileSync(join(facts, `${name}.txt`), text);
+      help += text;
     }
     lines.push(`cli facts: ${facts}${skipped.length ? ` (${skipped.join("; ")})` : ""}`);
     if (skipped.length) attention.push("cli facts");
