@@ -71,7 +71,21 @@ TOKEN_KEYS = (
 )
 
 
-NETWORK_DENY = ("WebFetch", "WebSearch")
+_GIT = ("git", "git -C *")
+NETWORK_DENY = (
+    "Bash(curl:*)",
+    "Bash(curl *)",
+    "Bash(wget:*)",
+    "Bash(wget *)",
+    *(
+        f"Bash({g} {cmd} {form})"
+        for g in _GIT
+        for cmd in ("ls-remote", "fetch")
+        for form in ("*://*", "*@*")
+    ),
+    "WebFetch",
+    "WebSearch",
+)
 
 
 def run_settings(
@@ -79,14 +93,16 @@ def run_settings(
 ) -> dict:
     """`--settings` for a real-setup run: the installed session-flow off, so only the copy
     under test loads (probes.md P7); every shell command in the OS sandbox with no network
-    host allowed and no unsandboxed retry, writable beyond the working directory only at
-    `writable`; the web tools denied; and any option a case sets."""
+    host allowed and no unsandboxed retry, the session refusing to start without the
+    sandbox, writable beyond the working directory only at `writable`; the network tools
+    and remote-URL git forms also denied; and any option a case sets."""
     doc: dict = {
         "enabledPlugins": {"session-flow@melodic-software": False},
         "sandbox": {
             "enabled": True,
             "autoAllowBashIfSandboxed": True,
             "allowUnsandboxedCommands": False,
+            "failIfUnavailable": True,
             "network": {"allowedDomains": [], "strictAllowlist": True},
             "filesystem": {"allowWrite": list(writable)},
         },
@@ -947,6 +963,16 @@ def seed_remote_refs(call, repo: Path, bare: Path, env: dict, refs: list[str]) -
     _git(call, repo, env, "remote", "set-head", "origin", branch)
 
 
+def write_run_settings(case: dict, run_dir: Path, cfg: "RunConfig") -> None:
+    """Write `run_dir/settings.json`, writable at `run_dir` itself and the harness temp."""
+    (run_dir / "settings.json").write_text(
+        json.dumps(
+            run_settings(case["seed"].get("plugin_configs"), [str(run_dir), cfg.tmpdir])
+        ),
+        encoding="utf-8",
+    )
+
+
 def seed_save_point(copies: dict, arm: str) -> Path:
     """The `save_point.py` that seeds `arm`: its own plugin copy's, else the `before`
     copy's for an arm that runs without one (`compact`, `free-hand`)."""
@@ -1016,11 +1042,7 @@ def seed_run(
         cfg.python,
     )
     (run_dir / "gh-calls.log").write_text("", encoding="utf-8")
-    plugin_configs = case["seed"].get("plugin_configs")
-    (run_dir / "settings.json").write_text(
-        json.dumps(run_settings(plugin_configs, [str(run_dir), cfg.tmpdir])),
-        encoding="utf-8",
-    )
+    write_run_settings(case, run_dir, cfg)
     (run_dir / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
     sid = str(uuid.uuid4())
     turns = resume_cases.seed_history(case, chain, repo)
@@ -1465,6 +1487,7 @@ def _reader_workspace(
         cfg.python,
     )
     (copy_dir / "gh-calls.log").write_text("", encoding="utf-8")
+    write_run_settings(case, copy_dir, cfg)
     repo = copy_dir / "repo"
     _git(
         cfg.call or default_call,

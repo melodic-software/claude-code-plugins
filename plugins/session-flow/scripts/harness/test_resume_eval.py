@@ -209,10 +209,38 @@ def test_settings_disable_the_installed_plugin_and_sandbox_the_network():
         "enabled": True,
         "autoAllowBashIfSandboxed": True,
         "allowUnsandboxedCommands": False,
+        "failIfUnavailable": True,
         "network": {"allowedDomains": [], "strictAllowlist": True},
         "filesystem": {"allowWrite": ["/r/run"]},
     }
-    assert doc["permissions"] == {"deny": ["WebFetch", "WebSearch"]}
+    deny = doc["permissions"]["deny"]
+    assert "allow" not in doc["permissions"]
+    assert {"WebFetch", "WebSearch", "Bash(curl *)", "Bash(wget *)"} <= set(deny)
+    from fnmatch import fnmatchcase
+
+    def denied(command):
+        return any(
+            r.startswith("Bash(") and fnmatchcase(command, r[5:-1]) for r in deny
+        )
+
+    for network in (
+        "curl https://h/x",
+        "wget http://h/x",
+        "git ls-remote https://h/x",
+        "git ls-remote git@h:x",
+        "git -C /any/repo ls-remote --heads ssh://h/x",
+        "git fetch https://h/x",
+        "git fetch git@h:x",
+        "git -C /any/repo fetch -q https://h/x main",
+    ):
+        assert denied(network), network
+    for local in (
+        "git ls-remote origin",
+        "git -C /any/repo ls-remote --tags --sort=v:refname origin",
+        "git fetch --prune origin",
+        "git -C /any/repo fetch origin refs/pull/4460/head:review-4460",
+    ):
+        assert not denied(local), local
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
     plain = resume_eval.run_settings()
     assert "pluginConfigs" not in plain
@@ -2149,3 +2177,36 @@ def test_a_seed_without_remote_refs_pushes_only_head(tmp_path):
 def test_a_remote_ref_outside_heads_tags_and_pull_is_refused(tmp_path):
     with pytest.raises(ValueError, match="remote_refs"):
         _seed_with_refs(tmp_path, ["release/2.8"])
+
+
+def test_a_second_readers_copy_gets_settings_that_name_its_own_folder(tmp_path):
+    import subprocess
+    import sys
+
+    run_dir, copy_dir = tmp_path / "0", tmp_path / "0-claude-code"
+    repo = run_dir / "repo"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "init", "-q", "--bare", str(run_dir / "origin.git")], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "remote", "add", "origin", str(run_dir / "origin.git")],
+        check=True,
+    )
+    case = {"seed": {"gh_fixture": {"responses": [], "default": {"stdout": ""}}}}
+    cfg = resume_eval.RunConfig(
+        root=tmp_path,
+        tmpdir=str(tmp_path / "tmp"),
+        copies={},
+        codex_model="m",
+        python=sys.executable,
+    )
+    resume_eval.write_run_settings(case, run_dir, cfg)
+    run = {"repo": repo, "chain": []}
+    copied = resume_eval._reader_workspace(case, run, run_dir, copy_dir, cfg)
+    settings = json.loads((copied["repo"].parent / "settings.json").read_text())
+    assert settings["sandbox"]["filesystem"]["allowWrite"] == [
+        str(copy_dir),
+        str(tmp_path / "tmp"),
+    ]
+    first = json.loads((run_dir / "settings.json").read_text())
+    assert first["sandbox"]["filesystem"]["allowWrite"][0] == str(run_dir)
