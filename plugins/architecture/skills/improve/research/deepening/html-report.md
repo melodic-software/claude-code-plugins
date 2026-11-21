@@ -40,7 +40,7 @@ Each candidate:
 | `title` | a few words naming the deepening, such as "Fold the invoice export steps into one module" |
 | `recommendation` | `Strong`, `Worth exploring` or `Speculative` |
 | `category` | `in-process`, `local-substitutable`, `ports-and-adapters` or `mock` |
-| `size` | the artifact's `size`: `S`, `M` or `L`, then `: ` and a basis of at most twelve words (see Size) |
+| `size` | the artifact's `size`: `S`, `M` or `L`, then a colon, a space and a basis of at most twelve words (see Size) |
 | `problem` | the artifact's `problem`, one sentence |
 | `solution` | the artifact's `solution`, one sentence naming a change; a finding that proposes none goes in `kept` instead |
 | `wins` | the artifact's `wins`, one entry per gain (see Wins) |

@@ -31,7 +31,7 @@ cat > .work/architecture/improve/main/deepening-candidates-20261118T060000Z.md <
 - files: src/inventory.js
 - dependency-category: in-process
 - recommendation: Worth exploring
-- size: S: one inventory module and its callers
+- size: L: a staged split of lookup and reservation over three releases
 - problem: One module answers stock questions and changes stock.
 - deepening: Callers must know the order of two calls the module could hide.
 - shallow-signal: src/inventory.js exposes lookup and reserve as separate steps.
@@ -47,6 +47,17 @@ cat > .work/architecture/improve/main/deepening-candidates-20261118T060000Z.md <
 - problem: Checkout builds its payment client inline.
 - deepening: A port would have one adapter today.
 - shallow-signal: src/checkout.js constructs the client where it is used.
+- signal-verified: false
+
+## Name the discount rule once
+
+- status: proposed
+- files: src/pricing.js, src/checkout.js
+- dependency-category: in-process
+- recommendation: Worth exploring
+- problem: Checkout and pricing each apply the member discount.
+- deepening: Two modules hold one discount rule, so a change to it touches both.
+- shallow-signal: src/checkout.js and src/pricing.js each subtract the member discount.
 - signal-verified: false
 
 security-defect: withheld
