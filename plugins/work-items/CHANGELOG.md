@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.12.3] - 2026-11-21
+
+### Fixed
+
+- `morning-brief` Queues counts and the `track stats` totals leave out an open parent issue whose sub-issues are not all completed, so a split parent no longer counts beside the children that carry its work. A Queues row shows such parents as `(+N with open sub-issues)`, and `stats` lists them on a Containers line. The live count reads `subIssuesSummary` (`gh` 2.94 or later) ([#17859](https://github.com/melodic-software/claude-code-plugins/issues/17859)).
+
 ## [15.12.2] - 2026-11-21
 
 ### Fixed
