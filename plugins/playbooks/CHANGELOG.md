@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.8] - 2026-11-21
+
+### Added
+
+- `fable-5`: the recovery chapter adds a wrong-output taxonomy for output that is wrong when no tool call failed. A fact never loaded gets loaded, one loaded but ignored gets fresh context, and one that is stale or a wrong tool result is re-fetched before anything is cleared. The skill body's recovery rules and chapter routing table point at it.
+
 ## [0.36.7] - 2026-11-21
 
 ### Changed

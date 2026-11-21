@@ -130,6 +130,10 @@ One configuration, layered user-global (`~/.claude/multi-agent.yaml`), team
 key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 [`reference/config.md`](reference/config.md).
 
+This plugin still reads `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` until it
+migrates ([#17998](https://github.com/melodic-software/claude-code-plugins/issues/17998)); then the
+files move where [config locations](reference/config-locations.md) says.
+
 ## Requirements
 
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
