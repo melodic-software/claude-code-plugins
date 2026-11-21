@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [11.2.4] - 2026-11-21
+
+### Changed
+
+- The lane scripts that run from a full checkout now send every GitHub call through the rate guard, so they honor the job's stop file and record their budget readings. `report-outcome.mjs --find-prior` reads through `createGitHub` and holds green while the stop file holds its pool, and its claim re-derive fails, as it does on any failed read. address-feedback's base-checkout mains, the dispatch clients and the importers of apply-patch's client get the guarded fetch. The rate-guard coverage test now fails any client whose default fetch skips the guard, not only a bare `fetch(` call. The scripts that run from a directory copy keep their own client and are listed with the reason.
+
+- The dispatch clients wait at the stop-floor only when the reset is more than 10 minutes away (`DISPATCH_FLOOR_GRACE_MS`); closer to the reset they spend under the floor, and a remaining of 0 still stops them.
+
+### Fixed
+
+- pr-review-main skips a lane-source pull request's review as already done only on verdicts from runs created after the pull request's newest base change, the cutoff the merge gate applies. A pull request retargeted without a push is reviewed again instead of staying held as `lane-source-changed`.
+
 ## [11.2.3] - 2026-11-20
 
 ### Fixed
