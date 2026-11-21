@@ -1515,7 +1515,10 @@ class AutoClearOnGreen(unittest.TestCase):
         """A closed record's first read, the runs created up to its recovery
         listed with `statuses`."""
         gh = self.fake(**self.closed())
-        runs = [{"id": n, "status": s} for n, s in enumerate(statuses or ("completed",))]
+        runs = [
+            {"id": n, "status": s, "updated_at": "2026-10-12T11:30:00Z"}
+            for n, s in enumerate(statuses or ("completed",))
+        ]
         gh.rest[SETTLED_RUNS] = {"total_count": len(runs), "workflow_runs": runs}
         return gh
 
@@ -1555,6 +1558,14 @@ class AutoClearOnGreen(unittest.TestCase):
         path, env = self.recoveries()
         with env:
             self.proving("completed", "in_progress")
+            self.assertFalse(read_demotion().active)
+        self.assertEqual(json.loads(path.read_text())["recoveries"], {})
+
+    def test_a_run_finished_after_the_green_listing_keeps_nothing(self) -> None:
+        path, env = self.recoveries()
+        with env:
+            gh = self.proving()
+            gh.rest[SETTLED_RUNS]["workflow_runs"][0]["updated_at"] = "2099-01-01T00:00:00Z"
             self.assertFalse(read_demotion().active)
         self.assertEqual(json.loads(path.read_text())["recoveries"], {})
 

@@ -1954,6 +1954,7 @@ GREEN_CELL_PAGES = 2 * GREEN_PAGES
 RECOVERIES_ENV = "BABYSIT_DEMOTION_RECOVERIES"
 RECOVERIES_WRITE_ENV = "BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED"
 RECOVERIES_VERSION = 1
+LISTED_MARGIN = timedelta(minutes=1)
 _RECOVERY_KEY = re.compile(
     r"[1-9][0-9]{0,15}\|[0-9TZ:-]{20}\|(?:OPEN|CLOSED)\|(?:[0-9TZ:-]{20})?\|[0-9a-f]{40}"
 )
@@ -2146,6 +2147,7 @@ class _GreenMain:
         self.local: Any = None
         self.carried: dict[str, str] = {}
         self.proven: dict[str, str] = {}
+        self.first_listed: datetime | None = None
 
     def _read(self, endpoint: str) -> Any:
         """One retry for no answer (a timeout included) or a 5xx, each read a
@@ -2174,6 +2176,7 @@ class _GreenMain:
         begin = max(start, low.replace(microsecond=0))
         listed = self.cells.get((event, cell))
         if listed is None or listed[0] > begin:
+            self.first_listed = self.first_listed or datetime.now(UTC) - LISTED_MARGIN
             created = quote(f"{_stamp(begin)}..{_stamp(start + GREEN_SPAN)}", safe=":")
             found: list[dict[str, Any]] = []
             for page in range(1, GREEN_CELL_PAGES + 1):
@@ -2269,8 +2272,11 @@ class _GreenMain:
 
     def settled(self, start: datetime, end: datetime) -> bool:
         """Whether every full run on main created from `start` to `end` has
-        completed, so no earlier run can still turn green; any doubt is
-        False."""
+        completed, none since the first green listing this read used, so no
+        earlier run can still turn green or did after that listing; any doubt
+        is False."""
+        if self.first_listed is None:
+            return False
         created = quote(f"{_stamp(start)}..{_stamp(end)}", safe=":")
         try:
             answer = json_object(
@@ -2281,10 +2287,15 @@ class _GreenMain:
             )
         except PolicyReadError:
             return False
-        runs = json_array(answer.get("workflow_runs"))
-        return answer.get("total_count") == len(runs) and all(
-            json_object(run).get("status") == "completed" for run in runs
-        )
+        runs = [json_object(run) for run in json_array(answer.get("workflow_runs"))]
+        try:
+            return answer.get("total_count") == len(runs) and all(
+                run.get("status") == "completed"
+                and _time(run.get("updated_at")) < self.first_listed
+                for run in runs
+            )
+        except PolicyReadError:
+            return False
 
     def ahead(self, base: str, head: str) -> bool:
         """Whether `head` has `base` in its history and is a later commit:
