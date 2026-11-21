@@ -6,8 +6,8 @@ disable-model-invocation: false
 allowed-tools:
   - "Bash(command -v firecrawl*)"
   - "Bash(firecrawl --status*)"
-  - 'Bash(node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest *)'
-  - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest *)'
+  - 'Bash(node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:firecrawl --data-dir "${CLAUDE_PLUGIN_DATA}")'
+  - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest ${CLAUDE_PLUGIN_ROOT} --for skill:firecrawl --data-dir ${CLAUDE_PLUGIN_DATA})'
 shell: bash
 metadata:
   workflow-stage: research
@@ -18,7 +18,7 @@ metadata:
 
 ## Pre-computed context
 
-Latest release, checked at most once a day: !`node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:firecrawl --data-dir "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "not checked (node did not run)"`
+Latest release, checked at most once a day: !`node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:firecrawl --data-dir "${CLAUDE_PLUGIN_DATA}" || echo "not checked (node did not run)"`
 
 When that line names a newer release or a missing CLI, tell the user once. Add the update hint after this colon when one is set, and nothing when it is empty or still a placeholder: ${user_config.cli_update_hint}
 
