@@ -190,6 +190,67 @@ EOF
   else
     fail "trace: Python suite exit $rc, venv log [$(cat "$TMP_ROOT/venv.log" 2>/dev/null)]"
   fi
+
+  base_sha="$(git -C "$t" rev-parse HEAD)"
+  echo declared >"$t/data/declared.txt"
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt' >"$t/suites/undeclared.test.sh"
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/declared.txt' >"$t/suites/declared.test.sh"
+  printf '%s\n' "import { readFileSync } from 'node:fs';" "import { test } from 'node:test';" \
+    "test('reads', () => { readFileSync('data/declared.txt', 'utf8'); });" >"$t/suites/node.test.mjs"
+  printf '%s\n' "import { test } from 'node:test';" "test('wrapped', () => {});" >"$t/suites/wrapped.test.mjs"
+  printf '%s\n' '#!/usr/bin/env bash' 'node --test suites/wrapped.test.mjs' >"$t/suites/wrapped.test.sh"
+  echo 'def test_f(): pass' >"$t/plugins/x/evals/fixtures/test_fake.py"
+  echo '# changed' >>"$t/scripts/selection-audit.test.sh"
+  git -C "$t" add data/declared.txt suites/undeclared.test.sh suites/declared.test.sh suites/node.test.mjs \
+    suites/wrapped.test.mjs suites/wrapped.test.sh plugins/x/evals/fixtures/test_fake.py scripts/selection-audit.test.sh &&
+    git -C "$t" commit -qm change
+  got="$(cd "$t" && bash "$AUDIT" changed --base "$base_sha" 2>&1)"
+  want=$'suites/declared.test.sh\nsuites/node.test.mjs\nsuites/undeclared.test.sh\nsuites/wrapped.test.sh'
+  if [[ "$got" == "$want" ]]; then
+    ok "changed: lists the added suites, a wrapped .test.mjs as its wrapper, and no eval fixture or strace-running suite"
+  else
+    fail "changed: got [$got] want [$want]"
+  fi
+  cat >"$TMP_ROOT/stub-changed.sh" <<'EOF'
+#!/usr/bin/env bash
+# data/declared.txt is declared by the suites that read it; anything else selects nothing.
+case "${!#}" in
+data/declared.txt) printf '%s\n' suites/declared.test.sh suites/node.test.mjs ;;
+esac
+EOF
+  rc=0
+  (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+    bash "$AUDIT" trace --strict --out "$TMP_ROOT/out-undeclared" suites/undeclared.test.sh) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 1 && "$(cat "$TMP_ROOT/out-undeclared/gaps.tsv")" == $'suites/undeclared.test.sh\tdata/hidden.txt\tselects no suite' ]]; then
+    ok "changed suite: an undeclared read fails the trace and names the suite and the file"
+  else
+    fail "changed suite: undeclared exit $rc, gaps [$(cat "$TMP_ROOT/out-undeclared/gaps.tsv" 2>/dev/null)]"
+  fi
+  rc=0
+  (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+    bash "$AUDIT" trace --strict --out "$TMP_ROOT/out-declared" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 && "$(cut -f1,2 "$TMP_ROOT/out-declared/suites.tsv")" == $'suites/declared.test.sh\t0\nsuites/node.test.mjs\t0' ]] &&
+    grep -qxF $'suites/node.test.mjs\tdata/declared.txt' "$TMP_ROOT/out-declared/edges.tsv"; then
+    ok "changed suite: declared reads pass, and a .test.mjs suite runs under node --test and its reads count"
+  else
+    fail "changed suite: declared exit $rc, suites [$(cat "$TMP_ROOT/out-declared/suites.tsv" 2>/dev/null)], edges [$(cat "$TMP_ROOT/out-declared/edges.tsv" 2>/dev/null)]"
+  fi
+  rc=0
+  (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+    bash "$AUDIT" trace --strict --budget 1 --out "$TMP_ROOT/out-budget" suites/declared.test.sh) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 1 ]] && grep -qxF -- "- \`suites/declared.test.sh\`" "$TMP_ROOT/out-budget/report.md"; then
+    ok "trace --strict: a suite the budget left untraced is named in the report and fails the trace"
+  else
+    fail "trace --strict: budget exit $rc, report [$(cat "$TMP_ROOT/out-budget/report.md" 2>/dev/null)]"
+  fi
+  rc=0
+  (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+    bash "$AUDIT" trace --budget 1 --out "$TMP_ROOT/out-budget-lax" suites/declared.test.sh) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    ok "trace: without --strict an untraced suite is reported, not failed (the daily audit's contract)"
+  else
+    fail "trace: budget without --strict exit $rc, want 0"
+  fi
 fi
 
 # --- replay: verdict per commit ------------------------------------------------

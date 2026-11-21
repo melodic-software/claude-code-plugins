@@ -5,6 +5,14 @@ name: Maintenance Audit Test Selection
 # block a merge. It reports in the job summary and an artifact and never opens
 # or edits an issue.
 #
+# Pull-request time comes first: pr-require-checks.yml's `test-selection` job
+# traces the suites a pull request adds or changes, and an undeclared read
+# fails that pull request. The daily trace here is the backstop for reads that
+# change through files no suite change touches: a suite whose code is
+# unchanged starts reading a file through a library, tool or fixture another
+# pull request changed
+# (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+#
 #   audit-test-selection  daily and on dispatch: traces one seventh of the
 #                         suites under strace and reports every file a suite
 #                         read whose one-file diff would not select that suite.

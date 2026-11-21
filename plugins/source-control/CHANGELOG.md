@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.3] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+### Fixed
+
+- `ready` no longer refuses on Windows when a pull request closes more than one issue: the hold check stripped no carriage return from the issue list, so every issue but the last failed to read.
+
 ## [13.3.2] - 2026-11-21
 
 ### Changed

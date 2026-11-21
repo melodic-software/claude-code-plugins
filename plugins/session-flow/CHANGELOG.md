@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.18.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [9.18.0] - 2026-11-21
 
 ### Added

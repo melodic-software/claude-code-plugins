@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/evals/*/samples/*.json
 """Tests for resume_cases.py. No test reaches the API or a model CLI; chains are built
 through the real save_point.py, and read slices are checked against `cat -n` and
 `grep` run on the generated file."""
