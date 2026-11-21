@@ -923,8 +923,10 @@ const followsNoOpenHead = (run, openChecks) => {
 // The lane items in place order: those matched to an open head, held runs
 // (fault-held) oldest first ahead of the other matched runs oldest first,
 // then the rest, oldest first. A rate limit holds every open head's
-// pr-verify run at once, and older failed runs would take the three places
-// pass after pass while each held head keeps its old verdict.
+// pr-verify run at once, since the runs' tokens draw on one shared limit
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+// and older failed runs would take the three places pass after pass while
+// each held head keeps its old verdict.
 // A lane run's listing names main's tip, not its
 // PR, so a run is matched by time: each open head's checks completion takes the
 // closest run of each lane created inside the match window, and each run is
@@ -1112,9 +1114,7 @@ async function holdReason(call, repo, run, { judge, write }, settled, carry = ne
 // listed, which a completed attempt never changes. A held run where any job's
 // verdict write started is `written`: a later leg held after another wrote,
 // and a re-run would judge that head again (holdReason holds it the same
-// way). A held run carries the `reset` its held job's refusals name
-// (heldReset), so its one re-run waits out the limit that held it. An
-// unreadable listing throws.
+// way). An unreadable listing throws.
 export const WRITTEN = "after its verdict write started, so a re-run would judge the head again";
 async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   const key = jobsKey(run.id, 1);
