@@ -1,0 +1,53 @@
+{
+  "skill_name": "antigravity",
+  "evals": [
+    {
+      "id": 1,
+      "name": "investigation-runs-read-only-and-names-paths",
+      "prompt": "Ask Gemini why src/cache.js keeps missing. Don't let it change anything.",
+      "expected_output": "Writes the prompt to a file in a gitignored scratch folder, naming src/cache.js as a path to read, runs external-agents run antigravity --use investigate --prompt-file <file>, and reports Mode: read-only (investigate) on the first line, then the command's first stdout line and agy's final message verbatim.",
+      "files": [],
+      "expectations": [
+        "Runs external-agents run antigravity with --use investigate and --prompt-file",
+        "Never runs the agy binary directly and never looks up the plugin's install path",
+        "Does not paste file contents or logs into the prompt",
+        "The first reply line is Mode: read-only (investigate), taken from the job"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "write-request-stays-read-only-without-opt-in",
+      "prompt": "Have Gemini fix the failing lint in src/, then tell me when it's done.",
+      "expected_output": "Runs external-agents run antigravity --use task. With no antigravity.uses.task.mode: write configured, the run is read-only: the reply relays the notice naming that key, says the run was blocked if it exits 3, does not set the key itself, does not report the fix as done, and does not do the fix in agy's place.",
+      "files": [],
+      "expectations": [
+        "Runs external-agents run antigravity with --use task",
+        "Relays the read-only notice and never edits external-agents.yaml to turn write on",
+        "Does not report the task done and does not do the task itself in agy's place"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "branch-review-names-the-base",
+      "prompt": "Get a Gemini second opinion on this branch against main.",
+      "expected_output": "Runs external-agents review antigravity --base main as a background Bash task, reports Mode: read-only (review), then the antigravity: ran line and the findings verbatim, relaying any notice line (such as a change touching .agents/) before the findings.",
+      "files": [],
+      "expectations": [
+        "Runs external-agents review antigravity with --base main",
+        "The first reply line is Mode: read-only (review)",
+        "Relays agy's findings as agy's, with any own reading labeled separately"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unavailable-points-to-update",
+      "prompt": "Ask Gemini to summarize the README.",
+      "expected_output": "When the command exits 4 with antigravity: unavailable, the reply reports that line, points to external-agents update antigravity, and does not summarize the README itself.",
+      "files": [],
+      "expectations": [
+        "On exit 4 points the user to external-agents update antigravity",
+        "Does not answer the request itself in agy's place"
+      ]
+    }
+  ]
+}

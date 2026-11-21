@@ -419,7 +419,7 @@ describe("antigravity member", () => {
 
   test("the runner's review lines parse: ran with scope detail, and the council gate's skip", () => {
     const ran = memberResult({ product: "antigravity", output: "notice: the reviewed change touches .agents/ (1 file)\nantigravity: ran (reviewed 2 changed files against 0123abcd)\nNo findings.\n", exit: 0 });
-    assert.deepEqual(ran, { status: "ran", note: "reviewed 2 changed files against 0123abcd", findings: "No findings." });
+    assert.deepEqual(ran, { status: "ran", note: "reviewed 2 changed files against 0123abcd", notices: ["the reviewed change touches .agents/ (1 file)"], findings: "No findings." });
     assert.equal(memberResult({ product: "antigravity", output: "antigravity: skipped (antigravity.council.enabled is false)\n", exit: 4 }).status, "skipped (antigravity.council.enabled is false)");
   });
 });
