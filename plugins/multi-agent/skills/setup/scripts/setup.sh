@@ -1,47 +1,4 @@
 #!/usr/bin/env bash
-# setup.sh: inspect or write one layer of the multi-agent role map.
-#
-#   setup.sh check [session=<alias>]
-#       The resolved map through the route wrapper (JSON on stdout, notes on
-#       stderr), then one row on the personal override's gitignore state, a
-#       WARN row for each retired team file still present and one for each
-#       old user or personal file.
-#   setup.sh apply --layer user|team|local [--write] <key>=<value> ...
-#       Merges the pairs into that layer's existing keys. `<key>=` with no
-#       value removes the key. Without --write it prints the target path and a
-#       diff and writes nothing; with --write it writes, then reads the file
-#       back. The candidate is resolved before anything is written: a key the
-#       resolver would reject or ignore stops the run with exit 1. user and
-#       local are refused while that layer's old file exists.
-#   setup.sh apply --migrate [--write]
-#       Moves each old file into its new location: ~/.claude/multi-agent.yaml
-#       to the user file, <root>/.claude/multi-agent.local.yaml to local and
-#       <root>/.claude/multi-agent.yaml to team. A key the new file already
-#       sets keeps its value; every other key of the old file is added.
-#       Without --write it prints each move and a diff; with --write it
-#       writes the new file, reads it back, resolves the layers, and only
-#       then deletes the old file.
-#
-# Layers (reference/config.md):
-#   user   the file the role_map_file userConfig option names (--user-file);
-#          refused while the option is unset
-#   team   <root>/<home>/multi-agent.yaml, <home> being the convention home the
-#          repository binds, else docs/conventions. While that file is absent,
-#          the keys of a retired team file (the config block in
-#          docs/conventions/multi-agent.md, else .claude/multi-agent.yaml),
-#          which the resolver no longer reads, seed it; that file is left as
-#          it is, and check names it.
-#   local  <root>/<home>/multi-agent.local.yaml
-# team and local are refused unless lib/config-root.sh classifies <root> as repo.
-# A layer file is rewritten whole, so comments in it are not kept.
-#
-# --user-file <f> takes the role_map_file option's value; empty or an
-# unsubstituted ${user_config.role_map_file} means unset. Options for tests:
-# --root <dir> (default CLAUDE_PROJECT_DIR, else the git toplevel), --home
-# <dir> (default $HOME).
-#
-# Exit: 0 done (or nothing to change); 1 the candidate does not resolve
-# cleanly, or the existing layer does not parse; 2 usage error or a refused layer.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,6 +9,54 @@ PARSER="$PLUGIN_DIR/scripts/yaml-subset.awk"
 # shellcheck source=../../../lib/config-root.sh
 . "$PLUGIN_DIR/lib/config-root.sh"
 
+usage() {
+  cat <<'EOF'
+setup.sh: inspect or write one layer of the multi-agent role map.
+
+  setup.sh check [session=<alias>]
+      The resolved map through the route wrapper (JSON on stdout, notes on
+      stderr), then one row on the personal override's gitignore state, a
+      WARN row for each retired team file still present and one for each
+      old user or personal file.
+  setup.sh apply --layer user|team|local [--write] <key>=<value> ...
+      Merges the pairs into that layer's existing keys. `<key>=` with no
+      value removes the key. Without --write it prints the target path and a
+      diff and writes nothing; with --write it writes, then reads the file
+      back. The candidate is resolved before anything is written: a key the
+      resolver would reject or ignore stops the run with exit 1. user and
+      local are refused while that layer's old file exists.
+  setup.sh apply --migrate [--write]
+      Moves each old file into its new location: ~/.claude/multi-agent.yaml
+      to the user file, <root>/.claude/multi-agent.local.yaml to local and
+      <root>/.claude/multi-agent.yaml to team. A key the new file already
+      sets keeps its value; every other key of the old file is added.
+      Without --write it prints each move and a diff; with --write it
+      writes the new file, reads it back, resolves the layers, and only
+      then deletes the old file.
+
+Layers (reference/config.md):
+  user   the file the role_map_file userConfig option names (--user-file);
+         refused while the option is unset
+  team   <root>/<home>/multi-agent.yaml, <home> being the convention home the
+         repository binds, else docs/conventions. While that file is absent,
+         the keys of a retired team file (the config block in
+         docs/conventions/multi-agent.md, else .claude/multi-agent.yaml),
+         which the resolver no longer reads, seed it; that file is left as
+         it is, and check names it.
+  local  <root>/<home>/multi-agent.local.yaml
+team and local are refused unless lib/config-root.sh classifies <root> as repo.
+A layer file is rewritten whole, so comments in it are not kept.
+
+--user-file <f> takes the role_map_file option's value; empty or an
+unsubstituted ${user_config.role_map_file} means unset. Options for tests:
+--root <dir> (default CLAUDE_PROJECT_DIR, else the git toplevel), --home
+<dir> (default $HOME).
+
+Exit: 0 done (or nothing to change); 1 the candidate does not resolve
+cleanly, or the existing layer does not parse; 2 usage error or a refused layer.
+EOF
+}
+
 die() {
   printf 'setup: %s\n' "$1" >&2
   exit 2
@@ -59,6 +64,10 @@ die() {
 
 ACTION="${1:-check}"
 [[ $# -gt 0 ]] && shift
+if [[ "$ACTION" == -h || "$ACTION" == --help ]]; then
+  usage
+  exit 0
+fi
 LAYER="" WRITE=0 MIGRATE=0 ROOT="" HOME_DIR="${HOME:-}" USER_FILE=""
 SESSION=() PAIRS=()
 while [[ $# -gt 0 ]]; do

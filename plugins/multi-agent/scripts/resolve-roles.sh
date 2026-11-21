@@ -1,73 +1,78 @@
 #!/usr/bin/env bash
-# resolve-roles.sh: resolve the multi-agent role map through the config cascade.
-#
-# LAYERS, bottom to top, each overriding per key:
-#   bundled      reference/defaults.yaml
-#   user-config  the file the role_map_file userConfig option names (--user-file)
-#   team         <root>/<home>/multi-agent.yaml (<home> is the convention home
-#                the repository binds, else docs/conventions)
-#   personal-override <root>/<home>/multi-agent.local.yaml
-# Dual-read window: while no file above supplies the user-config or the
-# personal-override layer, its old file still does: ~/.claude/multi-agent.yaml
-# (the layer is then named user-global) or <root>/.claude/multi-agent.local.yaml.
-# Each old file found adds one note naming it, its new location and
-# /multi-agent:setup apply --migrate, whether it was read or not.
-# Team and personal-override apply only when lib/config-root.sh classifies <root> as
-# `repo`; a team or personal-override path that is the user layer's file is read once.
-# A layer that does not parse, or declares a schema other than 1, is skipped
-# and named in `notes`. A key with a value outside its allowed set is rejected
-# and named; the layer below keeps the key. Keys and values: reference/config.md.
-#
-# Every role resolves to two variants:
-#   single  a stage that runs one agent: the role's own model and effort.
-#   fanout  a stage that runs more than one agent. With fanout.frontier_guard
-#           on, a model that is `inherit` under a frontier or unknown session,
-#           or a frontier alias, becomes fanout.model.
-#
-# Usage:
-#   resolve-roles.sh [options] <role|all>    JSON on stdout
-#   resolve-roles.sh pointers [--defaults F] TSV owner, key, value of every
-#                                            pointer*, as_of and recheck default
-# Options:
-#   --workload <w>                        apply roles.<r>.workloads.<w> keys; <w>
-#                                         is a workload some layer declares
-#                                         (workloads.<w>: true); the bundled
-#                                         layer declares code, research and
-#                                         mechanical
-#   --session-model <alias>               the session model's alias (opus,
-#                                         sonnet, haiku, fable); omitted
-#                                         means unknown, which the guard treats
-#                                         as frontier
-#   --root <dir>      repository root (default: CLAUDE_PROJECT_DIR, else the
-#                     git toplevel)
-#   --home <dir>      the user's home, holding the old .claude/multi-agent.yaml
-#                     (default $HOME)
-#   --user-file <f>   the file the role_map_file option names; empty or an
-#                     unsubstituted ${user_config.role_map_file} means unset
-#   --defaults <f>    bundled layer (tests)
-#
-# JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
-# {"role", "single": V, "fanout": V, "source": {"model", "effort"}, "basis":
-# {"model", "fanout_model", "effort"}}}, "layers": [{"layer", "path", "state"}],
-# "notes": [...]}, where V is {"model", "omit_model", "effort", "guarded"}. A
-# basis is `upstream` or `judgment` as the bundled layer records it
-# (basis_<field> in reference/defaults.yaml), `config` when a consumer layer
-# supplied the value, or `unrecorded` when the bundled entry names none.
-# `fanout_model` is the fanout variant's model basis: the role's own unless the
-# guard replaced it, then fanout.model's. `omit_model` is true when model is
-# `inherit`: the caller passes no model option and the agent runs on the
-# session model. `guarded` is true when the fan-out guard replaced the model.
-# A role whose single or fanout model is haiku, named or inherited from a haiku
-# session, gains one `notes` entry pointing at reference/routing-rubric.md; the
-# role still resolves.
-#
-# Exit: 0 resolved; 2 usage error, unknown role (valid roles on stderr),
-# undeclared workload (declared ones on stderr), or an unreadable bundled layer.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="$SCRIPT_DIR/yaml-subset.awk"
 DEFAULTS="$SCRIPT_DIR/../reference/defaults.yaml"
+
+usage() {
+  cat <<'EOF'
+resolve-roles.sh: resolve the multi-agent role map through the config cascade.
+
+LAYERS, bottom to top, each overriding per key:
+  bundled      reference/defaults.yaml
+  user-config  the file the role_map_file userConfig option names (--user-file)
+  team         <root>/<home>/multi-agent.yaml (<home> is the convention home
+               the repository binds, else docs/conventions)
+  personal-override <root>/<home>/multi-agent.local.yaml
+Dual-read window: while no file above supplies the user-config or the
+personal-override layer, its old file still does: ~/.claude/multi-agent.yaml
+(the layer is then named user-global) or <root>/.claude/multi-agent.local.yaml.
+Each old file found adds one note naming it, its new location and
+/multi-agent:setup apply --migrate, whether it was read or not.
+Team and personal-override apply only when lib/config-root.sh classifies <root> as
+`repo`; a team or personal-override path that is the user layer's file is read once.
+A layer that does not parse, or declares a schema other than 1, is skipped
+and named in `notes`. A key with a value outside its allowed set is rejected
+and named; the layer below keeps the key. Keys and values: reference/config.md.
+
+Every role resolves to two variants:
+  single  a stage that runs one agent: the role's own model and effort.
+  fanout  a stage that runs more than one agent. With fanout.frontier_guard
+          on, a model that is `inherit` under a frontier or unknown session,
+          or a frontier alias, becomes fanout.model.
+
+Usage:
+  resolve-roles.sh [options] <role|all>    JSON on stdout
+  resolve-roles.sh pointers [--defaults F] TSV owner, key, value of every
+                                           pointer*, as_of and recheck default
+Options:
+  --workload <w>                        apply roles.<r>.workloads.<w> keys; <w>
+                                        is a workload some layer declares
+                                        (workloads.<w>: true); the bundled
+                                        layer declares code, research and
+                                        mechanical
+  --session-model <alias>               the session model's alias (opus,
+                                        sonnet, haiku, fable); omitted
+                                        means unknown, which the guard treats
+                                        as frontier
+  --root <dir>      repository root (default: CLAUDE_PROJECT_DIR, else the
+                    git toplevel)
+  --home <dir>      the user's home, holding the old .claude/multi-agent.yaml
+                    (default $HOME)
+  --user-file <f>   the file the role_map_file option names; empty or an
+                    unsubstituted ${user_config.role_map_file} means unset
+  --defaults <f>    bundled layer (tests)
+
+JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
+{"role", "single": V, "fanout": V, "source": {"model", "effort"}, "basis":
+{"model", "fanout_model", "effort"}}}, "layers": [{"layer", "path", "state"}],
+"notes": [...]}, where V is {"model", "omit_model", "effort", "guarded"}. A
+basis is `upstream` or `judgment` as the bundled layer records it
+(basis_<field> in reference/defaults.yaml), `config` when a consumer layer
+supplied the value, or `unrecorded` when the bundled entry names none.
+`fanout_model` is the fanout variant's model basis: the role's own unless the
+guard replaced it, then fanout.model's. `omit_model` is true when model is
+`inherit`: the caller passes no model option and the agent runs on the
+session model. `guarded` is true when the fan-out guard replaced the model.
+A role whose single or fanout model is haiku, named or inherited from a haiku
+session, gains one `notes` entry pointing at reference/routing-rubric.md; the
+role still resolves.
+
+Exit: 0 resolved; 2 usage error, unknown role (valid roles on stderr),
+undeclared workload (declared ones on stderr), or an unreadable bundled layer.
+EOF
+}
 
 # Validation constants: a chosen subset of the aliases at
 # https://code.claude.com/docs/en/model-config#model-aliases and the levels at
@@ -120,7 +125,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   -h | --help)
-    sed -n '2,/^# Exit:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    usage
     exit 0
     ;;
   -*) die "unknown option '$1'" ;;
