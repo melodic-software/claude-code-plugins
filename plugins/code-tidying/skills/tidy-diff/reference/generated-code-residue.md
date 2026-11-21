@@ -41,35 +41,35 @@ test live in [triage.md](../../remove-comments/reference/triage.md).
 
 | Residue | Detection cue | Fix | In tidy-diff |
 |---|---|---|---|
-| Comment that narrates | `// increment the counter` above `count++`. `// Loop through each item`. `// Return the result`. | Delete. | pass 2 (class A) |
-| Comment that talks to the reviewer | `// Updated to use the new API`. `// Removed the old implementation`. `// Now handles null`. `// NEW:`, `// Fixed:`. | Delete; its explanation belongs in the commit message. | pass 2 (class A); its explanation is noted for the commit message |
+| Comment that narrates | "increment the counter" above an increment. "Loop through each item". "Return the result". | Delete. | pass 2 (class A) |
+| Comment that talks to the reviewer | "Updated to use the new API". "Removed the old implementation". "Now handles null". "NEW:", "Fixed:". | Delete; its explanation belongs in the commit message. | pass 2 (class A); its explanation is noted for the commit message |
 | Comment that lies | A comment describing behavior the code no longer has, a parameter that was removed, a step that moved elsewhere. | Delete or correct it. When editing any region, re-read every comment in it for one the edit invalidated. | pass 2 (class A, obsolete); a correction is a proposal |
-| Section divider or numbered step | `// ===== Helpers =====`, `// Step 1: parse input`. | Delete the divider. Replace numbered steps with extracted functions bearing those names. | Divider: pass 2 (class A). Step comment: class B, so the extraction is a proposal |
-| Docstring that restates the signature | `@param userId - the ID of the user`. | Document constraints, units, side effects and surprising behavior, or nothing. | pass 2 on a private member (class A or B); a public-API doc comment is exempt and never touched |
+| Section divider or numbered step | A banner comment such as "===== Helpers =====". "Step 1: parse input". | Delete the divider. Replace numbered steps with extracted functions bearing those names. | Divider: pass 2 (class A). Step comment: class B, so the extraction is a proposal |
+| Docstring that restates the signature | A parameter entry that repeats the parameter's name: "userId: the ID of the user". | Document constraints, units, side effects and surprising behavior, or nothing. | pass 2 on a private member (class A or B); a public-API doc comment is exempt and never touched |
 | Commented-out code and summary blocks | Commented-out code. File-level blocks that list everything the code below does. | Delete both. | pass 2 (class A) |
 
 ### Defensive theater
 
 | Residue | Detection cue | Fix | In tidy-diff |
 |---|---|---|---|
-| Check against an impossible state | A null check on a value the type system, the constructor, or the three lines above already guarantee. `if (!user) return;` after a call that throws when user is missing. | Trust the invariant. Where it is not guaranteed, fix the type once instead of checking at every call site. | proposal |
-| Catch theater | Catching only to log and rethrow unchanged. An empty catch. `catch (e) { console.error(e) }` that swallows the failure and continues as if it succeeded. | Handle the error once, at a real boundary, adding context, or do not catch it. | proposal |
-| Silent fallback | `catch { return [] }`. `?? defaultValue` masking a failed fetch. A simpler backup code path for when the real one fails. | Let it fail loudly: the fallback keeps tests green while the primary path is broken. Where degraded behavior is an explicit product decision, make the degraded state visible to the user. | proposal |
+| Check against an impossible state | A null check on a value the type system, the constructor, or the three lines above already guarantee. An early return on a missing user after a call that throws when the user is missing. | Trust the invariant. Where it is not guaranteed, fix the type once instead of checking at every call site. | proposal |
+| Catch theater | Catching only to log and rethrow unchanged. An empty catch. A catch that only logs the error, swallows the failure and continues as if it succeeded. | Handle the error once, at a real boundary, adding context, or do not catch it. | proposal |
+| Silent fallback | A catch that returns an empty collection. A default value masking a failed fetch. A simpler backup code path for when the real one fails. | Let it fail loudly: the fallback keeps tests green while the primary path is broken. Where degraded behavior is an explicit product decision, make the degraded state visible to the user. | proposal |
 | Validation at every layer | The same null-and-range check repeated in the handler, the service, and the helper. | Validate untrusted input once at the boundary, then pass the trusted value through. | proposal |
-| Condition padding | `x !== null && x !== undefined && x !== ''` where one check suffices. `=== true` on a boolean. `a?.b?.c` chains on values guaranteed to exist. | Write the check the invariant needs. | proposal |
+| Condition padding | Several checks for a missing or empty value where one check suffices. A boolean compared to `true` or `false`. Optional-access chains on values guaranteed to exist. | Write the check the invariant needs. | proposal |
 
 ### Type escape hatches
 
 | Residue | Detection cue | Fix | In tidy-diff |
 |---|---|---|---|
-| Cast that silences the compiler | `as any`, `as unknown as X`, `@ts-ignore`, a non-null `!` used to silence an error instead of fixing it. | Parse or validate at the boundary and let the correct type flow through. A cast stays only with a comment stating the invariant that makes it safe. | proposal; a cast with its invariant comment stays, and that comment is class C |
+| Cast that silences the compiler | A cast to the language's untyped or top type, a double cast through it, a directive that suppresses a type error, a non-null assertion used to silence an error instead of fixing it. | Parse or validate at the boundary and let the correct type flow through. A cast stays only with a comment stating the invariant that makes it safe. | proposal; a cast with its invariant comment stays, and that comment is class C |
 
 ### Naming
 
 | Residue | Detection cue | Fix | In tidy-diff |
 |---|---|---|---|
 | Generic name | `data`, `result`, `item`, `temp`, `handler`, `processData`. | Name the domain fact the value holds: `unpaidInvoices`, `retryDelayMs`. | proposal; tidy-diff renames nothing |
-| Version-suffixed name | `fetchDataV2`, `handleClickNew`, `EnhancedButton`, `utils-new.ts`. | Replace the old implementation, update its callers, and take its name. Published public API (a package's exports, a served endpoint) keeps a deprecated alias for callers outside the repository. | proposal |
+| Version-suffixed name | `fetchDataV2`, `handleClickNew`, `EnhancedButton`, a `utils-new` module. | Replace the old implementation, update its callers, and take its name. Published public API (a package's exports, a served endpoint) keeps a deprecated alias for callers outside the repository. | proposal |
 
 ### Structure
 
@@ -85,8 +85,8 @@ test live in [triage.md](../../remove-comments/reference/triage.md).
 
 | Residue | Detection cue | Fix | In tidy-diff |
 |---|---|---|---|
-| Debug leftover | `console.log('here')`, entry and exit logs (`entering processOrder`). | Delete. | proposal: removing a log changes output |
-| Log ceremony | Emoji or celebration in log output: `console.log('✅ Successfully initialized!')`. | Log the facts an operator needs, in the repository's existing log style. | proposal: rewording a log changes output |
+| Debug leftover | A log line printing "here", entry and exit logs ("entering processOrder"). | Delete. | proposal: removing a log changes output |
+| Log ceremony | Emoji or celebration in log output: "✅ Successfully initialized!". | Log the facts an operator needs, in the repository's existing log style. | proposal: rewording a log changes output |
 
 ### Tests
 
