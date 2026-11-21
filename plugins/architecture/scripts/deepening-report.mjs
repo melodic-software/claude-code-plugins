@@ -287,7 +287,7 @@ const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
       if (pane && show(pane.id, "")) { history.replaceState(null, "", "#" + pane.id); }
     }, true);
     window.addEventListener("popstate", function () { show(location.hash.slice(1) || topCard.id, ""); });
-    show(location.hash && document.getElementById(location.hash.slice(1)) ? location.hash.slice(1) : topCard.id, "");
+    if (!show(location.hash.slice(1), "")) { show(topCard.id, ""); }
   })();
 `;
 const SCRIPTS = [
@@ -567,6 +567,15 @@ const ATTRS = new Set([
   "lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "hidden", "tabindex",
   "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live", "data-rv-theme", "data-part", "data-step", "data-enlarge", "data-zoom-close",
 ]);
+const READER_VALUES = {
+  hidden: ["until-found"],
+  tabindex: ["-1"],
+  "aria-current": ["true"],
+  "aria-live": ["polite"],
+  "data-step": ["-1", "1"],
+  "data-enlarge": [""],
+  "data-zoom-close": [""],
+};
 const ESCAPED_TEXT = /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;
 const TOKEN = /^[a-z0-9-]{1,40}$/;
 const MERMAID_TEXT = /^[A-Za-z0-9 _./:\-"\n[\]|>;,#]*$/;
@@ -601,6 +610,8 @@ export function validateDeepeningPage(html) {
       if (name === "href" && !(value.startsWith("#") && TOKEN.test(value.slice(1)))) failures.push("href");
       if ((name === "id" || name === "data-part") && !TOKEN.test(value)) failures.push(`opaque:${name}`);
       if (name === "http-equiv" && value !== "Content-Security-Policy") failures.push("http-equiv");
+      if (Object.hasOwn(READER_VALUES, name) && !READER_VALUES[name].includes(value)) failures.push(`value:${name}`);
+      if (name === "aria-labelledby" && !TOKEN.test(value)) failures.push(`opaque:${name}`);
     }
   }
   const textLeft = rest.replace(/<!doctype html>/i, "").replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");

@@ -154,6 +154,24 @@ test("the validator refuses an added script, an event handler or a widened polic
   assert.equal(validateDeepeningPage(page.replace('<pre class="mermaid">', '<pre class="mermaid">%%{init: {"securityLevel": "loose"}}%%\n')).ok, false);
 });
 
+test("the validator takes the reader's attributes only with the values the reader writes", () => {
+  const page = renderDeepening(parseDeepening(record({}, [candidate(), candidate({ id: "tax-rounding" })])));
+  assert.equal(validateDeepeningPage(page).ok, true);
+  for (const [from, to] of [
+    ['hidden="until-found"', 'hidden="x"'],
+    ['tabindex="-1"', 'tabindex="0"'],
+    ['aria-current="true"', 'aria-current="page"'],
+    ['aria-live="polite"', 'aria-live="assertive"'],
+    ['data-step="1"', 'data-step="2"'],
+    ["<figure data-enlarge", '<figure data-enlarge="x"'],
+    ["data-zoom-close>", 'data-zoom-close="x">'],
+    ['aria-labelledby="zoom-title"', 'aria-labelledby="a b"'],
+  ]) {
+    assert.ok(page.includes(from), from);
+    assert.equal(validateDeepeningPage(page.replace(from, to)).ok, false, to);
+  }
+});
+
 test("scope and commit are required, and the commit must be a hex SHA", () => {
   const { scope, ...noScope } = record();
   assert.match(failure(noScope), /record: scope is missing/);
