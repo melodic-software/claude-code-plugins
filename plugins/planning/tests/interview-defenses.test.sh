@@ -532,7 +532,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2f45a095d33c22488286ffd2c5b0248b1f3f9123084245b4c2fbc9916fd94406"
+  "913182d8f122427687e3daa10eb5a74f25cd0af1df918c68a094d162ac4bb128"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -587,7 +587,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "17235dec719241d850f2ed32efecce845e4d4eac28df159c58c0cead6a05ca81"
+  "272e5524066f4072445dcf55f67574eb3ed49ceeee681fcbcc71f86d075df83f"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -644,7 +644,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "6e6577f57f115fa749e6fb5ec9bef7bf860cfdc07d36aa7aa064563f7f02b981"
+  "68a8e1087285efdae51d408be2e5d551399de6c98cf1c4e8142a5d3633dd3317"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
@@ -676,7 +676,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "dde4506c0ec506447f50ebe6aea64cc35a2f917a6707d924a62bd7777910df77"
+  "fd049b8e15a5dcc646e5a69e778d17f60b3e3df17353d0f2d5d72d6919a7f0f7"
 
 # Case A's exemption expectation now names `lock`'s one problem question and its invocation
 # confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
@@ -807,7 +807,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "221af05eb4cb7c1f58a756f9218fc7f23ad420e5266d569ca2db6ca379ffd416"
+  "f458232e95be64764519502cbb91bf973ce0cef5f8d1e7dbf96b1e4f87eebb6f"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.

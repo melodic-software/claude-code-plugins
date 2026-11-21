@@ -112,8 +112,9 @@ New work starts at the interview, and every other pre-planning pass runs from it
 - **During the rounds:** explore and research only as lookups (above); a prototype as the
   mid-interview detour of [`composition.md`](composition.md) "Mid-interview composition".
 - **After the confirmation gate:** `/planning:prd` when the confirmed understanding still leaves
-  product intent unsettled, otherwise the SKILL.md "Next" routes. No explore or research pass runs
-  after the Brief: its facts came in as lookups.
+  product intent unsettled, otherwise the SKILL.md "Next" routes. The interview routes no explore or
+  research pass after the Brief, since its facts came in as lookups; design and plan run their own
+  when their questions need one.
 
 No pass clears the context before the next one; `/session-flow:workflow` decides when a session
 hands off.

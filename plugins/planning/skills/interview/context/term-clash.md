@@ -23,7 +23,7 @@ Never ask the user to come up with a qualifier, and never leave the bare term st
 clash. The question's recommendation is a qualified name you derive from the evidence: the term
 plus the word that separates the user's meaning from the existing one (for example `billing
 account` when the code's `Account` is a sign-in identity, `src/auth/account.ts:12`). Ask it as a
-registered question in the full layout:
+registered question in the whole question layout:
 
 - **Context**: the user's meaning in their words (`user, round <N>`), the existing concept with its
   source (`file:line` or the glossary entry), and the sentence that would be ambiguous without the

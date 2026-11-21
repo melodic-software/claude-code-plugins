@@ -30,7 +30,7 @@ or the data migration should work"), round 1 carries one question recommending
 `/planning:wayfind chart`, which charts those unknowns as a map of decision items. The interview
 stays the entry either way:
 
-- Ask it as a registered round-1 question in the full layout, worded so yes accepts ("Should this
+- Ask it as a registered round-1 question in the whole question layout, worded so yes accepts ("Should this
   effort move to `/planning:wayfind chart` now?"), its Context naming each unknown area in the
   user's words. Round 1's other questions go out in the same message; never hold them for this
   answer, and never switch on your own. In an intake round it goes out instead as the one-line
