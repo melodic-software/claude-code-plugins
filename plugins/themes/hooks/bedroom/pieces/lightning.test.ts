@@ -8,13 +8,17 @@ import { LIGHTNING, SLOT_S, extraStrikes } from './weather.js'
 const STRIKE_CODE = WORLD.top + CUES.strike
 const BUILT_IN = BUILT.includes('weather') && !WITHOUT.includes('weather.lightning')
 
-/** Reads the Shader element each second for `ms`: the times a strike cue first shows, in ms from the start of the read. */
+/**
+ * Reads the Shader element every READ_MS for `ms`: the times a strike cue first shows, in ms from the start of the read.
+ * A cue's code holds CUE_HOLD_MS (12 s), so a read every 3 s sees each one.
+ */
+const READ_MS = 3000
 async function strikes(room: Room, ms: number): Promise<number[]> {
   const start = room.clock.now()
   const at: number[] = []
   let was = (await room.values())?.world
-  for (let t = 0; t < ms; t += 1000) {
-    await room.clock.advance(1000)
+  for (let t = 0; t < ms; t += READ_MS) {
+    await room.clock.advance(READ_MS)
     const code = (await room.values())?.world
     if (code === STRIKE_CODE && was !== STRIKE_CODE) at.push(room.clock.now() - start)
     was = code
@@ -31,7 +35,7 @@ for (const [setting, low, high] of [['rare', 0, 0], ['normal', 13, 22], ['often'
     const at = await strikes(room, TEN_MINUTES)
     expect(at.length).toBeGreaterThanOrEqual(low)
     expect(at.length).toBeLessThanOrEqual(high)
-    for (let i = 1; i < at.length; i++) expect(at[i]! - at[i - 1]!).toBeGreaterThanOrEqual(SLOT_S * 1000 - 1000)
+    for (let i = 1; i < at.length; i++) expect(at[i]! - at[i - 1]!).toBeGreaterThanOrEqual(SLOT_S * 1000 - READ_MS)
     expect(new Set(at.slice(1).map((t, i) => Math.round((t - at[i]!) / 1000))).size).toBeGreaterThanOrEqual(at.length > 4 ? 3 : 0)
     await room.unmount()
   })

@@ -1,7 +1,7 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, test, type Engine } from 'claude-code/testing'
 
 import { PHASES, minutesOf } from '../core/settings.js'
-import { STORE_KEY, startRoom } from '../core/testing.js'
+import { BACKDROP, STORE_KEY, startRoom, type Room } from '../core/testing.js'
 import { BUILT } from './index.js'
 import { phaseOf, rowAt, rowStarts, seasonOf, sunTimes } from './time.js'
 
@@ -45,23 +45,34 @@ test('/bedroom time takes auto, each phase, its other words and HH:MM, and nothi
 })
 
 /**
- * Walks a whole local day in `auto` a minute at a time from midnight, reading the Shader element after each minute's
- * tick: the phase each time the sun field changes, at which local minute, and whether the room's drawing was sent again.
+ * Walks a local day in `auto` from 00:00:30, the clock running through every minute's tick, and reads the Shader
+ * element 30 s into the minute before each of `minutes` and into the minute itself: the phase each time the sun field
+ * changes, at which local minute, and whether the room's drawing was sent again. A change one minute early, or one that
+ * does not come, shows as a wrong entry. Between reads the backdrop is unmounted: drawn, each tick costs about 21 ms
+ * against about 1.6 ms (claude plugin test, two hours of ticks).
  */
-async function walkDay(room: Awaited<ReturnType<typeof startRoom>>): Promise<{ changes: [string, string][]; redrawn: boolean }> {
+async function walkDay($: Engine, room: Room, minutes: readonly number[]): Promise<{ changes: [string, string][]; redrawn: boolean }> {
+  const read = async (): Promise<{ sun: number | undefined; source: unknown }> => {
+    const ui = await $.ui.mount({ ...BACKDROP })
+    const sun = sunOf((await ui.find({ type: 'Shader' }))?.props.values as Record<string, number> | undefined)
+    const source = (await ui.find({ type: 'Svg' }))?.props.source
+    await ui.unmount()
+    return { sun, source }
+  }
   const changes: [string, string][] = []
-  const source = await room.source()
-  let was = sunOf(await room.values())
-  for (let step = 0; step < 1440; step++) {
-    await room.clock.advance(60_000)
-    const sun = sunOf(await room.values())
-    if (sun !== was && sun !== undefined) {
-      const at = new Date(room.clock.now())
-      changes.push([PHASES[sun]!, hhmm(at.getHours() * 60 + at.getMinutes())])
-    }
+  const dayStart = room.clock.now() - 30_000
+  await room.unmount()
+  const first = await read()
+  let was = first.sun
+  let redrawn = false
+  for (const at of [...new Set(minutes.flatMap(m => [m - 1, m]))].filter(m => m > 0).sort((a, b) => a - b)) {
+    await room.clock.advance(dayStart + at * 60_000 + 30_000 - room.clock.now())
+    const { sun, source } = await read()
+    if (sun !== was && sun !== undefined) changes.push([PHASES[sun]!, hhmm(at)])
+    redrawn ||= source !== first.source
     was = sun
   }
-  return { changes, redrawn: (await room.source()) !== source }
+  return { changes, redrawn }
 }
 
 const MIDNIGHT = new Date(2026, 10, 20, 0, 0, 30).getTime()
@@ -70,7 +81,7 @@ test('auto walks the day from midnight: each phase at its row start, by the worl
   if (!BUILT.includes('time')) return
   const room = await startRoom($, on, { now: MIDNIGHT })
   expect(sunOf(await room.values())).toBe(PHASES.indexOf('night'))
-  const { changes, redrawn } = await walkDay(room)
+  const { changes, redrawn } = await walkDay($, room, rowStarts(minutesOf('06:30'), minutesOf('20:30')))
   expect(changes).toEqual([
     ['predawn', '05:15'],
     ['dawn', '06:10'],
@@ -82,7 +93,6 @@ test('auto walks the day from midnight: each phase at its row start, by the worl
     ['night', '23:00'],
   ])
   expect(redrawn).toBe(false)
-  await room.unmount()
 })
 
 /** The clock's daylight saving time on a date, in minutes, as seasonOf reads it. */
@@ -114,10 +124,9 @@ for (const [name, month, day] of [['December', 11, 21], ['June', 5, 21]] as cons
     const starts = rowStarts(sunrise, sunset)
     const expected = [3, 4, 5, 6, 7, 0, 1, 2].map(row => [PHASES[row]!, hhmm(starts[row]!)] as [string, string])
     const room = await startRoom($, on, { now: start })
-    const { changes } = await walkDay(room)
+    const { changes } = await walkDay($, room, [...starts, ...rowStarts(minutesOf('06:30'), minutesOf('20:30'))])
     expect(changes).toEqual(expected)
     expect(await room.run('time')).toMatch(/sunrise \d\d:\d\d \(the season\), sunset \d\d:\d\d \(the season\)/)
-    await room.unmount()
   })
 }
 
