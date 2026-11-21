@@ -19,7 +19,7 @@ scripts/affected-tests.sh                 # list the suites covering your diff v
 scripts/affected-tests.sh --run           # ... and run them, sequentially
 scripts/affected-tests.sh --explain       # ... and say why each one was selected
 scripts/affected-tests.sh path/to/file.sh # explicit paths instead of a diff
-scripts/check-affected.sh [--tests]       # CI's diff-scoped lint checks (+ the suites); runs before every agent git push
+scripts/check-affected.sh [--tests]       # CI's diff-scoped lint checks (+ the suites), run on demand
 ```
 
 `--run` is a Linux gate. On a Windows Git Bash host a standing set of suites

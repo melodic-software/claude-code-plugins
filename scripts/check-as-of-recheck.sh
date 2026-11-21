@@ -41,8 +41,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
-# script (the pre-push hook runs a merge-base copy against the branch).
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 case "${1:-}" in
@@ -108,7 +106,7 @@ if ((${#files[@]} > 0)); then
         if (!opens_with_trigger(t)) print pending
         pending = ""
       }
-      if (t ~ stamp && t !~ trig) pending = file "\t" start
+      if (index(t, "of") > 0 && t ~ /[0-9][0-9][0-9][0-9]-/ && t ~ stamp && t !~ trig) pending = file "\t" start
       buf = ""
     }
     function close_file() { flush(); if (pending != "") print pending; pending = ""; fence = 0 }
