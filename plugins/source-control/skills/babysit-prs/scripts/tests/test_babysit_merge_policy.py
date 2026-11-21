@@ -1558,6 +1558,28 @@ class AutoClearOnGreen(unittest.TestCase):
             self.assertFalse(read_demotion().active)
         self.assertEqual(json.loads(path.read_text())["recoveries"], {})
 
+    def test_an_unfinished_read_keeps_the_recoveries_it_never_reached(self) -> None:
+        path, env = self.recoveries()
+        with env:
+            self.proving()
+            read_demotion()
+            kept = json.loads(path.read_text())["recoveries"]
+            gh = self.fake(**self.closed())
+            gh.graphql["PolicyIssuesByAuthor"] = 502
+            self.assertTrue(read_demotion().active)
+        self.assertTrue(kept)
+        self.assertEqual(json.loads(path.read_text())["recoveries"], kept)
+
+    def test_the_write_switch_reads_true_without_case(self) -> None:
+        path, _ = self.recoveries()
+        with mock.patch.dict(
+            os.environ,
+            {policy.RECOVERIES_ENV: str(path), policy.RECOVERIES_WRITE_ENV: " TRUE "},
+        ):
+            self.proving()
+            read_demotion()
+        self.assertTrue(json.loads(path.read_text())["recoveries"])
+
     def test_only_a_writer_keeps_recoveries_and_a_bad_file_is_none(self) -> None:
         path, env = self.recoveries(write=False)
         with env:

@@ -1952,7 +1952,7 @@ GREEN_SPANS = 53
 GREEN_GRID = datetime(2026, 1, 5, 10, tzinfo=UTC)
 GREEN_CELL_PAGES = 2 * GREEN_PAGES
 RECOVERIES_ENV = "BABYSIT_DEMOTION_RECOVERIES"
-RECOVERIES_WRITE_ENV = "BABYSIT_DEMOTION_RECOVERIES_WRITE"
+RECOVERIES_WRITE_ENV = "BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED"
 RECOVERIES_VERSION = 1
 _RECOVERY_KEY = re.compile(
     r"[1-9][0-9]{0,15}\|[0-9TZ:-]{20}\|(?:OPEN|CLOSED)\|(?:[0-9TZ:-]{20})?\|[0-9a-f]{40}"
@@ -2363,7 +2363,7 @@ def _recovered_at(
             recovered = _time(run.get("created_at"))
             if (
                 key
-                and os.environ.get(RECOVERIES_WRITE_ENV) == "true"
+                and _writes_recoveries()
                 and green.settled(created, recovered)
             ):
                 green.proven[key] = _stamp(recovered)
@@ -2411,12 +2411,16 @@ def _carried_recoveries(repo: str) -> dict[str, str]:
         return {}
 
 
+def _writes_recoveries() -> bool:
+    """Whether RECOVERIES_WRITE_ENV is `true`, compared without case."""
+    return os.environ.get(RECOVERIES_WRITE_ENV, "").strip().lower() == "true"
+
+
 def _save_recoveries(repo: str, proven: Mapping[str, str]) -> None:
-    """Write the recoveries this read proved or used to RECOVERIES_ENV's file,
-    only when RECOVERIES_WRITE_ENV is "true". Best effort: a failure is
-    logged, and the file is left as it was."""
+    """Write `proven` to RECOVERIES_ENV's file when `_writes_recoveries`.
+    Best effort: a failure is logged, and the file is left as it was."""
     path = os.environ.get(RECOVERIES_ENV)
-    if not path or os.environ.get(RECOVERIES_WRITE_ENV) != "true":
+    if not path or not _writes_recoveries():
         return
     payload = {
         "version": RECOVERIES_VERSION,
@@ -2786,6 +2790,7 @@ def read_demotion(
     green.carried = _carried_recoveries(repo)
     # One clock for every record's green-run spans (`_GreenMain.listed`).
     clock = now or datetime.now(UTC)
+    complete = False
     try:
         candidates = sorted(
             {n for f in filers for n in _candidate_issues(owner, name, f)}
@@ -2839,6 +2844,7 @@ def read_demotion(
                 continue
             closes = json_array(json_object(issue.get("timelineItems")).get("nodes"))
             cleared.append(_time(json_object(closes[-1]).get("createdAt")))
+        complete = True
     except PolicyReadError as exc:
         return held or Demotion(True, f"demotion-unreadable: {exc}", tuple(records))
     except Exception:
@@ -2847,7 +2853,9 @@ def read_demotion(
             return held
         raise
     finally:
-        _save_recoveries(repo, green.proven)
+        _save_recoveries(
+            repo, green.proven if complete else {**green.carried, **green.proven}
+        )
     if held:
         # The floor in force when the hold began: a later clear would skip
         # the merges the holding record cites.

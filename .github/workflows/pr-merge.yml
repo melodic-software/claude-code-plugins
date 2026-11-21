@@ -308,7 +308,7 @@ jobs:
           # Where the check writes the lane floor's anchor, uploaded below.
           BABYSIT_POSTMERGE_ANCHOR: ${{ runner.temp }}/post-merge-anchor/anchor.json
           BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/demotion-recoveries.json
-          BABYSIT_DEMOTION_RECOVERIES_WRITE: 'true'
+          BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED: 'true'
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
