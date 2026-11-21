@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.1] - 2026-11-21
+
+### Changed
+
+- The post-merge check keeps each demotion record's proven recovery between runs, so a record already cleared is answered without listing green full runs again.
+
 ## [13.3.0] - 2026-11-21
 
 ### Changed
