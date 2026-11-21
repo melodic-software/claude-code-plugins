@@ -120,6 +120,8 @@ function candidateOf(value, at) {
   keys(value.diagram, `${name}: diagram`, ["before", "after"]);
   const verified = text(value.verified, `${name}: verified`);
   if (!VERIFIED.test(verified)) fail(`${name}: verified`, 'must be "reproduced", "unverified" or "corrected: <one clause>"');
+  const wins = list(value.wins, `${name}: wins`, win);
+  if (!wins.some(({ term }) => term === "leverage" || term === "locality")) fail(`${name}: wins`, "must hold at least one leverage or locality win");
   return {
     id: value.id,
     title: text(value.title, `${name}: title`),
@@ -127,7 +129,7 @@ function candidateOf(value, at) {
     category: oneOf(value.category, `${name}: category`, CATEGORIES),
     problem: text(value.problem, `${name}: problem`),
     solution: text(value.solution, `${name}: solution`),
-    wins: list(value.wins, `${name}: wins`, win),
+    wins,
     verified,
     files: list(value.files, `${name}: files`, text),
     dependsOn: value.depends_on === undefined ? null : text(value.depends_on, `${name}: depends_on`),

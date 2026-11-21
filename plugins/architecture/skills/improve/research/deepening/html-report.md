@@ -61,7 +61,7 @@ Each evidence count comes from a `shallow-signal` or `runtime-claim` that Phase 
 
 The card holds these parts in this order and nothing else: title and badges (recommendation and dependency category), problem, solution, the before and after diagram, wins, the Verified line, files, then depends-on and the recorded decision when present. A candidate that will not read without a paragraph has a drawing that leaves out the relation the paragraph would explain; add that relation to the diagram data.
 
-**Wins.** Each entry is `<term>: <gain>`, the term one of the eight in [vocabulary.md](../../../../reference/vocabulary.md) and the gain at most six words, such as `locality: a rounding fix, one file` or `leverage: twelve callers, one interface`. Write at least one `leverage` and one `locality` win. A gain written as "more maintainable" fails the wording rule below; restate it as the leverage or locality it stands for.
+**Wins.** Each entry is `<term>: <gain>`, the term one of the eight in [vocabulary.md](../../../../reference/vocabulary.md) and the gain at most six words, such as `locality: a rounding fix, one file` or `leverage: twelve callers, one interface`. Write at least one `leverage` or `locality` win; the builder refuses a card with neither. A gain written as "more maintainable" fails the wording rule below; restate it as the leverage or locality it stands for.
 
 **Verified.** `reproduced` when Phase 1.5 reproduced the candidate's signal or claim as stated, `corrected: <one clause>` when it held only after a correction (the clause says what changed), `unverified` when nothing was reproduced, including every candidate under a `light` or `off` level. The full notes stay in the artifact's `verification-notes`, never on the card.
 

@@ -111,7 +111,7 @@ render without re-deriving structure:
 - solution: <one sentence: what the deepened module would own and hide; it names no entry point or
   signature, since Phase 2 proposes no interfaces>
 - wins: <one or more `; `-separated gains, each `<vocabulary term>: <at most six words>` with a term
-  from §1; at least one `leverage:` and one `locality:`, e.g. "leverage: three callers, one
+  from §1; at least one `leverage:` or `locality:`, e.g. "leverage: three callers, one
   interface; locality: a rounding fix, one file">
 - shallow-signal: <the concrete observation that is the evidence for shallowness, e.g. "three one-method
   wrappers each forwarding their argument"; this is what Phase 1.5 reproduces>

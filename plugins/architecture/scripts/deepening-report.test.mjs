@@ -56,6 +56,12 @@ test("a win of six words is read and one of seven fails, naming the candidate an
   assert.match(message, /wins\[0\]/);
 });
 
+test("a card needs at least one leverage or locality win, and either one alone is enough", () => {
+  assert.equal(failure(record({}, [candidate({ wins: ["locality: one file", "interface: two reads become one"] })])), null);
+  assert.equal(failure(record({}, [candidate({ wins: ["leverage: three callers, one interface"] })])), null);
+  assert.match(failure(record({}, [candidate({ wins: ["interface: two reads become one", "module: one owner"] })])), /invoice-export: wins.*leverage or locality/);
+});
+
 test("a win whose term is not a vocabulary term fails", () => {
   assert.match(failure(record({}, [candidate({ wins: ["maintainability: easier to change"] })])), /wins\[0\]/);
 });
