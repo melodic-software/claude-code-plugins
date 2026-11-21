@@ -64,7 +64,10 @@ test('from dusk the cicadas give way to the night insects across the whole eveni
 
   await s.advance(60_000)
   await moveTo(3)
-  expect(beds().at(-1)).toBe(`level ${(gainOf(70) * PREDAWN_LEVEL).toFixed(4)} ${SUN_FADE_MS}`)
+  const predawn = beds().at(-1)!.split(' ')
+  expect(predawn.slice(0, 2)).toEqual(['level', (gainOf(70) * PREDAWN_LEVEL).toFixed(4)])
+  expect(Number(predawn[2])).toBeGreaterThan(SUN_FADE_MS - WATCH_MS - 50)
+  expect(Number(predawn[2])).toBeLessThanOrEqual(SUN_FADE_MS)
 
   await s.advance(60_000)
   await moveTo(4)
@@ -106,7 +109,9 @@ test('an hour set by command moves the beds over the picture\'s hurried ease; ba
   expect(Number(night[3])).toBeLessThanOrEqual(HURRIED_MS)
   await s.advance(15_000)
   await hold('predawn', 3)
-  expect(lines().at(-1)!.split(' ').slice(0, 2)).toEqual(['level', (g * PREDAWN_LEVEL).toFixed(4)])
+  const predawn = lines().at(-1)!.split(' ')
+  expect(predawn.slice(0, 2)).toEqual(['level', (g * PREDAWN_LEVEL).toFixed(4)])
+  expect(Number(predawn[2])).toBeLessThanOrEqual(HURRIED_MS)
 
   await s.advance(15_000)
   await hold('dusk', 0)

@@ -617,8 +617,9 @@ async function stepBeds($: EngineInterface): Promise<void> {
     return
   }
   if (level !== bed.level || bed.aim !== undefined) {
-    outLevel($, out, bed.file, gain * level, SUN_FADE_MS)
-    Object.assign(bed, { level, aim: undefined, settledAt: now + SUN_FADE_MS })
+    const fadeMs = skyMoved ? ease : SUN_FADE_MS
+    outLevel($, out, bed.file, gain * level, fadeMs)
+    Object.assign(bed, { level, aim: undefined, settledAt: now + fadeMs })
   }
 }
 
