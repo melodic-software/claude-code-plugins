@@ -1,13 +1,21 @@
 import type { Saved } from '../core/saved.js'
 
 /**
- * The sound bank: for each kind, named entries and the default, each entry's files under sounds/bedroom/<kind>/.
+ * The sound bank: for each kind, named entries and the default, each entry's files under sounds/bedroom/<kind>/ (the
+ * night kind's under crickets/).
  * sounds/bedroom/sources.md says where each file comes from. A file's length in ms is beside it: a player that cannot
  * repeat a file itself is started again after that long.
  */
 export const BANK = {
   cicadas: { default: 'chorus', entries: { chorus: { bed: 'cicadas/chorus.wav' }, river: { bed: 'cicadas/river.wav' } } },
-  night: { default: 'katydids', entries: { katydids: { bed: 'crickets/katydids.wav' }, crickets: { bed: 'crickets/crickets.wav' } } },
+  night: {
+    default: 'auto',
+    entries: {
+      auto: { evening: 'crickets/katydids.wav', late: 'crickets/crickets.wav' },
+      katydids: { evening: 'crickets/katydids.wav', late: 'crickets/katydids.wav' },
+      crickets: { evening: 'crickets/crickets.wav', late: 'crickets/crickets.wav' },
+    },
+  },
   rain: {
     default: 'roof',
     entries: { roof: { rain: 'rain/roof-rain.wav', downpour: 'rain/roof-downpour.wav', storm: 'rain/roof-storm.wav' } },

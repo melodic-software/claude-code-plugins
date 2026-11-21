@@ -235,7 +235,7 @@ test('the card is six rows with titles or the sound bank open: no row or field w
   expect((await ui.find({ key: 'pick-cicadas-chorus' }))?.props.label).toBe('chorus ✓')
   await ui.press({ key: 'pick-cicadas-river' })
   expect((await ui.find({ key: 'pick-cicadas-river' }))?.props.label).toBe('river ✓')
-  expect(await bedroom($, 'sound')).toMatch(/bank: cicadas river, night katydids, rain roof, thunder storm, tv tube/)
+  expect(await bedroom($, 'sound')).toMatch(/bank: cicadas river, night auto, rain roof, thunder storm, tv tube/)
   await ui.press({ key: 'toggle-objects' })
   expect((await ui.find({ key: 'toggle-objects' }))?.props.label).toBe('objects: off')
   await bedroom($, 'sound pick cicadas chorus')

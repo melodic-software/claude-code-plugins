@@ -85,11 +85,12 @@ bottom-left corner of the front of the dresser.
 - **Sound.** Off by default, and nothing plays until you turn it on: `/bedroom sound on` plays a
   bed, the television's click as it turns on and off, the room's things, and thunder after each
   flash.
-  - When it is dry the insects follow the hour, all year: dawn and morning are quiet; at noon a
-    few distant cicadas (a quarter of the dusk level) build through the afternoon to full at the
-    golden hour and dusk; across the evening the cicadas fade out as crickets and katydids fade in,
-    6 dB under the cicadas; the night keeps them, and before dawn they are quieter again (8 dB
-    under). Each change of level eases with the picture: an hour set by command moves the beds
+  - When it is dry the insects follow the hour, all year: dawn, morning and midday are quiet; the
+    cicadas start faint four and a half hours before sunset (about 4 PM on a midsummer clock, by
+    the room's own sunset) and build to full at the golden hour and dusk, as dusk-singing cicadas
+    do; across the evening the cicadas fade out as crickets and katydids fade in at half the
+    cicadas' level; at night the katydids fall quiet and the crickets carry on, a little lower,
+    and lower again before dawn. A held noon is quiet. Each change of level eases with the picture: an hour set by command moves the beds
     over the picture's quick ease (about 6 s), so a held evening plays the night insects alone;
     through the Windows mixer the afternoon's build is one ease to the golden hour, and sound
     turned on, or the time set back to `auto`, partway through the evening starts both beds where
@@ -111,8 +112,9 @@ bottom-left corner of the front of the dresser.
     plays nothing); the card steps it by ten.
   - A small bank of sounds: each kind has named entries and a default, chosen by
     `/bedroom sound pick <kind> <name>` or on the card, and kept. Cicadas: `chorus` (the default)
-    or `river`; night: `katydids` (crickets and katydids, the default) or `crickets` (crickets
-    alone); rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
+    or `river`; night: `auto` (the default: crickets and katydids in the evening, crickets alone
+    at night and before dawn), `katydids` (crickets and katydids all night) or `crickets` (crickets
+    alone all night); rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
     `distant` (rolls only); television: `tube`. `sounds/bedroom/sources.md` lists each recording,
     its page and its license. The television's and the room's sounds are made by code, the purr
     excepted.

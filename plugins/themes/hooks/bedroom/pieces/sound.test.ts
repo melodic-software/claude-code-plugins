@@ -26,8 +26,10 @@ import {
   START_FADE_MS,
   SUN_FADE_MS,
   EVENING_FADE_MS,
+  BUILD_FROM_MIN,
+  BUILD_LEVEL,
+  EVENING_LEVEL,
   NIGHT_LEVEL,
-  NOON_LEVEL,
   PREDAWN_LEVEL,
   bedOf,
   levelOf,
@@ -131,7 +133,7 @@ test('in the plugin, one mixer plays the bed, the television and a change of wea
   expect(await room.run('sound on')).toMatch(/^sound is on, played by the Windows mixer \(powershell\.exe\) at volume 70/)
   await wait(50)
   expect(mixers.length).toBe(1)
-  expect(verbs()).toContain(`bed ${BANK.night.entries.katydids.bed} ${(gainOf(70) * NIGHT_LEVEL).toFixed(4)} ${START_FADE_MS}`)
+  expect(verbs()).toContain(`bed ${BANK.night.entries.auto.late} ${(gainOf(70) * NIGHT_LEVEL).toFixed(4)} ${START_FADE_MS}`)
   expect(verbs()).toContain(`load ${BANK.tv.entries.tube.on}`)
 
   await room.run('tv')
@@ -463,7 +465,7 @@ test('nothing reaches the engine while sound is off', async () => {
     await s.advance(60_000)
   }
   expect(s.calls).toEqual([])
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is off, volume 70, objects on\. bank: cicadas chorus, night katydids, rain roof, thunder storm, tv tube\. player: not looked for yet/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is off, volume 70, objects on\. bank: cicadas chorus, night auto, rain roof, thunder storm, tv tube\. player: not looked for yet/)
   expect(s.calls).toEqual([])
 })
 
@@ -819,41 +821,46 @@ test('S1: each kind has named entries with a default, picked by name or number a
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'katydids'])).toBe('night plays katydids')
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'crickets', 'crickets'])).toMatch(/^say a kind and one of its sounds/)
   expect(ranBy(s)).toContain(`load ${BANK.thunder.entries.distant.far[0]}`)
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'wind', 'x'])).toMatch(/^say a kind and one of its sounds, as in \/bedroom sound pick cicadas river\. cicadas: chorus or river; night: katydids or crickets; rain: roof; thunder: storm or distant; tv: tube\. Now:/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'wind', 'x'])).toMatch(/^say a kind and one of its sounds, as in \/bedroom sound pick cicadas river\. cicadas: chorus or river; night: auto or katydids or crickets; rain: roof; thunder: storm or distant; tv: tube\. Now:/)
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'rain', 'tin'])).toMatch(/^say a kind/)
   await quiet(s)
 })
 
-test('the insects follow the hour when dry: cicadas from noon through dusk, the night insects from evening until dawn, quiet at dawn and morning; rain at every hour when wet', () => {
+const KATYDIDS = 'crickets/katydids.wav'
+const CRICKETS = 'crickets/crickets.wav'
+
+test('the insects follow the hour when dry: cicadas from mid-afternoon through dusk, the night insects settling from evening until dawn, quiet at dawn, morning and a held noon; rain at every hour when wet', () => {
   if (!BUILT.includes('sound')) return
   const saved = savedOf({})
   const cicadas = BANK.cicadas.entries.chorus.bed
-  const night = BANK.night.entries.katydids.bed
   const dry = PHASES.map((phase, sun) => [phase, bedOf(saved, { sun, weather: 0 }) ?? '-', levelOf({ sun, weather: 0 })])
   expect(dry).toEqual([
     ['dusk', cicadas, 1],
-    ['evening', night, NIGHT_LEVEL],
-    ['night', night, NIGHT_LEVEL],
-    ['predawn', night, PREDAWN_LEVEL],
+    ['evening', KATYDIDS, EVENING_LEVEL],
+    ['night', CRICKETS, NIGHT_LEVEL],
+    ['predawn', CRICKETS, PREDAWN_LEVEL],
     ['dawn', '-', 1],
     ['morning', '-', 1],
-    ['noon', cicadas, NOON_LEVEL],
+    ['noon', '-', BUILD_LEVEL],
     ['golden', cicadas, 1],
   ])
-  expect(20 * Math.log10(NIGHT_LEVEL)).toBeLessThanOrEqual(-6)
-  expect(PREDAWN_LEVEL).toBeLessThan(NIGHT_LEVEL)
+  expect([EVENING_LEVEL, NIGHT_LEVEL, PREDAWN_LEVEL]).toEqual([0.5, 0.4, 0.3])
+  expect(bedOf(saved, { sun: 6, weather: 0 }, 0)).toBe(cicadas)
   const afternoon = [0, 0.25, 0.5, 0.75, 0.999, 1].map(share => levelOf({ sun: 6, weather: 0 }, share))
-  expect(afternoon[0]).toBe(NOON_LEVEL)
+  expect(afternoon[0]).toBe(BUILD_LEVEL)
   expect(afternoon.at(-1)).toBe(1)
   for (let i = 1; i < afternoon.length; i++) expect(afternoon[i]! >= afternoon[i - 1]!).toBe(true)
   const roof = BANK.rain.entries.roof
   for (let sun = 0; sun < 8; sun++) {
-    expect([sun, bedOf(saved, { sun, weather: 2 }), bedOf(saved, { sun, weather: 3 }), bedOf(saved, { sun, weather: 4 }), levelOf({ sun, weather: 3 })]).toEqual([sun, roof.rain, roof.downpour, roof.storm, 1])
+    expect([sun, bedOf(saved, { sun, weather: 2 }, 0.5), bedOf(saved, { sun, weather: 3 }), bedOf(saved, { sun, weather: 4 }), levelOf({ sun, weather: 3 })]).toEqual([sun, roof.rain, roof.downpour, roof.storm, 1])
   }
-  expect(bedOf(savedOf({ bank: { night: 'crickets' } }), { sun: 2, weather: 0 })).toBe(BANK.night.entries.crickets.bed)
+  for (const [choice, evening, late] of [['katydids', KATYDIDS, KATYDIDS], ['crickets', CRICKETS, CRICKETS], ['auto', KATYDIDS, CRICKETS]] as const) {
+    const held = savedOf({ bank: { night: choice } })
+    expect([choice, ...[1, 2, 3].map(sun => bedOf(held, { sun, weather: 0 }))]).toEqual([choice, evening, late, late])
+  }
   const older = savedOf({ bank: { crickets: 'crickets' } })
-  expect(chosenName(older, 'night')).toBe('katydids')
-  expect(bedOf(older, { sun: 2, weather: 0 })).toBe(BANK.night.entries.katydids.bed)
+  expect(chosenName(older, 'night')).toBe('auto')
+  expect(chosenName(savedOf({ bank: { night: 'katydids' } }), 'night')).toBe('katydids')
 })
 
 test('one bed at a time: the hour\'s insects when dry, and rain, downpour and storm each their own', async () => {
@@ -865,14 +872,13 @@ test('one bed at a time: the hour\'s insects when dry, and rain, downpour and st
   await s.settle()
   expect(live(s)).toEqual([BANK.cicadas.entries.chorus.bed])
   const roof = BANK.rain.entries.roof
-  const night = BANK.night.entries.katydids.bed
   const cases = [
-    [{ sun: 1, weather: 1 }, [night]],
+    [{ sun: 1, weather: 1 }, [KATYDIDS]],
     [{ sun: 2, weather: 2 }, [roof.rain]],
     [{ sun: 2, weather: 3 }, [roof.downpour]],
     [{ sun: 6, weather: 4 }, [roof.storm]],
     [{ sun: 5, weather: 0 }, []],
-    [{ sun: 3, weather: 1 }, [night]],
+    [{ sun: 3, weather: 1 }, [CRICKETS]],
     [{ sun: 0, weather: 0 }, [BANK.cicadas.entries.chorus.bed]],
   ] as const
   for (const [fields, beds] of cases) {
@@ -975,37 +981,70 @@ test('sound turned on partway through the evening starts both beds where the cro
   const g = gainOf(70)
   expect([beds, s.notes()]).toEqual([[
     `to ${BANK.cicadas.entries.chorus.bed} ${(g * Math.cos(turn)).toFixed(4)} ${START_FADE_MS} 0.0000 ${rest}`,
-    `to ${BANK.night.entries.katydids.bed} ${(g * NIGHT_LEVEL * Math.sin(turn)).toFixed(4)} ${START_FADE_MS} ${(g * NIGHT_LEVEL).toFixed(4)} ${rest}`,
+    `to ${KATYDIDS} ${(g * EVENING_LEVEL * Math.sin(turn)).toFixed(4)} ${START_FADE_MS} ${(g * EVENING_LEVEL).toFixed(4)} ${rest}`,
   ], []])
   await quiet(s)
 })
 
+/** On a local date, `minutesIn` after the cicadas' build starts (BUILD_FROM_MIN before that day's sunset), and the build's span in ms. */
+function intoBuild(year: number, month: number, day: number, minutesIn: number): { at: number; span: number; sunset: number } {
+  const { sunrise, sunset } = seasonOf(new Date(year, month, day, 12).getTime())
+  const from = sunset - BUILD_FROM_MIN
+  return { at: new Date(year, month, day, 0, from + minutesIn, 0).getTime(), span: (rowStarts(sunrise, sunset)[7]! - from) * 60_000, sunset }
+}
+
+test('noon is silent until the cicadas start in mid-afternoon, from the room\'s own sunset; a held noon is silent', async () => {
+  if (!BUILT.includes('sound')) return
+  const june = intoBuild(2026, 5, 21, 0)
+  expect(june.sunset - BUILD_FROM_MIN).toBeGreaterThan(15 * 60)
+  const december = intoBuild(2026, 11, 21, 0)
+  expect(december.sunset - BUILD_FROM_MIN).toBeLessThan(june.sunset - BUILD_FROM_MIN - 60)
+  for (const [at, playing] of [[new Date(2026, 5, 21, 11, 0).getTime(), false], [new Date(2026, 5, 21, 14, 0).getTime(), false], [intoBuild(2026, 5, 21, 30).at, true], [intoBuild(2026, 11, 21, 30).at, true], [intoBuild(2026, 11, 21, -30).at, false]] as const) {
+    const s = await stand(at)
+    onWindows(s)
+    Object.assign(sky, { sun: 6, weather: 0 })
+    await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+    await s.settle()
+    const bed = ranBy(s).filter(line => line.startsWith('bed ')).at(-1)!.split(' ')[1]
+    expect([new Date(at).toString(), bed]).toEqual([new Date(at).toString(), playing ? BANK.cicadas.entries.chorus.bed : '-'])
+    if (playing) {
+      await (await s.ctx()).save({ time: 'noon' })
+      await s.advance(WATCH_MS + 10)
+      expect(ranBy(s).filter(line => line.startsWith('bed ')).at(-1)!.split(' ')[1]).toBe('-')
+      await (await s.ctx()).save({ time: undefined })
+    }
+    await quiet(s)
+  }
+})
+
 test('through the mixer the afternoon builds in one ease to the golden hour, re-aimed when the hour is held or follows the clock again', async () => {
   if (!BUILT.includes('sound')) return
-  const s = await stand(intoRow(6, 120))
+  const { at, span } = intoBuild(2026, 10, 19, 40)
+  const s = await stand(at)
   onWindows(s)
   Object.assign(sky, { sun: 6, weather: 0 })
   await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
   await s.settle()
   const g = gainOf(70)
-  const span = (rowStarts(seasonOf(s.now()).sunrise, seasonOf(s.now()).sunset)[7]! - rowStarts(seasonOf(s.now()).sunrise, seasonOf(s.now()).sunset)[6]!) * 60_000
   const lines = (): string[] => ranBy(s).filter(line => line.startsWith('bed ') || line.startsWith('level '))
-  expect(lines()).toEqual([`bed ${BANK.cicadas.entries.chorus.bed} ${(g * levelOf({ sun: 6, weather: 0 }, (120 * 60_000) / span, true)).toFixed(4)} ${START_FADE_MS}`])
+  const startLevel = levelOf({ sun: 6, weather: 0 }, (40 * 60_000) / span, true)
+  expect(startLevel > BUILD_LEVEL && startLevel < 0.5).toBe(true)
+  expect(lines()).toEqual([`bed ${BANK.cicadas.entries.chorus.bed} ${(g * startLevel).toFixed(4)} ${START_FADE_MS}`])
   await s.advance(START_FADE_MS + WATCH_MS)
   const aimed = lines().at(-1)!.split(' ')
   expect(aimed.slice(0, 2)).toEqual(['level', g.toFixed(4)])
-  expect(Math.abs(Number(aimed[2]) - (span - 120 * 60_000))).toBeLessThan(START_FADE_MS + 2 * WATCH_MS)
+  expect(Math.abs(Number(aimed[2]) - (span - 40 * 60_000))).toBeLessThan(START_FADE_MS + 2 * WATCH_MS)
   await s.advance(10 * 60_000)
   expect(lines().length).toBe(2)
 
   await (await s.ctx()).save({ time: 'noon' })
   await s.advance(WATCH_MS + 10)
-  expect(lines().at(-1)).toBe(`level ${(g * NOON_LEVEL).toFixed(4)} ${SUN_FADE_MS}`)
+  expect(lines().at(-1)!.split(' ').slice(0, 2)).toEqual(['bed', '-'])
   await (await s.ctx()).save({ time: undefined })
-  await s.advance(SUN_FADE_MS + WATCH_MS + 10)
-  const again = lines().at(-1)!.split(' ')
+  await s.advance(PICK_FADE_MS + 3 * WATCH_MS)
+  const again = lines().filter(line => line.startsWith('level ')).at(-1)!.split(' ')
   expect(again.slice(0, 2)).toEqual(['level', g.toFixed(4)])
-  expect(Number(again[2])).toBeLessThan(span - 120 * 60_000 - 10 * 60_000)
+  expect(Number(again[2])).toBeLessThan(span - 40 * 60_000 - 10 * 60_000)
   await quiet(s)
 })
 
@@ -1074,15 +1113,24 @@ test('from dusk the cicadas give way to the night insects across the whole eveni
 
   await moveTo(1)
   const evening = beds().at(-1)!.split(' ')
-  expect(evening.slice(0, 3)).toEqual(['bed', BANK.night.entries.katydids.bed, (gainOf(70) * NIGHT_LEVEL).toFixed(4)])
+  expect(evening.slice(0, 3)).toEqual(['bed', KATYDIDS, (gainOf(70) * EVENING_LEVEL).toFixed(4)])
   expect(Number(evening[3])).toBeGreaterThan(EVENING_FADE_MS - WATCH_MS - 50)
   expect(Number(evening[3])).toBeLessThanOrEqual(EVENING_FADE_MS)
   expect(bedName()).toBe('night insects')
 
   await s.advance(60_000)
   const before = beds().length
+  const sent = ranBy(s).length
   await moveTo(2)
   expect(beds().length).toBe(before)
+  const late = ranBy(s).slice(sent).filter(line => line.startsWith('to ')).map(line => line.split(' '))
+  expect(late.map(words => words.slice(0, 3))).toEqual([
+    ['to', BANK.cicadas.entries.chorus.bed, '0.0000'],
+    ['to', KATYDIDS, '0.0000'],
+    ['to', CRICKETS, (gainOf(70) * NIGHT_LEVEL).toFixed(4)],
+  ])
+  expect(Number(late[2]![3])).toBeGreaterThan(SUN_FADE_MS - WATCH_MS - 50)
+  expect(Number(late[2]![3])).toBeLessThanOrEqual(SUN_FADE_MS)
 
   await s.advance(60_000)
   await moveTo(3)
@@ -1117,9 +1165,18 @@ test('an hour set by command moves the beds over the picture\'s hurried ease; ba
 
   await hold('evening', 1)
   const evening = lines().at(-1)!.split(' ')
-  expect(evening.slice(0, 3)).toEqual(['bed', BANK.night.entries.katydids.bed, (g * NIGHT_LEVEL).toFixed(4)])
+  expect(evening.slice(0, 3)).toEqual(['bed', KATYDIDS, (g * EVENING_LEVEL).toFixed(4)])
   expect(Number(evening[3])).toBeGreaterThan(HURRIED_MS - WATCH_MS - 50)
   expect(Number(evening[3])).toBeLessThanOrEqual(HURRIED_MS)
+
+  await s.advance(15_000)
+  await hold('night', 2)
+  const night = lines().at(-1)!.split(' ')
+  expect(night.slice(0, 3)).toEqual(['bed', CRICKETS, (g * NIGHT_LEVEL).toFixed(4)])
+  expect(Number(night[3])).toBeLessThanOrEqual(HURRIED_MS)
+  await s.advance(15_000)
+  await hold('predawn', 3)
+  expect(lines().at(-1)!.split(' ').slice(0, 2)).toEqual(['level', (g * PREDAWN_LEVEL).toFixed(4)])
 
   await s.advance(15_000)
   await hold('dusk', 0)
@@ -1134,10 +1191,10 @@ test('an hour set by command moves the beds over the picture\'s hurried ease; ba
   await (await s.ctx()).save({ time: undefined })
   await s.advance(WATCH_MS + 10)
   const back = lines().slice(before)
-  expect(back.map(line => line.split(' ').slice(0, 2).join(' '))).toEqual([`to ${BANK.cicadas.entries.chorus.bed}`, `to ${BANK.night.entries.katydids.bed}`])
-  const [cicadas, night] = back.map(line => line.split(' ').slice(2).map(Number))
+  expect(back.map(line => line.split(' ').slice(0, 2).join(' '))).toEqual([`to ${BANK.cicadas.entries.chorus.bed}`, `to ${KATYDIDS}`])
+  const [cicadas, insects] = back.map(line => line.split(' ').slice(2).map(Number))
   expect(cicadas![0]! > 0 && cicadas![0]! < g).toBe(true)
-  expect(night![0]! > 0 && night![0]! < g * NIGHT_LEVEL).toBe(true)
-  expect([cicadas![1], cicadas![2], night![1], night![2]]).toEqual([HURRIED_MS, 0, HURRIED_MS, Number((g * NIGHT_LEVEL).toFixed(4))])
+  expect(insects![0]! > 0 && insects![0]! < g * EVENING_LEVEL).toBe(true)
+  expect([cicadas![1], cicadas![2], insects![1], insects![2]]).toEqual([HURRIED_MS, 0, HURRIED_MS, Number((g * EVENING_LEVEL).toFixed(4))])
   await quiet(s)
 })

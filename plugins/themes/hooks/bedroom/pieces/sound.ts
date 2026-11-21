@@ -407,42 +407,58 @@ const NOON = 6
 const GOLDEN = 7
 
 /**
- * The bed for a sky: in rain, a downpour or a storm that weather's; when dry, cicadas through the afternoon, the golden
- * hour and dusk, the night insects (crickets and katydids) from evening until dawn, and nothing at dawn and in the morning.
+ * The bed for a sky: in rain, a downpour or a storm that weather's; when dry, cicadas from mid-afternoon through the
+ * golden hour and dusk, the night insects from evening until dawn, and nothing at dawn, in the morning and at noon
+ * before the cicadas start. `afternoon` is how far the cicadas' build has gone at noon (afternoonOf), undefined before it
+ * starts or while noon is held. The night's `auto` entry plays its evening loop (crickets and katydids) in the evening
+ * and its late loop (crickets alone) at night and before dawn; another entry plays one loop at all three.
  */
-export function bedOf(saved: Saved, sky: Sky): string | undefined {
+export function bedOf(saved: Saved, sky: Sky, afternoon?: number): string | undefined {
   if (sky.weather >= 2) {
     const rain = chosen(saved, 'rain')
     return sky.weather === 2 ? rain.rain : sky.weather === 3 ? rain.downpour : rain.storm
   }
-  if (sky.sun === NOON || sky.sun === GOLDEN || sky.sun === DUSK) return chosen(saved, 'cicadas').bed
-  if (sky.sun === EVENING || sky.sun === NIGHT || sky.sun === PREDAWN) return chosen(saved, 'night').bed
+  if (sky.sun === NOON) return afternoon === undefined ? undefined : chosen(saved, 'cicadas').bed
+  if (sky.sun === GOLDEN || sky.sun === DUSK) return chosen(saved, 'cicadas').bed
+  if (sky.sun === EVENING) return chosen(saved, 'night').evening
+  if (sky.sun === NIGHT || sky.sun === PREDAWN) return chosen(saved, 'night').late
   return undefined
 }
 
 /**
- * How loud a dry bed plays, times the volume's gain: cicadas full at the golden hour and dusk; at noon a distant few, a
- * quarter, building to full by the golden hour (`afternoon`, 0 to 1, how much of the afternoon has gone); the night
- * insects 6 dB under the cicadas from evening and 8 dB under before dawn, so the room grows calmer late. Rain is full.
+ * How loud a dry bed plays, times the volume's gain: cicadas full at the golden hour and dusk, and through the
+ * afternoon's build from BUILD_LEVEL to full (`afternoon`, 0 to 1); the night insects settling as it gets late, under
+ * the cicadas at EVENING_LEVEL, NIGHT_LEVEL and PREDAWN_LEVEL. Rain is full.
  */
-export const NOON_LEVEL = 0.25
-export const NIGHT_LEVEL = 0.5
-export const PREDAWN_LEVEL = 0.4
+export const BUILD_LEVEL = 0.25
+export const EVENING_LEVEL = 0.5
+export const NIGHT_LEVEL = 0.4
+export const PREDAWN_LEVEL = 0.3
 export function levelOf(sky: Sky, afternoon = 0, continuous = false): number {
   if (sky.weather >= 2) return 1
   const share = Math.min(1, Math.max(0, afternoon))
-  if (sky.sun === NOON) return NOON_LEVEL + (1 - NOON_LEVEL) * (continuous ? share : Math.floor(share * AFTERNOON_STEPS) / AFTERNOON_STEPS)
-  if (sky.sun === EVENING || sky.sun === NIGHT) return NIGHT_LEVEL
+  if (sky.sun === NOON) return BUILD_LEVEL + (1 - BUILD_LEVEL) * (continuous ? share : Math.floor(share * AFTERNOON_STEPS) / AFTERNOON_STEPS)
+  if (sky.sun === EVENING) return EVENING_LEVEL
+  if (sky.sun === NIGHT) return NIGHT_LEVEL
   if (sky.sun === PREDAWN) return PREDAWN_LEVEL
   return 1
 }
 /**
- * Where a player cannot ease one level into another over hours, the afternoon's build moves in this many steps, each
- * eased over SUN_FADE_MS; through the mixer it is one ease, from the level now to the golden hour's at its start.
+ * The cicadas of a summer dusk start in mid-afternoon: the scissor-grinder "often remains quiet all day, singing from
+ * about 3 or 4 P. M. until dark" (W. T. Davis, at https://www.bugguide.net/node/view/6967). They start BUILD_FROM_MIN
+ * before sunset and build to full by the golden hour, 90 minutes before it. Where a player cannot ease one level into
+ * another over hours the build moves in AFTERNOON_STEPS steps, each over SUN_FADE_MS; through the mixer it is one ease.
  */
+export const BUILD_FROM_MIN = 270
 export const AFTERNOON_STEPS = 12
 /** Evening lasts 75 minutes (pieces/time.ts rowStarts): the cicadas give way to the night insects across all of it. */
 export const EVENING_FADE_MS = 75 * 60_000
+
+/** A local clock time as minutes of its day, with the seconds as a fraction. */
+const minuteOfDay = (now: number): number => {
+  const { hours, minutes } = local(now)
+  return hours * 60 + minutes + (now % 60_000) / 60_000
+}
 
 /**
  * How far `now` is through the stretch of the day from the start of row `from` to the start of row `to`, 0 to 1, and
@@ -451,11 +467,24 @@ export const EVENING_FADE_MS = 75 * 60_000
 function stretchOf(ctx: Ctx, now: number, from: number, to: number): { share: number; leftMs: number } | undefined {
   if (ctx.setting('time') !== 'auto') return undefined
   const starts = rowStarts(...sunTimes(ctx))
-  const { hours, minutes } = local(now)
-  const minute = hours * 60 + minutes + (now % 60_000) / 60_000
   const span = (starts[to]! - starts[from]! + 1440) % 1440 || 1440
-  const gone = Math.min(span, (minute - starts[from]! + 1440) % 1440)
+  const gone = Math.min(span, (minuteOfDay(now) - starts[from]! + 1440) % 1440)
   return { share: gone / span, leftMs: (span - gone) * 60_000 }
+}
+
+/**
+ * How far the cicadas' afternoon build has gone at `now`, 0 to 1, and the ms left of it: from BUILD_FROM_MIN before the
+ * room's sunset to the golden hour's start. Undefined before it starts, and while a phase is held.
+ */
+export function afternoonOf(ctx: Ctx, now: number): { share: number; leftMs: number } | undefined {
+  if (ctx.setting('time') !== 'auto') return undefined
+  const [, sunset] = sunTimes(ctx)
+  const golden = rowStarts(...sunTimes(ctx))[GOLDEN]!
+  const from = sunset - BUILD_FROM_MIN
+  const minute = minuteOfDay(now)
+  if (minute < from) return undefined
+  const span = golden - from
+  return { share: Math.min(1, (minute - from) / span), leftMs: Math.max(0, golden - minute) * 60_000 }
 }
 
 /**
@@ -515,10 +544,10 @@ async function step($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   const shown = shownOf(worldMove(), ctx.fields(), bed?.sky, now)
   if (shown === undefined) return
-  const file = bedOf(ctx.saved, shown.sky)
   const dry = shown.sky.weather < 2
   const mixer = out.mixer !== undefined
-  const afternoon = dry && shown.sky.sun === NOON ? stretchOf(ctx, now, NOON, GOLDEN) : undefined
+  const afternoon = dry && shown.sky.sun === NOON ? afternoonOf(ctx, now) : undefined
+  const file = bedOf(ctx.saved, shown.sky, afternoon?.share)
   const ramp = mixer && afternoon !== undefined
   const level = levelOf(shown.sky, afternoon?.share ?? 0, ramp)
   const evening = mixer && dry && shown.sky.sun === EVENING ? stretchOf(ctx, now, EVENING, NIGHT) : undefined
@@ -552,7 +581,9 @@ async function step($: EngineInterface): Promise<void> {
     return
   }
   if (bed.evening && out.mixer !== undefined) {
-    if (file !== cicadas) mixerSend($, out, { verb: 'to', name: cicadas, gain: 0, fadeMs: ease, then: 0, thenMs: 0 })
+    for (const gone of new Set([cicadas, bed.file])) {
+      if (gone !== undefined && gone !== file) mixerSend($, out, { verb: 'to', name: gone, gain: 0, fadeMs: ease, then: 0, thenMs: 0 })
+    }
     if (file !== undefined) mixerSend($, out, { verb: 'to', name: file, gain: gain * level, fadeMs: ease, then: gain * level, thenMs: 0 })
     else outBed($, out, undefined, 0, ease)
     bed = { file, sky: shown.sky, gain, level, settledAt: now + ease }
@@ -829,7 +860,7 @@ async function setPick(ctx: Ctx, kind: string | undefined, name: string | undefi
   return `${known} plays ${picked}`
 }
 
-const WHAT = 'the television, the room\'s things, cicadas from noon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
+const WHAT = 'the television, the room\'s things, cicadas from mid-afternoon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
 
 /**
  * /bedroom sound on|off|test|volume N|pick KIND NAME|objects on|off. test plays only the silent file, and looks without
