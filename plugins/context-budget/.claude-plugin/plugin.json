@@ -7,6 +7,9 @@
   },
   "version": "2.1.3",
   "license": "MIT",
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "live_display": {
