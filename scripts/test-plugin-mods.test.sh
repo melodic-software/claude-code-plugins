@@ -31,12 +31,12 @@ new_case() {
   done
 }
 
-manifest() { # <plugin> <json>
+manifest() {
   mkdir -p "$f/plugins/$1/.claude-plugin"
   printf '%s\n' "$2" >"$f/plugins/$1/.claude-plugin/plugin.json"
 }
 
-claude_floor() { # <plugin> <min>
+claude_floor() {
   printf '{"requires": [{"id": "claude", "detect": {"any": ["claude"]}}, {"id": "claude-mods", "detect": {"any": ["claude"], "version": {"min": "%s"}}}]}\n' "$2" >"$f/plugins/$1/prerequisites.json"
 }
 

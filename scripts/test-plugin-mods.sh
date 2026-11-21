@@ -36,7 +36,7 @@ version_at_least() {
   return 0
 }
 
-engines_error() { # <plugin dir>
+engines_error() {
   node -e '
 const fs = require("fs");
 const read = (file) => {
