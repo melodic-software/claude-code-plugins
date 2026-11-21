@@ -15,42 +15,17 @@ Test double
 - **Mocks** help emulate and examine *outgoing* interactions: calls the SUT makes to its dependencies to **change their state** (side effects)
 - **Stubs** help emulate *incoming* interactions: calls the SUT makes to its dependencies to **get input data**
 
-```csharp
-// MOCK — verifies an outgoing interaction (side effect: sending email)
-var mock = new Mock<IEmailGateway>();
-sut.GreetUser("user@email.com");
-mock.Verify(x => x.SendGreetingsEmail("user@email.com"), Times.Once);
-
-// STUB — provides input data (no side effect)
-var stub = new Mock<IDatabase>();
-stub.Setup(x => x.GetNumberOfUsers()).Returns(10);
-var sut = new Controller(stub.Object);
-Report report = sut.CreateReport();
-Assert.Equal(10, report.NumberOfUsers);
-```
-
 **Spies** are handwritten mocks (same role, manually coded instead of using a framework). **Dummies** are simple hardcoded values (null, a made-up string). **Fakes** are fully fledged replacement dependencies, usually for something that doesn't exist yet.
-
-### Mock (the Tool) vs Mock (the Test Double)
-
-The `Mock<T>` class from a mocking library is a *tool*. The instance it creates is the *test double*. You can use a mock (tool) to create both mocks and stubs (test doubles). In listing 5.2, `Mock<IDatabase>` (tool) creates a stub (test double). It only provides input, never verified.
 
 ### Don't Assert Interactions with Stubs
 
 > "Asserting interactions with stubs is a common anti-pattern that leads to fragile tests."
 
-A call from the SUT to a stub is not part of the end result. It's a means to produce the end result. Verifying it is **overspecification**:
-
-```csharp
-// BAD — asserting a stub interaction
-stub.Verify(x => x.GetNumberOfUsers(), Times.Once);  // overspecification!
-```
-
-The `GetNumberOfUsers()` call is an implementation detail: how the SUT gathers data for the report. Tests should verify the report's content, not how it was gathered.
+A call from the SUT to a stub is not part of the end result. It's a means to produce the end result. Verifying it is **overspecification**.
 
 ### When a Double Is Both Mock and Stub
 
-A single test double can serve both roles. The `storeMock` from Chapter 2's London-style test provides canned answers (`Setup` = stub role) and verifies calls (`Verify` = mock role). When a double serves both, it's still called a mock. Being a mock is the more important fact.
+A single test double can serve both roles. The store double from Chapter 2's London-style test provides canned answers (stub role) and verifies calls (mock role). When a double serves both, it's still called a mock. Being a mock is the more important fact.
 
 ### CQS Connection
 
@@ -96,37 +71,7 @@ When all implementation details are private, tests have no choice but to verify 
 
 ### The Leaking API Problem
 
-```csharp
-// BAD — NormalizeName leaks as public API
-public class User
-{
-    public string Name { get; set; }
-    public string NormalizeName(string name) { /* trim to 50 chars */ }
-}
-
-// Client must perform TWO operations for ONE goal:
-string normalizedName = user.NormalizeName(newName);
-user.Name = normalizedName;
-```
-
-`NormalizeName` is an implementation detail. The client's goal is to change the name, not to normalize it. Fix: make it private and call it from the setter.
-
-```csharp
-// GOOD — well-designed API
-public class User
-{
-    private string _name;
-    public string Name
-    {
-        get => _name;
-        set => _name = NormalizeName(value);  // invariant enforced internally
-    }
-    private string NormalizeName(string name) { /* trim to 50 chars */ }
-}
-
-// Client achieves goal with ONE operation:
-user.Name = newName;
-```
+A `User` class that exposes a public `NormalizeName` operation beside its `Name` makes the client normalize a new name and then assign it: two operations for one goal. `NormalizeName` is an implementation detail. The client's goal is to change the name, not to normalize it. Fix: make it private and apply it whenever the name is assigned, so the client changes the name in one operation.
 
 **Rule of thumb:** *"Ideally, any individual goal should be achieved with a single operation."* If the client must invoke multiple operations to achieve one goal, the class is leaking implementation details.
 
@@ -166,31 +111,9 @@ This is the central insight of the chapter:
 
 ### When Mocking Is Legitimate
 
-**Mock inter-system communications (observable behavior):**
+**Mock inter-system communications (observable behavior).** When a purchase sends a receipt through the SMTP service, that call crosses the application boundary and is visible externally, so a test may verify it with a mock.
 
-```csharp
-// GOOD — mocking the SMTP service (inter-system, visible externally)
-var mock = new Mock<IEmailGateway>();
-var sut = new CustomerController(mock.Object);
-bool isSuccess = sut.Purchase(customerId: 1, productId: 2, quantity: 5);
-
-Assert.True(isSuccess);
-mock.Verify(
-    x => x.SendReceipt("customer@email.com", "Shampoo", 5),
-    Times.Once);
-```
-
-**Don't mock intra-system communications (implementation details):**
-
-```csharp
-// BAD — mocking Customer→Store interaction (intra-system)
-var storeMock = new Mock<IStore>();
-storeMock.Setup(x => x.HasEnoughInventory(Product.Shampoo, 5)).Returns(true);
-// ...
-storeMock.Verify(x => x.RemoveInventory(Product.Shampoo, 5), Times.Once);
-```
-
-The `RemoveInventory()` call from `Customer` to `Store` doesn't cross the application boundary. It's an intermediate step, an implementation detail. Mocking it couples the test to *how* the purchase happens, not *what* happens.
+**Don't mock intra-system communications (implementation details).** The `RemoveInventory()` call from `Customer` to `Store` doesn't cross the application boundary. It's an intermediate step, an implementation detail. Mocking it couples the test to *how* the purchase happens, not *what* happens.
 
 ## Not All Out-of-Process Dependencies Should Be Mocked
 
