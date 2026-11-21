@@ -378,11 +378,16 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: before })), { verdict: "admit", reasons: [] });
     });
 
-    test("refuses a deferred issue whose body was edited after its deferral", () => {
+    test("sends a deferred issue whose body was edited after its deferral back to intake, to judge the current body", () => {
       const issue = deferredIssue();
       const editedAt = (at) => ({ ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: at }), comments: [] });
-      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "refuse", reasons: [EDITED] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "wait", reasons: [EDITED], pulls: [], retriage: [] });
       assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T08:00:00Z") })), { verdict: "admit", reasons: [] });
+      const held = decide(facts({ issue: deferredIssue("do-not-merge"), events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") }));
+      assert.equal(held.verdict, "refuse");
+      assert.equal(held.retriage, undefined);
+      const judged = decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z"), verdict: { ...VERDICT, writtenAt: "2026-10-20T11:00:00Z" } }));
+      assert.equal(judged.verdict, "admit");
     });
 
     test("a fresh verdict judges the security area and the body itself", () => {
