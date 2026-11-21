@@ -875,7 +875,7 @@ export async function main(
       throw new Error(`${key} is not set`);
     }
   }
-  const budget = api ? null : budgetedFetch({ log });
+  const budget = api ? null : budgetedFetch({ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS });
   // Every held PR's timeline binds the review lanes' hold comments to their
   // runs (address-feedback.mjs withLaneBinding), read with ARTIFACT_READ_TOKEN.
   const base = withLaneBinding(

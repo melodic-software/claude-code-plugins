@@ -37,8 +37,12 @@ bash "<skill-dir>/scripts/check-ready-holds.sh" "$PR_NUMBER" --unattended  # no 
 
 Exit 0: no hold. Exit 3: held or superseded, one reason per line on stdout. Exit 2: a `gh` read
 or a parse failed, so no hold was ruled out. Exit 1: a bad argument. Exit 5: `gh` or `jq` is
-missing. The script reads the title, body, labels and closing issue
-references with `gh pr view`, and each closing issue's state over REST.
+missing. The script reads the title, body, labels, URL and closing issue
+references with `gh pr view`, and each closing issue's state over REST. On a `do-not-merge` label
+it also reads, over REST, the PR's label events, its comments and the base repository's
+`.github/standards/trusted-actors/trusted-actors.json` at the default branch, and the lanes App's
+login from the `issue_status_app_login` setting, to tell an eval-only hold from any other. A failed
+read leaves the label holding.
 
 ## Read the pre-ready steps at the base
 
@@ -206,8 +210,9 @@ COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" \
 printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" -R "$REPO" --body-file -
 ```
 
-`check-ready-holds.sh` reads the title, body, labels and closing issue references, never
-comments, so the comment cannot set or lift a hold there.
+`check-ready-holds.sh` reads comments only for `pr-hold` reason lines, and the skip comment
+cannot carry one: the script strips `<` and `>` from the reason. So the comment cannot set or lift
+a hold there.
 
 ## Wait for the push's CI run
 

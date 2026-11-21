@@ -177,9 +177,9 @@ and states the two standing bounds the run prints.
 This stage predicts which of your broad allow rules auto mode sets aside on entry, with no notice,
 until the session leaves auto mode again, and which carry over.
 
-**It describes a transition most run shapes never make, so state the precondition when you report
-it.** The run prints, as a `DIFF-NOTE`, the run shapes we treat as starting in auto mode; carry it
-rather than presenting the diff as unconditional. `reference/criteria.md` §"The auto-mode entry
+**It describes a transition not every run shape makes, so state the precondition when you report
+it.** The run prints it as a `DIFF-NOTE`, with a run shape that never makes the transition and the
+pointer to the live start-mode table; carry it rather than presenting the diff as unconditional. `reference/criteria.md` §"The auto-mode entry
 diff" and §"The precondition: which sessions enter auto mode at all" hold the pointers.
 
 Stage: `automode-entry-diff.sh`, fed the merge.
@@ -224,7 +224,7 @@ finding <severity> [<check>] <scope> <detail>
 lint summary findings=<n> checks_run=<n> status=<read|incomplete>
 ```
 
-Eleven checks: three `C2-*` dead-config gates, `C5-disableType`, and seven `C6-*` rules-that-cannot-match, including a malformed Tool(content) rule and an uncompilable Read/Edit path.
+Twelve checks: three `C2-*` dead-config gates, `C5-disableType`, and eight `C6-*` rule-shape checks, including a malformed Tool(content) rule, an uncompilable Read/Edit path, and a `*` in a Bash allow rule's leading variable assignment.
 `reference/criteria.md` maps each to the docs section it follows from and lists the legitimate rule
 shapes the checks are written not to flag.
 

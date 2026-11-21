@@ -73,7 +73,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -157,7 +157,7 @@ export async function main({ env = process.env, github, log = console.log, write
     return skip(`::notice title=untrusted provenance::the run is stopped: \`${UNTRUSTED}\` holds the issue (on it, or last removed by neither a listed human nor the lanes App), so a person decides it; work-unblock never re-fires this run`, { proceed: "false", untrusted: "true" });
   }
   if (routed) {
-    return skip(`::notice title=map issue::the run is skipped: the issue carries '${routed.replace(/[\r\n%]/g, " ")}', a container or wayfind label, so the skill that filed it routes it; work-unblock never re-fires it while the label stays`);
+    return skip(`::notice title=map issue::the run is skipped: the issue carries '${routed.replace(/[\r\n%]/g, " ")}', ${ROUTED_BY}; work-unblock never re-fires it while the label stays`);
   }
   if (pending.length > 0) {
     return skip(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a pull request merged here or an issue closed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);

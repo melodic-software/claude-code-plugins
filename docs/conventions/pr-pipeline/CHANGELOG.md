@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [11.3.0] - 2026-11-21
+
+### Added
+
+- `pr-run-plugin-evals.yml` has a compare mode (owner decision Q136, [#17854](https://github.com/melodic-software/claude-code-plugins/issues/17854)). A listed human dispatches it on the default branch with a pull request, its head SHA, a plugin, a case or tag filter and a required per-run cost cap. `compare-arms.sh` builds two patches against the default branch from git objects only: the plugin's changed skills/ and agents/ text from the merge base (before) or the head (after), and the changed eval cases from the head on both, once `select-plugins.mjs` lets every changed path through; a change to any other plugin path but tests/ refuses the compare, so a record never vouches for text no run read. No script, hook, workflow or manifest of the pull request runs. Each arm runs as a `maintenance-measure-skill-edit-pass.yml` pass on the maintenance API key alone, with no subscription token. `compare-verdict.mjs` applies the desk kit's no-loss rules (a mean score drop of 0.15, a grader 2 runs worse, both arms VALID). On a PASS, a job holding only `issues: write` checks the head again and posts the record with `<!-- eval-pair-run id=<run id> -->`; a head that moved posts nothing.
+- `release-eval-hold.mjs` counts that record only when the cited run reads back as a completed, successful first-attempt `workflow_dispatch` of `pr-run-plugin-evals.yml` on the default branch, whose commit the compare API shows on that branch and whose run name is `eval-compare pr=<this PR> head=<the record's head>`, and whose jobs list shows its `Compare Record` job completed with success, so a run whose jobs all skipped vouches for nothing. It reads the run with the merge job's own token (`RUNS_TOKEN`). A listed human's record counts as before.
+
+## [11.2.9] - 2026-11-21
+
+### Fixed
+
+- The PR-pipeline dispatchers now honor their 10-minute stop-floor grace on the paths that run. `budgetedFetch` and `retryServerErrors` take `floorGraceMs` and hand it to the rate guard, and `feedback-dispatch.mjs` and `dispatch.mjs` pass `DISPATCH_FLOOR_GRACE_MS`. Before, the grace sat only on a default fetch both mains replaced, so a dispatcher failed at the floor with the reset minutes away.
+
 ## [11.2.8] - 2026-11-21
 
 ### Fixed

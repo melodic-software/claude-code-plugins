@@ -1,20 +1,24 @@
 # check-born-triaged
 
 Gate the intake lane (`intake-triage.yml`: its triage and its `needs-triage` floor label) so it skips an issue
-another skill routes, or one `/work-items:decompose` published already triaged. Issue text is
+another skill routes, one a local session owns, or one `/work-items:decompose` published already
+triaged. Issue text is
 untrusted, so the marker alone never skips intake.
 
 ## Routing labels
 
 `skip=true` with reason `routing-label` when the issue carries the container label (a decompose
-spec container) or a label starting with the wayfind prefix (a `/planning:wayfind` map or one of
-its decision items). Those labels are the work-items seam's own routing state
-([label taxonomy](../../../plugins/work-items/reference/label-taxonomy.md), "Container label" and
-"Hold lists and the wayfind prefix"), so intake's priority, verdict and floor label would only
-compete with it. Both come from the binding at `tracker-config` (`tracker.config.container_label`,
-default `spec-container`; `tracker.config.wayfind_label_prefix`, default `wayfind:`), read the way the
+spec container), the session-owned role label (a local Claude Code session works the item itself)
+or a label starting with the wayfind prefix (a `/planning:wayfind` map or one of its decision
+items). Those labels are the work-items seam's own routing state
+([label taxonomy](../../../plugins/work-items/reference/label-taxonomy.md), "Canonical roles",
+"Container label" and "Hold lists and the wayfind prefix"), so intake's priority, verdict and floor
+label would only compete with it. All three come from the binding at `tracker-config`
+(`tracker.config.container_label`, default `spec-container`;
+`tracker.config.role_labels["session-owned"]`, default `session-owned`;
+`tracker.config.wayfind_label_prefix`, default `wayfind:`), read the way the
 merge lanes read it (`trackerBindingText` in `.github/scripts/pr-merge/merge-holds.mjs`). A missing
-file keeps both defaults; a value that is not a string keeps them with a warning. The step prints a
+file keeps the defaults; a value that is not a string keeps them with a warning. The step prints a
 notice naming the label. Only an account with triage access can label an issue as it is opened, so
 this rule checks no author. It applies whatever `born-triaged` says, once the trusted-actor list
 reads.
