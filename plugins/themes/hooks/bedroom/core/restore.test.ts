@@ -84,6 +84,21 @@ test('while another mod covers the room the card says so, and its theme button s
   await room.unmount()
 })
 
+test('a covering mod that then clears its theme brings the room back, and the open card says on again with a button that turns it off', { timeoutMs: 20000, options: QUIET, plugins: [FIREWORKS] }, async ($, on) => {
+  const room = await startRoom($, on)
+  await room.run('')
+  const card = await $.ui.mount({ plugin: 'themes', surface: 'desktop', component: 'Placed', requestId: 'bedroom-card-1', props: { id: 'bedroom-card-1', plugin: 'themes' } } as never)
+  await fireworks($, 'show')
+  expect((await card.find({ key: 'theme' }))?.props.label).toBe('theme: covered')
+  await fireworks($, 'clear')
+  expect((await card.find({ key: 'theme' }))?.props.label).toBe('theme: on')
+  const before = room.themes.length
+  await card.press({ key: 'theme' })
+  expect(room.themes.slice(before)).toEqual(['clear'])
+  await card.unmount()
+  await room.unmount()
+})
+
 test('/bedroom off clears the theme without setting it again, and a later clear by another mod leaves it off until /bedroom on', { timeoutMs: 20000, options: QUIET, plugins: [FIREWORKS] }, async ($, on) => {
   const room = await startRoom($, on)
   const before = room.themes.length
