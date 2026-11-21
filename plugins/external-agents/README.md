@@ -11,7 +11,7 @@ none of its text or code is copied).
 ## Status
 
 In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work, and
-`/external-agents:codex` drives them.
+`/external-agents:codex` and `/external-agents:antigravity` drive them.
 
 ## Surface
 
@@ -20,6 +20,8 @@ In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work, an
   outside this plugin reads its install path or its scripts.
 - **`/external-agents:codex`**: hands a task, an investigation or a review to Codex, in the
   foreground or background, and reads back, resumes or cancels its jobs.
+- **`/external-agents:antigravity`**: the same for Google's Antigravity CLI (`agy`). agy runs
+  only with a model configured (`antigravity.model`).
 - No hooks, no agents and no `commands/` folder: nothing runs until you or a council run asks.
 
 claude.ai organization plugin sync skips this plugin, because it ships a top-level `bin/`
@@ -37,8 +39,9 @@ anyway.
 gitignored), `<home>` being the repository's convention home, by default `docs/conventions`. Keys
 are in [`schemas/external-agents.schema.json`](schemas/external-agents.schema.json); layers and
 precedence are in the
-[config-cascade contract](../../docs/contracts/config-cascade/README.md). An unset model, effort or
-profile leaves the CLI's own configuration in charge.
+[config-cascade contract](../../docs/contracts/config-cascade/README.md). An unset effort or profile
+leaves the CLI's own configuration in charge, and so does an unset model, except for agy, whose
+runs are skipped until `antigravity.model` is set.
 
 ## Job files
 
