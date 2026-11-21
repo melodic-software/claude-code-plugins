@@ -264,7 +264,7 @@ OUT=$(lint "$C6")
 assert_contains "every finding carries a severity" "$OUT" "finding error ["
 assert_eq "every finding line has a bracketed check id" \
   "$(count_matching "$OUT" '^finding ')" "$(count_matching "$OUT" '^finding [a-z]+ \[C[0-9]')"
-assert_contains "the summary states how many checks ran" "$OUT" "checks_run=11"
+assert_contains "the summary states how many checks ran" "$OUT" "checks_run=12"
 
 # A clean plane is reported as clean, with the check count, not as silence.
 OUT=$(lint "$SURFACES")
@@ -673,5 +673,29 @@ assert_eq "a path parenthesis is not malformed" 0 "$(count_matching "$OUT" 'Fina
 assert_eq "uncompilable deny and allow each fire literal-path" 2 "$(count_matching "$OUT" '\[C6-literalPath\]')"
 assert_contains "the deny guards the literal path" "$OUT" "guards that exact literal path"
 assert_contains "the allow approves nothing" "$OUT" "approves nothing"
+
+ASSIGN_STAR=$(
+  printf '%s\n' "$SURFACES"
+  printf '%s\n' \
+    'rule user settings allow Bash(PORT=* npm run dev)' \
+    'rule user settings allow Bash(CI=1 PORT=3* npm start)' \
+    'rule user settings allow Bash(PORT=3000 npm run dev)' \
+    'rule user settings allow Bash(PORT=4000 npm *)' \
+    'rule user settings allow Bash(npm run dev --port=*)' \
+    'rule user settings allow Bash(NODE_ENV*)' \
+    'rule user settings deny Bash(PORT=* rm *)' \
+    'rule user settings allow PowerShell(X=* Get-Item)'
+)
+OUT=$(lint "$ASSIGN_STAR")
+assert_eq "a wildcard in a leading assignment of a Bash allow fires" 2 "$(count_matching "$OUT" '\[C6-assignStar\]')"
+assert_contains "the first assignment's wildcard fires" "$OUT" "[C6-assignStar] user Bash(PORT=* npm run dev)"
+assert_contains "a wildcard in a later leading assignment fires" "$OUT" "[C6-assignStar] user Bash(CI=1 PORT=3* npm start)"
+assert_contains "the finding names the startup warning's version" "$OUT" "v2.1.323"
+assert_not_contains "a literal assignment value is silent" "$OUT" "PORT=3000"
+assert_not_contains "a wildcard after a literal assignment is silent" "$OUT" "PORT=4000"
+assert_not_contains "an = after the command name is not an assignment" "$OUT" "--port=*"
+assert_not_contains "a variable name with no assignment is silent" "$OUT" "NODE_ENV*"
+assert_not_contains "a deny rule is silent" "$OUT" "rm *"
+assert_not_contains "a PowerShell rule is silent" "$OUT" "Get-Item"
 
 report_and_exit
