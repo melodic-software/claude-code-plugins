@@ -3280,6 +3280,26 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
+  for (const line of [
+    "The before-and-after eval run is not part of this work; it lives in #17719 and the PR carries the eval-gated do-not-merge hold.",
+    "The before-and-after eval run is not part of this build; it is host-run child #17719 and the PR is held by eval-gated.",
+  ]) {
+    test(`passes an excluded eval run: ${line.slice(0, 60)}`, () => {
+      assert.equal(first(line), null, line);
+    });
+  }
+  for (const line of [
+    "A before-and-after eval run is recorded: the trailing-period case fails on the unchanged SKILL.md and passes on the changed one",
+    "A before-and-after eval run is recorded; the cache warm-up is not part of this work.",
+  ]) {
+    test(`flags an eval run beside an exclusion: ${line.slice(0, 60)}`, () => {
+      assert.equal(first(line), "eval", line);
+      const result = decide(facts({ issue: doneWhen(line) }));
+      assert.equal(result.hostRun, true, line);
+      assert.equal(result.hold, undefined, line);
+    });
+  }
+
   test("`unless` clears a row's match", () => {
     assert.equal(first("`claude plugin eval --validate` passes on the suite."), null);
     assert.equal(first("The README says Windows host support is fully implemented."), null);
