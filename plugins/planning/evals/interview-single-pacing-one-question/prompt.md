@@ -1,11 +1,11 @@
 ---
-description: "Single pacing, asked for in the session: the user wants one question at a time while round 2's frontier holds five independent decisions. An eval run cannot set the plugin's question_pacing option, so the case uses the in-session request, which the skill says overrides the option for the session. Why hard: the frontier is computed whole, so the easy failure is to ask all five, or to ask one and add the rest as a preview, a topic header or an index."
+description: "Single pacing, asked for in the session: the user wants one question at a time while round 2's frontier holds five independent decisions. An eval run cannot set the plugin's question_pacing option, so the case uses the in-session request, which the skill says overrides the option for the session. Why hard: the frontier is computed whole, so the easy failure is to ask all five, or to ask one and add the rest as a preview, a topic header or an index. At the default standard detail level the question shows its recommendation with its reason and no separate Origin: or Basis: line."
 tags: [interview, round-layout, pacing, no-network]
 runs: 3
-max_turns: 12
-timeout_seconds: 600
-allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The reply asks exactly one of the five frontier decisions in the full question layout with the closing probe, with no topic header, no index table and no other question listed, then stops"
+max_turns: 30
+timeout_seconds: 900
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
+expected_outcome: "The reply asks exactly one of the five frontier decisions in the standard question layout (no Origin: or Basis: line) with the closing probe, with no topic header, no index table and no other question listed, then stops"
 ---
 
 /planning:interview me Add retries and failure alerting to our outbound webhook sender.

@@ -935,17 +935,17 @@ pin_case_digest "sibling case 13 still requires named blockers instead of assump
 # it as a captured assumption" — and licensed exactly the silent capture, undetected.
 pin_case_digest "case 8 still asks decisions and only looks up facts" \
   "facts-looked-up-decisions-asked" \
-  "869a487d5f0abe19cdbe5693b90beabb55f56fbdacf6642bedad62494ce029f5"
+  "bedb9fd8e5923395d229e36cf50479530e58abcd8503a3ae989212162b789c45"
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
 # Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
   "out-of-band-return-supersedes-before-the-reply" \
-  "186a511bef86bbc7fe9679359c350c39111c3eab0c8761eb8f98196882f40b9f"
+  "a3e7ffd4412ccfb51465f0be3d871221a6c288d53131c8436ef6025bc30974bd"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
-  "5e38782253a410890320cddc3c5c44d71ab64666bb596bc954167f1447059bdd"
+  "1065f9d322d8ae3b5179ac13ec75e615044f42b7ada5455737d285048032a217"
 
 pin_file "case A fixture: the task context still plants the open decision" \
   "$FIXTURES/lock-stop-on-gap/task-context.md" \

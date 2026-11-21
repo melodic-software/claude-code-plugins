@@ -5,11 +5,11 @@
       "id": 1,
       "name": "relentless-me-mode-frontier-rounds",
       "prompt": "/planning:interview me — I want to add rate limiting to the public API but haven't thought through the details.",
-      "expected_output": "In me-mode the skill runs a relentless frontier-rounds interview: each round asks every question whose prerequisites are settled as one numbered set in inline prose (not AskUserQuestion), each question leading with a recommendation and its basis, and grounds answers in the codebase where the code already answers a question.",
+      "expected_output": "In me-mode the skill runs a relentless frontier-rounds interview: each round asks every question whose prerequisites are settled as one numbered set in inline prose (not AskUserQuestion), each decision question leading with a recommendation and its basis (a discovery question in an intake round is asked open with a `Discovery:` line), and grounds answers in the codebase where the code already answers a question.",
       "files": [],
       "expectations": [
         "Output asks the round's independent frontier questions together as one numbered set, not spread across separate turns",
-        "Each question leads with a recommended answer and a one-line basis",
+        "Each decision question leads with a recommended answer and its basis; a discovery question in an intake round carries a `Discovery:` line and no recommendation",
         "The round is asked inline in prose, not via a side-by-side AskUserQuestion card",
         "Where a question is answerable from the codebase, the skill resolves it by inspection instead of spending a question on it",
         "A reply that resolves its question but arrives as free text rather than an authored option is recorded with the free-text: resolution-field flag so downstream passes scrutinize it; a partial or non-resolving reply keeps its row open"
@@ -65,7 +65,7 @@
         "Output asks the prerequisite decision first and defers each dependent decision to a later round, after its prerequisite is answered",
         "Output does NOT batch a question into the same round as a question it depends on",
         "Output does NOT use an AskUserQuestion card absent the use_ask_user_question opt-in",
-        "Each question still leads with a recommendation and basis"
+        "Each decision question still leads with a recommendation and its basis; a discovery question in an intake round carries none"
       ]
     },
     {
@@ -84,10 +84,10 @@
       "id": 7,
       "name": "engineering-term-resolution-delegates",
       "prompt": "/planning:interview me — in this engineering task we resolved that Subscriber is canonical and Member is rejected. Continue the interview after preserving that decision.",
-      "expected_output": "Invokes /domain-driven-design:ubiquitous-language curate immediately for the resolved engineering vocabulary, then resumes the interview at the current round. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
+      "expected_output": "Invokes /domain-driven-design:ubiquitous-language curate for the resolved engineering vocabulary once the user has confirmed it (the prompt's statement of the resolution is that confirmation), then resumes the interview at the current round. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
       "files": [],
       "expectations": [
-        "Invokes /domain-driven-design:ubiquitous-language curate immediately for the resolved term",
+        "Invokes /domain-driven-design:ubiquitous-language curate for the resolved term only after the user's confirmation, which the prompt gives",
         "Does not prescribe or reimplement glossary format/location in the interview skill",
         "Resumes the interview loop after the vocabulary update",
         "Keeps the repository write explicitly scoped to an engineering session"
@@ -101,7 +101,7 @@
       "files": [],
       "expectations": [
         "The current config format is resolved by inspecting the codebase and stated as a finding, not asked as a question",
-        "The override-precedence choice is asked as a question with a recommendation, not silently decided",
+        "The override-precedence choice is asked as a decision question with a recommendation (in the first decision round, after any intake questions), not silently decided",
         "Output does not ask the user to confirm a fact the code already answers"
       ]
     },
@@ -280,7 +280,7 @@
       "id": 20,
       "name": "mechanism-tripwire-asks-now-or-at-planning",
       "prompt": "/planning:interview me I want nightly exports of course progress to the analytics team. My guess is a GitHub Actions cron job that pushes a CSV to their S3 bucket with a scoped token.",
-      "expected_output": "The first round that names a mechanism (a CI runner, a storage target, a token scope) also carries one registered question: settle mechanism-level decisions now, or at planning. Until the user answers it, no recommendation fixes a mechanism. When the user answers \"at planning\", every still-open mechanism row, commitment rows included, becomes `deferred` with an arbiter tag in the Brief's `### Deferred questions`. When the user answers \"now\", the choice is written at once as a `confirmed` constraint and the Brief's Constraints records that this topic overrides \"does not plan implementation\".",
+      "expected_output": "The first decision round that names a mechanism (a CI runner, a storage target, a token scope) also carries one registered question: settle mechanism-level decisions now, or at planning. Until the user answers it, no recommendation fixes a mechanism. When the user answers \"at planning\", every still-open mechanism row, commitment rows included, becomes `deferred` with an arbiter tag in the Brief's `### Deferred questions`. When the user answers \"now\", the choice is written at once as a `confirmed` constraint and the Brief's Constraints records that this topic overrides \"does not plan implementation\".",
       "files": [],
       "expectations": [
         "The now-or-at-planning question is asked in the same round as the first mechanism-naming question and has its own `open` register row at ask-time",
@@ -330,7 +330,7 @@
         "The inherited constraint is asked as a register row at ask-time rather than treated as binding",
         "The research output's library is presented as a candidate re-derived against the constraint ledger, not as the recommendation",
         "The conflict between the candidate and the inherited constraint is surfaced to the user",
-        "Every recommendation carries a `Checked against:` line naming each constraint in words, not by bare id, or `none`"
+        "Every recommendation's saved full block (the round file) carries a `Checked against:` line naming each constraint in words, not by bare id, or `none`"
       ]
     },
     {
@@ -356,7 +356,7 @@
         "The queued return is evaluated before the same-turn reply: Q3 is NOT recorded `answered` with in-process memory, and the response does not treat the user's \"go with your recommendation\" as settling Q3",
         "The restated Q3 names in-process memory as superseded and gives the replacement recommendation its own basis drawn from the three-replica manifest",
         "The user's Q3 answer is revalidated against the replacement recommendation, for example by asking whether the recommendation they accepted still stands now that it has changed",
-        "The response ends with one block restating every open question in full, each with its Context, recommendation with Basis and alternatives, and Q3 is marked as the changed one; Q2 and Q4 are not reduced to a one-line pointer",
+        "The response ends with one block restating every open question in full, each with its Context, its recommendation with its reason (its basis) and its alternatives, and Q3 is marked as the changed one; Q2 and Q4 are not reduced to a one-line pointer",
         "Q1 is recorded `answered` (per API key) from the reply",
         "Asking Q2 and Q4 was not held for the lookup, and Q5, which was downstream of it, is asked once the return lands"
       ]
@@ -387,7 +387,7 @@
       "expectations": [
         "The open recommendations are checked against the constraint ledger before any round-3 question is shown",
         "Q7's recommendation, which rests on the archived design C2 excludes, is not shown as written: it is revised with old, new and why, or marked \"not yet researched\"",
-        "A revised Q7 names the constraint C2 records, in words, on its `Checked against:` line",
+        "A revised Q7 names the constraint C2 records, in words, on its `Checked against:` line in the saved full round block",
         "The run says that the re-check changed Q7",
         "Q8 is shown with its recommendation unchanged",
         "Neither Q7 nor Q8 is resolved by the re-check; both stay open until the user answers"
@@ -397,11 +397,11 @@
       "id": 28,
       "name": "self-answer-from-mcp-and-research-and-offer-to-connect",
       "prompt": "/planning:interview me add a nightly digest of open incidents to our on-call channel\n\n[Session state: a Linear MCP server is connected, and its read tools return the team's incident project, whose issues carry a `severity` field with the values SEV1 to SEV4. No chat MCP server or chat CLI is connected. The repository has no chat integration and no ADR about one. Earlier in the conversation the user said: \"we use Microsoft Teams for on-call.\" The candidate questions drafted for round 1 are: which severities the incident tracker uses; the maximum message size a Teams incoming-webhook post accepts; which Teams channel is the on-call channel and whether it already receives other bot posts; and whether the digest lists every open incident or only SEV1 and SEV2.]",
-      "expected_output": "Before round 1 is shown, the run tries to answer each candidate itself. The severity question is answered from the connected Linear MCP server and stated as a fact tagged answered-from-mcp:linear with a Basis line citing the tool output; it gets no register row. The Teams webhook message-size limit is answered by research against Microsoft's official documentation and stated as a fact tagged answered-from-research with the URL as its basis; it gets no register row. The on-call channel question sits in Teams, which is not connected, so the round carries one offer to connect Teams that names Microsoft Teams, the question it would settle, and how to connect it (an MCP server or connector, or the vendor integration), and lets the user connect it or answer by hand; that question is registered open as awaiting access. The digest-scope question is a decision with real tradeoffs and is asked with a recommendation, never resolved by the agent.",
+      "expected_output": "Before round 1 is shown, the run tries to answer each candidate itself. The severity question is answered from the connected Linear MCP server and stated as a fact tagged answered-from-mcp:linear with its source, the tool output; it gets no register row. The Teams webhook message-size limit is answered by research against Microsoft's official documentation and stated as a fact tagged answered-from-research with the URL as its basis; it gets no register row. The on-call channel question sits in Teams, which is not connected, so the round carries one offer to connect Teams that names Microsoft Teams, the question it would settle, and how to connect it (an MCP server or connector, or the vendor integration), and lets the user connect it or answer by hand; that question is registered open as awaiting access. The digest-scope question is a decision with real tradeoffs and is asked with a recommendation, never resolved by the agent.",
       "files": [],
       "narration": true,
       "expectations": [
-        "The severity values are stated as a fact tagged answered-from-mcp:linear with a Basis line, and no register row is opened for that question",
+        "The severity values are stated as a fact tagged answered-from-mcp:linear with its source cited, and no register row is opened for that question",
         "The Teams webhook message-size limit is stated as a fact tagged answered-from-research with an official Microsoft documentation URL as its Basis, and no register row is opened for it",
         "The round makes exactly one offer to connect Microsoft Teams that names the system, the question it would settle, and how to connect it",
         "The offer lets the user connect Teams or answer by hand, and the on-call channel question is registered open, not answered or assumed",
@@ -596,11 +596,11 @@
       "id": 43,
       "name": "late-return-restates-every-open-question-in-full",
       "prompt": "/planning:interview me Add a nightly export of order data to the analytics warehouse.\n\n[Session state: terminal lane. Round 1's Q1 to Q3 are `answered`. Round 2 was shown as Q4 (export format; recommended: Parquet, because the warehouse loader reads Parquet), Q5 (how far back the first export reaches; recommended: 90 days, from the retention setting the survey read), Q6 (whether refunds are exported as negative rows or a separate table; recommended: negative rows, from the existing finance report's shape) and Q7 (the export window; recommended: 02:00 UTC, because the survey found no other nightly job). A sub-agent was dispatched to list the scheduled jobs on the production cluster; no question waits on it. Before the user replies, its return lands: a database backup job runs on that cluster from 01:30 to 03:00 UTC every night.]",
-      "expected_output": "The return contradicts Q7's recommendation, so Q7 is restated with 02:00 UTC named as superseded and a replacement window outside the 01:30 to 03:00 UTC backup, with its basis in the sub-agent's job list. The message ends with one block restating every open question in full: Q4, Q5, Q6 and Q7, each with its Context, its recommendation with `Basis:` and its alternatives, and Q7 is marked as the changed one. Q4, Q5 and Q6 are not reduced to a one-line pointer such as \"still open, unchanged\", and no question is recorded as answered, since the user has not replied.",
+      "expected_output": "The return contradicts Q7's recommendation, so Q7 is restated with 02:00 UTC named as superseded and a replacement window outside the 01:30 to 03:00 UTC backup, with its basis in the sub-agent's job list. The message ends with one block restating every open question in full: Q4, Q5, Q6 and Q7, each with its Context, its recommendation with its reason (its basis) and its alternatives, and Q7 is marked as the changed one. Q4, Q5 and Q6 are not reduced to a one-line pointer such as \"still open, unchanged\", and no question is recorded as answered, since the user has not replied.",
       "files": [],
       "expectations": [
         "Q7 is restated with 02:00 UTC named as the superseded recommendation and a replacement window outside 01:30 to 03:00 UTC whose basis is the backup job from the sub-agent's return",
-        "The final block of the message restates Q4, Q5, Q6 and Q7, each with its Context, its recommendation with a Basis line, and its alternatives",
+        "The final block of the message restates Q4, Q5, Q6 and Q7, each with its Context, its recommendation with its reason (its basis), and its alternatives",
         "Q7 is marked in that block as the question whose recommendation changed",
         "Q4, Q5 and Q6 are not collapsed into a one-line pointer to the earlier round",
         "No question is recorded as answered, because the user has not replied"
@@ -610,11 +610,11 @@
       "id": 44,
       "name": "held-question-release-restates-every-open-question-in-full",
       "prompt": "/planning:interview me Add a nightly export of order data to the analytics warehouse.\n\n[Session state: terminal lane. Round 1's Q1 to Q3 are `answered`. Round 2 was shown as Q4 (export format; recommended: Parquet, because the warehouse loader reads Parquet), Q5 (how far back the first export reaches; recommended: 90 days, from the retention setting the survey read), Q6 (whether refunds are exported as negative rows or a separate table; recommended: negative rows, from the existing finance report's shape) and Q7 (the export window; recommended: 03:30 UTC, after the nightly jobs the survey found in the repository's cron file). A sub-agent was dispatched to read the warehouse's ingest quota; Q8 (whether the export is split into batches) waits on that result and was held, so it has no register row. Before the user replies, the return lands: the warehouse accepts at most 2 GB per load, and last month's order data was 5 GB.]",
-      "expected_output": "The return contradicts no recommendation under Q4 to Q7 and answers none of them, but it releases the held Q8, which is now asked with a recommendation to split the export into batches under 2 GB, with its basis in the returned quota and the 5 GB monthly size. The message ends with one block restating every open question in full: Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with `Basis:` and its alternatives. Q4 to Q7 are not reduced to a one-line pointer to the earlier round, and no question is recorded as answered, since the user has not replied.",
+      "expected_output": "The return contradicts no recommendation under Q4 to Q7 and answers none of them, but it releases the held Q8, which is now asked with a recommendation to split the export into batches under 2 GB, with its basis in the returned quota and the 5 GB monthly size. The message ends with one block restating every open question in full: Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with its reason (its basis) and its alternatives. Q4 to Q7 are not reduced to a one-line pointer to the earlier round, and no question is recorded as answered, since the user has not replied.",
       "files": [],
       "expectations": [
         "Q8 is asked with a batching recommendation whose basis is the 2 GB per-load quota from the sub-agent's return",
-        "The final block of the message restates Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with a Basis line, and its alternatives",
+        "The final block of the message restates Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with its reason (its basis), and its alternatives",
         "Q4 to Q7 are not collapsed into a one-line pointer to the earlier round",
         "No question is recorded as answered, because the user has not replied"
       ]
@@ -666,7 +666,7 @@
       "files": [],
       "expectations": [
         "Writes no document when no other person holds the knowledge",
-        "Asks the eviction decision as an ordinary round with a recommendation, rather than producing a document",
+        "Asks the eviction decision as an ordinary decision round with a recommendation, rather than producing a document",
         "Never invents a recipient to justify a document"
       ]
     },
