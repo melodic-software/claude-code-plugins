@@ -171,6 +171,11 @@ test("only the compare record job writes, after the verdict and a fresh head che
   assert.doesNotMatch(record, /\n {4}if:/);
 });
 
+test("the record job's name is the one the release requires to have succeeded", async () => {
+  const { RECORD_JOB } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.match(job("compare-record"), new RegExp(`^ {2}compare-record:\\n {4}name: ${RECORD_JOB}\\n`));
+});
+
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
   assert.match(text, /name: Check Key Credit\n {4}if: >-\n {6}\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
   assert.match(job("compare-prepare"), /if: >-\n {6}github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
