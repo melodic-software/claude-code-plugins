@@ -9,6 +9,13 @@ async page => {
     };
     let frame = await loaded();
     const inFrame = page.frameLocator("#page");
+    const hidden = await inFrame.locator("nav.vs").waitFor({ state: "hidden", timeout: 5000 }).then(() => true, () => false);
+    ok("framed by the host page, the page's own switcher is hidden: the command bar steps the variants", hidden);
+    const showSwitcher = async () => {
+      await frame.waitForFunction(() => document.documentElement.hasAttribute("data-ui-feedback-bar"), null, { timeout: 5000 });
+      await frame.evaluate(() => { document.documentElement.removeAttribute("data-ui-feedback-bar"); document.querySelector("nav.vs").dataset.position = "top"; });
+    };
+    await showSwitcher();
     const markers = () => frame.evaluate(() => [...document.documentElement.lastElementChild.children].filter((e) => !e.style.outline && e.textContent).map((e) => e.textContent).join());
     const marker = (n) => frame.waitForFunction((n) => [...document.documentElement.lastElementChild.children].some((e) => e.textContent === n), n, { timeout: 5000 });
     const released = () => frame.waitForFunction(() => ![...document.documentElement.lastElementChild.children].some((e) => e.style.outline.includes("solid")), null, { timeout: 5000 });
@@ -39,7 +46,7 @@ async page => {
     await frame.waitForFunction(() => ![...document.documentElement.lastElementChild.children].some((e) => e.textContent === "1"), null, { timeout: 5000 }).catch(() => {});
     ok("M hides the markers", (await markers()) === "", await markers());
     ok("hiding the markers leaves the element pick on", (await page.getAttribute("#pick", "aria-pressed")) === "true");
-    ok("the toggle says the markers are hidden", (await page.textContent("#markers")) === "Show markers (M)", await page.textContent("#markers"));
+    ok("the toggle says the markers are hidden", (await page.getAttribute("#markers", "aria-pressed")) === "false", await page.getAttribute("#markers", "aria-pressed"));
     await page.click("#pick");
     ok("ending the pick leaves the markers hidden", (await page.getAttribute("#pick", "aria-pressed")) === "false" && (await markers()) === "");
 
@@ -52,22 +59,23 @@ async page => {
 
     await page.reload();
     frame = await loaded();
-    ok("after a reload the toggle still says the markers are hidden", (await page.textContent("#markers")) === "Show markers (M)", await page.textContent("#markers"));
+    await showSwitcher();
+    ok("after a reload the toggle still says the markers are hidden", (await page.getAttribute("#markers", "aria-pressed")) === "false", await page.getAttribute("#markers", "aria-pressed"));
     await sendNote(inFrame.locator('[data-variant="A"] [data-testid="shipments-parcel-row"]').nth(0), "Bolder parcel ids.", 2);
     ok("a note sent after the reload draws no marker while they are hidden", (await markers()) === "", await markers());
     await page.click("#markers");
     await marker("2");
-    ok("the toggle shows the markers again after the reload, the run's earlier note's too", (await markers()) === "1,2" && (await page.textContent("#markers")) === "Hide markers (M)", await markers());
+    ok("the toggle shows the markers again after the reload, the run's earlier note's too", (await markers()) === "1,2" && (await page.getAttribute("#markers", "aria-pressed")) === "true", await markers());
 
     const drawn = (want) => frame.waitForFunction((want) => [...document.documentElement.lastElementChild.children].filter((e) => !e.style.outline && e.textContent).map((e) => e.textContent).join() === want, want, { timeout: 5000 }).catch(() => {});
-    await inFrame.locator('nav.vs [aria-label="Previous variant"]').click();
+    await page.click("#vprev");
     await drawn("1");
     ok("switching to variant C hides note 2's marker, made on variant A, and keeps note 1's, made outside every variant", (await shownVariant()) === "C" && (await markers()) === "1", `${await shownVariant()}: ${await markers()}`);
     await frame.evaluate(() => document.dispatchEvent(new CustomEvent("vs:show", { detail: { variant: "B" } })));
     await drawn("1");
     ok("variant B does not draw note 2's marker either", (await shownVariant()) === "B" && (await markers()) === "1", `${await shownVariant()}: ${await markers()}`);
     const row2 = page.locator("#notes li", { hasText: "Bolder parcel ids." });
-    ok("the notes list names the variant note 2 was made on", /variant A/.test(await row2.locator(".where").textContent()), await row2.locator(".where").textContent());
+    ok("the notes list names the variant note 2 was made on in the page's words", (await row2.locator(".view").textContent()) === "On A Ledger", await row2.locator(".view").textContent());
     await row2.click();
     await drawn("1,2");
     ok("choosing note 2 from variant B switches the mockup to variant A and draws its marker", (await shownVariant()) === "A" && (await markers()) === "1,2", `${await shownVariant()}: ${await markers()}`);

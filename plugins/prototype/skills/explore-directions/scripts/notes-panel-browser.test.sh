@@ -65,12 +65,12 @@ if WATCH_ID="edp-watch" timeout 30 bash "$bridge/watch.sh" "$d" >"$tmp/wake.json
 else
   bad "the watcher exited without the note"
 fi
-run "$here/notes-panel-browser-wait.js" delivered "WANT=delivered to Claude" "REPLY=[]"
+run "$here/notes-panel-browser-wait.js" delivered "WANT=Claude has it" "REPLY=[]"
 
 reply='<img src=y onerror="window.__xss=2">Moved it to the top.'
 python3 -c 'import json, sys; json.dump({"replies": [{"seq": 1, "text": sys.argv[2]}]}, open(sys.argv[1], "w"))' "$d/ops.json" "$reply"
 bash "$bridge/notes-bridge.sh" --dir "$d" apply --file "$d/ops.json" >/dev/null
-run "$here/notes-panel-browser-wait.js" handled "WANT=handled" "REPLY=$(python3 -c 'import json, sys; print(json.dumps([sys.argv[1]]))' "$reply")"
+run "$here/notes-panel-browser-wait.js" handled "WANT=Handled, with a reply" "REPLY=$(python3 -c 'import json, sys; print(json.dumps([sys.argv[1]]))' "$reply")"
 run "$here/notes-panel-browser-refuse.js" refuse
 
 if ((fails)); then
