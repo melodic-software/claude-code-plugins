@@ -74,8 +74,13 @@ terms table at the top of a round in its place.
 Every factual claim carries a link or `file:line` the reader can open in one click (a URL with its
 section anchor, a timestamp for a video, a repo path); a claim the user stated cites
 `user, round <N>`, `<N>` being the round whose reply stated it, and the opening request counts as
-round 1 (`user, round 1`), never a bare "(your request)"; a claim with no source is labeled
-`judgment`. Write one claim per line so each carries its own reference. If removing a line would
+round 1 (`user, round 1`), never a bare "(your request)"; in a message that resumes past
+round <N> (one that reports round <N>'s answers), those answers cite `user, round <N>` and any
+other fact it states cites `user, round <N+1>`, the round it asks for. A
+claim cites its own basis, never another question (`(Q4 recommendation)`): a fact another
+question rests on is cited to that fact's source, and that question's undecided answer is not a
+Context claim (SKILL.md "No undecided name, scope or design shown as settled"). A claim with no
+source is labeled `judgment`. Write one claim per line so each carries its own reference. If removing a line would
 not change how a reasonable person decides, remove it; long material goes behind a link. Every
 lane carries the whole block, the terminal included; `basis` then names which of its sources the
 recommendation rests on. A question shown again (unanswered from last round, restated after async

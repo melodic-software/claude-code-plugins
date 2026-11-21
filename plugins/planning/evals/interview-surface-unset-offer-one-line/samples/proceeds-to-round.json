@@ -1,8 +1,8 @@
 {
   "pass": [
     {
-      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nRound 1. Decided so far: nothing.\n\nQ1: **How many delivery attempts does the sender make before giving up?**\nContext: the sender makes one POST per event today and retries nothing (user, this message).\nMy recommendation: five attempts with exponential backoff.\nOrigin: new (ours)\nBasis: verified, user, this message (one POST, no retries)\nInference: one attempt drops every event a transient receiver error hits.\nAlternatives:\n- (a) Three attempts. Fewer duplicate deliveries, less recovery time.\n\nIs there something else that would change this recommendation?",
-      "why": "one offer line stated, then round 1 asked in the conversation"
+      "answer": "Asking here, one round at a time. A local page or a shared session is also available; say which to switch.\n\n### Round 1: intake\n\nScope check: 3 of 27 questions registered\nLater: retry budget (attempts, backoff, give-up point), which failures count as retryable, alert trigger and channel\n\n❓ Q1: **Rethink the approach against this problem, or accept retries and alerting as the fix?**\n\nContext:\n- The problem worked back out: events a receiver fails to take are lost, and nobody hears about it (inferred, user, round 1).\n- The sender makes one POST per event and retries nothing (user, round 1).\n\nDiscovery: whether retries and alerting are the fix for that problem.\n\n---\n\n❓ Q2: **Which quality bar is this for: a throwaway prototype, an internal tool, or production?**\n\nContext:\n- The bar sets how deep the retry and alerting questions go (judgment).\n\nDiscovery: the quality bar.\n\n---\n\n❓ Q3: **Who needs to hear about a failed delivery?**\n\nContext:\n- The request asks for failure alerting (user, round 1).\n\nDiscovery: who the alerts are for.\n\nAnswer in any order.\n\nIs there something else that would change these recommendations?",
+      "why": "one offer line stated, then round 1 asked in the conversation as an intake round of discovery questions"
     }
   ],
   "fail": [

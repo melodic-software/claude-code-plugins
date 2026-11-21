@@ -55,9 +55,12 @@ the walk without the offer.
 ### Shape
 
 This is the one home for scenario ids. Number the scenarios `S1`, `S2`, and so on within one question, and put them in that question's
-Context; a topic whose whole Context is its set of scenarios is one question too. Each scenario opens
-with `S<N>:`, is concrete (named people, amounts, days or dates), states the outcome it tests, and
-ends with its own recommendation and the term or rule that answer forces. Once the ledger's
+Context, each as its own bullet under the `Context:` label, after any other Context lines; a topic
+whose whole Context is its set of scenarios is one question too. Each scenario opens with `S<N>:`,
+is concrete (it names its own person and gives its own amount, day or date, never leaning on an
+earlier scenario's), states the outcome it tests, and ends with its own recommendation and the
+term or rule that answer forces. The walk states no candidate definition of the term it settles
+before the scenarios: the definition is what the scenarios' answers decide. Once the ledger's
 `## Assumption sweep` section holds `- S<N> |` rows, a bare `S<N>` is a sweep item, so every
 scenario id is qualified by its question instead (`Q17.S1:`), in the round, in the user's answers
 and in the register resolution; `check-round-codes.sh` fails a scenario opened with a bare `S<N>:`
@@ -66,10 +69,15 @@ that is also a sweep id.
 Without sweep rows:
 
 ```markdown
-S1: Priya holds a physio slot for Tuesday 10:00 and pays the 40.00 deposit; on Monday she moves it
-to Thursday. Tests: is the moved visit the same booking?
-(a) The same booking, rescheduled. (b) The booking is cancelled and a new one made.
-Recommend (a): forces "reschedule" as an action on a booking, and the deposit stays with it.
+Context:
+- S1: Priya holds a physio slot for Tuesday 10:00 and pays the 40.00 deposit; on Monday she moves
+  it to Thursday. Tests: is the moved visit the same booking?
+  (a) The same booking, rescheduled. (b) The booking is cancelled and a new one made.
+  Recommend (a): forces "reschedule" as an action on a booking, and the deposit stays with it.
+- S2: Tom books a slot for Friday 09:00 and never pays the 40.00 deposit; on Thursday the hold
+  lapses. Tests: was the lapsed hold a booking?
+  (a) Yes, a booking that expired. (b) No, only a hold; a booking starts at payment.
+  Recommend (b): forces "hold" as its own term, and "booking" starts when the deposit is paid.
 ```
 
 Build only scenarios whose recommendation the facts in hand settle. A scenario whose answer turns

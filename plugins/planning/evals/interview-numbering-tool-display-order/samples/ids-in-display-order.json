@@ -7,6 +7,10 @@
     {
       "answer": "❓ Q8: **Who?**\n\n---\n\n❓ Q9: **What?**\n\n---\n\n❓ Q10: **When?**",
       "why": "Q8, Q9, Q10 in order"
+    },
+    {
+      "answer": "❓ Q8: **Who is alerted?**\n\n➡️ My recommendation: **Page on-call and post to `#webhooks`**.\n\nCommits you to:\n- Q9: Slack destination: the channel `#webhooks` (user, round 3)\n\nAlternatives:\n- (a) Slack only.\n\n---\n\n❓ Q10: **What does an alert include?**",
+      "why": "the Commits you to: part takes Q9, so the next question is Q10"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "❓ Q9: **What?**\n\n❓ Q8: **Who?**",
       "why": "shown out of order"
+    },
+    {
+      "answer": "❓ Q8: **Who is alerted?**\n\nCommits you to:\n- Q11: Slack destination: the channel `#webhooks`\n\n---\n\n❓ Q12: **What does an alert include?**",
+      "why": "the commitment part skips Q9"
     }
   ]
 }

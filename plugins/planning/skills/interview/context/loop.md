@@ -357,7 +357,7 @@ Because the register must exist before the first reply, a session that asks ANY 
 - Q3 | blocked | round 2 | Retention window? | named blocker: no interactive user
 ```
 
-Fields: `Q<N> | status | round | question | resolution`. Statuses:
+Fields: `Q<N> | status | round | question | resolution`; `question` is the question's title line as shown, without its markers. Statuses:
 
 | Status | Means | Terminal? |
 |---|---|---|
