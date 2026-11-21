@@ -32,6 +32,7 @@ output:
 review:
   kind: diff_file
   dir_arg: --add-dir
+  config_paths: [.agents/]
 modes:
   read-only:
     enforcement: approval-denial

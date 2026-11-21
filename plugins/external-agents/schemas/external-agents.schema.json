@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/external-agents/schemas/external-agents.schema.json",
   "title": "External-agents team config",
-  "description": "Schema for a repository's <home>/external-agents.yaml (<home> defaults to docs/conventions): the team layer of the external-agents plugin. A personal <home>/external-agents.local.yaml overrides it per key. Layers: docs/contracts/config-cascade/README.md. Each product is one top-level key holding the same per-product keys; an unset model, effort or profile leaves the CLI's own configuration in charge.",
+  "description": "Schema for a repository's <home>/external-agents.yaml (<home> defaults to docs/conventions): the team layer of the external-agents plugin. A personal <home>/external-agents.local.yaml overrides it per key. Layers: docs/contracts/config-cascade/README.md. Each product is one top-level key holding its per-product keys; an unset effort or profile leaves the CLI's own configuration in charge, and an unset model does too unless the product's model description says the run is skipped.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema"],
