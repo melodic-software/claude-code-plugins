@@ -305,6 +305,21 @@ round two-recs.md \
   'My recommendation: no.' \
   'Withheld: the paging trial has not reported.'
 run "a question with two answer lines fails" 1 two-recs.md '^missing=2:single-recommendation$'
+round q-bullet.md \
+  'Scope check: 2 of 27 questions registered' \
+  '' \
+  '❓ Q15: **Should a failed retry page the on-call?**' \
+  'Context:' \
+  '- Q14: you set the retry budget at three tries.' \
+  '1. Q14: the same answer, in a numbered list.' \
+  '➡️ My recommendation: no; a retry stays silent.'
+run "a list item that opens with Q<N>: is not a question line" 0 q-bullet.md 'bare=0 status=ok structure=0'
+round two-scopes.md \
+  'Scope check: 2 of 27 questions registered' \
+  'Scope check: 3 of 27 questions registered' \
+  'Q15: Should a failed retry page the on-call?' \
+  'My recommendation: no.'
+run "a header with two Scope check: lines fails" 1 two-scopes.md '^missing=1:single-scope-check$'
 round product.md \
   'Scope check: 3 of 15 questions registered' \
   '' \

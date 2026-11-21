@@ -54,12 +54,16 @@ Two structure checks run beside the bare-code check:
   answer line     each question block holds exactly one `My recommendation:`,
                   `Withheld:`, `Discovery:` or (the product action)
                   `Strong answer:` line
-  scope check     the lines before the first question hold a `Scope check:` line
+  scope check     the lines before the first question hold exactly one
+                  `Scope check:` line
+
+A list item (`- Q4: ...`, `1. Q4: ...`) never opens a question.
 
 A label may follow a marker (any run of characters outside printable ASCII,
 such as an emoji) and sit in bold; round.py show reads labels the same way.
 Each failure prints `missing=<line>:<what>` (`recommendation` or
-`single-recommendation` at the question line, `scope-check` at line 1), and
+`single-recommendation` at the question line, `scope-check` or
+`single-scope-check` at line 1), and
 the closing line gains ` structure=<n>`.
 TXT
 }
@@ -169,6 +173,7 @@ LC_ALL=C awk '
   }
   # The id of the question a line opens, or "" when it opens none.
   function question_id(line,    c) {
+    if (line ~ /^([ \t]*>)*[ \t]*([-*+]|[0-9]+[.)])[ \t]/) return ""
     if (!match(line, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) return ""
     c = substr(line, RSTART, RLENGTH)
     # Q17.S1 is a qualified scenario id, not a question line.
@@ -216,7 +221,7 @@ LC_ALL=C awk '
     }
   }
   {
-    if (!block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Scope check(\*\*|__)?:/) has_scope = 1
+    if (!block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Scope check(\*\*|__)?:/) has_scope++
     if (block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer)(\*\*|__)?:/) block_answers++
   }
   {
@@ -234,7 +239,7 @@ LC_ALL=C awk '
   END {
     if (in_fence) exit 4
     close_block()
-    if (!has_scope) { missing++; print "missing=1:scope-check" }
+    if (has_scope != 1) { missing++; print "missing=1:" (has_scope ? "single-scope-check" : "scope-check") }
     printf "codes=%d bare=%d status=%s structure=%d\n", n_codes, bare, ((bare || missing) ? "fail" : "ok"), missing
     exit ((bare || missing) ? 1 : 0)
   }

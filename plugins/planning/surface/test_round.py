@@ -5971,6 +5971,52 @@ class TestRoundShow(unittest.TestCase):
         at = out.index("- No reader is named yet.")
         self.assertEqual(out[at + 1 : at + 3], bullets)
 
+    def show_variant(self, level, *edits):
+        """show at `level` of the fixture with each (anchor line, added lines) inserted."""
+        text = ROUND_FULL.read_text(encoding="utf-8")
+        for anchor, added in edits:
+            self.assertIn(anchor + "\n", text)
+            text = text.replace(anchor + "\n", anchor + "\n" + "".join(x + "\n" for x in added), 1)
+        with tempfile.TemporaryDirectory(prefix="iv-show-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(text.encode("utf-8"))
+            return self.show(level, path).decode("utf-8").splitlines()
+
+    def test_a_protected_line_under_a_dropped_field_is_kept(self):
+        protected = [
+            "*Flips if:* the guide changes its batching rule.",
+            "Second view (recommender): log both failures.",
+            "- Commits you to: no second store",
+            "Departs from: Q4 (one write per job), once more.",
+            "Withheld: until the queue lookup returns.",
+            "**Discovery** first: who reads the entries.",
+        ]
+        edits = (
+            ("Basis: verified, `src/retry.ts:12` and the audit guide's Writes section", protected[:2]),
+            ("- The store depends on the queue lookup.", protected[2:]),
+        )
+        for level in ("full", "standard", "minimal"):
+            with self.subTest(level=level):
+                out = self.show_variant(level, *edits)
+                for line in protected:
+                    self.assertIn(line, out)
+
+    def test_a_source_with_no_link_prints_nothing_at_standard(self):
+        out = self.show_variant(
+            "standard", ("- No reader is named yet.", ["", "Source: the team wiki, quoted", "> No reader yet."])
+        )
+        self.assertNotIn("Source: the team wiki, quoted", out)
+        self.assertNotIn("> No reader yet.", out)
+        self.assertIn("- No reader is named yet.", out)
+
+    def test_inline_alternatives_are_kept_as_written(self):
+        inline = "Alternatives: (a) a dashboard; (b) a weekly email."
+        anchor = "Discovery: who reads the entries settles whether they need a dashboard."
+        for level in ("standard", "minimal"):
+            with self.subTest(level=level):
+                out = self.show_variant(level, (anchor, ["", inline]))
+                self.assertIn(inline, out)
+
     def test_an_unknown_level_is_refused(self):
         rc, out, err = run_bytes("show", "--level", "brief", str(ROUND_FULL))
         self.assertNotEqual(rc, 0)
@@ -6046,19 +6092,62 @@ class TestMeasures(unittest.TestCase):
     """measures prints rounds, median lines per shown round, reopened rows and those reopened
     after a lookup."""
 
+    FACTS = {
+        "Q1": "/discovery:research found the queue already persists jobs",
+        "Q2": "two lookups found the host has no Redis",
+        "Q3": "we looked up the vendor page: batches flush every five seconds",
+        "Q4": "the user said the budget is four tries, per docs/build:3",
+        "Q5": "the user changed their mind",
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        """One ledger whose `## Reopened answers` entries `reopen` itself wrote."""
+        cls.base = Path(tempfile.mkdtemp(prefix="iv-measures-base-"))
+        cls.addClassCleanup(shutil.rmtree, cls.base, ignore_errors=True)
+        ledger = cls.base / "interview-checklist.md"
+        ledger.write_bytes(
+            (
+                "# Interview ledger\n\n## Open-question register\n\n"
+                + "".join(f"- Q{n} | answered | round 1 | Q {n}? | yes\n" for n in range(1, 6))
+            ).encode("utf-8")
+        )
+        for qid, fact in cls.FACTS.items():
+            fact_file = cls.base / f"fact-{qid}.txt"
+            fact_file.write_bytes(fact.encode("utf-8"))
+            rc, out, err = run_bytes(
+                "reopen", "--ledger", str(ledger), qid, "--round", "3",
+                "--fact-file", str(fact_file),
+            )
+            assert rc == 0, err
+        cls.ledger_bytes = ledger.read_bytes()
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-measures-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.rounds = self.tmp / "slice"
         self.rounds.mkdir()
         self.ledger = self.rounds / "interview-checklist.md"
-        self.ledger.write_bytes(
-            (
-                SCOPE_LEDGER + "\n## Reopened answers\n\n"
-                "- Q2 | round 3 | was: yes | fact: the /discovery:research lookup found the "
-                "queue already persists jobs\n"
-                "- Q4 | round 3 | was: yes | fact: the user said the budget is four tries\n"
-            ).encode("utf-8")
+        self.ledger.write_bytes(self.ledger_bytes)
+
+    def round_of(self, n, count):
+        text = "".join(f"line {k}\n" for k in range(count))
+        (self.rounds / f"round-{n}.md").write_bytes(text.encode("utf-8"))
+
+    def test_the_reopen_writer_and_the_measures_reader_agree(self):
+        self.assertEqual(
+            self.measures("full"), "rounds=0 median_lines=0 reopened=5 after_lookup=3\n"
+        )
+
+    def test_an_even_count_median_is_the_mean_of_the_middle_two(self):
+        self.round_of(1, 4)
+        self.round_of(2, 6)
+        self.assertEqual(
+            self.measures("full"), "rounds=2 median_lines=5 reopened=5 after_lookup=3\n"
+        )
+        self.round_of(2, 7)
+        self.assertEqual(
+            self.measures("full"), "rounds=2 median_lines=5.5 reopened=5 after_lookup=3\n"
         )
 
     def measures(self, level):
@@ -6076,22 +6165,21 @@ class TestMeasures(unittest.TestCase):
 
     def test_rounds_median_lines_and_reopened_rows(self):
         for n, count in ((1, 4), (2, 10), (3, 7)):
-            text = "".join(f"line {k}\n" for k in range(count))
-            (self.rounds / f"round-{n}.md").write_bytes(text.encode("utf-8"))
+            self.round_of(n, count)
         (self.rounds / "round-notes.md").write_bytes(b"not a round\n")
         self.assertEqual(
             self.measures("full"),
-            "rounds=3 median_lines=7 reopened=2 after_lookup=1\n",
+            "rounds=3 median_lines=7 reopened=5 after_lookup=3\n",
         )
 
     def test_median_lines_count_the_round_at_the_shown_level(self):
         (self.rounds / "round-3.md").write_bytes(ROUND_FULL.read_bytes())
         self.assertEqual(
-            self.measures("full"), "rounds=1 median_lines=51 reopened=2 after_lookup=1\n"
+            self.measures("full"), "rounds=1 median_lines=58 reopened=5 after_lookup=3\n"
         )
         self.assertEqual(
             self.measures("minimal"),
-            f"rounds=1 median_lines={len(MINIMAL)} reopened=2 after_lookup=1\n",
+            f"rounds=1 median_lines={len(MINIMAL)} reopened=5 after_lookup=3\n",
         )
 
 

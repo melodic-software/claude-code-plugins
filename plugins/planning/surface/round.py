@@ -2961,8 +2961,15 @@ ROUND_LABELS = (
 ROUND_LABEL = re.compile(
     rf"^[^ -~]*[ \t]*(?:\*\*|__)?({'|'.join(ROUND_LABELS)})(?:\*\*|__)?:"
 )
+LIST_ITEM = re.compile(r"^(?:[ \t]*>)*[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]")
 QUESTION_LINE = re.compile(r"^[^A-Za-z0-9]*(Q[0-9]+)(?:[:)]|\.(?![A-Za-z0-9]))")
-ROUND_FENCE = re.compile(r"^\s*(```|~~~)")
+PROTECTED = re.compile(
+    r"^[^A-Za-z0-9]*(?:flips if|commits you to|withheld|discovery|second view|departs from)\b",
+    re.IGNORECASE,
+)
+ROUND_FENCE = re.compile(
+    r"^(?:[ \t]*>)*[ \t]*(?:(?:[-*+]|[0-9]+[.)])[ \t]+)?(`{3,}|~{3,})(.*)$"
+)
 DROPPED = {
     "full": (),
     "standard": ("Origin", "Basis", "Checked against"),
@@ -2970,28 +2977,50 @@ DROPPED = {
 }
 MD_LINK = re.compile(r"\[[^\]]*\]\([^)\s]+\)|<?https?://[^\s)>]+>?")
 ROUND_FILE = re.compile(r"^round-([1-9][0-9]*)\.md$")
-SETTLED = ("answered", "deferred", "withdrawn", "blocked")
-REOPENED_ENTRY = re.compile(
-    r"^- Q[1-9][0-9]* \| round [1-9][0-9]* \| was: .* \| fact: (.*)$"
+LOOKUP = re.compile(
+    r"(?<![\w/.])/[a-z0-9-]+:[a-z0-9-]+\b|\blook(?:ups?|ed up)\b", re.IGNORECASE
 )
-LOOKUP = re.compile(r"/[a-z0-9-]+:[a-z0-9-]+|\blookup\b", re.IGNORECASE)
+
+
+def fence_step(fence, bare):
+    """(fence, fenced) after the line `bare`, as check-round-codes.sh reads fences: `fence` is
+    (character, length) of the open fence or None; a fence opens on a ``` or ~~~ run (after any
+    `>` quote and list marker) and closes on a run of its character at least as long with
+    nothing after it; fenced is True for every line inside or on a fence."""
+    m = ROUND_FENCE.match(bare)
+    if fence is None:
+        return ((m.group(1)[0], len(m.group(1))), True) if m else (None, False)
+    run, rest = (m.group(1), m.group(2)) if m else ("", "x")
+    if run[:1] == fence[0] and len(run) >= fence[1] and not rest.strip():
+        return None, True
+    return fence, True
+
+
+def question_id(bare):
+    """The Q<N> a question line opens, or None; a list item never opens a question."""
+    if LIST_ITEM.match(bare):
+        return None
+    q = QUESTION_LINE.match(bare)
+    return q.group(1) if q else None
 
 
 def round_segments(lines):
     """[(label, qid, lines)] of a round file's lines: the header (label "header"), then per
     question its title, each labelled field with the lines that continue it up to the next blank
-    line or label, and each blank or other line on its own. Fenced lines stay in their segment."""
-    segs, qid, fenced = [["header", None, []]], None, False
+    line or label, and each blank or other line on its own. A line that starts with a protected
+    label word in any form starts a segment of its own, kept at every level. Fenced lines stay in
+    their segment."""
+    segs, qid, fence = [["header", None, []]], None, None
     for line in lines:
         bare = line.rstrip("\r\n")
-        if fenced or ROUND_FENCE.match(bare):
-            fenced = fenced != bool(ROUND_FENCE.match(bare))
+        fence, fenced = fence_step(fence, bare)
+        if fenced:
             segs[-1][2].append(line)
             continue
-        q = QUESTION_LINE.match(bare)
+        q = question_id(bare)
         label = ROUND_LABEL.match(bare)
         if q:
-            qid = q.group(1)
+            qid = q
             segs.append(["title", qid, [line]])
         elif segs[-1][0] == "header":
             segs[-1][2].append(line)
@@ -2999,7 +3028,7 @@ def round_segments(lines):
             segs.append(["blank", qid, [line]])
         elif label:
             segs.append([label.group(1), qid, [line]])
-        elif segs[-1][0] == "blank":
+        elif segs[-1][0] == "blank" or PROTECTED.match(bare):
             segs.append(["text", qid, [line]])
         else:
             segs[-1][2].append(line)
@@ -3013,9 +3042,10 @@ def eol_of(line):
 def render_round(text, level):
     """The round file `text` at `level`: full is the text itself; standard drops Origin:,
     Basis:, Checked against: and the Source: quote's body (keeping its links) and puts each
-    alternative on one line; minimal also drops Context: and Source: and replaces the
-    alternatives with their count and `say "more Q<N>"`. The header, every other line and the
-    blank lines are kept, a run of blanks a dropped field leaves collapsed to one."""
+    alternative on one line; minimal also drops Context: and Source: and replaces listed
+    alternatives with their count and `say "more Q<N>"` (inline ones stay as written). The
+    header, every other line and the blank lines are kept, each run of blank lines collapsed
+    to one."""
     if level == "full":
         return text
     out = []
@@ -3033,7 +3063,9 @@ def render_round(text, level):
                     items[-1] += " " + line.strip()
                 else:
                     items.append(line.rstrip("\r\n"))
-            if level == "minimal":
+            if not items:
+                pass
+            elif level == "minimal":
                 seg = [f'Alternatives: {len(items)} (say "more {qid}"){eol}']
             else:
                 seg = [seg[0], *(item + eol for item in items)]
@@ -3089,22 +3121,9 @@ def cmd_scope_check(d, a):
     parts = [f"{len(rows)} of {a.limit} questions registered"]
     for n in list(earlier)[:2]:
         mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
-        settled = sum(status in SETTLED for status in mine)
+        settled = sum(status in exporters.SETTLED for status in mine)
         parts.append(f"round {n} added {len(mine)}, settled {settled}")
     print("; ".join(parts))
-
-
-def reopened_facts(text):
-    """The fact of each `- Q<N> | round <N> | was: ... | fact: ...` entry under the ledger's
-    `## Reopened answers` heading."""
-    bare = text.splitlines()
-    heads = exporters.headings(bare)
-    facts = []
-    for h, _, title in heads:
-        if title == "reopened answers":
-            start, end = exporters.section_span(heads, h, len(bare))
-            facts += [m.group(1) for x in bare[start + 1 : end] if (m := REOPENED_ENTRY.match(x))]
-    return facts
 
 
 def cmd_measures(d, a):
@@ -3122,7 +3141,7 @@ def cmd_measures(d, a):
     else:
         total = counts[mid - 1] + counts[mid]
         median = str(total // 2) if total % 2 == 0 else f"{total / 2:.1f}"
-    facts = reopened_facts(text)
+    facts = [fact for _, _, _, fact in exporters.reopened_entries(text)]
     after = sum(bool(LOOKUP.search(f)) for f in facts)
     print(
         f"rounds={len(counts)} median_lines={median} reopened={len(facts)} "
@@ -3677,7 +3696,7 @@ def main(argv=None):
         "measures",
         help="print rounds (round-<N>.md files in --rounds-dir), the median lines of those "
         "rounds shown at --level, the entries under the ledger's '## Reopened answers', and "
-        "those whose fact names a lookup (a /<plugin>:<skill> or the word lookup); no data dir "
+        "those whose fact names a lookup (a /<plugin>:<skill>, lookup, lookups or looked up); no data dir "
         "needed",
     )
     s.add_argument("--ledger", required=True, help="ledger markdown file")

@@ -157,6 +157,7 @@ ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
+SETTLED = ("answered", "deferred", "withdrawn", "blocked")
 # The Brief's field labels, per context/problem-framing.md "Problem fields" and "Work size".
 PROBLEM_FIELDS = ("Gap", "Who / how many", "Frequency", "Trend", "Cost", "Evidence")
 WORK_SIZE_FIELDS = ("Appetite", "Size", "Uncertainty", "Split signals")
@@ -1506,7 +1507,7 @@ def export_brief(d, text=None):
         sections = dict(sections, decisions=ticked_recap(sections["decisions"], rows))
     count = {
         s: sum(1 for r in rows if r["status"] == s)
-        for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
+        for s in (*SETTLED, *UNSETTLED)
     }
     answered = [r for r in rows if r["status"] == "answered"]
     replaced = replacements(rows)
@@ -2187,6 +2188,31 @@ def section_span(heads, start, total):
     return start, next((h for h, lv, _ in heads if h > start and lv <= level), total)
 
 
+REOPENED_ENTRY = re.compile(
+    r"^- (Q[1-9][0-9]*) \| round ([1-9][0-9]*) \| was: (.*) \| fact: (.*)$"
+)
+
+
+def reopened_entry(qid, rnd, was, fact):
+    """One `## Reopened answers` entry, the line REOPENED_ENTRY reads back."""
+    return f"- {qid} | round {rnd} | was: {was} | fact: {fact}"
+
+
+def reopened_entries(text):
+    """[(Q<N>, round, was, fact)] of each entry under the ledger's `## Reopened answers`."""
+    bare = text.splitlines()
+    heads = headings(bare)
+    out = []
+    for h, _, title in heads:
+        if title == "reopened answers":
+            start, end = section_span(heads, h, len(bare))
+            for line in bare[start + 1 : end]:
+                m = REOPENED_ENTRY.match(line)
+                if m:
+                    out.append((m.group(1), int(m.group(2)), m.group(3), m.group(4)))
+    return out
+
+
 def add_reopened(lines, entry):
     """Append `entry` to the ledger's `## Reopened answers` section. A ledger with none gets it
     where the checklist template puts it: after the register's whole level-2 section, its
@@ -2267,7 +2293,7 @@ def reopen_row(text, qid, rnd, fact, where):
         if row in marked:
             rewrite_row(lines, j, m.start(2), lambda s, r: (s, r), recheck(row))
             order.append(row)
-    add_reopened(lines, f"- {n} | round {rnd} | was: {was[0]} | fact: {fact}")
+    add_reopened(lines, reopened_entry(n, rnd, was[0], fact))
     return "".join(lines), order
 
 
@@ -2579,7 +2605,7 @@ def import_ledger(doc, text, ledger, at):
         added = ADDED.search(cell)
         if added and int(added.group(1)) > rnd:
             added_in[qid] = int(added.group(1))
-        if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
+        if status not in (*UNSETTLED, *SETTLED):
             refuse(f"unknown status {status!r} for Q{n}", ledger)
         named = parse_named(res, ledger)
         if named:

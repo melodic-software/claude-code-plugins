@@ -5316,6 +5316,37 @@ class TestRegisterTags(SessionCase):
         named = set(re.findall(r"(Q\d+): answered row has an empty resolution", out))
         self.assertEqual(named, empty)
 
+    def test_the_gate_settles_exactly_the_settled_statuses(self):
+        settled = set()
+        for status in (*exporters.SETTLED, *exporters.UNSETTLED, "discussing"):
+            ledger = self.tmp / f"status-{status}.md"
+            ledger.write_bytes(
+                (
+                    "# Interview ledger\n\n## Open-question register\n\n"
+                    f"- Q1 | {status} | round 1 | One? | an answer\n"
+                ).encode()
+            )
+            rc, out = self.check("--ledger", ledger)
+            self.assertIn(rc, (0, 1), out)
+            if rc == 0:
+                settled.add(status)
+        self.assertEqual(settled, set(exporters.SETTLED))
+
+    def test_the_gate_skips_the_entry_reopen_writes(self):
+        text = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | One? | three tries\n"
+        )
+        new, _ = exporters.reopen_row(text, "Q1", 3, "the lookup | found otherwise", "the test")
+        self.assertEqual(
+            exporters.reopened_entries(new),
+            [("Q1", 3, "three tries", "the lookup / found otherwise")],
+        )
+        ledger = self.tmp / "reopened.md"
+        ledger.write_bytes(new.encode())
+        rc, out = self.check("--ledger", ledger)
+        self.assertEqual(rc, 1, out)
+
     def test_a_repeated_tag_is_refused_naming_its_row(self):
         with self.assertRaises(SystemExit) as raised:
             exporters.parse_tags("depends:: Q1; depends:: Q2", "Q7", "the ledger")

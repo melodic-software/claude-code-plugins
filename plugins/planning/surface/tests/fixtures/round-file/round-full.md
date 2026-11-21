@@ -7,6 +7,7 @@ Held: Q12 (queue choice) until the queue lookup returns
 
 Context:
 - Each retry runs in its own worker (`src/retry.ts:12`).
+- Q4: you chose one write per job in round 1.
 - The audit log takes one write per job today ([audit guide](https://example.com/audit)).
 
 Source: [Audit log guide, Writes](https://example.com/audit#writes)
@@ -35,6 +36,12 @@ Alternatives:
 
 Context:
 - No reader is named yet.
+- The draft entry shape:
+````text
+Q9: a fenced line, not a question
+```
+Basis: a fenced line, not a label
+````
 
 Discovery: who reads the entries settles whether they need a dashboard.
 
