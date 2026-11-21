@@ -34,7 +34,15 @@ are read at [skills: override skill visibility from settings](https://code.claud
 ## Extraction record
 
 The registry row's observation is a 2026-08-23 extraction of the 2.1.232 binary, in which the
-skill appears as a bundled skill with the `review` alias. This record re-verifies the same facts on
-the installed 2.1.263 binary by string search (the registration carries `menuDescription:"Review
-the current diff or a PR for bugs and cleanups"` and `subcommands:{ultra:"ultrareview"}`) and against
-the two pages named above, all on 2026-09-11.
+skill appears as a bundled skill with the `review` alias. This record re-verified the same facts on
+the installed 2.1.263 binary by string search and against the two pages named above, all on
+2026-09-11. The registration carried `subcommands:{ultra:"ultrareview"}` and a menu description
+that had it review the diff or a PR for bugs and cleanups.
+
+Scope, as of Claude Code 2.1.328: on most models the bundled skill reports only bugs and CLAUDE.md
+violations, and reuse, simplification and efficiency cleanups go to the bundled `simplify` skill.
+Whether a review still covers cleanups depends on the model and effort level. Basis: the 2.1.328
+entry of the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21328)
+and the `/code-review` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands),
+both read 2026-11-21. Recheck when a release note changes what `/code-review` reports or moves work between
+it and `/simplify`.
