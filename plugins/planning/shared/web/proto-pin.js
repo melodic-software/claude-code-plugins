@@ -283,9 +283,9 @@
     hover = pathOf(e.target).el;
     draw();
   };
-  const stop = e => { if (mode) { e.preventDefault(); e.stopImmediatePropagation(); } };
+  const stop = e => { if (mode || held) { e.preventDefault(); e.stopImmediatePropagation(); } };
   function pick(e) {
-    if (!mode) return;
+    if (!mode) { stop(e); return; }
     stop(e);
     if (kind !== "element" || skip(e.target)) return;
     const { path, el } = pathOf(e.target);
@@ -302,6 +302,7 @@
   for (const t of ["pointerdown", "mousedown", "mouseup", "submit", "auxclick", "dblclick"]) addEventListener(t, stop, true);
   addEventListener("keydown", e => {
     if (e.key === "Escape") { post({ type: "escape" }); return; }
+    if (held && !mode) { stop(e); return; }
     if (mode && kind === "region") {
       // Region keys stay here: the arrows never reach the page's own keys (the switcher's state steps).
       const a = ARROWS[e.key];
