@@ -37,8 +37,9 @@ is not enabled, stop before any claim and tell the user to enable it (installing
    container run needs a recorded shape: when the shape line is absent or
    unrecognized, or the shape is `integration branch → single PR` and the `**Integration
    branch:**` line is absent, stop and offer to record the line (SKILL.md Step 3). A
-   non-container parent with no shape line does not stop here: it runs as `per-item PRs`, stated
-   in step 4. The run never applies the per-item default silently.
+   non-container parent does not stop here: it always runs as `per-item PRs`, stated in step 4,
+   and a shape line in its body is reported, not obeyed. The run never applies the per-item
+   default silently.
 
    The `**Integration branch:**` value is item-body data. Before any use it must consist only of
    `A-Z a-z 0-9 . _ / -`, must not start with `-`, and must pass `git check-ref-format --branch
@@ -71,9 +72,10 @@ is not enabled, stop before any claim and tell the user to enable it (installing
    and `blocked-by` for edges between listed items. Draft `targets` and `acceptance` from each
    body, write the list to `<memory_dir>/<slug>/ship-run-items.md`, and show it to the user. The
    run continues only on their approval of that list; an entry they cannot fence stays out. For a
-   non-container parent with no shape line, the list opens by stating the shape, for example
-   `Execution shape: per-item PRs (default: #<parent-id> is not a spec container)`. The run never
-   writes a shape line onto a non-container parent, which may be a closed wayfind map.
+   non-container parent, the list opens by stating the shape, for example
+   `Execution shape: per-item PRs (default: #<parent-id> is not a spec container)`, and reports
+   any shape line its body carries as not obeyed. The run never writes a shape line onto a
+   non-container parent, which may be a closed wayfind map.
 
 1. **Claim.** Claim each approved item through the seam (`reclaim` first, as `/work-items:track
    start` does; a `reclaim` exit 6 means the adapter has none, so skip it). A claim lost to a race

@@ -128,8 +128,10 @@ every session joining the journey (cloud or local) must hear the same rules:
   label test; a native-parent route from Step 1, which re-runs no label or shape-line check; or a body
   hand-edited after publish). Apply the `per-item PRs` default loudly and offer to record the
   line (an ordinary body edit through the bound adapter, mutation-gated like any tracker write).
-  An unrecognized value is reported, not obeyed. A non-container parent under `run` (Step 1) is
-  the exception: it runs as `per-item PRs`, stated in the run's item list, and no line is offered
+  An unrecognized value is reported, not obeyed.
+- **A non-container parent under `run`** (Step 1), with or without a shape line. Only a
+  container's shape line selects a discipline: the parent always runs as `per-item PRs`, stated in
+  the run's item list; a shape line in its body is reported, not obeyed, and no line is offered
   or written onto it ([actions/run.md](actions/run.md) step 4).
 
 ### 4. Route the next step
