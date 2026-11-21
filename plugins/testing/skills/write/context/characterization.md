@@ -69,12 +69,7 @@ then re-approve. Never re-approve in bulk: that records whatever bug produced th
 Feathers, [Characterization Testing](https://michaelfeathers.silvrback.com/characterization-testing)
 (2016); Seemann,
 [Empirical characterization testing](https://blog.ploeh.dk/2025/11/03/empirical-characterization-testing/)
-(the sabotage check, 2025-11-03); GitHub
-[Scientist README](https://github.com/github/scientist) (control and candidate, ignored
-mismatches, the side-effect warning); tool docs for scrubbers and review:
-[Verify scrubbers](https://github.com/VerifyTests/Verify/blob/main/docs/scrubbers.md),
-[Jest snapshot testing](https://jestjs.io/docs/snapshot-testing),
-[ApprovalTests](https://approvaltests.com/).
+(the sabotage check, 2025-11-03).
 
 Basis: the agent-self-check research slice (2026-10-06). The practices come from human-led
 rewrites; no accepted source shows an agent validating a rewrite this way, so the agent

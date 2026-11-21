@@ -101,13 +101,6 @@ resulting row directly (`context.Blogs.SingleAsync(...)`, `SELECT ... WHERE id =
 state verification. What makes such a test weak is its oracle, not the read: `expect(row)
 .toBeDefined()` passes for wrong data; assert the fields.
 
-The named exception is the EF Core carve-out: mocking `DbContext` is acceptable for non-query
-writes (verifying that code called `Add` or `SaveChanges()`). Never mock `DbSet` for queries; LINQ
-over an in-memory collection does not behave like the provider.
-
-Pointer: [Choosing a testing strategy § Mocking or stubbing DbContext and DbSet](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy#mocking-or-stubbing-dbcontext-and-dbset)
-and its [Summary](https://learn.microsoft.com/en-us/ef/core/testing/choosing-a-testing-strategy#summary).
-
 ## 4. Refactoring stays inside the loop
 
 Red, green, then refactor, every cycle, one test at a time. Refactoring is not a phase after all
