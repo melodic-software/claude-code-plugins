@@ -17,7 +17,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git mv docs/BETA.md docs/beta-programme.md"
+            "command": "git mv docs/BETA.md docs/beta-program.md"
           }
         }
       ]

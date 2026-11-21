@@ -104,9 +104,9 @@ Every agent prompt must include corrective instructions for the tensions relevan
 #### 9. Helpful Gap-Filling → Genuine Blind Spots
 
 **LLM default:** Notice gaps in the flow and fill them. Anticipate what's missing. Be thorough.
-**Book requires:** DEEP/GREY/PRETEND zones. In your GREY zone, you have stale knowledge, so write events based on outdated assumptions, not current reality. In your PRETEND zone, you bluff. "Pretending to know is the standard behavior in many organizations" (Ch. 2). Your blind spots should produce wrong events, not missing events.
+**Book requires:** DEEP/GRAY/PRETEND zones. In your GRAY zone, you have stale knowledge, so write events based on outdated assumptions, not current reality. In your PRETEND zone, you bluff. "Pretending to know is the standard behavior in many organizations" (Ch. 2). Your blind spots should produce wrong events, not missing events.
 
-**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have stale knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. Do not research or double-check whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
+**Corrective prompt for GRAY zone behavior:** "In areas outside your expertise, you have stale knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. Do not research or double-check whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
 
 **Corrective prompt for PRETEND zone behavior:** "In areas far from your expertise, you bluff. Write plausible-sounding events that feel right but are actually wrong. You don't know they're wrong. You genuinely believe them. This is normal organizational behavior: 'pretending to know is the standard behavior.'"
 
@@ -157,7 +157,7 @@ After each round, the facilitator checks for regression into LLM defaults:
 | No hot spots or challenges | **Politeness** (#3) | Spawn a skeptical persona specifically to challenge: "The [Expert] says X. From your experience, is that really how it works?" |
 | Events read like process documentation | **Clean flows** (#4) | Invoke "I don't trust the official version": "This looks like the official process. What actually happens?" |
 | Every persona produced ~same number of events | **Balanced output** (#10) | Re-check persona prompts; ensure Domain Expert gets "dump 12-15" and New Hire gets "write 4-6 guesses" |
-| No wrong events in grey zones | **Helpful gap-filling** (#9) | Re-prompt grey-zone personas: "Write what you think happens, even if you're not sure. Your outdated assumptions are valuable." |
+| No wrong events in gray zones | **Helpful gap-filling** (#9) | Re-prompt gray-zone personas: "Write what you think happens, even if you're not sure. Your outdated assumptions are valuable." |
 | Events are full sentences, 10+ words | **Verbosity** (#5) | Re-prompt: "Thick marker, tiny sticky note. 2-5 words. Split long events into multiples." |
 
 ---
@@ -313,7 +313,7 @@ Each persona is a separate Agent tool invocation, and this skill hands it its ea
 
 ## Knowledge Zones
 - **DEEP:** {areas of expertise, daily work}
-- **GREY:** {stale/second-class knowledge, outdated assumptions}
+- **GRAY:** {stale/second-class knowledge, outdated assumptions}
 - **PRETEND:** {areas where they bluff with plausible-sounding but wrong assertions}
 
 ## Vocabulary Registry
@@ -359,22 +359,22 @@ At session end, ask user: "Delete persona temp files? (They can be archived for 
 
 ### Differentiating Agent Output: Simulating Siloed Knowledge (Brandolini Ch. 2, 3, 6)
 
-Brandolini's core insight: "Silos minimize the learning newcomers need to start contributing. But the grey, unexplored areas will stay. Possibly for a very long time." (Ch. 2). The value of EventStorming comes from colliding these designed ignorances: each persona has deep knowledge in their area and genuine ignorance outside it.
+Brandolini's core insight: <!-- spellchecker:off -->"Silos minimize the learning newcomers need to start contributing. But the grey, unexplored areas will stay.<!-- spellchecker:on --> Possibly for a very long time." (Ch. 2). The value of EventStorming comes from colliding these designed ignorances: each persona has deep knowledge in their area and genuine ignorance outside it.
 
 **Agent prompts must define three things per persona:**
 
 1. **Deep expertise zone**: what this persona knows cold, from daily work. They write events here quickly, confidently, using precise internal vocabulary. They correct wrong events in this zone
-2. **Grey areas / blind spots**: what this persona was told "you don't need to know." They have stale, second-class knowledge here, outdated assumptions from years ago, not zero knowledge. Brandolini: "the former experts will slowly drift into second-class knowledge" (Ch. 2)
+2. **Gray areas / blind spots**: what this persona was told "you don't need to know." They have stale, second-class knowledge here, outdated assumptions from years ago, not zero knowledge. Brandolini: "the former experts will slowly drift into second-class knowledge" (Ch. 2)
 3. **Pretend-to-know zone**: areas where this persona bluffs with plausible-sounding but wrong assertions rather than admitting ignorance. Brandolini: "'Pretending to know' is the standard behavior in many organizations" (Ch. 2)
 
 **Per persona type:**
 
-- **Domain Expert / Business Owner**: DEEP in business process and customer interactions. GREY on technical implementation ("the system handles it"). PRETENDS about scalability and failure modes. Uses precise business jargon. Skips "obvious" steps. Dismisses edge cases: "that never happens." Has sacred decisions they'll defend emotionally (Ch. 2: cognitive dissonance around past choices)
-- **Developer / Architect**: DEEP in technical systems, data flow, error handling. GREY on business rules and financial flows. PRETENDS about customer experience. Looks for semantic symmetry (`PlaceOrder` → `CancelOrder`). Brandolini: "developers invariably neglect the money part" (Ch. 4). Distances self from legacy: says "the system" not "our code" for components they've disengaged from (Ch. 4)
-- **Operations / Support**: DEEP in failure modes, incidents, manual workarounds. GREY on the "why" behind business rules. PRETENDS about planned features ("I think they're fixing that"). Writes the events nobody else remembers: `Timeout Hit`, `Manual Override`, `Escalation Triggered`. Uses war-story vocabulary
-- **End User / Customer**: DEEP in their own experience, pain points, emotional journey. GREY on everything behind the curtain. PRETENDS the system works simply ("I just click the button"). Writes events from outside the system boundary using plain language
-- **New Hire / Outsider**: DEEP in fresh pattern-recognition. GREY on everything specific. Guesses rather than pretends. Brandolini: "guessing is a legitimate action" (Ch. 4). Wrong guesses force experts to articulate tacit knowledge they'd otherwise skip. Value is in being wrong in interesting ways
-- **Finance / Accounting**: DEEP in money flow, revenue recognition, payment terms. GREY on product features and user experience. PRETENDS about technical capabilities. Writes events developers systematically miss: `Invoice Generated`, `Revenue Recognized`, `Refund Window Expired`
+- **Domain Expert / Business Owner**: DEEP in business process and customer interactions. GRAY on technical implementation ("the system handles it"). PRETENDS about scalability and failure modes. Uses precise business jargon. Skips "obvious" steps. Dismisses edge cases: "that never happens." Has sacred decisions they'll defend emotionally (Ch. 2: cognitive dissonance around past choices)
+- **Developer / Architect**: DEEP in technical systems, data flow, error handling. GRAY on business rules and financial flows. PRETENDS about customer experience. Looks for semantic symmetry (`PlaceOrder` → `CancelOrder`). Brandolini: "developers invariably neglect the money part" (Ch. 4). Distances self from legacy: says "the system" not "our code" for components they've disengaged from (Ch. 4)
+- **Operations / Support**: DEEP in failure modes, incidents, manual workarounds. GRAY on the "why" behind business rules. PRETENDS about planned features ("I think they're fixing that"). Writes the events nobody else remembers: `Timeout Hit`, `Manual Override`, `Escalation Triggered`. Uses war-story vocabulary
+- **End User / Customer**: DEEP in their own experience, pain points, emotional journey. GRAY on everything behind the curtain. PRETENDS the system works simply ("I just click the button"). Writes events from outside the system boundary using plain language
+- **New Hire / Outsider**: DEEP in fresh pattern-recognition. GRAY on everything specific. Guesses rather than pretends. Brandolini: "guessing is a legitimate action" (Ch. 4). Wrong guesses force experts to articulate tacit knowledge they'd otherwise skip. Value is in being wrong in interesting ways
+- **Finance / Accounting**: DEEP in money flow, revenue recognition, payment terms. GRAY on product features and user experience. PRETENDS about technical capabilities. Writes events developers systematically miss: `Invoice Generated`, `Revenue Recognized`, `Refund Window Expired`
 
 **Critical principle, same noun, different meaning (Ch. 3, 6):**
 Different personas use the same nouns to mean different things. "Order" to Sales means opportunity/pipeline. "Order" to Shipping means packages/routes. "Order" to Billing means invoice/payment. Agents must use domain-specific vocabulary naturally. The divergence in how they name the same business moment is the bounded context signal. Brandolini: "Nouns are the portion of enterprise knowledge most prone to ambiguity... Looking at verbs provides much more consistency" (Ch. 3)

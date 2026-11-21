@@ -1219,8 +1219,10 @@ Pat's diagnosis, in order. Each quote is followed in the book by a scansion
 figure. The figures are `image_rsrc347` (the first two phrases), `image_rsrc348`
 (the last two), and `image_rsrc349` (the first two run together as one phrase):
 
+<!-- spellchecker:off -->
 > The first two phrases are each 3-stresses at best. There are certainly some
 > grey areas here:
+<!-- spellchecker:on -->
 
 > The next two lines (as written) add up to one 7-stress phrase:
 

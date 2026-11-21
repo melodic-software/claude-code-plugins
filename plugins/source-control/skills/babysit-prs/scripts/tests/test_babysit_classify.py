@@ -371,13 +371,13 @@ class EffectiveClassifiedTests(unittest.TestCase):
             bc.PR_LEVEL_SURFACE,
         )
 
-    def test_unsignalled_provenance_is_isolated_from_known_surfaces(self) -> None:
+    def test_unsignaled_provenance_is_isolated_from_known_surfaces(self) -> None:
         # Fail-closed defense: a finding bearing neither an `in_review_thread`
         # stamp nor a `type` tag lands in the isolated unknown bucket, where a
         # PR-level classification row cannot offset it, so the gate still blocks.
         # (Production paths always signal; this guards a malformed snapshot.)
         comments = [
-            {"author": "codex[bot]", "body": "[CRITICAL] unsignalled finding"},
+            {"author": "codex[bot]", "body": "[CRITICAL] unsignaled finding"},
             {"type": "review", "author": "me[bot]", "body": "| 1 | x | VALID | y |"},
         ]
         self.assertEqual(bc.comment_surface(comments[0]), bc.UNKNOWN_SURFACE)

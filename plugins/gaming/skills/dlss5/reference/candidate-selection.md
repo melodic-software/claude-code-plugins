@@ -93,7 +93,7 @@ The engine is not a gate. It changes setup.
 | RE Engine | If DLSS inputs keep crashing, or the GUI breaks, the wiki suggests `RestoreComputeSignature` or `RestoreGraphicSignature` | Conditional fallback, not a default |
 | RE Engine | wilsjo2 #56: DEVICE_HUNG on `v0.8.3` | Only reported on Onimusha; open, no maintainer reply |
 | 007 First Light (Glacier 2) | OptiScaler 0.9.3+ applies `RestoreComputeSignature` itself for AMD and Intel; on NVIDIA the wiki needs it only when overriding sharpness or using Output Scaling | Conditional, one title. The wiki's Hitman World of Assassination page, same engine, has no such entry |
-| REDengine (Cyberpunk 2077) | Use the `dxgi.dll` proxy: a `d3d12.dll` hook conflicts with Streamline and greys out Ray Reconstruction | Dagherbou #8 owner reply; OptiScaler wiki Cyberpunk page |
+| REDengine (Cyberpunk 2077) | Use the `dxgi.dll` proxy: a `d3d12.dll` hook conflicts with Streamline and grays out Ray Reconstruction | Dagherbou #8 owner reply; OptiScaler wiki Cyberpunk page |
 | REDengine (Cyberpunk 2077) | Dagherbou's exposure scan cannot see this game's exposure | Single source: Dagherbou `v0.2.0-dlssnr` notes |
 | Unreal 5 | One game (Unreal 5.6.1) lingered about 4 minutes after quit, then crashed | Single report: Dagherbou #52 |
 | Snowdrop, Frostbite, Unity, id Tech | No reliable reports found | No data |

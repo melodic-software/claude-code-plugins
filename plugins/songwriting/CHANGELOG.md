@@ -2846,7 +2846,7 @@ answers reach this public repository.
   got home the house was dark" was scanned with "got" stressed, giving four
   stresses. Pat's figure marks "when," "I," and "got" all unstressed: **three
   stresses**. The code block also contradicted the file's own prose two lines
-  below it, which already described "got" as a grey-area syllable. This is the
+  below it, which already described "got" as a gray-area syllable. This is the
   model scansion the skill hands users, so it was teaching the error.
 - **"Too cold" was defined as a stress failure. It is not a stress failure at
   all.** `meter.md` had it as "an unstressed syllable where the structure wants

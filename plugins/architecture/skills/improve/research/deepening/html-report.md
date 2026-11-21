@@ -85,7 +85,7 @@ The candidates follow at once, with no opening paragraph.
 One `<article>` per candidate, holding these parts in this order:
 
 - **Title**: a few words naming the deepening, such as "Fold the invoice export steps into one module"
-- **Badge row**: the recommendation strength (`Strong` uses `.badge-strong`, olive; `Worth exploring` uses `.badge-explore`, amber; `Speculative` uses `.badge-speculative`, muted grey), each `.badge` with its word in the text color, and the dependency category shown as a tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
+- **Badge row**: the recommendation strength (`Strong` uses `.badge-strong`, olive; `Worth exploring` uses `.badge-explore`, amber; `Speculative` uses `.badge-speculative`, muted gray), each `.badge` with its word in the text color, and the dependency category shown as a tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
 - **Files**: one path per line in `var(--mono)`, one step smaller than the body text
 - **Before / After diagram**: the two states in adjacent columns; patterns below
 - **Problem**: a single sentence
@@ -112,7 +112,7 @@ graph of the tangle on the left and one hand-built deep module on the right.
 |---|---|---|
 | Mermaid graph | which module calls which, and where it leaks | a Mermaid `flowchart`; a `linkStyle` line gives each leakage edge the rust stroke, by the edge's position in the block counted from 0, and a `classDef` gives the deep module a dark fill |
 | Mermaid sequence | fewer seam crossings, such as five round-trips cut to one | a Mermaid `sequenceDiagram` per column; the two arrow counts carry the comparison |
-| Boxes and arrows by hand | a deep module that has to look heavy | bordered `<div>`s and inline SVG arrows, ending in one thick-bordered `.deep` box with greyed internals, a weight Mermaid does not draw |
+| Boxes and arrows by hand | a deep module that has to look heavy | bordered `<div>`s and inline SVG arrows, ending in one thick-bordered `.deep` box with grayed internals, a weight Mermaid does not draw |
 | Layer stack | shallowness spread over layers | one fixed-height row with a heavy left border per layer a call passes through: six thin rows on the left, one tall row named for the merged responsibility on the right |
 | Size bars | an interface nearly as large as its implementation | an interface bar and an implementation bar per module: similar heights on the left (shallow), a short bar over a tall one on the right (deep) |
 | Collapsed call tree | calls that should become internal | the call tree as nested boxes on the left; on the right the same tree inside one box, its calls faded |

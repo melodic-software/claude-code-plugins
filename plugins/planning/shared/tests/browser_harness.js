@@ -162,7 +162,7 @@ async function joinAs(page, name) {
   return (await snap(page)).me.pid;
 }
 
-/** A w x h PNG, light grey with a dark band over rows y0..y1 (a stand-in screenshot with a "button" to mark). */
+/** A w x h PNG, light gray with a dark band over rows y0..y1 (a stand-in screenshot with a "button" to mark). */
 function png(w, h, [y0, y1] = [-1, -1]) {
   const zlib = require("node:zlib");
   const row = shade => Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3, shade)]);
