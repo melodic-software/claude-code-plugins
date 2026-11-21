@@ -14,7 +14,7 @@ const quoted = (binary, args) => (binary.shell ? [[binary.path, ...args].map((a)
 /** Runs a short CLI query (version, login status) to completion. */
 export function query(binary, args, { env, timeout = 30_000 } = {}) {
   const [command, list] = quoted(binary, [...(binary.args ?? []), ...args]);
-  const done = spawnSync(command, list, { env, shell: binary.shell, windowsHide: true, encoding: "utf8", timeout, stdio: ["ignore", "pipe", "pipe"] });
+  const done = spawnSync(command, list, { env, shell: binary.shell, windowsHide: true, encoding: "utf8", timeout, killSignal: "SIGKILL", stdio: ["ignore", "pipe", "pipe"] });
   return { code: done.error ? null : done.status, stdout: done.stdout ?? "", stderr: done.stderr ?? "", error: done.error ?? null };
 }
 
