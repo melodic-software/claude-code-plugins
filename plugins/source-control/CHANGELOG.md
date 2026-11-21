@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.13] - 2026-11-20
+
+### Fixed
+
+- **babysit-prs:** the post-merge floor read with no local clone of main now pages through the commits API instead of failing once the enabled `pr-pipeline.yaml` run passes 100 commits. It still fails closed when a page cannot be read or the run passes 5000 commits.
+
 ## [13.1.12] - 2026-11-20
 
 ### Fixed
