@@ -529,11 +529,12 @@ done
 # The added Later: header line names topics of rounds not yet ready; it takes no Q<N> and no register row, asks nothing and resolves nothing, so the in-round no-silent-resolve rule is untouched
 # the edit only adds that the terminology question never stands in for another question's inline definitions, in round 1 too; no sentence of the no-silent-resolve rule changed
 # Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
+# merge of main (#17872 prescribed-solution Stance line) with this PR: against main the section differs only by "at most one contradiction pass"; the no-silent-resolve rule is byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "8168f0a483a4f8f4082d542411fb779e9192d5fd03a26c6dae984e6513b2b0ac"
+  "d2b7b0900f9abf764b770f86a16881a887d6dca1d158022f6c5b0bf2c59df356"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

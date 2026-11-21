@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.12.3] - 2026-11-21
+
+### Fixed
+
+- `morning-brief` Queues counts and the `track stats` totals leave out an open parent issue whose sub-issues are not all completed, so a split parent no longer counts beside the children that carry its work. A Queues row shows such parents as `(+N with open sub-issues)`, and `stats` lists them on a Containers line. The live count reads `subIssuesSummary` (`gh` 2.94 or later) ([#17859](https://github.com/melodic-software/claude-code-plugins/issues/17859)).
+
+## [15.12.2] - 2026-11-21
+
+### Fixed
+
+- `work-loop` standing mode says a `/loop` created on Claude Code 2.1.330 or later runs up to 30 days and an older one still ends at 7 days, and points at the 2.1.330 changelog entry beside the scheduled-tasks section. The restart-request handling on an expiry hit is unchanged ([#17833](https://github.com/melodic-software/claude-code-plugins/issues/17833)).
+
 ## [15.12.1] - 2026-11-21
 
 ### Changed

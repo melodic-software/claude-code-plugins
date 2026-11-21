@@ -202,7 +202,7 @@ const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|pu
 const TOKEN_MEASURE = /\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b/gi;
 const SCOPE = String.raw`(?:\x60[^\x60\n]{1,40}\x60|[\w-]+:\s*(?:read|write)|(?:[\w-]+\s+)?(?:permissions?|scopes?))`;
 const CRED_SENSE = new RegExp(
-  String.raw`\b(?:subscription|model|input|output|cache)\s+tokens?\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)\b|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?\b`,
+  String.raw`\b(?:subscription|model|input|output|cache)\s+tokens?\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\s+${SCOPE}|\btoken['’]s\s+(?:permissions?|scopes?)\b|(?<=\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+(?:and|or|nor)\s+no\s+)?(?:[\w-]+\s+)?)${N}\b`,
   "gi",
 );
 const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_MEASURE, " "));
@@ -212,7 +212,7 @@ const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace
 // pronoun that could point at the secret but "it", or a word in another
 // script, holds. "this" and "that" count only before "lane", "needs" or "ci".
 const CAPABILITY_WORDS = new Set(
-  "a an the and or to on of for with not no cannot can does do only lane host desktop machine gpu run runs need needs requires lacks hold invoke call calls spend paid credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver it has role s ci azure dequeue step merge job whose read write cover workflow".split(" "),
+  "a an the and or to on of for with not no cannot can does do only lane host desktop machine gpu run runs need needs requires lacks hold invoke call calls spend paid credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver it has have had role s ci azure gh dequeue step merge job whose read write cover workflow".split(" "),
 );
 const capabilityOnly = (text) => {
   const words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);

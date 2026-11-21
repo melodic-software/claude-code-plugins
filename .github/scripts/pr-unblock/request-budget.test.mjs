@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { readFileSync } from "node:fs";
+
+import { apiLimits, createRateLimitLatch, DISPATCH_FLOOR_GRACE_MS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -386,7 +388,7 @@ test("a POST answered 500 is returned at once", async () => {
 });
 
 test("each response's rate-limit headers are appended as a reading under API_BUDGET_TOKEN", async () => {
-  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { mkdtempSync, rmSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
   const dir = tempDir("request-budget-");
@@ -411,5 +413,26 @@ test("each response's rate-limit headers are appended as a reading under API_BUD
       else process.env[key] = value;
     }
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("floorGraceMs reaches the latch: a stop-floor reading with the reset inside the grace stops nothing", async () => {
+  const now = Date.parse("2026-11-21T07:45:00Z");
+  const reset = String(Date.parse("2026-11-21T07:51:29Z") / 1000);
+  const floor = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "24", "x-ratelimit-reset": reset, "x-ratelimit-resource": "core" };
+  for (const [floorGraceMs, sends] of [[DISPATCH_FLOOR_GRACE_MS, 2], [0, 1]]) {
+    const gh = github([{ status: 200, body: "{}", headers: floor }, { status: 200, body: "{}", headers: floor }]);
+    const latch = createRateLimitLatch({ now: () => now, log: () => {}, fail: () => {}, hold: false, limits: () => apiLimits({ resolvedPath: "" }), stopFile: null });
+    const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, latch, now: () => now, sleep: async () => {}, floorGraceMs });
+    await budget.fetch("https://api.example/repos/o/r/a");
+    await budget.fetch("https://api.example/repos/o/r/b").catch(() => {});
+    assert.equal(gh.sent.length, sends, `grace ${floorGraceMs} ms`);
+  }
+});
+
+test("both dispatchers hand their budgeted fetch the stop-floor grace", () => {
+  for (const file of ["feedback-dispatch.mjs", "dispatch.mjs"]) {
+    const source = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
+    assert.match(source, /budgetedFetch\(\{ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS \}\)/, file);
   }
 });

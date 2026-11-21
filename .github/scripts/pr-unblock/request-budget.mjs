@@ -38,6 +38,7 @@ export function budgetedFetch({
   now = () => Date.now(),
   random,
   latch = rateLimitLatch,
+  floorGraceMs = 0,
 } = {}) {
   const seen = new Map();
   const counts = { rest: 0, notModified: 0, graphql: 0 };
@@ -66,7 +67,7 @@ export function budgetedFetch({
     }
     return response;
   }
-  const fetch = retryServerErrors(observed, { sleep, random, log, now, latch, resendLimited: true });
+  const fetch = retryServerErrors(observed, { sleep, random, log, now, latch, resendLimited: true, floorGraceMs });
 
   async function wrapped(url, init = {}) {
     const method = init.method ?? "GET";
