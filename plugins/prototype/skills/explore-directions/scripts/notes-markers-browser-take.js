@@ -11,7 +11,8 @@ async page => {
     const inFrame = page.frameLocator("#page");
     const markers = () => frame.evaluate(() => [...document.documentElement.lastElementChild.children].filter((e) => !e.style.outline && e.textContent).map((e) => e.textContent).join());
     const marker = (n) => frame.waitForFunction((n) => [...document.documentElement.lastElementChild.children].some((e) => e.textContent === n), n, { timeout: 5000 });
-    const shownVariant = () => frame.evaluate(() => [...document.querySelectorAll("[data-variant]")].find((v) => !v.hidden)?.dataset.variant);
+    const released = () => frame.waitForFunction(() => ![...document.documentElement.lastElementChild.children].some((e) => e.style.outline.includes("solid")), null, { timeout: 5000 });
+    const shownVariant =() => frame.evaluate(() => [...document.querySelectorAll("[data-variant]")].find((v) => !v.hidden)?.dataset.variant);
     const sendNote = async (target, words, seq) => {
       await page.click("#pick");
       await target.click();
@@ -19,6 +20,7 @@ async page => {
       await page.keyboard.insertText(words);
       await page.click("#send");
       await page.waitForFunction((seq) => new RegExp(`Note ${seq} sent`).test(document.getElementById("status").textContent), seq, { timeout: 5000 });
+      await released();
     };
 
     await sendNote(inFrame.locator('nav.vs [aria-label="Next variant"]'), "Make this arrow bigger.", 1);
@@ -34,6 +36,7 @@ async page => {
 
     await page.click("#pick");
     await page.keyboard.press("m");
+    await frame.waitForFunction(() => ![...document.documentElement.lastElementChild.children].some((e) => e.textContent === "1"), null, { timeout: 5000 }).catch(() => {});
     ok("M hides the markers", (await markers()) === "", await markers());
     ok("hiding the markers leaves the element pick on", (await page.getAttribute("#pick", "aria-pressed")) === "true");
     ok("the toggle says the markers are hidden", (await page.textContent("#markers")) === "Show markers (M)", await page.textContent("#markers"));
