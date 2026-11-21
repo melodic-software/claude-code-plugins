@@ -239,8 +239,13 @@ jobs:
       # criteria.txt lists, so one judged under other criteria reviews again;
       # the run need not be at the tip itself. That commit is fetched, when the
       # one-commit checkout lacks it, anonymously, since this repository is
-      # public. A failed or cancelled run, a verdict for another head of the
-      # same tree, a lane with no verdict, or any failed read, fetch or diff
+      # public. A verdict also binds only from a run created after the PR's
+      # newest base change (babysit_merge `_retargeted_at`, from the PR's
+      # issue events, read only once both lanes have a counted verdict;
+      # https://docs.github.com/en/rest/using-the-rest-api/issue-event-types#base_ref_changed),
+      # so a retarget with no push reviews again. A failed or cancelled run, a
+      # verdict for another head of the same tree, a lane with no verdict, a
+      # retarget with no readable time, or any failed read, fetch or diff
       # leaves no output, and the review runs as before. The tree is the
       # event's, for the event's head.
       - name: Find a head both lanes already reviewed
@@ -334,19 +339,34 @@ jobs:
             try_read "the $lane check runs" api_into "$DIR/checks.json" "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-review-main%3A%20$lane&filter=all&per_page=100"
             jq -c 'if .total_count > 100 then error("more than one page") else [.check_runs[] | select(.app.slug == "github-actions") | .output.title // ""] end' "$DIR/checks.json" >"$DIR/$lane-titles.json" || unread "the $lane check runs"
           done
+          for lane in claude-review claude-security-review; do
+            if ! [ -s "$DIR/$lane-records.jsonl" ]; then
+              echo "$lane has no verdict that counts; the review runs"
+              exit 0
+            fi
+          done
+          try_read "the pull request's events" api_into "$DIR/events.json" "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100"
+          # One page holds every event, or the review runs.
+          jq -e 'type == "array" and length < 100' "$DIR/events.json" >/dev/null || unread "the pull request's events"
           judged=$(python3 -I -c '
           import json, re, sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_merge
           import babysit_review_evidence as ev
           directory, repo, pr, tree, head = sys.argv[1:]
           # babysit_gh MAIN_REVIEW_CHECK_TITLE: a record title the gate reads as counts.
           title = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
+          # As bind() reads it: no retarget is None, an unreadable time binds nothing.
+          retargeted = babysit_merge._retargeted_at(json.load(open(f"{directory}/events.json", encoding="utf-8")))
+          after = None if retargeted is None else ev._time(retargeted)
+          if retargeted is not None and after is None:
+              sys.exit("the newest retarget has no readable time")
           def bound(lane):
               records = [json.loads(line) for line in open(f"{directory}/{lane}-records.jsonl", encoding="utf-8")]
               titles = json.load(open(f"{directory}/{lane}-titles.json", encoding="utf-8"))
               counts = [[int(m[1]), int(m[2])] for t in titles if (m := title.fullmatch(t))]
               context = {"repo": repo, "pr": int(pr), "tree": tree, "branch": "main", "head_records": {lane: counts}}
-              return ev._main_bound(lane, head, records, context) is not None
+              return ev._main_bound(lane, head, records, context, after) is not None
           print("true" if all(bound(lane) for lane in ev.LANES) else "false")
           ' "$DIR" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$TREE_SHA" "$HEAD_SHA") || unread "a verdict"
           echo "both lanes already reviewed this head: $judged"

@@ -1419,18 +1419,21 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     chmodSync(path.join(bin, "sleep"), 0o755);
     const key = (url) => url.replace(/[^A-Za-z0-9]/g, "_");
     const lanes = ["claude-review", "claude-security-review"];
-    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", event = "workflow_run", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml" } = {}) => {
+    const RUN_AT = "2026-01-02T00:00:00Z";
+    const retarget = (created_at) => ({ event: "base_ref_changed", ...(created_at === undefined ? {} : { created_at }) });
+    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", event = "workflow_run", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml", events = [{ event: "labeled", created_at: "2026-01-03T00:00:00Z" }] } = {}) => {
       rmSync(fixtures, { recursive: true, force: true });
       mkdirSync(fixtures);
+      const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
+      at(`repos/o/r/issues/${PR}/events?per_page=100`, events);
       lanes.forEach((lane, i) => {
         const name = `pr-review-main-${lane}-${PR}-${TREE}`;
         const artifact = 100 + i;
         const runId = 200 + i;
-        const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
         // A lane with no verdict lists no artifact for the tree.
         if (missing.includes(lane)) return at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: 0, artifacts: [] });
         at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: total, artifacts: [{ id: artifact, name, expired: false, workflow_run: { id: runId } }] });
-        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event, head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
+        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event, head_branch: branch, head_sha: main, status: "completed", conclusion, created_at: RUN_AT, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
         const verdict = path.join(dir, "verdict.json");
         writeFileSync(verdict, JSON.stringify({ schema: 1, lane, pr: PR, tree: TREE, head_sha: head, findings: 2, critical: 0, max_line_bytes: 80 }));
         const zipped = spawnSync("python3", ["-I", "-c", "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w').write(sys.argv[2], 'verdict.json')", path.join(fixtures, key(`repos/o/r/actions/artifacts/${artifact}/zip`)), verdict], { encoding: "utf8" });
@@ -1457,25 +1460,38 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     write();
     const judged = runWith();
     assert.equal(judged.out, "judged=true\n");
-    // Per lane: the listing, the run, the zip and the head's check runs, each
-    // sent once through the counting wrapper, with no wait.
-    assert.equal(judged.calls.length, 8, judged.calls.join("\n"));
+    assert.equal(judged.calls.length, 9, judged.calls.join("\n"));
     assert.ok(judged.calls.every((call) => call.startsWith("api -i repos/o/r/")), judged.calls.join("\n"));
+    assert.equal(judged.calls[8], `api -i repos/o/r/issues/${PR}/events?per_page=100`);
     assert.equal(judged.sleeps.length, 0);
-    // Each read is sent again after a failure. At every one of the four
-    // reads, one failure then an answer: one more call, one jittered wait,
-    // and the head is still judged. Three failures: no fourth send, a notice
-    // naming the read, no later read, and the review runs.
+    for (const [why, events, said] of [
+      ["retargeted before the run", [retarget("2026-01-01T00:00:00Z")], "both lanes already reviewed this head: true"],
+      ["retargeted after the run", [retarget("2026-01-03T00:00:00Z")], "both lanes already reviewed this head: false"],
+      ["retargeted as the run was created", [retarget(RUN_AT)], "both lanes already reviewed this head: false"],
+      ["the newest of two retargets after the run", [retarget("2026-01-03T00:00:00Z"), retarget("2026-01-01T00:00:00Z")], "both lanes already reviewed this head: false"],
+      ["a retarget with no time", [retarget()], "::warning::a verdict did not read; the review runs"],
+      ["a retarget with no zone", [retarget("2026-01-01T00:00:00")], "::warning::a verdict did not read; the review runs"],
+      ["a full page of events", Array.from({ length: 100 }, () => retarget("2026-01-01T00:00:00Z")), "::warning::the pull request's events did not read; the review runs"],
+      ["events that are no list", { event: "base_ref_changed" }, "::warning::the pull request's events did not read; the review runs"],
+    ]) {
+      write({ events });
+      const cut = runWith();
+      assert.equal(cut.out, said.endsWith(": true") ? "judged=true\n" : "", why);
+      assert.equal(cut.calls.length, 9, `${why}\n${cut.calls.join("\n")}`);
+      assert.ok(cut.stdout.split("\n").includes(said), `${why}\n${cut.stdout}`);
+    }
+    write();
     const READS = [
       ["the claude-review verdict listing", "actions/artifacts?name=pr-review-main-claude-review-", 1],
       ["run 200", "actions/runs/200", 2],
       ["artifact 100", "actions/artifacts/100/zip", 3],
       ["the claude-review check runs", "check-runs?check_name=pr-review-main%3A%20claude-review&", 4],
+      ["the pull request's events", `issues/${PR}/events`, 9],
     ];
     for (const [what, url, at] of READS) {
       const again = runWith({ GH_FAIL_URL: url, GH_FAIL: "1" });
       assert.equal(again.out, "judged=true\n", what);
-      assert.equal(again.calls.length, 9, `${what}\n${again.calls.join("\n")}`);
+      assert.equal(again.calls.length, 10, `${what}\n${again.calls.join("\n")}`);
       assert.equal(again.calls.filter((call) => call.includes(url)).length, 2, what);
       assert.equal(again.sleeps.length, 1, what);
       const unread = runWith({ GH_FAIL_URL: url, GH_FAIL: "9" });
@@ -1504,7 +1520,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     write({ main: CHANGED });
     const older = runWith();
     assert.equal(older.out, "judged=true\n");
-    assert.equal(older.calls.length, 8, older.calls.join("\n"));
+    assert.equal(older.calls.length, 9, older.calls.join("\n"));
     assert.ok(has(CHANGED), "the run's main commit was fetched");
     // A run from a commit whose criteria differ (REVIEW.md) does not count,
     // and its verdict is never downloaded: per lane, the listing, the run and
