@@ -11,6 +11,7 @@ const candidate = (overrides = {}) => ({
   title: "Fold the invoice export steps into one module",
   recommendation: "Strong",
   category: "in-process",
+  size: "S: one export module and its three callers",
   problem: "Three call sites repeat the load, format, write sequence.",
   solution: "One export module owns loading, formatting and writing an invoice.",
   wins: ["leverage: three callers share one interface", "locality: a format fix touches one file"],
@@ -30,7 +31,7 @@ const candidate = (overrides = {}) => ({
   ...overrides,
 });
 const record = (overrides = {}, candidates = [candidate()]) => ({
-  schema_version: 1,
+  schema_version: 2,
   repo: "example/billing",
   scope: "billing/",
   commit: "0123456789abcdef0123456789abcdef01234567",
@@ -74,6 +75,37 @@ test("an empty solution, a missing problem and an unknown key each fail", () => 
   assert.match(failure(record({}, [noProblem])), /invoice-export: problem/);
   assert.match(failure(record({}, [candidate({ evidence: "x" })])), /invoice-export: unknown key evidence/);
   assert.match(failure(record({ phase15: "x" })), /unknown key phase15/);
+});
+
+test("size is required: S, M or L with a basis of at most twelve words, and a failure names the candidate", () => {
+  const { size, ...noSize } = candidate();
+  assert.match(failure(record({}, [noSize])), /candidate invoice-export: size is missing/);
+  for (const ok of ["S: one module and its callers", "M: one PR across four modules", "L: one two three four five six seven eight nine ten eleven twelve"]) {
+    assert.equal(failure(record({}, [candidate({ size: ok })])), null, ok);
+  }
+  for (const bad of ["XL: a staged migration", "M", "M:", "M: ", "m: one module", "L: one two three four five six seven eight nine ten eleven twelve thirteen"]) {
+    assert.match(failure(record({}, [candidate({ size: bad })])), /candidate invoice-export: size/, bad);
+  }
+});
+
+test("a schema_version 1 record, written before size existed, fails", () => {
+  assert.match(failure(record({ schema_version: 1 })), /schema_version must be 2/);
+});
+
+test("the card shows the size badge and its basis, and the sidebar item shows the size badge", () => {
+  const page = renderDeepening(parseDeepening(record({}, [candidate({ size: "M: one PR across four modules" })])));
+  assert.match(page, /<p class="badges" data-part="badges">[^\n]*<span class="badge">Size M<\/span>/);
+  assert.match(page, /one PR across four modules/);
+  const item = /<a class="reader-item"[^>]*>([\s\S]*?)<\/a>/.exec(page)[1];
+  assert.match(item, /<span class="badge">Size M<\/span>/);
+  assert.doesNotMatch(item, /one PR across four modules/);
+  assert.deepEqual(validateDeepeningPage(page), { ok: true, failures: [] });
+});
+
+test("the legend defines each size the page uses and no other", () => {
+  const lines = new Map(legendLines(parseDeepening(record({}, [candidate({ size: "L: a staged migration over three PRs" })]))));
+  assert.equal(lines.get("Size L"), "more than one PR; a staged migration");
+  assert.ok(!lines.has("Size S") && !lines.has("Size M"));
 });
 
 test("verified takes reproduced, unverified or corrected with one clause, nothing else", () => {

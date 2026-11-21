@@ -2,6 +2,7 @@
 // edit the canonical source, then rerun the script.
 import { draftStore, problems, readerName, use } from "/note-model.mjs";
 import { awaitReady, chosenFrom, frameTarget, fromFrame, namesFrom, READY_MS, viewFrom } from "/frame-channel.mjs";
+import { edges } from "/bar-edges.mjs";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("page"), composer = $("composer"), text = $("text");
@@ -497,6 +498,29 @@ setSide(side);
 placePanel();
 addEventListener("resize", placePanel);
 if (window.ResizeObserver) new ResizeObserver(placePanel).observe($("bar"));
+const bar = $("bar"), cues = bar.querySelectorAll("[data-edge]");
+/** Show a chevron at each end of the bar that hides tools; a tap on one scrolls the bar a screen that way. */
+function showEdges() {
+  const hides = edges(bar.scrollLeft, bar.scrollWidth, bar.clientWidth);
+  for (const c of cues) c.hidden = !hides[c.dataset.edge];
+}
+for (const c of cues) {
+  c.addEventListener("click", () => bar.scrollBy({
+    left: (c.dataset.edge === "end" ? 1 : -1) * Math.max(bar.clientWidth - 96, 40),
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+  }));
+}
+bar.addEventListener("scroll", showEdges, { passive: true });
+bar.addEventListener("focusin", (e) => {
+  e.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  showEdges();
+});
+addEventListener("resize", showEdges);
+if (window.ResizeObserver) {
+  const sized = new ResizeObserver(showEdges);
+  for (const c of bar.children) sized.observe(c);
+}
+showEdges();
 
 const MARKERS = "ui-feedback-markers-hidden";
 let markersShown = true;
@@ -618,11 +642,7 @@ function render() {
   const reshapes = (m) => (m?.note.kind === "region" ? [button("Move or resize", `reshape-${m.id}`, () => reshape(m))] : []);
   const drafts = mine.filter((m) => m.draft);
   draftsKept?.save(drafts.map((m) => m.note));
-  const pin =(m) => ({
-    n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 },
-    ...(m.note.variant && { variant: m.note.variant.key }), ...(m.note.state && { state: m.note.state.key }),
-  });
-  toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(pin) });
+  toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(noteTarget) });
   askNames();
   const sentRows = seqs.map((seq) => {
     const m = ours.get(seq);
