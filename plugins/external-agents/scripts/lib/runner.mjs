@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
-import { blockedBy, closeBreaker, openBreaker } from "./breaker.mjs";
+import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
 import { loadConfig } from "./config.mjs";
 import { jobFolder, listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "./jobs.mjs";
 import { classify } from "./outcome.mjs";
@@ -13,6 +13,7 @@ export const EXIT = { ok: 0, failed: 1, usage: 2, blocked: 3, unavailable: 4 };
 const USES = ["task", "investigate"];
 const MODES = ["read-only", "write"];
 const COMMANDS = ["run", "resume", "review"];
+const MAX_TIMER_MS = 2_147_483_647;
 const PLAIN_VALUE = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 class Stop extends Error {
@@ -103,6 +104,7 @@ function trip(ctx, record, config, failureClass, reason, resetAt = null) {
 async function launch({ ctx, record, config, settings, notices }, plan) {
   const product = record.product;
   const open = blockedBy(ctx.dataDir, product, ctx.now());
+  const breakerOnTrial = open ? null : readBreaker(ctx.dataDir, product);
   if (open) {
     throw new Stop("unavailable", `${open.reason}; not retried until ${open.next_trial_at}. To check sooner, run: external-agents update ${product}`);
   }
@@ -176,7 +178,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
       timer = setTimeout(() => {
         timedOut = true;
         killTree(child.pid);
-      }, timeoutSeconds * 1000);
+      }, Math.min(timeoutSeconds * 1000, MAX_TIMER_MS));
     });
     child.once("close", (code) => {
       clearTimeout(timer);
@@ -199,7 +201,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   writeJob(ctx.dataDir, ctx.key, job);
 
   if (job.status === "failed" && unavailable) trip(ctx, record, config, unavailable.class, clip(outcome.last_error ?? outcome.reason), unavailable.reset_at);
-  else if (["ok", "blocked-by-mode", "failed"].includes(job.status)) closeBreaker(ctx.dataDir, product);
+  else if (breakerOnTrial && ["ok", "blocked-by-mode", "failed"].includes(job.status) && readBreaker(ctx.dataDir, product)?.opened_at === breakerOnTrial.opened_at) closeBreaker(ctx.dataDir, product);
   pruneJobs(ctx.dataDir, ctx.key, config.values.jobs?.keep ?? 50);
   return { job, message };
 }
@@ -270,7 +272,7 @@ export async function review(opts) {
       use: "review", mode: "read-only", command: native ? "review" : "run", model: opts.model, prompt: opts.brief?.trim() ? opts.brief : null,
       base: native ? opts.base : undefined, diffBase: native ? undefined : opts.base, thread: null,
     });
-    const ran = ["ok", "blocked-by-mode"].includes(job.status) && message.trim() !== "";
+    const ran = (job.status === "ok" || (job.status === "blocked-by-mode" && !job.reason)) && message.trim() !== "";
     const line = ran ? `${job.product}: ran${within(details(job))}` : `${job.product}: failed${within([job.status === "failed" ? null : job.status, job.reason, ...details(job)].filter(Boolean))}`;
     return { code: ran ? EXIT.ok : EXIT.failed, stdout: `${line}\n${ran ? body(message) : ""}`, stderr: errLines(job), job };
   } catch (error) {
@@ -344,6 +346,7 @@ export const cancel = guarded((opts) => {
   }
   const cancelled = { ...job, status: "cancelled", reason: "cancelled by request", ended_at: new Date(ctx.now()).toISOString() };
   writeJob(ctx.dataDir, ctx.key, cancelled);
-  const killed = killTree(job.pid);
-  return { code: killed ? EXIT.ok : EXIT.failed, stdout: `${runLine(cancelled)}\n`, stderr: killed ? "" : `external-agents: could not kill pid ${job.pid}\n`, job: cancelled };
+  if (killTree(job.pid) || !alive(job.pid)) return { code: EXIT.ok, stdout: `${runLine(cancelled)}\n`, stderr: "", job: cancelled };
+  if (readJob(ctx.dataDir, ctx.key, job.id)?.status === "cancelled") writeJob(ctx.dataDir, ctx.key, job);
+  return { code: EXIT.failed, stdout: "", stderr: `external-agents: could not kill pid ${job.pid}; job ${job.id} is still running\n`, job };
 });

@@ -102,8 +102,12 @@ export function classify(record, { exitCode, stdout, stderr, finalMessage, mode,
     }
   }
 
+  const reported = error;
   if (exitCode !== 0) {
-    error ??= lastLine(stderr) || null;
+    const lines = stderr.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const printed = lines.find((l) => /^error\b/i.test(l)) ?? lines.at(-1) ?? null;
+    if (error === null && printed) why.unshift(printed);
+    error ??= printed;
     why.unshift(`exit ${exitCode}`);
   }
   if (message.trim() === "" && !why.length) why.push("no final message");
@@ -125,7 +129,7 @@ export function classify(record, { exitCode, stdout, stderr, finalMessage, mode,
     failed_commands: { count: failedCommands.length, commands: failedCommands },
     mcp_calls: { count: mcp.length, tools: [...new Set(mcp)] },
     last_error: error,
-    unavailable: status === "failed" ? unavailable(record, `${error ?? ""}\n${why.join("\n")}`, now) : null,
+    unavailable: status === "failed" && reported ? unavailable(record, reported, now) : null,
     notices,
   };
 }

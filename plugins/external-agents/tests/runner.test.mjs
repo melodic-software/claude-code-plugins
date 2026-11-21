@@ -215,6 +215,20 @@ describe("run", () => {
     assert.equal(readBreaker(w.dataDir, "codex"), null, "a task failure never opens the breaker");
   });
 
+  test("a run the CLI rejects before any event reports the CLI's own error line", async () => {
+    const usage = "error: the argument '--base <BRANCH>' cannot be used with '[PROMPT]'\n\nUsage: codex exec review --base <BRANCH> [PROMPT]\n\nFor more information, try '--help'.\n";
+    const w = world({ stderr: usage, exit: 2 });
+    const got = await run({ ...w.opts, use: "task", prompt: "fix it" });
+    assert.equal(got.stdout, "codex: failed (exit 2; error: the argument '--base <BRANCH>' cannot be used with '[PROMPT]'; the run ended without turn.completed)\n");
+  });
+
+  test("stderr text alone never opens the breaker", async () => {
+    const w = world({ stderr: "ERROR rmcp::transport::worker: 401 Unauthorized\n", exit: 1 });
+    const got = await run({ ...w.opts, use: "task", prompt: "fix it" });
+    assert.equal(got.job.status, "failed");
+    assert.equal(readBreaker(w.dataDir, "codex"), null);
+  });
+
   test("resume passes the mode as a config override and only resumes this plugin's threads", async () => {
     const w = world({ stdout: clean, final: "done" });
     const first = await run({ ...w.opts, use: "investigate", prompt: "one" });
@@ -306,6 +320,15 @@ describe("review", () => {
     gitRepo(w.cwd, { "a.txt": "two\n" });
     const got = await review({ ...w.opts, base: "main" });
     assert.equal(got.stdout, "codex: failed (exit 1; model overloaded)\n");
+  });
+
+  test("a review that was blocked and then failed is failed, with no partial findings relayed", async () => {
+    const stream = fixture("events-default.jsonl").replace(/\{"type":"turn\.completed".*/, JSON.stringify({ type: "turn.failed", error: { message: "stream disconnected" } }));
+    const w = world({ stdout: `${stream}\n`, final: "half a review", exit: 1 });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    const got = await review({ ...w.opts, base: "main" });
+    assert.match(got.stdout, /^codex: failed \(blocked-by-mode; exit 1; stream disconnected; 1 command blocked by read-only mode: [^\n]*\)\n$/);
+    assert.equal(got.code, 1);
   });
 
   test("an unknown base is failed before the CLI starts", async () => {
@@ -484,6 +507,16 @@ describe("availability and the breaker", () => {
     const w = world({ stdout: events(...opened, { type: "error", message: "You've hit your usage limit." }), exit: 1 });
     await run({ ...w.opts, use: "task", prompt: "fix it", now: () => noon });
     assert.equal(readBreaker(w.dataDir, "codex").next_trial_at, "2026-11-22T12:00:00.000Z");
+  });
+
+  test("a run that finishes well does not close a breaker another run opened meanwhile", async () => {
+    const w = world({ stdout: clean, final: "done", sleep_ms: 2500 });
+    const slow = run({ ...w.opts, use: "task", prompt: "one", now: () => noon });
+    for (let i = 0; i < 200 && !listJobs(w.dataDir, "no-repo").some((j) => j.status === "running"); i += 1) await new Promise((r) => setTimeout(r, 25));
+    w.set({ stdout: events(...opened, { type: "error", message: "You've hit your usage limit." }), exit: 1 });
+    await run({ ...w.opts, use: "task", prompt: "two", now: () => noon + 1000 });
+    assert.equal((await slow).job.status, "ok");
+    assert.equal(readBreaker(w.dataDir, "codex")?.class, "usage-limit");
   });
 
   test("a blocked run never opens the breaker", async () => {
