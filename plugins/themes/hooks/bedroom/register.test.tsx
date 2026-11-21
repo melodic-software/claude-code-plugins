@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { TITLE_CAPS, aspectFrom, hitAt, switchesAt, toViewBox, withTitle } from './register.tsx'
 import { SECOND_STEP_MS, commandSwitch, nextValues, startShader } from './core/values.js'
 import { bedroomSvg } from './scene.ts'
-import { DEFAULT_STATE } from './scene/lib.ts'
+import { DEFAULT_STATE, HITS } from './scene/lib.ts'
 
 test('a click maps to the scene by the window shape', () => {
   expect(toViewBox(0.5, 0.5, 1.6)).toEqual({ x: 800, y: 500 })
@@ -33,9 +33,28 @@ test('a title set with /bedroom title replaces the default', () => {
   expect(svg.includes('FAR MERIDIAN')).toBe(false)
 })
 
-test('a click where two things overlap flips both, as the shader does', () => {
-  expect(switchesAt(1340, 560)).toEqual(['console', 'tape'])
-  expect(switchesAt(1399, 500)).toEqual(['light', 'lava'])
+test('no two click rectangles meet, edges included, so one click flips one switch', () => {
+  const names = Object.keys(HITS)
+  const meeting: string[] = []
+  for (const [i, a] of names.entries()) {
+    for (const b of names.slice(i + 1)) {
+      const [ax, ay, aw, ah] = HITS[a]!
+      const [bx, by, bw, bh] = HITS[b]!
+      if (ax <= bx + bw && bx <= ax + aw && ay <= by + bh && by <= ay + ah) meeting.push(`${a} and ${b}`)
+    }
+  }
+  expect(meeting, 'rectangles that share a point').toEqual([])
+})
+
+test('a click on either side of each border between neighbors flips the one thing on that side', () => {
+  expect(switchesAt(1336, 560)).toEqual(['console'])
+  expect(switchesAt(1337, 560)).toEqual(['tape'])
+  expect(switchesAt(1340, 560)).toEqual(['tape'])
+  expect(switchesAt(1357, 560)).toEqual(['tape'])
+  expect(switchesAt(1358, 560)).toEqual(['lava'])
+  expect(switchesAt(1397, 500)).toEqual(['lava'])
+  expect(switchesAt(1398, 500)).toEqual(['light'])
+  expect(switchesAt(1399, 500)).toEqual(['light'])
   expect(switchesAt(1200, 480)).toEqual(['tv'])
   expect(switchesAt(10, 10)).toEqual([])
 })

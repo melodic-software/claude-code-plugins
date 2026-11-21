@@ -6,7 +6,7 @@ import { handleClick } from './core/clicks.js'
 import { minuteOfHalfDay, readNow, startMinuteChain } from './core/clock.js'
 import { describe, runCommand } from './core/commands.js'
 import { ctxOf, usePieces } from './core/context.js'
-import { SCENE, colorProblems, draw, holdShader, isThemeOn, markStarted, setLook } from './core/render.js'
+import { SCENE, colorProblems, draw, holdShader, isThemeOn, markCovered, markStarted, setLook } from './core/render.js'
 import { load } from './core/saved.js'
 import { useOptions } from './core/settings.js'
 import { failed, flush, note } from './core/telemetry.js'
@@ -71,6 +71,16 @@ export const register: Register = (on, options) => {
     }
     flush($)
     return cleared
+  }).catch(($, e, next) => next(e))
+
+  on('theme.set', async ($, e, next) => {
+    const set = await next(e)
+    if (next.origin.plugin === $.plugin.name || !isThemeOn()) return set
+    note(`${next.origin.plugin} set its theme over the room: the room is covered until /bedroom on`)
+    markCovered(next.origin.plugin)
+    void refreshCard($).catch(() => undefined)
+    flush($)
+    return set
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {

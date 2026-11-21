@@ -5,7 +5,7 @@ import type { BedroomCard } from '../../types'
 import { TITLE_CAPS, describe, extraMsOf, runCommand, type TitleKey } from './core/commands.js'
 import { ctxOf } from './core/context.js'
 import { SWITCHES, type Switch } from './core/piece.js'
-import { isThemeOn } from './core/render.js'
+import { coveringPlugin, isThemeOn } from './core/render.js'
 import { volumeOf } from './core/saved.js'
 import { WEATHERS } from './core/settings.js'
 import { hallLightOn } from './pieces/hallway.js'
@@ -185,7 +185,7 @@ type CardElements = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'I
 export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: CardElements, now: BedroomCard) {
   const ctx = ctxOf($)
   const saved = ctx.saved
-  const themeLabel = isThemeOn() ? 'theme: on' : 'theme: off'
+  const themeLabel = coveringPlugin() !== undefined ? 'theme: covered' : isThemeOn() ? 'theme: on' : 'theme: off'
   const titlesLabel = now.titles === true ? 'titles: hide' : 'titles: show'
   const soundLabel = `sound: ${ctx.setting('sound') ? 'on' : 'off'}`
   const soundsLabel = now.sounds === true ? 'sounds: hide' : 'sounds: show'
@@ -218,7 +218,7 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
       <Box key="head" flexDirection="row" flexWrap="wrap" justifyContent="space-between" alignItems="center" columnGap="sm" rowGap="xs">
         <Text bold>Bedroom settings</Text>
         <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
-          <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn() ? 'off' : 'on')}>
+          <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn() && coveringPlugin() === undefined ? 'off' : 'on')}>
             {themeLabel}
           </Button>
           <Button
