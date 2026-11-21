@@ -1,10 +1,11 @@
 // verify-cap.mjs: whether pr-verify's FAILs on a pull request are at the
 // merge gate's cap (`verify:repeated-fail`), read by the gate's own reader,
 // babysit_verify_evidence.py `evidence`, so the cap is counted in one place.
-// The cap applies only when a FAIL that is not superseded stands at the head
-// (owner decision Q245,
+// The cap applies only when a FAIL stands at the head (owner decision Q245,
 // https://github.com/melodic-software/claude-code-plugins/issues/17646); FAILs
-// at earlier heads alone never reach it. At that head it never clears and the pr-merge lane closes the pull
+// at earlier heads alone never reach it. The reader judges the cap before
+// supersession, so at that head it never clears, even when a later pass
+// supersedes the head's FAIL, and the pr-merge lane closes the pull
 // request for a fresh attempt at its issue (owner decision 2026-10-29), so
 // feedback-dispatch.mjs and fix-ci-dispatch.mjs start no address-feedback or
 // fix-ci round on it and post nothing. A
