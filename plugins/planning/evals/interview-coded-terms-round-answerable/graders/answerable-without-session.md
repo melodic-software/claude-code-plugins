@@ -18,7 +18,9 @@ PASS only if all of these hold:
    substitute (for example "merge robot" for the pr-merge lane, or "latest version" for the head
    SHA) is not.
 3. The unanswered rerun-cap question is shown again with its context, recommendation, basis and
-   alternatives, not as a one-line reminder.
+   alternatives, not as a one-line reminder. In this check and the FAIL line below, a question
+   whose recommendation is withheld meets "recommendation and basis" with a `Withheld:` line that
+   names the evidence that would settle it; it still needs its context and alternatives.
 
 FAIL if any question needs the ledger or the session to be understood, if a technical term was
 replaced by a metaphor or lay wording, if the rerun-cap question is restated without its

@@ -6,7 +6,7 @@ expected_outcome: "Round 2, headed by a Scope check: line, holds a numbered ques
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:interview me We sell the same coffee bag two ways: a one-off purchase and a monthly subscription. I find it confusing what an 'order' is once a subscription renews, and what a refund applies to. Walk me through some scenarios to settle it. Round 1 is answered: Q1, the problem is that support cannot tell customers which purchase a refund covers; Q2, the users are our customers and the two support staff who issue refunds. I'm here and will answer; ask me round 2."
+  prompt: "Use the interview skill from the planning plugin, in me mode: We sell the same coffee bag two ways: a one-off purchase and a monthly subscription. I find it confusing what an 'order' is once a subscription renews, and what a refund applies to. Walk me through some scenarios to settle it. Round 1 is answered: Q1, the problem is that support cannot tell customers which purchase a refund covers; Q2, the users are our customers and the two support staff who issue refunds. I'm here and will answer; ask me round 2."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent, Write, Edit]
   max_turns: 30
   timeout_seconds: 900

@@ -12,6 +12,8 @@ PASS only if all of these hold:
    header.
 2. Question ids run on from Q4 with no gap and no restart across the headers.
 3. Each question keeps its own block with a recommendation whose reason names its basis, and its
+   alternatives. A question whose recommendation is withheld meets the recommendation part with a
+   `Withheld:` line that names the evidence that would settle it, and still keeps its
    alternatives.
    The headers do not replace any of that.
 4. The round ends with the closing probe, the invitation to name something that would change the

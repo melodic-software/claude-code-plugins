@@ -11,6 +11,10 @@
     {
       "answer": "### Q1\nWhich accounting systems must the first release support?",
       "why": "heading form"
+    },
+    {
+      "answer": "**Round 1.** A nightly invoice export for paying customers.\nScope check: 3 of 27 questions registered\n\n❓ Q1: **What goes wrong today when month-end close needs these invoices?**\n\nContext:\n- Customers rely on it for their month-end close (user, round 1).\n\nDiscovery: the problem this export solves.",
+      "why": "the emoji question marker the default layout prints before Q1"
     }
   ],
   "fail": [

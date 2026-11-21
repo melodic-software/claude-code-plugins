@@ -1,8 +1,8 @@
 {
   "pass": [
     {
-      "answer": "Round 2, one question at a time. Decided: production quality, at-least-once delivery, receivers deduplicate on `event_id`.\n\nQ4: **What happens to an event after its last failed attempt?**\nContext: the sender makes one POST today and drops the event when it fails (user, round 2). At-least-once delivery means a dropped event breaks the guarantee (user, round 1).\nMy recommendation: move it to a dead-letter table that an operator can replay.\nOrigin: new (ours)\nBasis: verified, user, round 1 (at-least-once delivery)\nAlternatives:\n- (a) Drop it and log. Simplest, but breaks at-least-once delivery (user, round 1; origin: new (ours))\n- (b) Keep retrying forever. Never loses an event, but a dead receiver grows the queue without bound (origin: new (ours))\n\nIs there something else that would change this recommendation?",
-      "why": "one question in full layout, closing probe, no header, index or preview"
+      "answer": "Round 2, one question at a time. Decided: production quality, at-least-once delivery, receivers deduplicate on `event_id`.\nScope check: 4 of 27 questions registered; round 1 added 3, settled 3\n\n❓ Q4: **What happens to an event after its last failed attempt?**\n\nContext:\n- The sender makes one POST today and drops the event when it fails (user, round 2).\n- At-least-once delivery means a dropped event breaks the guarantee (user, round 1).\n\n➡️ My recommendation: **Move it to a dead-letter table that an operator can replay**. A dropped event would break at-least-once delivery (verified, user, round 1: webhooks are delivered at least once).\n\nAlternatives:\n- (a) Drop it and log. Simplest, but breaks at-least-once delivery (user, round 1)\n- (b) Keep retrying forever. Never loses an event, but a dead receiver grows the queue without bound\n\nIs there something else that would change this recommendation?",
+      "why": "one question in the standard layout (no Origin: or Basis: line), closing probe, no topic header, index or preview"
     }
   ],
   "fail": [

@@ -9,7 +9,9 @@ PASS only if all of these hold:
    partner's ops lead to answer, naming `/planning:interview document`.
 2. The reply also recommends a next step for the work itself (planning, design, exploration,
    research, or implementation), so the document runs beside the pipeline, not in place of it.
-3. The reply does not choose an SSH key type or record one as an assumption.
+3. The reply does not choose an SSH key type or record one as an assumption. Naming example key
+   types (such as the options the document will ask about) without choosing or recommending one
+   is not choosing.
 
 FAIL if the reply leaves the deferred question with no one asked to answer it, recommends only
 the document with no next step for the work, or picks a key type.

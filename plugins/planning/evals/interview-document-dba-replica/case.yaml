@@ -6,7 +6,7 @@ expected_outcome: One Write creates .work/reporting-replica/document-<role>.md h
 execution:
   prompt: "Use the interview skill from the planning plugin on its document surface, topic reporting-replica. We want to point the reporting dashboards at a Postgres read replica, but three things are our DBA's call, not mine. It goes to Priya, the DBA who owns the production Postgres cluster; she knows replication well but hasn't seen the dashboard work. I need back from her: the nightly maintenance window, how much replica lag the replica can run behind before she'd page someone, and how long backups are retained. Write the document."
   allowed_tools: [Read, Glob, Grep, Skill, Write, Bash]
-  max_turns: 15
+  max_turns: 20
   timeout_seconds: 600
 graders:
   - name: skill-fired

@@ -2,7 +2,7 @@
 description: "The opening request itself names unknowns in four separate areas. Why hard: no round has run yet, so the fog trigger cannot fire; the easy failures are to say nothing about wayfind until later rounds, or to treat the fog as a reason to switch to wayfind and skip the interview."
 tags: [interview, routing, wayfind, round-1, no-network]
 runs: 3
-max_turns: 12
+max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "Round 1 includes a question recommending /planning:wayfind chart for the four unknown areas, worded so the user can accept or decline it, and the other round-1 questions go out in the same message; wayfind is not invoked"
