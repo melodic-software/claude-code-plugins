@@ -17,7 +17,7 @@ version:
 unset_model: skip-with-notice
 model_flag: --model
 effort_flag: --effort
-always_args: [--output-format, json]
+always_args: [--output-format, json, --disable-slash-commands]
 prompt:
   form: "-p={prompt}"
 resume:
