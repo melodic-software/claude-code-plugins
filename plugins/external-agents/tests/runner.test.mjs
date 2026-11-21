@@ -189,6 +189,16 @@ describe("run", () => {
     assert.deepEqual(cliArgs(job).slice(8), ["-m", "my-model", "-p", "work", "-c", 'model_reasoning_effort="high"', "-"]);
   });
 
+  test("config is read from the convention home the repository's pointer region binds", async () => {
+    const w = world({ stdout: clean, final: "done" }, { local: "schema: 1\ncodex:\n  model: from-the-default-home\n" });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    mkdirSync(join(w.cwd, "team", "conventions"), { recursive: true });
+    writeFileSync(join(w.cwd, "team", "conventions", "external-agents.local.yaml"), "schema: 1\ncodex:\n  model: from-the-bound-home\n");
+    writeFileSync(join(w.cwd, "AGENTS.md"), "# Repo\n\n<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team/conventions`.\n<!-- END GENERATED: convention-home -->\n");
+    const { job } = await run({ ...w.opts, use: "task", prompt: "fix it" });
+    assert.deepEqual(cliArgs(job).slice(8, 10), ["-m", "from-the-bound-home"]);
+  });
+
   test("a write request on a read-only use runs read-only and names the config key", async () => {
     const w = world({ stdout: clean, final: "done" });
     const got = await run({ ...w.opts, use: "investigate", mode: "write", prompt: "change it" });

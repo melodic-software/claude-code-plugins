@@ -3,7 +3,7 @@ import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "no
 import { join, sep } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
 import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
-import { loadConfig, pluginRoot } from "./config.mjs";
+import { conventionHome, loadConfig, pluginRoot } from "./config.mjs";
 import { jobFolder, listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "./jobs.mjs";
 import { classify } from "./outcome.mjs";
 import { killTree, pidStartTime, query, shellUnsafe, start } from "./process.mjs";
@@ -67,7 +67,10 @@ function setup(opts) {
   } catch (error) {
     throw refuse(error.message);
   }
-  const config = loadConfig({ projectRoot: git(ctx.cwd, ["rev-parse", "--show-toplevel"])?.trim() || ctx.cwd, userConfig: opts.userConfig });
+  const projectRoot = git(ctx.cwd, ["rev-parse", "--show-toplevel"])?.trim() || ctx.cwd;
+  const bound = conventionHome(projectRoot);
+  const config = loadConfig({ projectRoot, home: bound.home, userConfig: opts.userConfig });
+  if (bound.problem) config.errors.push(`convention home: ${bound.problem}; reading ${bound.home}`);
   return { ctx, record, config, settings: config.values[record.product] ?? {}, notices: config.errors.map((e) => `config: ${e}`) };
 }
 

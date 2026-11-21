@@ -1013,3 +1013,4 @@ lib/cli-version-check.mjs plugins/external-agents/lib/cli-version-check.mjs
 lib/prerequisites.mjs plugins/external-agents/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/external-agents/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/external-agents/lib/prerequisites.ps1
+lib/resolve-convention-home.sh plugins/external-agents/lib/resolve-convention-home.sh
