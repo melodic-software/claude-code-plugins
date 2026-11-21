@@ -27,7 +27,7 @@ export const refuse = (reason) => new Stop("refused", reason);
 
 const git = (cwd, args, options = {}) => {
   try {
-    return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true, ...options });
+    return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true, cwd: pluginRoot, ...options });
   } catch {
     return null;
   }

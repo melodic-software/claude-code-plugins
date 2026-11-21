@@ -154,7 +154,7 @@ reviewed.
   with one line `Mark: <0-10>/10` for how ready this change is." Send all agent members in one
   message, except under the pilot below.
 - **Script members** (`route: review` or `adversarial-review`): run the adapter's `run` command,
-  `external-agents review <provider> --base <merge-base> [--model <model>] [--brief-file <file>]`,
+  `external-agents review <provider> --council --base <merge-base> [--model <model>] [--brief-file <file>]`,
   as a bare command (the external-agents plugin puts it on the Bash `PATH`; never look up its
   install path) with `run_in_background`, **one at a time**, never two runs of one provider at
   once. `--model` only when the row's `model_from` is `member`; `--brief-file` only on
@@ -163,7 +163,7 @@ reviewed.
   `adversarial-review (focus: <brief> + mark request)`. When it ends, run
   `node "<plugin-root>/skills/council/scripts/council-plan.mjs" member --product <provider>
   --output <its output file> --exit <its exit code>`: its `status` is the member's status
-  (`skipped (external-agents not enabled)` when the command is not on `PATH`), a `note` goes in
+  (`skipped (external-agents not enabled)` when the command is not on `PATH`), a `note` and any `notices` go in
   `## Council` beside it, and on `ran` its `findings` go to normalization. A timeout is
   `failed (timed out)`.
 - **Pilot.** When `select` printed `pilot: true`, dispatch one member alone, wait for it, and

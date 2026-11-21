@@ -22,7 +22,7 @@ export function conventionHome(projectRoot, helper = join(pluginRoot, "lib", "re
 }
 
 const isTracked = (root, file) =>
-  spawnSync("git", ["-C", root, "ls-files", "--error-unmatch", "--", file], { stdio: "ignore", windowsHide: true }).status === 0;
+  spawnSync("git", ["-C", root, "ls-files", "--error-unmatch", "--", file], { stdio: "ignore", windowsHide: true, cwd: pluginRoot }).status === 0;
 
 /** The file names a binary_path may end in: the CLI's own name, with an executable extension on Windows. */
 export const binaryNames = (name, platform = process.platform) =>

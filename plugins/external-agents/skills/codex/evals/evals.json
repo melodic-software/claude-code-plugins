@@ -30,7 +30,7 @@
       "id": 3,
       "name": "branch-review-names-the-base",
       "prompt": "Get a Codex second opinion on this branch against main.",
-      "expected_output": "Runs external-agents review codex --base main in the foreground, reports Mode: read-only (review), then the codex: ran line and the findings verbatim, relaying any notice line.",
+      "expected_output": "Runs external-agents review codex --base main as a background Bash task, reports Mode: read-only (review), then the codex: ran line and the findings verbatim, relaying any notice line.",
       "files": [],
       "expectations": [
         "Runs external-agents review codex with --base main",

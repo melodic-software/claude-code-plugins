@@ -158,8 +158,12 @@ if [[ -d "$PLUGINS_ROOT" ]]; then
   # from a checkout, not content (git tracks no empty directory), so it passes.
   for plugin_dir in "$PLUGINS_ROOT"/*/; do
     [[ -d "$plugin_dir" ]] || continue
-    [[ "$(basename "$plugin_dir")" == external-agents ]] && continue # its command must be on PATH; org sync skips it: https://claude.com/docs/plugins/org-sync
     bin_path="${plugin_dir%/}/bin"
+    # its command must be on PATH; org sync skips it: https://claude.com/docs/plugins/org-sync
+    if [[ "$(basename "$plugin_dir")" == external-agents && -d "$bin_path" && ! -L "$bin_path" &&
+      "$(find "$bin_path" -mindepth 1 -print)" == "$bin_path/external-agents" ]]; then
+      continue
+    fi
     if [[ -d "$bin_path" && ! -L "$bin_path" ]]; then
       [[ -n "$(find "$bin_path" -mindepth 1 -print -quit 2>/dev/null)" ]] || continue
     elif [[ ! -e "$bin_path" && ! -L "$bin_path" ]]; then

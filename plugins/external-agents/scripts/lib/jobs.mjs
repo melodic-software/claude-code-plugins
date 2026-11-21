@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { pluginRoot } from "./config.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
 
@@ -19,7 +20,7 @@ const jobsDir = (dataDir, key) => {
 export function repoKey(cwd) {
   let common;
   try {
-    common = execFileSync("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    common = execFileSync("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], cwd: pluginRoot }).trim();
   } catch {
     return "no-repo";
   }

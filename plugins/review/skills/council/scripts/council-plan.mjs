@@ -290,16 +290,18 @@ export function selectPanel({ config, changed, tier, tierReason, risk, riskReaso
 const SHELL_COMMAND_NOT_FOUND = 127;
 
 export function memberResult({ product, output, exit }) {
-  const lines = output.replace(/\r\n/g, "\n").split("\n");
+  const all = output.replace(/\r\n/g, "\n").split("\n");
+  const notices = all.filter((l) => l.startsWith("notice: ")).map((l) => l.slice("notice: ".length));
+  const lines = all.filter((l) => !/^(notice|job): /.test(l));
   const shape = new RegExp(`^${product}: (ran|skipped|failed)(?: \\((.*)\\))?\\s*$`, "u");
   const at = lines.findIndex((l) => shape.test(l));
   if (at === -1) {
     const status = exit === SHELL_COMMAND_NOT_FOUND ? "skipped (external-agents not enabled)" : `failed (no status line; exit ${exit})`;
-    return { status, note: null, findings: "" };
+    return { status, note: null, notices, findings: "" };
   }
   const [, word, detail] = shape.exec(lines[at]);
-  if (word === "ran") return { status: "ran", note: detail ?? null, findings: lines.slice(at + 1).join("\n").trim() };
-  return { status: `${word} (${detail || "no reason given"})`, note: null, findings: "" };
+  if (word === "ran") return { status: "ran", note: detail ?? null, notices, findings: lines.slice(at + 1).join("\n").trim() };
+  return { status: `${word} (${detail || "no reason given"})`, note: null, notices, findings: "" };
 }
 
 function main(argv) {
