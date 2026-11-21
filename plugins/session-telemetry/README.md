@@ -301,7 +301,10 @@ resolve.
 **Mods for the session event log.** The per-session hook event log runs in the hooks module, so it
 needs Claude Code 2.1.287 or later with mods on; where mods are off it does not run (see
 [The per-session hook event log](#the-per-session-hook-event-log-off-by-default)). The audit rows
-are settings hooks and run with mods off.
+are settings hooks and run with mods off, except on Claude Code 2.0.15 through 2.1.75, which refuse
+a manifest that declares `engines`, so neither the audit rows nor the sink-launcher refresh load
+there. `plugin.json` declares the mods floor as `engines["claude-code"]`, which only Claude Code
+2.1.323 and later read; 2.1.76 through 2.1.322 ignore it and run the audit rows.
 
 ## Configuration
 
