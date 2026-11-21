@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The list opens with `Execution shape: per-item PRs (default: #370 is not a spec container)`.",
+      "why": "shape line in the list"
+    },
+    {
+      "answer": "Show the item list for #371 and #372, which runs as **per-item PRs**, and ask the user to approve it.",
+      "why": "shape named before the approval ask"
+    },
+    {
+      "answer": "The item list states per-item PRs, since #370 has no shape line.",
+      "why": "list named before the shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#370 has no execution-shape line, so stop and offer to record it.",
+      "why": "near miss: the old container rule"
+    },
+    {
+      "answer": "Draft the item list for #371 and #372 and ask for approval.",
+      "why": "no shape stated"
+    },
+    {
+      "answer": "#370 is not a spec container, so the run stops.",
+      "why": "rejects the parent"
+    },
+    {
+      "answer": "Each child gets its own per-item PR, merged after you approve.",
+      "why": "near miss: names PRs but states no shape in the list"
+    }
+  ]
+}

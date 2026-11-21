@@ -1820,10 +1820,23 @@ apart, since it can lag the promote step's push), and posts the check with
 `pr-head-sha`. Why the check is written by this job and not the run job:
 [ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
 
-Last, when there is a PR, it posts or edits one comment per run,
-[`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs), found by the first
-line `<!-- lane-run-report activity=<lane>/<activity> run=<run id> rung=<0|1> leg=<base|handoff|credit-stop|no-key|fallback> -->` among
-`github-actions[bot]`'s comments, so a re-run edits it and each model rung and runner leg keeps its own. It lists the activity, the run job's result and `act-outcome`, the
+Last, when there is a PR, it posts or edits one comment per activity,
+[`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs), through the
+[PR-message module](../../../.github/scripts/lib/pr-messages/pr-messages.mjs) (its
+`lane-run-report` kind in
+[`message-kinds.json`](../../../.github/scripts/lib/pr-messages/message-kinds.json)). The comment
+is the newest of `github-actions[bot]`'s comments whose first line is
+`<!-- lane-run-report activity=<lane>/<activity> -->`, skipping one a person edited or one that is
+minimized; a skipped comment is left as it is and the next report posts a fresh one. The comment
+holds one section per report job of the newest run (the highest run id), each headed by
+`<!-- lane-run-report-section run=<run id> attempt=<n> rung=<0|1> leg=<base|handoff|credit-stop|no-key|fallback> -->`.
+Within one attempt each report adds its section; a later attempt's report replaces the newest
+earlier-attempt section with its rung and leg; a newer run's report clears the older run's
+sections; an older run's report changes nothing and goes to the job summary. Kept sections are
+rebuilt from their checked values, never copied, and past 60,000 characters the oldest sections'
+failure rows, then the oldest sections, are dropped and counted in a note. The comment list is one
+GraphQL call per 100 comments, under a 5 s time limit and a 5 s rate-limit wait, falling back to
+the job summary. Each section lists the run job's result and `act-outcome`, the
 write file's `pushed-commit`, and the run job's `api-failures` output: each GitHub API call its
 scripts saw fail (`recordFailure` in `retry-fetch.mjs` and `rate-guard.mjs`, path only, status 0 for
 a network error), kept to distinct rows of a fixed shape in the run job (its first 64 KiB) and checked

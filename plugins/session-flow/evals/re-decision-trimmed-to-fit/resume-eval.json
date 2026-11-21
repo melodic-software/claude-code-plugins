@@ -89,6 +89,9 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/release/2.8"
+    ],
     "gh_fixture": {
       "repo": "example-org/billing-sync",
       "responses": [

@@ -1,0 +1,23 @@
+{
+  "lane-run-report": {
+    "marker": "<!-- lane-run-report activity={activity} -->",
+    "fields": {
+      "activity": "^[a-z0-9][a-z0-9-]{0,63}/[a-z0-9][a-z0-9-]{0,63}$"
+    },
+    "key": ["activity"],
+    "section": {
+      "heading": "<!-- lane-run-report-section run={run} attempt={attempt} rung={rung} leg={leg} -->",
+      "fields": {
+        "run": "^[1-9][0-9]{0,19}$",
+        "attempt": "^[1-9][0-9]{0,4}$",
+        "rung": "^(0|1)$",
+        "leg": "^(base|handoff|credit-stop|no-key|fallback)$"
+      }
+    },
+    "writer": "actions-bot",
+    "trusted": ["actions-bot"],
+    "match": "first-line",
+    "history": "sections-by-run",
+    "void": "skip"
+  }
+}

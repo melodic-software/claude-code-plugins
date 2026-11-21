@@ -188,6 +188,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
+import { LaneRunPending } from "../lib/lane-binding.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
@@ -1883,6 +1884,13 @@ const causeLabel = (error) => {
   const name = typeof cause.code !== "string" && typeof cause.name === "string" ? ` cause ${cause.name}` : "";
   return ` (${errorLabel(error)}${name})`;
 };
+export function failureOutcome(error, token) {
+  if (error instanceof LaneRunPending) {
+    return { line: `skip: ${error.message}; the next sweep tick decides this pull request`, code: 0 };
+  }
+  return { line: failureAnnotation(error, token), code: 1 };
+}
+
 // The line holds no token and no line break, whichever client threw.
 export const failureAnnotation = (error, token) => {
   const line = `::error::pr-feedback dispatch failed: ${error.message}${error.call ? ` on ${error.call}` : ""}${causeLabel(error)}${detailSuffix(error)}`;
@@ -1895,8 +1903,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exitCode = code;
     },
     (error) => {
-      console.log(failureAnnotation(error, process.env.GITHUB_TOKEN));
-      process.exitCode = 1;
+      const { line, code } = failureOutcome(error, process.env.GITHUB_TOKEN);
+      console.log(line);
+      process.exitCode = code;
     },
   );
 }

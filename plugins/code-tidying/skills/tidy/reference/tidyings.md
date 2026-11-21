@@ -4,7 +4,7 @@ Three sections: Beck's 15 named tidyings (the canonical list from *Tidy First?*,
 
 Total entries: 15 + 5 + 6 = **26 named tidyings**.
 
-Each entry follows the same shape: name, when-to-apply, when-NOT-to-apply, 1-line example.
+Each entry follows the same shape: name, when-to-apply, when-NOT-to-apply, and, for most entries, a 1-line example.
 
 ---
 
@@ -20,7 +20,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 
 ### #2: Dead Code
 
-- **When to apply:** code that no longer has any callers or any path of execution that reaches it. Static analyzers (Roslyn, ruff F841, biome unused-import) often surface candidates.
+- **When to apply:** code that no longer has any callers or any path of execution that reaches it.
 - **When NOT to apply:** the "dead" code is reflectively invoked, used by source generators, or referenced by string name in DI/serialization. Verify before deletion.
 - **Example:** `private static string FormatLegacy(...)` no longer called after a public API consolidated → delete.
 - **Finding candidates:** this entry is for dead code the lane pass walks into. To hunt it deliberately across the whole repository, including the long-untouched code a rotated lane never reaches, run `/code-tidying:audit-dead-code`, which adjudicates each candidate to `dead`, `uncertain`, or `alive` and reports without editing. Bring its `dead` verdicts back here to apply the deletion; leave `uncertain` alone.
@@ -52,7 +52,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 ### #7: Move Declaration and Initialization Together
 
 - **When to apply:** a variable is declared near the top of a method and assigned much later. Move the declaration to where it's first used.
-- **When NOT to apply:** language constraints force an early declaration (rare in C# / TS / Python; common in C).
+- **When NOT to apply:** language constraints force an early declaration.
 - **Example:** `string result; ... 30 lines ... result = ComputeIt();` → `string result = ComputeIt();`
 
 ### #8: Explaining Variables
@@ -89,7 +89,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 
 - **When to apply:** code that should logically be in one place (one file, one class, one section) is split across multiple locations for no semantic reason.
 - **When NOT to apply:** the split is intentional (separate files for build performance, separate classes for layering / testability).
-- **Example:** `OrderValidationRules.cs` and `OrderValidationHelpers.cs` both contain Order validation utilities with overlapping concerns → consolidate.
+- **Example:** `OrderValidationRules` and `OrderValidationHelpers` both contain Order validation utilities with overlapping concerns → consolidate.
 
 ### #14: Explaining Comments
 
@@ -175,7 +175,6 @@ Beck-style structural improvements applied to the prose surface: skill bodies, l
 - **Posture:** #14's posture rule applies to the comment this adds.
 - **When to apply:** a CLI command, config snippet, or code example in markdown does something non-obvious. Add a one-line `# explains the next line` comment.
 - **When NOT to apply:** the snippet is self-explanatory. Don't pad code blocks with restating-comments.
-- **Example:** `npx markdownlint-cli2 "**/*.md"` → add `# Lint all markdown files (matches CI)`.
 
 ### P-6: Delete-redundant-comments (in prose)
 

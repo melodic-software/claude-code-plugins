@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.3] - 2026-11-21
+
+### Changed
+
+- **`/code-tidying:tidy` drops eight examples tied to one stack.** The skill and its exclusions and tidyings references dropped a `node --test` scope example, a `shellcheck`/`shfmt` commit title, `Directory.Build.props` and `Directory.Packages.props` as typical protected paths, `ruff.toml` in the overrides-file example, the Roslyn, ruff and biome analyzer list, a C#/TS/Python/C language list, a `.cs` file name and an `npx markdownlint-cli2` example. The rules around them are unchanged; each consumer's own tools and paths apply instead ([#17758](https://github.com/melodic-software/claude-code-plugins/issues/17758)).
+
 ## [0.55.2] - 2026-11-21
 
 ### Changed
