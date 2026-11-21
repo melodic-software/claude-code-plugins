@@ -89,9 +89,11 @@ bottom-left corner of the front of the dresser.
     few distant cicadas (a quarter of the dusk level) build through the afternoon to full at the
     golden hour and dusk; across the evening the cicadas fade out as crickets and katydids fade in,
     6 dB under the cicadas; the night keeps them, and before dawn they are quieter again (8 dB
-    under). Each change of level eases with the picture: through the Windows mixer the afternoon's
-    build is one ease to the golden hour, and sound turned on partway through the evening starts
-    both beds where the cross-fade is then. In wet weather there are no insects but
+    under). Each change of level eases with the picture: an hour set by command moves the beds
+    over the picture's quick ease (about 6 s), so a held evening plays the night insects alone;
+    through the Windows mixer the afternoon's build is one ease to the golden hour, and sound
+    turned on, or the time set back to `auto`, partway through the evening starts both beds where
+    the clock's cross-fade is then. In wet weather there are no insects but
     rain on the roof, the same rain heavier as a downpour, or a storm with wind.
   - The bed follows the picture: a change of weather fades the old bed out and the new one in over
     the time the window takes, starting when the window starts to change (about 3 s after the
@@ -115,11 +117,16 @@ bottom-left corner of the front of the dresser.
     its page and its license. The television's and the room's sounds are made by code, the purr
     excepted.
   - On Windows, and under WSL through Windows, one player process runs for as long as sound is on
-    and mixes everything, so a sound plays within about a tenth of a second of its click; it ends
-    when sound goes off, the plugin unloads or the session ends. If it stops by itself after 20
-    seconds without a command from the mod, sound stays on and the next sound starts it again; if
-    it fails, sound turns off and `/bedroom sound` gives the reason. It takes its commands through
-    a file in the Windows temporary folder. On macOS the app plays the
+    and mixes everything, so a sound plays within about a tenth of a second of its click. It fades
+    out when sound goes off, when the session's desktop window closes (the app exited while the
+    session runs on) or the session ends, when the process that started it is gone, and by itself
+    after 9 seconds with no word from the mod (the mod sends one every 3 seconds while it runs), so
+    the room is quiet within seconds of the app going away. Only one plays per session: after a
+    reload of the plugin the old one fades out before the new one starts. If it stops by itself
+    while sound is on, or goes silent, the mod starts another; if it fails after it was playing,
+    another starts 10 seconds later, and `/bedroom sound` says when sound is on but nothing
+    plays, and why, with the mixer's process id. It takes its commands through a file in the
+    Windows temporary folder. On macOS the app plays the
     sounds. Elsewhere the mod runs a player it finds on `PATH` (`ffplay`, `paplay` or `aplay`) once
     for each sound: there a bed changes with a cut, not a fade.
   - The `soundPlayer` setting, when it is not empty, is used in place of all of these, on every

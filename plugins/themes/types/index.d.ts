@@ -24,6 +24,8 @@ declare module 'claude-code' {
       'bedroom-card': Shaped<BedroomCard>
       /** The bedroom's minute chain: the time the newest copy of the module started it, so an older copy left running after a reload stops. */
       'bedroom-chain': number
+      /** Which copy of the module plays the bedroom's sound: the time it loaded, so an older copy left after a reload goes quiet. */
+      'bedroom-mixer': number
     }
   }
 }

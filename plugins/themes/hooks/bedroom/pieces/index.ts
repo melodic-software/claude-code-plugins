@@ -7,7 +7,7 @@ import { piece as time } from './time.js'
 import { engineTick as weatherEngineTick, piece as weather } from './weather.js'
 import { hooks as claudeTvHooks, engineStart as claudeTvEngineStart, piece as claudeTv } from './claude-tv.js'
 import { piece as hallway } from './hallway.js'
-import { engineTick as soundEngineTick, engineSwitched as soundEngineSwitched, engineCommand as soundEngineCommand, piece as sound } from './sound.js'
+import { hooks as soundHooks, engineTick as soundEngineTick, engineSwitched as soundEngineSwitched, engineCommand as soundEngineCommand, piece as sound } from './sound.js'
 import { piece as noShader } from './no-shader.js'
 
 export const PIECES: readonly Piece[] = [time, weather, claudeTv, hallway, sound, noShader]
@@ -16,6 +16,7 @@ export { BUILT, WITHOUT } from '../core/signals.gen.js'
 /** Adds the hooks of the pieces that have their own, inside register. */
 export function addHooks(on: On): void {
   claudeTvHooks(on)
+  soundHooks(on)
 }
 
 /** At session.start, after the saved state is read. */

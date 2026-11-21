@@ -14,7 +14,7 @@ import { DEFAULT_STATE } from '../scene/lib.ts'
 import { BUILT, WITHOUT } from './index.js'
 import { BANK, LENGTH_MS, OBJECTS, PURR, chosenName, lengthOf, namesOf } from './sound-bank.js'
 import { rowStarts, seasonOf } from './time.js'
-import { BEAT_MS, PING_MS, QUIET_MS, STEADY_MS, encodedOf, fileOf, linesOf, mixerScript, powershellArgv, wordsOf } from './sound-mixer.js'
+import { BEAT_MS, PARENT_MS, PING_MS, QUIET_MS, STEADY_MS, STOP_FADE_MS, encodedOf, fileOf, linesOf, mixerScript, powershellArgv, wordsOf } from './sound-mixer.js'
 import {
   COMMAND_LAG_MS,
   DUCK,
@@ -37,6 +37,11 @@ import {
   WEATHER_EASE_MS,
   argvOf,
   bedName,
+  COPY,
+  HANDOVER_MS,
+  RETRY_MS,
+  SILENT_MS,
+  hooks,
   commandLineOf,
   engineCommand,
   engineSwitched,
@@ -57,7 +62,7 @@ const NIGHT = { time: 'night', weather: 'clear', hall: false, signal: false } as
 /** A command the fake mixer ran: its seq, its words, and when it reached it. */
 type Ran = { seq: number; words: string[]; at: number }
 /** A fake of the Windows mixer behind the engine: it answers each command line written to its file as the script does. */
-type FakeMixer = { ran: Ran[]; outbox: string[]; wake?: () => void; ended: boolean; endedAt?: number; last: number; exitCode?: number }
+type FakeMixer = { ran: Ran[]; outbox: string[]; wake?: () => void; ended: boolean; endedAt?: number; last: number; exitCode?: number; mute?: boolean }
 const READY = 'ready C:\\Temp\\claude-bedroom-sound-1\\commands.txt\n'
 const COMMANDS = '/mnt/c/Temp/claude-bedroom-sound-1/commands.txt'
 
@@ -84,6 +89,7 @@ async function* mixerChild(m: FakeMixer, now: () => number, beat: (wake: () => v
   try {
     yield { stream: 'stdout', text: `..${READY}` }
     for (;;) {
+      if (m.mute === true) await new Promise<void>(() => undefined)
       if (m.outbox.length === 0 && m.exitCode === undefined) {
         await new Promise<void>(resolve => {
           m.wake = resolve
@@ -228,13 +234,18 @@ test("the mixer's command file, its answers and its script", () => {
   const script = mixerScript("W:\\it's\\sounds")
   expect(script).toContain("$root='W:\\it''s\\sounds'")
   expect(script).toContain('System.Windows.Media.MediaPlayer')
-  expect(script).toContain(`if($now-$seen -gt ${QUIET_MS}){break}`)
+  expect(script).toContain(`if($now-$seen -gt ${QUIET_MS}){Stop $now}`)
+  expect(script).toContain(`function Stop($now){if($script:quit -lt 0){foreach($v in $voices){Fade $v 0 ${STOP_FADE_MS} $now;$v.drop=$true};$script:quit=$now+${STOP_FADE_MS}}}`)
+  expect(script).toContain(`if($parent -gt 0 -and $now-$looked -ge ${PARENT_MS}){$looked=$now;try{[void][Diagnostics.Process]::GetProcessById($parent)}catch{Stop $now}}`)
+  expect(script).toContain("Say ('pid '+$PID)")
+  expect(linesOf('pid 4242\n').lines).toEqual([{ kind: 'pid', pid: 4242 }])
   expect(script).toContain(`if($now-$beat -ge ${BEAT_MS})`)
   expect(script).toContain('Remove-Item -LiteralPath $dir')
   expect(script).toContain(`if($key -ne $stamp -or $now -ge $reread){$reread=$now+${STEADY_MS};`)
   expect(script).not.toContain('else{break}')
   expect(script.endsWith(';exit $code')).toBe(true)
-  expect(PING_MS * 3).toBeLessThan(QUIET_MS)
+  expect(PING_MS * 3).toBeLessThanOrEqual(QUIET_MS)
+  expect(STOP_FADE_MS).toBeLessThanOrEqual(1000)
 
   expect([encodedOf('a'), encodedOf('ab'), encodedOf('abc'), encodedOf('é')]).toEqual(['YQA=', 'YQBiAA==', 'YQBiAGMA', '6QA='])
   const argv = powershellArgv(script)
@@ -258,6 +269,7 @@ type Stand = {
   plays: Play[]
   clips: { asset: string; gain?: number; shouldLoop?: boolean }[]
   mixers: FakeMixer[]
+  state: Map<string, unknown>
   calls: string[]
   notes: () => string[]
   ctx: () => Promise<Ctx>
@@ -288,6 +300,7 @@ async function stand(start = EVENING): Promise<Stand> {
     exit: 0,
     plays: [],
     clips: [],
+    state: new Map(),
     mixers: [],
     calls: [],
     notes: () => log.filter(line => line.includes(' sound: ')),
@@ -359,7 +372,10 @@ async function stand(start = EVENING): Promise<Stand> {
   s.$ = {
     plugin: { name: 'themes', root: '/room' },
     store: { get: async (key: string) => store.get(key), set: async (key: string, value: unknown) => void store.set(key, value) },
-    state: { get: async () => ({ value: undefined }) },
+    state: {
+      get: async ({ key }: { key: string }) => ({ value: s.state.get(key) }),
+      set: async ({ key }: { key: string }, value: unknown) => void s.state.set(key, value),
+    },
     ui: { toast: () => undefined, invalidate: () => undefined, log: (text: string) => void log.push(text) },
     clock: { now: async () => now, after: later },
     session: {
@@ -529,12 +545,12 @@ test('S2: the mixer pings while it runs, and a mixer that exits by itself is one
   m.wake?.()
   await s.settle()
   expect(m.ended).toBe(true)
-  expect(s.notes()).toEqual([expect.stringMatching(/sound: the mixer exited 3: the file did not open; nothing plays until \/bedroom sound on$/)])
+  expect(s.notes().filter(line => !line.includes('powershell.exe process'))).toEqual([expect.stringMatching(new RegExp(`sound: the mixer exited 3: the file did not open; the mixer starts again in ${RETRY_MS / 1000} s$`))])
   engineSwitched(s.$, await s.ctx(), 'tv', true, 'click')
   await s.advance(1000)
   expect(s.mixers.length).toBe(1)
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['on'])).toMatch(/^sound is on/)
-  await s.settle()
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/sound is on but nothing plays: the mixer exited 3/)
+  await s.advance(RETRY_MS + WATCH_MS)
   expect(s.mixers.length).toBe(2)
   await quiet(s)
 })
@@ -550,7 +566,7 @@ test('a mixer that stops by itself after its idle limit is started again with so
   s.mixers[0]!.wake?.()
   await s.advance(WATCH_MS + 10)
   expect(s.mixers[0]!.ended).toBe(true)
-  expect(s.notes()).toEqual([expect.stringMatching(/sound: the mixer stopped after 20 s with no command; the next sound starts it again$/)])
+  expect(s.notes()).toEqual([expect.stringMatching(new RegExp(`sound: the mixer stopped after ${QUIET_MS / 1000} s with no command; the next sound starts it again$`))])
   expect(s.mixers.length).toBe(2)
   expect(ranBy(s).some(line => line.startsWith('bed '))).toBe(true)
   expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).not.toMatch(/stopped:/)
@@ -559,8 +575,104 @@ test('a mixer that stops by itself after its idle limit is started again with so
   s.mixers[1]!.exitCode = 0
   s.mixers[1]!.wake?.()
   await s.advance(WATCH_MS + 10)
-  expect(s.notes().at(-1)).toMatch(/sound: the mixer exited 0; nothing plays until \/bedroom sound on$/)
+  expect(s.notes().at(-1)).toMatch(new RegExp(`sound: the mixer exited 0; the mixer starts again in ${RETRY_MS / 1000} s$`))
   expect(s.mixers.length).toBe(2)
+  await s.advance(RETRY_MS + WATCH_MS)
+  expect(s.mixers.length).toBe(3)
+  await quiet(s)
+})
+
+/** The sound piece's own hooks, by event, as register adds them. */
+function soundHooks(): Map<string, ($: EngineInterface, e: unknown, next: (e: unknown) => unknown) => unknown> {
+  const handlers = new Map<string, ($: EngineInterface, e: unknown, next: (e: unknown) => unknown) => unknown>()
+  hooks(((name: string, fn: never) => void handlers.set(name, fn)) as never)
+  return handlers
+}
+
+test('the session ending, or its desktop window going, fades the mixer out and keeps it out until a window attaches', async () => {
+  if (!BUILT.includes('sound')) return
+  const on = soundHooks()
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  on.get('session.detach')!(s.$, { surface: 'desktop', clientId: 'c1', reason: 'closed' }, e => e)
+  await s.settle()
+  expect(ranBy(s).at(-1)).toBe(`quit ${OFF_FADE_MS}`)
+  await s.advance(10 * WATCH_MS)
+  expect(s.mixers.length).toBe(1)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is on but nothing plays: no desktop window shows this session/)
+  on.get('session.attach')!(s.$, { surface: 'desktop', clientId: 'c2' }, e => e)
+  await s.advance(WATCH_MS)
+  expect(s.mixers.length).toBe(2)
+  expect(ranBy(s).some(line => line.startsWith(`bed ${BANK.cicadas.entries.chorus.bed} `))).toBe(true)
+  on.get('session.end')!(s.$, { reason: 'other', sessionId: 's1' }, e => e)
+  await s.settle()
+  expect(ranBy(s).at(-1)).toBe(`quit ${OFF_FADE_MS}`)
+  await s.advance(10 * WATCH_MS)
+  expect(s.mixers.length).toBe(2)
+  on.get('session.attach')!(s.$, { surface: 'desktop', clientId: 'c3' }, e => e)
+  await quiet(s)
+})
+
+test('pings keep a quiet morning\'s mixer alive, and a mixer silent past its limit with no exit seen is replaced and sent the bed', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 5, weather: 0 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.advance(4 * PING_MS + 10)
+  expect(ranBy(s).filter(line => line === 'ping').length).toBe(4)
+  expect(ranBy(s).filter(line => line.startsWith('bed '))).toEqual([`bed - 0.4900 ${START_FADE_MS}`])
+  expect(s.mixers.length).toBe(1)
+
+  s.mixers[0]!.mute = true
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await s.advance(SILENT_MS + 2 * WATCH_MS)
+  expect(s.mixers.length).toBe(2)
+  expect(s.notes()).toContainEqual(expect.stringMatching(new RegExp(`sound: the mixer has said nothing for ${SILENT_MS / 1000} s; starting another$`)))
+  expect(ranBy(s).filter(line => line.startsWith('bed '))).toEqual([`bed ${BANK.cicadas.entries.chorus.bed} 0.4900 ${START_FADE_MS}`])
+  await quiet(s)
+})
+
+test('one player per session: a newer copy of the mod holding it ends this one\'s, and this one waits for an older copy to fade out', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  expect(s.mixers.length).toBe(1)
+  s.state.set('bedroom-mixer', COPY + 1)
+  await s.advance(WATCH_MS + 10)
+  expect(ranBy(s).at(-1)).toBe(`quit ${OFF_FADE_MS}`)
+  await s.advance(10 * WATCH_MS)
+  expect(s.mixers.length).toBe(1)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/nothing plays: a newer copy of the mod plays it/)
+
+  s.state.set('bedroom-mixer', COPY - 1)
+  await s.advance(WATCH_MS + 10)
+  expect([s.mixers.length, s.state.get('bedroom-mixer')]).toEqual([1, COPY])
+  await s.advance(HANDOVER_MS + WATCH_MS)
+  expect(s.mixers.length).toBe(2)
+  expect(s.state.get('bedroom-mixer')).toBe(COPY)
+  await quiet(s)
+})
+
+test('with sound saved on and nothing started yet, as after a reload, a change of hour starts the mixer and sends the bed', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await (await s.ctx()).save({ sound: true })
+  expect(s.mixers.length).toBe(0)
+  await engineCommand(s.$, await s.ctx(), 'time', ['dusk'])
+  await s.advance(10)
+  expect(s.mixers.length).toBe(1)
+  expect(ranBy(s).filter(line => line.startsWith('bed '))).toEqual([`bed ${BANK.cicadas.entries.chorus.bed} 0.4900 ${START_FADE_MS}`])
+  await s.advance(5 * PING_MS)
+  expect(ranBy(s).filter(line => line === 'ping').length).toBe(5)
   await quiet(s)
 })
 
@@ -829,7 +941,7 @@ test('a failing player becomes one line in the debug log, not an error', async (
   expect(s.plays.length).toBe(1)
   expect(s.notes().length).toBe(1)
   expect(s.notes()[0]).toMatch(/sound: paplay exited 1 playing cicadas\/chorus\.wav: no audio device; nothing plays until \/bedroom sound on$/)
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is on, volume 70, objects on\. .* player: paplay, stopped: paplay exited 1/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is on but nothing plays: paplay exited 1 playing cicadas\/chorus\.wav: no audio device; say \/bedroom sound on to try again, volume 70, objects on\. .* player: paplay, stopped: paplay exited 1/)
   s.exit = 0
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['test'])).toBe('paplay played silence.wav and exited 0')
   await quiet(s)
@@ -857,13 +969,14 @@ test('sound turned on partway through the evening starts both beds where the cro
   Object.assign(sky, { sun: 1, weather: 0 })
   await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
   await s.settle()
-  const beds = ranBy(s).filter(line => line.startsWith('bed '))
-  const turn = (30 / 75) * (Math.PI / 2)
+  const beds = ranBy(s).filter(line => line.startsWith('bed ') || line.startsWith('to '))
+  const turn = ((30 + START_FADE_MS / 60_000) / 75) * (Math.PI / 2)
+  const rest = 45 * 60_000 - START_FADE_MS
   const g = gainOf(70)
-  expect(beds).toEqual([
-    `bed ${BANK.cicadas.entries.chorus.bed} ${(g * Math.cos(turn)).toFixed(4)} 0 ${(g * Math.cos(turn)).toFixed(4)}`,
-    `bed ${BANK.night.entries.katydids.bed} ${(g * NIGHT_LEVEL).toFixed(4)} ${45 * 60_000} ${(g * NIGHT_LEVEL * Math.sin(turn)).toFixed(4)}`,
-  ])
+  expect([beds, s.notes()]).toEqual([[
+    `to ${BANK.cicadas.entries.chorus.bed} ${(g * Math.cos(turn)).toFixed(4)} ${START_FADE_MS} 0.0000 ${rest}`,
+    `to ${BANK.night.entries.katydids.bed} ${(g * NIGHT_LEVEL * Math.sin(turn)).toFixed(4)} ${START_FADE_MS} ${(g * NIGHT_LEVEL).toFixed(4)} ${rest}`,
+  ], []])
   await quiet(s)
 })
 
@@ -979,5 +1092,52 @@ test('from dusk the cicadas give way to the night insects across the whole eveni
   await moveTo(4)
   expect(beds().at(-1)!.split(' ').slice(0, 2)).toEqual(['bed', '-'])
   expect(bedName()).toBe('quiet')
+  await quiet(s)
+})
+
+test('an hour set by command moves the beds over the picture\'s hurried ease; back to the clock mid-evening lands on the clock\'s cross-fade', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand(intoRow(1, 30))
+  onWindows(s)
+  const g = gainOf(70)
+  const lines = (): string[] => ranBy(s).filter(line => /^(bed|to|level) /.test(line))
+  const hold = async (time: string | undefined, sun: number): Promise<void> => {
+    await (await s.ctx()).save({ time })
+    sky.sun = sun
+    rebuild({ ...sky, work: 0, zone: 0, hall: 0 }, s.now(), { hurry: true })
+    await s.advance(PICTURE_LAG_MS + WATCH_MS + 10)
+  }
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await (await s.ctx()).save({ time: 'dusk' })
+  shaderAt(s, sky)
+  await s.advance(10_000)
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  expect(lines()).toEqual([`bed ${BANK.cicadas.entries.chorus.bed} ${g.toFixed(4)} ${START_FADE_MS}`])
+
+  await hold('evening', 1)
+  const evening = lines().at(-1)!.split(' ')
+  expect(evening.slice(0, 3)).toEqual(['bed', BANK.night.entries.katydids.bed, (g * NIGHT_LEVEL).toFixed(4)])
+  expect(Number(evening[3])).toBeGreaterThan(HURRIED_MS - WATCH_MS - 50)
+  expect(Number(evening[3])).toBeLessThanOrEqual(HURRIED_MS)
+
+  await s.advance(15_000)
+  await hold('dusk', 0)
+  const dusk = lines().at(-1)!.split(' ')
+  expect(dusk.slice(0, 3)).toEqual(['bed', BANK.cicadas.entries.chorus.bed, g.toFixed(4)])
+  expect(Number(dusk[3])).toBeLessThanOrEqual(HURRIED_MS)
+
+  await s.advance(15_000)
+  await hold('evening', 1)
+  await s.advance(15_000)
+  const before = lines().length
+  await (await s.ctx()).save({ time: undefined })
+  await s.advance(WATCH_MS + 10)
+  const back = lines().slice(before)
+  expect(back.map(line => line.split(' ').slice(0, 2).join(' '))).toEqual([`to ${BANK.cicadas.entries.chorus.bed}`, `to ${BANK.night.entries.katydids.bed}`])
+  const [cicadas, night] = back.map(line => line.split(' ').slice(2).map(Number))
+  expect(cicadas![0]! > 0 && cicadas![0]! < g).toBe(true)
+  expect(night![0]! > 0 && night![0]! < g * NIGHT_LEVEL).toBe(true)
+  expect([cicadas![1], cicadas![2], night![1], night![2]]).toEqual([HURRIED_MS, 0, HURRIED_MS, Number((g * NIGHT_LEVEL).toFixed(4))])
   await quiet(s)
 })
