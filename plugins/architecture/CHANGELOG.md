@@ -3,6 +3,16 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.2] - 2026-11-21
+
+### Security
+
+- **The deepening report checks its CDN files.** The `/architecture:improve` report's Tailwind and
+  Mermaid `<script>` tags carry `crossorigin="anonymous"` and an `integrity` hash of each exact
+  pinned file, so a changed or republished file at the pinned URL does not run. The skill's
+  restatement of the rendered-views baseline carries the new rule.
+  ([#17718](https://github.com/melodic-software/claude-code-plugins/issues/17718))
+
 ## [5.6.1] - 2026-11-21
 
 ### Changed
