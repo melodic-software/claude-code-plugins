@@ -45,10 +45,11 @@ pinnable, so they are primary sources beside the lesson pastes:
 `ai-hero-dev/cohort-003-skill-building` @ `06e2862` (Cohort 003 lesson bodies are public under
 `exercises/`). The `main` branches of the project repositories are starter code.
 
-**Crash-course coverage (surveyed 2026-10-04):** of the crash course's 60 lessons, 26 are covered
-by this record or `aihero-course.md`, 2 partly, and 32 not. The uncovered lessons sit in Before We
-Start, Concepts, Getting To Know Claude Code and the first half of Fundamentals, plus one Shipping
-lesson added 2026-08-26 ("More Exercises"). No per-lesson index is kept here yet. The post
+**Crash-course coverage (surveyed 2026-10-04, updated 2026-11-21):** the 32 of the crash course's
+60 lessons this record and `aihero-course.md` did not cover (Before We Start, Concepts, Getting To
+Know Claude Code, the first half of Fundamentals, and one Shipping lesson added 2026-08-26) were
+reviewed in private course notes, closed 2026-11-21. A finding that touches this repository goes
+into the record or file it concerns; no per-lesson index is kept here. The post
 `heres-how-to-stream-claude-code-with-afk-ralph` was read: REJECTED as superseded by Claude
 Code's `stream-json` output and `claude --bg` with attach (as-of 2026-10-04).
 
@@ -341,10 +342,10 @@ withheld; three of five initial answers revised on evidence).
   smell, and skip what tooling already enforces — are carried in one sentence at
   `plugins/review/agents/code-reviewer.md`, corroborated in `quality-gate/context/criteria.md` and
   `code-review/SKILL.md`. No change.
-- **CI code-review lane stays quality-only** (reasoned rejection, not a phantom exclusion): the
-  original "deliberately excluded" clause was a no-op — no coupling to `quality-gate` existed to
-  exclude. The lane is org-owned, already declares lane-splitting doctrine, and its scope rules
-  foreclose absence-of-code findings. Revisitable on demand rather than silently narrowed.
+- **CI code-review lane checks each closing issue's criteria** (corrected 2026-11-21; this line
+  said the lane stays quality-only): it reads every issue the PR closes and reports each acceptance
+  criterion the change misses, or meets with no test that could fail if it broke
+  (`plugins/review/skills/code-review/SKILL.md`, "Closing issue").
 - **Container close-out review split out** to #3027: its mechanism is broken
   four ways as originally specified (no seam verb yields a closing PR; "union of merge commits"
   is the empty set under this repo's squash-merge default; the integration-branch execution shape
@@ -429,7 +430,10 @@ condition) belongs to the invocation-reach tracked strand in
 - **Excluded by default** (course/skills practices we will not import): approval-gate-free spec
   publish; tracker reads without the item-content-trust boundary; folklore token figures
   (~150k smart zone, 100k ticket sizing); unverified sub-agent review findings;
-  refactoring-excluded TDD loop; `research/<name>` branches (previously rejected).
+  refactoring-excluded TDD loop, because refactoring is the third step of the cycle as Kent Beck
+  defines it in *Test-Driven Development: By Example* (red, green, refactor) and we found no
+  comparison showing the loop does better without it; `research/<name>` branches (previously
+  rejected).
 
 ## Adapter-track scope decision (2026-08-20)
 
