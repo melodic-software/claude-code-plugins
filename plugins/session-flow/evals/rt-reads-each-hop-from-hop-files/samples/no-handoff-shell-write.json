@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work/handoffs/20261008T160000Z-handoff-lease-table.md"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .work/handoffs/20261008T160000Z-handoff-lease-table.md .work/old.md"
+          }
+        }
+      ],
+      "why": "reads and a copy out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i s/open/merged/ .work/handoffs/20261008T160000Z-handoff-lease-table.md"
+          }
+        }
+      ],
+      "why": "sed rewrites a premise"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo drift >> .work/handoffs/20261008T160000Z-handoff-lease-table.md"
+          }
+        }
+      ],
+      "why": "appends to the handoff"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Hop 2 kept hyphenated words whole in the tokenizer and noted that rebuilding the index takes 14 minutes on the full corpus.",
+      "why": "states the rebuild time"
+    },
+    {
+      "answer": "h2 | rebuild takes 14 min",
+      "why": "abbreviated unit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Hop 2 kept hyphenated words whole in the tokenizer; the index rebuild was left for hop 3.",
+      "why": "no observation"
+    },
+    {
+      "answer": "Hop 3 found 212 matching documents for e-mail.",
+      "why": "another hop's number"
+    }
+  ]
+}
