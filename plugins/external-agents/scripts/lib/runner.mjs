@@ -249,8 +249,10 @@ const errLines = (job, state) => `job: ${job.id}\n${noticeLines(job.notices, sta
 
 function stopped(name, error, review, state) {
   const product = name ?? "external-agents";
-  if (!(error instanceof Stop)) throw error;
   const stderr = state ? noticeLines(state.notices, state.announced) : "";
+  if (!(error instanceof Stop)) {
+    return { code: EXIT.failed, stdout: `${product}: failed (${oneLine(error?.message ?? error)})\n`, stderr: `${stderr}${error?.stack ?? error}\n` };
+  }
   const code = error.kind === "refused" ? EXIT.usage : error.kind === "failed" ? EXIT.failed : EXIT.unavailable;
   const why = oneLine(error.message);
   if (review) return { code, stdout: `${product}: ${["refused", "failed"].includes(error.kind) ? "failed" : "skipped"} (${why})\n`, stderr };

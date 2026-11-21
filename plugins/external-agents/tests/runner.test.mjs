@@ -765,6 +765,37 @@ describe("the command", () => {
   });
 });
 
+describe("a review that hits an unexpected error", () => {
+  const firstLine = /^codex: failed \([^\n]+\)\n$/;
+
+  test("an unusable data directory still gives the status line, the detail on stderr and a non-zero exit", async () => {
+    const w = world({ stdout: clean, final: "x" });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    const file = join(w.cwd, "a.txt");
+    const got = await review({ ...w.opts, dataDir: join(file, "x"), base: "main" });
+    assert.match(got.stdout, firstLine);
+    assert.match(got.stderr, /ENOTDIR|ENOENT|EEXIST/);
+    assert.equal(got.code, 1);
+
+    const bin = join(here, "..", "bin", "external-agents");
+    const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
+    const cli = spawnSync(process.execPath, [bin, "review", "codex", "--base", "main"], { encoding: "utf8", cwd: w.cwd, env: { ...bare, CLAUDE_PLUGIN_DATA: join(file, "x") } });
+    assert.match(cli.stdout, firstLine);
+    assert.equal(cli.status, 1);
+  });
+
+  test("a corrupt breaker file still gives the status line", async () => {
+    const w = world({ stdout: clean, final: "x" });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    mkdirSync(join(w.dataDir, "breaker"));
+    writeFileSync(join(w.dataDir, "breaker", "codex.json"), "{not json");
+    const got = await review({ ...w.opts, base: "main" });
+    assert.match(got.stdout, firstLine);
+    assert.equal(got.code, 1);
+    assert.equal(w.calls().length, 0);
+  });
+});
+
 describe("robustness", () => {
   test("a denied command holding a newline stays on the one status line", async () => {
     const denied = { type: "item.completed", item: { id: "item_1", type: "command_execution", command: "echo one\necho two > x.txt", aggregated_output: "Access is denied", exit_code: 1, status: "failed" } };
