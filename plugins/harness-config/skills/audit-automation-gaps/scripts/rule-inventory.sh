@@ -269,7 +269,8 @@ for f in .claude/ecosystems/*.yaml; do
     block { l = val($0); if (l != "" && l !~ /^#/) print block "\t" l; next }
     /^(check|test|build|fix)-cmd:/ {
       k = $0; sub(/:.*/, "", k); v = $0; sub(/^[^:]*:/, "", v); v = val(v)
-      if (v !~ /^["\047]/) sub(/[[:space:]]+#.*$/, "", v)
+      if (v ~ /^#/) v = ""
+      else if (v !~ /^["\047]/) sub(/[[:space:]]+#.*$/, "", v)
       if (v == "|" || v == ">" || v == "|-" || v == ">-") { block = k; next }
       if (v == "" || v == "null" || v == "~") next
       if (match(v, /^"[^"]*"/) && substr(v, RLENGTH + 1) ~ /^([[:space:]]+#.*)?$/ ||

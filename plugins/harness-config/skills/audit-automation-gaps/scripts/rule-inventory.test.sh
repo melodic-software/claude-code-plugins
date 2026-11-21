@@ -139,6 +139,10 @@ check-cmd: |
   shfmt -d <files>
 fix-cmd: "shfmt -w <files>" # shellcheck has no fix mode
 EOF
+cat >"$D/.claude/ecosystems/docs.yaml" <<'EOF'
+globs: ["*.md"]
+fix-cmd: # no formatter wired
+EOF
 cat >"$D/docs/conventions/harness-config.yaml" <<'EOF'
 rule_inventory:
   declared:
@@ -182,6 +186,7 @@ assert_line "D: test-cmd" "$rows" "$(printf 'shell test-cmd: bash run-tests.sh\t
 assert_line "D: fix-cmd is the formatter rung, not a check rung" "$rows" "$(printf 'shell fix-cmd: shfmt -w <files>\t.claude/ecosystems/shell.yaml\tformatter\t2')"
 assert_no "D: no analyzer-pack-rule row carries fix-cmd" "$(grep -F "	analyzer-pack-rule	" <<<"$rows")" "fix-cmd"
 assert_no "D: a null command with a trailing comment records nothing" "$rows" "build-cmd"
+assert_no "D: a comment-only command value records nothing" "$rows" "docs fix-cmd"
 assert_line "D: alias read as new id" "$rows" "$(printf 'no eval of request text\tdeclared in docs/conventions/harness-config.yaml\tsyntax-pattern-rule\t2')"
 assert_no "D: unknown rung not emitted" "$rows" "bogus-rung"
 assert_line "D: paragraph joined" "$rows" "$(printf 'One paragraph that wraps onto a second line is one rule.\tCLAUDE.md:19\tinstruction\t4')"
