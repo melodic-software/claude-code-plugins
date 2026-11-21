@@ -104,6 +104,7 @@ jobs:
             /.github/actions/setup-pinned-node/
             /.node-version
             /.github/actions/log-api-budget/
+            /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
@@ -111,12 +112,25 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
+      - name: Read the defer override from the base config
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
+
+      # A first attempt defers (cause defer) while the GITHUB_TOKEN window is
+      # projected to run short before the review ends; the stop below names
+      # the reset, and the lost-run reconciler re-runs the run once after it
+      # (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
+      # A re-run attempt never defers.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          defer: "true"
+          defer-job: review
+          resolved-config: ${{ runner.temp }}/defer-config.json
 
       # Skips the run while Actions or npm installs list an outage, with a
       # logged reason; fails open (.github/actions/check-upstream-status).
@@ -132,9 +146,10 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          RESET: ${{ steps.kill.outputs.reset }}
           LANE_SWITCH: ${{ vars.CLAUDE_REVIEW_DISABLED }}
         run: |
-          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause=${CAUSE:-unreadable} reset=${RESET:-none}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
 
       # A skip fails this job, so the run is a failed first attempt: the
       # lost-run reconciler re-runs it once GitHub Actions is operational

@@ -403,6 +403,11 @@ test("the resolved config overrides the shipped share and horizon", async () => 
   assert.equal((await runMain(DEFER, reading(2000, 1800), { resolved: config({ "defer-project": 0.25, "defer-run-minutes": 5 }) })).outputs.cause, "ok", why);
 });
 
+test("the shipped horizon for defer-job review is 11 minutes, the hosted reviews' measured p90", async () => {
+  const gate = await deferGate({ rateLimits: SHIPPED_LIMITS, job: "review", log: () => {} });
+  assert.deepEqual([gate.minutes, gate.labels.minutes], [11, "defer-run-minutes-review"]);
+});
+
 test("the shipped horizon for defer-job pr-merge is 6 minutes, and an unset job key reads defer-run-minutes", async () => {
   assert.equal((await deferGate({ rateLimits: SHIPPED_LIMITS, job: "pr-merge", log: () => {} })).minutes, 6);
   const other = await deferGate({ rateLimits: SHIPPED_LIMITS, job: "pr-verify", log: () => {} });
@@ -506,9 +511,9 @@ const GATES = {
   "pr-dispatch-feedback.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
   "pr-merge.yml": { "dispatch-post-merge-runs": "switch", merge: "switch", "enable-auto-merge": "defer" },
   "pr-rate-merge-risk.yml": { "rate-merge-risk": "switch", "rate-merge-risk-subscription": "switch", "rate-merge-risk-fallback": "switch" },
-  "pr-review-hosted.yml": { "check-kill-switch": "switch" },
+  "pr-review-hosted.yml": { "check-kill-switch": "defer" },
   "pr-review-main.yml": { "check-trigger": "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
-  "pr-review-security-hosted.yml": { "check-kill-switch": "switch" },
+  "pr-review-security-hosted.yml": { "check-kill-switch": "defer" },
   // check-broker reads the budget only for a caller passing start-gate, and
   // only on a call that is the first in its slot (FIRST_CALL).
   "pr-run-activity-read.yml": { "check-broker": "first-call", run: "switch" },
@@ -542,7 +547,11 @@ const GATES = {
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
 
-const DEFER_INPUT = /^ {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}$/m;
+const DEFER_INPUTS = {
+  "pr-merge.yml": /^ {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}$/m,
+  "pr-review-hosted.yml": /^ {10}defer: "true"$/m,
+  "pr-review-security-hosted.yml": /^ {10}defer: "true"$/m,
+};
 const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
 const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
 
@@ -604,7 +613,8 @@ test("every gate in the workflows is classified, and only start gates read the b
         assert.match(step, FIRST_CALL, `${file} ${job} starts new work on a starting caller's first call only`);
         assert.match(step, FIRST_CALL_PROJECT, `${file} ${job} projects the window on a starting caller's first call only`);
       } else if (kind === "defer") {
-        assert.match(step, DEFER_INPUT, `${file} ${job} defers its PR-scoped run only`);
+        assert.match(step, DEFER_INPUTS[file], `${file} ${job} defers only the runs a later run recovers`);
+        assert.match(step, /^ {10}resolved-config: \$\{\{ runner\.temp \}\}\/defer-config\.json$/m, `${file} ${job} reads the repository's override`);
         assert.match(step, /^ {10}defer-job: [a-z0-9-]+$/m, `${file} ${job} names its horizon key`);
         assert.doesNotMatch(step, /^ {10}defer-minutes:/m, `${file} ${job} reads its horizon from the config`);
         assert.doesNotMatch(step, /budget:|project:/, `${file} ${job} reads no start-gate floor`);

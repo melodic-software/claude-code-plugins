@@ -340,6 +340,15 @@ test("a head whose ci-lanes passed, is pending, is missing or came from another 
   assert.deepEqual(result.dispatched, []);
 });
 
+// A review the defer gate stopped turns ci-status red on its review-stop note
+// while the lanes pass: no fix-ci round, since the reconciler re-runs the
+// review after the reset (https://github.com/melodic-software/claude-code-plugins/issues/17460, assumption A4).
+test("a head whose ci-status failed only on a stopped review, with ci-lanes passed, gets no fix-ci round", async () => {
+  const { api, result } = await run({ pages: [[pr(7, { checks: [check("ci-status", "FAILURE", { title: "a kill switch was on when it started" }), lanes("SUCCESS")] })]] });
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
 test("a head that already has a fix-ci run is skipped, unless every run failed within the restart count", async () => {
   const fix = (conclusion, extra) => check("pr-unblock / fix-ci", conclusion, extra);
   const failed = lanes("FAILURE");

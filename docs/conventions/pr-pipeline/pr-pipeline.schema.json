@@ -576,6 +576,11 @@
           "minimum": 1,
           "description": "github-token only. The horizon in whole minutes of pr-merge's PR-scoped arm run (its gate's defer-job pr-merge), the p90 of that run's measured time; replaces defer-run-minutes for it."
         },
+        "defer-run-minutes-review": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "github-token only. The horizon in whole minutes of a hosted review run (its callers' gates' defer-job review), the p90 of that run's measured time; replaces defer-run-minutes for it."
+        },
         "read-floor": {
           "type": "number",
           "minimum": 0,
