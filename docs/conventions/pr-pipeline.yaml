@@ -1636,8 +1636,9 @@ merge:
     max-skips: 3
   # pr-verify FAILs at this many distinct heads of one PR hold it, never to
   # merge unattended (owner decision 2026-10-21), when one stands at its
-  # head, superseded or not; FAILs at earlier heads alone leave a pass at
-  # the head to decide (owner decision Q245,
+  # head and is not superseded there; a superseded FAIL at the head, or
+  # FAILs at earlier heads alone, leave a pass at the head to decide (owner
+  # decision Q245,
   # https://github.com/melodic-software/claude-code-plugins/issues/17646). The
   # pr-merge lane closes a lanes App one for a fresh attempt at its issue,
   # and address-feedback and fix-ci start no more rounds on it (owner

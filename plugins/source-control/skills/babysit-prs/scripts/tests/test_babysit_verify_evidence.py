@@ -1261,7 +1261,9 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
     changed there and it passed again, when every body edit and issue connect
     or disconnect from the FAIL's creation to the pass's start was a trusted
     person's; any other actor, a read that fails or the same linked issues
-    keep it. It still counts toward the FAIL cap, and a merge-only head
+    keep it. At its own head it counts as a clean head, so the FAIL cap
+    does not refuse there (#17646); it still counts toward the cap when a
+    later head FAILs, and a merge-only head
     carries it forward unless it was superseded at its own head or by the
     merge-only head's own pass under the same rule, which there also needs a
     trusted body edit."""
@@ -1373,21 +1375,39 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         fake.records[name] = record(99, verdict="fail", linked_issues=[])
         self.assertEqual(read(fake).refusal, "verify:fail")
 
-    def test_a_superseded_fail_at_the_head_at_the_cap_stays_capped(self) -> None:
-        fake = self.relinked()
-        with (
-            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
-            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
-        ):
-            reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
-            evidence = reader.evidence(PR, HEAD, pull())
+    def test_a_superseded_fail_at_the_head_at_the_cap_lets_the_pass_decide(
+        self,
+    ) -> None:
+        """#17646: supersession is judged before the cap, so a superseded
+        FAIL at the head counts as a clean head; the same FAIL not superseded
+        stays capped."""
+
+        def evidence_at_cap_one(fake: FakeGitHub) -> ve.Evidence:
+            with (
+                mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+                mock.patch.object(
+                    ve, "gh_api_with_headers", side_effect=_page_with_date
+                ),
+            ):
+                reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
+                return reader.evidence(PR, HEAD, pull())
+
+        evidence = evidence_at_cap_one(self.relinked())
+        self.assertIsNone(evidence.refusal)
+        self.assertIs(evidence.report()["supersededAtHead"], True)
+        unanswered = self.relinked()
+        unanswered.relink = relink_answer()
+        evidence = evidence_at_cap_one(unanswered)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertIs(evidence.report()["supersededAtHead"], False)
 
-    def test_fails_at_three_earlier_heads_cap_a_head_fail_superseded_or_not(
+    def test_fails_at_three_earlier_heads_cap_only_a_head_fail_not_superseded(
         self,
     ) -> None:
+        """#17646's reader test: the same history where the head's FAIL is
+        superseded does not yield `verify:repeated-fail`."""
+
         def history() -> FakeGitHub:
             fake = self.relinked()
             for i, sha in enumerate((EARLIER, IN_PR, UNRELATED), start=3):
@@ -1396,8 +1416,8 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             return fake
 
         evidence = read(history())
-        self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertIs(evidence.report()["supersededAtHead"], False)
+        self.assertNotEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertIs(evidence.report()["supersededAtHead"], True)
         unanswered = history()
         unanswered.relink = relink_answer()
         self.assertEqual(read(unanswered).refusal, "verify:repeated-fail")
@@ -1568,15 +1588,27 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         )
         self.assertIs(read(merge_only).report()["supersededAtHead"], False)
 
-    def test_the_cap_is_judged_before_a_superseded_fail_at_the_head(self) -> None:
-        fake = self.edited()
-        with (
-            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
-            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
-        ):
-            reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
-            evidence = reader.evidence(PR, HEAD, pull())
+    def test_a_superseded_fail_at_the_head_is_judged_before_the_cap(self) -> None:
+        """#17646: a body-fixed FAIL at the head counts as a clean head, so
+        the cap does not refuse it; an App edit keeps the FAIL capped."""
+
+        def evidence_at_cap_one(fake: FakeGitHub) -> ve.Evidence:
+            with (
+                mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+                mock.patch.object(
+                    ve, "gh_api_with_headers", side_effect=_page_with_date
+                ),
+            ):
+                reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
+                return reader.evidence(PR, HEAD, pull())
+
+        evidence = evidence_at_cap_one(self.edited())
+        self.assertIsNone(evidence.refusal)
+        self.assertIs(evidence.report()["supersededAtHead"], True)
+        evidence = evidence_at_cap_one(
+            self.edited(relink_answer([(RELINK_AT, LANES_ACTOR)]))
+        )
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertIs(evidence.report()["supersededAtHead"], False)
 

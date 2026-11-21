@@ -46,12 +46,11 @@ failed read, a list cut short or no such run keeps the FAIL.
   at least one from the first FAIL's creation for a pass that records other
   linked issues than each FAIL does (a relink), else at least one body edit
   from the last FAIL's creation (a body fix judged at the same head).
-  The cap is judged before supersession, so a capped head stays capped
-  (`VERIFY_FINAL`). Under the cap a superseded FAIL refuses nothing at its
-  own head, and the passes then decide as below; it still counts toward
-  `max_fails`, at its own head and when a later head FAILs. The report's
-  `supersededAtHead` names it, false when the cap decided, for pr-unblock to
-  resolve that FAIL's fail-note threads. Any record,
+  Supersession is judged before the cap (#17646): a superseded FAIL counts
+  as a clean head at its own head, so it refuses nothing there, neither cap
+  applies, and the passes then decide as below; it still counts toward
+  `max_fails` when a later head FAILs. The report's `supersededAtHead` names
+  it, for pr-unblock to resolve that FAIL's fail-note threads. Any record,
   time or read that fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -146,7 +145,8 @@ https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 and `verify:too-old` wait for the lanes to judge the head again.
-`verify:repeated-fail` never clears at its FAILed head (`VERIFY_FINAL`), so
+`verify:repeated-fail` clears at its FAILed head only when that FAIL is
+later superseded there; otherwise it stands (`VERIFY_FINAL`), so
 the gate never merges such a pull request unattended: the pr-merge lane
 closes a lanes App one for a fresh attempt (`capped_close`), and
 address-feedback and fix-ci start no
@@ -4372,20 +4372,21 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
+        # Supersession is judged before the cap (#17646): a superseded FAIL
+        # here counts as a clean head, so neither cap refuses at it.
         head_superseded = head in failed and superseded(head)
-        if head in failed and len(failed) >= self.max_fails:
+        head_failed = head in failed and not head_superseded
+        if head_failed and len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-            head_superseded = False
         elif (
-            head in failed
+            head_failed
             and len(heads := failed | elsewhere()[1]) >= self.max_fails
         ):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             refusal, detail = REPEATED_FAIL, capped(heads)
-            head_superseded = False
-        elif head in failed and not head_superseded:
+        elif head_failed:
             refusal = FAIL
         elif fails and (
             not self._passes_follow(fails, passes)

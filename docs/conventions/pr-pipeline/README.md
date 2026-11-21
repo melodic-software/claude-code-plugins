@@ -3010,10 +3010,11 @@ head:
   relink), else at least one body edit from the last `fail`'s run's creation (a body fix). The
   lanes App, any other Bot, an actor GitHub cannot name, a read that fails or is cut short, a time
   that cannot be read, or the same linked issues with no body edit keep the refusal. Both the
-  resolver and the gate read these acts in one GraphQL query, only on this path. The cap is judged before supersession, so a capped head stays
-  capped: the pr-unblock dispatchers record it as handled. Under the cap a superseded `fail`
-  refuses nothing at its own head, and the passes then decide as below; it still counts toward
-  `merge.max-verify-fails`, at its own head and when a later head fails. A judgment on an older listing (pr-merge's provisional one) can
+  resolver and the gate read these acts in one GraphQL query, only on this path. Supersession is judged before the cap
+  ([#17646](https://github.com/melodic-software/claude-code-plugins/issues/17646)): a superseded
+  `fail` counts as a clean head at its own head, so it refuses nothing there, neither cap applies,
+  and the passes then decide as below; it still counts toward `merge.max-verify-fails` when a
+  later head fails. A judgment on an older listing (pr-merge's provisional one) can
   still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from
