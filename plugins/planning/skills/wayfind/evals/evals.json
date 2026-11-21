@@ -365,10 +365,11 @@
       "id": 30,
       "name": "build-set-closes-to-plan-and-keeps-dossier-branch",
       "prompt": "/planning:wayfind work 'Map: module extraction' (#600). Destination: a set of build items for the first module extraction. Every item is closed, the frontier and Not-yet-specified are empty, and the map has a dossier branch, dossier/600-module-extraction. The decisions are architectural choices, not yet a list of slices. Close the map and hand it on.",
-      "expected_output": "The closing comment states every decision in full and names the dossier branch. The map closes to /planning:plan, with the decisions as its task description, then /work-items:decompose from that plan, not straight to decompose, since the decisions do not yet read as slices. The dossier branch is kept until the destination's container closes, not deleted at map close.",
+      "expected_output": "The closing comment states every decision in full and names the dossier branch. The map closes to /planning:plan, with the decisions as its task description, then /work-items:decompose from that plan, not straight to decompose, since the decisions do not yet read as slices. The task description carries a 'Source map: #600' line. The dossier branch is kept at map close, for /work-items:decompose to handle when it publishes from the plan.",
       "files": [],
       "expectations": [
         "Output hands the decisions to /planning:plan first, then /work-items:decompose from the plan",
+        "The task description handed to /planning:plan carries a 'Source map: #600' line",
         "The closing comment names the dossier branch dossier/600-module-extraction",
         "Output does not delete the dossier branch when the map closes"
       ]
@@ -409,6 +410,18 @@
         "The Formly item covers which fields cross and under what agreement",
         "Output creates one item for those questions, not a separate item per question",
         "Output says the item's resolution feeds the PRD"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "decision-record-close-runs-dossier-branch-step",
+      "prompt": "/planning:wayfind work 'Map: session token storage' (#800). Destination: a decision record. Every item is closed, the frontier and Not-yet-specified are empty, and the map has a dossier branch, dossier/800-session-token-storage. I'm here to answer. Close the map and hand it on.",
+      "expected_output": "A decision record creates no container, so no container close will ever delete the dossier branch. Map close runs the dossier-branch step itself: before posting the closing comment it calls /work-items:track dossier-branches for map #800, without --unattended since the user is present, and the closing comment carries that step's report. The decisions go to /architecture:record-decision or the repository's ADR convention. The reply neither keeps the branch waiting for a container nor deletes it outside that step.",
+      "files": [],
+      "expectations": [
+        "Output calls /work-items:track dossier-branches for map #800 at map close, before or in the closing comment",
+        "Output does not keep the dossier branch until a container closes",
+        "Output does not delete dossier/800-session-token-storage outside the dossier-branch step"
       ]
     }
   ]

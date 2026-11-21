@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/planning:plan with task description: Decisions: ... Source map: #600",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/planning:plan with the closing comment's decisions as its task description.",
+      "why": "does not match"
+    }
+  ]
+}

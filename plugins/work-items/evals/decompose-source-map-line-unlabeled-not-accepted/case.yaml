@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-source-map-line-unlabeled-not-accepted
+graders:
+  - name: 'names-unaccepted-line'
+    type: 'regex'
+    pattern: 'Source map\W{0,8}#?512\b[\s\S]{0,300}?(?:\bnot\W{1,3}(?:be\W{1,3})?accept|\bunaccepted|\brejected|\bignored)|(?:\bnot\W{1,3}(?:be\W{1,3})?accept|\bunaccepted|\brejected|\bignored)[\s\S]{0,300}?Source map\W{0,8}#?512\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Treats the PLAN.md line Source map: #512 as data to check, reading item 512''s labels and the prefix the wayfind-labels verb prints (wayfind:), rather than trusting the line ; (2) Does not accept the line, because item 512 carries no wayfind: map label ; (3) No create-item call carries --parent naming item 512, and no item body opens its Parent line with Refs #512 ; (4) Runs no dossier-branch step for item 512 ; (5) The Step 5 report names the Source map: #512 line as not accepted and says why (item 512 lacks the wayfind: map label). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
