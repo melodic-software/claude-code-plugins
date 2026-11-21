@@ -10,14 +10,16 @@ none of its text or code is copied).
 
 ## Status
 
-In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work; the Codex skill and
-council's switch-over follow in later changes.
+In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work, and
+`/external-agents:codex` drives them.
 
 ## Surface
 
 - **`external-agents`**, on the Bash `PATH` while the plugin is enabled: `run`, `review`, `status`,
   `result`, `cancel` and `update`. `review:council` calls `external-agents review <product>`; nothing
   outside this plugin reads its install path or its scripts.
+- **`/external-agents:codex`**: hands a task, an investigation or a review to Codex, in the
+  foreground or background, and reads back, resumes or cancels its jobs.
 - No hooks, no agents and no `commands/` folder: nothing runs until you or a council run asks.
 
 claude.ai organization plugin sync skips this plugin, because it ships a top-level `bin/`
