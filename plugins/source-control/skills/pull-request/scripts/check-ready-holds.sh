@@ -83,6 +83,7 @@ reasons=$(jq -r --argjson unattended "$UNATTENDED" '
 
 refs=$(jq -r '.closingIssuesReferences[]? | [(.url | capture("^https?://(?<h>[^/]+)/").h), "\(.repository.owner.login)/\(.repository.name)", (.number | tostring)] | @tsv' <<<"$facts") ||
   die 2 "cannot parse the closing issue references"
+refs=${refs//$''/}
 
 while IFS=$'\t' read -r host path num; do
   [[ -n "$num" ]] || continue
