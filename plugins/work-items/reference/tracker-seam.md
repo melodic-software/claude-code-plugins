@@ -49,8 +49,8 @@ routes rather than halting unconditionally.
     without a binding: the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
-    arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run** → run
-    `/work-items:setup` to bind the provider; **(2) a deliberate gh-native operating mode** → the lane
+    arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run**, so run
+    `/work-items:setup` to bind the provider; **(2) a deliberate gh-native operating mode**, so the lane
     may proceed for provider-mechanic operations only, accepting that **no race-safe claim/lease is
     available**. The seam coordination verbs stay unavailable and claim collisions become the
     operator's responsibility.
@@ -153,10 +153,10 @@ repo-specific axes carrying this repo's concrete values. Members are **not** sna
 discover them live through the bound tracker adapter. When the consuming repository declares a
 label-as-code source of truth, that system owns writes and this skill remains read-only. The **type
 axis may be a native GitHub Issue Type** (`Bug`/`Feature`/`Task`) when the repository exposes it;
-otherwise use the repository's live `type:` labels. Four labels, `autonomous-eligible`,
-`human-gated`, `recurring-maintenance` and `owner-decision`, are **canonical roles** whose repo-actual strings resolve
+otherwise use the repository's live `type:` labels. Five labels, `autonomous-eligible`,
+`human-gated`, `recurring-maintenance`, `owner-decision` and `session-owned`, are **canonical roles** whose repo-actual strings resolve
 from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs-human` /
-`recurring` / `needs-owner-decision`; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+`recurring` / `needs-owner-decision` / `session-owned`; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
 "Canonical roles"). The grammar and citations live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 
@@ -165,7 +165,7 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task`, the kind of issue; commit-type granularity stays at the commit layer |
 | Priority | `Priority` issue field (org) · `priority:` label (no such field) | universal | urgency, members from the live set; written per "Setting an item's priority" below |
 | Status | `status:` | universal | exception + gate flags only (e.g. `confirmed`, `ready`); claim = assignee + lease, blocked = native edge (neither is a label). the triage floor is the bare label `needs-triage`, not a status or priority value; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
-| Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`, `needs-owner-decision`) |
+| Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`, `needs-owner-decision`, `session-owned`) |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Category | `category:` | repo-specific | the consuming repo's domain categorization, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Ecosystem | `ecosystem:` | repo-specific | the consuming repo's language/toolchain mix, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |

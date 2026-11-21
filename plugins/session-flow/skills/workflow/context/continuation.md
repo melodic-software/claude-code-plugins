@@ -26,8 +26,7 @@ and response quality). The zone word reports room only. Context-usage's evidence
 for this session (`evidence_degraded` in the status tool), or other knowledge that the session was
 compacted, is a separate fact read beside it: earlier conversation survives only as a summary, so
 constraints stated only in conversation may be gone. The marker alone does not make a light zone
-degraded; it keys the human-stage handoff rule below, and decay in the answers since still counts
-as degraded. A release from before the zone words were renamed reports `smart`, `acceptable` and
+degraded, and decay in the answers since still counts as degraded. A release from before the zone words were renamed reports `smart`, `acceptable` and
 `dumb`; read them as `light`, `moderate` and `heavy`.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)
@@ -108,10 +107,7 @@ boundary.
    *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone
    says. The zero-cost exit for everything questions 1 and 2 didn't
    already claim; every other remaining mechanism spends setup cost or loss. In a degraded zone
-   only mechanical, low-judgment steps qualify as "simple enough". Within a still-healthy zone,
-   prefer continue when the next stage consumes this stage's reasoning verbatim, because a summary of the
-   reasoning is not the reasoning; this never overrides a degraded zone, where the questions
-   below choose the route.*
+   only mechanical, low-judgment steps qualify as "simple enough".*
 4. **Is this session's context disposable: the next work is unrelated and nothing from this
    session carries over to anything, in an attended session the next work item's durable artifacts (its ticket, spec, plan
    or decomposed item on disk) already hold everything it needs, or two corrections on the same
@@ -131,12 +127,15 @@ boundary.
      <https://code.claude.com/docs/en/checkpointing#rewind-and-summarize>; what is not restored
      <https://code.claude.com/docs/en/checkpointing#limitations>; snapshot retention
      <https://code.claude.com/docs/en/checkpointing#automatic-tracking>
-5. **Does the work leave this session, is a finished spec or plan moving into execution, or is
-   the next work unrelated while something from this session still carries over?** →
+5. **Does the work leave this session, is this a phase or task boundary with the next phase or
+   task next in sequence (a finished spec or plan moving into execution among them), or is the
+   next work unrelated while something from this session still carries over?** →
    `session-flow:handoff`, then the user `/clear`s, first naming this session with `/rename <name>`
    when they may want it back through `/resume`. *Leaving means another agent, another
-   checkout, a colleague, another machine, or a break longer than the prompt cache lasts. We
-   execute a finished spec or plan in a new session. Switching to unrelated work with a follow-up,
+   checkout, a colleague, another machine, or a break longer than the prompt cache lasts. A phase
+   or task boundary is the end of one stage, plan phase or task with the next one starting: the
+   interview into design, one plan phase into the next, a finished spec or plan into execution.
+   Each starts in a new session from the handoff, whatever the zone. Switching to unrelated work with a follow-up,
    an open item or a finding still owed hands off rather than clears, so that state survives the
    reset. This is the first mechanism that pays a write cost without a live continuation attached:
    a handoff carries forward exactly the state that matters.* The skill ships in this plugin, so it
@@ -144,23 +143,11 @@ boundary.
    has a tool that starts another session (the Claude desktop app's Code tab), name the handoff's
    sibling-session delivery instead of the `/clear`: the user starts a fresh session from the
    resume prompt ([sibling-session-delivery.md](../../../reference/sibling-session-delivery.md)).
-   At a boundary
-   between two human stages, the rule below narrows this edge.
-6. **Fallthrough: the next work is in the same phase or activity, or is the related next task** →
-   `/compact <focus>`, typed by the user, the focus naming what the summary must keep. *Compaction
-   is the default within a phase or activity, and it may repeat: a session already compacted
-   compacts again when the window needs it. A related next task uses this stage's artifact or files
-   and serves the same Original goal or work item, so the session's context is still its context.*
-
-**Between human stages, suggest a handoff only at context-usage zone `heavy` or on its compaction marker.** The human stages
-are the interview, PRD, design and plan (`context/steps.md`, stages 1, 4, 5 and 6, with the
-explore and research detours they call), and they run in one session. At a boundary between two of
-them, the move to the next stage does not by itself reach question 5: the router suggests
-`session-flow:handoff` for it only when the zone word is `heavy` or the evidence-degraded marker
-exists for this session. At `light`, `moderate` or `unknown` with no marker it goes on to question 6 and suggests `/compact <focus>` when the window needs it, or
-continues; for this boundary an `unknown` zone is not read as degraded. Questions 0, 1 and 4 still
-apply, and so does question 5 when the work leaves this session (the Timing paragraph below),
-because each rests on a fact or the user's own request, not on the window.
+6. **Fallthrough: the next work is in the same phase, activity or task** → `/compact <focus>`,
+   typed by the user, the focus naming what the summary must keep. *Compaction is the default
+   within one task, and it may repeat: a session already compacted compacts again when the window
+   needs it. Within one task the session's context is still its context; at the task's end,
+   question 5 hands off instead.*
 
 **Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
 leaving.
@@ -168,18 +155,18 @@ leaving.
 **Same-task boundaries.** Whether the next stage is the same task follows the stage boundary:
 
 - within one phase or activity → `/compact <focus>` each time the window needs it (question 6).
-- interview → design → plan, with any explore or research detour, stays in one session,
-  `/compact <focus>` when the window needs it; a handoff only at zone `heavy` or on the compaction
-  marker (the rule above).
-- a finished spec or plan → execution moves to a fresh session (question 5).
+- an explore or research detour inside a stage → stays in that stage's session (question 6).
+- interview → design → plan, one plan phase → the next, and a finished spec or plan → execution
+  each hand off, then `/clear` (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
 - in an attended session, the next work item, when its durable artifacts hold everything it needs
   → `/clear` (question 4).
 - two failed corrections on one issue → `/rewind` to a restore point first when the attempts were
   file edits in an attended session, else `/clear` (question 4).
 
-We route by task: same phase or task compacts with a focus, unrelated work hands off when
-anything carries over and clears when nothing does, work that leaves the session hands off.
+We route by task: the same task compacts with a focus; a phase or task boundary, next in
+sequence, hands off; unrelated work hands off when anything carries over and clears when nothing
+does; work that leaves the session hands off.
 
 - Mid-phase, when bulk reading or searching would fill the window, hand that part to a subagent
   before compacting, so the window fills with its short return instead of the raw material; each

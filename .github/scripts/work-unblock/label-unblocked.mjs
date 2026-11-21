@@ -378,7 +378,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { notBornTriaged, readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { notBornTriaged, readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
@@ -1356,7 +1356,7 @@ function mapSkipper(routing) {
       const named = [...skipped].map(([number, label]) => `#${number} ('${escapeCommand(label)}')`);
       return named.length === 0
         ? null
-        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying a container or wayfind label, so the skill that filed it routes it: ${named.join(", ")}`;
+        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying ${ROUTED_BY}: ${named.join(", ")}`;
     },
   };
 }

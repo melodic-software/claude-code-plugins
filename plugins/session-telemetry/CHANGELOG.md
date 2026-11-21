@@ -3,6 +3,12 @@
 All notable changes to the `session-telemetry` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.11] - 2026-11-21
+
+### Changed
+
+- `plugin.json` declares the mods floor as `engines["claude-code"]`, `">=2.1.287"`. Claude Code 2.1.323 and later read it and do not install, update or load the plugin outside that range; 2.1.76 through 2.1.322 ignore it, so the audit rows still run there, and 2.0.15 through 2.1.75 refuse to load a manifest that has it, so the audit command hooks in `hooks/hooks.json` and the SessionStart sink-launcher refresh, which loaded on those builds before, no longer load there.
+
 ## [0.1.10] - 2026-11-21
 
 ### Changed

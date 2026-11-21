@@ -9,7 +9,7 @@ async page => {
     const status = await page.textContent("#controls-status");
     ok("the tab says the manifest is outside the controls contract", /outside the controls contract/.test(status), status);
     ok("no manifest control is rendered", await page.locator("#controls-list .uifc-row input:not([type=checkbox]), #controls-list select").count() === 0);
-    ok("the data controls stay", await page.getByRole("button", { name: "seed 10" }).count() === 1);
+    ok("the data controls stay, in the Sample data menu", await page.locator("#data-list button", { hasText: "seed 10" }).count() === 1);
     ok("Copy config and Reset controls are off", await page.isDisabled("#copy-config") && await page.isDisabled("#reset-controls"));
     const frame = page.frames().find((f) => f !== page.mainFrame());
     ok("the page itself is never written by the refused control", await frame.evaluate(() => document.documentElement.getAttribute("onclick")) === null);

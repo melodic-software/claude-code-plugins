@@ -6,7 +6,8 @@
 // parent window. It answers the host by postMessage only: when the person pins an element, its path, box and up to 60
 // characters of its label, plus its structural anchor (variant and state keys, content set, nearest test id and its
 // index in that scope, role attribute, tag, and its path from that scope) and the view snapshot; never the page's
-// markup. Hosts that ask for more get more: a region the person drags or moves with the keys (its box, the element
+// markup. Hosts that ask for more get more: a region the person drags, moves or resizes, by pointer or keys, kept in
+// page coordinates so it can run past the view, which a drag at the frame's edge scrolls (its box, the element
 // holding it and the test-id elements it crosses, or the holder's child elements it crosses when it crosses none),
 // a move arrow (the element to move, then the element or point it should go to, each end with its own anchor),
 // and the selected text as a quote with a little visible text either
@@ -24,6 +25,7 @@
   const STEP = /^([a-z]+)(?::([a-z0-9]+))?$/; // a data control's data-data-control value: op, or op:argument
   const MAX_DEPTH = 32;
   const NUDGE = 10; // pixels an arrow key moves or resizes a region
+  const RESIZE_REACH_PX = 6, SCROLL_BAND_PX = 40;
   const SVG = "http://www.w3.org/2000/svg";
   const KINDS = ["element", "region", "move"];
   let mode = false, kind = "element", pins = [], layer = null, hover = null, region = null, drag = null, maxElements = 0;
@@ -221,13 +223,18 @@
     root.append(layer);
     return layer;
   }
+  /** The host page's accent tokens (host.html --uif-*), for the color scheme the page is shown in now. */
+  const ink = () => (matchMedia("(prefers-color-scheme: dark)").matches
+    ? { accent: "#a99bff", on: "#15122b", surface: "#1c1d24", wash: "rgb(169 155 255 / 0.14)" }
+    : { accent: "#4433cc", on: "#ffffff", surface: "#ffffff", wash: "rgb(68 51 204 / 0.1)" });
   function badge(n, x, y, active) {
-    const b = document.createElement("div");
+    const b = document.createElement("div"), c = ink(), draft = String(n).startsWith("D");
     b.textContent = String(n);
     Object.assign(b.style, {
       position: "absolute", left: `${x}px`, top: `${y}px`, transform: "translate(-40%, -40%)", minWidth: "22px", height: "22px",
-      padding: "0 6px", borderRadius: "11px", font: "700 12px/22px system-ui, sans-serif", textAlign: "center",
-      background: active ? "#f59e0b" : "#0d9488", color: "#fff", boxShadow: "0 0 0 2px #fff, 0 2px 6px rgb(0 0 0 / 0.35)",
+      padding: "0 6px", boxSizing: "border-box", borderRadius: "11px 11px 11px 3px", font: "700 12px/18px system-ui, sans-serif", textAlign: "center",
+      background: draft ? c.surface : c.accent, color: draft ? c.accent : c.on, border: `2px ${draft ? "dashed" : "solid"} ${draft ? c.accent : c.surface}`,
+      boxShadow: active ? `0 0 0 2px ${c.surface}, 0 0 0 4px ${c.accent}` : "0 2px 6px rgb(0 0 0 / 0.3)",
     });
     return b;
   }
@@ -279,20 +286,20 @@
     svg.setAttribute("width", String(page.w));
     svg.setAttribute("height", String(page.h));
     Object.assign(svg.style, { position: "absolute", left: "0", top: "0", overflow: "visible" });
-    for (const [k, v] of Object.entries({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "#f59e0b", "stroke-width": 3 })) line.setAttribute(k, String(v));
+    for (const [k, v] of Object.entries({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: ink().accent, "stroke-width": 3 })) line.setAttribute(k, String(v));
     const t = Math.atan2(b.y - a.y, b.x - a.x), side = d => `${b.x - 14 * Math.cos(t + d)},${b.y - 14 * Math.sin(t + d)}`;
     tip.setAttribute("points", `${b.x},${b.y} ${side(-0.45)} ${side(0.45)}`);
-    tip.setAttribute("fill", "#f59e0b");
+    tip.setAttribute("fill", ink().accent);
     svg.append(line, tip);
     return svg;
   }
   function draw() {
-    const l = ensureLayer();
+    const l = ensureLayer(), c = ink();
     l.replaceChildren();
     badges = [];
     if (markers) for (const p of pins.filter(inView)) { const at = placeOf(p), b = badge(p.n, at.x, at.y, p.active); badges.push({ n: p.n, el: b }); l.append(b); }
-    for (const [t, which, style] of [[hovered, "hover", { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }],
-      [selected, "selected", { outline: "3px solid #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.12)" }]]) {
+    for (const [t, which, style] of [[hovered, "hover", { outline: `2px dashed ${c.accent}`, outlineOffset: "1px", background: c.wash }],
+      [selected, "selected", { outline: `3px solid ${c.accent}`, outlineOffset: "1px", background: c.wash }]]) {
       const b = t && !mode && (which === "selected" || inView(t)) && noteBox(t);
       if (!b) continue;
       const o = outline(b, style);
@@ -301,18 +308,18 @@
     }
     if (arrow) l.append(arrowShape(endOf(arrow.from), endOf(arrow.to)));
     if (hover && mode && kind !== "region") {
-      l.append(outline(hover.getBoundingClientRect(), { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }));
+      l.append(outline(hover.getBoundingClientRect(), { outline: `2px dashed ${c.accent}`, outlineOffset: "1px", background: c.wash }));
     }
     if (moving && mode && kind === "move") {
-      l.append(outline(moving.from.el.getBoundingClientRect(), { outline: "2px solid #f59e0b", outlineOffset: "1px" }));
+      l.append(outline(moving.from.el.getBoundingClientRect(), { outline: `2px solid ${c.accent}`, outlineOffset: "1px" }));
       if (moving.at) l.append(arrowShape(endOf(moving.from), moving.at));
     }
     if (region && mode && kind === "region") {
-      l.append(outline({ left: region.x, top: region.y, width: region.w, height: region.h }, { outline: "2px dashed #f59e0b", background: "rgb(245 158 11 / 0.12)" }));
+      l.append(outline({ left: region.x - scrollX, top: region.y - scrollY, width: region.w, height: region.h }, { outline: `2px dashed ${c.accent}`, background: c.wash }));
     }
     if (held && !mode) {
       const b = held.el ? held.el.getBoundingClientRect() : { left: held.left - scrollX, top: held.top - scrollY, width: held.width, height: held.height };
-      l.append(outline(b, { outline: "2px solid #f59e0b", outlineOffset: "1px", background: "rgb(245 158 11 / 0.12)" }));
+      l.append(outline(b, { outline: `2px solid ${c.accent}`, outlineOffset: "1px", background: c.wash }));
     }
   }
 
@@ -321,8 +328,9 @@
    *  the holder's child elements it crosses when it crosses none. */
   function sendRegion() {
     if (!region || region.w < 1 || region.h < 1) return;
-    const b = { left: region.x, top: region.y, width: region.w, height: region.h };
-    let holder = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) || root;
+    const b = { left: region.x - scrollX, top: region.y - scrollY, width: region.w, height: region.h };
+    const within = (v, hi) => Math.min(Math.max(v, 0), hi - 1);
+    let holder = document.elementFromPoint(within(b.left + b.width / 2, innerWidth), within(b.top + b.height / 2, innerHeight)) || root;
     for (; holder !== root; holder = holder.parentElement || root) {
       const h = holder.getBoundingClientRect();
       if (!skip(holder) && h.left <= b.left && h.top <= b.top && h.right >= b.left + b.width && h.bottom >= b.top + b.height) break;
@@ -331,13 +339,64 @@
     const marked = crossing(document.querySelectorAll("[data-testid]"));
     const crossed = marked.length ? marked : crossing(holder.children);
     post({ type: "region", rect: pct(b), anchor: anchorOf(holder), elements: crossed.slice(0, maxElements).map(anchorOf), snapshot: snapshot(holder) });
-    hold({ left: b.left + scrollX, top: b.top + scrollY, width: b.width, height: b.height });
+    hold({ left: region.x, top: region.y, width: region.w, height: region.h });
+  }
+  /** Scroll the page just enough to show page row `y`. */
+  function reveal(y) {
+    if (y < scrollY) scrollBy(0, y - scrollY);
+    else if (y > scrollY + innerHeight) scrollBy(0, y - scrollY - innerHeight);
   }
   function nudge(dx, dy, grow) {
     if (!region) return;
     if (grow) { region.w = Math.max(NUDGE, region.w + dx); region.h = Math.max(NUDGE, region.h + dy); }
     else { region.x = Math.max(0, region.x + dx); region.y = Math.max(0, region.y + dy); }
+    if (dy) reveal(dy > 0 ? region.y + region.h : region.y);
     draw();
+  }
+  const pageAt = e => ({ x: e.clientX + scrollX, y: e.clientY + scrollY });
+  /** What a press at page point `p` takes hold of: "move" inside the region, the edges it is within RESIZE_REACH_PX of
+   *  ({l, r, t, b}, two for a corner), or null outside it, where a press draws a new region. */
+  function grabAt(p) {
+    if (!region || !region.w || !region.h) return null;
+    const { x, y, w, h } = region, k = RESIZE_REACH_PX;
+    if (p.x < x - k || p.x > x + w + k || p.y < y - k || p.y > y + h + k) return null;
+    const dl = Math.abs(p.x - x), dr = Math.abs(p.x - x - w), dt = Math.abs(p.y - y), db = Math.abs(p.y - y - h);
+    const edges = { l: dl <= k && dl < dr, r: dr <= k && dr <= dl, t: dt <= k && dt < db, b: db <= k && db <= dt };
+    if (edges.l || edges.r || edges.t || edges.b) return edges;
+    return p.x > x && p.x < x + w && p.y > y && p.y < y + h ? "move" : null;
+  }
+  function cursorFor(g) {
+    if (!g) return "crosshair";
+    if (g === "move") return "move";
+    if ((g.t && g.l) || (g.b && g.r)) return "nwse-resize";
+    if ((g.t && g.r) || (g.b && g.l)) return "nesw-resize";
+    return g.l || g.r ? "ew-resize" : "ns-resize";
+  }
+  /** The region with the drag's pointer at page point `at`, held inside the page as it was at the press: a new box
+   *  from the press, the grabbed box moved by the pointer's travel, or the grabbed box with its grabbed edges at the
+   *  pointer. */
+  function dragTo(at) {
+    const { from, grab, box: b, page } = drag;
+    const p = { x: Math.min(Math.max(at.x, 0), page.w), y: Math.min(Math.max(at.y, 0), page.h) };
+    drag.moved = drag.moved || p.x !== from.x || p.y !== from.y;
+    const span = (x1, y1, x2, y2) => ({ x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) });
+    if (!grab) region = span(from.x, from.y, p.x, p.y);
+    else if (grab === "move") region = { ...b, x: Math.min(Math.max(0, b.x + p.x - from.x), page.w - b.w), y: Math.min(Math.max(0, b.y + p.y - from.y), page.h - b.h) };
+    else region = span(grab.l ? p.x : b.x, grab.t ? p.y : b.y, grab.r ? p.x : b.x + b.w, grab.b ? p.y : b.y + b.h);
+    draw();
+  }
+  const nextFrame = window.requestAnimationFrame ? fn => window.requestAnimationFrame(fn) : fn => setTimeout(fn, 16);
+  /** Each frame a drag holds the pointer near the frame's top or bottom, or past it, scroll the page that way and
+   *  keep the region's moving edge under the pointer. */
+  function edgeScroll(d) {
+    if (drag !== d) return;
+    const y = d.cy, over = y < SCROLL_BAND_PX ? y - SCROLL_BAND_PX : y > innerHeight - SCROLL_BAND_PX ? y - innerHeight + SCROLL_BAND_PX : 0;
+    if (over) {
+      const before = scrollY;
+      scrollBy(0, Math.sign(over) * Math.min(40, Math.ceil(Math.abs(over) / 2)));
+      if (scrollY !== before) dragTo({ x: d.cx + scrollX, y: d.cy + scrollY });
+    }
+    nextFrame(() => edgeScroll(d));
   }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   const HOST_KEYS = new Set(["p", "r", "a", "m", "n"]);
@@ -347,7 +406,8 @@
   const over = e => {
     if (!mode) return;
     if (kind === "region") {
-      if (drag) { region = { x: Math.min(drag.x, e.clientX), y: Math.min(drag.y, e.clientY), w: Math.abs(e.clientX - drag.x), h: Math.abs(e.clientY - drag.y) }; draw(); }
+      if (drag) { drag.cx = e.clientX; drag.cy = e.clientY; dragTo(pageAt(e)); }
+      else root.style.cursor = cursorFor(grabAt(pageAt(e)));
       return;
     }
     if (skip(e.target)) return;
@@ -394,9 +454,27 @@
   addEventListener("pointermove", over, true);
   addEventListener("click", pick, true);
   // Before `stop`, which ends the event for every later listener.
-  addEventListener("pointerdown", e => { if (mode && kind === "region") { drag = { x: e.clientX, y: e.clientY, was: region }; region = { x: e.clientX, y: e.clientY, w: 0, h: 0 }; draw(); } }, true);
+  addEventListener("pointerdown", e => {
+    if (!mode || kind !== "region") return;
+    const from = pageAt(e);
+    drag = { from, grab: grabAt(from), box: region, page: box(), cx: e.clientX, cy: e.clientY, moved: false };
+    if (!drag.grab) region = { ...from, w: 0, h: 0 };
+    if (e.isTrusted && root.setPointerCapture) root.setPointerCapture(e.pointerId);
+    edgeScroll(drag);
+    draw();
+  }, true);
   // A press that never became a drag (a click to focus the frame) keeps the box the keys were moving.
-  addEventListener("pointerup", e => { if (mode && kind === "region" && drag) { stop(e); const { was } = drag; drag = null; if (region.w >= 4 && region.h >= 4) sendRegion(); else { region = was; draw(); } } }, true);
+  addEventListener("pointerup", e => {
+    if (!mode || kind !== "region" || !drag) return;
+    stop(e);
+    const d = drag;
+    drag = null;
+    if (d.grab ? d.moved : region.w >= 4 && region.h >= 4) sendRegion();
+    else { region = d.box; draw(); }
+  }, true);
+  for (const t of ["pointercancel", "lostpointercapture", "blur"]) {
+    addEventListener(t, () => { if (drag) { region = drag.box; drag = null; draw(); } }, true);
+  }
   for (const t of ["pointerdown", "mousedown", "mouseup", "submit", "auxclick", "dblclick"]) addEventListener(t, stop, true);
   addEventListener("keydown", e => {
     if (e.key === "Escape") { post({ type: "escape" }); return; }
@@ -426,6 +504,60 @@
     post({ type: "content", name: root.dataset.vsContent });
   }).observe(root, { attributes: true, attributeFilter: ["data-vs-content"] });
   addEventListener("resize", draw);
+  window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener?.("change", draw);
+  /** The variants and the shown variant's screen states, with which are shown, for the host page's view arrows; sent
+   *  when it changes. */
+  let viewSent = "";
+  function postView() {
+    const shown = els => els.find(e => !e.closest("[hidden]"))?.dataset;
+    const variants = [...document.querySelectorAll("[data-variant]")];
+    const current = variants.find(v => !v.closest("[hidden]")) || null;
+    const states = current ? [...current.querySelectorAll("[data-screen-state]")] : [];
+    const m = {
+      type: "view",
+      variants: variants.map(v => ({ key: v.dataset.variant, label: v.dataset.variantLabel || "" })),
+      variant: current ? current.dataset.variant : null,
+      states: states.map(s => ({ key: s.dataset.screenState, label: s.dataset.screenStateLabel || "" })),
+      state: shown(states)?.screenState ?? null,
+    };
+    const now = JSON.stringify(m);
+    if (now !== viewSent) { viewSent = now; post(m); }
+  }
+  new MutationObserver(postView).observe(root, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  const HEADING = "h1, h2, h3, h4, h5, h6, [role='heading']";
+  /** What a reader calls `el`: its accessible label, else the heading it holds, else its text. */
+  function ownText(el) {
+    const h = el.getAttribute("aria-label") || el.getAttribute("alt") ? null : el.querySelector(HEADING);
+    return label(h || el);
+  }
+  /** The row's first cell for an element in a later cell, else the heading text of the nearest block around `el`, inside
+   *  its scope, that has a heading `el` is not part of. */
+  function cardOf(el, scope) {
+    const row = el.closest("tr"), first = row && scope.contains(row) ? row.querySelector("th, td") : null;
+    if (first && !first.contains(el) && !el.contains(first)) return label(first);
+    for (let a = el.parentElement; a; a = a === scope ? null : a.parentElement) {
+      const h = [...a.querySelectorAll(HEADING)].find(x => x !== el && !el.contains(x) && !x.contains(el));
+      if (h) return label(h);
+    }
+    return "";
+  }
+  /** A listed note's element, found as noteBox finds an element note's, shown or not; null when its path finds none. */
+  function elementAt(variant, state, cssPath) {
+    const scope = scopeOf(variant, state);
+    if (!scope || typeof cssPath !== "string") return null;
+    try { return cssPath === "" ? scope : scope.querySelector(`:scope > ${cssPath}`); } catch { return null; }
+  }
+  /** Each asked note's own visible text and its card's heading, by the key the host page asked with. */
+  function names(targets) {
+    const out = [];
+    for (const t of Array.isArray(targets) ? targets.slice(0, 500) : []) {
+      if (!t || !Number.isInteger(t.k)) continue;
+      const el = elementAt(t.variant, t.state, t.cssPath), scope = scopeOf(t.variant, t.state);
+      const to = typeof t.toPath === "string" ? elementAt(t.variant, t.state, t.toPath) : null;
+      out.push({ k: t.k, text: el ? ownText(el) : "", card: el ? cardOf(el, scope) : "", toText: to ? ownText(to) : "", toCard: to ? cardOf(to, scope) : "" });
+    }
+    post({ type: "named", names: out });
+  }
   let drawQueued = false;
   const queueDraw = () => {
     if (drawQueued) return;
@@ -450,7 +582,12 @@
       moving = null;
       if (mode) arrow = null;
       // A region starts in the middle of the view, so the keys alone can place it.
-      region = mode && kind === "region" ? { x: Math.max(0, innerWidth / 2 - 80), y: Math.max(0, innerHeight / 2 - 50), w: 160, h: 100 } : null;
+      const r = m.rect, page = box();
+      const seed = r && typeof r === "object" && [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.w > 0 && r.h > 0;
+      region = !mode || kind !== "region" ? null
+        : seed ? { x: (r.x / 100) * page.w, y: (r.y / 100) * page.h, w: (r.w / 100) * page.w, h: (r.h / 100) * page.h }
+        : { x: scrollX + Math.max(0, innerWidth / 2 - 80), y: scrollY + Math.max(0, innerHeight / 2 - 50), w: 160, h: 100 };
+      if (region && seed) { reveal(region.y + region.h); reveal(region.y); }
       root.style.cursor = mode ? "crosshair" : "";
       draw();
     } else if (m.type === "nudge" && mode && kind === "region") nudge(Math.sign(m.dx) * NUDGE, Math.sign(m.dy) * NUDGE, !!m.grow);
@@ -486,6 +623,13 @@
       }
       draw();
     }
+    else if (m.type === "view") {
+      const detail = {};
+      for (const k of ["variant", "state"]) if (typeof m[k] === "string") detail[k] = m[k];
+      document.dispatchEvent(new CustomEvent("vs:show", { detail }));
+    }
+    else if (m.type === "bar") root.setAttribute("data-ui-feedback-bar", "");
+    else if (m.type === "name") names(m.targets);
     else if (m.type === "set") setControls(m.values);
     else if (m.type === "press" && !mode) replay([m.step]);
     else if (m.type === "focus") {
@@ -503,4 +647,5 @@
     data: [...new Map(marks.map(m => [JSON.stringify(m), m])).values()],
     content: document.querySelector('[data-content-set="demo"]') && document.querySelector('[data-content-set="worst"]') ? root.dataset.vsContent || null : null,
   });
+  postView();
 })();

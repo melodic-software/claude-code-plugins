@@ -415,6 +415,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
         if (p ~ /^plugins\/planning\/shared\/tests\/(ui|align)-[a-z]\.test\.sh$/) s = s " browser"
+        if (p == "plugins/architecture/scripts/deepening-report-browser.test.sh") s = s " browser"
         if (p ~ /^plugins\/[^\/]+\/git-hooks\/lefthook-remote\.test\.sh$/) s = s " lefthook"
         if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         if (p == "lib/media-render/media-render.test.sh" || p == "plugins/explainer-video/scripts/explainer-video.test.sh") s = s " mediarender"

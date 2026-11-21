@@ -23,7 +23,7 @@ async page => {
     const status = await page.textContent("#status");
     ok("the status keeps the refusal beside what was sent", status === "Note 99 sent. Not sent: no room.", status);
     const states = await page.$$eval("#notes li .state", (s) => s.map((e) => e.textContent));
-    ok("the refused draft stays a draft", states.filter((s) => s === "draft").length === 1, states);
+    ok("the refused draft stays a draft", states.filter((s) => s === "Draft, not sent").length === 1, states);
     await page.unroute("**/api/note");
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);

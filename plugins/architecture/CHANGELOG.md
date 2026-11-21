@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.8.0] - 2026-11-21
+
+### Changed
+
+- The deepening report is a reader: a sidebar lists every candidate grouped by badge beside one card at a time, opening on the top recommendation with its reason, with previous and next buttons and the "Looked at, no change" findings at the end of the list. Before and after diagrams open enlarged on click.
+
 ## [5.7.2] - 2026-11-21
 
 ### Changed

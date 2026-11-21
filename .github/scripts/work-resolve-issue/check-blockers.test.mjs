@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json docs/conventions/work-items.yaml
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -486,18 +487,18 @@ describe("the in-slot re-check", () => {
 // `wayfind:` by default) that somehow carries agent-ready is the filing skill's to route:
 // the run is skipped with a notice, agent-ready stays, and no blocker is read.
 // The outside-author and untrusted-provenance stops keep their precedence.
-for (const label of ["spec-container", "wayfind: decision"]) {
+for (const label of ["spec-container", "wayfind: decision", "session-owned"]) {
   test(`a ${label} label skips the run with a notice naming it, before any blocker read`, async () => {
     const { code, calls, lines, outputs } = await run([], { subject: { labels: ["agent-ready", label] } });
     assert.equal(code, 0);
     assert.deepEqual(outputs, SKIP);
     assert.ok(!calls.some((call) => call.includes("/dependencies/") || call.includes("/sub_issues")), calls.join("\n"));
-    assert.equal(lines.find((line) => line.startsWith("::notice")), `::notice title=map issue::the run is skipped: the issue carries '${label}', a container or wayfind label, so the skill that filed it routes it; work-unblock never re-fires it while the label stays`);
+    assert.equal(lines.find((line) => line.startsWith("::notice")), `::notice title=map issue::the run is skipped: the issue carries '${label}', a container, wayfind or session-owned label, so the skill or session that filed it routes it; work-unblock never re-fires it while the label stays`);
   });
 }
 
 test("a routing label only at the start of a label counts, and without one the run proceeds", async () => {
-  assert.deepEqual((await run([], { subject: { labels: ["agent-ready", "not wayfind: x", "spec-container-old"] } })).outputs, RUN);
+  assert.deepEqual((await run([], { subject: { labels: ["agent-ready", "not wayfind: x", "spec-container-old", "session-owned-old"] } })).outputs, RUN);
 });
 
 test("an outside author or untrusted provenance still stops a map item for good", async () => {
@@ -511,5 +512,5 @@ test("the labels are read from the binding at BASE_PATH: an unreadable value the
   const binding = join(base, "docs/conventions/work-items.yaml");
   writeFileSync(binding, "tracker:\n  config:\n    container_label: 7\n");
   const { lines } = await run([], { env: { ...ENV, BASE_PATH: base }, subject: { labels: ["spec-container"] } });
-  assert.equal(lines.filter((line) => line === `::warning::check-blockers: cannot read the routing labels from ${binding} (tracker.config.container_label is not a string); using 'spec-container' and 'wayfind:'`).length, 1, lines.join("\n"));
+  assert.equal(lines.filter((line) => line === `::warning::check-blockers: cannot read the routing labels from ${binding} (tracker.config.container_label is not a string); using 'spec-container', 'wayfind:' and 'session-owned'`).length, 1, lines.join("\n"));
 });

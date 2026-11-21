@@ -10,7 +10,7 @@ async page => {
     const drawn = () => frame.evaluate(() => {
       const layer = document.documentElement.lastElementChild;
       const kids = [...layer.children];
-      return { held: kids.filter((e) => e.style.outline.includes("solid")).length, markers: kids.filter((e) => !e.style.outline && e.textContent).map((e) => e.textContent).join() };
+      return { held: kids.filter((e) => e.style.outline.includes("solid") && !e.dataset.note).length, markers: kids.filter((e) => !e.style.outline && e.textContent).map((e) => e.textContent).join() };
     });
     const opened = () => page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
     const closed = () => page.waitForSelector("#composer", { state: "hidden", timeout: 5000 });

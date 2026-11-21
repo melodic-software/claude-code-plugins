@@ -5,6 +5,32 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.2.0] - 2026-11-21
+
+Minor. Additive operator guidance; no topology, escalation-contract mechanism, capability-tier or
+§4 invariant changed.
+
+- **Keep the lanes off work a local session owns (§7).** A new paragraph after "Skip an issue"
+  documents the session-owned role label (default `session-owned`,
+  `config.role_labels["session-owned"]`): a local Claude Code session applies it to work it will do
+  itself, the lanes' shared skip step and `list-frontier --autonomous` skip the item, and the
+  interactive frontier keeps it. It names when to use it rather than the human-gated label (an
+  owner decision is needed) and keeps `attended`/unattended as the word for whether a person
+  drives a run.
+
+## [20.1.0] - 2026-11-21
+
+Minor. One more source of the eval-pair record; no topology, escalation-contract mechanism,
+capability-tier or §4 invariant changed.
+
+- **A compare run's record releases an eval hold (Cross-lane PR hold).** `pr-run-plugin-evals.yml`'s
+  compare mode posts the eval-pair record as `github-actions[bot]` with the run's id beside it, and
+  `release-eval-hold.mjs` counts it only when that run reads back as a successful dispatch on the
+  default branch whose run name names the pull request and the record's head, and whose Compare
+  Record job ran to success (owner decision Q136,
+  [#17854](https://github.com/melodic-software/claude-code-plugins/issues/17854)). A listed human's
+  record counts as before.
+
 ## [20.0.3] - 2026-11-21
 
 Patch. An upstream value corrected, plus wording only; no topology, escalation-contract mechanism,
