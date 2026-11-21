@@ -57,6 +57,32 @@ const stopLine = (release, stop) =>
 const RELEASE_ISSUE_TYPE = "Task";
 const releaseTitle = (release, n) => `Claude Code v${release} changelog: ${n} handoff${n === 1 ? "" : "s"}`;
 const keysIn = (body) => [...body.matchAll(/<!-- upstream-apply-changelog key=(\S+) -->/g)].map((m) => m[1]);
+const DRIFT_LINE = "Drift key: ";
+const DRIFT_KEY = /^[A-Za-z0-9_.:@/-]{1,200}$/;
+const driftLines = (body) => body.split("\n").map((l) => l.trim()).filter((l) => l.startsWith(DRIFT_LINE)).map((l) => l.slice(DRIFT_LINE.length));
+export const driftKeyOf = (body) => driftLines(body).find((k) => DRIFT_KEY.test(k)) ?? null;
+
+async function openDriftIssue(api, repo, driftKey) {
+  const app = LANES_APP_LOGIN.replace(/\[bot\]$/, "");
+  const q = encodeURIComponent(`repo:${repo} is:issue is:open author:app/${app} in:body "${DRIFT_LINE}${driftKey}"`);
+  const found = await api(`/search/issues?q=${q}&per_page=100`);
+  return (found?.items ?? []).find(
+    (i) => i?.user?.login === LANES_APP_LOGIN && i.state === "open" && typeof i.body === "string" && driftLines(i.body).includes(driftKey),
+  );
+}
+
+async function withoutOpenDrift(api, repo, handoffs) {
+  const open = new Map();
+  const kept = [];
+  for (const h of handoffs) {
+    const driftKey = driftKeyOf(h.body);
+    if (driftKey && !open.has(driftKey)) open.set(driftKey, await openDriftIssue(api, repo, driftKey));
+    const issue = driftKey && open.get(driftKey);
+    if (issue) console.log(`${h.key}: drift key ${driftKey} is already open in #${issue.number}; not filed again`);
+    else kept.push(h);
+  }
+  return kept;
+}
 
 // One checklist item per handoff, its body indented under it, within `budget`
 // characters: when the bodies do not fit, each is cut in proportion to its
@@ -105,8 +131,9 @@ export function publishText(plan, release) {
 // A stopped plan publish files (`stop` is a stop_reason marksDone accepts)
 // is marked done once this returns, so it files the issue even with no
 // handoffs, and a closed issue missing a key throws instead.
-export async function fileReleaseHandoffs({ repo, release, handoffs, stop = null, api }) {
-  if (!handoffs.length && !stop) return "no handoffs; nothing filed";
+export async function fileReleaseHandoffs({ repo, release, handoffs: planned, stop = null, api }) {
+  const handoffs = await withoutOpenDrift(api, repo, planned);
+  if (!handoffs.length && !stop) return planned.length ? "every handoff's drift key is already open; nothing filed" : "no handoffs; nothing filed";
   const marker = releaseMarker(release);
   const app = LANES_APP_LOGIN.replace(/\[bot\]$/, "");
   const q = encodeURIComponent(`repo:${repo} is:issue author:app/${app} in:body "upstream-apply-changelog release=${release}"`);
