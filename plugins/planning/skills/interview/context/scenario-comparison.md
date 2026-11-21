@@ -54,7 +54,7 @@ the walk without the offer.
 
 ### Shape
 
-Number the scenarios `S1`, `S2`, and so on within one question, and put them in that question's
+This is the one home for scenario ids. Number the scenarios `S1`, `S2`, and so on within one question, and put them in that question's
 Context; a topic whose whole Context is its set of scenarios is one question too. Each scenario opens
 with `S<N>:`, is concrete (named people, amounts, days or dates), states the outcome it tests, and
 ends with its own recommendation and the term or rule that answer forces. Once the ledger's

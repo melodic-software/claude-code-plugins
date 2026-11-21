@@ -33,9 +33,9 @@ stays the entry either way:
 - Ask it as a registered round-1 question in the full layout, worded so yes accepts ("Should this
   effort move to `/planning:wayfind chart` now?"), its Context naming each unknown area in the
   user's words. Round 1's other questions go out in the same message; never hold them for this
-  answer, and never switch on your own. In an intake round it is the one question with a
-  recommendation, since it routes the work rather than answering for the user
-  ([`lookups.md`](lookups.md) "The intake round").
+  answer, and never switch on your own. In an intake round it goes out instead as the one-line
+  routing suggestion [`lookups.md`](lookups.md) "The intake round" shapes, still registered at
+  ask-time, since an intake round shows no `My recommendation:` block.
 - Accepted: write the ledger as "The handoff to wayfind" below says, and name
   `/planning:wayfind chart` with the ledger path for the user to run.
 - Declined: record the decline as the row's resolution and carry on with the rounds. Raise wayfind

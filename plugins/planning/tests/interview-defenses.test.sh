@@ -532,7 +532,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "7d7f2372cef7aaa76d271c3e57e6a9a6208727c94b4dce3c6d33357f2d2926e4"
+  "2f45a095d33c22488286ffd2c5b0248b1f3f9123084245b4c2fbc9916fd94406"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -644,7 +644,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "3fee6385252f2f476aef4e00797c9f416e7a7c7f89e3ea6ebdabad267177a640"
+  "6e6577f57f115fa749e6fb5ec9bef7bf860cfdc07d36aa7aa064563f7f02b981"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
@@ -714,7 +714,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "9ec05ae465fc8e693fde59be1e81d386cd350f63021787ecc29179fc23eff758"
+  "368743e50f46c68695014cc10793b89a1cf2c0b2e84258798579c4fbe0e5c36d"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -745,7 +745,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "101586e9916d476589a8519aa93cf89121ad517d46278a480aab737027563419"
+  "d1aedd09a3cc54f12763212381e7ef7b0731165303cf4b18ba6e1da2c9526533"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
@@ -756,7 +756,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "261ea805a3e429229840ef9c86bacdae791acedfa9aedbfb2d95c5e949273d84"
+  "6fbbb933036f9c1f2b060ec0e16099fa04bfb8082a8f429e396a462cd16856de"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -776,7 +776,7 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "d9c84aac832447d47e2f50d5008a449d378bfa3282291d0334c9bd65129a8744"
+  "4f1230d595f67a615b884320885dcc743dd42080822d3197a2f4a823ab7cb95d"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -807,7 +807,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "cd3481b6f2d547f82f33ee14cc69e22b38a5c936f857461f9e8538e18cdfd3d1"
+  "221af05eb4cb7c1f58a756f9218fc7f23ad420e5266d569ca2db6ca379ffd416"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -829,7 +829,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "53ad96eee9dc6133be50f497d4228b725006506df953ad9d24bedbc087ea9c9d"
+  "713bf5f475597226013d471a5cc1a41a4579e256b844c69d8d5c9b28aea15a01"
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.

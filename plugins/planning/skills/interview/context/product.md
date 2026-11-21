@@ -54,6 +54,10 @@ user as questions.
 
 ## Question shape
 
+This shape is a declared exception to SKILL.md "Keep the layout whole": a product question has no
+`Context:` block, no alternatives and no `---` rule, because a strong answer is a standard, not a
+choice among options; one question per turn needs no separator.
+
 ```text
 Q<N>: <one question, from one principle>
 Strong answer: <what a strong answer sounds like, in one or two lines>

@@ -30,8 +30,8 @@ Q<N> | recommend: <answer> | basis: <the facts it rests on, each with its source
 Q<N> | withheld: <the evidence that would settle it>
 ```
 
-**Model.** We set no `model` and no `effort`: the recommender is meant to judge at the session's
-own level, and this file names no model.
+**Model.** We set `model: inherit` and no `effort`: the recommender inherits the session's model,
+so it judges at the session's own level, and this file names no model.
 
-- **Pointer:** for what a subagent with no `model` or `effort` field runs on, see
-  [create custom subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+- **Pointer:** for what `inherit` and an absent `effort` field mean, see
+  [create custom subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).

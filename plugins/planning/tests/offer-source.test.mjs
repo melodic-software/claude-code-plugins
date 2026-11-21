@@ -30,6 +30,7 @@ const HTML_PLAN = {
   repo: 'anthropics/claude-plugins-community',
   kind: 'planner',
   invoke: '/html-plan',
+  helps: 'writes the plan as one interactive HTML page',
 }
 
 function commitsOn(date) {
@@ -60,6 +61,7 @@ test('AC10: a source path last committed 30 days ago gives a plain offer', async
   assert.equal(r.offers[0].freshness, 'plain')
   assert.equal(r.offers[0].date, null)
   assert.doesNotMatch(r.offers[0].text, /2026-10-04/)
+  assert.equal(r.offers[0].text, 'html-plan writes the plan as one interactive HTML page. Say "install html-plan" to add it', 'the round-8 Q38 wording, less the registry\'s "Optional: " lead and full stop')
 })
 
 test('AC10: 120 days gives an offer that shows the date', async () => {
@@ -177,4 +179,13 @@ test('the shipped offer list holds html-plan as an optional planner from its mar
     [h.marketplace, h.repo, h.kind],
     ['claude-community', 'anthropics/claude-plugins-community', 'planner'],
   )
+})
+
+test('the shipped offer list offers the glossary plugin, which this marketplace lists at its own path', () => {
+  const g = loadOfferable().find(e => e.kind === 'glossary')
+  const catalog = JSON.parse(readFileSync(join(here, '..', '..', '..', '.claude-plugin', 'marketplace.json'), 'utf8'))
+  assert.equal(catalog.name, g.marketplace)
+  const listed = catalog.plugins.find(p => p.name === g.name)
+  assert.equal(listed?.source, './plugins/domain-driven-design')
+  assert.match(installCommand(g), /^claude plugin install domain-driven-design --marketplace melodic-software\/claude-code-plugins --scope user$/)
 })

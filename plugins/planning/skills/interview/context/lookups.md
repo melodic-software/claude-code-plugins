@@ -2,7 +2,8 @@
 
 Read this after the Step 1 survey, before round 1, and again whenever a lookup starts or returns.
 It is the one home for the gap triage, the intake round, when a lookup runs and what it is
-handed, which questions wait for one, and what a returned fact that contradicts an answer does.
+handed, which questions wait for one, when the passes around the interview run, and what a
+returned fact that contradicts an answer does.
 `<plugin-root>` is the placeholder SKILL.md "Spoke paths" defines.
 
 ## Gap triage before round 1
@@ -33,8 +34,12 @@ answers.
 Three things still go out in round 1 and are not intake questions:
 
 - a routing suggestion: brainstorm, prd or blindspot by SKILL.md "Intake the starting point", and
-  the wayfind question of [`routing.md`](routing.md) "Round 1", which keeps its recommendation
-  because it routes the work rather than answering for the user;
+  the wayfind question of [`routing.md`](routing.md) "Round 1". Each is one plain line after the
+  round's questions and before the closing probe, naming the skill, why, with its evidence label
+  and source, and what yes does: `Suggested next: /planning:prd, because who uses this and how
+  success is measured are not settled (your request). Say yes to run it first.` It is never a
+  `My recommendation:` block, which an intake round does not show; the wayfind line is still
+  registered at ask-time;
 - a candidate a lookup found for an unknown Problem field, stated with its source and a request to
   confirm or correct it ([`problem-framing.md`](../../../context/problem-framing.md) "Candidates
   for an unknown field");
@@ -86,8 +91,32 @@ checking) holds the same way. Ask every other question now: the hold never holds
 A held question takes its id and an `open` row whose resolution reads `waits on: <lookup>` when
 the round header's `Held:` line first names it (SKILL.md "Name the held questions in the round
 header"). It is not asked and gets no recommendation until the lookup returns; then it is asked in
-full in the next round, in the place [`loop.md`](loop.md) "Frontier rounds" item 2 gives it, and
-leaves the `Held:` line.
+full in the next message that presents questions, which opens the next round, in the place
+[`loop.md`](loop.md) "Frontier rounds" item 2 gives it, and leaves the `Held:` line.
+
+A recommendation is never shown before its facts are in. A draft recommendation with no fact to
+cite, or a consequential one whose `Basis:` fails the re-grounding check (SKILL.md Step 2,
+"Re-ground open recommendations before they are shown"), holds its question for a lookup; one no
+lookup can settle is asked withheld (SKILL.md "A withheld question carries no recommendation
+marker"). A quick environment read that settles it runs inline and holds nothing.
+
+## Passes around the interview
+
+New work starts at the interview, and every other pre-planning pass runs from it, in one session:
+
+- **Before round 1:** only what the starting point calls for, as a routing suggestion of the
+  intake round that the user takes or leaves: `/discovery:blindspot` for territory new to the user,
+  `/planning:brainstorm` or a prototype skill for an idea with no direction, `/planning:prd` for
+  product work whose users or success measures are unsettled. A pass the user ran before invoking
+  the interview is a settled upstream artifact the survey reads.
+- **During the rounds:** explore and research only as lookups (above); a prototype as the
+  mid-interview detour of [`composition.md`](composition.md) "Mid-interview composition".
+- **After the confirmation gate:** `/planning:prd` when the confirmed understanding still leaves
+  product intent unsettled, otherwise the SKILL.md "Next" routes. No explore or research pass runs
+  after the Brief: its facts came in as lookups.
+
+No pass clears the context before the next one; `/session-flow:workflow` decides when a session
+hands off.
 
 ## A returned fact that contradicts an answer
 
