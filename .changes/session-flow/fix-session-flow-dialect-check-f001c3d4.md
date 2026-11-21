@@ -13,5 +13,3 @@ bump: minor
 - The away report gets the same correction each time the Stop hook, `refresh` or `end` rewrites
   it, in its own sections only: the header, the script-owned blocks and quoted text stay as
   written.
-- The handoff and step-away instructions tell the model to write in American English and to quote
-  the owner's words as given.
