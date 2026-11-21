@@ -80,7 +80,9 @@
 # --procedure is OPT-IN and adds checks a script can derive from the ledger, so
 # a caller that omits it keeps every verdict and exit code above unchanged:
 #   - round numbers in the register rows run contiguously from 1 (a `round`
-#     field that is not `round <N>` with N >= 1 counts as a defect)
+#     field that is not `round <N>` with N >= 1 counts as a defect, except
+#     `round <N> (added in round <M>)`, which the page export writes for a
+#     question asked after a later round was posted and which counts as round N)
 #   - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
 #     non-empty resolution (the fifth field)
 #   - with --brief, the Brief holds every section of the literal Brief template:
@@ -595,7 +597,7 @@ check_sweep() {
         fi
       elif [[ "$disposition" =~ ^[Dd]eferred:[[:space:]]*[^[:space:]] ]]; then
         [[ "$user_owned" -eq 0 || "$hedged" -eq 1 ]] ||
-          proc_problem "line $lno: $key is a $owned_kind item deferred outside the register; it becomes a register row (deferred or blocked there when it cannot be asked)"
+          proc_problem "line $lno: $key is a $owned_kind item deferred outside the register; it becomes a register row (deferred there with arbiter /planning:design when it sits below the interview's level or a quoted owner ruling routed it, blocked when it cannot be asked)"
       else
         proc_problem "line $lno: $key has no disposition (Q<N>, F<N> or 'deferred: <where>'): '$disposition'"
       fi
@@ -792,6 +794,8 @@ track_id() {
 # documentation has to be the same shape that would have been graded as data.
 row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
 
+round_field_re='^[Rr]ound[[:space:]]+([1-9][0-9]*)([[:space:]]+\([Aa]dded in [Rr]ound[[:space:]]+[1-9][0-9]*\))?$'
+
 skipped_fenced_row=0
 while IFS= read -r line; do
   # extract_section emits one line per ledger line after the heading, so the
@@ -871,12 +875,12 @@ while IFS= read -r line; do
   trim_into "$resolution"
   resolution="$trimmed"
   [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
-  if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
+  if [[ "$round_field" =~ $round_field_re ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
     [[ "$round_num" -gt "$max_round" ]] && max_round="$round_num"
   else
-    proc_problem "$id: round field is not 'round <N>' (N >= 1): '$round_field'"
+    proc_problem "$id: round field is not 'round <N>' or 'round <N> (added in round <M>)' (N, M >= 1): '$round_field'"
   fi
 
   # Statuses match case-insensitively without a subprocess per row (a `tr` fork
