@@ -35,8 +35,8 @@ The page is built on this plugin's bundled chrome reference, [reference/html-chr
       .deep { background: var(--fg); color: var(--bg); }
       .paper { background: var(--white); color: var(--slate); }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js" integrity="sha256-LQdTYZ03u0RSdhuHT/xq5kKengUesm9ExayDxzYvx7E=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js" integrity="sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI+v5dchB0uaM=" crossorigin="anonymous"></script>
   </head>
   <body>
     <!-- CHROME: the theme toggle (the .rv-bar element), copied verbatim. -->
@@ -61,7 +61,7 @@ The page is built on this plugin's bundled chrome reference, [reference/html-chr
 
 Read the chrome reference and put its three parts where the `CHROME` comments stand. The comment box is left out: a report is read, not answered.
 
-The two library versions are exact, and each URL appears twice: in the policy and on its `<script>` tag. The policy names each file, never the CDN's origin. As of 2026-11-15: `mermaid` 12.3.0 and `@tailwindcss/browser` 4.3.5, the latest on the npm registry, rendered together under this policy in headless Chromium. Recheck trigger: either package publishes a new major version, or a security advisory names a pinned one; change all four URLs together and render the scaffold again.
+The two library versions are exact, and each URL appears twice: in the policy and on its `<script>` tag. The policy names each file, never the CDN's origin. Each `<script>` tag carries `crossorigin="anonymous"` and the `integrity` hash of its exact file, so a changed file at the pinned URL does not run; both hashes are the base64 sha256 jsDelivr's data API lists for that file (`https://data.jsdelivr.com/v1/packages/npm/<package>@<version>?structure=flat`), read 2026-11-21. As of 2026-11-15: `mermaid` 12.3.0 and `@tailwindcss/browser` 4.3.5, the latest on the npm registry, rendered together under this policy in headless Chromium. Recheck trigger: either package publishes a new major version, or a security advisory names a pinned one; change all four URLs and both hashes together and render the scaffold again.
 
 **When the CDN cannot be reached** the page still reads: the chrome's own rules style the text, each Mermaid block shows its source in its `<pre>`, and the hand-built diagrams draw as they are. So nothing in a card may depend on a library to be legible: no content hidden until a script runs, and no diagram whose only form is a Mermaid block the reader could not follow as text.
 
