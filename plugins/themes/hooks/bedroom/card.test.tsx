@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { TIME_ORDER } from './card.tsx'
+import { EVENT_BUTTONS, TIME_ORDER } from './card.tsx'
 import { PHASES } from './core/settings.js'
 import { CHANGE_MS } from './register.tsx'
 import { bedroomSvg } from './scene.ts'
@@ -84,7 +84,13 @@ async function roomSends($: Engine): Promise<number> {
   return Number(/room sent: (\d+)/.exec(await bedroom($, 'stats'))?.[1])
 }
 
-test('/bedroom alone keeps its answer and shows a card listing every switch with its state', { timeoutMs: 20000 }, async ($, on) => {
+/**
+ * The two card tests below take 0.9 to 1.1 s and 0.4 to 0.7 s on an idle machine under claude plugin test, and ran past the
+ * default limit while the plugin started on a loaded one; this keeps that room.
+ */
+const CARD_START_MS = 20_000
+
+test('/bedroom alone keeps its answer and shows a card listing every switch with its state', { timeoutMs: CARD_START_MS }, async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)
@@ -127,6 +133,12 @@ function widthOf(row: unknown): number {
       items += 1
       return
     }
+    if (n.type === 'Input') {
+      const input = n.props as { label?: string; placeholder?: string; submitLabel?: string }
+      px += fieldPx(String(input.label ?? '').length, Number(/up to (\d+)/.exec(String(input.placeholder ?? ''))?.[1] ?? 0), String(input.submitLabel ?? '').length)
+      items += 1
+      return
+    }
     if (n.type === 'Text') {
       if (n.props?.children !== undefined && typeof n.props.children !== 'string') return
       px += 8.5 * String(n.text ?? n.props?.children ?? '').length
@@ -141,10 +153,13 @@ function widthOf(row: unknown): number {
   return px + 14 * Math.max(0, items - 1) + 26 * groups
 }
 const INSIDE_PX = 1105
-/** Room three manual-trigger buttons need on the switches row: labels of up to five letters, about 72 px each, and their gaps. */
-const TRIGGERS_PX = 260
+/**
+ * A title field's width: its label above or beside a text box that holds its longest title at 8.5 px a character with
+ * 24 px of padding, and its submit button as any button (30 px and 8.5 px a character), 14 px apart.
+ */
+const fieldPx = (label: number, longest: number, submit: number): number => 8.5 * label + 14 + (24 + 8.5 * longest) + 14 + (30 + 8.5 * submit)
 
-test('the card is six rows, seven with titles: no row wider than the card, the time from earliest to latest, no shader button', { timeoutMs: 20000 }, async ($, on) => {
+test('the card is six rows with titles or the sound bank open: no row or field wider than the card, the time from earliest to latest, no shader button', { timeoutMs: CARD_START_MS }, async ($, on) => {
   const placed: string[] = []
 
   engine(on, ['desktop'], placed)
@@ -169,7 +184,9 @@ test('the card is six rows, seven with titles: no row wider than the card, the t
   const look = JSON.stringify(await ui.find({ key: 'look' }))
   for (const key of ['dim-down', 'dim-up', 'glass-down', 'glass-up', 'blur-down', 'blur-up', 'toggle-signal', 'toggle-hall']) expect(look).toContain(`"key":"${key}"`)
   const sound = JSON.stringify(await ui.find({ key: 'sound' }))
-  for (const key of ['toggle-sound', 'volume-down', 'volume-up', 'said-box']) expect(sound).toContain(`"key":"${key}"`)
+  for (const key of ['toggle-sound', 'volume-down', 'volume-up', 'sounds', 'said-box']) expect(sound).toContain(`"key":"${key}"`)
+  expect((await ui.find({ type: 'Text', text: 'bed: off' }))?.text).toBe('bed: off')
+  expect(widthOf(await ui.find({ key: 'sound-controls' })) <= INSIDE_PX - 300).toBe(true)
 
   const time = JSON.stringify(await ui.find({ key: 'time' }))
   const order = ['auto', 'predawn', 'dawn', 'morning', 'noon', 'golden', 'dusk', 'evening', 'night']
@@ -181,20 +198,51 @@ test('the card is six rows, seven with titles: no row wider than the card, the t
   expect((await ui.find({ key: 'toggle-sound' }))?.props.label).toBe('sound: off')
   expect((await ui.find({ type: 'Text', text: 'volume 100' }))?.text).toBe('volume 100')
 
+  const widths: Record<string, number> = Object.fromEntries(((await rowsOf()) as unknown[]).slice(0, 5).map((row, i) => [['head', 'switches', 'time', 'weather', 'look'][i], Math.round(widthOf(row))]))
+  for (const [key, px] of Object.entries(widths)) expect([key, px <= INSIDE_PX]).toEqual([key, true])
+  const switches = JSON.stringify(await ui.find({ key: 'switches' }))
+  for (const { key, label } of EVENT_BUTTONS) {
+    expect(switches).toContain(`"key":"${key}"`)
+    expect(label.length <= 5).toBe(true)
+  }
+
   await ui.press({ key: 'calibrate' })
   await ui.press({ key: 'titles' })
-  expect(await keysOf()).toEqual(['head', 'switches', 'time', 'weather', 'look', 'sound', 'title-fields'])
+  expect(await keysOf()).toEqual(['head', 'switches', 'title-row-1', 'title-row-2', 'look', 'sound'])
   expect((await ui.find({ key: 'titles' }))?.props.label).toBe('titles: hide')
-  const titles = JSON.stringify(await ui.find({ key: 'title-fields' }))
-  for (const key of ['console', 'tape', 'pennant', 'pennant-top']) expect(titles).toContain(`"key":"title-${key}"`)
+  const caps = { console: 24, tape: 24, pennant: 12, 'pennant-top': 16 } as const
+  for (const [row, keys] of [['title-row-1', ['console', 'tape']], ['title-row-2', ['pennant', 'pennant-top']]] as const) {
+    const drawn = await ui.find({ key: row })
+    const text = JSON.stringify(drawn)
+    for (const key of keys) expect(text).toContain(`"key":"title-${key}"`)
+    expect(widthOf(drawn) <= INSIDE_PX).toBe(true)
+    for (const key of keys) {
+      const field = await ui.find({ key: `title-${key}` })
+      expect(field?.props.placeholder).toBe(`up to ${caps[key]}`)
+      expect([key, fieldPx(key.length, caps[key], 'set'.length) <= (INSIDE_PX - 14) / 2]).toEqual([key, true])
+    }
+  }
+  expect(fieldPx('console'.length, 24, 3) > INSIDE_PX / 4).toBe(true)
   const said = JSON.stringify(await ui.find({ key: 'said-box' }))
   expect(said).toContain('click the bottom-left corner of the front of the dresser')
   expect(said).toContain('"maxLines":1')
 
-  const widths: Record<string, number> = Object.fromEntries(((await rowsOf()) as unknown[]).slice(0, 5).map((row, i) => [['head', 'switches', 'time', 'weather', 'look'][i], Math.round(widthOf(row))]))
-  for (const [key, px] of Object.entries(widths)) expect([key, px <= INSIDE_PX]).toEqual([key, true])
-  expect(widths.switches! + TRIGGERS_PX <= INSIDE_PX).toBe(true)
-  await ui.press({ key: 'titles' })
+  await ui.press({ key: 'sounds' })
+  expect(await keysOf()).toEqual(['head', 'switches', 'bank-row-1', 'bank-row-2', 'look', 'sound'])
+  expect((await ui.find({ key: 'titles' }))?.props.label).toBe('titles: show')
+  expect((await ui.find({ key: 'sounds' }))?.props.label).toBe('sounds: hide')
+  for (const row of ['bank-row-1', 'bank-row-2']) expect(widthOf(await ui.find({ key: row })) <= INSIDE_PX).toBe(true)
+  expect((await ui.find({ key: 'pick-cicadas-auto' }))?.props.label).toBe('auto ✓')
+  expect((await ui.find({ key: 'pick-night-auto' }))?.props.label).toBe('auto ✓')
+  expect((await ui.find({ key: 'pick-cicadas-chorus' }))?.props.label).toBe('chorus')
+  await ui.press({ key: 'pick-cicadas-river' })
+  expect((await ui.find({ key: 'pick-cicadas-river' }))?.props.label).toBe('river ✓')
+  expect(await bedroom($, 'sound')).toMatch(/bank: cicadas river, night auto, rain roof, thunder storm, tv tube/)
+  await ui.press({ key: 'toggle-objects' })
+  expect((await ui.find({ key: 'toggle-objects' }))?.props.label).toBe('objects: off')
+  await bedroom($, 'sound pick cicadas chorus')
+  await bedroom($, 'sound objects on')
+  await ui.press({ key: 'sounds' })
   expect(await keysOf()).toEqual(['head', 'switches', 'time', 'weather', 'look', 'sound'])
   await ui.unmount()
 })
@@ -218,9 +266,9 @@ test('the volume steps by ten from 0 to 100 through /bedroom sound volume, saved
   await ui.press({ key: 'volume-up' })
   expect((await ui.find({ type: 'Text', text: 'volume 100' }))?.text).toBe('volume 100')
   await ui.press({ key: 'volume-up' })
-  expect(await bedroom($, 'sound')).toMatch(/^sound is off, volume 100\./)
+  expect(await bedroom($, 'sound')).toMatch(/^sound is off, volume 100,/)
   for (let i = 0; i < 11; i++) await ui.press({ key: 'volume-down' })
-  expect(await bedroom($, 'sound')).toMatch(/^sound is off, volume 0\./)
+  expect(await bedroom($, 'sound')).toMatch(/^sound is off, volume 0,/)
   expect((await ui.find({ type: 'Text', text: 'volume 0' }))?.text).toBe('volume 0')
   await bedroom($, 'sound volume 70')
   await ui.unmount()
@@ -259,6 +307,70 @@ test('a pressed switch is inactive until its change has had time to finish, then
   await ui.press({ key: 'switch-tv' })
   expect(await bedroom($, 'status')).toContain('on: tv,')
   await ui.unmount()
+})
+
+test('pass, door and bolt run the hallway\'s and the storm\'s commands, each dim while its command would only say why not', async ($, on) => {
+  const placed: string[] = []
+
+  engine(on, ['desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await bedroom($, 'hall on')
+  await bedroom($, 'weather clear')
+  await bedroom($, '')
+
+  const ui = await $.ui.mount(cardOf(placed[0]!))
+  const said = async (): Promise<string> => JSON.stringify(await ui.find({ key: 'said-box' }))
+
+  expect(EVENT_BUTTONS.map(({ words }) => words)).toEqual(['hall pass', 'hall light', 'weather strike'])
+  expect((await ui.find({ key: 'event-pass' }))?.props.dimColor).toBe(false)
+  expect((await ui.find({ key: 'event-door' }))?.props.dimColor).toBe(false)
+  expect((await ui.find({ key: 'event-bolt' }))?.props.dimColor).toBe(true)
+  await ui.press({ key: 'event-bolt' })
+  expect(await said()).toContain('lightning comes only in a storm, and the weather is clear')
+  await ui.press({ key: 'event-pass' })
+  expect(await said()).toMatch(/someone passes the door|not now: the shader/)
+
+  await bedroom($, 'weather storm')
+  expect((await ui.find({ key: 'event-bolt' }))?.props.dimColor).toBe(false)
+  await bedroom($, 'hall off')
+  expect((await ui.find({ key: 'event-door' }))?.props.dimColor).toBe(true)
+  await ui.press({ key: 'event-door' })
+  expect(await said()).toContain('the hallway is off')
+  await bedroom($, 'weather clear')
+  await bedroom($, 'hall on')
+  await ui.unmount()
+})
+
+test('door is the hall light\'s switch: checked while the light is on, and the next press turns it off; pass and bolt stay plain', { timeoutMs: CARD_START_MS }, async ($, on) => {
+  const placed: string[] = []
+  const clock = engine(on, ['desktop'], placed)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await bedroom($, 'hall on')
+  await bedroom($, 'weather storm')
+  await bedroom($, '')
+  const room = await $.ui.mount(BACKDROP)
+  const ui = await $.ui.mount(cardOf(placed[0]!))
+  const label = async (key: string): Promise<unknown> => (await ui.find({ key }))?.props.label
+  await clock.advance(60_000)
+
+  expect(await label('event-door')).toBe('door')
+  await ui.press({ key: 'event-door' })
+  expect(await label('event-door')).toBe('door ✓')
+  await ui.press({ key: 'event-pass' })
+  await ui.press({ key: 'event-bolt' })
+  expect([await label('event-pass'), await label('event-bolt')]).toEqual(['pass', 'bolt'])
+  await clock.advance(30_000)
+  expect(await label('event-door')).toBe('door ✓')
+  await ui.press({ key: 'event-door' })
+  expect(await label('event-door')).toBe('door')
+  await ui.press({ key: 'event-door' })
+  expect(await label('event-door')).toBe('door ✓')
+  await clock.advance(4 * 60_000)
+  await bedroom($, 'status')
+  expect(await label('event-door')).toBe('door')
+  await bedroom($, 'weather clear')
+  await ui.unmount()
+  await room.unmount()
 })
 
 test('a pressed switch moves the shader\'s number once, straight to the end, and a typed order to the state it is in sends nothing', async ($, on) => {

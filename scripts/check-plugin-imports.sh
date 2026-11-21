@@ -30,8 +30,6 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
-# script (scripts/check-affected.sh run from the pre-push hook's merge-base copy).
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
@@ -130,10 +128,12 @@ value_of() {
 }
 
 base_of() {
-  local key="$1 $2" t own rhs v="" d=""
+  local key="$1 $2" t own rhs rem v="" d=""
   if [[ -z "${traced[$key]+x}" && -n "${assigned[$key]+x}" ]]; then
     traced[$key]="?"
-    while IFS= read -r rhs; do
+    rem="${assigned[$key]%$'\n'}"
+    while [[ -n "$rem" ]]; do
+      rhs="${rem%%$'\n'*}"
       value_of "$1" "$rhs"
       d+="$DEPS"
       if [[ -n "$v" && "$v" != "$REPLY" ]]; then
@@ -141,7 +141,9 @@ base_of() {
         break
       fi
       v="$REPLY"
-    done <<<"${assigned[$key]%$'\n'}"
+      [[ "$rhs" != "$rem" ]] || break
+      rem="${rem#*$'\n'}"
+    done
     traced[$key]="$v"
     deps[$key]="$2"$'\n'"$d"
   fi
@@ -159,7 +161,7 @@ base_of() {
 }
 
 anchor() {
-  local d
+  local d rem
   if ! base_of "$1" "$4"; then
     consider "$1" "$2" "$3"
   elif [[ -z "$DEPS" || -n "$verified" || "$REPLY" == "${1%/*}" ]]; then
@@ -167,11 +169,22 @@ anchor() {
   else
     pending+=("$1	$2	$3	$4")
     verify_files["$1"]=1
-    while IFS= read -r d; do
+    rem="$DEPS"
+    while [[ -n "$rem" ]]; do
+      d="${rem%%$'\n'*}"
       [[ -n "$d" ]] && verify_names["$d"]=1
-    done <<<"$DEPS"
+      [[ "$d" != "$rem" ]] || break
+      rem="${rem#*$'\n'}"
+    done
   fi
 }
+
+declare -A plugin_dirs=()
+for _pd in plugins/*/; do
+  [[ -d "$_pd" ]] || continue
+  _pd="${_pd#plugins/}"
+  plugin_dirs["${_pd%/}"]=1
+done
 
 # consider <file> <line no> <rel> [<base>]: records a crossing when <rel>, resolved
 # against <base> (default <file>'s directory), lands in another plugin's directory.
@@ -184,7 +197,7 @@ consider() {
   [[ "$REPLY" == plugins/?* ]] || return 0
   sib="${REPLY#plugins/}"
   sib="${sib%%/*}"
-  [[ "$sib" != "$own" && -d "plugins/$sib" ]] || return 0
+  [[ "$sib" != "$own" && -n "${plugin_dirs[$sib]:-}" ]] || return 0
   crossings+=("$file	$n	$sib	$REPLY")
   crossing_keys["$file $sib"]=1
 }
@@ -215,7 +228,7 @@ scan_line() {
 
   # Each form is tried only on a line holding its keyword: a regex match costs far more.
   rest="$line"
-  while [[ "$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname* ]] && [[ "$rest" =~ $re_anchor ]]; do
+  while [[ "$rest" == */* && ("$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname*) ]] && [[ "$rest" =~ $re_anchor ]]; do
     whole="${BASH_REMATCH[0]}" rel="${BASH_REMATCH[2]}" name="${BASH_REMATCH[1]#\$}"
     name="${name#\{}"
     anchor "$file" "$n" "$rel" "${name%\}}"
@@ -263,11 +276,11 @@ for ext in sh bash mjs js cjs jsx ts mts cts tsx py ps1 psm1; do
 done
 declare -A shebang=()
 while IFS= read -r p; do
-  [[ "${p##*/}" != *.* && -f "$p" ]] || continue
+  [[ -f "$p" ]] || continue
   first=""
   IFS= read -r -n 2 first <"$p" || true
   [[ "$first" == '#!' ]] && pathspecs+=(":(literal)$p") && shebang["$p"]=1
-done < <(git ls-files plugins)
+done < <(git ls-files plugins | LC_ALL=C awk -F/ '$NF !~ /\./')
 
 spec_budget="${CHECK_PLUGIN_IMPORTS_SPEC_BYTES:-16000}"
 grep_batch() {
@@ -299,8 +312,33 @@ grep_hits() {
   ((batches > 1)) && hits="$(LC_ALL=C sort -s -t: -k1,1 <<<"$hits")"
   return 0
 }
-grep_hits -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -e '/plugins/' -- "${pathspecs[@]}"
-uses="$hits"
+grep_hits -e '\.\.[/\\]' -e "[\"']\.\.[\"']" -e '\.parent' -e '[/]plugins/' -- "${pathspecs[@]}"
+uses="$(LC_ALL=C awk '
+  {
+    p1 = index($0, ":")
+    if (!p1) next
+    file = substr($0, 1, p1 - 1)
+    rest = substr($0, p1 + 1)
+    p2 = index(rest, ":")
+    if (!p2) next
+    line = substr(rest, p2 + 1)
+    s = line
+    sub(/^[ \t]+/, "", s)
+    n = split(file, parts, ".")
+    ext = (n > 1) ? parts[n] : ""
+    if (ext == "mjs" || ext == "js" || ext == "cjs" || ext == "jsx" || ext == "ts" || ext == "mts" || ext == "cts" || ext == "tsx") {
+      if (substr(s, 1, 2) == "//" || substr(s, 1, 1) == "*" || substr(s, 1, 2) == "/*") next
+    } else if (ext == "ps1" || ext == "psm1") {
+      if (substr(s, 1, 1) == "#" || substr(s, 1, 2) == "<#") next
+    } else {
+      if (substr(s, 1, 1) == "#") next
+    }
+    if (index(line, "$") || index(line, "__dirname") || index(line, "import.meta.dirname") ||
+        index(line, "from") || index(line, "require") || index(line, "import") ||
+        index(line, "join") || index(line, "resolve") || index(line, "Join-Path") ||
+        index(line, ".parent")) print
+  }
+' <<<"$hits")"
 declare -A use_files=()
 while IFS= read -r hit; do
   file="${hit%%:*}"

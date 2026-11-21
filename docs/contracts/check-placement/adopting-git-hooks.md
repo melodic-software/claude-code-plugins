@@ -153,3 +153,21 @@ Pointer: git's [githooks `pre-commit`](https://git-scm.com/docs/githooks#_pre_co
 [`commit-msg`](https://git-scm.com/docs/githooks#_commit_msg) and
 [`pre-push`](https://git-scm.com/docs/githooks#_pre_push) sections. As of 2026-10-17. Recheck
 when any of them changes what `--no-verify` bypasses.
+
+### Keep `pre-push` under the remote idle timeout
+
+Git opens the remote connection and reads the remote refs before running `pre-push`
+([githooks `pre-push`](https://git-scm.com/docs/githooks#_pre_push)), so an SSH transport sits idle
+while the hook runs. On GitHub, an idle `git-receive-pack` SSH connection closes after 360 s
+(measured 2026-11-21 with OpenSSH for Windows 9.5p2; recheck if GitHub changes its SSH idle
+timeout). On native Windows Git Bash, fork overhead can turn a 20 s Linux `pre-push` hook into a
+multi-minute run that crosses that limit.
+
+Fix the cause rather than masking it with SSH keepalives:
+
+- Keep `pre-push` hooks within the [duration budgets](README.md#duration-budgets) on every
+  supported OS, including native Windows; move multi-minute checks to CI or on-demand commands.
+- In repositories that do not use Git LFS, set `skip_lfs: true` in `lefthook.yml` so lefthook does
+  not run `git lfs pre-push` against the remote on every push.
+- `ServerAliveInterval` in `~/.ssh/config` only keeps an idle connection open as a stopgap and does
+  not fix an over-budget hook.

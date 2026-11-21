@@ -19,15 +19,19 @@ export type Saved = {
   blur: number
   titles: Titles
   time?: string
+  date?: string
   weather?: string
+  lightning?: string
   sound?: boolean
   signal?: boolean
   hall?: boolean
   shader?: boolean
   /** The sound's volume, 0 to 100. */
   volume?: number
-  /** Which of two recordings each kind of sound plays, by kind; 1 when absent. */
-  picks?: Partial<Record<string, 1 | 2>>
+  /** The sound bank's entry each kind plays, by kind (pieces/sound-bank.ts); the kind's default when absent. */
+  bank?: Partial<Record<string, string>>
+  /** Whether the room's things (lamp, light, monitor, console, tape, cat) make their sounds; on when absent. */
+  objects?: boolean
 }
 
 /** The sound's volume when none is saved, 0 to 100. */
@@ -54,17 +58,22 @@ function titlesOf(value: unknown): Titles {
   return Object.fromEntries(TITLE_KEYS.filter(key => typeof given[key] === 'string').map(key => [key, given[key]]))
 }
 
-/** The stored recordings that are 1 or 2. */
-function picksOf(value: unknown): Saved['picks'] {
-  if (typeof value !== 'object' || value === null) return undefined
-  return Object.fromEntries(Object.entries(value).filter(([, pick]) => pick === 1 || pick === 2))
+/**
+ * The stored bank choices that are names. Version 0.3 stored `picks`, recording 1 or 2 of a kind: its second
+ * cicadas recording is the entry `river` now, kept as the choice; any other pick plays the default.
+ */
+function bankOf(value: unknown, picks: unknown): Saved['bank'] {
+  const named = typeof value === 'object' && value !== null ? Object.entries(value).filter(([, name]) => typeof name === 'string' && /^[a-z-]+$/.test(name)) : []
+  if (named.length > 0) return Object.fromEntries(named)
+  if (typeof picks !== 'object' || picks === null) return undefined
+  return (picks as Record<string, unknown>).cicadas === 2 ? { cicadas: 'river' } : undefined
 }
 
 /** The saved value a stored one reads as: each known key checked, a missing or wrong one at its default, `shader` dropped. */
 export function savedOf(stored: unknown): Saved {
   const base = defaults()
   if (typeof stored !== 'object' || stored === null) return base
-  const { shader: _session, volume, picks, ...given } = stored as Partial<Saved>
+  const { shader: _session, volume, bank, objects, picks, ...given } = stored as Partial<Saved> & { picks?: unknown }
   const state = typeof given.state === 'object' && given.state !== null ? given.state : {}
   const loaded: Saved = {
     ...given,
@@ -76,8 +85,9 @@ export function savedOf(stored: unknown): Saved {
     titles: titlesOf(given.titles),
   }
   if (typeof volume === 'number' && Number.isInteger(volume) && volume >= 0 && volume <= 100) loaded.volume = volume
-  const chosen = picksOf(picks)
-  if (chosen !== undefined) loaded.picks = chosen
+  const chosen = bankOf(bank, picks)
+  if (chosen !== undefined) loaded.bank = chosen
+  if (typeof objects === 'boolean') loaded.objects = objects
   return loaded
 }
 
