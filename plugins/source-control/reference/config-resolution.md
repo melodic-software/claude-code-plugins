@@ -228,6 +228,11 @@ reads the file itself, through a script where the key names one below.
   never the head, by `skills/pull-request/scripts/read-evidence-layout.sh`, and honored only when
   that base is the base repository's default branch. An invalid value, a base that is not the
   default branch, a file that does not parse or a failed read leaves the default, with a notice.
+- `evidence_ocr_mpdecimate_hi`: a whole number from 1 to 9999, default `256`, the ffmpeg
+  `mpdecimate` `hi` threshold at which `/source-control:pull-request evidence` samples a video's
+  frames before reading their text with OCR
+  ([evidence.md](../skills/pull-request/reference/evidence.md) step 5). Lower keeps more frames.
+  Team level only, read and validated with the two keys above by the same script.
 - `sync_stale_base`: `true` or `false`, whether
   [`push-branch.sh`](../skills/pull-request/scripts/push-branch.sh) merges the pull request's
   base into a branch behind it on overlapping paths just before it pushes (the script header

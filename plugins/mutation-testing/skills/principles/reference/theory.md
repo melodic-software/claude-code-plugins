@@ -43,14 +43,6 @@ Mutation testing is silent on all of these. A perfect mutation score is not a co
 Some mutations produce a program that is *semantically* identical to the original. No test can ever
 kill them, because there is no behavioral difference to detect.
 
-```python
-# original                          # mutant: <= becomes <
-for i in range(0, n):               for i in range(0, n):
-    if i <= n:  ...                     if i < n:  ...
-```
-
-Both guards are always true inside the loop. The mutant survives forever, and it is not a gap.
-
 Deciding whether two programs are semantically equivalent is **undecidable in general**. This is not
 a tooling deficiency that a better tool will fix; it is a property of the problem. Jia & Harman's
 survey identifies it as the dominant cost driver in the field, and it is why:

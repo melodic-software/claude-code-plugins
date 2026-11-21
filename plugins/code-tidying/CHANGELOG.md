@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.2] - 2026-11-21
+
+### Changed
+
+- **The vendored git-hook installer renders a format and lint pair as one piped lefthook group.** `lib/git-hooks/install.mjs` and the setup skill's `git-hook-decisions.md` now return a plugin's pre-commit `format` and `lint` entries as one `lefthook-config` decision, carrying `entries`, so lint runs after format even under `parallel: true`. This plugin's own entries render as before ([#16911](https://github.com/melodic-software/claude-code-plugins/issues/16911)).
+
+## [0.55.1] - 2026-11-21
+
+### Fixed
+
+- **The comment lint accepts the shell-portability markers.** Under the `necessary` posture, a `portability-ok: <reason>` comment and a comment line that opens with `portability-scope: <reason>` now pass as tool directives, like `shellcheck disable=` and `gitleaks:allow`. Before, the comment the portability check asks for was the comment the lint reported, so a repository with `comment_lint: block` could not pass both. A comment that only mentions `portability-scope:` in the middle of a sentence still fails ([#17414](https://github.com/melodic-software/claude-code-plugins/issues/17414)).
+
 ## [0.55.0] - 2026-11-20
 
 ### Added

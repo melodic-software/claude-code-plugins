@@ -33,8 +33,8 @@ line reads `no config: fallback defaults` and lists each default.
 and state it to the user before the baseline run; the report's `Config:` line carries it. It serves
 as `test-command` for this run, so `--exercised` holds it to the same `{tests}` rule. The baseline
 runs exactly the confirmed command, with `{tests}` filled by the test paths the user confirmed with
-it, never left empty. Never run a whole-tree test command no one confirmed: in a .NET repository a
-bare `dotnet test` can run test projects that reset or write shared environments. An unattended run
+it, never left empty. Never run a whole-tree test command no one confirmed: it can run test projects that reset or
+write shared environments. An unattended run
 with no test command stops and asks for one.
 
 ## Tool with no shipped adapter
