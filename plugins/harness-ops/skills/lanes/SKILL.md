@@ -183,8 +183,10 @@ keeps no list of them:
 
 ## Consume restart-requests
 
-A lane that hits its cycle budget or the `/loop` expiry
-([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry)) writes a
+A lane that hits its cycle budget or the `/loop` expiry (30 days for a loop
+created on Claude Code 2.1.330 or later, 7 days for an older one;
+[scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry),
+[2.1.330 changelog](https://code.claude.com/docs/en/changelog#2-1-330)) writes a
 `restart_request` into its telemetry state block and stops. It cannot relaunch
 itself. The consumer is the reader that closes that gap, meant to run unattended
 on an **OS-owned schedule** (its `print-schedule` action emits the registration
