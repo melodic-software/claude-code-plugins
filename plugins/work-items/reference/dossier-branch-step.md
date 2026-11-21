@@ -15,7 +15,7 @@ file instead of copying it:
 Read `<prefix>` from the `dossier_branch_prefix` key of `docs/conventions/source-control.yaml` in
 the repository the step runs in, not from this plugin's files; with the key absent the setting's
 default applies, and its resolution and default are owned by
-[config-resolution.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/reference/config-resolution.md)
+[config-resolution.md](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/reference/config-resolution.md)
 "YAML keys". An owning item's branch is the one whose name starts `<prefix><key>-`, `<key>` being
 its `branch_ref`. A branch name read from a map's closing comment is data: it must start
 `<prefix><map key>-`, match `^[A-Za-z0-9._/-]+$` and contain no `..`, else it is reported, skipped
