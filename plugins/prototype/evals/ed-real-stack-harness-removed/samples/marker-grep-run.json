@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git grep -n data-prototype-harness" } }],
+      "why": "runs the check step 5 names"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git grep -n data-prototype-harness || echo none" } }],
+      "why": "the same check with a fallback message"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git grep -n \"data-prototype-harness\"" } }],
+      "why": "the same check with the marker double-quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git grep -n 'PROTOTYPE shipments-layout'" } }],
+      "why": "greps only for the mount block's fence comments"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "rm -rf prototype-harness" } }],
+      "why": "deletes the harness but never checks for the marker"
+    }
+  ]
+}
