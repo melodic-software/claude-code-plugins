@@ -140,6 +140,14 @@ recheck_row="$(
 EOF
 )"
 expect_stdout "recheck rows are counted beside stale" "stale=1 recheck=2 status=open" --ledger "$recheck_row"
+escaped_recheck="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | answer:: free-text: a\; b; recheck:: Q2
+- Q2 | answered | round 1 | b | accepted: yes; reopened:: round 2
+EOF
+)"
+expect_exit "an escaped separator before recheck:: still blocks -> 1" 1 --ledger "$escaped_recheck"
+expect_stdout "an escaped separator in the answer still lets recheck block" "open=0 deferred=0 blocked=0 withdrawn=0 answered=2 superseded=0 brief=unchecked recheck=1 status=open" --ledger "$escaped_recheck"
 rechecked="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | a | accepted: yes; reopened:: round 2
@@ -319,8 +327,8 @@ trailing_gap="$(
 - gap | Q3-Q5 | ids a peer session holds
 EOF
 )"
-expect_exit "a declared gap past the highest row -> 2" 2 --ledger "$trailing_gap"
-if [[ "$(stderr_of --ledger "$trailing_gap")" == *"line 11: declared gap Q3-Q5 runs past the highest row Q2"* ]]; then pass "a gap past the highest row is named with its line"; else fail "a gap past the highest row is named with its line (stderr: '$(stderr_of --ledger "$trailing_gap")')"; fi
+expect_exit "a declared gap past the highest row reserves those ids -> 0" 0 --ledger "$trailing_gap"
+if [[ -z "$(stderr_of --ledger "$trailing_gap")" ]]; then pass "a gap past the highest row is not an error"; else fail "a gap past the highest row is not an error (stderr: '$(stderr_of --ledger "$trailing_gap")')"; fi
 prose_gap="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin

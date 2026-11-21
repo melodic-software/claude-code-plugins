@@ -32,7 +32,7 @@
 #          register, a malformed row, an unknown status, a duplicate, an
 #          out-of-order or a missing (gap) Q id that no `- gap | Q<a>-Q<b> | <why>`
 #          line declares, a malformed gap line, a declared gap that covers a
-#          row or runs past the highest row, an unfenced `- Q<N> |` row
+#          row, an unfenced `- Q<N> |` row
 #          outside the register section (any heading ends the section, a
 #          sub-heading inside it included), a named `--brief` that is
 #          missing, or a `--surface` that is missing, comes without `--brief`
@@ -977,7 +977,6 @@ done
 read -ra row_ids <<<"$ids_in_order"
 while read -r a b gap_line; do
   [[ -n "$a" ]] || continue
-  [[ "$b" -gt "$max_id" ]] && row_errors="${row_errors}line $gap_line: declared gap Q$a-Q$b runs past the highest row Q$max_id"$'\n'
   for n in ${row_ids[@]+"${row_ids[@]}"}; do
     if [[ "$n" -ge "$a" && "$n" -le "$b" ]]; then
       row_errors="${row_errors}line $gap_line: declared gap Q$a-Q$b covers the row Q$n"$'\n'

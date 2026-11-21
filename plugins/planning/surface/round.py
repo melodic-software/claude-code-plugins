@@ -2872,7 +2872,7 @@ def edit_ledger(a, edit):
     check = HERE.parent / "scripts" / "check-open-questions.sh"
     try:
         r = subprocess.run(
-            ["bash", str(check), "--ledger", str(path)],
+            [shutil.which("bash") or "bash", str(check), "--ledger", str(path)],
             capture_output=True,
             text=True,
             encoding="utf-8",

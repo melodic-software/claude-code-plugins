@@ -6,10 +6,11 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  given a ledger's text it merges into that ledger's register (merged_register)
                  and keeps its `- gap |` lines, in range order, each right before
                  the first row numbered past its range (after the last row when none is);
-                 it refuses a gap line the gate would read as malformed
+                 it refuses a gap line the gate would read as malformed, and writes
+                 `- gap | Q<a>-Q<b> | never assigned` for ids nothing held (never_assigned)
   sync_ledger    a ledger's text with only its register rows and gap lines replaced by the
                  merged rows and those gap lines, placed as export_ledger places them; it
-                 refuses a malformed gap line as export_ledger does
+                 refuses a malformed gap line and writes never-assigned lines as export_ledger does
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
                  numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
@@ -729,8 +730,17 @@ def page_numbering(doc, extra=(), text=None):
     ids, against the row numbers and declared gaps of the ledger `text`."""
     ids = [q["id"] for q in doc.get("questions") or []]
     ids += [*(doc.get("pendingProposals") or []), *extra]
-    gaps = [(a, b) for a, b, _, _ in gap_lines(text or "")]
-    return numbering(ids, ledger_numbers(text), gaps)
+    return numbering(ids, ledger_numbers(text), accepted_gaps(text or ""))
+
+
+def accepted_gaps(text):
+    """(low, high) of each gap line the gate accepts: one that covers no register row."""
+    nums = [n for n, *_ in parse_register(text)]
+    return [
+        (a, b)
+        for a, b, _, _ in gap_lines(text)
+        if not any(a <= n <= b for n in nums)
+    ]
 
 
 def lead_of(qid, n):
@@ -937,9 +947,50 @@ def register_lines(rows, gaps):
     return out + [g[3] for g in gaps]
 
 
+def page_held(d):
+    """Every Q<N> number the data dir has recorded: its questions and the ids they name, every
+    event, every round's restate lists, the import's rows and the last ledger check's rows."""
+    doc = load_json(Path(d) / "questions.json", {"questions": []})
+    resp = load_json(Path(d) / "responses.json", EMPTY_RESPONSES)
+    seeded = (doc.get("meta") or {}).get("seededFrom") or {}
+    ids = [e.get("id") for e in resp.get("events") or []]
+    for q in doc.get("questions") or []:
+        ids += [q.get("id"), q.get("supersedes"), q.get("followUpOf"), *(q.get("dependsOn") or [])]
+    for r in doc.get("rounds") or []:
+        restate = r.get("restate") or {}
+        ids += [*(restate.get("decided") or []), *(restate.get("open") or [])]
+    for key in ("rows", "roundCells", "tags"):
+        ids += list(seeded.get(key) or {})
+    ids += ((doc.get("meta") or {}).get("ledgerSync") or {}).get("rows") or []
+    return {int(i[1:]) for i in ids if isinstance(i, str) and QN.match(i)}
+
+
+def never_assigned(d, rows, gaps, text):
+    """`- gap | Q<a>-Q<b> | never assigned` lines for each run of numbers below the highest row
+    that no row, no gap line and nothing the data dir recorded holds, above the highest number
+    the ledger text holds: a number the ledger held is never declared, so a dropped row still
+    fails the gate."""
+    nums = {int(r["n"][1:]) for r in rows}
+    floor = highest_id(text) if text else 0
+    held = nums | page_held(d)
+    missing = [
+        n
+        for n in range(floor + 1, max(nums, default=0))
+        if n not in held and not any(a <= n <= b for a, b, _, _ in gaps)
+    ]
+    runs = []
+    for n in missing:
+        if runs and runs[-1][1] == n - 1:
+            runs[-1][1] = n
+        else:
+            runs.append([n, n])
+    return [(a, b, None, f"- gap | Q{a}-Q{b} | never assigned") for a, b in runs]
+
+
 def export_ledger(d, text=None, where="the ledger"):
     gaps = gap_lines(text or "", where)
     doc, rows, _ = merged_register(d, text)
+    gaps += never_assigned(d, rows, gaps, text)
     title = (doc.get("meta") or {}).get("title")
     out = ["# Interview ledger", ""]
     if title:
@@ -1053,6 +1104,7 @@ def sync_ledger(d, text, where):
     if not drop and at < len(lines) and not lines[at].strip():
         at += 1
     eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    gaps = gaps + never_assigned(d, rows, gaps, text)
     new = [line + eol for line in register_lines(rows, gaps)]
     if new and not drop and at < len(lines) and lines[at].strip():
         new.append(eol)
@@ -1889,12 +1941,13 @@ def gap_lines(text, where=None):
 
 def highest_id(text, d=None):
     """The highest question number a ledger holds: its register rows' Q<N>, each `[Q<N>]` lead
-    and each `- gap |` line's high end; with a data dir also every number its merged export
+    and the high end of each `- gap |` line the gate accepts (accepted_gaps: one past the last
+    row counts, one covering a row does not); with a data dir also every number its merged export
     writes, every page question's own Q<N> and every pending proposal's. 0 for none."""
     ids = []
     for n, _, _, _, res, _ in parse_register(text):
         ids += [f"Q{n}", row_id(n, res)]
-    nums = [b for _, b, _, _ in gap_lines(text)]
+    nums = [b for _, b in accepted_gaps(text)]
     if d is not None:
         doc, rows, _ = merged_register(d, text)
         nums += [int(r["n"][1:]) for r in rows]
