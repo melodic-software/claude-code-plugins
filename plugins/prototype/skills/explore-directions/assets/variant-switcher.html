@@ -26,6 +26,8 @@
   elements inside it are lost: wire variant interactions with listeners delegated from document.
   Chrome, not a contestant: leave its look alone. It takes the notes host page's light and dark
   tokens, and it hides when that page frames the mockup, whose command bar steps the variants.
+  Under that bar it also hides every element marked data-harness-chrome, such as the page's data
+  bar, whose controls the bar's Sample data menu presses.
 -->
 <nav class="vs" aria-label="Variants" data-position="bottom">
   <span class="vs-highlight" aria-hidden="true"></span>
@@ -64,7 +66,7 @@
       --uif-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 32px rgb(0 0 0 / 0.5);
     }
   }
-  :root[data-ui-feedback-bar] .vs { display: none; }
+  :root[data-ui-feedback-bar] .vs, :root[data-ui-feedback-bar] [data-harness-chrome] { display: none !important; }
   .vs {
     position: fixed;
     inset-block-end: 24px;
