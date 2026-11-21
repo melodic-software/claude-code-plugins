@@ -36,6 +36,7 @@ DIRECTIVE = re.compile(
     \bnoqa\b | \btype:\s*ignore\b | \bpyright:\s*\w | \bpylint:\s*(?:disable|enable|skip-file)
     | \bmypy:\s*\w | \bpragma:\s*no\s*(?:cover|branch) | \bfmt:\s*(?:off|on|skip)\b | \bisort:\s*\w
     | \bruff:\s*(?:noqa|isort) | \bnosec\b | \bnosemgrep\b | \bgitleaks:allow\b
+    | \bportability-ok: | ^\s*\#\s*portability-scope:
     | \bshellcheck\s+(?:disable|enable|source|shell|external-sources)=
     | \beslint(?:-disable|-enable)?(?:-next-line|-line)?\b(?=[\s:*]|$) | /\*\s*globals?\s[^*]*\*/
     | \bclang-format\s+(?:off|on)\b | \bcppcheck-suppress\b | \bluacheck:\s*\w | \bstylua:\s*ignore

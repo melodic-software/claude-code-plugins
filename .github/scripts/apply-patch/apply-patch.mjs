@@ -1466,7 +1466,10 @@ export async function failedAnswer(response, token) {
 // a commit are used only by the sha their answer names, and a ref update
 // carries the sha it sets, so each repeats to the same state. createRef is
 // sent once: a resend after a create that landed answers 422.
-export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = globalThis.fetch, sleep }) {
+export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch, sleep }) {
+  if (typeof rawFetch !== "function") {
+    throw new TypeError("createGitHubApi needs a fetch: an importer run from a checkout passes the rate guard's");
+  }
   const fetch = retryFetch(rawFetch, { sleep });
   const repo = `${apiUrl}/repos/${repository}`;
   const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" };
@@ -1692,7 +1695,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
   const merge = isMerge(row) ? mergeFrom(env, { cwd, gitBin }) : undefined;
   const keptThreads = keptThreadsFrom(env.KEPT_THREADS_FILE);
   const result = await push({
-    api: api ?? createGitHubApi({ token: env.GH_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com" }),
+    api: api ?? createGitHubApi({ token: env.GH_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com", fetch: globalThis.fetch }),
     cwd,
     gitBin,
     row,

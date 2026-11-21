@@ -438,10 +438,25 @@ class MoreDirectives(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(flagged(path, text), [])
 
+    def test_portability_ok_passes(self):
+        text = '#!/usr/bin/env bash\n# portability-ok: GNU stat only, Linux-only script\nsize=$(stat -c %s "$1")\necho "$size"\n'
+        self.assertEqual(flagged("t.sh", text), [])
+
+    def test_portability_ok_on_the_hit_line_passes(self):
+        self.assertEqual(flagged("t.sh", "date -d tomorrow # portability-ok: Linux CI runner only\n"), [])
+
+    def test_portability_scope_passes(self):
+        text = "#!/usr/bin/env bash\n# portability-scope: fixture corpus of the portability gate\nx=1\n"
+        self.assertEqual(flagged("t.sh", text), [])
+
+    def test_portability_scope_mid_sentence_fails(self):
+        self.assertEqual(flagged("t.sh", "x=1\n# the gate honors portability-scope: lines\n"), [2])
+
     def test_prose_that_resembles_a_directive_fails(self):
         cases = [
             ("a.sh", "x=1\n# the global config\n"),
             ("a.sh", "x=1\n# see ex: the parser\n"),
+            ("t.sh", "x=1\n# GNU stat only\n"),
         ]
         for path, text in cases:
             with self.subTest(text=text):
