@@ -474,6 +474,14 @@ an approval or refuses a write, report it and never retry around it. The approva
 cases are probed behavior recorded in
 [context/claude-design-tool.md](context/claude-design-tool.md#the-built-in-claudedesign-tool-verification-record).
 
+The **charts mod**, built-in `cc-plugin-easel`, overlaps this skill on one form: it gives Claude a
+chart tool for a chart in the transcript, and loads only where its plan and platform requirements
+are met; the person can turn it off in `/plugin`, or only its automatic charts in `/config`.
+**Routing:** when a transcript chart of quantities is asked for and the mod's chart tool resolves
+in this session, use that tool; this skill keeps every other form and medium, and draws its own
+chart wherever the mod is absent. It never switches the mod on or off. The records behind this are
+in [context/easel-mod.md](context/easel-mod.md).
+
 ## What this skill does NOT do
 
 - **Does not teach chart craft**. Palette, axes, marks route to a chart-craft/dataviz capability.
