@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6] - 2026-11-21
+
+### Changed
+
+- Unattended `/improvement:find` reads an architecture candidate's Size from the entry's `size` field instead of judging it from the files and text; an entry without one is reported as a gap.
+
 ## [0.8.5] - 2026-11-21
 
 ### Changed
