@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.11.8] - 2026-11-21
+
+### Changed
+
+- The shared prototype page's frame helper (`proto-pin.js`) draws its markers, outlines and arrows in one violet accent that follows the light or dark scheme, dashes a draft's marker, and answers the notes host page's new view, name and bar messages.
+
 ## [5.11.7] - 2026-11-21
 
 ### Changed
