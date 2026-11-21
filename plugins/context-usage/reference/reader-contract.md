@@ -396,7 +396,11 @@ semantics.
 ## Evidence-degraded marker
 
 `~/.claude/context-usage/context/<session_id>.compacted`, written by the PostCompact hook,
-last-write-wins per session:
+last-write-wins per session. On Claude Code 2.1.323 and later a subagent compaction writes no
+marker: its payload carries `agent_id`
+([changelog 2.1.323](https://code.claude.com/docs/en/changelog#2-1-323)), and it leaves the main
+session's context whole. Earlier builds send no `agent_id`, so there a subagent compaction still
+writes the main session's marker.
 
 ```json
 { "compacted_at": "2026-07-26T12:00:00Z", "trigger": "auto", "hook_event_name": "PostCompact" }
@@ -418,7 +422,7 @@ describes.
 rationale is that the evidence is already gone from the model-visible context, which holds
 identically for a steered `/compact` and an auto-compact. Consumers therefore treat all three
 values the same, and that sameness is deliberate, not an omission. The writer
-(`hooks/post-compact-mark.sh`) records the field and writes the marker unconditionally: a hook
+(`hooks/post-compact-mark.sh`) records the field and writes the marker whatever the trigger: a hook
 cannot observe intent, and a marker written conditionally stops being evidence, so there is no
 boundary-timed carve-out.
 
