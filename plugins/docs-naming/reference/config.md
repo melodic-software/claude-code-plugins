@@ -53,7 +53,7 @@ A user-global file absent under `docs-naming.json` but present under the retired
 stderr warning from `resolve` and a WARN row from `/docs-naming:setup check`. The
 new name wins when both exist. Rename the file to retire the warning.
 
-Where plugin config belongs: [config locations](config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](config-locations.md) says.
 
 All three absent is a valid state: every key has a bundled default, and the
 defaults are this marketplace's own values, except `generated`, which is empty. The recommended gitignore line for

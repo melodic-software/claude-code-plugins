@@ -59,7 +59,7 @@ name the file to change.
       it: an operator who wants `/source-control:commit` to draft to the same pattern also sets
       `## subject_pattern` in the drafting personal override, `.claude/source-control.local.md`.
 
-      Where plugin config belongs: [config locations](../config-cascade/locations.md). A `.claude/` path named here is a plugin's current or retired location, a declared deviation until it migrates.
+      A plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../config-cascade/locations.md) says.
 
    The folder-form file, and its fail-closed checks, are read only for a key the YAML lacks: a
    broken folder-form file never disables a key the YAML supplies. Each key holds exactly one

@@ -83,7 +83,7 @@ Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
    The scan asks nothing and writes no record; `/improvement:setup apply` offers to persist them
    as `churn_exclude` entries.
 
-   Where plugin config belongs: [config locations](../../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+   This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../../reference/config-locations.md) says.
 
 All layers absent is a valid state. When item 2 resolves nothing while `churn_exclude_defaults` is
 on, record an evidence-gap line (format: unattended.md), e.g.

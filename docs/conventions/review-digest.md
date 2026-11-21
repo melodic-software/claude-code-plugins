@@ -55,7 +55,7 @@ an earlier one key by key:
    the layer below.
 3. personal override `.claude/review-digest.local.json`
 
-   Where plugin config belongs: [config locations](../contracts/config-cascade/locations.md). A `.claude/` path named here is a plugin's current or retired location, a declared deviation until it migrates.
+   A plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../contracts/config-cascade/locations.md) says.
 
 The result names the layer that supplied each value (`team <commit>:<path>`, `user-global <path>`,
 `personal-override <path>`, or `default`). Quote glob values in the YAML file (`"**/hooks/**"`),

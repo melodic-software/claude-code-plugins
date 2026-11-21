@@ -88,7 +88,7 @@ and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IE
 a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:
 `reference/config.md`; `/code-metrics:setup` writes the team layer and probes the collectors.
 
-Where plugin config belongs: [config locations](reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](reference/config-locations.md) says.
 
 ## The report
 

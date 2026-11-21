@@ -30,7 +30,7 @@ layer and **no personal override channel**; the old layers are retired, each wit
 | personal override | `.claude/plugin-quality.local.md` | record `plugin-quality-r002` (delete). Never read; setup `check` WARNs while it exists rather than silently ignoring it. |
 | user-global | `~/.claude/plugin-quality.md` | machine scope, outside the retirement manifest by contract. Never read; setup `check` WARNs in prose when it exists. |
 
-Where plugin config belongs: [config locations](config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](config-locations.md) says.
 
 ## Resolution order
 

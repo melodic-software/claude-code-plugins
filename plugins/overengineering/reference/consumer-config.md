@@ -31,7 +31,7 @@ Three layers, resolved in this order:
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/overengineering.md` |
 | 3 | personal override (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/overengineering.local.md` |
 
-Where plugin config belongs: [config locations](config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](config-locations.md) says.
 
 **Merge form: per-key override**, declared here as the cascade convention requires. The values are
 scalars and closed mappings, where concatenation is meaningless: a later layer replaces an earlier

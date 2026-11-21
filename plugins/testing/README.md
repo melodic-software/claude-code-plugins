@@ -139,7 +139,7 @@ lower it: the lowest valid value wins, a raise is reported as ignored, and an in
 named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
 `testing.yaml`, so add the map once every member runs this release.
 
-Where plugin config belongs: [config locations](reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](reference/config-locations.md) says.
 
 `verification` (`off | light | standard | strict`, default `light`) and `verification_skills`
 (per-skill levels; an entry beats `verification`) set whether `/testing:cleanup`'s Cannot-fail-only mode

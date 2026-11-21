@@ -92,7 +92,7 @@ The user-global `~/.claude/testing.yaml`, the personal override `.claude/testing
 (`source=personal-override`) and the plugin option can only lower the team value. The script reports a raise as ignored, and names an invalid
 layer and drops it. Quote a `reason` that holds a colon followed by a space.
 
-Where plugin config belongs: [config locations](../../reference/config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../reference/config-locations.md) says.
 
 A tolerance above 0 is used only with its recorded reason; never pass a higher `--tolerance` than
 this line gives. To keep a known baseline mismatch under tolerance, the team records a

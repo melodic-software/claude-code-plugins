@@ -33,7 +33,7 @@ The consuming plugin names its own surface. The first adopter, `harness-config`'
 | 2 | team (tracked) | `<home>/harness-config.yaml` (`<home>` from the convention-home pointer line, default `docs/conventions`) |
 | 3 | personal override (gitignored) | `.claude/audit-pass.local.md` |
 
-Where plugin config belongs: [config locations](../config-cascade/locations.md). A `.claude/` path named here is a plugin's current or retired location, a declared deviation until it migrates.
+A plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../config-cascade/locations.md) says.
 
 In a YAML concern file the `suppressions` mapping sits at the root with the entry shape below; a
 reader that uses the shared YAML-subset parser needs the `"anchor/v1":` key quoted.

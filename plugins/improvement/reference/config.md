@@ -17,7 +17,7 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/improvement.md` | must be tracked, the only layer teammates receive |
 | 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/improvement.local.md` | must be gitignored, never staged |
 
-Where plugin config belongs: [config locations](config-locations.md). A `.claude/` path named here is this plugin's current or retired location, a declared deviation until it migrates.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](config-locations.md) says.
 
 Resolution anchors at the repo root, `${CLAUDE_PROJECT_DIR}` when set and otherwise
 `git rev-parse --show-toplevel`, never at the CWD. Every layer that exists is read and merged;
