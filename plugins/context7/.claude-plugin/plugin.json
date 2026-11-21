@@ -17,5 +17,13 @@
   ],
   "metadata": {
     "category": "discovery"
+  },
+  "userConfig": {
+    "cli_update_hint": {
+      "type": "string",
+      "title": "ctx7 update hint",
+      "description": "Optional text shown when the daily check finds ctx7 behind its latest release, such as how your machines update it. Empty shows only the version line.",
+      "default": ""
+    }
   }
 }

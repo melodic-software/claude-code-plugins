@@ -1003,3 +1003,6 @@ lib/enabled-plugin-roots.mjs plugins/plugin-diagnostics/lib/enabled-plugin-roots
 lib/enabled-plugin-roots.mjs plugins/harness-ops/lib/enabled-plugin-roots.mjs
 lib/lane-instance-collision-check.md plugins/source-control/skills/babysit-loop/reference/lane-instance-collision-check.md
 lib/lane-instance-collision-check.md plugins/work-items/skills/work-loop/reference/lane-instance-collision-check.md
+lib/cli-version-check.mjs plugins/context7/lib/cli-version-check.mjs
+lib/cli-version-check.mjs plugins/firecrawl/lib/cli-version-check.mjs
+lib/cli-version-check.mjs plugins/playwright/lib/cli-version-check.mjs
