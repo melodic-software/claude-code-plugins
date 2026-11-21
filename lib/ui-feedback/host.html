@@ -266,13 +266,20 @@
     if (picking) setPick(null);
     chosen = m;
     toFrame({ type: "select", target: target(m) });
-    render();
+    markChosen();
   }
   function unchoose(tellFrame) {
     if (!chosen) return;
     chosen = null;
     if (tellFrame) toFrame({ type: "select", target: null });
-    render();
+    markChosen();
+  }
+  /** The rows stay in place: a click still bubbling from a row must find it in the list. */
+  function markChosen() {
+    for (const li of $("notes").children) {
+      if (chosen && li.dataset.key === `row-${chosen.id}`) li.setAttribute("aria-current", "true");
+      else li.removeAttribute("aria-current");
+    }
   }
 
   /** The run's sent notes from the bridge, so a reload lists them again. A note the contract refuses is left out. */
@@ -586,6 +593,8 @@
   $("copy-config").addEventListener("click", copyConfig);
   // A click anywhere on this page but a row ends the selection.
   document.addEventListener("click", (e) => { if (chosen && !(e.target instanceof Element && e.target.closest("#notes li"))) unchoose(true); });
+  // The list outlives its rows, which render() replaces without a mouseleave.
+  $("notes").addEventListener("mouseleave", () => toFrame({ type: "show", target: null }));
   $("reset-controls").addEventListener("click", resetControls);
   for (const t of tabs) {
     t.addEventListener("click", () => selectTab(t));

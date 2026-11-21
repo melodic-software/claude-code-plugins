@@ -28,6 +28,7 @@ async page => {
       await page.keyboard.insertText(words);
       await page.click("#send");
       await page.waitForFunction((seq) => new RegExp(`Note ${seq} sent`).test(document.getElementById("status").textContent), seq, { timeout: 5000 });
+      await frame.waitForFunction(() => ![...(document.querySelector("[data-ui-feedback-layer]")?.children ?? [])].some((e) => e.style.outline.includes("solid") && !e.dataset.note), null, { timeout: 5000 });
     };
 
     await sendNote(inFrame.locator(ROW).nth(0), "Bolder parcel ids.", 1);
