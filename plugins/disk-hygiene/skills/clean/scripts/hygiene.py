@@ -16,6 +16,7 @@ import platform
 import re
 import secrets
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -5152,6 +5153,73 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 INVENTORY_REPORT_KIND = "deep-inventory-report"
 # Distinct from 2 (invalid), 3 (blocked) and 4 (apply skipped paths).
 INVENTORY_VALIDATION_FAILED = 5
+INVENTORY_REPORTS_KEPT = 3
+INVENTORY_STEM = re.compile(r"inventory-\d{8}T\d{12}Z")
+INVENTORY_PARTIAL = re.compile(
+    r"inventory-\d{8}T\d{12}Z\.jsonl\.(\d+)\.[0-9a-f]{8}\.tmp"
+)
+
+
+def process_alive(pid: int) -> bool:
+    """Whether ``pid`` may still be running; an unreadable answer counts as alive."""
+    if pid <= 0:
+        return True
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [
+            ctypes.c_uint32,
+            ctypes.c_int,
+            ctypes.c_uint32,
+        ]
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        ERROR_INVALID_PARAMETER = 87
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+        if handle:
+            kernel32.CloseHandle(handle)
+            return True
+        return ctypes.get_last_error() != ERROR_INVALID_PARAMETER
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, OverflowError):
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def sweep_orphaned_inventory_partials(directory: Path) -> None:
+    """Delete inventory partials whose writer PID is gone; legacy names stay."""
+    for path in directory.iterdir():
+        match = INVENTORY_PARTIAL.fullmatch(path.name)
+        if match and not process_alive(int(match.group(1))):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+
+
+def prune_inventory_reports(directory: Path) -> None:
+    """Keep the newest completed reports, each a ``.jsonl`` with its ``.json``."""
+    stems = sorted(
+        (
+            path.stem
+            for path in directory.iterdir()
+            if path.suffix == ".jsonl" and INVENTORY_STEM.fullmatch(path.stem)
+        ),
+        reverse=True,
+    )
+    for stem in stems[INVENTORY_REPORTS_KEPT:]:
+        for suffix in (".jsonl", ".json"):
+            try:
+                (directory / f"{stem}{suffix}").unlink(missing_ok=True)
+            except OSError:
+                continue
+
+
+def _exit_on_sigterm(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
 
 
 def run_inventory(target_arg: str, deep_flag: bool) -> int:
@@ -5160,8 +5228,10 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     Report only: nothing here deletes, and the summary is neither a snapshot
     nor a plan, so preview and apply refuse it. Rows stream to a temporary
     file, so no entry cap applies, and it replaces the report name only when
-    the walk finishes: an interrupted walk leaves no partial report. Deep is
-    the default when the target is the home directory.
+    the walk finishes: an interrupted walk, SIGTERM included, leaves no partial
+    report, and a partial whose writer died is swept on the next run. A run
+    that passes validation keeps only the newest three reports. Deep is the default when the target is the
+    home directory.
     """
     target_input = Path(target_arg).expanduser().absolute()
     if not target_input.is_dir() or has_linkish_component(target_input):
@@ -5179,11 +5249,18 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     )
     summary_path = state_output_path(rows_path.with_suffix(".json"))
     rows_path.parent.mkdir(parents=True, exist_ok=True)
+    sweep_orphaned_inventory_partials(rows_path.parent)
     dispositions: dict[str, int] = {}
     failures: list[str] = []
-    partial = rows_path.with_name(f"{rows_path.name}.{secrets.token_hex(4)}.tmp")
+    partial = rows_path.with_name(
+        f"{rows_path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
+    )
     mount_points, mount_error = linux_mount_points()
     mounts = frozenset(str(p) for p in mount_points)
+    try:
+        previous_sigterm = signal.signal(signal.SIGTERM, _exit_on_sigterm)
+    except ValueError:
+        previous_sigterm = None
     try:
         with partial.open("w", encoding="utf-8") as out:
             for row in deep_inventory.inventory_rows(
@@ -5203,6 +5280,8 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
         os.replace(partial, rows_path)
     finally:
         partial.unlink(missing_ok=True)
+        if previous_sigterm is not None:
+            signal.signal(signal.SIGTERM, previous_sigterm)
     summary = {
         "kind": INVENTORY_REPORT_KIND,
         "status": "inventory-failed" if failures else "inventory-complete",
@@ -5222,6 +5301,8 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     write_text_atomic(
         summary_path, json.dumps(summary, indent=2, sort_keys=True) + "\n"
     )
+    if not failures:
+        prune_inventory_reports(rows_path.parent)
     return emit(summary, INVENTORY_VALIDATION_FAILED if failures else 0)
 
 

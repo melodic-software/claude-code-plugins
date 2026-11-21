@@ -14,6 +14,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -22,7 +23,7 @@ import threading
 import time
 import types
 import unittest
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import (
     ExitStack,
     chdir as chdir_context,
@@ -18331,6 +18332,99 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertNotEqual(0, code, summary)
         self.assertNotIn("rows", summary)
         self.assertEqual([], list((self.data_root / "inventory").iterdir()))
+
+    def test_partial_name_carries_the_writer_pid(self) -> None:
+        self.write("a.txt")
+        seen: list[str] = []
+
+        def rows(*_args: Any, **_kwargs: Any) -> Iterable[dict[str, Any]]:
+            seen.extend(p.name for p in (self.data_root / "inventory").iterdir())
+            return iter(())
+
+        with mock.patch.object(hygiene.deep_inventory, "inventory_rows", rows):
+            self.run_inventory("--deep")
+        self.assertEqual(1, len(seen), seen)
+        match = hygiene.INVENTORY_PARTIAL.fullmatch(seen[0])
+        self.assertIsNotNone(match, seen)
+        self.assertEqual(str(os.getpid()), cast(re.Match[str], match).group(1))
+
+    def test_a_dead_writers_partial_is_swept_and_others_stay(self) -> None:
+        self.write("a.txt")
+        inventory = self.data_root / "inventory"
+        inventory.mkdir()
+        rows = "inventory-20000101T000000000000Z.jsonl"
+        dead = inventory / f"{rows}.999999.0123abcd.tmp"
+        live = inventory / f"{rows}.{os.getpid()}.0123abcd.tmp"
+        legacy = inventory / f"{rows}.0123abcd.tmp"
+        for path in (dead, live, legacy):
+            path.write_text("partial", encoding="utf-8")
+        with mock.patch.object(
+            hygiene, "process_alive", side_effect=lambda pid: pid != 999999
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertFalse(dead.exists())
+        self.assertTrue(live.exists())
+        self.assertTrue(legacy.exists())
+
+    def test_own_pid_is_alive(self) -> None:
+        self.assertTrue(hygiene.process_alive(os.getpid()))
+
+    @unittest.skipIf(os.name == "nt", "reaping a child by PID is POSIX-only here")
+    def test_a_reaped_child_pid_is_not_alive(self) -> None:
+        child = subprocess.Popen([sys.executable, "-c", ""])
+        child.wait()
+        self.assertFalse(hygiene.process_alive(child.pid))
+        self.assertFalse(hygiene.process_alive(99999999999))
+
+    def test_only_the_newest_three_report_pairs_are_kept(self) -> None:
+        self.write("a.txt")
+        inventory = self.data_root / "inventory"
+        inventory.mkdir()
+        old = [f"inventory-200001{day:02d}T000000000000Z" for day in range(1, 5)]
+        for stem in old:
+            for suffix in (".jsonl", ".json"):
+                (inventory / f"{stem}{suffix}").write_text("{}", encoding="utf-8")
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        new = Path(summary["rows"]).name.removesuffix(".jsonl")
+        expected = sorted(
+            f"{stem}{suffix}"
+            for stem in (old[2], old[3], new)
+            for suffix in (".jsonl", ".json")
+        )
+        self.assertEqual(expected, sorted(p.name for p in inventory.iterdir()))
+
+    @unittest.skipIf(
+        os.name == "nt" or not hasattr(signal, "SIGTERM"),
+        "needs POSIX SIGTERM delivery",
+    )
+    def test_sigterm_during_the_walk_leaves_no_partial(self) -> None:
+        self.write("a.txt")
+        guard_calls: list[int] = []
+
+        def guard(signum: int, _frame: object) -> None:
+            guard_calls.append(signum)
+
+        previous = signal.signal(signal.SIGTERM, guard)
+        self.addCleanup(signal.signal, signal.SIGTERM, previous)
+        partials: list[str] = []
+
+        def rows(*_args: Any, **_kwargs: Any) -> Iterable[dict[str, Any]]:
+            partials.extend(
+                p.name for p in (self.data_root / "inventory").glob("*.tmp")
+            )
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(1)
+            yield from ()
+
+        with mock.patch.object(hygiene.deep_inventory, "inventory_rows", rows):
+            with self.assertRaises(SystemExit):
+                self.run_inventory("--deep")
+        self.assertEqual(1, len(partials), partials)
+        self.assertEqual([], list((self.data_root / "inventory").iterdir()))
+        self.assertEqual([], guard_calls)
+        self.assertIs(guard, signal.getsignal(signal.SIGTERM))
 
     def test_report_inside_the_target_is_not_listed(self) -> None:
         self.data_root = self.target / "data"

@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-11-21
+
+### Changed
+
+- **The principles skill's observable-behavior and testing-styles pages no longer teach through C# listings.** The C#, Moq, xUnit.net and Fluent Assertions code examples are cut from both pages. The leaking-API example, which communications to mock and the audit-system refactoring are now stated in prose, and the "Mock (the Tool) vs Mock (the Test Double)" section, which was framed around Moq's `Mock<T>`, is removed ([#17765](https://github.com/melodic-software/claude-code-plugins/issues/17765)).
+
 ## [0.6.1] - 2026-11-18
 
 ### Changed

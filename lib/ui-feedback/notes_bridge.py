@@ -84,6 +84,11 @@ PAGE_CSP = (
 )
 FRAME = b'<iframe id="page"'
 SANDBOX = FRAME + b' sandbox="allow-scripts"'
+# The mockup route's frame alone carries the targetOrigin the host page posts to it with
+# (frame-channel.mjs frameTarget): a sandboxed srcdoc document has an opaque origin, which only the
+# wildcard target matches, so the real-stack host page never holds that target.
+# https://html.spec.whatwg.org/multipage/web-messaging.html#posting-messages
+MOCKUP_FRAME = SANDBOX + b' data-mockup-target="*"'
 PAGE_CSP_META = (
     f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'.encode()
 )
@@ -93,6 +98,7 @@ DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype[^>]*>", re.IGNORECASE)
 FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTALL)
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
+    "/frame-channel.mjs": ("frame-channel.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
     "/controls.schema.json": ("controls.schema.json", "application/json"),
     "/controls.js": ("controls.js", "text/javascript"),
@@ -241,12 +247,13 @@ class NotesHub(view.ViewHub):
         return {**found, "devOrigin": self.dev_origin} if self.dev_origin else found
 
     def host_page(self):
-        """host.html and its policy; a real-stack session's frame loses its sandbox and gains frame-src."""
+        """host.html and its policy. The mockup's frame gains the wildcard target its opaque origin
+        needs; a real-stack session's frame loses its sandbox and gains frame-src."""
         raw = (HERE / "host.html").read_bytes()
-        if not self.dev_origin:
-            return raw, HOST_CSP
         if raw.count(SANDBOX) != 1:
             raise RuntimeError(f"host.html must hold {SANDBOX.decode()} exactly once")
+        if not self.dev_origin:
+            return raw.replace(SANDBOX, MOCKUP_FRAME), HOST_CSP
         mark = FRAME + f' data-dev-origin="{html.escape(self.dev_origin)}"'.encode()
         return raw.replace(SANDBOX, mark), f"{HOST_CSP}; frame-src {self.dev_origin}"
 

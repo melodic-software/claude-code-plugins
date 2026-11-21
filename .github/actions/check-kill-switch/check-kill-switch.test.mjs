@@ -542,8 +542,8 @@ const GATES = {
 };
 
 const DEFER_INPUT = /^ {10}defer: \$\{\{ inputs\.pr && 'true' \|\| 'false' \}\}$/m;
-const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
-const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m;
+const FIRST_CALL = /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
+const FIRST_CALL_PROJECT = /^ {10}project: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m;
 
 // The read-runner calls that pass start-gate, by workflow and job: the issue
 // lane's key leg and its subscription leg, which is the slot's first call

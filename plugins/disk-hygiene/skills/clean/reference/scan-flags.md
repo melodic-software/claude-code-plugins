@@ -61,8 +61,11 @@ validator always fails an empty reason. It fails a reason that is only a categor
 
 Rows stream to `<data-root>/inventory/inventory-<stamp>.jsonl` with no entry cap, beside a `.json`
 summary (`deep-inventory-report`; status `inventory-failed` and exit 5 when the validator rejects a
-row). The shared listing schema is defined in `scripts/deep_inventory.py`: one row per entry with
-the columns `name`, `ext`, `size`, `mtime`, `owner`, `producer`, `category`, `disposition`
+row). A run that passes validation keeps the newest three `.jsonl` reports, each with its `.json`,
+and deletes older pairs. A partial named with its writer's PID is removed when the walk stops, SIGTERM included, or
+on the next run once that PID is gone. The shared listing schema is defined in
+`scripts/deep_inventory.py`: one row per entry with the columns `name`, `ext`, `size`, `mtime`,
+`owner`, `producer`, `category`, `disposition`
 (`KEEP`, `CANDIDATE`, `UNKNOWN`), `reason`, and `evidence`. A directory's `size` is the sum of the
 files beneath it. Named categories: `superseded-version` (sibling entries, directories or files,
 under a parent that holds two or more dotted version names), `plugin-cache-version` (cache versions

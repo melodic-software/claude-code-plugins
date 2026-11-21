@@ -13,6 +13,7 @@ The canonical files live in `lib/ui-feedback/`:
 |---|---|
 | `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
 | `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
+| `lib/ui-feedback/frame-channel.mjs` | The host page's message channel rules: which messages it takes from the frame, the `targetOrigin` it posts to the frame with, and the ready timeout that reports a blocked frame |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
 | `lib/ui-feedback/note.schema.json` | The note contract |
 | `lib/ui-feedback/note-model.mjs` | The host page's validator of notes and controls manifests, which the relocation script also uses. It reads every limit from the schema it is handed; `notes_bridge.py` holds the bridge's validator over the same subset |
@@ -126,7 +127,21 @@ the host page reach the frame only by message.
   a CSP source can hold (letters, digits, `.` and `-`), so an IPv6 literal is refused. The host page stays on the
   bridge origin with no relay frame. It frames the route with no `sandbox` attribute, since the
   app needs its own origin. Its policy adds `frame-src <dev origin>` and keeps
-  `frame-ancestors 'none'`. Messages pass only to and from that origin.
+  `frame-ancestors 'none'`. Messages pass only to and from that origin: the host page takes a
+  message only when `e.source` is the frame's window and `e.origin` is the dev origin, and every
+  `postMessage` it sends to the frame names the dev origin as `targetOrigin`. Only the sandboxed
+  mockup's frame gets `"*"`, because its opaque origin matches no named target, and the bridge
+  writes that target on the mockup route's frame tag alone (`data-mockup-target`), so the
+  real-stack host page and `frame-channel.mjs` hold no `"*"`
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage) states the same
+  rule for `data:` URLs, which also have opaque origins).
+- **A blocked frame is found by a missing ready message.** Firefox fires neither a load nor an
+  error event on a frame a CSP blocks, while Chrome fires load
+  ([bug 1552504](https://bugzilla.mozilla.org/show_bug.cgi?id=1552504), open). So load shows
+  neither a refused route nor a running one, and the host page does not judge by it. If the frame
+  helper's first ready message does not arrive within `READY_MS` (`frame-channel.mjs`), the host
+  page says the route may refuse framing, or may not load the helper. A ready message that arrives
+  later still enables the page.
 - **The dev server lets only the bridge origin frame the route.** The harness fence mounts
   `harness-fence.mjs` on the app's dev server, which sends
   `Content-Security-Policy: frame-ancestors <bridge origin>` as a response header. The fence adds

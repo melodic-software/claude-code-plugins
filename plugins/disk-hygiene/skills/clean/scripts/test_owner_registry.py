@@ -369,6 +369,8 @@ DELETERS = {
     "write_text_atomic",
     "run_inventory",
     "close_clean_runs",
+    "sweep_orphaned_inventory_partials",
+    "prune_inventory_reports",
 }
 # The only function that may name a registry command or tool: `apply_plan` carries
 # the plan's owner claim, which `handoff_apply` has no parameter to receive.
@@ -701,6 +703,31 @@ class EngineSourceTest(unittest.TestCase):
         self.assertIn("engine_grammar.RUN_MARKER_DIRNAME", source)
         self.assertIn("engine_grammar.run_marker_filename(session_id)", source)
         self.assertNotIn("glob(", source)
+
+    def test_the_inventory_sweep_and_prune_remove_only_inventory_files(self) -> None:
+        for function, removal, guards in (
+            (
+                "sweep_orphaned_inventory_partials",
+                "path.unlink",
+                ("INVENTORY_PARTIAL.fullmatch", "process_alive"),
+            ),
+            (
+                "prune_inventory_reports",
+                "(directory / f'{stem}{suffix}').unlink",
+                ("INVENTORY_STEM.fullmatch", "INVENTORY_REPORTS_KEPT"),
+            ),
+        ):
+            node = self.function(function)
+            removals = [
+                ast.unparse(call.func)
+                for call in ast.walk(node)
+                if isinstance(call, ast.Call)
+                and ast.unparse(call.func).rpartition(".")[2] in DELETIONS | {"remove"}
+            ]
+            self.assertEqual([removal], removals, function)
+            source = ast.unparse(node)
+            for guard in guards:
+                self.assertIn(guard, source, function)
 
 
 class BaselinePolicyUnchangedTest(unittest.TestCase):
