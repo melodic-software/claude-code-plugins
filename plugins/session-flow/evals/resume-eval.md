@@ -135,7 +135,7 @@ env TMPDIR=<short-dir> python3 -I plugins/session-flow/scripts/harness/resume_ev
 python3 -I plugins/session-flow/scripts/harness/resume_eval.py report \
   --graded <out-dir>/graded.jsonl [--graded <out-dir-2>/graded.jsonl] --out <report-dir> \
   [--baseline <arm>.<reader>[@<n>]] [--threshold <T>] [--nondelivery-margin <M>] \
-  [--token-margin <fraction>] [--subset same|boundary]
+  [--hook-margin <M>] [--token-margin <fraction>] [--subset same|boundary]
 ```
 
 `run` resumes: it skips runs already graded without error and stops after the first
@@ -155,11 +155,17 @@ plugin's PreToolUse hook (a writer refused this way stays a plain denial; the
 guardrails hooks stay loaded, as the owner runs them) is `hook-blocked`, named by the hook's
 plugin, event and refusal line: it scores no accuracy and is counted apart from the
 non-delivery rate. Each group line and each pair's `hooks` line print the hook-blocked runs
-and the runs in which a hook refused any call, delivered or not. Compare a pair's accuracy with `/evals:plugin-eval`'s
+and the runs in which a hook refused any call, delivered or not; the `hooks` line also prints
+the paired hook-blocked rate change. Compare a pair's accuracy with `/evals:plugin-eval`'s
 `scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`. Each pair
 line prints `h`, the 95% interval's half-width; on an A/A pair of `before` runs, M = 1.43h
-for accuracy and `--nondelivery-margin` = 1.43h for the non-delivery rate, each rounded up to 0.01.
+for accuracy, `--nondelivery-margin` = 1.43h for the non-delivery rate and `--hook-margin` = 1.43h
+for the hook-blocked rate, each rounded up to 0.01. When neither A/A half has a run of that
+kind, h is 0 and its margin 0.01, so one such run in the compared pair fails it: read a
+`non-delivery rise:` or `hook-blocked rise:` against the run counts on its pair lines before
+calling it real.
 `--token-margin` is a fraction of baseline the whole-run reader m1 interval may reach.
 `report` exits 1 on any `left out`, `case drop:`, `pass-to-fail:` (only with `--threshold`),
-`non-delivery rise:` (only with `--nondelivery-margin`), `token rise:` (only with `--token-margin`),
+`non-delivery rise:` (only with `--nondelivery-margin`), `hook-blocked rise:` (only with
+`--hook-margin`), `token rise:` (only with `--token-margin`),
 `untagged:` or `seed mismatch:` line, and 2 on an unknown `--baseline`.

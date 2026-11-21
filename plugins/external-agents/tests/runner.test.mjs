@@ -12,7 +12,7 @@ import { conventionHome } from "../scripts/lib/config.mjs";
 import { classify } from "../scripts/lib/outcome.mjs";
 import { pidStartTime } from "../scripts/lib/process.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
-import { cancel, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
+import { cancel, dataDirFor, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures");
@@ -291,8 +291,10 @@ describe("review", () => {
     const got = await review({ ...w.opts, base: "main", model: "gpt-test", brief: "look for races" });
     const final = join(w.dataDir, "jobs", repoKey(w.cwd), got.job.id, "final.txt");
     assert.deepEqual(cliArgs(got.job), ["exec", "review", "--json", "-o", final, "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"', "-m", "gpt-test", "-"]);
-    assert.equal(launched(w)[0].stdin, "Review the changes on this branch against main: the diff of main...HEAD.\n\nlook for races");
-    assert.equal(got.stdout, "codex: ran\nIMPORTANT | a.txt:1 | wrong | fix\n");
+    const sha = execFileSync("git", ["-C", w.cwd, "rev-parse", "main"], { encoding: "utf8" }).trim();
+    assert.equal(launched(w)[0].stdin, `Review only the changes on this branch against main: the diff of ${sha}...HEAD. Changed files (1):\n- a.txt\n\nlook for races`);
+    assert.equal(got.stdout, `codex: ran (reviewed 1 changed file against ${sha.slice(0, 8)})\nIMPORTANT | a.txt:1 | wrong | fix\n`);
+    assert.deepEqual(got.job.review_scope, { base: "main", merge_base: sha, changed_files: 1 });
     assert.equal(got.code, 0);
     assert.equal(got.job.use, "review");
     assert.doesNotMatch(got.stderr, /\.codex/);
@@ -315,9 +317,25 @@ describe("review", () => {
     gitRepo(w.cwd, { "a.txt": "two\n" });
     const got = await review({ ...w.opts, base: "main" });
     const [line, findings] = got.stdout.split("\n");
-    assert.match(line, /^codex: ran \(1 command blocked by read-only mode: .*; 1 MCP call: docs\.search\)$/);
+    assert.match(line, /^codex: ran \(reviewed 1 changed file against [0-9a-f]{8}; 1 command blocked by read-only mode: .*; 1 MCP call: docs\.search\)$/);
     assert.equal(findings, "No findings.");
     assert.deepEqual(got.job.mcp_calls, { count: 1, tools: ["docs.search"] });
+  });
+
+  test("a briefed review lists at most 200 changed files and counts the rest", async () => {
+    const w = world({ stdout: clean, final: "No findings." });
+    gitRepo(w.cwd, { "f/000.txt": "x\n" });
+    for (let i = 1; i < 201; i += 1) writeFileSync(join(w.cwd, "f", `${String(i).padStart(3, "0")}.txt`), "x\n");
+    execFileSync("git", ["-C", w.cwd, "add", "f"], { stdio: "ignore" });
+    execFileSync("git", ["-C", w.cwd, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "more"], { stdio: "ignore" });
+    const got = await review({ ...w.opts, base: "main", brief: "look" });
+    const stdin = launched(w)[0].stdin;
+    assert.ok(stdin.includes("Changed files (201):\n- f/000.txt\n"), stdin.slice(0, 300));
+    assert.ok(stdin.includes("\n- f/199.txt\n- and 1 more\n\nlook"), stdin.slice(-200));
+    assert.ok(!stdin.includes("f/200.txt"));
+    assert.equal(got.job.review_scope.changed_files, 201);
+    assert.match(got.stdout, /^codex: ran \(reviewed 201 changed files against [0-9a-f]{8}\)\n/);
+    assert.ok(!got.job.argv.some((a) => a.includes("f/000.txt")), "the file list never reaches argv");
   });
 
   test("a change that touches .codex/ is flagged", async () => {
@@ -371,9 +389,10 @@ describe("a binary run through cmd.exe", () => {
     const w = world({ stdout: clean, final: "No findings." });
     gitRepo(w.cwd, { "a.txt": "two\n" });
     const got = await review({ ...w.opts, binary: fakeCmd, base: "a&b", brief: "look for races" });
-    assert.equal(got.stdout, "codex: ran\nNo findings.\n");
+    assert.match(got.stdout, /^codex: ran \(reviewed 1 changed file against [0-9a-f]{8}\)\nNo findings\.\n$/);
     assert.ok(!launched(w)[0].argv.includes("a&b"));
-    assert.equal(launched(w)[0].stdin, "Review the changes on this branch against a&b: the diff of a&b...HEAD.\n\nlook for races");
+    const sha = execFileSync("git", ["-C", w.cwd, "rev-parse", "a&b"], { encoding: "utf8" }).trim();
+    assert.equal(launched(w)[0].stdin, `Review only the changes on this branch against a&b: the diff of ${sha}...HEAD. Changed files (1):\n- a.txt\n\nlook for races`);
   });
 
   test("a team-layer model holding & is refused", async () => {
@@ -408,7 +427,7 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     const w = world({ envelope: { status: "SUCCESS", response: "it is slow because", conversation_id: "conv-1" } });
     const got = await run(agy(w, { use: "investigate", prompt: "why is it slow?" }));
     const folder = join(w.dataDir, "jobs", "no-repo", got.job.id);
-    assert.deepEqual(cliArgs(got.job), ["--output-format", "json", "--settings", join(folder, "settings.json"), "--model", "m1", `-p=${preface}\n\nwhy is it slow?`]);
+    assert.deepEqual(cliArgs(got.job), ["--output-format", "json", "--disable-slash-commands", "--settings", join(folder, "settings.json"), "--model", "m1", `-p=${preface}\n\nwhy is it slow?`]);
     assert.deepEqual(JSON.parse(readFileSync(join(folder, "settings.json"), "utf8")), { agentMode: "", allowNonWorkspaceAccess: false });
     assert.equal(got.job.status, "ok");
     assert.equal(got.job.thread_id, "conv-1");
@@ -459,7 +478,7 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     assert.ok(prompt.startsWith(`-p=${preface}\n\nlook for races\n\n`), prompt);
     assert.ok(prompt.includes(join(folder, "review.diff")));
     assert.ok(!prompt.includes("unique-marker-7f3"));
-    assert.equal(got.stdout, "antigravity: ran\nNo findings.\n");
+    assert.match(got.stdout, /^antigravity: ran \(reviewed 1 changed file against [0-9a-f]{8}\)\nNo findings\.\n$/);
   });
 
   test("with no model configured the run is skipped and the CLI is not started", async () => {
@@ -715,6 +734,12 @@ describe("provider record", () => {
     }
   });
 
+  test("a review preface naming a token the runner does not fill is refused", () => {
+    const record = structuredClone(codex);
+    record.review.brief_preface = "Review {base} at {sha}";
+    assert.ok(validateProvider(record).includes("review.brief_preface: unknown token {sha}"), validateProvider(record).join(" | "));
+  });
+
   test("a record with no prompt form or output kind is refused", () => {
     const record = structuredClone(codex);
     delete record.prompt;
@@ -731,7 +756,7 @@ describe("the command", () => {
   const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
 
   test("status lists nothing for a fresh data directory", () => {
-    const got = invoke(["status"], { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "cli-data") });
+    const got = invoke(["status"], { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") });
     assert.equal(got.stdout, "no jobs for this repository\n");
     assert.equal(got.status, 0);
   });
@@ -743,17 +768,32 @@ describe("the command", () => {
     assert.equal(installedDataDir(join(scratch, "checkout", "plugins", "external-agents")), null);
   });
 
+  test("another plugin's CLAUDE_PLUGIN_DATA is ignored for an installed copy, refused for a checkout, and this plugin's own is used", () => {
+    const claude = join(scratch, "home", ".claude");
+    const installed = join(claude, "plugins", "cache", "melodic-software", "external-agents", "1.2.3");
+    const own = join(claude, "plugins", "data", "external-agents-melodic-software");
+    const foreign = join(claude, "plugins", "data", "codex-openai-codex");
+    const checkout = join(scratch, "checkout", "plugins", "external-agents");
+
+    const ignored = dataDirFor({ env: { CLAUDE_PLUGIN_DATA: foreign }, root: installed });
+    assert.equal(ignored.dataDir, own);
+    assert.match(ignored.notice, /codex-openai-codex.*another plugin/);
+    assert.throws(() => dataDirFor({ env: { CLAUDE_PLUGIN_DATA: foreign }, root: checkout }), /codex-openai-codex.*another plugin/);
+    assert.deepEqual(dataDirFor({ env: { CLAUDE_PLUGIN_DATA: own }, root: checkout }), { dataDir: own, notice: null });
+    assert.deepEqual(dataDirFor({ dataDir: foreign, env: {}, root: checkout }), { dataDir: foreign, notice: null });
+  });
+
   test("an unknown option, a missing prompt and a missing data directory are usage errors", () => {
     assert.equal(invoke(["run", "codex", "--yolo"], bare).status, 2);
     assert.equal(invoke(["status"], bare).status, 2);
     assert.match(invoke(["status"], bare).stderr, /CLAUDE_PLUGIN_DATA is not set/);
-    const empty = spawnSync(process.execPath, [bin, "run", "codex", "--use", "task"], { encoding: "utf8", env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "cli-data") }, cwd: scratch, input: "" });
+    const empty = spawnSync(process.execPath, [bin, "run", "codex", "--use", "task"], { encoding: "utf8", env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") }, cwd: scratch, input: "" });
     assert.equal(empty.status, 2);
     assert.match(empty.stdout, /no prompt was given/);
   });
 
   test("a review usage error still prints the status line first, with the usage on stderr", () => {
-    const env = { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "cli-data") };
+    const env = { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") };
     const missing = invoke(["review", "codex", "--base", "main", "--brief-file", join(scratch, "no-such-brief.md")], env);
     assert.match(missing.stdout, /^codex: failed \(.*no-such-brief\.md.*\)\n$/);
     assert.match(missing.stderr, /usage: external-agents/);
@@ -779,7 +819,7 @@ describe("a review that hits an unexpected error", () => {
 
     const bin = join(here, "..", "bin", "external-agents");
     const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
-    const cli = spawnSync(process.execPath, [bin, "review", "codex", "--base", "main"], { encoding: "utf8", cwd: w.cwd, env: { ...bare, CLAUDE_PLUGIN_DATA: join(file, "x") } });
+    const cli = spawnSync(process.execPath, [bin, "review", "codex", "--base", "main"], { encoding: "utf8", cwd: w.cwd, env: { ...bare, CLAUDE_PLUGIN_DATA: join(file, "external-agents-x") } });
     assert.match(cli.stdout, firstLine);
     assert.equal(cli.status, 1);
   });
@@ -820,6 +860,53 @@ describe("robustness", () => {
     assert.equal(got.code, 2);
     assert.match(got.stdout, /^codex: refused: .*da&ta.*cannot be passed safely/);
     assert.deepEqual(readdirSync(join(dataDir, "jobs", "no-repo")), []);
+  });
+
+  test("a job file that cannot be written once the CLI has started stops the CLI and reports failed", async () => {
+    const w = world({ stdout: events(...opened), sleep_ms: 60_000 });
+    let pid = null;
+    const refusingWrite = (dataDir, key, job) => {
+      if (job.status !== "running") return writeJob(dataDir, key, job);
+      pid = job.pid;
+      throw new Error("disk full");
+    };
+    const got = await run({ ...w.opts, writeJob: refusingWrite, use: "task", prompt: "fix it" });
+    assert.equal(got.stdout, "codex: failed (could not write the job file (disk full); the CLI was stopped)\n");
+    assert.equal(got.code, 1);
+    assert.ok(Number.isInteger(pid), "the CLI had started");
+    let gone = false;
+    for (let i = 0; i < 100 && !gone; i += 1) {
+      try {
+        process.kill(pid, 0);
+        await new Promise((r) => setTimeout(r, 50));
+      } catch {
+        gone = true;
+      }
+    }
+    assert.ok(gone, `pid ${pid} still running`);
+    assert.deepEqual(listJobs(w.dataDir, "no-repo"), []);
+  });
+
+  test("status, result and cancel turn an unexpected error into one line on stderr and a non-zero exit", () => {
+    const oneLine = /^external-agents: [^\n]+\n$/;
+    const w = world();
+    const dir = join(w.dataDir, "jobs", "no-repo");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "corrupt.json"), "{not json");
+    const listed = status({ ...w.opts });
+    assert.match(listed.stderr, oneLine);
+    assert.notEqual(listed.code, 0);
+
+    const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+    const other = world();
+    const otherDir = join(other.dataDir, "jobs", "no-repo");
+    mkdirSync(otherDir, { recursive: true });
+    writeFileSync(join(otherDir, "odd.json"), JSON.stringify({ id: "../odd", product: "codex", use: "task", mode: "write", status: "running", pid: dead, pid_started_at: "x", started_at: "2026-11-21T12:00:00.000Z", notices: [] }));
+    for (const [name, fn] of Object.entries({ status, result, cancel })) {
+      const got = fn({ ...other.opts, jobId: "odd" });
+      assert.match(got.stderr, oneLine, name);
+      assert.notEqual(got.code, 0, name);
+    }
   });
 
   test("a convention-home helper that cannot run is named, with the home that is read instead", () => {

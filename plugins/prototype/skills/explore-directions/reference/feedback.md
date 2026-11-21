@@ -21,8 +21,10 @@ machine could read it and post notes.
    is already private, as the bridge requires. Start the notes host outside a sandboxed Bash call:
    started inside one, it does not stay up for the person's page or the watcher.
 2. Give the person `url` (the `127.0.0.1` form) beside the `file://` path. The host page frames the
-   mockup in a sandbox: the switcher and its keys work as on `file://`, and Pick an element (or P)
-   then a click pins a note to that element without pressing it. A variant script that uses
+   mockup in a sandbox across the full window, with one command bar at the bottom: its arrows step
+   the variants, so the page's own switcher pill hides there while its keys work as on `file://`,
+   and Pick (or P) then a click pins a note to that element without pressing it. The bar's Sample
+   data menu presses the data controls the page marks. A variant script that uses
    `localStorage` or `sessionStorage` fails in the sandbox; the mockup keeps state in memory.
 3. Run the `watch` command as a background Bash task. It exits 0 with one JSON line when notes
    arrive; read that line from the task's output. With no watcher running, `notes-bridge.sh --dir
@@ -101,7 +103,12 @@ carries the view a reload loses:
 - **Mark a region (R).** The person drags a box over the mockup, or moves the box with the arrow
   keys (Shift and an arrow resizes it) and presses Enter. The note's `kind` is `region`, its
   `rect` is the box, `anchor` is the element holding it, and `elements` lists the test-id elements
-  it crosses, or, when it crosses none, the holding element's children it crosses.
+  it crosses, or, when it crosses none, the holding element's children it crosses. A drag held
+  near the frame's top or bottom edge scrolls the mockup, so a region can cover a list taller than
+  the frame. The person can move or resize a region, before sending its note or after: an event
+  that carries `change` is not a new note but note `<change>` moved or resized, with its new
+  `anchor`, `rect` and `elements`, which the log's note now carries too. Restate that note with its
+  new region, and re-locate it by its own seq.
 - **Draw a move arrow (A).** The person clicks the element to move, then the element it should
   go to, or Shift-clicks a point when no element fits. The note's `kind` is `move`, `anchor` and
   `rect` are the element to move, `to.point` is the destination in percent of the page, and
@@ -113,7 +120,7 @@ carries the view a reload loses:
 - **The view.** `data.log` lists the data controls pressed since the page loaded, in order, and
   `viewport` the frame's size, scroll, color scheme and reduced-motion setting.
 
-The host's keys P, R, A, M (markers) and N (notes panel) also work while focus is inside the
+The host's keys P, R, A, M (markers) and N (notes popover) also work while focus is inside the
 mockup. A key the mockup handles itself, calling `preventDefault` as the switcher does, stays in
 the mockup: on a variant with motion, R inside the mockup still replays, as the switcher defines
 it, and marks a region only from the host page; on a variant without motion, R inside the mockup

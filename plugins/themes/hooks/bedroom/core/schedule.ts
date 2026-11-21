@@ -1,4 +1,4 @@
-import { STRIKE } from './signals.gen.js'
+import { ACCEPT, EVENTS, HURRY, STRIKE } from './signals.gen.js'
 
 /**
  * The one storm schedule the mod and the shader share: a strike in a minute where (minute * every + shift) mod modulo
@@ -31,4 +31,46 @@ export function noteForcedStrike(now: number, delay: number): number {
  */
 export function forcedStrikeAt(): number | undefined {
   return forced
+}
+
+/** When the shader started, or will start once the room's hold ends; undefined while none runs or is due. */
+let shaderFrom: number | undefined
+/** Notes when the shader starts or is due to start (milliseconds on the mod's clock), or that none is. */
+export function noteShaderStart(at: number | undefined): void {
+  shaderFrom = at
+}
+
+/** When the shader started, or undefined while none runs: its own events start again from nothing then. */
+export function shaderStartedAt(): number | undefined {
+  return shaderFrom
+}
+
+/** From a hurry flip sent to the shader taking it: the app eases screen about 510 ms after the redraw, then holds ACCEPT.screen s. */
+const HURRY_TAKEN_MS = 510 + ACCEPT.screen * 1000
+
+/**
+ * Whether the shader runs one of its own timed events (a scheduled strike, the hallway's pass or light) that falls at
+ * `at`: it runs none in its first EVENTS.after seconds, nor for HURRY.seconds after it takes the hurry flip sent at
+ * `hurrySentAt`.
+ */
+export function scheduledEventShows(at: number, hurrySentAt: number): boolean {
+  if (shaderFrom === undefined || at < shaderFrom + EVENTS.after * 1000) return false
+  return at >= hurrySentAt + HURRY_TAKEN_MS + HURRY.seconds * 1000
+}
+
+/**
+ * Margin for the app starting the shader after the mod draws it, which no test has measured: a cue is answered as ready
+ * this long after EVENTS.after has run out on the mod's clock.
+ */
+export const CUE_START_SLACK_MS = 5000
+
+/**
+ * Why a cue sent now would show nothing, with when it can: the shader draws every cue's event, and in its first
+ * EVENTS.after seconds it takes none, so a cue sent then is lost. Undefined when the shader takes it.
+ */
+export function cueRefusal(now: number): string | undefined {
+  if (shaderFrom === undefined) return 'the shader is not running, and only the shader draws it: say /bedroom shader on'
+  const ready = shaderFrom + EVENTS.after * 1000 + CUE_START_SLACK_MS
+  if (now >= ready) return undefined
+  return `the shader takes nothing in its first ${EVENTS.after} s after it starts, and it ${now < shaderFrom ? 'has not started again yet' : 'started just now'}: try again in ${Math.ceil((ready - now) / 1000)} s`
 }

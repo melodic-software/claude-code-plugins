@@ -1,151 +1,151 @@
 #!/usr/bin/env bash
-# Mechanical gate for an /interview open-question register.
-#
-# `/interview` writes one register row per question at the moment the round is
-# ASKED — before any reply arrives. This gate reads that register and decides,
-# with NO model involvement, whether any question is still unresolved. It exists
-# because the reported failure is a question that was asked, went unanswered
-# across a reply about an unrelated topic, and was never re-surfaced: a check
-# that consulted the conversation could not see it, but a row left at `open` on
-# disk is visible forever.
-#
-# What this gate does NOT prove: it grades the interview's own bookkeeping, so a
-# question that was never registered is invisible to it. The ask-time write rule
-# is what makes the register independent of the answer — registering is a
-# byproduct of asking, not of resolving. The structural checks below (contiguous
-# Q numbering, no duplicate ids) are the affordable defense against a row that
-# was silently dropped after being written; a question never written at all is
-# out of reach of any file-based check and is the skill's contract to keep.
-#
-# Exit 0 = every registered question is resolved (register is clean) and, with
-#          --procedure, the procedure checks below pass
-# Exit 1 = at least one question is still `open`, `discussing` or `superseded-by-plan` (the
-#          contract is not locked), --procedure found a procedure defect
-#          (the register is gradeable but the interview did not complete its
-#          own procedure; fix the ledger or Brief and re-run), the named
-#          Brief is stamped `UNCONFIRMED` (the user has not confirmed the
-#          latest restatement, or none was posted; `brief=unconfirmed`), or a
-#          stamped Brief still carries the export's placeholder Goal or
-#          criteria while answered rows exist (`brief=placeholder`)
-# Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
-#          deferred-questions heading, an unterminated fenced block, an empty
-#          register, a malformed row, an unknown status, a duplicate, an
-#          out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
-#          outside the register section (any heading ends the section, a
-#          sub-heading inside it included), a named `--brief` that is
-#          missing, or a `--surface` that is missing, comes without `--brief`
-#          and `--procedure`, or cannot be exported. Row errors are collected
-#          in one pass, each on stderr with its own ledger line, and the
-#          verdict keeps the counts of the rows that parsed.
-#
-# Usage:
-#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>] [--procedure] [--surface <data_dir>]
-#   bash check-open-questions.sh --help
-#
-# Register row shape (inside the ledger's `## Open-question register` section):
-#   - Q1 | answered | round 1 | <question> | <resolution>
-# Statuses: open | discussing | answered | deferred | withdrawn | blocked | superseded-by-plan
-# `discussing` is an `open` question the user asked to talk through: it counts
-# in `open=<n>` and blocks the gate the same way.
-# `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
-# the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
-# gate exactly like `open`.
-# A row of any status whose resolution ends `stale:: C<N>[, C<N>...]` was not
-# checked against those constraints: the export writes it, the verdict adds
-# `stale=<n>`, and the gate blocks exactly as it does on `open` until Claude
-# revises or reconfirms the question. A ledger with no such row reads as before.
-#
-# --brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
-# reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
-# A row the ledger retired but the contract never records is the same silent
-# hole this gate exists to refuse. When --brief is omitted the verdict says
-# `brief=unchecked` rather than omitting the field: a check the caller only
-# appeared to get is worse than one it knowingly skipped. The named Brief must
-# exist. The deferred cross-check reads it only when the register retired a row:
-# with nothing to look up it is satisfied (`brief=ok`), and the Brief's own
-# headings and fences are not graded, so a stray fence in an unrelated section
-# of a large planning document cannot fail a clean register.
-#
-# --brief also fails (exit 1, `brief=unconfirmed`) on the stamp
-# `- Restatement: UNCONFIRMED (latest rev <N>)` that `round.sh export-brief` writes
-# while the newest restatement has no Confirm, and on
-# `- Restatement: UNCONFIRMED (no restatement posted)` it writes with none. A
-# stamped Brief with an answered row fails (exit 1, `brief=placeholder`) when
-# its Goal's first paragraph equals its `- Page title:` line (the export's
-# fallback without a confirmed goal) or its only acceptance criterion is
-# `- none recorded in the interview surface`. A Brief with no `- Restatement:`
-# line (hand-written) is graded for none of this. A line inside a fenced block
-# is documentation.
-#
-# --procedure is OPT-IN and adds checks a script can derive from the ledger, so
-# a caller that omits it keeps every verdict and exit code above unchanged:
-#   - round numbers in the register rows run contiguously from 1 (a `round`
-#     field that is not `round <N>` with N >= 1 counts as a defect)
-#   - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
-#     non-empty resolution (the fifth field)
-#   - with --brief, the Brief holds every section of the literal Brief template:
-#     TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria,
-#     Captured assumptions, Out-of-scope, Deferred questions (headings only;
-#     content is not graded), plus Intent when the Brief carries a
-#     `- Restatement:` stamp (a page export)
-#   - with --brief, the Goal carries a `- Finish line:` line whose text is
-#     non-empty and not `not settled yet`
-#   - with --surface <data_dir> (the interview page's data dir), the gate runs
-#     `surface/round.sh export-brief --ledger <ledger>` on that data dir and
-#     the Brief holds every section that export writes (Decisions among them
-#     when the confirmed restatement has decisions), and its Intent section
-#     holds every line of the export's Intent: the intent paragraph and each
-#     live ask, note, own answer and note typed on a choice, compared with
-#     whitespace runs made one space. Its TLDR and Acceptance criteria hold
-#     every line the export writes there, and its Decisions hold each export
-#     line as many times as the export writes it and no other line naming a
-#     Q<N>, so a decision repeated, put back in an earlier form or contradicted
-#     by a second line naming its Q<N> fails. Needs Python 3, as the page does
-#   - no Step-exit checkbox (`- [ ] Step <N> exit ...`) is unchecked; a skipped
-#     exit step is ticked with `SKIPPED: <reason>`
-#   - every row of the ledger's `## Assumption sweep` section,
-#     `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`,
-#     has a disposition: `Q<N>` naming a register row, `F<N>` naming a
-#     `## Self-answered facts` line whose basis quotes its source (`"..."`) with
-#     a file:line or a URL, or `deferred: <where>`. A `decision` or `person`
-#     item, or any `unstated-value` item, never takes `F<N>`, nor `deferred:`
-#     unless it is `hedged`. Only a
-#     `hedged` item's `Q<N>` may be a row its source names; any other item
-#     becomes a new row, above the sweep's `- sweep <M> | register through Q<N>`
-#     line, which precedes the sweep's rows and names the register's last row
-#     when that sweep ran. S ids run
-#     contiguously from 1 within each sweep, no S row sits outside the section,
-#     a section with no item says `- none`, and a ticked Step 2 exit that is
-#     not `SKIPPED` needs the section
-# Each defect is named on stderr. Without --procedure the verdict says
-# `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
-# register with a procedure defect exits 1 with `status=incomplete` (`open` when
-# a row is also unresolved); ungradeable stays exit 2 with `procedure=unchecked`.
-# With --procedure the named Brief is always read, so an unterminated fence in
-# it is ungradeable even when the register retired nothing.
-#
-# What stays a model judgment and is NOT checked here: whether the Step 1
-# survey genuinely grounded the questions, whether a quoted source says what
-# the F-line claims (the interview's fresh-context quote check owns that),
-# whether every item the sweep returned was recorded, whether the domain was classified,
-# whether the register was written at ask-time rather than answer-time, and
-# whether the frontier was recomputed between rounds. A file written after the
-# fact looks identical to one written at ask-time.
-#
-# Fenced blocks (``` or ~~~) are documentation in both files. A fence closes
-# only on a line of the same character at least as long as its opener with
-# nothing else on it, so a four-backtick fence can quote a three-backtick
-# example and a `~~~` line inside a backtick fence is content.
-#
-# Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked|unconfirmed|placeholder> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
 
 set -uo pipefail
 
 usage() {
-  # Sentinel range (not fixed line numbers) so the printed usage never silently
-  # truncates when the header grows or shrinks on a future edit.
-  sed -n '/^# Mechanical/,/^#   `registered=/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Mechanical gate for an /interview open-question register.
+
+`/interview` writes one register row per question at the moment the round is
+ASKED — before any reply arrives. This gate reads that register and decides,
+with NO model involvement, whether any question is still unresolved. It exists
+because the reported failure is a question that was asked, went unanswered
+across a reply about an unrelated topic, and was never re-surfaced: a check
+that consulted the conversation could not see it, but a row left at `open` on
+disk is visible forever.
+
+What this gate does NOT prove: it grades the interview's own bookkeeping, so a
+question that was never registered is invisible to it. The ask-time write rule
+is what makes the register independent of the answer — registering is a
+byproduct of asking, not of resolving. The structural checks below (contiguous
+Q numbering, no duplicate ids) are the affordable defense against a row that
+was silently dropped after being written; a question never written at all is
+out of reach of any file-based check and is the skill's contract to keep.
+
+Exit 0 = every registered question is resolved (register is clean) and, with
+         --procedure, the procedure checks below pass
+Exit 1 = at least one question is still `open`, `discussing` or `superseded-by-plan` (the
+         contract is not locked), --procedure found a procedure defect
+         (the register is gradeable but the interview did not complete its
+         own procedure; fix the ledger or Brief and re-run), the named
+         Brief is stamped `UNCONFIRMED` (the user has not confirmed the
+         latest restatement, or none was posted; `brief=unconfirmed`), or a
+         stamped Brief still carries the export's placeholder Goal or
+         criteria while answered rows exist (`brief=placeholder`)
+Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
+         deferred-questions heading, an unterminated fenced block, an empty
+         register, a malformed row, an unknown status, a duplicate, an
+         out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
+         outside the register section (any heading ends the section, a
+         sub-heading inside it included), a named `--brief` that is
+         missing, or a `--surface` that is missing, comes without `--brief`
+         and `--procedure`, or cannot be exported. Row errors are collected
+         in one pass, each on stderr with its own ledger line, and the
+         verdict keeps the counts of the rows that parsed.
+
+Usage:
+  bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>] [--procedure] [--surface <data_dir>]
+  bash check-open-questions.sh --help
+
+Register row shape (inside the ledger's `## Open-question register` section):
+  - Q1 | answered | round 1 | <question> | <resolution>
+Statuses: open | discussing | answered | deferred | withdrawn | blocked | superseded-by-plan
+`discussing` is an `open` question the user asked to talk through: it counts
+in `open=<n>` and blocks the gate the same way.
+`superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
+the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
+gate exactly like `open`.
+A row of any status whose resolution ends `stale:: C<N>[, C<N>...]` was not
+checked against those constraints: the export writes it, the verdict adds
+`stale=<n>`, and the gate blocks exactly as it does on `open` until Claude
+revises or reconfirms the question. A ledger with no such row reads as before.
+
+--brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
+reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
+A row the ledger retired but the contract never records is the same silent
+hole this gate exists to refuse. When --brief is omitted the verdict says
+`brief=unchecked` rather than omitting the field: a check the caller only
+appeared to get is worse than one it knowingly skipped. The named Brief must
+exist. The deferred cross-check reads it only when the register retired a row:
+with nothing to look up it is satisfied (`brief=ok`), and the Brief's own
+headings and fences are not graded, so a stray fence in an unrelated section
+of a large planning document cannot fail a clean register.
+
+--brief also fails (exit 1, `brief=unconfirmed`) on the stamp
+`- Restatement: UNCONFIRMED (latest rev <N>)` that `round.sh export-brief` writes
+while the newest restatement has no Confirm, and on
+`- Restatement: UNCONFIRMED (no restatement posted)` it writes with none. A
+stamped Brief with an answered row fails (exit 1, `brief=placeholder`) when
+its Goal's first paragraph equals its `- Page title:` line (the export's
+fallback without a confirmed goal) or its only acceptance criterion is
+`- none recorded in the interview surface`. A Brief with no `- Restatement:`
+line (hand-written) is graded for none of this. A line inside a fenced block
+is documentation.
+
+--procedure is OPT-IN and adds checks a script can derive from the ledger, so
+a caller that omits it keeps every verdict and exit code above unchanged:
+  - round numbers in the register rows run contiguously from 1 (a `round`
+    field that is not `round <N>` or `round <N> (added in round <M>)`, with
+    N, M >= 1, counts as a defect)
+  - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
+    non-empty resolution (the fifth field)
+  - with --brief, the Brief holds every section of the literal Brief template:
+    TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria,
+    Captured assumptions, Out-of-scope, Deferred questions (headings only;
+    content is not graded), plus Intent when the Brief carries a
+    `- Restatement:` stamp (a page export)
+  - with --brief, the Goal carries a `- Finish line:` line whose text is
+    non-empty and not `not settled yet`
+  - with --surface <data_dir> (the interview page's data dir), the gate runs
+    `surface/round.sh export-brief --ledger <ledger>` on that data dir and
+    the Brief holds every section that export writes (Decisions among them
+    when the confirmed restatement has decisions), and its Intent section
+    holds every line of the export's Intent: the intent paragraph and each
+    live ask, note, own answer and note typed on a choice, compared with
+    whitespace runs made one space. Its TLDR and Acceptance criteria hold
+    every line the export writes there, and its Decisions hold each export
+    line as many times as the export writes it and no other line naming a
+    Q<N>, so a decision repeated, put back in an earlier form or contradicted
+    by a second line naming its Q<N> fails. Needs Python 3, as the page does
+  - no Step-exit checkbox (`- [ ] Step <N> exit ...`) is unchecked; a skipped
+    exit step is ticked with `SKIPPED: <reason>`
+  - every row of the ledger's `## Assumption sweep` section,
+    `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`,
+    has a disposition: `Q<N>` naming a register row, `F<N>` naming a
+    `## Self-answered facts` line whose basis quotes its source (`"..."`) with
+    a file:line or a URL, or `deferred: <where>`. A `decision` or `person`
+    item, or any `unstated-value` item, never takes `F<N>`, nor `deferred:`
+    unless it is `hedged`. Only a
+    `hedged` item's `Q<N>` may be a row its source names; any other item
+    becomes a new row, above the sweep's `- sweep <M> | register through Q<N>`
+    line, which precedes the sweep's rows and names the register's last row
+    when that sweep ran. S ids run
+    contiguously from 1 within each sweep, no S row sits outside the section,
+    a section with no item says `- none`, and a ticked Step 2 exit that is
+    not `SKIPPED` needs the section
+Each defect is named on stderr. Without --procedure the verdict says
+`procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
+register with a procedure defect exits 1 with `status=incomplete` (`open` when
+a row is also unresolved); ungradeable stays exit 2 with `procedure=unchecked`.
+With --procedure the named Brief is always read, so an unterminated fence in
+it is ungradeable even when the register retired nothing.
+
+What stays a model judgment and is NOT checked here: whether the Step 1
+survey genuinely grounded the questions, whether a quoted source says what
+the F-line claims (the interview's fresh-context quote check owns that),
+whether every item the sweep returned was recorded, whether the domain was classified,
+whether the register was written at ask-time rather than answer-time, and
+whether the frontier was recomputed between rounds. A file written after the
+fact looks identical to one written at ask-time.
+
+Fenced blocks (``` or ~~~) are documentation in both files. A fence closes
+only on a line of the same character at least as long as its opener with
+nothing else on it, so a four-backtick fence can quote a three-backtick
+example and a `~~~` line inside a backtick fence is content.
+
+Output (stdout, greppable):
+  `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked|unconfirmed|placeholder> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
+EOF
 }
 
 # The one definition of "inside a fence", shared by heading_matches and
@@ -595,7 +595,7 @@ check_sweep() {
         fi
       elif [[ "$disposition" =~ ^[Dd]eferred:[[:space:]]*[^[:space:]] ]]; then
         [[ "$user_owned" -eq 0 || "$hedged" -eq 1 ]] ||
-          proc_problem "line $lno: $key is a $owned_kind item deferred outside the register; it becomes a register row (deferred or blocked there when it cannot be asked)"
+          proc_problem "line $lno: $key is a $owned_kind item deferred outside the register; it becomes a register row (deferred there with arbiter /planning:design when it sits below the interview's level or a quoted owner ruling routed it, blocked when it cannot be asked)"
       else
         proc_problem "line $lno: $key has no disposition (Q<N>, F<N> or 'deferred: <where>'): '$disposition'"
       fi
@@ -792,6 +792,8 @@ track_id() {
 # documentation has to be the same shape that would have been graded as data.
 row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
 
+round_field_re='^[Rr]ound[[:space:]]+([1-9][0-9]*)([[:space:]]+\([Aa]dded in [Rr]ound[[:space:]]+[1-9][0-9]*\))?$'
+
 skipped_fenced_row=0
 while IFS= read -r line; do
   # extract_section emits one line per ledger line after the heading, so the
@@ -871,12 +873,12 @@ while IFS= read -r line; do
   trim_into "$resolution"
   resolution="$trimmed"
   [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
-  if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
+  if [[ "$round_field" =~ $round_field_re ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
     [[ "$round_num" -gt "$max_round" ]] && max_round="$round_num"
   else
-    proc_problem "$id: round field is not 'round <N>' (N >= 1): '$round_field'"
+    proc_problem "$id: round field is not 'round <N>' or 'round <N> (added in round <M>)' (N, M >= 1): '$round_field'"
   fi
 
   # Statuses match case-insensitively without a subprocess per row (a `tr` fork

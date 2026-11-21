@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // Expected values come from the work-unblock lane's rules: when an issue
 // closes, each issue it blocked gets `agent-ready` only when every blocker is
 // closed as completed, it is open, and it carries no hold label; the label
@@ -8154,7 +8155,7 @@ test("a carried wait only holds: a malformed or overlong one is read fresh, and 
 // which the run decides as before, so a map item that loses its label is
 // decided on the next pass.
 const mapNotice = (entries) =>
-  `::notice title=label-unblocked::left out ${entries.length} map issue(s), each carrying a container or wayfind label, so the skill that filed it routes it: ${entries.map(([n, label]) => `#${n} ('${label}')`).join(", ")}`;
+  `::notice title=label-unblocked::left out ${entries.length} map issue(s), each carrying a container, wayfind or session-owned label, so the skill or session that filed it routes it: ${entries.map(([n, label]) => `#${n} ('${label}')`).join(", ")}`;
 const touches = (calls, n) => calls.filter((call) => new RegExp(`^\\S+ /repos/${REPO}/issues/${n}(/|$| )`).test(call));
 
 test("a map item closing leaves its map's admission comment unread and unwritten, and the notice names the map", async (t) => {

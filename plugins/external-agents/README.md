@@ -10,7 +10,7 @@ none of its text or code is copied).
 
 ## Status
 
-In progress: `run`, `review`, `status`, `result` and `cancel` work; `update`, the Codex skill and
+In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work; the Codex skill and
 council's switch-over follow in later changes.
 
 ## Surface
@@ -40,12 +40,13 @@ profile leaves the CLI's own configuration in charge.
 
 ## Job files
 
-Job files, logs and the breaker state live in the plugin's data directory. The command reads
-`CLAUDE_PLUGIN_DATA` when it is set. A command run through the Bash tool does not receive that
-variable, so an installed copy works the directory out from its own install path, using the
-directory name the
+Job files, logs, the breaker state and the CLI-facts cache (`cli-facts/<product>/<version>/`, the
+CLI's own help captured by `update`) live in the plugin's data directory. An installed copy works
+the directory out from its own install path, using the directory name the
 [plugin reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
-documents. A copy that is not installed, such as a checkout, needs the variable set.
+documents, because a command run through the Bash tool can carry another plugin's
+`CLAUDE_PLUGIN_DATA`. A copy that is not installed, such as a checkout, needs `CLAUDE_PLUGIN_DATA`
+set to a directory whose name starts with `external-agents-`; any other value is not used.
 
 ## Install
 

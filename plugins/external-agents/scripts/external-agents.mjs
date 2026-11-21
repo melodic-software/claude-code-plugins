@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { cancel, EXIT, result, review, run, status } from "./lib/runner.mjs";
+import { update } from "./lib/update.mjs";
 
 const USAGE = `usage: external-agents <command> [options]
 
@@ -20,6 +21,7 @@ const OPTIONS = {
   status: {},
   result: {},
   cancel: {},
+  update: {},
 };
 
 function parse(command, rest) {
@@ -52,7 +54,6 @@ export async function main(argv) {
     process.stdout.write(USAGE);
     return 0;
   }
-  if (command === "update") return usageError("update: not implemented yet");
   if (!(command in OPTIONS)) return usageError(`${command}: unknown command`);
   let options;
   let text;
@@ -71,6 +72,7 @@ export async function main(argv) {
   const outcome =
     command === "run" ? await run({ product: first, use: options.use, mode: options.mode, model: options.model, resume: options.resume, last: options.last, prompt: text })
     : command === "review" ? await review({ product: first, base: options.base, model: options.model, brief: text })
+    : command === "update" ? await update({ product: first })
     : { status, result, cancel }[command]({ jobId: first });
   process.stdout.write(outcome.stdout);
   process.stderr.write(outcome.stderr);

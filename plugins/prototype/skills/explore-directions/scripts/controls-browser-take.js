@@ -85,6 +85,7 @@ async page => {
     ok("Copy config copies every control's id and the value the page receives", config === "card-gap: 24px · accent: #aa3300 · font: Georgia, serif · dense: on · align: center", config);
 
     const before = await rows();
+    await page.click("#data");
     await page.getByRole("button", { name: "seed 10" }).click();
     ok("the built-in Seed entry presses the page's own Seed control", (await rows()) === before + 10, [before, await rows()]);
     await page.getByLabel("Worst content", { exact: true }).check();

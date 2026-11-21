@@ -10,13 +10,15 @@ const SEVERITY = ["notice", "downgrade"];
 const COMMANDS = ["run", "resume", "review"];
 const REVIEW_KIND = ["native", "diff_file"];
 const UNAVAILABLE = ["auth", "usage-limit"];
+const HELP_NAME = /^[a-z0-9][a-z0-9-]*$/;
+const PREFACE_TOKENS = ["{base}", "{merge_base}", "{file_count}", "{files}"];
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isText = (v) => typeof v === "string" && v !== "";
 const isStrings = (v) => Array.isArray(v) && v.every((s) => typeof s === "string");
 const isStringMap = (v) => isMap(v) && Object.values(v).every((s) => typeof s === "string");
 
-const TOP = ["schema", "product", "docs_index", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
+const TOP = ["schema", "product", "docs_index", "config_reference", "help","binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
 const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface"];
 const OUTPUT = {
   jsonl_events: {
@@ -50,9 +52,20 @@ export function validateProvider(record) {
   need(isText(record.binary?.name), "binary.name", "expected the binary name");
   optional(record.binary?.candidates, (v) => isMap(v) && Object.values(v).every(isStrings), "binary.candidates", "expected a list of paths per platform");
 
-  known(record.version, ["args", "sources"], "version");
+  optional(record.config_reference, (v) => typeof v === "string" && v.startsWith("https://"), "config_reference", "expected an https URL");
+  optional(record.help, isMap, "help", "expected a mapping of cache file name to help arguments");
+  for (const [name, args] of Object.entries(isMap(record.help) ? record.help : {})) {
+    need(HELP_NAME.test(name), `help.${name}`, "expected a lowercase file name");
+    need(isStrings(args) && args.length > 0, `help.${name}`, "expected a list of arguments");
+  }
+
+  known(record.version, ["args", "sources", "markers"], "version");
   need(isStrings(record.version?.args), "version.args", "expected a list of arguments");
   optional(record.version?.sources, isStringMap, "version.sources", "expected a source per install channel");
+  optional(record.version?.markers, isMap, "version.markers", "expected folder names per install channel");
+  for (const [channel, names] of Object.entries(isMap(record.version?.markers) ? record.version.markers : {})) {
+    need(isStrings(names) && Object.hasOwn(record.version?.sources ?? {}, channel), `version.markers.${channel}`, "expected a list of folder names for a channel in version.sources");
+  }
   known(record.login_status, ["args"], "login_status");
   optional(record.login_status, (v) => isStrings(v?.args), "login_status.args", "expected a list of arguments");
 
@@ -84,6 +97,9 @@ export function validateProvider(record) {
     known(record.review, ["kind", "args", "brief_args", "brief_preface", "dir_arg", "config_paths"], "review");
     optional(record.review?.brief_args, isStrings, "review.brief_args", "expected the arguments of a review that carries a brief");
     optional(record.review?.brief_preface, isText, "review.brief_preface", "expected text, with {base} where the base ref goes");
+    for (const [token] of String(record.review?.brief_preface ?? "").matchAll(/\{[^}]*\}/g)) {
+      if (!PREFACE_TOKENS.includes(token)) problems.push(`review.brief_preface: unknown token ${token}`);
+    }
     need(REVIEW_KIND.includes(record.review?.kind), "review.kind", `expected one of ${REVIEW_KIND.join(", ")}`);
     if (record.review?.kind === "native") need(isStrings(record.review.args) && record.review.args.some((a) => a.includes("{base}")), "review.args", "expected arguments holding {base}");
     if (record.review?.kind === "diff_file") need(isText(record.review.dir_arg), "review.dir_arg", "expected the flag that adds a readable folder");
