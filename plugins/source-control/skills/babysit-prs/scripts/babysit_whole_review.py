@@ -2,7 +2,8 @@
 """Request a whole review of a lane or adopted pull request's head when the
 only thing holding it is findings on its review chain that an incremental
 review cannot clear (`LaneEvidence.whole_review_clears`), or review evidence
-unbound because the newest run is a re-run the gate does not accept.
+unbound because the newest run is a re-run the gate does not accept or
+predates the newest base change (`NEW_RUN_CLEARS`).
 
 A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
@@ -68,7 +69,7 @@ RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in babysit_risk.LANES.values())
 # The lane whose clean review clears a `review-path:` hold.
 SECURITY_LANE = "claude-security-review"
-RERUN_REFUSED = "rerun-not-allowed"
+NEW_RUN_CLEARS = frozenset({"rerun-not-allowed", "base-retargeted"})
 CONVERT = (
     "mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id})"
     " { pullRequest { isDraft } } }"
@@ -117,10 +118,11 @@ def record_lines(body: Any) -> list[str]:
     return [m[0] for m in RECORD_RE.finditer(_unfenced(body))]
 
 
-def _rerun_refused(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
+def _new_run_clears(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
     """The `evidence-unbound:` risk codes of the lanes whose one evidence entry
-    is unbound as `RERUN_REFUSED`, the one reason a new run at the same head
-    removes: the re-run rule reads only a run's later attempts
+    is unbound for a reason in `NEW_RUN_CLEARS`, the reasons a new run at the
+    same head removes: the re-run rule reads only a run's later attempts, and
+    a run created after the newest retarget reviews against the new base
     (babysit_review_evidence `_bound_record`)."""
     names = [lane.lane for lane in lanes]
     return {
@@ -128,7 +130,7 @@ def _rerun_refused(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
         for lane in lanes
         if lane.lane in babysit_risk.LANES
         and names.count(lane.lane) == 1
-        and lane.unbound_reason == RERUN_REFUSED
+        and lane.unbound_reason in NEW_RUN_CLEARS
     }
 
 
@@ -138,8 +140,8 @@ def wanted(
     lanes: Sequence[babysit_risk.LaneEvidence],
 ) -> bool:
     """Every other gate passed (`reason` is None), the only reasons holding
-    the score are open findings, `review-path:` holds and lanes unbound as
-    `RERUN_REFUSED`, and a clean whole review would close each lane's. A
+    the score are open findings, `review-path:` holds and lanes unbound for a
+    reason in `NEW_RUN_CLEARS`, and a clean whole review would close each lane's. A
     `review-path:` hold stands while the security lane's bound review counts
     an open finding of any tier (`babysit_risk.security_review_clean`), so
     that lane must be one a whole review clears."""
@@ -148,7 +150,7 @@ def wanted(
         return False
     path = babysit_risk.REVIEW_PATH_PREFIX
     codes = {r.code for r in held_by}
-    rerun = _rerun_refused(lanes) & codes
+    rerun = _new_run_clears(lanes) & codes
     if not all(
         code in FINDING_CODES or code.startswith(path) or code in rerun
         for code in codes

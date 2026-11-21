@@ -107,6 +107,7 @@ class WantedForAReviewPath(unittest.TestCase):
 REVIEW = "claude-review"
 SECURITY = "claude-security-review"
 RERUN = "rerun-not-allowed"
+RETARGETED = "base-retargeted"
 BOUND_REVIEW = risk.LaneEvidence(REVIEW, True, None, 0, False, None)
 BOUND_SECURITY = risk.LaneEvidence(SECURITY, True, None, 0, False, 0)
 
@@ -141,10 +142,26 @@ class WantedForAnUnboundRerun(unittest.TestCase):
     def test_a_refused_rerun_beside_findings_a_whole_review_closes(self) -> None:
         self.assert_wanted(True, unbound(REVIEW), CLEARS)
 
+    def test_a_review_from_before_the_retarget_requests_a_whole_review(
+        self,
+    ) -> None:
+        for lanes in (
+            (unbound(REVIEW, RETARGETED), BOUND_SECURITY),
+            (BOUND_REVIEW, unbound(SECURITY, RETARGETED)),
+            (unbound(REVIEW, RETARGETED), unbound(SECURITY, RETARGETED)),
+            (unbound(REVIEW, RETARGETED), unbound(SECURITY)),
+        ):
+            with self.subTest(lanes=lanes):
+                self.assert_wanted(True, *lanes)
+
+    def test_a_retargeted_security_lane_carrying_a_blocking_finding(self) -> None:
+        self.assert_wanted(
+            False, BOUND_REVIEW, unbound(SECURITY, RETARGETED, carried=1)
+        )
+
     def test_every_other_unbound_reason_requests_nothing(self) -> None:
         for reason in (
             "bad-head",
-            "base-retargeted",
             "changed-files-unread",
             "comment-edited",
             "count-inconsistent",
@@ -239,6 +256,22 @@ class RequestForAnUnboundRerun(unittest.TestCase):
     def test_a_head_already_recorded_is_not_toggled_again(self) -> None:
         line = wr.record_line(HEAD, self.AT)
         self.assertEqual(self.request(line), ([line], None))
+
+    def test_a_sweep_limit_stops_it(self) -> None:
+        with (
+            mock.patch.object(wr, "lane_toggles", return_value=0),
+            mock.patch.object(wr, "limits", return_value="sweep-limit"),
+        ):
+            answer = wr.request("o/r", "reasons", HEAD, "PR_1", "lanes[bot]", self.AT)
+        self.assertEqual(answer, ([], {"toggled": False, "skipped": "sweep-limit"}))
+
+
+class RequestForARetargetedReview(RequestForAnUnboundRerun):
+    """The same caps once `wanted` admits a review from before the retarget."""
+
+    def setUp(self) -> None:
+        lanes = (unbound(REVIEW, RETARGETED), BOUND_SECURITY)
+        self.assertTrue(wr.wanted(None, scored(*lanes), lanes))
 
 
 class RequestCommand(unittest.TestCase):

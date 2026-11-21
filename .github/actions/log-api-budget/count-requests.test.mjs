@@ -263,6 +263,20 @@ test("a 4xx or 5xx answer is a lane run report row, by path with no query; a 2xx
     );
   }));
 
+test("a GET 404 on a tag ref is no lane run report row, twice over; a 404 on another ref still is", () =>
+  withBudget({ API_BUDGET_TOKEN: "github-token" }, async () => {
+    const answers = [404, 404, 404];
+    const send = countRequests(async () => new Response(null, { status: answers.shift(), headers: READING }));
+    await send(`${API}/repos/o/r/git/ref/tags/main`);
+    await send(`${API}/repos/o/r/git/ref/tags/main`);
+    await send(`${API}/repos/o/r/git/ref/heads/main`);
+    const file = join(process.env.RUNNER_TEMP, "lane-run-report", "api-failures.jsonl");
+    assert.deepEqual(
+      readFileSync(file, "utf8").trim().split("\n").map((line) => JSON.parse(line)),
+      [{ method: "GET", path: "/repos/o/r/git/ref/heads/main", status: 404 }],
+    );
+  }));
+
 test("without RUNNER_TEMP a failed answer is returned and nothing is written", () =>
   withBudget({}, async () => {
     delete process.env.RUNNER_TEMP;

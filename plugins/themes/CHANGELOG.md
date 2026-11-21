@@ -3,6 +3,12 @@
 All notable changes to the `themes` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-11-20
+
+### Changed
+
+- The bedroom window builds its treeline and tree outlines once, when the scene loads, rather than on every draw.
+
 ## [0.3.0] - 2026-11-20
 
 ### Added

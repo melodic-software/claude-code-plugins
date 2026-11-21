@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.12] - 2026-11-20
+
+### Fixed
+
+- The babysit merge gate no longer holds a retargeted pull request forever. Review evidence binds only on lane runs created after the newest base change, so a review read against the old base never counts, and a lane unbound as `base-retargeted` requests one whole review of the head, under the same per-head, per-pull-request and per-sweep caps as a refused re-run. An upper stack layer GitHub retargets when the layer below merges can now bind again without a push.
+
 ## [13.1.11] - 2026-11-20
 
 ### Fixed

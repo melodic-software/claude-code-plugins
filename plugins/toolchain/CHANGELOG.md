@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.6] - 2026-11-20
+
+### Added
+
+- Carries version 1.1.0 of the ecosystem resolution steps (`reference/ecosystem-resolution.md`), a synced copy of the marketplace's generic resolution text.
+
 ## [2.0.5] - 2026-11-20
 
 ### Changed

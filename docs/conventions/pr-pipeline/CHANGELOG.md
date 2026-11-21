@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [11.2.3] - 2026-11-20
+
+### Fixed
+
+- pr-merge's whole-review request also covers a pull request held only by `evidence-unbound:<lane>` whose unbound reason is `base-retargeted`. Review evidence now binds only on lane runs created after the newest base change, so a new run at the same head binds where a review against the old base did not. The once-per-head, twice-per-pull-request and once-per-run limits are unchanged.
+
+## [11.2.2] - 2026-11-20
+
+### Changed
+
+- pr-verify skips its API-key job (Check Intent) while `vars.CLAUDE_API_KEYS_DISABLED` is `true` and starts the subscription job directly, with reason `no-key`, so a judged pull request no longer spends the key job's GitHub reads and one job hop before the subscription leg judges. The subscription job keys on the key job's result, not on the variable, so a switch flipped between the two jobs neither judges twice nor leaves the run unjudged. With the switch off the chain is unchanged.
+
 ## [11.2.1] - 2026-11-20
 
 ### Changed
