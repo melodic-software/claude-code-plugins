@@ -355,6 +355,14 @@ esac
     assert.equal(out.findings, "argv: review codex --base main --model gpt-x --brief-file /tmp/b.md\nIMPORTANT | src/a.js:3 | off by one | fix the bound");
   });
 
+  test("fanout's briefed second run passes its bundled brief and reads back through the same path", () => {
+    const brief = join(HERE, "..", "..", "fanout", "context", "codex-adversarial-brief.md");
+    assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the parse contract's finding line");
+    const out = call(withStub, "ran", `--base origin/main --brief-file "${brief}"`);
+    assert.equal(out.status, "ran");
+    assert.equal(out.findings.split("\n")[0], `argv: review codex --base origin/main --brief-file ${brief}`);
+  });
+
   test("ran with details keeps them as a note", () => {
     const out = call(withStub, "ran-detail", "--base main");
     assert.equal(out.status, "ran");
