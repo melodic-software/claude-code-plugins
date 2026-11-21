@@ -45,7 +45,7 @@
     "sound": {
       "type": "boolean",
       "title": "Bedroom: sound",
-      "description": "Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default.",
+      "description": "Cicadas, crickets and katydids, rain, a downpour or a storm, thunder, the television and the room's things. Off by default.",
       "default": false
     },
     "soundPlayer": {

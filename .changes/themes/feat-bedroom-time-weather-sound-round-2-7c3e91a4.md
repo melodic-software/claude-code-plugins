@@ -17,7 +17,8 @@ bump: minor
 - Rain, the downpour and the storm are one recording of rain on a roof heard from indoors, the downpour and the storm heavier, so the three sound alike at the same distance. Thunder follows each strike after 1 to 6 seconds, quieter and rolling longer the farther the strike.
 - By day the trees outside the window show clumps of leaves and leafy edges, and the far treeline more detail; at night more stars fill the sky. Dusk and evening look as before.
 - The settings card's four title fields show two to a row, wide enough for each title and its set button, in place of the time and the weather, so the card stays six rows.
-- `/bedroom sound pick` takes a kind, `cicadas`, `rain`, `thunder` or `tv`, and an entry's name or number; 0.3's `downpour` and `storm` kinds are gone, since the rain entry holds all three wet beds.
+- In dry weather the insects follow the hour all year: quiet at dawn and in the morning, a few distant cicadas at noon building to full by the golden hour and dusk, the cicadas giving way across the evening to crickets and katydids 6 dB quieter, and a little quieter again before dawn; each change eases with the picture. The night insects are a new bank kind, `crickets` (`katydids`, the default, or `crickets`), cut from CC0 recordings listed in `sounds/bedroom/sources.md`.
+- `/bedroom sound pick` takes a kind, `cicadas`, `crickets`, `rain`, `thunder` or `tv`, and an entry's name or number; 0.3's `downpour` and `storm` kinds are gone, since the rain entry holds all three wet beds.
 - The README states where `soundPlayer` is read from and how it runs.
 
 ### Fixed

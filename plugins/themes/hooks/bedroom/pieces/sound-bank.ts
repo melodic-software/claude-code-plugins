@@ -7,6 +7,7 @@ import type { Saved } from '../core/saved.js'
  */
 export const BANK = {
   cicadas: { default: 'chorus', entries: { chorus: { bed: 'cicadas/chorus.wav' }, river: { bed: 'cicadas/river.wav' } } },
+  crickets: { default: 'katydids', entries: { katydids: { bed: 'crickets/katydids.wav' }, crickets: { bed: 'crickets/crickets.wav' } } },
   rain: {
     default: 'roof',
     entries: { roof: { rain: 'rain/roof-rain.wav', downpour: 'rain/roof-downpour.wav', storm: 'rain/roof-storm.wav' } },
@@ -55,6 +56,8 @@ export const SILENCE = 'silence.wav'
 export const LENGTH_MS: Record<string, number> = {
   'cicadas/chorus.wav': 20000,
   'cicadas/river.wav': 20000,
+  'crickets/katydids.wav': 20000,
+  'crickets/crickets.wav': 20000,
   'rain/roof-rain.wav': 20000,
   'rain/roof-downpour.wav': 20000,
   'rain/roof-storm.wav': 20000,

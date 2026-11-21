@@ -37,7 +37,7 @@ export const TITLE_ROWS: readonly (readonly TitleKey[])[] = [
 ]
 /** The sound bank's pickers, a kind's entries together, and the room's things' switch on the last row. */
 export const BANK_ROWS: readonly (readonly Kind[])[] = [
-  ['cicadas', 'rain'],
+  ['cicadas', 'crickets', 'rain'],
   ['thunder', 'tv'],
 ]
 

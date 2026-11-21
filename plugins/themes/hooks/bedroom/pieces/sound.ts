@@ -1,6 +1,6 @@
 import type { EngineInterface } from 'claude-code'
 
-import { minuteOfHalfDay } from '../core/clock.js'
+import { local, minuteOfHalfDay } from '../core/clock.js'
 import { ctxOf } from '../core/context.js'
 import type { Ctx, Piece, Switch } from '../core/piece.js'
 import { volumeOf, type Saved } from '../core/saved.js'
@@ -10,10 +10,11 @@ import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
 import { KINDS, OBJECTS, PURR, SILENCE, chosen, chosenName, lengthOf, namesOf, shotsOf, type Kind } from './sound-bank.js'
 import { PING_MS, QUIET_MS, fileOf, linesOf, mixerScript, powershellArgv, type MixerCommand } from './sound-mixer.js'
+import { rowStarts, sunTimes } from './time.js'
 
 /**
- * Sound, off by default (/bedroom sound): a bed (cicadas from dusk through night in dry weather; rain, a downpour or a
- * storm), the television, the room's things, the cat, and thunder after each strike, from the bank in sound-bank.ts.
+ * Sound, off by default (/bedroom sound): a bed (in dry weather cicadas from noon through dusk and the night insects from
+ * evening until dawn, bedOf and levelOf; rain, a downpour or a storm), the television, the room's things, the cat, and thunder after each strike, from the bank in sound-bank.ts.
  * Nothing here calls the engine while sound is off.
  *
  * On Windows, and under WSL through Windows, one mixer process plays everything for as long as sound is on
@@ -145,8 +146,8 @@ const stopPlay = (play: Play): void => {
 type Mixer = { seq: number; pending: { seq: number; command: MixerCommand }[]; path?: string; writing: Promise<void>; kill?: () => void; heard: number }
 type Out = { player: Player; isDone: boolean; mixer?: Mixer; bedPlay?: Play; shots: Set<Play> }
 let out: Out | undefined
-/** The bed playing now: its file, the sky it was chosen for and its gain. */
-let bed: { file: string | undefined; sky: Sky; gain: number } | undefined
+/** The bed playing now: its file, the sky it was chosen for, the volume's gain and the sky's level (levelOf). */
+let bed: { file: string | undefined; sky: Sky; gain: number; level: number } | undefined
 
 /** The mixer reports this many one-shots' latency in the debug log, from the write to the player's position moving. */
 const LATENCY_NOTES = 3
@@ -309,9 +310,9 @@ function outBed($: EngineInterface, o: Out, file: string | undefined, gain: numb
   void runBed($, o, file, gain, play).catch(error => fail($, `the bed failed: ${String(error)}`))
 }
 
-/** The bed's level: a fade through the mixer; elsewhere the bed starts again at it. */
-function outLevel($: EngineInterface, o: Out, file: string | undefined, gain: number): void {
-  if (o.mixer !== undefined) return mixerSend($, o, { verb: 'level', gain, fadeMs: LEVEL_FADE_MS })
+/** The bed's level: a fade of fadeMs through the mixer; elsewhere the bed starts again at it. */
+function outLevel($: EngineInterface, o: Out, file: string | undefined, gain: number, fadeMs: number): void {
+  if (o.mixer !== undefined) return mixerSend($, o, { verb: 'level', gain, fadeMs })
   outBed($, o, file, gain, 0)
 }
 
@@ -345,13 +346,55 @@ function endOut($: EngineInterface, o: Out, fadeMs: number): void {
 
 export type Sky = { sun: number; weather: number }
 
-/** The bed for a sky: one weather's in rain, downpour and storm; cicadas from dusk through night when dry. */
+/** The phases by their number in the sun field (core/settings.ts PHASES). */
+const DUSK = 0
+const EVENING = 1
+const NIGHT = 2
+const PREDAWN = 3
+const NOON = 6
+const GOLDEN = 7
+
+/**
+ * The bed for a sky: in rain, a downpour or a storm that weather's; when dry, cicadas through the afternoon, the golden
+ * hour and dusk, the night insects (crickets and katydids) from evening until dawn, and nothing at dawn and in the morning.
+ */
 export function bedOf(saved: Saved, sky: Sky): string | undefined {
   if (sky.weather >= 2) {
     const rain = chosen(saved, 'rain')
     return sky.weather === 2 ? rain.rain : sky.weather === 3 ? rain.downpour : rain.storm
   }
-  return sky.sun <= 2 ? chosen(saved, 'cicadas').bed : undefined
+  if (sky.sun === NOON || sky.sun === GOLDEN || sky.sun === DUSK) return chosen(saved, 'cicadas').bed
+  if (sky.sun === EVENING || sky.sun === NIGHT || sky.sun === PREDAWN) return chosen(saved, 'crickets').bed
+  return undefined
+}
+
+/**
+ * How loud a dry bed plays, times the volume's gain: cicadas full at the golden hour and dusk; at noon a distant few, a
+ * quarter, building to full by the golden hour (`afternoon`, 0 to 1, how much of the afternoon has gone); the night
+ * insects 6 dB under the cicadas from evening and 8 dB under before dawn, so the room grows calmer late. Rain is full.
+ */
+export const NOON_LEVEL = 0.25
+export const NIGHT_LEVEL = 0.5
+export const PREDAWN_LEVEL = 0.4
+export function levelOf(sky: Sky, afternoon = 0): number {
+  if (sky.weather >= 2) return 1
+  if (sky.sun === NOON) return NOON_LEVEL + (1 - NOON_LEVEL) * Math.floor(Math.min(1, Math.max(0, afternoon)) * AFTERNOON_STEPS) / AFTERNOON_STEPS
+  if (sky.sun === EVENING || sky.sun === NIGHT) return NIGHT_LEVEL
+  if (sky.sun === PREDAWN) return PREDAWN_LEVEL
+  return 1
+}
+/** The afternoon's build moves in this many steps, each eased over SUN_FADE_MS. */
+export const AFTERNOON_STEPS = 12
+/** Evening lasts 75 minutes (pieces/time.ts rowStarts): the cicadas give way to the night insects across all of it. */
+export const EVENING_FADE_MS = 75 * 60_000
+
+/** How much of the afternoon has gone at `now`, from noon's start to the golden hour's; 0 while a phase is held. */
+function afternoonOf(ctx: Ctx, now: number): number {
+  if (ctx.setting('time') !== 'auto') return 0
+  const starts = rowStarts(...sunTimes(ctx))
+  const { hours, minutes } = local(now)
+  const span = (starts[GOLDEN]! - starts[NOON]! + 1440) % 1440
+  return span === 0 ? 1 : (((hours * 60 + minutes - starts[NOON]! + 1440) % 1440) / span)
 }
 
 /**
@@ -401,23 +444,27 @@ async function step($: EngineInterface): Promise<void> {
   const shown = shownOf(worldMove(), ctx.fields(), bed?.sky, now)
   if (shown === undefined) return
   const file = bedOf(ctx.saved, shown.sky)
+  const level = levelOf(shown.sky, afternoonOf(ctx, now))
   if (bed === undefined) {
-    outBed($, out, file, gain, START_FADE_MS)
-    bed = { file, sky: shown.sky, gain }
+    outBed($, out, file, gain * level, START_FADE_MS)
+    bed = { file, sky: shown.sky, gain, level }
     return
   }
+  const skyMoved = shown.sky.sun !== bed.sky.sun || shown.sky.weather !== bed.sky.weather
   if (file !== bed.file) {
-    const skyMoved = shown.sky.sun !== bed.sky.sun || shown.sky.weather !== bed.sky.weather
     if (skyMoved && now < shown.at) return waitUntil($, shown.at, now)
-    const fadeMs = skyMoved ? Math.max(OFF_FADE_MS, shown.fadeMs - (now - shown.at)) : PICK_FADE_MS
-    outBed($, out, file, gain, fadeMs)
-    bed = { file, sky: shown.sky, gain }
+    const intoEvening = shown.sky.sun === EVENING && bed.sky.sun === DUSK && shown.sky.weather === bed.sky.weather && shown.fadeMs === SUN_FADE_MS
+    const fadeMs = !skyMoved ? PICK_FADE_MS : Math.max(OFF_FADE_MS, (intoEvening ? EVENING_FADE_MS : shown.fadeMs) - (now - shown.at))
+    outBed($, out, file, gain * level, fadeMs)
+    bed = { file, sky: shown.sky, gain, level }
     return
   }
+  if (skyMoved && level !== bed.level && now < shown.at) return waitUntil($, shown.at, now)
   bed.sky = shown.sky
-  if (gain !== bed.gain) {
-    outLevel($, out, bed.file, gain)
+  if (gain !== bed.gain || level !== bed.level) {
+    outLevel($, out, bed.file, gain * level, gain !== bed.gain ? LEVEL_FADE_MS : SUN_FADE_MS)
     bed.gain = gain
+    bed.level = level
   }
 }
 
@@ -550,10 +597,10 @@ function duck($: EngineInterface, ms: number): void {
   if (o?.mixer === undefined || o.isDone || bed === undefined) return
   const ducked = ducks > 0
   ducks += 1
-  if (!ducked) mixerSend($, o, { verb: 'level', gain: bed.gain * DUCK, fadeMs: DUCK_FADE_MS.down })
+  if (!ducked) mixerSend($, o, { verb: 'level', gain: bed.gain * bed.level * DUCK, fadeMs: DUCK_FADE_MS.down })
   $.clock.after(ms, () => {
     ducks -= 1
-    if (ducks === 0 && out === o && bed !== undefined) mixerSend($, o, { verb: 'level', gain: bed.gain, fadeMs: DUCK_FADE_MS.up })
+    if (ducks === 0 && out === o && bed !== undefined) mixerSend($, o, { verb: 'level', gain: bed.gain * bed.level, fadeMs: DUCK_FADE_MS.up })
   })
 }
 /** How many rolls of thunder are sounding: the bed comes back only when the last one ends. */
@@ -639,7 +686,7 @@ async function setPick(ctx: Ctx, kind: string | undefined, name: string | undefi
   return `${known} plays ${picked}`
 }
 
-const WHAT = 'the television, the room\'s things, cicadas from dusk through night in dry weather, rain, a downpour and a storm'
+const WHAT = 'the television, the room\'s things, cicadas from noon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
 
 /**
  * /bedroom sound on|off|test|volume N|pick KIND NAME|objects on|off. test plays only the silent file, and looks without
@@ -703,8 +750,10 @@ export async function engineCommand($: EngineInterface, ctx: Ctx, word: string, 
   }
 }
 
-/** The bed playing now, as the card names it: cicadas, rain, downpour, storm, or quiet. */
+/** The bed playing now, as the card names it: cicadas, night insects, rain, downpour, storm, or quiet. */
 export function bedName(): string {
   if (bed?.file === undefined) return 'quiet'
-  return bed.file.startsWith('cicadas/') ? 'cicadas' : (bed.file.match(/-(rain|downpour|storm)\.wav$/)?.[1] ?? 'rain')
+  if (bed.file.startsWith('cicadas/')) return 'cicadas'
+  if (bed.file.startsWith('crickets/')) return 'night insects'
+  return bed.file.match(/-(rain|downpour|storm)\.wav$/)?.[1] ?? 'rain'
 }

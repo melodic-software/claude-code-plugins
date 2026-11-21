@@ -76,9 +76,14 @@ bottom-left corner of the front of the dresser.
   `/bedroom hall pass` and `/bedroom hall light` show one now (the light turns off again if it is
   on); `/bedroom hall off` keeps the hallway still.
 - **Sound.** Off by default, and nothing plays until you turn it on: `/bedroom sound on` plays a
-  bed (cicadas from dusk through the night when it is dry; in wet weather no cicadas but rain on
-  the roof, the same rain heavier as a downpour, or a storm with wind), the television's click as
-  it turns on and off, the room's things, and thunder after each flash.
+  bed, the television's click as it turns on and off, the room's things, and thunder after each
+  flash.
+  - When it is dry the insects follow the hour, all year: dawn and morning are quiet; at noon a
+    few distant cicadas (a quarter of the dusk level) build through the afternoon to full at the
+    golden hour and dusk; across the evening the cicadas fade out as crickets and katydids fade in,
+    6 dB under the cicadas; the night keeps them, and before dawn they are quieter again (8 dB
+    under). Each change of level eases with the picture. In wet weather there are no insects but
+    rain on the roof, the same rain heavier as a downpour, or a storm with wind.
   - The bed follows the picture: a change of weather fades the old bed out and the new one in over
     the time the window takes, starting when the window starts to change (about 3 s after the
     command, over about 6 s; when `auto` changes by itself, over about 90 s). A change of volume
@@ -95,7 +100,8 @@ bottom-left corner of the front of the dresser.
     plays nothing); the card steps it by ten.
   - A small bank of sounds: each kind has named entries and a default, chosen by
     `/bedroom sound pick <kind> <name>` or on the card, and kept. Cicadas: `chorus` (the default)
-    or `river`; rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
+    or `river`; crickets: `katydids` (crickets and katydids, the default) or `crickets` (crickets
+    alone); rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
     `distant` (rolls only); television: `tube`. `sounds/bedroom/sources.md` lists each recording,
     its page and its license. The television's and the room's sounds are made by code, the purr
     excepted.
@@ -163,7 +169,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom hall <pass\|light>` | While the hallway is on: someone passes the door, or the hall light turns on for three minutes (off, if it is on), within about five seconds |
 | `/bedroom sound <on\|off\|test>` | Sound, off by default; `test` checks the player |
 | `/bedroom sound volume <0-100>` | The volume of every sound |
-| `/bedroom sound pick <cicadas\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
+| `/bedroom sound pick <cicadas\|crickets\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
 | `/bedroom sound objects <on\|off>` | The sounds of the lamp, light, monitor, console, tape and cat |
 | `/bedroom <time\|weather\|lightning\|signal\|hall\|sound> default` | Follows the plugin's setting again |
 | `/bedroom sync` | Shows the room alone for seven seconds, then brings the shader back with every switch as saved |
@@ -214,7 +220,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `sunset` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 16:00 to 22:00, held all year. |
 | `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
 | `lightning` | string | `"normal"` | rare: about one strike in three minutes; normal: about two a minute; often: about three a minute. |
-| `sound` | boolean | `false` | Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
+| `sound` | boolean | `false` | Cicadas, crickets and katydids, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
 | `soundPlayer` | string | *(none)* | Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100. |
 | `signal` | boolean | `true` | The screen flickers while Claude works. |
 | `hall` | boolean | `true` | Now and then someone passes the door, or the hall light comes on. |
