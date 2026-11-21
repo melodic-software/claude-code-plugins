@@ -561,7 +561,6 @@ plugins/review/tests/explain-change.test.sh 23
 plugins/review/tests/fanout-sweep.test.sh 1
 plugins/review/tests/standards-binding.test.sh 1
 plugins/session-flow/scripts/harness/hop_chain.test.sh 53
-plugins/session-flow/scripts/harness/resume_eval.test.sh 122
 plugins/session-flow/scripts/harness/test_resume_cases.py 71
 plugins/session-flow/scripts/parse-transcript.test.sh 4
 plugins/session-flow/scripts/save_point.test.sh 41
