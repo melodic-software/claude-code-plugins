@@ -99,5 +99,8 @@ bash "$SCRIPT" --base main >/dev/null 2>&1
 assert_exit "--base without a file read is a usage error" 2 "$?"
 bash "$SCRIPT" "$TEST_TMPDIR/source-control.yaml" >/dev/null 2>&1
 assert_exit "a working-tree path is refused" 2 "$?"
+out=$(bash "$SCRIPT" --help 2>"$ERR")
+assert_exit "--help exits 0" 0 "$?"
+assert_contains "--help names the mpdecimate threshold" "$out" "evidence_ocr_mpdecimate_hi"
 
 [[ $FAILED -eq 0 ]] || exit 1

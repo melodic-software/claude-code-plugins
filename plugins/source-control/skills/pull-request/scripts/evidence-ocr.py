@@ -34,10 +34,7 @@ UPSCALE = "scale=iw*2:ih*2:flags=lanczos,format=gray"
 BOX_DRAWING = re.compile("[─-╿]")
 LINE_WRAP = re.compile(r"\s*\n\s*")
 SECRET_KEY = r"(?:token|secret|password|apikey|api_key)\w*[\"']?"
-# The evidence step's body-scan shape, applied to each OCR line as read.
 SECRET_STRICT = re.compile(SECRET_KEY + r"[=:][\"']?[^\s*•]{8,}", re.I)
-# OCR spaces around the separator, or a key and value tesseract's sparse mode put on separate
-# lines, match only a value that holds a digit: a label beside a plain word is no secret.
 SECRET_LOOSE = re.compile(
     SECRET_KEY + r"[ \t]*[=:][ \t]*[\"']?(?=[^\s*•]*\d)[^\s*•]{8,}", re.I
 )
@@ -59,7 +56,13 @@ def squeeze(text: str) -> str:
 
 
 def findings(text: str, masks: list[str]) -> list[str]:
-    """The kinds of leak in `text`; `masks` are mask values already squeezed."""
+    """The kinds of leak in `text`; `masks` are mask values already squeezed.
+
+    SECRET_STRICT: The evidence step's body-scan shape, applied to each OCR line as read.
+    SECRET_LOOSE:
+    OCR spaces around the separator, or a key and value tesseract's sparse mode put on separate
+    lines, match only a value that holds a digit: a label beside a plain word is no secret.
+    """
     flat = BOX_DRAWING.sub("", text)
     joined = LINE_WRAP.sub("", flat)
     views = (flat, joined)

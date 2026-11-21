@@ -1,10 +1,9 @@
 # shellcheck shell=bash
-# Writes tesseract and ffmpeg stand-ins into <bin-dir>, the gh-forge bin a case puts first on PATH,
-# so the evidence step's OCR scan reads clean text offline:
-#   bash ocr-stand-ins.sh <bin-dir>
 set -euo pipefail
 
-bin="${1:?ocr-stand-ins.sh needs a bin directory}"
+usage="usage: bash ocr-stand-ins.sh <bin-dir>, the gh-forge bin a case puts first on PATH:"
+usage+=" writes tesseract and ffmpeg stand-ins there, so the evidence step's OCR scan reads clean text offline"
+bin="${1:?$usage}"
 mkdir -p "$bin"
 cat >"$bin/tesseract" <<'EOF'
 #!/usr/bin/env bash
