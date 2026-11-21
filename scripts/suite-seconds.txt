@@ -1,5 +1,6 @@
-# Median wall seconds of each test suite, which scripts/plan-test-lanes.sh reads
-# to size and balance the test-bash and test-python legs. Shell suites measured
+# Median wall seconds of each test suite and Node package, which
+# scripts/plan-test-lanes.sh reads to size and balance the test-bash,
+# test-python and test-node legs. Shell suites measured
 # 2026-10-03 from the logs of four whole-tree ci runs (37113193629, 37141134032,
 # 37141960428, 37144196526), Python suites 2026-10-22 as the median of the
 # test-python legs of whole-tree runs 39726045512, 39727110042 and
@@ -851,3 +852,64 @@ scripts/test_vendor_gitleaks_rules.py 1
 scripts/validate-plugin-contracts.test.sh 8
 scripts/validate-plugins.test.sh 1
 scripts/vendor-gitleaks-rules.test.sh 2
+# The Node packages test-node runs, one row per package: the seconds from its
+# first install line to the next package's, from the step boundaries for the
+# five sub-projects of scripts/node-subprojects.txt, as the median of
+# whole-tree main runs 44831673047 (attempt 1), 44833276355 and 44837432948
+# (attempt 1), 2026-11-20; a package a cancelled attempt had not finished
+# counts the runs that did. A package not listed counts the mean of these rows.
+.github/actions/check-born-triaged 2
+.github/actions/check-kill-switch 1
+.github/actions/check-signed-commits 1
+.github/actions/check-trusted-base 1
+.github/actions/check-trusted-trigger 4
+.github/actions/check-upstream-status 1
+.github/actions/check-wip-cap 10
+.github/actions/collect-base-activity 13
+.github/actions/log-api-budget 6
+.github/actions/open-lane-output 2
+.github/actions/report-check-run 1
+.github/actions/request-lane-token 4
+.github/actions/resolve-config 106
+.github/actions/scan-upload 1
+.github/actions/seal-lane-output 1
+.github/actions/select-trusted-text 1
+.github/actions/setup-runner-isolation 5
+.github/actions/upload-lane-transcript 1
+.github/scripts/apply-patch 73
+.github/scripts/branch-cleanup 6
+.github/scripts/intake-reenter 17
+.github/scripts/intake-triage 3
+.github/scripts/lane-run-report 1
+.github/scripts/lib 8
+.github/scripts/maintenance-audit-lane-runs 3
+.github/scripts/maintenance-measure-skill-edit 3
+.github/scripts/maintenance-monitor-signals 1
+.github/scripts/maintenance-reconcile-lost-runs 1
+.github/scripts/maintenance-tidy-code-upkeep 2
+.github/scripts/plugin-eval 3
+.github/scripts/post-merge-demotion-alert 1
+.github/scripts/post-merge-test-mutation 4
+.github/scripts/pr-merge 42
+.github/scripts/pr-merge-risk 3
+.github/scripts/pr-refine 1
+.github/scripts/pr-review 1
+.github/scripts/pr-review-main 16
+.github/scripts/pr-run-activity-read 19
+.github/scripts/pr-unblock 51
+.github/scripts/pr-verify 60
+.github/scripts/recurring-schedule 1
+.github/scripts/security-outside-actor 3
+.github/scripts/upstream-apply-changelog 4
+.github/scripts/work-resolve-issue 31
+.github/scripts/work-unblock 10
+plugins/ai-briefing/skills/generate/output/build 2
+plugins/formal-verification/skills/chart/scripts 65
+plugins/knowledge/skills/course-digest/extraction 8
+plugins/knowledge/skills/video-digest/extraction 12
+plugins/knowledge/vendor/node-launcher 1
+plugins/knowledge/vendor/repo-analysis 1
+plugins/knowledge/vendor/video-digestion 1
+plugins/miro/server 11
+plugins/sql-server 1
+scripts/lane-transcripts 1

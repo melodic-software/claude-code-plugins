@@ -33,3 +33,32 @@ closed when a rule cannot load.
 ## Revisit triggers
 
 - A frame source whose text cannot be read without OCR becomes necessary.
+
+## Amendment (2026-11-21): OCR scans evidence attachments
+
+The revisit trigger fired for `/source-control:pull-request evidence`. Its screenshots and
+recordings come from `/app-control:drive` or `/testing:run-e2e` runs, and before this amendment no
+step scanned their pixels. Owner decision Q119 (2026-11-20, issue #16908) settles it:
+
+1. **The evidence step reads each attached capture with OCR.**
+   `skills/pull-request/scripts/evidence-ocr.py` reads each image, and each video frame ffmpeg's
+   `mpdecimate` keeps, locally with tesseract; no image goes to an online service. Each image is
+   upscaled and read twice, as captured and inverted, because tesseract 4.x reads dark text on a
+   light background best and works best at 300 dpi or more
+   ([ImproveQuality](https://github.com/tesseract-ocr/tessdoc/blob/main/ImproveQuality.md)). The text goes
+   through the evidence step's own leak scan, the one its comment body gets.
+2. **It fails closed.** A hit, a capture OCR reads no text from, or a host without tesseract or
+   ffmpeg posts nothing.
+3. **Frames are sampled with `mpdecimate`, not a fixed interval plus scene detection.**
+   The decision's reading of the FFmpeg source on #16908: `mpdecimate` keeps a frame when one 8x8
+   block changes past `hi`, so a token that changes a few blocks keeps its frame, while scene
+   detection scores a whole-frame mean that a few changed blocks barely move. Its `hi` threshold defaults to 256, below ffmpeg's default of
+   64*12 ([ffmpeg-filters, mpdecimate](https://ffmpeg.org/ffmpeg-filters.html#mpdecimate)), because
+   the owner's synthetic probe found the default dropping dim text in a lossy recording. No value
+   has been measured on real recordings, so `evidence_ocr_mpdecimate_hi` in
+   `docs/conventions/source-control.yaml` sets it.
+4. **Reviewer media is unchanged.** `media` still refuses a screenshot that names no frame-text
+   sidecar. OCR misses text on screens often enough that replacing that refusal with OCR would
+   weaken it.
+5. **Synthetic data stays the main control.** Evidence captures of a regulated product show
+   synthetic data only; the OCR scan is a backstop behind that rule.

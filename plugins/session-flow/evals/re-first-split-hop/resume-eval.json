@@ -168,6 +168,12 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/chore/retire-label-sync",
+      "refs/heads/fix/frontier-dedup-head-sha",
+      "refs/pull/4388/head",
+      "refs/pull/4390/head"
+    ],
     "gh_fixture": {
       "repo": "example-org/lane-ops",
       "responses": [
@@ -184,12 +190,12 @@
         },
         {
           "match": "\\bpr view #?4388\\b",
-          "stdout": "{\"number\": 4388, \"title\": \"fix(lane-ops): frontier dedup by head SHA\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"labels\": [], \"comments\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
+          "stdout": "{\"number\": 4388, \"headRefName\": \"fix/frontier-dedup-head-sha\", \"title\": \"fix(lane-ops): frontier dedup by head SHA\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"labels\": [], \"comments\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
           "exit": 0
         },
         {
           "match": "\\bpr view #?4390\\b",
-          "stdout": "{\"number\": 4390, \"title\": \"chore(lane-ops): retire the legacy label sync\", \"state\": \"OPEN\", \"mergeable\": \"CONFLICTING\", \"mergeStateStatus\": \"DIRTY\", \"reviewDecision\": \"APPROVED\", \"labels\": [{\"name\": \"needs-human\"}], \"comments\": [{\"author\": {\"login\": \"reviewer-one\"}, \"body\": \"Holding with needs-human: two lanes still call scripts/label_sync.py; the owner decides the cut-over date.\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
+          "stdout": "{\"number\": 4390, \"headRefName\": \"chore/retire-label-sync\", \"title\": \"chore(lane-ops): retire the legacy label sync\", \"state\": \"OPEN\", \"mergeable\": \"CONFLICTING\", \"mergeStateStatus\": \"DIRTY\", \"reviewDecision\": \"APPROVED\", \"labels\": [{\"name\": \"needs-human\"}], \"comments\": [{\"author\": {\"login\": \"reviewer-one\"}, \"body\": \"Holding with needs-human: two lanes still call scripts/label_sync.py; the owner decides the cut-over date.\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
           "exit": 0
         },
         {

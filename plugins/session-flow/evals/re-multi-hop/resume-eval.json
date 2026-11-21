@@ -105,6 +105,9 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/feat/stop-reason"
+    ],
     "gh_fixture": {
       "repo": "example-org/drain-exit",
       "responses": [

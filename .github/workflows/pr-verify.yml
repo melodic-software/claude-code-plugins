@@ -30,7 +30,8 @@ name: PR Verify
 # a credit stop, or class auth with API status 401 or 402) with no permission
 # denial, or its key is empty; then check-intent writes no verdict and does
 # not fail. It also runs when check-intent's credit gate skipped the key leg
-# because the key's credit stop is recent. With the org secret
+# because the key's credit stop is recent, and in check-intent's place when
+# vars.CLAUDE_API_KEYS_DISABLED is `true`, which skips it. With the org secret
 # FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the subscription leg hands off the
 # same way (a limit stop, a credit stop, or a 401 or 402) and the
 # check-intent-fallback job judges once on that token, on a third VM; with it
@@ -108,6 +109,7 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
+      && vars.CLAUDE_API_KEYS_DISABLED != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 301
     cache-mode: read
@@ -2117,10 +2119,14 @@ jobs:
           exit 1
 
   # The subscription leg, as its own job on a new VM
-  # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding). It runs only when
+  # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding). It runs when
   # check-intent succeeded and named it the next leg (a clean handoff, an
-  # empty key or a key the credit gate skipped); a check-intent that failed,
-  # a denial on its key leg included, leaves it skipped. check-intent's
+  # empty key or a key the credit gate skipped), or when check-intent was
+  # skipped, which with this job's own trigger terms means the API-key
+  # switch is on: then its reason is no-key and it reads everything itself.
+  # Keying on check-intent's result, not the switch, keeps a switch flipped
+  # between the two jobs from judging twice or not at all. A check-intent
+  # that failed, a denial on its key leg included, leaves it skipped. check-intent's
   # processes and environment do not reach it, and of its files only the
   # pre-judge reads do, through the `reads` output. Its steps repeat
   # check-intent's from a fresh checkout but for the credential, the reads
@@ -2138,8 +2144,9 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && needs.check-intent.result == 'success'
-      && needs.check-intent.outputs.next-leg == 'subscription'
+      && (needs.check-intent.result == 'skipped'
+      || (needs.check-intent.result == 'success'
+      && needs.check-intent.outputs.next-leg == 'subscription'))
     runs-on: ubuntu-24.04
     timeout-minutes: 301
     cache-mode: read
@@ -2339,7 +2346,7 @@ jobs:
           role: pr-verify
           credential-set: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ needs.check-intent.outputs.next-reason }}
+          reason: ${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}
 
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'

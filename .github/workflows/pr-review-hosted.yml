@@ -287,6 +287,8 @@ jobs:
       generated-copies: scripts/shared-copies.txt
       # Generated data files counted as read, read at the merge base.
       generated-data: scripts/review-generated-data.txt
+      media-paths: scripts/review-media-paths.txt
+      binary-allowlist: scripts/review-binary-allowlist.txt
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
       # fails while the label is on. The review holds only for a real-charge
       # cost or a CRITICAL security finding; hold-paths names the files the
@@ -418,6 +420,9 @@ jobs:
         docs/conventions/untrusted-content/**
         docs/standards/**
         docs/review/**
+        .github/scripts/intake-triage/triage-rubric.txt
+        .github/scripts/intake-triage/refine-schema.json
+        .github/scripts/plugin-eval/policy-probe-prompt.txt
         .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml

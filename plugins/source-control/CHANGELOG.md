@@ -3,6 +3,74 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.2.0] - 2026-11-21
+
+### Added
+
+- **The `evidence` action reads each attached screenshot and recording with OCR and leak-scans the
+  text before it posts.** `scripts/evidence-ocr.py` reads each image, and each video frame ffmpeg's
+  `mpdecimate` keeps, locally with tesseract, upscaled and inverted as well. It runs the text
+  through the same credential pattern and mask values as the comment body. A hit, a capture with no
+  readable text, or a host without tesseract or ffmpeg posts nothing. The new
+  `evidence_ocr_mpdecimate_hi` setting (default 256) sets the frame-sampling threshold. Evidence
+  captures of a regulated product still show synthetic data only, and the OCR scan is a backstop
+  behind that rule. ADR 0107 is amended to match.
+
+## [13.1.14] - 2026-11-21
+
+### Changed
+
+- The merge policy reads a pipeline config's keys from one run of the shared YAML parser instead of one `parse-concern-value.sh` run per key, so the post-merge check's walk over the config's history no longer starts thousands of bash processes. Every value, rejection and error is the same as before.
+
+## [13.1.13] - 2026-11-20
+
+### Fixed
+
+- **babysit-prs:** the post-merge floor read with no local clone of main now pages through the commits API instead of failing once the enabled `pr-pipeline.yaml` run passes 100 commits. It still fails closed when a page cannot be read or the run passes 5000 commits.
+
+## [13.1.12] - 2026-11-20
+
+### Fixed
+
+- The babysit merge gate no longer holds a retargeted pull request forever. Review evidence binds only on lane runs created after the newest base change, so a review read against the old base never counts, and a lane unbound as `base-retargeted` requests one whole review of the head, under the same per-head, per-pull-request and per-sweep caps as a refused re-run. An upper stack layer GitHub retargets when the layer below merges can now bind again without a push.
+
+## [13.1.11] - 2026-11-20
+
+### Fixed
+
+- The babysit merge gate's vendored-copy sync check treats a skill file named `SKILL.md` in any case as a `SKILL.md`, so a lowercase `skill.md` a sync adds or changes no longer keeps the drift issue's spec.
+
+## [13.1.10] - 2026-11-20
+
+### Fixed
+
+- The unattended babysit merge path no longer posts a pin comment or calls `enqueuePullRequest` on a native stack layer, which GitHub refuses on every sweep. It reads the `stack` field the pull request record it already holds carries, and holds the layer for a person, so it adds no API call.
+
+## [13.1.9] - 2026-11-20
+
+### Changed
+
+- `reference/stacked-prs.md` says this marketplace's merge lane now lands only a stack's bottom layer, through the async merge once its `CI Status` is green, and that the issue lane does not stack yet.
+- The babysit merge path's pin comment, posted before it asks GitHub to enqueue, says it is about to ask GitHub to enqueue the pull request and that GitHub can still refuse it. It used to say the pull request was enqueued, which stood beside a refusal GitHub sent in the same second. The pin's first line is unchanged, so `PIN_RE` still reads it.
+
+## [13.1.8] - 2026-11-20
+
+### Fixed
+
+- babysit-prs: the merge-risk cost check reads a `uses: $/...` self-repository call as a local workflow or action call, as it reads `uses: ./...`, so a timeout raised on a workflow whose local calls all use `$/` is still compared at its key path.
+
+## [13.1.7] - 2026-11-20
+
+### Changed
+
+- `/source-control:pull-request create` still writes a `## Remaining` section for a `Refs:` pull request, now described as being for reviewers: pr-verify no longer requires it.
+
+## [13.1.6] - 2026-11-20
+
+### Changed
+
+- babysit-prs: the red-main demotion recovery read lists main's green CI Status runs in each weekly cell from the earliest record time inside that cell, not from the cell's start, so it no longer pages through the runs before that record. A cell already read from a later time is listed again when an earlier record needs it. One result changes: a cell with more than ten pages of runs before its record used to hold the record, and now the record clears on the runs after it, as its own span would. A cell over ten pages after the record still holds it.
+
 ## [13.1.5] - 2026-11-20
 
 ### Changed

@@ -104,7 +104,7 @@ function oldRun(s) {
   Object.assign(keyCtx, legSteps(keyRan, s.at, s.keyEnd, "key-leg"));
   out.started.push(KEY);
   out.legs[KEY] = { runs: keyRan };
-  const needs = { ...RUN, [`needs.${KEY}.result`]: result(s.failAt, OLD.keyFail, keyCtx), ...prefixed(`needs.${KEY}.outputs`, evalMap(OLD.keyOutputs, keyCtx)) };
+  const needs = { ...RUN, [`needs.${KEY}.result`]: result(s.keyFailAt ?? s.failAt, OLD.keyFail, keyCtx), ...prefixed(`needs.${KEY}.outputs`, evalMap(OLD.keyOutputs, keyCtx)) };
   if (!runs(OLD.sub, needs)) return out;
   out.started.push(SUB);
   const subCtx = { ...base };
@@ -152,14 +152,17 @@ function newJob(job, leg, s, needs, end, legStep) {
   return { credential, outputs };
 }
 
-function newRun(s) {
-  const out = { started: [KEY], legs: {} };
-  const key = newJob(KEY, "key", s, {}, s.keyEnd, "key-leg");
+const apiKeySwitch = (on) => ({ "vars.CLAUDE_API_KEYS_DISABLED": on ? "true" : "" });
+
+function newRun(s, { switchAtKeyJob = apiKeySwitch(s.keyOff), switchAtLaterJobs = switchAtKeyJob } = {}) {
+  const key = runs(wf.jobIf(KEY), { ...RUN, ...switchAtKeyJob }) ? newJob(KEY, "key", s, switchAtKeyJob, s.keyEnd, "key-leg") : null;
+  const out = { started: key ? [KEY] : [], legs: {} };
   // A held key's present is now `false` where the skipped step left it
   // empty; whether the key's judge runs, the one reader that matters, is
   // compared. The fail step reads key-skipped beside present.
-  out.legs[KEY] = { runs: key.credential.present === "true" };
-  const needs = { [`needs.${KEY}.result`]: key.outputs.result, ...prefixed(`needs.${KEY}.outputs`, key.outputs) };
+  if (key) out.legs[KEY] = { runs: key.credential.present === "true" };
+  const needs = key ? { [`needs.${KEY}.result`]: key.outputs.result, ...prefixed(`needs.${KEY}.outputs`, key.outputs) } : { [`needs.${KEY}.result`]: "skipped" };
+  Object.assign(needs, switchAtLaterJobs);
   if (!runs(wf.jobIf(SUB), { ...RUN, ...needs })) return out;
   out.started.push(SUB);
   const sub = newJob(SUB, "subscription", s, needs, s.subEnd, "sub-leg");
@@ -197,6 +200,30 @@ test("pr-verify's judge jobs start the same legs with the same credential decisi
   }
   for (const shape of [KEY, `${KEY},${SUB}`, `${KEY},${SUB},${FB}`]) assert.ok(shapes.has(shape), `reached ${shape}`);
   assert.ok(count > 1000, `${count} states`);
+});
+
+test("with the API-key switch on, the key job is skipped and the later legs run as the old chain ran them for an empty key with the credit gate clear", () => {
+  let count = 0;
+  for (const s of states()) {
+    count++;
+    const on = { ...s, keyOff: true };
+    const actual = newRun(on);
+    if (!s.agree) {
+      assert.deepEqual(actual, { started: [SUB], legs: { [SUB]: { present: "", "fallback-ready": "", "fallback-reason": "" } } }, `a run the gates stop starts the subscription job, which decides no credential: ${JSON.stringify(on)}`);
+      continue;
+    }
+    const before = oldRun({ ...s, key: false, gate: "ok", keyFailAt: "none" });
+    assert.equal(before.legs[SUB]["fallback-reason"], "no-key", "select-model-credential's key-off rule: the subscription job runs, reason no-key, as the old empty-key chain handed on");
+    const { [KEY]: _key, ...legs } = before.legs;
+    assert.deepEqual(actual, { started: before.started.filter((job) => job !== KEY), legs }, JSON.stringify(on));
+  }
+  assert.ok(count > 1000, `${count} states`);
+});
+
+test("a switch flipped between the key job's evaluation and the later jobs' neither judges twice nor leaves the run unjudged", () => {
+  const s = { agree: true, gate: "ok", key: true, sub: true, fallback: true, failAt: "none", at: "", keyEnd: { kind: "verdict" }, subEnd: { kind: "verdict" } };
+  assert.deepEqual(newRun(s, { switchAtKeyJob: apiKeySwitch(false), switchAtLaterJobs: apiKeySwitch(true) }).started, [KEY], "the key job judged, so no later leg starts");
+  assert.deepEqual(newRun(s, { switchAtKeyJob: apiKeySwitch(true), switchAtLaterJobs: apiKeySwitch(false) }).started, [SUB], "the key job was skipped, so the subscription job judges");
 });
 
 test("a step that fails after a clean handoff starts no next leg, as the old result == 'success' term required", () => {

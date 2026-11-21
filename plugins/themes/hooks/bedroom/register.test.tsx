@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { TITLE_CAPS, aspectFrom, hitAt, moves, switchesAt, toViewBox, withTitle } from './register.tsx'
+import { TITLE_CAPS, aspectFrom, hitAt, switchesAt, toViewBox, withTitle } from './register.tsx'
+import { SECOND_STEP_MS, commandSwitch, nextValues, startShader } from './core/values.js'
 import { bedroomSvg } from './scene.ts'
 import { DEFAULT_STATE } from './scene/lib.ts'
 
@@ -86,13 +87,20 @@ test('drawn whole, with no shader, the console title card shows only on the cons
   expect(bedroomSvg({ ...DEFAULT_STATE, tv: true, console: false, titles: {}, underShader: true }, 0).includes(card)).toBe(true)
 })
 
-test('a switch order is one move to the end, or, when the number already sits on that side, the middle first', () => {
-  expect(moves(1, false)).toEqual([0])
-  expect(moves(0, true)).toEqual([1])
-  expect(moves(0.5, false)).toEqual([0])
-  expect(moves(1, true)).toEqual([0.5, 1])
-  expect(moves(0, false)).toEqual([0.5, 0])
-  expect(moves(0.5, true)).toEqual([0.5, 1])
+test('a switch order is one move to the end, or, when a click turned the switch since the number last moved, the middle first', () => {
+  const lit = { ...DEFAULT_STATE, tv: true }
+  const quiet = { sun: 0, weather: 0, work: 0, zone: 0, hall: 0 }
+
+  startShader(lit, quiet, 0, 0)
+  expect(commandSwitch('tv', 1, true)).toBe('already')
+  expect(commandSwitch('tv', 0, true)).toBe('sent')
+  expect(nextValues(0).values.tv).toBe(0)
+  expect(commandSwitch('tv', 0, true)).toBe('turned')
+  expect(nextValues(10).values.tv).toBe(0.5)
+  expect(nextValues(10 + SECOND_STEP_MS - 1).values.tv).toBe(0.5)
+  expect(nextValues(10 + SECOND_STEP_MS).values.tv).toBe(0)
+  expect(commandSwitch('lamp', 1, false)).toBe('sent')
+  expect(nextValues(5000).values.lamp).toBe(1)
 })
 
 test('a calibration click on the dresser corner gives the window shape', () => {

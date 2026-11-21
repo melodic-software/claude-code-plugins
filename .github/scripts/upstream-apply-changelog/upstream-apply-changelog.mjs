@@ -519,7 +519,7 @@ async function gate(env) {
 async function push(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, BUNDLE_FILE, REPO_DIR: repoDir, GITHUB_REPOSITORY: repo } = env;
   const plan = readPlan(readFileSync(PLAN_FILE, "utf8"), { release, baseSha });
-  const writer = createGitHubApi({ token: env.GH_TOKEN, repository: repo, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
+  const writer = createGitHubApi({ token: env.GH_TOKEN, repository: repo, apiUrl: env.GITHUB_API_URL || "https://api.github.com", fetch: guardedFetch });
   const heads = {};
   if (plan.branches.length && !existsSync(BUNDLE_FILE)) throw new Error("the plan names branches and the run left no bundle");
   // The bundle holds the scan job's synthetic commits only, never the

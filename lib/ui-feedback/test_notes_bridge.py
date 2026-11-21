@@ -192,6 +192,76 @@ class TestHostAndPage(NotesCase):
                 nb.pin_helper(bad)
 
 
+class Frame(HTMLParser):
+    """The attributes of the host page's #page iframe."""
+
+    attrs = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "iframe" and dict(attrs).get("id") == "page":
+            self.attrs = dict(attrs)
+
+
+def frame_of(body):
+    parser = Frame()
+    parser.feed(body.decode())
+    return parser.attrs
+
+
+DEV = "http://localhost:5173"
+
+
+class TestRealStack(NotesCase):
+    def setUp(self):
+        super().setUp()
+        self.hub.dev_origin = DEV
+
+    def test_the_dev_route_frame_has_no_sandbox_and_the_policy_adds_frame_src(self):
+        code, body = self.request("GET", "/", token=False)
+        self.assertEqual(code, 200)
+        attrs = frame_of(body)
+        self.assertNotIn("sandbox", attrs)
+        self.assertEqual(attrs["data-dev-origin"], DEV)
+        policy = self.last_headers["Content-Security-Policy"]
+        self.assertEqual(policy, f"{nb.HOST_CSP}; frame-src {DEV}")
+        self.assertIn("frame-ancestors 'none'", policy.split("; "))
+        self.assertNotIn(self.hub.token.encode(), body)
+
+    def test_the_origin_stays_one_attribute_even_unchecked(self):
+        self.hub.dev_origin = 'http://a"onload="alert(1)'
+        _, body = self.request("GET", "/", token=False)
+        attrs = frame_of(body)
+        self.assertEqual(attrs["data-dev-origin"], self.hub.dev_origin)
+        self.assertNotIn("onload", attrs)
+
+    def test_the_mockup_frame_keeps_its_sandbox(self):
+        self.hub.dev_origin = None
+        code, body = self.request("GET", "/", token=False)
+        self.assertEqual(frame_of(body)["sandbox"], "allow-scripts")
+        self.assertNotIn("frame-src", self.last_headers["Content-Security-Policy"])
+
+    def test_ping_names_the_dev_origin(self):
+        self.assertEqual(self.hub.identity()["devOrigin"], DEV)
+        self.hub.dev_origin = None
+        self.assertNotIn("devOrigin", self.hub.identity())
+
+
+@unittest.skipUnless(shutil.which("node"), "dev-origin.mjs runs on node")
+class TestDevOriginAtStart(unittest.TestCase):
+    def test_a_canonical_origin_is_taken(self):
+        self.assertEqual(nb.dev_origin(DEV), DEV)
+
+    def test_an_input_that_is_not_its_own_origin_is_refused_at_start(self):
+        for bad in ("http://localhost:80", "http://localhost:5173/", "HTTP://localhost:5173"):
+            for cmd in ("ensure-running", "serve"):
+                with self.subTest(bad=bad, cmd=cmd), contextlib.redirect_stderr(
+                    io.StringIO()
+                ) as err, self.assertRaises(SystemExit) as stop:
+                    nb.main(["--dir", "unused", cmd, "--dev-origin", bad])
+                self.assertEqual(stop.exception.code, 2)
+                self.assertIn("is not its own origin", err.getvalue())
+
+
 class TestGuards(NotesCase):
     def test_a_note_without_the_token_is_refused(self):
         self.assertEqual(self.note(token=False)[0], 403)

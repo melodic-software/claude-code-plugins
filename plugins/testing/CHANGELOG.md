@@ -3,6 +3,22 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.0] - 2026-11-21
+
+### Changed
+
+- **`/testing:write` no longer teaches one ecosystem's examples.** The skill and its `write` and `organize` pages dropped the .NET/xUnit test-name forms, the `.NET` framework-traps gotcha, the orchestrator tool names, the JavaScript hollow-out example and its per-language null values, the C# database-read example, the `{Project}.Tests` and `{ClassUnderTest}Tests` naming examples, and the "Nested test projects (.NET)" section. The neutral rules stay: use the project's documented naming and placement, else mirror the ecosystem's own idiom ([#17740](https://github.com/melodic-software/claude-code-plugins/issues/17740)).
+
+### Removed
+
+- **`/testing:run-e2e` no longer ranks or scripts third-party browser tools.** The run-e2e pages drop the browser-tool table, the browser tool's version floor and install command, its command sequences, the orchestrator and accessibility-tool examples, and the links to one tool's documentation. The browser tool a `playwright` drive uses is the one `browser_driver` names, and any other browser job takes the tool the project's own rules name, or is reported unresolved. The README no longer states a `browser_driver` default; the `userConfig` option's default in `plugin.json` and the resolver's fallback are unchanged ([#17743](https://github.com/melodic-software/claude-code-plugins/issues/17743)).
+
+## [5.9.0] - 2026-11-20
+
+### Changed
+
+- `setup`: when reporting `check`, the skill names `/corrections:codify "<the test pattern>"` for the user to run, for a can't-fail test pattern in a detected language that has no shipped test-lint rule, and for a test rule a check could decide in place of the optional instruction line. When `/corrections:codify` is available, it gets the choice of mechanism; otherwise the skill proposes the strongest mechanism that can decide the rule and says the proposal is unproven. `setup.sh` and its output are unchanged.
+
 ## [5.8.0] - 2026-11-20
 
 ### Added

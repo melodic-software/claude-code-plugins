@@ -326,6 +326,10 @@ export function recordFailure({ method, url, status, dir = process.env.RUNNER_TE
   }
   try {
     const path = new URL(String(url?.url ?? url), "https://api.github.com").pathname;
+    const verb = String(method ?? "GET").toUpperCase();
+    if (verb === "GET" && status === 404 && /^(\/api\/v3)?\/repos\/[^/]+\/[^/]+\/git\/ref\/tags\/./.test(path)) {
+      return;
+    }
     mkdirSync(join(dir, "lane-run-report"), { recursive: true });
     appendFileSync(join(dir, "lane-run-report", "api-failures.jsonl"), `${JSON.stringify({ method: String(method ?? "GET").toUpperCase(), path, status })}\n`);
   } catch {
@@ -480,7 +484,7 @@ export function serverErrorHold({ status, headers, body }) {
   return !texts.some((text) => SIGNALS.message.test(text)) && !errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
 }
 
-export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null, stopFloor = null } = {}) {
+export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null, stopFloor = null, floorGraceMs = 0 } = {}) {
   const get = headerReader(headers);
   const graphqlPool = poolOf(url) === "graphql";
   const parsed = parseBody(body);
@@ -498,7 +502,7 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const secondary = flagged && messages.some((text) => SIGNALS.secondary.test(text));
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
   const tooMany = status === 429;
-  const floored = stopFloor !== null && limit > 0 && remaining !== null && reset !== null && reset * 1000 > now && remaining <= stopFloor * limit;
+  const floored = stopFloor !== null && limit > 0 && remaining !== null && reset !== null && reset * 1000 > now + floorGraceMs && remaining <= stopFloor * limit;
   const latched = remaining === 0 || floored || retryAfter !== null || message || graphql || tooMany;
   const plan = limit > 0 && remaining !== null ? planOf({ limit, remaining }, limitCap) : null;
   const low = readFloor !== null && plan !== null && plan.left < readFloor * plan.planned;
@@ -772,7 +776,7 @@ export function createRateLimitLatch({
   // resend: the client sends this request again if a rate limit refuses it
   // and the latch would wait (retryServerErrors' resendLimited), so such a
   // refusal fails nothing.
-  async function observe(url, response, method = "GET", token = undefined, resend = false) {
+  async function observe(url, response, method = "GET", token = undefined, resend = false, floorGraceMs = 0) {
     const pool = poolOf(url);
     // classify reads the body of a 403, a 429 and a GraphQL answer; a 5xx's
     // body is read only for serverErrorHold's cause, never for the stop.
@@ -780,7 +784,7 @@ export function createRateLimitLatch({
     const needsBody = classifiesBody || response.status >= 500;
     const limitCap = margin(pool, "limit-cap", token);
     const stopFloor = margin(pool, "stop-floor", token);
-    const options = { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor };
+    const options = { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor, floorGraceMs };
     // The in-process stop holds either way; a later step only sees a
     // recorded one, so a failed write is named. Each distinct stop is set
     // and written once.
@@ -894,7 +898,7 @@ export function createRateLimitLatch({
     // content-creating write, and reads each answer, keeping its rate-limit
     // reading under token (budgetToken when unset, countRequests), so a
     // second client's readings never mix with the first's.
-    guard: (fetchImpl, { token, sleep: wait } = {}) => {
+    guard: (fetchImpl, { token, sleep: wait, floorGraceMs = 0 } = {}) => {
       const send = countRequests(fetchImpl, { token });
       return countsRequests(async function guarded(url, init = {}) {
         const method = String(init.method ?? "GET").toUpperCase();
@@ -905,7 +909,7 @@ export function createRateLimitLatch({
             recordContentWrite({ at: Math.floor(now() / 1000) });
           }
           const response = await send(url, init);
-          await observe(url, response, init.method, token, init[RESEND] === true || again);
+          await observe(url, response, init.method, token, init[RESEND] === true || again, floorGraceMs);
           if (!again || !waits(url) || !(await refusedForLimit(response))) {
             return response;
           }
@@ -915,6 +919,8 @@ export function createRateLimitLatch({
     },
   };
 }
+
+export const DISPATCH_FLOOR_GRACE_MS = 10 * 60 * 1000;
 
 // The process-wide latch every helper shares by default.
 export const rateLimitLatch = createRateLimitLatch();

@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node"
+          }
+        }
+      ],
+      "why": "the node probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "PSScriptAnalyzerSettings.psd1",
+            "content": "@{ IncludeRules = @('PSAvoidUsingWriteHost') }\n"
+          }
+        }
+      ],
+      "why": "writes an analyzer config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/conventions/testing.yaml",
+            "content": "paths:\n  exclude: ['legacy/**']\n"
+          }
+        }
+      ],
+      "why": "writes the team layer during check"
+    }
+  ]
+}

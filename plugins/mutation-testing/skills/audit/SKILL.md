@@ -214,9 +214,7 @@ difference it exists to detect.
 [Phase 3](#phase-3-execute) can run: does the configured tool write mutants out of tree, rewrite the
 working file whole once, or apply and revert it per mutant? Read the project's config and installed
 tool version against that tool's row in the `principles` skill's [`tooling.md`](../principles/reference/tooling.md)
-table. Pointer: for StrykerJS, fetch [configuration: inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean)
-live. Resolve
-the regime from what this project configured, never from the tool's reputation. State the resolved regime
+table. Resolve the regime from what this project configured, never from the tool's reputation. State the resolved regime
 in the scope report. Refuse when the regime is in-tree per mutant and the tool offers neither
 per-mutant observability nor interrupt safety: the gate that regime requires cannot be run, and a
 check that cannot run is not a check.
@@ -431,9 +429,6 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
   in the next (a design inference, not a sourced finding: the flaky-test gotcha from the generator
   side). During mutation runs pin the seed or derandomize the tool, and pin the killing
   counterexample as an explicit example so the kill replays whatever the generator draws.
-  Pointer: Hypothesis [`settings.derandomize`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings.derandomize);
-  fast-check `examples` in [Run against custom values](https://fast-check.dev/docs/configuration/user-definable-values/#run-against-custom-values)
-  and its seed in <https://fast-check.dev/docs/configuration/user-definable-values/>.
 - **Verify the new test actually kills the mutant**. Re-run this skill scoped to that file. This is
   the property that makes the loop trustworthy: the agent that wrote the test cannot grade itself
   into a pass, because the harness re-runs the mutant. A test that does not turn the mutant red has

@@ -2162,8 +2162,9 @@ const postedThisRun = (comments, { bot, outcome, runId }) =>
 // starts the issue again. The re-derive fails instead: its job continues on the
 // error, and that failure is what withholds the run's branch claim
 // (pr-run-activity-read.yml).
-export async function findPriorMain({ env = process.env, fetch = globalThis.fetch, sleep } = {}) {
+export async function findPriorMain({ env = process.env, fetchImpl, sleep, latchOptions } = {}) {
   const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
+  const holdsOnRefusal = !keepBehind;
   let reading = false;
   try {
     const issueNumber = targetIssue(env);
@@ -2171,7 +2172,15 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const bot = botLogin(env);
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
-    const github = retryApi({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
+    const { createGitHub } = await import(new URL("../../actions/check-trusted-trigger/check-trusted-trigger.mjs", import.meta.url).href);
+    const { createRateLimitLatch } = await import(new URL("../../actions/log-api-budget/rate-guard.mjs", import.meta.url).href);
+    const github = createGitHub({
+      token: env.GH_TOKEN,
+      apiUrl: env.GITHUB_API_URL || undefined,
+      fetchImpl,
+      sleep,
+      latch: createRateLimitLatch({ ...latchOptions, hold: holdsOnRefusal }),
+    });
     reading = true;
     const appComments = (await paginate(github, `${repo}/issues/${issueNumber}/comments`)).filter((comment) => comment.user?.login === bot);
     const markers = appComments

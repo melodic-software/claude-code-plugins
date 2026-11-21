@@ -85,6 +85,10 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/feat/stop-reason",
+      "refs/pull/4460/head"
+    ],
     "gh_fixture": {
       "repo": "example-org/retry-client",
       "responses": [
@@ -95,7 +99,7 @@
         },
         {
           "match": "\\bpr view\\b",
-          "stdout": "{\"number\": 4460, \"state\": \"OPEN\", \"mergeStateStatus\": \"BLOCKED\"}\n",
+          "stdout": "{\"number\": 4460, \"headRefName\": \"feat/stop-reason\", \"state\": \"OPEN\", \"mergeStateStatus\": \"BLOCKED\"}\n",
           "exit": 0
         },
         {

@@ -18,9 +18,10 @@ test("the final judge reads the spec under the chunk verifiers' words", () => {
   }
 });
 
-test("a refs pull request that names no remaining work fails, under either judge", () => {
-  assert.ok(chunk.includes("Return `fail`, saying why, when the body names no delivered part, names no remaining work or claims to deliver the whole issue"));
-  assert.ok(spec.includes("return `fail` when it names no delivered part or no remaining work, or claims the whole issue."));
+test("a refs pull request fails on no delivered part or a whole-issue claim, never on unnamed remaining work, under either judge", () => {
+  assert.ok(chunk.includes("Return `fail`, saying why, when the body names no delivered part or claims to deliver the whole issue"));
+  assert.ok(spec.includes("return `fail` when it names no delivered part or claims the whole issue."));
+  for (const text of [chunk, spec]) assert.ok(!/names no remaining work|no remaining work, or claims|must name what remains/.test(text));
 });
 
 test("a refs pull request for a main-red incident needs no remaining work, under either judge", () => {

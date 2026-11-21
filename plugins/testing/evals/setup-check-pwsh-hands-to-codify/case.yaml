@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: 'setup-check-pwsh-hands-to-codify'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ran-setup-check'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup\.sh(?:\\")?(?:(?:[^"\\]|\\.)*?\$\{?\w+\}?(?:\\")?)?[ \t]+check\b'
+    arm: 'with-only'
+  - name: 'no-apply'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup\.sh(?:\\")?(?:(?:[^"\\]|\\.)*?\$\{?\w+\}?(?:\\")?)?[ \t]+apply\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-codify-run'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill":"/?(?:corrections:)?codify"'
+    min: 0
+    max: 0
+    arm: 'with-only'
+  - name: 'pwsh-named-with-codify'
+    type: 'regex'
+    pattern: '(?:PowerShell|\bpwsh\b|Pester)(?:(?!instruction|CLAUDE\.md|AGENTS\.md)[\s\S]){0,300}?corrections:codify|corrections:codify(?:(?!instruction|CLAUDE\.md|AGENTS\.md)[\s\S]){0,300}?(?:PowerShell|\bpwsh\b|Pester)'
+    flags: 'i'
+    target: 'last_message'
+    arm: 'both'
+  - name: 'no-unavailable-claim'
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:if|unless|when)[ \t]+[`/]*corrections:codify)[^\n]*?corrections:codify\b[^\n]{0,80}?(?:\b(?:was not|wasn''t|is not|isn''t|not)[ \t]+(?:available|installed|loaded)\b|\bunavailable\b)'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: 'both'
+  - name: 'leaves-mechanism-to-codify'
+    type: 'llm'
+    focus: 'last_message'
+    criteria: 'The run is `/testing:setup check` in a repository whose only tests are one Pester file (PowerShell) with no lint config; setup.sh check prints the pwsh row as "no maintained rule", and a /corrections:codify skill is available in the session. Judge only who chooses the mechanism that would catch a can''t-fail PowerShell test. Judge what the reply says, not whether it is true. PASS only if the reply names PowerShell (or pwsh or Pester) as having no shipped test-lint rule and leaves the choice of mechanism for it to /corrections:codify, named as a call for the user to run; any analyzer, PSScriptAnalyzer rule, Pester setting, hook or CI job it mentions is described as something codify might pick, not as the reply''s own pick. FAIL if the reply itself recommends a specific mechanism for PowerShell tests (for example add PSScriptAnalyzer, write a custom rule, add a CI job), even beside a codify mention; if codify is not named for PowerShell; or if the reply says codify is unavailable. Do not judge the wording, the other report sections, or the instruction line.'
+    arm: 'with-only'

@@ -12,10 +12,16 @@ export type BedroomCard = {
   seen?: number
   /** What the last press on the card answered. */
   said?: string
+  /** The four title fields show, as the card's last row. */
+  titles?: boolean
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    themes: { 'bedroom-card': Shaped<BedroomCard> }
+    themes: {
+      'bedroom-card': Shaped<BedroomCard>
+      /** The bedroom's minute chain: the time the newest copy of the module started it, so an older copy left running after a reload stops. */
+      'bedroom-chain': number
+    }
   }
 }

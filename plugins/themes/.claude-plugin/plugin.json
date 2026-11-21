@@ -1,13 +1,71 @@
 {
   "name": "themes",
-  "description": "Backdrop themes for the Claude Code desktop app. The first, bedroom, is a teenager's bedroom in the country at dusk, about 2004, drawn as one SVG with a lighting shader, with things to click (television, VCR, console, computer, lamps) and a /bedroom command.",
+  "description": "Backdrop themes for the Claude Code desktop app. The first, bedroom, is a teenager's bedroom in the country, about 2004, drawn as one SVG with a lighting shader that follows the time of day and the weather, with things to click (television, VCR, console, computer, lamps) and a /bedroom command.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.2.1",
+  "version": "0.3.1",
   "license": "MIT",
   "types": "./types/index.d.ts",
+  "userConfig": {
+    "time": {
+      "type": "string",
+      "title": "Bedroom: time of day",
+      "description": "auto follows the clock; a phase holds that light all day.",
+      "options": ["auto", "dusk", "evening", "night", "predawn", "dawn", "morning", "noon", "golden"],
+      "default": "auto"
+    },
+    "sunrise": {
+      "type": "string",
+      "title": "Bedroom: sunrise",
+      "description": "Local time of sunrise, HH:MM from 04:00 to 09:00.",
+      "default": "06:30"
+    },
+    "sunset": {
+      "type": "string",
+      "title": "Bedroom: sunset",
+      "description": "Local time of sunset, HH:MM from 16:00 to 22:00.",
+      "default": "20:30"
+    },
+    "weather": {
+      "type": "string",
+      "title": "Bedroom: weather",
+      "description": "auto changes by itself every three hours and never picks a storm.",
+      "options": ["auto", "clear", "overcast", "rain", "downpour", "storm"],
+      "default": "auto"
+    },
+    "sound": {
+      "type": "boolean",
+      "title": "Bedroom: sound",
+      "description": "The television's click, cicadas, rain, a downpour, a storm and thunder. Off by default.",
+      "default": false
+    },
+    "soundPlayer": {
+      "type": "string",
+      "title": "Bedroom: sound player",
+      "description": "Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100.",
+      "default": ""
+    },
+    "signal": {
+      "type": "boolean",
+      "title": "Bedroom: television reacts to Claude",
+      "description": "The screen flickers while Claude works.",
+      "default": true
+    },
+    "hall": {
+      "type": "boolean",
+      "title": "Bedroom: hallway",
+      "description": "Now and then someone passes the door, or the hall light comes on.",
+      "default": true
+    },
+    "shader": {
+      "type": "boolean",
+      "title": "Bedroom: shader",
+      "description": "For diagnosis. Off: the hand-drawn room alone, with no fades, clock or lamp light, sent again on every change.",
+      "default": true
+    }
+  },
   "keywords": [
     "mod",
     "theme",

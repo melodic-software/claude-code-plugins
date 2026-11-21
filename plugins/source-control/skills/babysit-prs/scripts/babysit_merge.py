@@ -94,7 +94,8 @@ Contract enforced here (encoded as code, not convention):
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready pull request whose
-  score does not hold it (`babysit_risk.holds`) is
+  score does not hold it (`babysit_risk.holds`), and that is not a native stack
+  layer (held, with no pin and no enqueue), is
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
   the base changed a `merge.check-inputs` path since its merge base, when its
@@ -3299,7 +3300,7 @@ def _lane_evidence(
         threads,
         is_human=human,
         changed_paths=changed_paths,
-        base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
+        retargeted_at=_retargeted_at(timeline),
         head_file=head_file,
         base_sha=base_sha,
         main_reviews=main_reviews,
@@ -3307,6 +3308,21 @@ def _lane_evidence(
         floor=floor,
     )
     return lanes, comments
+
+
+def _retargeted_at(timeline: Sequence[Mapping[str, Any]]) -> str | None:
+    """The `created_at` of the newest `base_ref_changed` event, or None when
+    the pull request was never retargeted. An event without a readable time
+    gives "", which `bind()` reads as unbound evidence."""
+    times = [
+        e.get("created_at") for e in timeline if e.get("event") == "base_ref_changed"
+    ]
+    if not times:
+        return None
+    try:
+        return max(times, key=datetime.fromisoformat)
+    except (TypeError, ValueError):
+        return ""
 
 
 def _main_reviews(
@@ -5286,6 +5302,11 @@ def unattended_enqueue(
         return hold("auto-merge is armed on this pull request; disarmed, not enqueued")
     if queue["inQueue"] or queue["merged"]:
         return hold("the pull request is already queued or merged")
+    if is_json_object(json_object(inputs["pr"]).get("stack")):
+        return hold(
+            "native-stack-layer: GitHub refuses an unattended enqueue of a stack "
+            "layer; a person enqueues it"
+        )
     # A head the queue keeps ejecting for failed checks fails again on the
     # same commits; only a push (which resets the count) can change that.
     ejections = queue.get("failedEjections")

@@ -119,13 +119,9 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 
 ## Sources
 
-The reference material is distilled from primary sources, fetched 2026-08-10:
+The theory in the reference material is distilled from these papers, fetched 2026-08-10; each
+reference page names the tool documentation it draws on:
 
-- [Stryker. Mutant states and metrics](https://stryker-mutator.io/docs/mutation-testing-elements/mutant-states-and-metrics/),
-  [Stryker.NET configuration](https://stryker-mutator.io/docs/stryker-net/configuration/),
-  [StrykerJS incremental](https://stryker-mutator.io/docs/stryker-js/incremental/)
-- [PIT](https://pitest.org/) and its [mutation operators](https://pitest.org/quickstart/mutators/)
-- [Infection. MSI](https://infection.github.io/guide/)
 - Petrović & Ivanković, *State of Mutation Testing at Google*, ICSE-SEIP 2018
   (<https://dl.acm.org/doi/10.1145/3183519.3183521>)
 - Petrović, Ivanković, Fraser & Just, *Practical Mutation Testing at Scale*

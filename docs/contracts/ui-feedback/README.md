@@ -119,6 +119,13 @@ the host page reach the frame only by message.
   `srcdoc`. It checks each message's source frame and shape, then posts the note on the session
   bridge, whose Host, Origin and token checks are in
   [The loopback adapter](../../../lib/session-bridge/README.md#the-loopback-adapter).
+- **A real-stack route is framed from its dev origin.** Started with `--dev-origin`, the bridge
+  takes the origin only when `new URL(input).origin` returns it unchanged (`dev-origin.mjs`), so
+  `http://localhost:80` is refused in favor of `http://localhost`. The host must also be a name
+  a CSP source can hold (letters, digits, `.` and `-`), so an IPv6 literal is refused. The host page stays on the
+  bridge origin with no relay frame. It frames the route with no `sandbox` attribute, since the
+  app needs its own origin. Its policy adds `frame-src <dev origin>` and keeps
+  `frame-ancestors 'none'`. Messages pass only to and from that origin.
 - **From `file://`, copy-out only.** A page opened from `file://` has no host page and no bridge:
   it offers copy-out and says no session is connected.
 - **Note content is data.** The bridge delivers every note field, the person's text included,

@@ -98,10 +98,9 @@ Judge in this order:
    return `fail`: there is no spec to judge against. When the entry's `spec_kind` is `refs`, the
    pull request delivers part of that issue: read which part from its body in `CONTEXT_FILE`,
    and judge the diff only for that part. The part must be within the issue's scope and
-   delivered correctly and coherently on its own, and the body must name what remains for later
-   work. The body only narrows what is judged; it never adds a requirement or widens the
-   issue's scope. Return `fail`, saying why, when the body names no delivered part, names no
-   remaining work or claims to deliver the whole issue (a whole delivery closes the issue), or
+   delivered correctly and coherently on its own. The body only narrows what is judged; it never adds a requirement or widens the
+   issue's scope. Return `fail`, saying why, when the body names no delivered part or claims to
+   deliver the whole issue (a whole delivery closes the issue), or
    when the part is outside the issue's scope. A `refs` entry with `source` `main-red-incident` is
    the exception: fixing the failing check's cause is the whole delivery and the monitoring lane
    closes the issue itself, so judge the diff against its whole `body` and require no remaining

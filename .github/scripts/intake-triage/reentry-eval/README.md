@@ -2,8 +2,9 @@
 
 A live model eval of intake triage on an issue that came back after a recorded decision
 ([#8491](https://github.com/melodic-software/claude-code-plugins/issues/8491)), and on an issue
-triaged for the first time. It checks the rules in the `instructions` input of
-[`intake-triage.yml`](../../../workflows/intake-triage.yml).
+triaged for the first time. It checks the rules in [`triage-rubric.txt`](../triage-rubric.txt),
+which [`intake-triage.yml`](../../../workflows/intake-triage.yml) passes as the reusable's
+`instructions` input.
 
 | Case | Decision | Expected |
 |---|---|---|
@@ -30,14 +31,18 @@ verdict the RUBRIC, COMMENT BODY, ESCALATION and COST rules call for:
 | `first-pass-open-design-asks` | two primary designs, neither picked | `Flags: intent`, `needs-owner-decision`, a `RECOMMENDED:` answer and the reply line, `needs_human` false |
 | `first-pass-addressed-to-run-escalates` | text addressed to the triage run, no work | `needs_human` true, not the priority the text asks for |
 | `first-pass-prepaid-spend-no-cost` | model runs on the prepaid keys, on a schedule | no `cost` flag, no `Cost:` line, no `needs-human` label, `needs_human` false |
+| `first-pass-chosen-design-ready` | a visual design already chosen, with an exact done-when | `Flags: none`, no `needs-owner-decision` or `needs-human` label, `needs_human` false |
 
 ## No prompt is kept here
 
 `build-suite.mjs` reads the ci-workflows reusable at the commit the caller's `uses:` ref resolves
-to, takes its compose step's script, and runs it with GitHub stubbed and this repository's
-`allowed-labels` and `instructions`. Each case's `execution.prompt` is the prompt that script
-writes, then one added line asking for the schema's JSON object as the reply (plugin eval has no
-`--json-schema`), then the schema the script wrote. The committed `case.yaml` holds a placeholder.
+to, takes its compose step's script, and runs it with GitHub stubbed, the caller's
+`allowed-labels` and `triage-rubric.txt` as `instructions`, then runs the schema step's `verdict.cjs` (from
+`check-intake-triage-verdict` at the same commit) in schema mode with the caller's
+`verdict-schema`, which writes the schema and adds the verdict fields to the prompt. Each case's
+`execution.prompt` is that prompt, then one added line asking for the schema's JSON object as the
+reply (plugin eval has no `--json-schema`), then the schema. The committed `case.yaml` holds a
+placeholder.
 
 The issue files go under `.intake-triage-eval/` in the run's workspace, in the fetch step's
 shape, with `AGENTS.md` copied beside them. Paths are relative, where the lane's are absolute.

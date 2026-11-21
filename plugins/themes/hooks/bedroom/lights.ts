@@ -1,7 +1,10 @@
 // @generated from lights.glsl by glsl2dsl.mjs. Edit the .glsl, not this file.
-import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, range, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
+// build: pieces=time,weather,claude-tv,hallway,sound,no-shader without=claude-tv.rough,hallway.edge
+import { abs, buffer, clamp, cos, dot, dt, exp, first, floor, fract, length, max, min, mix, mod, picture, pointer, pointerCount, pointers, pow, shader, sin, size, smoothstep, sqrt, step, table, time, values, vec2, vec3, vec4, type Buffer, type Pixel } from 'claude-code/shader'
 
-const v = values({ tv: [0, 1], lava: [0, 1], clock: [0, 719], pc: [0, 1], lamp: [0, 1], tape: [0, 1], console: [0, 1], light: [0, 1] })
+const v = values({ tv: [0, 1], lava: [0, 1], pc: [0, 1], lamp: [0, 1], light: [0, 1], clock: [0, 719], screen: [0, 63], world: [0, 255] })
+const TAB_skyline = table([448.8,447,447.5,448.3,450.1,450.5,450.8,450.3,446.8,446.7,444,442.5,442.2,442,442.9,443,445.1,448.6,449.3,449.5,449.7,450.9,453.2,454.2,455,457.3,463.4,466,466.3,469.2,480.5,483,486.2,487.4,509.3,511.6,551,551.5,551.8,552,551.8,552.3,552.5,551.9,551.5,551.5,551.1,550.5,550.5,551.1,551.6,551.8,552.1,552.5,551.8,551.4,550.6,550.3,550.4,550.5,550.5,550.6,550.8,550.9,551.2,552,551.8,551.7,551.5,551.8,551.5,548.6,541.3,538.6,533.1,528.8,527.3,526,526.4,524.7,523.9,521,522.5,522.9,523.2,521.4,519.2,519.8,519.1,517.1,516.9,515,514.1,511.7,511.1,509.8,509.4,507.8,508.5,506.7,506.4,505.5,505.8,505.2,506.2,507,507,507])
+const TAB_near = table([448.8,447,447.5,448.3,450.1,450.5,450.8,450.3,446.8,446.7,444,442.5,442.2,442,442.9,443,445.1,448.6,449.3,449.5,449.7,450.9,453.2,454.2,455,457.3,463.4,466,466.3,469.2,480.5,483,486.2,487.4,509.3,511.6,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,640,554.6,548.6,541.3,538.6,533.1,528.8,527.3,526,526.4,524.7,523.9,521,522.5,522.9,523.2,521.4,519.2,519.8,519.1,517.1,516.9,515,514.1,511.7,511.1,509.8,509.4,507.8,508.5,506.7,506.4,505.5,505.8,505.2,506.2,507,507,507])
 // The switches that change without sending the room again. The room under this is drawn with the television and
 // the computer on, and the lava lamp and the desk lamp off. All positions are the room's own viewBox units.
 // Television: tv runs from 1 (on) to 0 (off) on the mod shader's own clock (build-lights.mjs), quick going off.
@@ -84,16 +87,43 @@ function stars(p: vec2, cell: number, dens: number, rad: number, px: number): nu
   let glint = 0.82 + 0.18 * sin(time * (0.4 + h2) + h1 * 40)
   return lit * (0.35 + 0.65 * h2 * h2) * exp(-dot(o, o) / (r * r)) * rad * rad / (r * r) * glint
 }
+// The window's glass, for the pieces that paint in it. win_clear is 0 on what stands in front of the
+// window: the blind's cord and the monitor. The desk lamp's shade starts right of the glass, at x 507. win_pane is the
+// upper sash's two panes, win_open the opening behind the insect screen, and win_sky 1 above the trees, the treeline and
+// the field (a table taken from the room's own outlines), soft over 2
+// units, and 0 on the utility pole.
+function win_clear(p: vec2): number {
+  let cord = sbox(p, vec2(466.7, 460), vec2(1.2, 130), 0.4)
+  let monitor = sbox(p, vec2(280, 573), vec2(81, 71), 0.5)
+  return (1 - cord) * (1 - monitor)
+}
+// The panes as window.ts draws them: above the upper sash's bottom rail (y 406.3 to 418.0) the glass shows through
+// both sashes, between both muntins (x 389.8 to 399.8); below it, through the lower sash alone, from x 294.2 and
+// beside its muntin only (x 389.8 to 395.7). One box and one bar, each moved at y 412, inside the rail.
+function win_pane(p: vec2): number {
+  let low = step(412, p.y)
+  let c = vec2(mix(vec2(395.45, 369.9), vec2(392.75, 435.15), low))
+  let h = vec2(mix(vec2(95.45, 35.9), vec2(98.15, 16.65), low))
+  let bar = sbox(p, vec2(394.8 - 2.05 * low, 400), vec2(5.5 - 2.05 * low, 80), 0.5)
+  return sbox(p, c, h, 0.5) * (1 - bar) * win_clear(p)
+}
+function win_open(p: vec2): number {
+  return sbox(p, vec2(397.5, 523.6), vec2(106.1, 48.4), 0.5) * win_clear(p)
+}
+function win_sky(p: vec2): number {
+  let q = clamp((p.x - 292) / 2, 0, 106)
+  let i0 = floor(q)
+  let ya = TAB_skyline.at(i0)
+  let yb = TAB_skyline.at(i0 + 1)
+  let ys = mix(ya, yb, q - i0)
+  let pole = sbox(p, vec2(424.4, 510), vec2(1.6, 74), 0.4)
+  return smoothstep(-1, 1, ys - p.y) * (1 - pole)
+}
 function pic(uv: vec2): vec4 {
   let now_tv = state.at(vec2(0, 0)).x
-  let now_lava = state.at(vec2(1, 0)).x
-  let now_pc = state.at(vec2(2, 0)).x
-  let now_lamp = state.at(vec2(3, 0)).x
   let now_tape = state.at(vec2(4, 0)).x
   let now_console = state.at(vec2(5, 0)).x
   let now_light = state.at(vec2(6, 0)).x
-  let since_console = state.at(vec2(5, 1)).x
-  let now_clock = state.at(vec2(8, 0)).x
   let s = max(size.x / 1600, size.y / 1000)
   let at = vec2(vec2(800 + (uv.x - 0.5) * size.x / s, 500 + (0.5 - uv.y) * size.y / s))
   // Computed dusk, laid first so every light below goes over it. Each point keeps m of its lit color and takes dc,
@@ -101,7 +131,8 @@ function pic(uv: vec2): vec4 {
   // the furniture. The bulb's output falls as v_light squared and glows warm part way. The television's halo is added
   // back, and the window's sky, the two screens and the power lights stay out of the darkening.
   let acc = vec4(vec4(0))
-  let night = 1 - now_light * now_light
+  // l_dusky scales the whole computed dusk; l_keep lowers what it keeps of the lit room (the time piece's lanes).
+  let night = (1 - now_light * now_light) * state.at(vec2(12, 0)).x
   if (night > 0.001) {
   let glowing = now_light * (1 - now_light)
   let fade = night + 0.32 * glowing
@@ -130,14 +161,15 @@ function pic(uv: vec2): vec4 {
   let gl = max(pane, open) * (1 - sbox(at, vec2(466.7, 460), vec2(1.2, 130), 0.4))
   let up = smoothstep(405, 452, at.y)
   let cc = vec3(mix(vec3(0, 0.01, 0.1) + vec3(0.05, 0.02, 0) * up, vec3(0, 0, 0.035) + vec3(0.03, 0.012, 0) * clamp((at.y - 505) / 40, 0, 1), open))
-  m = m + (mix(0.7 + 0.2 * up, 1, open) - m) * gl
+  // The glass keeps its dusk level at every l_keep, as the screens do: the night outside is the time piece's to paint.
+  m = m + (mix(0.7 + 0.2 * up, 1, open) / max(state.at(vec2(12, 0)).y, 0.5) - m) * gl
   dc = vec3(mix(dc, cc * fade, gl))
   }
   }
   }
   } else {
   if (at.x > 186.0 && at.y < 900.0) {
-  m = mix(m, 0.12, smoothstep(186, 194, at.x) * (1 - smoothstep(850, 895, at.y)))
+  m = mix(m, 0.22, smoothstep(186, 194, at.x) * (1 - smoothstep(850, 895, at.y)))
   }
   }
   if (abs(at.x - 280.0) < 84.0 && abs(at.y - 573.0) < 75.0) {
@@ -145,24 +177,28 @@ function pic(uv: vec2): vec4 {
   m = mix(m, 0.24, mon)
   dc = vec3(mix(dc, vec3(0.02, 0.022, 0.043) * night, mon))
   let shown = max(sbox(at, vec2(270, 557), vec2(54.25, 39.25), 2.25), 1 - smoothstep(1, 2.6, length(at - vec2(318.4, 616))))
-  m = m + (1 - m) * shown
+  // The screens and the power lights keep all of their lit color at every l_keep: m rises toward 1 / l_keep, so the
+  // last line's m * l_keep reaches 1 there. At l_keep 1 this is the old m + (1 - m) * shown.
+  let kq = 1 / max(state.at(vec2(12, 0)).y, 0.5)
+  m = m + (kq - m) * shown
   dc = vec3(dc * (1 - shown))
   }
   if (abs(at.x - 430.0) < 102.0 && abs(at.y - 686.0) < 116.0) {
   let cd = vec2(abs(at - vec2(430, 686)) - vec2(74, 88))
   let ch = 1 - smoothstep(21, 26, length(max(cd, vec2(0))) + min(max(cd.x, cd.y), 0))
-  m = mix(m, 0.24, ch)
+  m = mix(m, 0.36, ch)
   dc = vec3(mix(dc, vec3(0.012, 0.016, 0.042) * night, ch))
   }
   if (abs(at.x - 403.0) < 70.0 && abs(at.y - 850.0) < 5.0) {
   let led = max(1 - smoothstep(1, 2.2, length(at - vec2(460, 848))), 1 - smoothstep(1, 2.2, length(at - vec2(469.6, 848))))
-  led = max(led, 1 - smoothstep(1, 2.2, length(at - vec2(337.3, 852)))) * now_pc
-  m = m + (1 - m) * led
+  led = max(led, 1 - smoothstep(1, 2.2, length(at - vec2(337.3, 852)))) * state.at(vec2(2, 0)).x
+  let kl = 1 / max(state.at(vec2(12, 0)).y, 0.5)
+  m = m + (kl - m) * led
   dc = vec3(dc * (1 - led))
   }
   // The desk lamp, when on, shows the shade, the arm and the window trim beside it in their own warm light.
-  if (at.x > 470.0 && abs(at.y - 580.0) < 76.0) {
-  let lp = 0.5 * now_lamp * pow(clamp(1 - ell(at, vec2(516, 578), vec2(40, 75)), 0, 1), 1.3)
+  if (at.x > 430.0 && abs(at.y - 600.0) < 96.0) {
+  let lp = 0.5 * state.at(vec2(3, 0)).x * pow(clamp(1 - ell(at, vec2(506, 600), vec2(80, 96)), 0, 1), 1.1)
   m = m + (1 - m) * lp
   dc = vec3(dc * (1 - lp) + vec3(0.05, 0.025, 0) * (lp * night))
   }
@@ -185,15 +221,15 @@ function pic(uv: vec2): vec4 {
   if (at.y > 590.0 && at.x > 1066.0 && at.x < 1402.0) {
   let sd = 1 - smoothstep(1108, 1112, at.x)
   let top = sbox(at, vec2(1256, 608), vec2(146, 8.5), 1)
-  m = mix(mix(m, 0.08 + 0.05 * now_tv, sd), 0.1 + 0.12 * now_tv, top)
+  m = mix(mix(m, 0.14 + 0.05 * now_tv, sd), 0.17 + 0.12 * now_tv, top)
   dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.05 * now_tv), sd))
   dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.1 * now_tv), top))
   }
   if (at.x > 1111.5 - 0.075 * (at.y - 430.0) && at.x < 1296.0 && at.y > 421.0 && at.y < 597.0) {
-  m = 0.16
+  m = 0.23
   }
   if (abs(at.x - 1321.0) < 23.0 && at.y > 497.0 && at.y < 597.0) {
-  m = 0.14
+  m = 0.22
   }
   if (abs(at.x - 1232.0) < 60.0 && at.y < 432.0) {
   let cat = 1 - smoothstep(0.95, 1.05, min(ell(at, vec2(1231, 425), vec2(49, 44)), ell(at, vec2(1254, 388), vec2(20, 21))))
@@ -219,7 +255,8 @@ function pic(uv: vec2): vec4 {
   if (abs(at.x - 1207.5) < 76.0 && abs(at.y - 485.0) < 58.0) {
   let gd = vec2(abs(at - vec2(1207.5, 485)) - vec2(73, 55.5))
   let shown = 1 - smoothstep(-2, 1.5, max(gd.x, gd.y))
-  m = m + (1 - m) * shown
+  let kt = 1 / max(state.at(vec2(12, 0)).y, 0.5)
+  m = m + (kt - m) * shown
   dc = vec3(dc * (1 - shown))
   }
   } else {
@@ -232,7 +269,7 @@ function pic(uv: vec2): vec4 {
   let du = clamp(1 - dt * 2, 0, 1) * (1 - 0.3 * smoothstep(1200, 1340, at.x))
   let dw = 1 - dt
   let dg = (0.007 + 0.05 * dw * dw * (1 - 0.3 * smoothstep(1200, 1340, at.x))) * (1 - sd) * now_tv * (1 - 0.6 * max(now_tape, now_console))
-  m = 0.08 + now_tv * mix(-0.008, 0.05, sd)
+  m = 0.15 + now_tv * mix(-0.008, 0.05, sd)
   dc = vec3((vec3(0, 0.004, 0.012) + vec3(0, 0.006, 0.023) * sd + vec3(dg)) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * now_tv * mix(0.01 + 0.085 * du * du, 0.05, sd)))
   }
   if (at.y > 900.0) {
@@ -252,13 +289,13 @@ function pic(uv: vec2): vec4 {
   let gh = vec2(abs(at - vec2(1071, 753)) - vec2(1, 16))
   let gb = min(length(max(gq, vec2(0))) + min(max(gq.x, gq.y), 0) - 18, length(max(gh, vec2(0))) + min(max(gh.x, gh.y), 0) - 8)
   let gm = max(neck, 1 - smoothstep(-1, 1, gb))
-  m = mix(m, 0.1 + 0.16 * now_tv, gm)
+  m = mix(m, 0.15 + 0.16 * now_tv, gm)
   dc = vec3(mix(dc, vec3(0, 0.004, 0.012) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.05 * now_tv), gm))
   }
   } else {
   // The door: its panels kept, a little of the television's light, and a warm strip of hallway light in the gap.
   if (at.y > 198.0 && at.y < 850.0) {
-  m = 0.26
+  m = 0.33
   let el = vec2((at - vec2(1208, 485)) * 0.00179)
   let lq = clamp(1 - dot(el, el), 0, 1)
   dc = vec3(vec3(0, 0.012, 0.045) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.13 * lq * lq * now_tv))
@@ -266,20 +303,112 @@ function pic(uv: vec2): vec4 {
   let hs = sbox(at, vec2(1460.5, 545), vec2(10.5, 311), 1)
   let wl = smoothstep(560, 760, at.y)
   m = mix(m, 0.12 + 0.12 * wl, hs)
-  dc = vec3(mix(dc, vec3(0.004, 0.006, 0.014) * night + vec3(0.06, 0.035, 0.012) * (wl * night) + vec3(0.36, 0.2, 0.06) * wf, hs))
+  dc = vec3(mix(dc, vec3(0.004, 0.006, 0.014) * night + vec3(0.06, 0.035, 0.012) * (wl * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y) * (1 - 0.6 * state.at(vec2(11, 0)).y))) + vec3(0.36, 0.2, 0.06) * wf, hs))
+let hw_src = 0
+let hw_don = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
+let hw_cast = 1 - 0.75 * state.at(vec2(15, 0)).y * (1 - smoothstep(3, 7.5, abs(at.x - 1448 - 25 * state.at(vec2(15, 0)).z))) * hs
+dc = vec3((dc + vec3(0.34, 0.22, 0.10) * (hw_don * hs * (1 - 0.6 * smoothstep(0, 1, abs((at.y - 234) / 622 - hw_src))))) * hw_cast)
   }
   }
   }
-  // The hallway light through the gap, a faint warm wedge on the floor below it.
+  // The hallway light through the gap, a faint warm wedge on the floor below it, fainter late at night.
   if (at.y > 850.0 && abs(at.x - 1450.0) < 60.0) {
   let fy = at.y - 850
   let wedge = clamp(1 - abs(at.x - 1460 + 0.5 * fy) / (6 + 0.4 * fy), 0, 1) * (1 - smoothstep(850, 915, at.y))
-  dc = vec3(dc + vec3(0.045, 0.026, 0.008) * (wedge * night))
+  dc = vec3(dc + vec3(0.045, 0.026, 0.008) * (wedge * night * (state.at(vec2(15, 0)).x * (1 - 0.6 * state.at(vec2(15, 0)).y) * (1 - 0.6 * state.at(vec2(11, 0)).y))))
+let hw_fon = (state.at(vec2(15, 0)).x - 1) * 0.667 * night
+let hw_fx = at.x - 1460 + 0.5 * fy
+dc = vec3(dc + vec3(0.17, 0.11, 0.045) * (hw_fon * clamp(1 - abs(hw_fx) / (4 + 0.45 * fy), 0, 1) * (1 - smoothstep(860, 935, at.y)) * (1 - 0.75 * state.at(vec2(15, 0)).y * (1 - smoothstep(3, 9, abs(hw_fx + 12 - 25 * state.at(vec2(15, 0)).z))))))
   }
   let vr = vec2((at - vec2(800, 500)) * vec2(0.00104, 0.00163))
   m = m * (1 - 0.6 * clamp(dot(vr, vr) - 0.3, 0, 0.75))
   }
-  acc = vec4(vec4(dc, fade * (1 - m)))
+  acc = vec4(vec4(dc, fade * (1 - m * state.at(vec2(12, 0)).y)))
+  }
+  // The window: the glass and no more, for the pieces' snippets.
+  if (abs(at.x - 397.5) < 106.6 && at.y > 333.5 && at.y < 573.0) {
+  let w_pane = win_pane(at)
+  let w_open = win_open(at)
+  let w_sky = win_sky(at)
+let td_day = state.at(vec2(11, 0)).x
+let td_late = state.at(vec2(11, 0)).y
+let td_dawn = state.at(vec2(11, 0)).w
+let td_warm = state.at(vec2(11, 0)).z
+let td_clear = 1 - state.at(vec2(13, 0)).x
+let td_open = max(w_open, sbox(at, vec2(358, 512), vec2(3.5, 10.5), 0.5) * clamp(at.x - 354.1 - 0.45 * (at.y - 505), 0, 1))
+let td_v = clamp((at.y - 335) * 0.0045, 0, 1)
+// The day sky, pale toward the horizon; lavender over peach at dawn; warm low down at golden hour.
+let td_sky = vec3(mix(mix(vec3(0.33, 0.52, 0.81), vec3(0.72, 0.80, 0.87), td_v), mix(vec3(0.27, 0.33, 0.56), vec3(0.96, 0.72, 0.56), td_v), 0.85 * td_dawn))
+td_sky = vec3(mix(td_sky, mix(vec3(0.42, 0.54, 0.76), vec3(1, 0.68, 0.40), td_v * td_v), 0.85 * td_warm))
+// The night sky: deep blue, lighter toward the horizon and lavender there as dawn nears. It is laid thin high up, where
+// the room's own stars twinkle through, and thick low down, where it covers the dusk's afterglow. The moon, high in the
+// upper left pane with its halo, is hidden by cloud.
+let td_m = vec2(at - vec2(322, 361))
+let td_md = length(td_m)
+let td_disk = (1 - smoothstep(4.2, 5, td_md)) * td_clear
+let td_ns = vec3(mix(vec3(0.012, 0.022, 0.07), vec3(0.05, 0.065, 0.15) + vec3(0.16, 0.08, 0.12) * td_dawn, td_v * td_v) + vec3(0.19, 0.2, 0.26) * (exp(-td_md * td_md / 150) * td_clear))
+td_ns = vec3(mix(td_ns, vec3(0.95, 0.94, 0.86) * (0.35 + 0.65 * smoothstep(3.6, 5.4, length(td_m + vec2(1.9, 0.8)))), td_disk))
+let td_d = clamp(4 * td_day, 0, 1)
+// The pole's two wires against the day sky: the curves the room draws from the crossarm's ends.
+let td_wx = at.x - 424.25
+let td_wy = 441.4 + mix(0.163 * td_wx - 0.00126 * td_wx * td_wx, -0.262 * td_wx - 0.0004 * td_wx * td_wx, step(td_wx, 0))
+let td_wire = (1 - smoothstep(0.25, 0.25 + 0.7 / s, abs(at.y - td_wy))) * 0.8 * step(338, at.x) * td_d
+let td_sc = vec3(mix(mix(td_ns, td_sky, td_d), vec3(0.16, 0.16, 0.17), td_wire))
+// The land by day: the field below its line, the far treeline above it, the near trees in front with clumps of leaves
+// lit from above, and the pole in its own weathered wood. One noise read shades leaves, grass and treeline.
+let td_np = vec2(vec2(at.x * 0.2 + at.y * 0.08, at.y * 0.21 - at.x * 0.07))
+let td_nz = vn(td_np)
+let td_q = clamp((at.x - 292) * 0.5, 0, 106)
+let td_qi = floor(td_q)
+let td_top = mix(TAB_near.at(td_qi), TAB_near.at(td_qi + 1), td_q - td_qi)
+let td_near = smoothstep(-0.8, 0.8, at.y - td_top) * max(1 - smoothstep(550.5, 552, at.y), max(step(at.x, 308), step(425, at.x)))
+let td_land = vec3(mix(vec3(0.40, 0.49, 0.48) * (0.82 + 0.3 * td_nz), mix(vec3(0.43, 0.55, 0.26), vec3(0.30, 0.42, 0.17), clamp((at.y - 561.5) * 0.04, 0, 1)) * (0.9 + 0.18 * td_nz), smoothstep(560.5, 562.5, at.y)))
+td_land = vec3(mix(td_land, vec3(0.13, 0.23, 0.08) * (0.45 + 0.9 * td_nz) + vec3(0.17, 0.2, 0.06) * smoothstep(0.55, 0.95, td_nz) * clamp(1 - (at.y - td_top) * 0.015, 0, 1), td_near))
+let td_pole = max(sbox(at, vec2(424.4, 510), vec2(1.25 + 0.0018 * (at.y - 436), 74), 0.35), sbox(at, vec2(424.25, 442.2), vec2(5.75, 0.6), 0.35))
+td_land = vec3(mix(td_land, vec3(0.30, 0.26, 0.22) + vec3(0.09, 0.08, 0.06) * smoothstep(424.8, 423.4, at.x), td_pole))
+// The hour's light on the land: warm at golden hour, cool and dim at dawn. The open sash is seen through the insect screen.
+td_land = vec3(td_land * mix(vec3(1), vec3(1.2, 0.93, 0.66), td_warm) * mix(vec3(1), vec3(0.74, 0.68, 0.80), td_dawn) * (1 - 0.28 * td_open))
+// At night the land darkens under the darker sky, the room's own yard light and fireflies showing faintly through.
+td_land = vec3(mix(vec3(0.010, 0.013, 0.026), td_land, td_d))
+// One layer: by day the whole view, the land opaque from day 0.63; at night the sky, and the land in part.
+let td_a = mix(max(min(1, 1.6 * td_day), 0.62 * td_late), max(min(1, 1.3 * td_day), td_late * max(0.35 + 0.57 * td_v, td_disk)), w_sky) * (w_pane + td_open)
+let td_col = vec3(mix(td_land, td_sc, w_sky))
+acc = vec4(vec4(acc.rgb * (1 - td_a) + td_col * td_a, acc.a * (1 - td_a) + td_a))
+let wx_wet = state.at(vec2(13, 0)).y
+let wx_storm = state.at(vec2(13, 0)).z
+let wx_glass = w_pane + w_open
+// The cloud: soft rolls drifting slowly, a dull gray at every hour, near black at night, darker with rain and a storm.
+let wx_n = 0.5 + 0.25 * sin(at.x * 0.045 + time * 0.03 + 2 * sin(at.y * 0.07)) + 0.25 * sin(at.y * 0.11 + at.x * 0.013 - time * 0.021)
+let wx_cc = vec3(mix(vec3(0.19, 0.17, 0.22), vec3(0.68, 0.70, 0.74), state.at(vec2(11, 0)).x) * (1 - 0.75 * state.at(vec2(11, 0)).y) * (1 - 0.3 * wx_wet - 0.25 * wx_storm))
+let wx_cv = min(1, 1.3 * state.at(vec2(13, 0)).x) * mix(0.3 + 0.4 * wx_wet, 1, w_sky) * wx_glass
+acc = vec4(vec4(acc.rgb * (1 - wx_cv) + wx_cc * (0.85 + 0.26 * wx_n) * wx_cv, acc.a * (1 - wx_cv) + wx_cv))
+// Beads on the panes (the open sash has no glass): a grid of 7-unit cells whose columns slide down each at its own
+// speed and wander a little side to side, a bead in some cells, each shown for its own share of its own cycle so they
+// come and go at different times; more and larger as the rain grows. A bead shows the lighter sky below it upside down.
+// The slide wraps every 256 cells and a cell's row is hashed modulo 256, so the pattern runs on unbroken.
+let wx_c = floor(at.x / 7)
+let wx_q = vec2(vec2(at.x + 1.4 * sin(at.y * 0.09 + wx_c * 2.1), at.y - mod((1.5 + 5 * fract(wx_c * 0.618)) * time, 1792)) / 7)
+let wx_id = vec2(floor(wx_q))
+let wx_h = hsh(vec2(wx_id.x, mod(wx_id.y, 256)))
+let wx_o = vec2((fract(wx_q) - vec2(0.3 + 0.4 * fract(wx_h * 7.31), 0.3 + 0.4 * fract(wx_h * 3.17))) * 7)
+let wx_r = (0.9 + 1.4 * fract(wx_h * 13.7)) * (0.7 + 0.5 * wx_wet)
+let wx_bead = clamp((1 - dot(wx_o, wx_o) / (wx_r * wx_r)) * 2, 0, 1) * step(1 - 0.6 * wx_wet, wx_h) * step(fract(time * (0.04 + 0.07 * fract(wx_h * 5.1)) + wx_h * 9), 0.7) * 0.4 * wx_wet * w_pane
+acc = vec4(vec4(acc.rgb * (1 - wx_bead) + (wx_cc * (1.9 - wx_o.y / wx_r) + vec3(0.07, 0.07, 0.09)) * wx_bead, acc.a * (1 - wx_bead) + wx_bead))
+// Rain beyond the glass, drawn a pixel wide at any size, in 2.5-unit columns slanted by the storm's wind. Half the
+// columns are slow and short (160 units a second, a sixth of each 60-unit run) and half fast and long (300 a second,
+// nearly half the run). Rain shows a few of the slow ones; a downpour and a storm add the fast ones and more of both.
+// Each column keeps its own speed whatever the weather, and the fall wraps every 3 s (8 and 15 runs), so a change of
+// weather fades columns in and out and nothing jumps.
+let wx_heavy = clamp((wx_wet - 0.6) * 2.5 + wx_storm, 0, 1)
+let wx_u = (at.x - (0.1 + 0.36 * wx_storm) * at.y) / 2.5
+let wx_hs = thash(floor(wx_u))
+let wx_fast = step(0.5, wx_hs)
+let wx_run = fract((at.y - mix(160, 300, wx_fast) * mod(time, 3)) / 60 + wx_hs * 5.3)
+let wx_streak = clamp(1 + (0.3 - abs(fract(wx_u) - 0.2 - 0.6 * fract(wx_hs * 3.1)) * 2.5) * s, 0, 1) * clamp(min(wx_run, mix(0.17, 0.45, wx_fast) - wx_run) * 10, 0, 1) * step(fract(wx_hs * 9.7), mix(0.75 * wx_wet, 0.9 * wx_heavy, wx_fast)) * (0.22 * wx_wet + 0.08 * wx_heavy) * wx_glass
+acc = vec4(vec4(acc.rgb * (1 - wx_streak) + (wx_cc * 1.5 + vec3(0.12, 0.13, 0.16)) * wx_streak, acc.a * (1 - wx_streak) + wx_streak))
+// A strike lights the sky in the panes; the trees, the field and the pole stay dark against it.
+let wx_f = 0.15 * state.at(vec2(13, 0)).w * w_sky * wx_glass
+acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1 - wx_f) + wx_f))
   }
   let c = vec2(at - vec2(1207.5, 485))
   // The television: its cover, and under it the tape and the console, gathered in tv and laid over the dusk.
@@ -408,7 +537,7 @@ function pic(uv: vec2): vec4 {
   let k_ce = vec2(abs(at - vec2(1208, 480)) - vec2(44, 8))
   let k_on = clamp(now_console * (1 - now_tape), 0, 1)
   let k_w = k_on * k_gm
-  let k_t = since_console
+  let k_t = state.at(vec2(5, 1)).x
   let k_pic = vec3(vec3(0))
   if (k_w > 0.001) {
   let k_fade = smoothstep(1.7, 2.6, k_t)
@@ -512,16 +641,22 @@ function pic(uv: vec2): vec4 {
   }
   if (abs(c.x) < 86.0 && abs(c.y) < 68.0) {
   acc = vec4(vec4(acc.rgb * (1 - tv.a) + tv.rgb, acc.a * (1 - tv.a) + tv.a))
+// While Claude works, a black layer of 2.5 to 5% that drifts with two slow waves: the screen only darkens, softly.
+let ct_d = vec2(abs(c) - vec2(73, 55.5))
+let ct_glass = (1 - smoothstep(-2, 1.5, max(ct_d.x, ct_d.y))) * now_tv
+let ct_a = ct_glass * state.at(vec2(14, 0)).x * (0.025 + 0.0125 * (1 + sin(time * 2.9) * sin(time * 1.7 + 1.3)))
+acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
   }
   if (abs(at.x - 1376.0) < 85.0 && abs(at.y - 530.0) < 112.0) {
-  let on = now_lava * (1 - 0.55 * now_light)
+  // l_glowDim lowers the lava lamp's and the desk lamp's light by day.
+  let on = state.at(vec2(1, 0)).x * (1 - 0.55 * now_light) * state.at(vec2(12, 0)).z
   let wall = 1 - smoothstep(604, 608, at.y)
   let shelf = 1 - 0.75 * (1 - smoothstep(1343, 1349, at.x)) * smoothstep(486, 492, at.y)
   let stand = mix(8.8, 14.5, clamp((at.y - 557) / 43, 0, 1))
   let body = (1 - smoothstep(stand - 1, stand, abs(at.x - 1376))) * smoothstep(556, 557.5, at.y)
   wall = wall * (1 - 0.85 * body)
-  let far = clamp(1 - ell(at, vec2(1376, 530), vec2(78, 108)), 0, 1)
-  let g1 = 0.26 * pow(far, 1.7) * wall * shelf * on
+  let far = clamp(1 - ell(at, vec2(1376, 530), vec2(82, 110)), 0, 1)
+  let g1 = 0.34 * pow(far, 1.25) * wall * shelf * on
   acc = vec4(vec4(acc.rgb * (1 - g1) + vec3(0.58, 0.25, 0.94) * g1, acc.a * (1 - g1) + g1))
   let near = clamp(1 - ell(at, vec2(1376, 536), vec2(30, 56)), 0, 1)
   let g2 = 0.2 * pow(near, 1.4) * wall * shelf * on
@@ -531,6 +666,8 @@ function pic(uv: vec2): vec4 {
   acc = vec4(vec4(acc.rgb * (1 - g3) + vec3(0.627, 0.314, 0.941) * g3, acc.a * (1 - g3) + g3))
   let g4 = 0.26 * body * (1 - smoothstep(557, 571, at.y)) * on
   acc = vec4(vec4(acc.rgb * (1 - g4) + vec3(0.627, 0.314, 0.941) * g4, acc.a * (1 - g4) + g4))
+  // The glass and its wax paint only inside x 1376 +- 12.2 and y 493.6 to 555.4.
+  if (abs(at.x - 1376.0) < 13.0 && at.y > 493.0 && at.y < 556.0) {
   let low = clamp((at.y - 537) / 18, 0, 1)
   let girth = mix(5.4, 11.8, smoothstep(-0.25, 1, (at.y - 494) / 43)) - 4.4 * low * low
   let inside = (1 - smoothstep(girth - 0.8, girth + 0.4, abs(at.x - 1376))) * smoothstep(493.6, 494.6, at.y) * (1 - smoothstep(554.4, 555.4, at.y))
@@ -551,19 +688,26 @@ function pic(uv: vec2): vec4 {
   lamp = vec3(mix(lamp, vec3(0.75, 0.44, 1), rim * 0.55))
   let g5 = inside * on
   acc = vec4(vec4(acc.rgb * (1 - g5) + lamp * g5, acc.a * (1 - g5) + g5))
+  }
   let bloom = 0.24 * exp(-2.2 * ell(at, vec2(1376, 528), vec2(15, 32)) * ell(at, vec2(1376, 528), vec2(15, 32))) * wall * on
   acc = vec4(vec4(acc.rgb * (1 - bloom) + vec3(0.66, 0.36, 1) * bloom, acc.a * (1 - bloom) + bloom))
+  // The wall switch's toggle, inside this block's box: the room under the shader draws it up (the ceiling light on).
+  // Once the light is under half on it snaps down: the plate and the slot cover where it stood, and it stands below.
+  let swl = sbox(at, vec2(1411.8, 497), vec2(1.3, 3.5), 0.3)
+  let swp = max(sbox(at, vec2(1411.8, 489), vec2(1.6, 3.8), 0.3), swl) * (1 - step(0.5, now_light))
+  let swc = vec3(mix(mix(vec3(0.082, 0.09, 0.188), vec3(0.047, 0.059, 0.153), step(488.4, at.y)), vec3(0.15, 0.16, 0.27) - vec3(0.08) * smoothstep(494, 500.5, at.y), swl))
+  acc = vec4(vec4(acc.rgb * (1 - swp) + swc * swp, acc.a * (1 - swp) + swp))
   }
-  if (at.x < 345.0) {
-  let dark = 1 - now_pc
+  if (at.x < 345.0 && abs(at.y - 568.0) < 54.0) {
+  let dark = 1 - state.at(vec2(2, 0)).x
   let m = vec2(abs(at - vec2(270, 557)) - vec2(56, 41))
   let screen = (1 - smoothstep(-4, 0.5, max(m.x, m.y))) * 0.78 * dark
   acc = vec4(vec4(acc.rgb * (1 - screen) + vec3(0.03, 0.035, 0.035) * screen, acc.a * (1 - screen) + screen))
   let led = (1 - smoothstep(0.6, 1, ell(at, vec2(319, 616), vec2(4.5, 4.5)))) * 0.85 * dark
   acc = vec4(vec4(acc.rgb * (1 - led) + vec3(0.05, 0.06, 0.05) * led, acc.a * (1 - led) + led))
   }
-  if (abs(at.x - 524.0) < 45.0) {
-  let lit = now_lamp * (1 - 0.65 * step(0.4, now_lamp) * step(now_lamp, 0.6))
+  if (abs(at.x - 524.0) < 45.0 && abs(at.y - 589.0) < 52.0) {
+  let lit = state.at(vec2(3, 0)).x * (1 - 0.65 * step(0.4, state.at(vec2(3, 0)).x) * step(state.at(vec2(3, 0)).x, 0.6)) * state.at(vec2(12, 0)).z
   let w1 = 0.2 * pow(clamp(1 - ell(at, vec2(524, 593), vec2(38, 46)), 0, 1), 1.5) * lit
   acc = vec4(vec4(acc.rgb * (1 - w1) + vec3(1, 0.66, 0.4) * w1, acc.a * (1 - w1) + w1))
   let w2 = 0.26 * pow(clamp(1 - ell(at, vec2(521, 567), vec2(32, 26)), 0, 1), 1.5) * lit
@@ -580,7 +724,7 @@ function pic(uv: vec2): vec4 {
   let r = vec2(abs(at - vec2(1227, 591.5)) - vec2(13.8, 5.4))
   let face = 1 - smoothstep(-0.4, 0.4, max(r.x, r.y))
   acc = vec4(vec4(acc.rgb * (1 - face) + vec3(0.016, 0.024, 0.039) * face, acc.a * (1 - face) + face))
-  let mins = floor(now_clock + 0.5)
+  let mins = floor(state.at(vec2(8, 0)).x + 0.5)
   let hour = floor(mins / 60)
   let minute = mins - hour * 60
   hour = hour + 12 * (1 - step(0.5, hour))
@@ -588,10 +732,13 @@ function pic(uv: vec2): vec4 {
   let thick = max(1, floor(s * 1.3 + 0.5))
   let tens = floor(hour / 10)
   let ink = digit(px, tens, s, thick) * step(0.5, tens)
-  ink = max(ink, digit(px - vec2(floor(6 * s + 0.5), 0), hour - tens * 10, s, thick))
+  let pu = vec2(px - vec2(floor(6 * s + 0.5), 0))
+  ink = max(ink, digit(pu, hour - tens * 10, s, thick))
   let mt = floor(minute / 10)
-  ink = max(ink, digit(px - vec2(floor(13.2 * s + 0.5), 0), mt, s, thick))
-  ink = max(ink, digit(px - vec2(floor(19.2 * s + 0.5), 0), minute - mt * 10, s, thick))
+  let pv = vec2(px - vec2(floor(13.2 * s + 0.5), 0))
+  ink = max(ink, digit(pv, mt, s, thick))
+  let pw = vec2(px - vec2(floor(19.2 * s + 0.5), 0))
+  ink = max(ink, digit(pw, minute - mt * 10, s, thick))
   let beat = step(fract(time), 0.5)
   let dots = max(bar(px, vec2(11.8, 2.9), vec2(11.8, 2.9), s, thick), bar(px, vec2(11.8, 6.1), vec2(11.8, 6.1), s, thick)) * beat
   ink = max(ink, dots) * face
@@ -610,12 +757,72 @@ function pic(uv: vec2): vec4 {
 const HIT = table([[1125,425,166,122],[1358,470,42,136],[195,500,150,145],[498,530,58,70],[1125,562,166,46],[1298,490,46,118],[1398,468,34,50]])
 const HIT2 = table([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[1337,533,21,69],[0,0,0,0],[0,0,0,0]])
 const PACE = table([[4.5,3],[2.5,2.5],[5,3.3],[6,3.5],[6,6],[6,6],[3.3,7]])
+const SUN = table([[0,0,0,0],[0,0.5,0,0],[0,1,0,0],[0,0.6,0,0.4],[0.35,0,0,1],[0.85,0,0,0.25],[1,0,0,0],[0.65,0,1,0]])
+const WEATHER = table([[0,0,0],[0.75,0,0],[0.9,0.6,0],[1,1,0],[1,0.9,1]])
+
+// A lane's step toward its target, at most rate a second, and never more than one frame's at 30 a second: a long
+// frame would otherwise move the whole room at once.
+function toward(now: number, target: number, rate: number): number {
+  let most = rate * min(dt, 0.03333333333333333)
+  return now + clamp(target - now, -most, most)
+}
+// While the hurry timer runs, every lane moves at least a whole change in 6 seconds.
+function paceOf(hurry: number, own: number): number {
+  return max(own, step(0.0001, hurry) * 0.1666)
+}
+// One field of a coded value: the whole number of units, count wide. No code yet (-1) reads as 0.
+function field(code: number, unit: number, count: number): number {
+  return mod(floor(max(code, 0) / unit), count)
+}
+function differs(a: number, b: number, unit: number, count: number): number {
+  return step(0.5, abs(field(a, unit, count) - field(b, unit, count)))
+}
+// The app eases a value through every code between, so a code counts only once the number has held still.
+// screen: (accepted or -1, seen, still, 1) after this frame, given the frame before's and the seconds since set-up.
+// In the first 6 seconds any code that holds 0.5 s is taken. After them, a code that changes one field
+// is taken after 0.5 s, and one that changes more, which is a code on the way, only after 3 s.
+// A long frame counts as a tenth of a second still: the app may not move the number while the window stalls, and a
+// code on the way must not be taken for having stood through one frame.
+function screenStep(was: vec4, now: number, start: number): vec4 {
+  let seen = was.y
+  let still = was.z + min(dt, 0.1)
+  if (abs(now - seen) > 0.05) {
+    seen = now
+    still = 0
+  }
+  let k = floor(seen + 0.5)
+  let near = 1 - step(0.3, abs(seen - k))
+  let fields = differs(k, was.x, 1, 2) + differs(k, was.x, 2, 2) + differs(k, was.x, 4, 4) + differs(k, was.x, 16, 4)
+  let hold = 0.5 + 2.5 * step(6, start) * step(1.5, fields)
+  let accepted = was.x
+  if (near * step(0.5, abs(k - was.x)) * (1 - step(still, hold)) > 0.5) {
+    accepted = k
+  }
+  return vec4(accepted, seen, still, 1)
+}
+// world: the same, taken only after 2.5 s still, at a start, after a clear and while running alike.
+function worldStep(was: vec4, now: number): vec4 {
+  let seen = was.y
+  let still = was.z + min(dt, 0.1)
+  if (abs(now - seen) > 0.05) {
+    seen = now
+    still = 0
+  }
+  let k = floor(seen + 0.5)
+  let near = (1 - step(0.3, abs(seen - k))) * step(k, 239.5)
+  let accepted = was.x
+  if (near * step(0.5, abs(k - was.x)) * (1 - step(still, 2.5)) > 0.5) {
+    accepted = k
+  }
+  return vec4(accepted, seen, still, 1)
+}
 
 // A row of texels the shader keeps from frame to frame.
-// One a switch: how far on it is drawn (0 to 1), what it is heading for, the mod's number as last seen, and a
-// set-up flag. A click
-// here flips what the switch is heading for at once, unless it is still changing. The mod's number is eased by the
-// app over seconds, so only its direction is read: the moment it starts to rise the switch heads on, and to fall, off.
+// One a switch: how far on it is drawn (0 to 1), what it is heading for, the mod's number as last seen (for the tape
+// and the console, their screen field as last taken, plus 4 once clicked since set-up), and a set-up flag. A click here
+// flips what the switch is heading for at once, even while it is still changing. The mod's numbers for the other five
+// are eased by the app over seconds, so only their direction is read: the moment one starts to rise the switch heads
+// on, and to fall, off. The tape and the console take their orders from screen.
 // Texel 7: whether the pointer was down, so a press counts once.
 // The second row, one texel a switch: the seconds since what it is heading for last changed, and that heading as
 // last seen. It starts at 99, so nothing replays a switch-on when the shader starts.
@@ -626,20 +833,368 @@ function advance(cell: vec2): vec4 {
   let held = vec4(state.at(vec2(7, 0)))
   let press = pointer(0).down * step(0.5, pointerCount)
   let next = vec4(press, 0, 0, 0)
+  let scr = vec4(state.at(vec2(9, 0)))
+  let scr1 = vec4(state.at(vec2(9, 1)))
+  let world = state.at(vec2(10, 0)).x
+  let setup = 0
+  if (first || was.w < 0.5) {
+    setup = 1
+  }
+  if (cell.x > 10.5) {
+    // The pieces' columns. In scope: the accepted fields, the hurry timer, the VCR minute and the seconds since it
+    // was taken, and this column's lanes and private numbers as they stood.
+    let hurry = scr1.x
+    let wc = max(world, 0)
+    let sun = mod(wc, 8)
+    let wr = floor(wc / 8)
+    let weather = mod(wr, 5)
+    let wq = floor(wr / 5)
+    let work = mod(wq, 2)
+    let zone = floor(wq / 2)
+    let hall = field(scr.x, 2, 2)
+    let minute = state.at(vec2(8, 0)).x
+    let beat = state.at(vec2(8, 1)).x
+    // A cue taken the frame before is 0 seconds old for exactly one frame: a piece runs its event when it reads that.
+    let cueNow = vec4(state.at(vec2(10, 1)))
+    let cue = cueNow.x * (1 - step(0.0001, cueNow.y)) * step(30, time)
+    if (cell.x < 11.5) {
+      // Column 11: the time piece.
+      let p = vec4(state.at(vec2(11, 0)))
+      let q = vec4(state.at(vec2(11, 1)))
+      let p0 = p.x
+      let p1 = p.y
+      let p2 = p.z
+      let p3 = p.w
+      let q0 = q.x
+      let q1 = q.y
+      let q2 = q.z
+      let fresh = 0
+      if (first || q.w < 0.5) {
+        fresh = 1
+      }
+      let a0 = p0
+      let a1 = p1
+      let a2 = p2
+      let a3 = p3
+      let m0 = q0
+      let m1 = q1
+      let m2 = q2
+      let td_row = vec4(SUN.at(sun))
+      let td_pace = paceOf(hurry, 0.000667)
+      a0 = toward(p0, td_row.x, td_pace)
+      a1 = toward(p1, td_row.y, td_pace)
+      a2 = toward(p2, td_row.z, td_pace)
+      a3 = toward(p3, td_row.w, td_pace)
+      // Every lane holds its default from a set-up until world is first accepted.
+      if (fresh > 0.5 || world < -0.5) {
+        a0 = 0
+        a1 = 0
+        a2 = 0
+        a3 = 0
+      }
+      if (fresh > 0.5) {
+        m0 = 0
+        m1 = 0
+        m2 = 0
+      }
+      if (cell.y > 0.5) {
+        return vec4(m0, m1, m2, 1)
+      }
+      return vec4(a0, a1, a2, a3)
+    }
+    if (cell.x < 12.5) {
+      // Column 12: the time piece.
+      let p = vec4(state.at(vec2(12, 0)))
+      let q = vec4(state.at(vec2(12, 1)))
+      let p0 = p.x
+      let p1 = p.y
+      let p2 = p.z
+      let p3 = p.w
+      let q0 = q.x
+      let q1 = q.y
+      let q2 = q.z
+      let fresh = 0
+      if (first || q.w < 0.5) {
+        fresh = 1
+      }
+      let a0 = p0
+      let a1 = p1
+      let a2 = p2
+      let a3 = p3
+      let m0 = q0
+      let m1 = q1
+      let m2 = q2
+      let td_row = vec4(SUN.at(sun))
+      let td_pace = paceOf(hurry, 0.000667)
+      a0 = toward(p0, 1 - 0.85 * td_row.x * (1 - 0.5 * state.at(vec2(13, 0)).x - 0.15 * state.at(vec2(13, 0)).z), td_pace)
+      a1 = toward(p1, 1 - 0.45 * td_row.y, td_pace)
+      a2 = toward(p2, 1 - 0.6 * td_row.x * (1 - 0.3 * state.at(vec2(13, 0)).x), td_pace)
+      a3 = 0
+      // Every lane holds its default from a set-up until world is first accepted.
+      if (fresh > 0.5 || world < -0.5) {
+        a0 = 1
+        a1 = 1
+        a2 = 1
+        a3 = 0
+      }
+      if (fresh > 0.5) {
+        m0 = 0
+        m1 = 0
+        m2 = 0
+      }
+      if (cell.y > 0.5) {
+        return vec4(m0, m1, m2, 1)
+      }
+      return vec4(a0, a1, a2, a3)
+    }
+    if (cell.x < 13.5) {
+      // Column 13: the weather piece.
+      let p = vec4(state.at(vec2(13, 0)))
+      let q = vec4(state.at(vec2(13, 1)))
+      let p0 = p.x
+      let p1 = p.y
+      let p2 = p.z
+      let p3 = p.w
+      let q0 = q.x
+      let q1 = q.y
+      let q2 = q.z
+      let fresh = 0
+      if (first || q.w < 0.5) {
+        fresh = 1
+      }
+      let a0 = p0
+      let a1 = p1
+      let a2 = p2
+      let a3 = p3
+      let m0 = q0
+      let m1 = q1
+      let m2 = q2
+      let wx_row = vec3(WEATHER.at(weather))
+      let wx_rate = paceOf(hurry, 0.0111)
+      a0 = toward(p0, wx_row.x, wx_rate)
+      a1 = toward(p1, wx_row.y, wx_rate)
+      a2 = toward(p2, wx_row.z, wx_rate)
+      let wx_minute = floor(minute + 0.5)
+      let wx_second = 8 + mod(wx_minute * 29 + 5, 41)
+      let wx_due = step(mod(wx_minute * 73 + 17, 101), 34.5) * step(wx_second, beat) * (1 - step(wx_second, q2))
+      let wx_rule = (1 - step(time, 30)) * (1 - step(0.0001, hurry))
+      let wx_cue = step(2.5, cue) * (1 - step(3.5, cue))
+      let wx_go = max(wx_due * wx_rule * step(0.5, abs(q1 - wx_minute - 1)), wx_cue) * step(3.5, weather) * step(0.3, p2) * (1 - step(0.5, q0))
+      if (q0 > 0.5) {
+      m0 = q0 + min(dt, 0.03333333333333333)
+      }
+      if (wx_go > 0.5) {
+      m0 = 1
+      m1 = wx_minute + 1
+      }
+      let wx_age = max(m0 - 1, 0)
+      let wx_flash = a2 * step(0.5, m0) * smoothstep(0, 0.35, wx_age) * exp(-max(wx_age - 0.35, 0) / 0.6)
+      a3 = wx_flash * step(0.001, wx_flash)
+      if (wx_age > 5.35) {
+      m0 = 0
+      }
+      m2 = beat
+      // Every lane holds its default from a set-up until world is first accepted.
+      if (fresh > 0.5 || world < -0.5) {
+        a0 = 0
+        a1 = 0
+        a2 = 0
+        a3 = 0
+      }
+      if (fresh > 0.5) {
+        m0 = 0
+        m1 = 0
+        m2 = 0
+      }
+      if (cell.y > 0.5) {
+        return vec4(m0, m1, m2, 1)
+      }
+      return vec4(a0, a1, a2, a3)
+    }
+    if (cell.x < 14.5) {
+      // Column 14: the claude-tv piece.
+      let p = vec4(state.at(vec2(14, 0)))
+      let q = vec4(state.at(vec2(14, 1)))
+      let p0 = p.x
+      let p1 = p.y
+      let p2 = p.z
+      let p3 = p.w
+      let q0 = q.x
+      let q1 = q.y
+      let q2 = q.z
+      let fresh = 0
+      if (first || q.w < 0.5) {
+        fresh = 1
+      }
+      let a0 = p0
+      let a1 = p1
+      let a2 = p2
+      let a3 = p3
+      let m0 = q0
+      let m1 = q1
+      let m2 = q2
+      let roughTarget = 0.4 * step(0.5, zone) + 0.6 * step(1.5, zone)
+      a0 = toward(p0, work, paceOf(hurry, mix(0.3333, 0.6667, step(p0, work))))
+      a1 = toward(p1, roughTarget, paceOf(hurry, mix(0.01667, 0.00833, step(p1, roughTarget))))
+      a2 = 0
+      a3 = 0
+      m0 = 0
+      m1 = 0
+      m2 = 0
+      // Every lane holds its default from a set-up until world is first accepted.
+      if (fresh > 0.5 || world < -0.5) {
+        a0 = 0
+        a1 = 0
+        a2 = 0
+        a3 = 0
+      }
+      if (fresh > 0.5) {
+        m0 = 0
+        m1 = 0
+        m2 = 0
+      }
+      if (cell.y > 0.5) {
+        return vec4(m0, m1, m2, 1)
+      }
+      return vec4(a0, a1, a2, a3)
+    }
+    if (cell.x < 15.5) {
+      // Column 15: the hallway piece.
+      let p = vec4(state.at(vec2(15, 0)))
+      let q = vec4(state.at(vec2(15, 1)))
+      let p0 = p.x
+      let p1 = p.y
+      let p2 = p.z
+      let p3 = p.w
+      let q0 = q.x
+      let q1 = q.y
+      let q2 = q.z
+      let fresh = 0
+      if (first || q.w < 0.5) {
+        fresh = 1
+      }
+      let a0 = p0
+      let a1 = p1
+      let a2 = p2
+      let a3 = p3
+      let m0 = q0
+      let m1 = q1
+      let m2 = q2
+      let hw_go = (1 - step(20, q2)) * step(20, beat) * hall * step(30, time) * (1 - step(0.0001, hurry))
+      let hw_code = floor(minute * 1023 / 719 + 0.5005)
+      let hw_late = step(1.5, sun) * (1 - step(3.5, sun))
+      let hw_pass = (1 - hw_late) * (1 - step(2, mod(hw_code * 61 + 8.5, 127)))
+      let hw_hash = mod(hw_code * 89 + 69.5, 211)
+      let hw_light = (1 - step(1.5, sun)) * (1 - step(3, hw_hash)) + hw_late * (1 - step(1, hw_hash))
+      let hw_cueLight = step(1.5, cue) * (1 - step(2.5, cue)) * hall
+      let hw_cuePass = step(0.5, cue) * (1 - step(1.5, cue)) * hall * (1 - step(0.0001, q1))
+      m0 = max(max(q0 - dt, 0) * hall, 180 * hw_go * hw_light * (1 - step(0.0001, q0)))
+      m0 = mix(m0, 180 * (1 - step(0.0001, q0)), hw_cueLight)
+      m1 = mix(max(q1 - dt, -100), 2.5, max(hw_go * hw_pass * step(q1, -99.99), hw_cuePass))
+      m2 = beat
+      let hw_into = 2.5 - m1
+      a0 = toward(p0, 1 + 1.5 * step(0.0001, m0), paceOf(hurry, 2.5))
+      a1 = smoothstep(0, 0.8, hw_into) * (1 - smoothstep(1.2, 2.5, hw_into)) * step(0.0001, m1)
+      a2 = clamp(hw_into / 2.5, 0, 1) * step(0.0001, m1)
+      a3 = 0
+      // Every lane holds its default from a set-up until world is first accepted.
+      if (fresh > 0.5 || world < -0.5) {
+        a0 = 1
+        a1 = 0
+        a2 = 0
+        a3 = 0
+      }
+      if (fresh > 0.5) {
+        m0 = 0
+        m1 = 0
+        m2 = 0
+      }
+      if (cell.y > 0.5) {
+        return vec4(m0, m1, m2, 1)
+      }
+      return vec4(a0, a1, a2, a3)
+    }
+    return vec4(0, 0, 0, 1)
+  }
   if (cell.y > 0.5) {
-    let heading = state.at(vec2(cell.x, 0)).y
-    let age = was.x + dt
-    let alive = was.z + dt
-    if (first || was.w < 0.5) {
-      age = 99
-      alive = 0
+    if (cell.x < 6.5) {
+      let heading = state.at(vec2(cell.x, 0)).y
+      let age = was.x + dt
+      let alive = was.z + dt
+      if (first || was.w < 0.5) {
+        age = 99
+        alive = 0
+      }
+      // A start-window order from screen sets the tape or the console where it already stands drawn, at once: that
+      // is the shader catching up, not a change, so it does not replay a switch-on.
+      let caught = 0
+      if (cell.x > 3.5 && cell.x < 5.5) {
+        caught = step(abs(state.at(vec2(cell.x, 0)).x - heading), 0.0001) * (1 - step(6, scr1.y))
+      }
+      // The app eases the mod's numbers in over seconds when the shader starts, so for its first four seconds a change
+      // of heading is the shader catching up, not a click, and must not replay a switch-on.
+      if (alive > 4 && abs(heading - was.y) > 0.5 && caught < 0.5) {
+        age = 0
+      }
+      return vec4(age, heading, min(alive, 10), 1)
     }
-    // The app eases the mod's numbers in over seconds when the shader starts, so for its first four seconds a change
-    // of heading is the shader catching up, not a click, and must not replay a switch-on.
-    if (alive > 4 && abs(heading - was.y) > 0.5) {
-      age = 0
+    if (cell.x > 7.5 && cell.x < 8.5) {
+      // The seconds since the VCR's minute was taken, for the pieces' timed events.
+      let minuteNow = state.at(vec2(8, 0)).x
+      let beat = was.x + dt
+      let taken = was.y
+      if (setup > 0.5 || abs(minuteNow - taken) > 0.5) {
+        beat = 0
+        taken = minuteNow
+      }
+      return vec4(beat, taken, 0, 1)
     }
-    return vec4(age, heading, min(alive, 10), 1)
+    if (cell.x > 9.5 && cell.x < 10.5) {
+      // A cue: world codes above 239 carry one event to run once (239 + id), never a state. The mod holds one
+      // for 2.5 s and more, then sends the atmosphere's code back. A cue held still as long as world needs is
+      // taken once: (cue id, seconds since it was taken, the code taken, 1). It is taken again only after world has
+      // left the cue's codes. Nothing else changes: world's own fields stay as they were.
+      let wt = vec4(state.at(vec2(10, 0)))
+      let k = floor(wt.y + 0.5)
+      let cue = was.x
+      let age = min(was.y + min(dt, 0.03333333333333333), 99)
+      let taken = was.z
+      if (k < 239.5) {
+        taken = 0
+      }
+      if (step(239.5, k) * (1 - step(0.3, abs(wt.y - k))) * step(2.5, wt.z) * step(0.5, abs(k - taken)) > 0.5) {
+        cue = k - 239
+        age = 0
+        taken = k
+      }
+      if (setup > 0.5) {
+        cue = 0
+        age = 99
+        taken = 0
+      }
+      return vec4(cue, age, taken, 1)
+    }
+    if (cell.x > 8.5 && cell.x < 9.5) {
+      // The hurry timer is set to 30 s at a set-up and at each flip of screen's hurry bit, and counts
+      // down only while world rests on the code it took: while world has no code yet, or one on the way, it stands
+      // still, so the lanes get their whole change once world takes the code, however slowly the app eases there.
+      // It counts a long frame as one frame at 30 a second, as toward() moves the lanes, so the lanes still get their
+      // whole change. The start window is the first 6 s after a set-up.
+      let since = min(was.y + dt, 99)
+      let wt = vec4(state.at(vec2(10, 0)))
+      let hurried = max(was.x - min(dt, 0.03333333333333333) * step(abs(wt.y - wt.x), 0.3), 0)
+      let before = vec4(state.at(vec2(9, 0)))
+      let after = screenStep(before, v.screen, was.y)
+      if (step(0.5, abs(after.x - before.x)) * differs(after.x, before.x, 1, 2) > 0.5) {
+        hurried = 30
+      }
+      if (setup > 0.5) {
+        hurried = 30
+        since = 0
+      }
+      return vec4(hurried, since, 0, 1)
+    }
+    return vec4(0, 0, 0, 1)
   }
   if (cell.x < 6.5) {
     let asked = v.tv
@@ -651,12 +1206,6 @@ function advance(cell: vec2): vec4 {
     }
     if (cell.x > 2.5) {
       asked = v.lamp
-    }
-    if (cell.x > 3.5) {
-      asked = v.tape
-    }
-    if (cell.x > 4.5) {
-      asked = v.console
     }
     if (cell.x > 5.5) {
       asked = v.light
@@ -680,21 +1229,55 @@ function advance(cell: vec2): vec4 {
     let level = was.x
     let want = was.y
     let last = was.z
-    // The fourth number is 0 until this texel has been set up: the app clears the buffers when it restarts the shader.
-    if (first || was.w < 0.5) {
-      level = step(0.5, asked)
-      want = level
-      last = asked
-    }
-    // The mod's number moves only when the shader starts (the app eases it in from 0) and on a /bedroom command; a
-    // click never moves it. So a move of a fiftieth is an order, and the switch heads the way the number moved.
-    if (asked > last + 0.02) {
-      want = 1
-      last = asked
-    }
-    if (asked < last - 0.02) {
-      want = 0
-      last = asked
+    if (cell.x < 3.5 || cell.x > 5.5) {
+      // The fourth number is 0 until this texel has been set up: the app clears the buffers when it restarts the shader.
+      if (first || was.w < 0.5) {
+        level = step(0.5, asked)
+        want = level
+        last = asked
+      }
+      // The mod's number moves only when the shader starts (the app eases it in from 0) and on a /bedroom command; a
+      // click never moves it. So a move of a fiftieth is an order, and the switch heads the way the number moved.
+      if (asked > last + 0.02) {
+        want = 1
+        last = asked
+      }
+      if (asked < last - 0.02) {
+        want = 0
+        last = asked
+      }
+    } else {
+      // The tape and the console: their field of screen (the commanded state, and a bit that flips with each
+      // command). In the start window a changed field sets the switch at once, unless a click has turned it since
+      // set-up; after it, the switch heads for the field's state at its own pace, as after a click.
+      let unit = 4
+      if (cell.x > 4.5) {
+        unit = 16
+      }
+      let taken = field(scr.x, unit, 4)
+      let bit = mod(taken, 2)
+      let clicked = step(3.5, last)
+      if (first || was.w < 0.5) {
+        level = 0
+        want = 0
+        last = 0
+        clicked = 0
+      } else {
+        if (abs(taken - mod(last, 4)) > 0.5) {
+          if (scr1.y < 6) {
+            if (clicked < 0.5) {
+              level = bit
+              want = bit
+            }
+          } else {
+            want = bit
+          }
+          last = taken + 4 * clicked
+        }
+      }
+      if (click > 0.5) {
+        last = mod(last, 4) + 4
+      }
     }
     // A click flips the switch, here and nowhere else. One made while the switch is still changing turns it
     // round from where it has got to, so every click counts, however fast.
@@ -709,7 +1292,7 @@ function advance(cell: vec2): vec4 {
     }
     next = vec4(level, want, last, 1 + step(0.5, pressed))
   }
-  if (cell.x > 7.5) {
+  if (cell.x > 7.5 && cell.x < 8.5) {
     let shown = was.x
     let seen = was.y
     let still = was.z
@@ -729,10 +1312,22 @@ function advance(cell: vec2): vec4 {
     }
     next = vec4(shown, seen, still, 1)
   }
+  if (cell.x > 8.5 && cell.x < 9.5) {
+    if (setup > 0.5) {
+      return vec4(-1, v.screen, 0, 1)
+    }
+    return screenStep(was, v.screen, scr1.y)
+  }
+  if (cell.x > 9.5 && cell.x < 10.5) {
+    if (setup > 0.5) {
+      return vec4(-1, v.world, 0, 1)
+    }
+    return worldStep(was, v.world)
+  }
   return next
 }
 
-const state: Buffer = buffer({ size: [9, 2], float: 32, filter: 'nearest' }, (p: Pixel) => advance(p.cell))
+const state: Buffer = buffer({ size: [16, 2], float: 32, filter: 'nearest' }, (p: Pixel) => advance(p.cell))
 
 export default shader({
   fps: 30,

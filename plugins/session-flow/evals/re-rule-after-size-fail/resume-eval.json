@@ -85,12 +85,16 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/feat/payouts-created-at-index",
+      "refs/pull/4417/head"
+    ],
     "gh_fixture": {
       "repo": "example-org/payouts-api",
       "responses": [
         {
           "match": "\\bpr view\\b",
-          "stdout": "{\"number\": 4417, \"state\": \"OPEN\", \"reviewDecision\": \"APPROVED\", \"mergeStateStatus\": \"CLEAN\"}\n",
+          "stdout": "{\"number\": 4417, \"headRefName\": \"feat/payouts-created-at-index\", \"state\": \"OPEN\", \"reviewDecision\": \"APPROVED\", \"mergeStateStatus\": \"CLEAN\"}\n",
           "exit": 0
         },
         {

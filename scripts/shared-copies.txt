@@ -120,6 +120,8 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/discovery/refe
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/verification/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/improvement/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/prototype/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/toolchain/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/corrections/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
@@ -128,6 +130,7 @@ docs/contracts/target-scope/README.md plugins/architecture/reference/target-scop
 docs/contracts/target-scope/README.md plugins/attribution/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/bugs/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/code-metrics/reference/target-scope.md
+docs/contracts/target-scope/README.md plugins/code-tidying/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/codebase-health/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/coupling/reference/target-scope.md
 docs/contracts/target-scope/README.md plugins/discipline/reference/target-scope.md
@@ -319,6 +322,7 @@ lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
 lib/ui-feedback/controls.schema.json plugins/prototype/notes-bridge/controls.schema.json
 lib/ui-feedback/controls.js plugins/prototype/notes-bridge/controls.js
 lib/ui-feedback/relocate-note.mjs plugins/prototype/notes-bridge/relocate-note.mjs
+lib/ui-feedback/dev-origin.mjs plugins/prototype/notes-bridge/dev-origin.mjs
 lib/ui-feedback/proto-pin.js plugins/planning/shared/web/proto-pin.js
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js

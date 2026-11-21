@@ -1185,7 +1185,7 @@ def vendored_path(plugin: Any, name: Any) -> bool:
     )
 
 
-SKILL_FILE_RE = re.compile(r"plugins/[^/]+/skills/(?:[^/]+/)+SKILL\.md")
+SKILL_FILE_RE = re.compile(r"plugins/[^/]+/skills/(?:[^/]+/)+SKILL\.md", re.IGNORECASE)
 SKILL_READS_MAX = 10
 SYNC_STAMP_RE = re.compile(
     r' {2}(upstream-version|upstream-sha|synced): ("?)[\w./@:+-]+\2', re.ASCII

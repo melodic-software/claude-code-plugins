@@ -180,6 +180,48 @@ test("a read lane pushes no commits, and a run with no failures says so", () => 
   assert.match(body, /No failed call recorded by the run job's scripts\./);
 });
 
+const TAG_MISS = { method: "GET", path: "/repos/o/r/git/ref/tags/main", status: 404 };
+const reportOf = (rows) =>
+  render({
+    lane: "read",
+    activity: "fix-ci",
+    runId: "1",
+    runResult: "success",
+    actOutcome: "success",
+    readLane: true,
+    failures: failureRows(JSON.stringify({ rows, dropped: 0 })),
+  });
+
+test("a run whose only failed call is a tag-ref 404 reports no failed call", () => {
+  const body = reportOf([TAG_MISS, { ...TAG_MISS, path: "/repos/o/r/git/ref/tags/release/v1" }]);
+  assert.match(body, /No failed call recorded by the run job's scripts\./);
+  assert.doesNotMatch(body, /More rows not shown/);
+  assert.deepEqual(failureRows(JSON.stringify({ rows: [TAG_MISS], dropped: 0 })), { rows: [], dropped: 0 });
+});
+
+test("a 404 on another path, a non-404 status or a non-GET method on a tag ref is still listed", () => {
+  const listed = [
+    { method: "GET", path: "/repos/o/r/git/ref/heads/main", status: 404 },
+    { ...TAG_MISS, status: 500 },
+    { ...TAG_MISS, method: "PATCH" },
+  ];
+  assert.deepEqual(failureRows(JSON.stringify({ rows: listed, dropped: 0 })), {
+    rows: [
+      { method: "GET", path: "/repos/{repo}/git/ref/heads/*", status: 404 },
+      { method: "GET", path: "/repos/{repo}/git/ref/tags/*", status: 500 },
+      { method: "PATCH", path: "/repos/{repo}/git/ref/tags/*", status: 404 },
+    ],
+    dropped: 0,
+  });
+});
+
+test("a tag-ref 404 beside a real failure leaves only the real failure in the table", () => {
+  const body = reportOf([TAG_MISS, { method: "GET", path: "/repos/o/r/pulls/42", status: 502 }]);
+  assert.match(body, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 502 \|/);
+  assert.doesNotMatch(body, /tags/);
+  assert.doesNotMatch(body, /More rows not shown/);
+});
+
 test("a forged outcome or commit renders as unknown or none, never as given", () => {
   const body = render({
     lane: "write",

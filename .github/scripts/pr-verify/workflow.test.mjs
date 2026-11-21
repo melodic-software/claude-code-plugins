@@ -329,9 +329,14 @@ const TRIGGER_GATE = [
 const gateOf = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))?.[1].replace(/\s+/g, " ").trim();
 const withNeeds = (needs, overrides) => ({ ...upstreamRun(overrides), needs });
 
-test("the key job runs on main for a same-repository pull_request run that passed or failed", () => {
-  assert.equal(keyGate(), TRIGGER_GATE);
+const KEYS_OFF = "vars.CLAUDE_API_KEYS_DISABLED";
+test("the key job runs on main for a same-repository pull_request run that passed or failed, unless the API-key switch is on", () => {
+  assert.equal(keyGate(), `${TRIGGER_GATE} && ${KEYS_OFF} != 'true'`);
   assert.doesNotMatch(jobText(KEY), /^ {4}needs:/m);
+  const withSwitch = (value) => ({ ...upstreamRun(), vars: { CLAUDE_API_KEYS_DISABLED: value } });
+  assert.ok(admits(keyGate(), withSwitch("")));
+  assert.ok(admits(keyGate(), withSwitch("false")));
+  assert.ok(!admits(keyGate(), withSwitch("true")));
 });
 
 // ci-workflows select-model-credential's key call with key-job reads
@@ -510,7 +515,7 @@ test("a same-repository pull_request run on a feature branch passes the trigger 
   assert.ok(!admits(keyGate(), upstreamRun({ head_repository: { full_name: "someone/fork" } })));
 });
 
-test("the subscription job runs only on a clean handoff, an empty key or a key the credit gate skipped, on a fixed runner", () => {
+test("the subscription job runs only on a clean handoff, an empty key, a key the credit gate skipped or a key job the API-key switch skipped, on a fixed runner", () => {
   const job = jobText(SUB);
   assert.match(job, /^ {4}needs: check-intent$/m);
   const gate = gateOf(SUB);
@@ -519,20 +524,22 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
     [
       "!cancelled()",
       `&& ${TRIGGER_GATE}`,
-      "&& needs.check-intent.result == 'success'",
-      "&& needs.check-intent.outputs.next-leg == 'subscription'",
+      "&& (needs.check-intent.result == 'skipped'",
+      "|| (needs.check-intent.result == 'success'",
+      "&& needs.check-intent.outputs.next-leg == 'subscription'))",
     ].join(" "),
   );
   // !cancelled() keeps a gate-skipped key job from skipping this one, so the
   // key job's success is spelled out: a failed key job skips it.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
-  const run = (key) => admits(gate, withNeeds({ [KEY]: key }));
+  const run = (key, overrides) => admits(gate, withNeeds({ [KEY]: key }, overrides));
   const handedOn = { "next-leg": "subscription" };
   assert.ok(run({ result: "success", outputs: handedOn }));
   assert.ok(!run({ result: "success", outputs: { "next-leg": "" } }));
   assert.ok(!run({ result: "failure", outputs: handedOn }));
-  // A key job skipped for any other reason (the trigger gate) judges nothing.
-  assert.ok(!run({ result: "skipped", outputs: {} }));
+  assert.ok(run({ result: "skipped", outputs: {} }), "a key job skipped under the same trigger terms was skipped by the API-key switch");
+  assert.ok(!run({ result: "skipped", outputs: {} }, { event: "push" }), "a run the trigger gate skips judges nothing");
+  assert.ok(!run({ result: "skipped", outputs: {} }, { conclusion: "cancelled" }), "a run the trigger gate skips judges nothing");
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
   // The key job's outputs reach only that if, the resolver's env and the
   // record's fallback reason, which they pick between three literals; never a
@@ -540,7 +547,7 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, "          reason: ${{ needs.check-intent.outputs.next-reason }}"],
+    [CARRIED, "          reason: ${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}"],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
@@ -655,7 +662,7 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.ok(index("Check the credential", job) < index("Judge the pull request", job), job);
   }
   // Each later leg's reason is the job before it's next-reason.
-  assert.equal(input(step("Check the credential", SUB), "reason"), "${{ needs.check-intent.outputs.next-reason }}");
+  assert.equal(input(step("Check the credential", SUB), "reason"), "${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}", "a key job the API-key switch skipped names no reason, so the reason is no-key");
   assert.equal(input(step("Check the credential", FB), "reason"), "${{ needs.check-intent-subscription.outputs.next-reason }}");
   // The key and subscription jobs name the next leg from a clean handoff of any chunk, with no if:.
   for (const [job, legStep] of [[KEY, "key-leg"], [SUB, "sub-leg"]]) {

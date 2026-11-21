@@ -3744,7 +3744,8 @@ def pin_comment(sha: str, rung: str | None = None) -> str:
     named = f" rung={rung}" if rung else ""
     return (
         f"<!-- babysit-merge-pin sha={sha}{named} -->\n"
-        f"The unattended merge path enqueued this pull request at head `{sha}`."
+        f"The unattended merge path is about to ask GitHub to enqueue this pull request at head `{sha}`. "
+        "GitHub can still refuse it after accepting the request."
     )
 
 

@@ -1,5 +1,55 @@
 # Changelog for the PR pipeline convention
 
+## [11.2.4] - 2026-11-21
+
+### Changed
+
+- The lane scripts that run from a full checkout now send every GitHub call through the rate guard, so they honor the job's stop file and record their budget readings. `report-outcome.mjs --find-prior` reads through `createGitHub` and holds green while the stop file holds its pool, and its claim re-derive fails, as it does on any failed read. address-feedback's base-checkout mains, the dispatch clients and the importers of apply-patch's client get the guarded fetch. The rate-guard coverage test now fails any client whose default fetch skips the guard, not only a bare `fetch(` call. The scripts that run from a directory copy keep their own client and are listed with the reason.
+
+- The dispatch clients wait at the stop-floor only when the reset is more than 10 minutes away (`DISPATCH_FLOOR_GRACE_MS`); closer to the reset they spend under the floor, and a remaining of 0 still stops them.
+
+### Fixed
+
+- pr-review-main skips a lane-source pull request's review as already done only on verdicts from runs created after the pull request's newest base change, the cutoff the merge gate applies. A pull request retargeted without a push is reviewed again instead of staying held as `lane-source-changed`.
+
+## [11.2.3] - 2026-11-20
+
+### Fixed
+
+- pr-merge's whole-review request also covers a pull request held only by `evidence-unbound:<lane>` whose unbound reason is `base-retargeted`. Review evidence now binds only on lane runs created after the newest base change, so a new run at the same head binds where a review against the old base did not. The once-per-head, twice-per-pull-request and once-per-run limits are unchanged.
+
+## [11.2.2] - 2026-11-20
+
+### Changed
+
+- pr-verify skips its API-key job (Check Intent) while `vars.CLAUDE_API_KEYS_DISABLED` is `true` and starts the subscription job directly, with reason `no-key`, so a judged pull request no longer spends the key job's GitHub reads and one job hop before the subscription leg judges. The subscription job keys on the key job's result, not on the variable, so a switch flipped between the two jobs neither judges twice nor leaves the run unjudged. With the switch off the chain is unchanged.
+
+## [11.2.1] - 2026-11-20
+
+### Changed
+
+- The intake rubric now lives in `.github/scripts/intake-triage/triage-rubric.txt`; `intake-triage.yml` reads it from the default branch in `check-born-triaged` and passes it to the reusable as `instructions`, unchanged. The refine schema and the plugin-eval policy self-test prompt moved to files the same way, also unchanged. The README records why the ci-workflows reusable workflow calls track `@main`.
+- The intake rubric holds only a design choice the owner has not made: a design the issue already chose, a visual or UX design included, with an exact done-when gets no intent flag and no `needs-owner-decision` or `needs-human` label (owner decision Q256).
+
+## [11.2.0] - 2026-11-20
+
+### Added
+
+- The merge lane lands the bottom layer of a native GitHub stack whose stack base is `main` (owner decision on #15410, option B). GitHub refuses native auto-merge for every stack member, so where `enable-auto-merge.mjs` would arm such a layer it sends the asynchronous merge instead, pinned to the head it read, into main's merge queue when there is one, and only once the newest `CI Status` run at that head passed and every hold the arm checks is clear. A layer with an open layer below it is never merged, so no lower layer lands without its own holds checked. A merge GitHub refuses leaves the layer unmerged with a refusal comment for a person; the lane adds no credential. Into a merge queue GitHub refuses the lanes App's async merge today ("Enqueuer is not authorized to merge"), so there the layer goes to a person.
+- The pin comment posted before a stack layer's async merge says the merge path is about to ask GitHub to merge it and that GitHub can still refuse it, instead of saying it is about to arm native auto-merge. The pin's first line is unchanged.
+
+## [11.1.1] - 2026-11-20
+
+### Changed
+
+- pr-verify no longer fails a `Refs:` pull request whose body names no remaining work. It still fails one whose body names no delivered part, claims the whole issue, or delivers a part outside the issue's scope. What stays open is the issue's own done-when list, so the body need not restate it.
+
+## [11.1.0] - 2026-11-20
+
+### Added
+
+- `check-kill-switch` gains a defer gate (inputs `defer`, `defer-minutes`, `defer-job`, `resolved-config`): on a first run attempt it stops a job whose work a later run recovers, with cause `defer` and the window's reset, while the GITHUB_TOKEN window's burn rate projected to the job's horizon, or to the reset when sooner, leaves under `defer-project` of the header's limit. It reads no `start-gate` floor, never waits, and never defers a re-run attempt; each deferral logs a `defer` notice naming the cause, the projected share and the reset. `pr-pipeline.schema.json`'s `limits.api` pools admit `defer-project` (github-token default 0.3, 0 turns deferral off) `defer-run-minutes` (default 15) and `defer-run-minutes-pr-merge` (default 6, the arm run's p90), all defaulted in `rate-limits.json`. Only pr-merge's PR-scoped arm run (`inputs.pr`) defers, reading its horizon from `defer-run-minutes-pr-merge`, and its `pr-merge-wake` line reports the deferral and the reset; the sweep, CI Status and pr-dispatch-feedback never defer ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
 ## [11.0.2] - 2026-11-20
 
 ### Changed

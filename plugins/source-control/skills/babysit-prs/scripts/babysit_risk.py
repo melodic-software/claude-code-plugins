@@ -1279,7 +1279,7 @@ _MODEL_ACTION = re.compile(
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
 # A call to a local reusable workflow or composite action, which may start a
 # model leg of its own.
-_LOCAL_USES = re.compile(r"\buses\s*:\s*['\"]?(\./[^\s'\"#]+)", re.IGNORECASE)
+_LOCAL_USES = re.compile(r"\buses\s*:\s*['\"]?([.$]/[^\s'\"#]+)", re.IGNORECASE)
 # A composite action's metadata, which can start a model leg outside
 # `.github/workflows/`.
 _ACTIONS = (".github/actions/**/action.yml", ".github/actions/**/action.yaml")

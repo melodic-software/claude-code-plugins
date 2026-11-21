@@ -2527,7 +2527,9 @@ describe("the workflow's --check steps", () => {
 });
 
 // The prompt's paragraphs as flowing text, keyed by their capitalized lead.
-const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
+const PROMPT = ["../../workflows/intake-triage.yml", "./triage-rubric.txt"]
+  .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
+  .join("\n")
   .split("\n")
   .map((line) => line.trim())
   .join(" ");

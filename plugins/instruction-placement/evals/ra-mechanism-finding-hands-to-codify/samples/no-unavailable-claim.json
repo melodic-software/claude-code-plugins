@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "names the call, no availability claim"
+    },
+    {
+      "answer": "If /corrections:codify were not available, the report would propose the strongest mechanism and call it unproven.\n\nSTATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped and sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "the fallback described outside the ROUTE line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "STATUS: blocked\nROUTE: /corrections:codify is not available, so a formatter check (unproven)\nMECHANISM: formatter\nPROSE: kept",
+      "why": "claims codify is unavailable on the ROUTE line"
+    }
+  ]
+}

@@ -432,7 +432,7 @@ def bind(
     *,
     is_human: Callable[[Any], bool],
     changed_paths: Sequence[str] | None,
-    base_changed: bool = False,
+    retargeted_at: str | None = None,
     head_file: Callable[[str, str], str | None] | None = None,
     base_sha: str | None = None,
     main_reviews: Sequence[Mapping[str, Any]] | None = None,
@@ -450,9 +450,14 @@ def bind(
     seen; except that a run the listing shows completed may be taken from a
     saved read of that same completed attempt, whose listing record then
     stands in for the fresh read. `is_human` takes one actor and must return False for the agent
-    identity, the pull request's author and its head pushers. `base_changed`
-    is True when the pull request was ever retargeted: the reviews read a
-    diff against another base, so no lane binds. `changed_paths` holds every
+    identity, the pull request's author and its head pushers.
+    `retargeted_at` is the time of the pull request's newest base change, or
+    None when it was never retargeted: a review from a run created at or
+    before it read a diff against another base, so a lane binds only on runs
+    created after it, every link of its review chain included, and unbinds
+    as `base-retargeted` otherwise; an unreadable time binds no lane. A
+    blocking finding an older review left open still carries
+    (`_carried_blocking`). `changed_paths` holds every
     path the pull request changes (both sides of a rename), or None when the
     list is unread or incomplete: no lane binds then, nor when one is a lane
     source (`lane_source`) that `readonly_workflow` does not clear through
@@ -475,8 +480,9 @@ def bind(
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
             raise Unbound("bad-head")
-        if base_changed is not False:
-            raise Unbound("base-retargeted")
+        after = None if retargeted_at is None else _time(retargeted_at)
+        if retargeted_at is not None and after is None:
+            raise Unbound("evidence-error")
         if not isinstance(changed_paths, list | tuple):
             raise Unbound("changed-files-unread")
         if needs_main_review(changed_paths, head_file, base_sha, floor):
@@ -487,6 +493,7 @@ def bind(
                     main_reviews,
                     main_context,
                     (runs, comments, threads, is_human, head_file),
+                    after,
                 )
                 for lane in LANES
             )
@@ -496,7 +503,15 @@ def bind(
         claimed: set[str] = set()
         return tuple(
             _bind_lane(
-                lane, head_sha, runs, comments, threads, is_human, claimed, head_file
+                lane,
+                head_sha,
+                runs,
+                comments,
+                threads,
+                is_human,
+                claimed,
+                head_file,
+                after,
             )
             for lane in LANES
         )
@@ -534,10 +549,11 @@ def _main_lane(
     records: Sequence[Mapping[str, Any]] | None,
     context: Mapping[str, Any] | None,
     carried: tuple[Any, ...],
+    after: datetime | None = None,
 ) -> LaneEvidence:
     """The lane's evidence for a pull request that changes a lane source:
-    bound when a counted main-run review names the pinned head
-    (`_main_bound`) and the recorded counts were read, else unbound as
+    bound when a counted main-run review created after `after` names the
+    pinned head (`_main_bound`) and the recorded counts were read, else unbound as
     `lane-source-changed`, or as `main-review-stop:<reason>` when no verdict
     binds and the report-review-counts job posted a designed stop on the head. The security lane's blocking count is the most of
     the main-run reviews' CRITICAL findings at this tree, any its
@@ -546,7 +562,7 @@ def _main_lane(
     (`_recorded_critical`), so a finding any of them reported holds, bound
     or not."""
     try:
-        found = _main_bound(lane, head, records, context)
+        found = _main_bound(lane, head, records, context, after)
     except Exception:  # noqa: BLE001 - any doubt is unbound
         found = None
     recorded = _recorded_critical(lane, context)
@@ -595,6 +611,7 @@ def _main_bound(
     head: str,
     records: Sequence[Mapping[str, Any]] | None,
     context: Mapping[str, Any] | None,
+    after: datetime | None = None,
 ) -> tuple[int, int] | None:
     """(findings, CRITICAL findings) for `lane` at `head` from main-run
     reviews, or None when none binds. A record counts only when
@@ -602,7 +619,8 @@ def _main_bound(
     finding counts from a run of that origin whatever its status or
     conclusion, since the upload comes before the run's later steps and the
     other lane's job; the lane binds only when a counted verdict from a
-    completed, successful run names `head`. It then counts the most findings,
+    completed, successful run created after `after` (`_created_after`) names
+    `head`. It then counts the most findings,
     and the most CRITICAL ones, any counted review of the head's tree
     reported, so a re-run, a failed run, or an empty commit with the same
     tree never clears one. The binding verdict also needs the report-review-counts job's
@@ -612,7 +630,7 @@ def _main_bound(
     if not isinstance(records, list | tuple) or not isinstance(context, Mapping):
         return None
     found = [
-        each
+        (*each, record["run"])
         for record in records
         if (each := _main_review_counted(lane, record, context)) is not None
     ]
@@ -624,10 +642,11 @@ def _main_bound(
         done
         and verdict["head_sha"] == head
         and [verdict["findings"], verdict["critical"]] in [list(r) for r in recorded]
-        for verdict, done in found
+        and _created_after(run, after)
+        for verdict, done, run in found
     ):
         return None
-    counted = [verdict for verdict, _ in found]
+    counted = [verdict for verdict, _, _ in found]
     return (
         max(verdict["findings"] for verdict in counted),
         max(verdict["critical"] for verdict in counted),
@@ -953,10 +972,13 @@ def _bind_lane(
     is_human: Callable[[Any], bool],
     claimed: set[str],
     head_file: Callable[[str, str], str | None] | None,
+    after: datetime | None = None,
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        reviewed, chain = _resolve(lane, head, lane_runs, _poster(comments, threads))
+        reviewed, chain = _resolve(
+            lane, head, lane_runs, _poster(comments, threads), after
+        )
         marker = _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
         count, clears, critical = _open_findings(
@@ -1071,7 +1093,11 @@ Poster = Callable[[str, str, Any, Any], bool]
 
 
 def _resolve(
-    lane: str, head: str, lane_runs: list[Mapping[str, Any]], posted: Poster
+    lane: str,
+    head: str,
+    lane_runs: list[Mapping[str, Any]],
+    posted: Poster,
+    after: datetime | None = None,
 ) -> tuple[str, list[_Record]]:
     """Require a bound run at `head` whose record leads back to a whole review,
     and return the head of the review that covers `head` with the chain of
@@ -1080,24 +1106,25 @@ def _resolve(
     A no-change skip binds to the review it names, following further
     no-change skips back to it (`_skip_target`); an incremental
     review needs every earlier link bound, back to a whole review. Each link
-    is the newest run's latest attempt at its head (`_bound_record`).
+    is the newest run's latest attempt at its head (`_bound_record`), created
+    after `after` when it is set.
     """
-    rec = _bound_record(lane, head, lane_runs, posted)
+    rec = _bound_record(lane, head, lane_runs, posted, after)
     seen = {head}
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
-        rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
+        rec = _skip_target(lane, rec.through, lane_runs, seen, posted, after)
     reviewed = rec.sha
     chain = [rec]
     for _ in range(MAX_CHAIN):
         if rec.whole:
             return reviewed, chain
-        rec = _link(lane, rec.since, lane_runs, seen, posted)  # type: ignore[arg-type]
+        rec = _link(lane, rec.since, lane_runs, seen, posted, after)  # type: ignore[arg-type]
         if rec.skip is not None:
             raise Unbound("incremental-gap")
         if rec.through is not None:
-            rec = _skip_target(lane, rec.through, lane_runs, seen, posted)
+            rec = _skip_target(lane, rec.through, lane_runs, seen, posted, after)
         chain.append(rec)
     raise Unbound("incremental-gap")
 
@@ -1108,6 +1135,7 @@ def _skip_target(
     lane_runs: list[Mapping[str, Any]],
     seen: set[str],
     posted: Poster,
+    after: datetime | None = None,
 ) -> _Record:
     """The review a no-change skip carries forward: its `through` head, and
     on through each further no-change skip (one per push that changed no file
@@ -1115,7 +1143,7 @@ def _skip_target(
     lane reviewed, at most `SKIP_HOPS` heads back. A head whose content
     changed has its own review record, so the chain stops there."""
     for _ in range(SKIP_HOPS):
-        rec = _link(lane, sha, lane_runs, seen, posted)
+        rec = _link(lane, sha, lane_runs, seen, posted, after)
         if rec.skip is not None:
             raise Unbound("skip-not-no-change")
         if rec.through is None:
@@ -1130,26 +1158,50 @@ def _link(
     lane_runs: list[Mapping[str, Any]],
     seen: set[str],
     posted: Poster,
+    after: datetime | None = None,
 ) -> _Record:
-    """An earlier head in the chain; any failure to bind it is a gap."""
+    """An earlier head in the chain; any failure to bind it is a gap, but
+    for a review from before the newest retarget, which a whole review of
+    the head clears."""
     if sha in seen:
         raise Unbound("incremental-gap")
     seen.add(sha)
     try:
-        return _bound_record(lane, sha, lane_runs, posted)
+        return _bound_record(lane, sha, lane_runs, posted, after)
     except Unbound as exc:
-        if exc.reason in {"count-inconsistent", "evidence-error", "evidence-missing"}:
+        if exc.reason in {
+            "base-retargeted",
+            "count-inconsistent",
+            "evidence-error",
+            "evidence-missing",
+        }:
             raise
         raise Unbound("incremental-gap") from exc
 
 
+def _created_after(run: Mapping[str, Any], after: datetime | None) -> bool:
+    """Whether `run` was created after `after`, the newest retarget; True
+    when there was none. A re-run keeps its run's creation time and its
+    event's base, so it never counts as later."""
+    if after is None:
+        return True
+    created = _time(run.get("created_at"))
+    return created is not None and created > after
+
+
 def _bound_record(
-    lane: str, sha: str, lane_runs: list[Mapping[str, Any]], posted: Poster
+    lane: str,
+    sha: str,
+    lane_runs: list[Mapping[str, Any]],
+    posted: Poster,
+    after: datetime | None = None,
 ) -> _Record:
     at_sha = [item for item in lane_runs if item["head_sha"] == sha]
     if not at_sha:
         raise Unbound("no-run")
     newest = max(at_sha, key=_run_order)
+    if not _created_after(newest, after):
+        raise Unbound("base-retargeted")
     if newest.get("status") != "completed" or newest.get("conclusion") != "success":
         raise Unbound("run-not-success")
     latest_n = newest.get("run_attempt")

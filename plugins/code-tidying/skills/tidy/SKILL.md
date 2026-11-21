@@ -1,6 +1,6 @@
 ---
 description: "When the bundled simplify skill resolves in this session, prefer it for the current diff; this skill for proactive lane hunts. Hunts one rotated lane for Beck tidyings and ships one structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window."
-argument-hint: "[<lane>|<glob>...|dry-run [<lane>|<glob>...]|self-update|help] [override] [in-place[=commit]]"
+argument-hint: "[<lane>|<glob>...|dry-run|self-update|help] [override] [in-place[=commit]] [--repo <repo> ...]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
@@ -48,7 +48,8 @@ Tidy is the proactive Boy Scout loop: what small structural improvements can one
 
 ## Action Router
 
-Parse `$ARGUMENTS` to determine the action:
+Parse `$ARGUMENTS` to determine the action. The argument hint shows `dry-run` without its
+`[<lane>|<glob>...]` to stay within its length budget; the table below lists every form.
 
 | Argument | Action | Use case |
 |----------|--------|----------|
@@ -60,6 +61,38 @@ Parse `$ARGUMENTS` to determine the action:
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
 | `override` (flag, combines with any row above) | **Lift the GLOBAL HARD path list for this run, behind an enumeration gate** | The user wants this lane's tidyings to reach a path the HARD list would otherwise drop (agent config, a CI workflow, lint config). Strip the token before reading the rest of `$ARGUMENTS`; match it whole, never as a substring, and treat `./override` as a path. Because a lane is a glob set rather than a named file, Phase D enumerates the specific HARD paths it intends to touch and takes a go-ahead on that list before Phase E edits any of them; non-interactive, the run reports the list and proceeds without those edits (`reference/exclusions.md` section 4). `dry-run override` produces the enumeration alone. Path entries only: the behavioral guards, the work-tracking entries, SELF-UPDATE EXTRA HARD, and the override machinery itself hold regardless. Every lifted path is named in Phase H's report with the channel that lifted it. |
 | `in-place` or `in-place=commit` (flag, combines with the smart default, `<lane>`, and `override`) | **Run on the current branch, no branch, no PR** | A caller already holds the branch and PR (a repo-sweep playbook, a feature branch). Strip the token before reading the rest of `$ARGUMENTS`, matched whole like `override`. Phase B stays on the current branch and refuses the default branch; Phase E stages tidyings without committing; Phase H opens no PR and posts no comment, and prints its report to the user instead. `in-place` leaves the changes staged; `in-place=commit` makes one commit of them. The backlog throttle does not apply; every other gate (exclusions, scope budget, verification, self-review) still runs, measured on the staged diff. |
+| `--repo <repo>` (and the other target forms; combines with any row above but `in-place` and `help`) | **The run once per repository** | Strip the target-form tokens before reading the rest of `$ARGUMENTS`, then run per **Over several repositories** below. |
+
+## Over several repositories
+
+With no target form, the run covers this checkout, as it always has. A target form (`--repo`,
+`--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) selects several
+repositories, which resolve, count, fan out and merge as
+[`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](../../reference/target-scope.md) "Target
+forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the
+whole Workflow, Phases A to H, with its root anchored. What differs here:
+
+- **Lane per repository.** The lane resolves against that repository's own
+  `.claude/tidy-lanes/` over the bundled lane. A named lane neither layer defines there is reported
+  skipped. With no lane, the smart default infers it from that repository's recent commits at
+  `origin/HEAD`; where the inference is ambiguous, ask once with every such repository listed, or,
+  non-interactive, report that repository skipped. `self-update` runs only in a repository that is
+  this plugin's working-tree checkout; every other is reported skipped.
+- **Cursor, throttle and settings per repository.** The Phase A anchor commit is the last merged
+  `chore/tidy-<lane>-` PR in that repository, and the backlog throttle counts that repository's
+  open `chore/tidy-*` PRs, so one repository's backlog never stops another's run. The pre-computed
+  lines describe this checkout only: the per-repository subagent runs `open-pr-count.sh` and
+  `comment-settings.sh` with that repository's root as its working directory, and reads that
+  repository's `.claude/code-tidying/exclusion-overrides.md`.
+- **One branch and one pull request per repository.** The Phase B branch, the commits and the
+  Phase H PR and follow-up comment are that repository's, made one repository at a time, as
+  target-scope.md "Writes stay per repository" says: for a repository other than the session's
+  own, in a worktree that repository's convention creates, never its main checkout. The scope
+  budget and the overflow filing hold per repository, each item filed in its own repository's
+  tracker. `in-place` names the session's current branch, so it does not combine with a target
+  form.
+- **One report.** `dry-run` merges the findings tables, each row carrying its repository; a run
+  that ships lists each repository's PR, or the reason it opened none.
 
 ## Lane catalog
 
@@ -100,7 +133,7 @@ Read the resolved lane file in full at Phase A entry; do not infer scope from th
 
 ### Ad hoc scope when no lane fits
 
-When no bundled or project lane covers the target files (for example a lone `.github/scripts/*.mjs` tree tested with `node --test`), pass globs in place of a lane name: `dry-run <glob>...` to plan, `<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is ad hoc scope. The run then:
+When no bundled or project lane covers the target files, pass globs in place of a lane name: `dry-run <glob>...` to plan, `<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is ad hoc scope. The run then:
 
 - takes its scope from those globs, still filtered by the global exclusions below;
 - borrows the watch-for list, the lane-specific extra exclusions, and the Conventional Commits type from the closest template (`templates/polyglot-services-lane.template.md` for source code, the `docs-prose` lane for markdown), filling each template `<placeholder>` from the scoped files or dropping just that placeholder's clause when nothing in scope fills it;
@@ -183,7 +216,6 @@ Examples:
 
 - `refactor(core): rename result helpers for reading order`
 - `docs(skills): repair stale cross-references`
-- `chore(tools): apply shellcheck/shfmt drift across tools/*.sh`
 
 Body facts to supply:
 

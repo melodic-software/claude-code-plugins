@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "STATUS: blocked\nROUTE: `/corrections:codify \"imports are grouped stdlib, third-party, local, each sorted\"`\nMECHANISM: none\nPROSE: kept",
+      "why": "the route is the named codify call"
+    },
+    {
+      "answer": "STATUS: blocked\n**ROUTE:** report rung 2's route, the `/corrections:codify` call, which picks the mechanism and proves the check\nMECHANISM: none\nPROSE: kept",
+      "why": "bold label, codify picks the mechanism"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "STATUS: blocked\nROUTE: the remedy is a linter, formatter, analyzer, or hook (isort); report the routing\nMECHANISM: isort\nPROSE: kept",
+      "why": "the reply a faithful read of apply-recipes.md before the follow-on gives: 'The remedy is a linter, formatter, analyzer, or hook'"
+    },
+    {
+      "answer": "You could also run /corrections:codify later.\n\nSTATUS: blocked\nROUTE: add a ruff isort rule in CI\nMECHANISM: ruff isort rule\nPROSE: kept",
+      "why": "codify only outside the ROUTE line"
+    }
+  ]
+}

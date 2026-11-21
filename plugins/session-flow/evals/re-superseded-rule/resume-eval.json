@@ -108,6 +108,12 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/ci/shared-spend-alarm",
+      "refs/heads/feat/per-repo-spend-caps",
+      "refs/pull/4231/head",
+      "refs/pull/4236/head"
+    ],
     "gh_fixture": {
       "repo": "example-org/budget-guard",
       "responses": [
@@ -118,13 +124,13 @@
         },
         {
           "match": "\\bpr view #?4231\\b",
-          "stdout": "{\"number\": 4231, \"title\": \"ci(budget-guard): move the spend alarm into the shared alarm workflow\", \"state\": \"MERGED\", \"mergeable\": \"UNKNOWN\", \"labels\": []}",
+          "stdout": "{\"number\": 4231, \"headRefName\": \"ci/shared-spend-alarm\", \"title\": \"ci(budget-guard): move the spend alarm into the shared alarm workflow\", \"state\": \"MERGED\", \"mergeable\": \"UNKNOWN\", \"labels\": []}",
           "exit": 0,
           "requires_prior": "\\bpr\\s+merge\\b[^\\n]*?(?<!\\d)#?4231\\b|pulls/4231/merge"
         },
         {
           "match": "\\bpr view #?4231\\b",
-          "stdout": "{\"number\": 4231, \"title\": \"ci(budget-guard): move the spend alarm into the shared alarm workflow\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"reviewDecision\": \"APPROVED\", \"labels\": [], \"comments\": [], \"body\": \"Moves the spend alarm into the shared alarm workflow.\", \"files\": [{\"path\": \".github/workflows/spend-alarm.yml\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\", \"headSha\": \"3f9b2d4a6c8e0f1a3b5d7c9e1f2a4b6c8d0e2f3a\"}]}",
+          "stdout": "{\"number\": 4231, \"headRefName\": \"ci/shared-spend-alarm\", \"title\": \"ci(budget-guard): move the spend alarm into the shared alarm workflow\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"reviewDecision\": \"APPROVED\", \"labels\": [], \"comments\": [], \"body\": \"Moves the spend alarm into the shared alarm workflow.\", \"files\": [{\"path\": \".github/workflows/spend-alarm.yml\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\", \"headSha\": \"3f9b2d4a6c8e0f1a3b5d7c9e1f2a4b6c8d0e2f3a\"}]}",
           "exit": 0
         },
         {
@@ -134,7 +140,7 @@
         },
         {
           "match": "\\bpr view #?4236\\b",
-          "stdout": "{\"number\": 4236, \"title\": \"feat(budget-guard): per-repo spend caps\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BEHIND\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"FAILURE\"}]}",
+          "stdout": "{\"number\": 4236, \"headRefName\": \"feat/per-repo-spend-caps\", \"title\": \"feat(budget-guard): per-repo spend caps\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BEHIND\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"FAILURE\"}]}",
           "exit": 0
         },
         {

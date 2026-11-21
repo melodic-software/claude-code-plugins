@@ -408,6 +408,10 @@ class AVendoredCopyDriftIssue(unittest.TestCase):
                 {"files": [*SYNC, {"filename": "plugins/playwright/skills/vendor/SKILL.md", "status": "added"}]},
             ),
             (
+                "a new skill's lowercase skill.md",
+                {"files": [*SYNC, {"filename": "plugins/playwright/skills/new/skill.md", "status": "added"}]},
+            ),
+            (
                 "a rename into a SKILL.md",
                 {"files": [*SYNC, {"filename": SKILL, "previous_filename": renamed_from, "status": "renamed"}]},
             ),

@@ -49,7 +49,7 @@ concatenates.
 Selects whether a run captures a moving record in addition to the mandatory screenshot evidence.
 
 - `off` (default): no recording; the evidence-contract screenshots stay the floor.
-- `video`: record via the playwright CLI. Preferred for long or multi-page flows, where a
+- `video`: record with the browser tool's video capture. Preferred for long or multi-page flows, where a
   screenshot set loses the sequence.
 - `gif`: record via `gif_creator`. Preferred for short demos worth showing inline.
 
@@ -74,8 +74,7 @@ serve the target, is the Driver ranking section of [e2e.md](e2e.md).
 - `harness`: the repository's own end-to-end specs or scripts.
 - `run`: this skill's own pseudo-terminal and HTTP recipe in [non-ui.md](non-ui.md). It never means
   the bundled `run` skill drives.
-- `playwright`: the playwright CLI path, `/playwright:playwright` when the playwright plugin is
-  enabled.
+- `playwright`: the browser tool `browser_driver` names.
 - `chrome`: Claude in Chrome, for an attended run only.
 
 ### `reuse_running_instance`

@@ -3,13 +3,13 @@
 // the job-end api-calls notice (api-budget.bash api_budget_emit_calls).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests, createRateLimitLatch } from "./rate-guard.mjs";
-import { countedFetch, createGitHubApi as addressFeedbackApi } from "../../scripts/pr-unblock/address-feedback.mjs";
+import { guardedFetch, createGitHubApi as addressFeedbackApi } from "../../scripts/pr-unblock/address-feedback.mjs";
 import { createGitHubApi as dispatchApi } from "../../scripts/pr-unblock/dispatch.mjs";
 import { createGitHubApi as feedbackDispatchApi } from "../../scripts/pr-unblock/feedback-dispatch.mjs";
 import { budgetedFetch } from "../../scripts/pr-unblock/request-budget.mjs";
@@ -114,14 +114,37 @@ test("a fetch that already counts is counted once, however often it is wrapped",
     assert.equal(lines("github-token"), LINE);
   }));
 
-test("address-feedback's client counts each attempt, a resent read included, through countedFetch", () =>
+test("address-feedback's client counts each attempt, a resent read included, through guardedFetch", () =>
   withBudget({ API_BUDGET_TOKEN: "github-token" }, async (lines) => {
     const answers = [500, 200];
     const fetch = async () => new Response(JSON.stringify({ number: 1 }), { status: answers.shift(), headers: READING });
-    const api = addressFeedbackApi({ token: "t", repository: "o/r", apiUrl: API, graphqlUrl: `${API}/graphql`, fetch: await countedFetch(fetch), sleep: async () => {} });
+    const api = addressFeedbackApi({ token: "t", repository: "o/r", apiUrl: API, graphqlUrl: `${API}/graphql`, fetch: await guardedFetch(fetch), sleep: async () => {} });
     assert.deepEqual(await api.getPull(1), { number: 1 });
     assert.equal(lines("github-token"), `500 5000 4990 10 1792751600 core\n${LINE}`);
   }));
+
+const NOW_MS = 1_800_000_000_000;
+const stopLatch = (dir, stopped) => {
+  const stopFile = join(dir, "stop");
+  writeFileSync(stopFile, stopped ? `core ${NOW_MS / 1000 + 3600}\n` : "");
+  return createRateLimitLatch({ stopFile, now: () => NOW_MS, log: () => {}, fail: () => {}, limits: () => ({}) });
+};
+
+test("address-feedback's guardedFetch sends nothing while the job's stop file holds the REST pool, and reads without it", async () => {
+  const dir = tempDir("guarded-fetch-");
+  try {
+    const held = fake({ number: 1 });
+    const refused = addressFeedbackApi({ token: "t", repository: "o/r", apiUrl: API, graphqlUrl: `${API}/graphql`, fetch: await guardedFetch(held.fetch, stopLatch(dir, true)), sleep: async () => {} });
+    await assert.rejects(refused.getPull(1), { name: "RateLimitStop" });
+    assert.deepEqual(held.sent, []);
+    const open = fake({ number: 1 });
+    const read = addressFeedbackApi({ token: "t", repository: "o/r", apiUrl: API, graphqlUrl: `${API}/graphql`, fetch: await guardedFetch(open.fetch, stopLatch(dir, false)), sleep: async () => {} });
+    assert.deepEqual(await read.getPull(1), { number: 1 });
+    assert.deepEqual(open.sent, [`GET ${API}/repos/o/r/pulls/1`]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("dispatch's client counts each request, and once when handed budgetedFetch", () =>
   withBudget({ API_BUDGET_TOKEN: "github-token" }, async (lines) => {
@@ -150,9 +173,6 @@ test("feedback-dispatch's client counts each request, and once when handed budge
     assert.equal(lines("github-token"), LINE + LINE);
   }));
 
-// The mains run from the base checkout build their address-feedback client
-// with countedFetch, over the global fetch. Each answers 404 here, so a main
-// stops at its first request; every request it sent is one reading.
 const ROOT = new URL("../../../", import.meta.url).pathname;
 const SHA = "a".repeat(40);
 for (const [name, run] of [
@@ -260,6 +280,20 @@ test("a 4xx or 5xx answer is a lane run report row, by path with no query; a 2xx
         { method: "GET", path: "/repos/o/r/pulls/1", status: 404 },
         { method: "POST", path: "/graphql", status: 503 },
       ],
+    );
+  }));
+
+test("a GET 404 on a tag ref is no lane run report row, twice over; a 404 on another ref still is", () =>
+  withBudget({ API_BUDGET_TOKEN: "github-token" }, async () => {
+    const answers = [404, 404, 404];
+    const send = countRequests(async () => new Response(null, { status: answers.shift(), headers: READING }));
+    await send(`${API}/repos/o/r/git/ref/tags/main`);
+    await send(`${API}/repos/o/r/git/ref/tags/main`);
+    await send(`${API}/repos/o/r/git/ref/heads/main`);
+    const file = join(process.env.RUNNER_TEMP, "lane-run-report", "api-failures.jsonl");
+    assert.deepEqual(
+      readFileSync(file, "utf8").trim().split("\n").map((line) => JSON.parse(line)),
+      [{ method: "GET", path: "/repos/o/r/git/ref/heads/main", status: 404 }],
     );
   }));
 
