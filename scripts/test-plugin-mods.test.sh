@@ -31,9 +31,21 @@ new_case() {
   done
 }
 
+manifest() { # <plugin> <json>
+  mkdir -p "$f/plugins/$1/.claude-plugin"
+  printf '%s\n' "$2" >"$f/plugins/$1/.claude-plugin/plugin.json"
+}
+
+claude_floor() { # <plugin> <min>
+  printf '{"requires": [{"id": "claude", "detect": {"any": ["claude"]}}, {"id": "claude-mods", "detect": {"any": ["claude"], "version": {"min": "%s"}}}]}\n' "$2" >"$f/plugins/$1/prerequisites.json"
+}
+
+ENGINES='{"name": "p", "engines": {"claude-code": ">=2.1.287"}}'
+
 hooks_json() { # <plugin> <json>
   mkdir -p "$f/plugins/$1/hooks"
   printf '%s\n' "$2" >"$f/plugins/$1/hooks/hooks.json"
+  manifest "$1" "$ENGINES"
 }
 
 # stub_claude <version> <test-exit>: logs each `plugin test` dir to calls.log;
@@ -164,5 +176,28 @@ hooks_json withmod "$MOD"
 register_file withmod register.tsx
 stub_claude 2.1.300 0
 run 0 "a register file beside a modules array passes"
+
+new_case
+hooks_json bare "$MOD"
+manifest bare '{"name": "bare"}'
+hooks_json classic "$CLASSIC"
+manifest classic '{"name": "classic"}'
+stub_claude 2.1.300 0
+run 1 "a mod with no engines range fails the run"
+assert_output_contains "no-engines line" "plugins/bare ships a mod but declares no engines[\"claude-code\"] range"
+no_test_ran "a mod with no engines range runs no test"
+
+new_case
+hooks_json drift "$MOD"
+claude_floor drift 2.1.290
+stub_claude 2.1.300 0
+run 1 "an engines range other than the prerequisites floor fails the run"
+assert_output_contains "drift line" "plugins/drift ships a mod but declares engines[\"claude-code\"] \">=2.1.287\", not \">=2.1.290\""
+
+new_case
+hooks_json matched "$MOD"
+claude_floor matched 2.1.287
+stub_claude 2.1.300 0
+run 0 "an engines range equal to the prerequisites floor passes"
 
 test_harness::report

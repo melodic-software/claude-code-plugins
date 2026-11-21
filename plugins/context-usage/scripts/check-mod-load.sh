@@ -4,6 +4,11 @@
 # against the mods floor in prerequisites.json, then how to read this session's
 # state. Exits 1 when a row fails. Installs nothing. Takes no arguments.
 #
+# plugin.json also declares the floor as engines["claude-code"], but only
+# 2.1.323 and later read that field, so builds from 2.1.76 below the floor
+# still load the plugin and this check keeps its own copy:
+# https://code.claude.com/docs/en/plugins/manifest-reference#fields
+#
 # The session row is INFO because only the agent sees its own tool list; a child
 # process never sees this session's flags or settings overlay.
 # What turns mods off, and the floor's source:

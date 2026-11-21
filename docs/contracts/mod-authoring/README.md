@@ -132,17 +132,32 @@ messages before debugging the mod.
 
 - Lay out the plugin as the reference page's files table says. Commit the root `tsconfig.json`
   Claude Code writes; never commit `.claude-plugin/types/`.
-- Declare Claude Code 2.1.287 as the floor in the plugin's README with the version tested against.
+- The floor's home is `engines["claude-code"]` in `.claude-plugin/plugin.json`: `">=2.1.287"`, or
+  a higher floor the mod needs. The README names the floor and the version tested against.
+- Claude Code reads `engines` only from 2.1.323, so a build from 2.1.76 below the floor still
+  installs and loads the plugin; 2.0.15 through 2.1.75 refuse the manifest. A plugin that checks
+  the floor at runtime keeps `detect.version.min` on the `prerequisites.json` entry that detects
+  `claude`, which the shared prerequisites checker reads, equal to the `engines` floor.
 - `scripts/validate-plugins.sh` runs `claude plugin validate --json` on every plugin, then
   `scripts/test-plugin-mods.sh`, which runs `claude plugin test` on every plugin whose `hooks.json`
-  names `modules`, and fails a plugin whose `hooks/` holds a `register.*` file while its
-  `hooks.json` names no `modules`. CI runs it with the CLI pinned in `package.json`; a local run on the current
-  release catches a release newer than the pin.
+  names `modules`. That script fails a plugin whose `hooks/` holds a `register.*` file while its
+  `hooks.json` names no `modules`, and a mod plugin whose `plugin.json` declares no
+  `engines["claude-code"]` or one other than `">="` that `prerequisites.json` floor. CI runs
+  it with the CLI pinned in `package.json`; a local run on the current release catches a release
+  newer than the pin.
 
 - **Pointer**: for the files, see
   [reference: files](https://code.claude.com/docs/en/plugins/mods/reference#files); for names
   `validate` refuses and the tested-version note, see
-  [create: share your mod](https://code.claude.com/docs/en/plugins/mods/create#share-your-mod).
+  [create: share your mod](https://code.claude.com/docs/en/plugins/mods/create#share-your-mod);
+  for `engines`, the version that reads it, and the older versions that refuse a manifest with it,
+  see the `engines` row of
+  [manifest reference: fields](https://code.claude.com/docs/en/plugins/manifest-reference#fields).
+- **As of**: 2026-11-21, Claude Code 2.1.329. The 2.1.323 changelog entry says a plugin outside its
+  range is not installed, updated or loaded, and install and update pick the newest version that
+  fits.
+- **Recheck trigger**: the `engines` row changes the version that reads it or what happens outside
+  the range.
 
 ## Before relying on `$.process` or `session.start`
 

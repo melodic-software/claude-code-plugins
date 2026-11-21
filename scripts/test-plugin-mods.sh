@@ -3,8 +3,10 @@
 # whose "modules" array is non-empty (ADR 0052 adopts mods). Exits 0 with a
 # skip line when no plugin ships a mod, when
 # `claude` is not on PATH, or when the CLI predates `claude plugin test` (mods
-# need 2.1.287). Exits 1 when any mod's tests fail or a plugin ships a
-# hooks/register.* file that its hooks.json names no modules for, and 2 when
+# need 2.1.287). Exits 1 when any mod's tests fail, a plugin ships a
+# hooks/register.* file that its hooks.json names no modules for, or a mod
+# plugin's plugin.json declares no engines["claude-code"] range or one other
+# than ">=" the claude version floor in its prerequisites.json, and 2 when
 # node, which reads hooks.json, is not on PATH.
 # Basis: https://code.claude.com/docs/en/plugins/mods/test#write-a-test (as of
 # 2026-10-30: `claude plugin test` runs the *.test.ts files and exits 1 when a test
@@ -34,22 +36,50 @@ version_at_least() {
   return 0
 }
 
+engines_error() { # <plugin dir>
+  node -e '
+const fs = require("fs");
+const read = (file) => {
+  try {
+    return JSON.parse(fs.readFileSync(process.argv[1] + "/" + file, "utf8"));
+  } catch {
+    return null;
+  }
+};
+const range = read(".claude-plugin/plugin.json")?.engines?.["claude-code"];
+if (typeof range !== "string" || !range.trim()) {
+  console.log("declares no engines[\"claude-code\"] range in .claude-plugin/plugin.json");
+  process.exit(0);
+}
+const floor = read("prerequisites.json")?.requires?.find(
+  (entry) => Array.isArray(entry?.detect?.any) && entry.detect.any.includes("claude") && entry.detect.version?.min,
+)?.detect.version.min;
+if (floor && range !== ">=" + floor) {
+  console.log("declares engines[\"claude-code\"] \"" + range + "\", not \">=" + floor + "\" from the claude version floor in prerequisites.json");
+}' "$1"
+}
+
 mods=()
-unloaded=0
+invalid=0
 for dir in plugins/*/hooks; do
   hooks="$dir/hooks.json"
   if [[ -f "$hooks" ]] && node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).modules;
 process.exit(Array.isArray(m) && m.length > 0 ? 0 : 1)' "$hooks" 2>/dev/null; then
     mods+=("${dir%/hooks}")
+    why="$(engines_error "${dir%/hooks}")"
+    if [[ -n "$why" ]]; then
+      echo "error: ${dir%/hooks} ships a mod but $why" >&2
+      invalid=1
+    fi
     continue
   fi
   for register in "$dir"/register.*; do
     [[ -f "$register" ]] || continue
     echo "error: ${dir%/hooks} ships hooks/${register##*/} but hooks/hooks.json names no modules, so Claude Code never loads it" >&2
-    unloaded=1
+    invalid=1
   done
 done
-((unloaded == 0)) || exit 1
+((invalid == 0)) || exit 1
 
 if [[ ${#mods[@]} -eq 0 ]]; then
   echo "claude plugin test: skipped, no plugin ships a mod"

@@ -7,6 +7,9 @@
   },
   "version": "0.9.3",
   "license": "MIT",
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "types": "./types/index.d.ts",
   "keywords": [
     "plugins",
