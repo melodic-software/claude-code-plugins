@@ -1152,7 +1152,7 @@ test("an answer, a needs-human lift or a field release on a routing-labeled issu
       assert.equal(await runRouted(w, env, { log: (line) => lines.push(line) }), 0, routed);
       assert.deepEqual(w.writes, [], `${routed}: no label removal, status write, record or dispatch`);
     }
-    assert.deepEqual(lines, Array(3).fill(`intake-reenter: the issue carries '${routed}', a container or wayfind label, so the skill that filed it routes it; nothing changed`));
+    assert.deepEqual(lines, Array(3).fill(`intake-reenter: the issue carries '${routed}', a container, wayfind or session-owned label, so the skill or session that filed it routes it; nothing changed`));
   }
 });
 

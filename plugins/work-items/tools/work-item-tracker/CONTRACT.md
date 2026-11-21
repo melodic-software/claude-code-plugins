@@ -399,7 +399,9 @@ assignee AND not a container (a container item is never its own frontier item, s
 "Containers and state") AND no label starting with the wayfind prefix (`config.wayfind_label_prefix`,
 default `wayfind:`; a wayfind map item belongs to
 `/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
-`needs-human` are additionally excluded, as are items carrying the **human-floor class**
+`needs-human` are additionally excluded, as are items carrying the `session-owned` role label
+(`config.role_labels["session-owned"]`, default `session-owned`), which a local session works itself,
+and items carrying the **human-floor class**
 label `provenance: untrusted` (C5) or the
 `provenance: signal` label, which are human-gated regardless of any other signal, and items carrying a hold label
 (`config.hold_labels`, default the `owner-decision` role label, `needs-reporter-info` and `needs-spec`),

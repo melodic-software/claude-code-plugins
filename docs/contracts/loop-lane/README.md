@@ -1554,6 +1554,23 @@ claims.
 Neither step recalls a worker already dispatched on the item: `/work-items:work` checks the
 frontier at selection, not after its claim. To keep that work from merging, hold its PR.
 
+**Keep the lanes off work a local session owns.** When a local Claude Code session will do the work
+itself, apply the session-owned role label, not the human-gated one (default `session-owned`, key
+`config.role_labels["session-owned"]`), resolved from the binding the same way. The human-gated
+label means an owner decision is needed; the session-owned label means no decision is pending and
+the lanes skip the item. Intake triage,
+the triage sweep, intake re-entry, the WIP cap, the issue lane's admission and the unblock sweep
+skip it (`.github/actions/check-born-triaged`), and `list-frontier --autonomous` excludes it, so
+`work-loop` never admits it, while the interactive frontier keeps it for the owning session. The
+label is about ownership only: whether a person drives a run stays `attended` or unattended.
+
+```bash
+L=$(yq -o=json -e '.tracker' "<project root>/docs/conventions/work-items.yaml" 2>/dev/null |
+  jq -r '.config.role_labels["session-owned"] // empty' 2>/dev/null)
+L=${L:-session-owned}
+gh issue edit <n> -R "$R" --add-label "$L"
+```
+
 **Hold a PR (merge lane).** `do-not-merge` is the only cross-lane hold, and
 [Cross-lane PR hold](#cross-lane-pr-hold) owns its rules. The commands, in the order that section
 requires (freshness read, hold, then explanation):
