@@ -233,13 +233,20 @@ run of `inert` records.
 ## The auto-mode entry diff
 
 The diff reports these allow rules as dropped on entering auto mode and restored on leaving it:
-blanket `Bash(*)` or `PowerShell(*)`, wildcarded interpreters such as `Bash(<interpreter>*)`, rules
-letting a package manager run project scripts, any `Agent` allow rule, and any `Monitor` allow
-rule (from v2.1.236; before that version a `Monitor` allow rule stayed in effect in auto mode). A
-narrow rule such as `Bash(git status)` carries over.
+blanket `Bash(*)` or `PowerShell(*)`, wildcarded interpreters such as `Bash(<interpreter>*)`, a
+process wrapper followed only by a wildcard (`Bash(timeout *)`), shell rules that start with a
+wildcard (`Bash(* --version)`), wildcarded paths that start with `$HOME` or name a Windows
+backslash program other than a `.\` path, rules that run a package (path and version forms such as
+`Bash(/usr/bin/npm run:*)` and `Bash(pnpm@9 dlx *)` included), any `Agent` allow rule, and any
+`Monitor` allow rule (from v2.1.236; before that version a `Monitor` allow rule stayed in effect in
+auto mode). A narrow rule such as `Bash(git status)` carries over.
+
+The page lists "some wildcarded paths" and names only the `$HOME` and Windows backslash examples, so
+the diff reports other path forms as kept. The package-runner path and version forms come from
+[changelog 2.1.327](https://code.claude.com/docs/en/changelog), which the page does not reflect yet.
 
 - **Pointer**: [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
-- **As of**: 2026-08-26
+- **As of**: 2026-11-21
 - **Recheck trigger**: a release note or that section adds, removes or narrows a dropped class.
 
 ### The precondition: which sessions enter auto mode at all
@@ -254,8 +261,9 @@ mode it never enters.
   [Which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   (correlate with [the announcement](https://claude.com/blog/auto-mode-default-in-claude-code), 2026-08-14).
 
-Five documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
-`interpreter-wildcard`, `package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not
+Eight documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
+`interpreter-wildcard`, `wrapper-wildcard`, `leading-wildcard`, `path-wildcard`,
+`package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not
 defined here: they live in `lib/permission-patterns.sh`, shared with `audit-permission-grants` check
 P1, so a class change lands once. `agent` and `monitor` are whole-tool classes with no shell pattern
 to share, so the diff driver tests them on the tool token instead.

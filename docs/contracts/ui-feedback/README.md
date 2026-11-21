@@ -115,6 +115,14 @@ validator checks every note, takes all or none, skips a note already in the log,
 imported notes toward `x-maxNotesPerRun`, and refuses while a server runs on the data dir. The
 block is data like any note; it is never run as text.
 
+Copy chosen design copies the mockup's own copy-out terminator text. A page whose terminator text
+comes from a `window.uiFeedbackCopyOut()` function returning a string says so in the ready message
+(`copyOut: true`). The host page then asks with `{type: "copy-out"}`, and the frame helper answers
+`{type: "chosen", text}`. The host page keeps one reply per ask, and only when `chosenFrom`
+(`frame-channel.mjs`) admits it: a non-empty string of at most 8000 code points, kept whole, with
+no `<` before a letter, `!`, `/` or `?`, and no control character but tab and line breaks. It sets
+the text as a textarea value and copies it; it never renders it as markup.
+
 ## Controls
 
 `controls.schema.json` defines the controls manifest: the one list of what can vary on the framed

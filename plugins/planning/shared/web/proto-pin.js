@@ -635,6 +635,7 @@
     else if (m.type === "name") names(m.targets);
     else if (m.type === "set") setControls(m.values);
     else if (m.type === "press" && !mode) replay([m.step]);
+    else if (m.type === "copy-out") post({ type: "chosen", text: copyOut() });
     else if (m.type === "focus") {
       const p = pins.find(x => x.n === m.n);
       if (!p) return;
@@ -643,9 +644,20 @@
       else scrollTo({ top: Math.max(0, at.y - innerHeight / 3), behavior });
     }
   });
+  /** The page's copy-out terminator text, from the function its own terminator calls; null when it has none. */
+  function copyOut() {
+    try {
+      const t = typeof window.uiFeedbackCopyOut === "function" ? window.uiFeedbackCopyOut() : null;
+      return typeof t === "string" ? t : null;
+    } catch (err) {
+      console.error("ui-feedback: the page's uiFeedbackCopyOut threw", err);
+      return null;
+    }
+  }
   const marks = [...document.querySelectorAll("[data-data-control]")].map(stepOf).filter(Boolean);
   post({
     type: "ready",
+    copyOut: typeof window.uiFeedbackCopyOut === "function",
     controls: window.uiFeedbackControls?.manifest() ?? null,
     data: [...new Map(marks.map(m => [JSON.stringify(m), m])).values()],
     content: document.querySelector('[data-content-set="demo"]') && document.querySelector('[data-content-set="worst"]') ? root.dataset.vsContent || null : null,

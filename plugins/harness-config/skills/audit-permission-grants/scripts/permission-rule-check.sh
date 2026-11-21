@@ -8,11 +8,13 @@
 #       entering auto mode (blanket Bash(*)/PowerShell(*), wildcarded
 #       interpreters like Bash(python*), package-manager wildcards — runner
 #       subcommands (Bash(npx *)) and bare package managers (Bash(npm:*),
-#       Bash(npm *)) — script-glob interpreters like Bash(*.py:*), and Agent
-#       allow rules —
+#       Bash(npm *)), with their path and version forms — script-glob
+#       interpreters like Bash(*.py:*), a wrapper followed only by a wildcard
+#       (Bash(timeout *)), leading-wildcard rules (Bash(* --version)), the
+#       $HOME and Windows backslash wildcarded paths, and Agent allow rules —
 #       both bare Agent and Agent(...), which auto mode drops categorically).
 #       Narrow rules such as Bash(npm test) carry over and are NOT flagged.
-#       Monitor allow rules are a sixth documented drop class (upstream
+#       Monitor allow rules are another documented drop class (upstream
 #       v2.1.236) that this detector does not scan; audit-permission-state
 #       owns it — see reference/criteria.md, P1.
 #   P2  hardcoded absolute user/machine home paths inside a rule. Bash rules
@@ -476,7 +478,7 @@ scan_rule() {
   path_remedy="$(portable_path_remedy "$file")"
   remedy="$(inert_grant_remedy "$file")"
   while IFS= read -r m; do
-    [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
+    [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is a broad interpreter-, runner- or wildcard-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, wildcarded/globbed-target interpreters, wrapper-only and leading wildcards, and \$HOME or Windows backslash wildcarded paths) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(rule_matches "$text" "$CCPERM_P1_ERE")
   while IFS= read -r m; do
     # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the

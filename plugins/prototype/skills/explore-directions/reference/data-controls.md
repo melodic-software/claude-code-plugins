@@ -52,6 +52,10 @@ Top-left, fixed, clear of the switcher's bottom-center bar and the control panel
 corner. When a variant occupies the top-left, move the bar to the left edge, centered vertically,
 rather than shrinking it.
 
+Mark the bar's container `data-harness-chrome`. When the notes host page frames the mockup, the
+bundled switcher hides every element so marked, and the host page's Sample data menu presses the
+hidden controls. Opened alone from `file://`, the page keeps its own bar.
+
 ## On the real stack
 
 The page's own data loading is the source, and every write is stubbed (or sent to a declared vendor

@@ -21,7 +21,7 @@ Interpreter- or runner-led frontmatter grants (shapes like `Bash(bash <script>:*
 forms (a globbed script target, a package runner) are exactly what auto mode drops.
 When a grant is dropped the failure is silent: it parses, looks correct, and does nothing the moment
 the session enters auto mode, so the action falls through to the classifier and can be denied even when
-the operator intended to pre-approve it. A convention plus an enforceable check is the durable fix.
+the operator intended to pre-approve it.
 
 ## Write every rule for the auto-mode case
 
@@ -63,16 +63,33 @@ On entering [auto mode](https://code.claude.com/docs/en/permission-modes#elimina
 Claude Code **drops broad allow rules that grant arbitrary code execution**. Per the official decision
 order:
 
-> On entering auto mode, broad allow rules that grant arbitrary code execution are dropped:
-> Blanket `Bash(*)` or `PowerShell(*)`; Wildcarded interpreters like `Bash(python*)`; Package-manager
-> run commands; `Agent` allow rules; `Monitor` allow rules, because Claude Code runs Monitor commands
-> through the shell. Narrow rules like `Bash(npm test)` carry over. Dropped rules are
-> restored when you leave auto mode.
+> On entering auto mode, broad allow rules that grant arbitrary code execution are dropped,
+> including: Blanket `Bash(*)` or `PowerShell(*)`; Wildcarded interpreters like `Bash(python*)`; A
+> wrapper followed only by a wildcard, like `Bash(timeout *)`; Shell rules that start with a
+> wildcard, like `Bash(* --version)`; Some wildcarded paths, like `Bash($HOME/bin/*)` or
+> `PowerShell(C:\tools\x.exe *)`; Package-manager run commands; `Agent` allow rules; `Monitor`
+> allow rules, because Claude Code runs Monitor commands through the shell. Narrow rules like
+> `Bash(npm test)` stay in effect. Claude Code restores the dropped rules when you leave auto mode.
 >
-> [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-> ("How the classifier evaluates actions"; re-fetched 2026-08-26. The `Monitor` category was
+> [permission-modes](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
+> ("How the classifier evaluates actions"; re-fetched 2026-11-21. The `Monitor` category was
 > added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode;
 > recheck when that dropped-rules list changes)
+
+[Changelog 2.1.327](https://code.claude.com/docs/en/changelog) widens the package-manager class:
+auto mode now ignores "more allow rules that run any package, like `Bash(pnpm dlx *)`, and path or
+version forms of ones it already ignored (`/usr/bin/npm run:*`)". The page does not say so yet.
+
+Each class's place in the P1 detectors of `/harness-config:audit-permission-grants`:
+
+| Class | P1 scope |
+| --- | --- |
+| Blanket, wildcarded interpreter, package-manager run (path and version forms included) | In scope |
+| Wrapper followed only by a wildcard | In scope, for the wrappers the [process-wrappers](https://code.claude.com/docs/en/permissions#process-wrappers) section strips from Bash rules |
+| Shell rule that starts with a wildcard | In scope |
+| Wildcarded path | In scope for the two forms the page names: a rule that starts with `$HOME`, and a Windows backslash program other than a `.\` path (2.1.327 restored those). The page's "some" names no other form, so P1 leaves the rest out |
+| `Agent` | In scope (its own scan) |
+| `Monitor` | Out of scope: `/harness-config:audit-permission-state` reports it in its auto-mode entry diff |
 
 The [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
 restates it and adds that `autoMode.classifyAllShell: true` suspends even the narrow shell allow rules:
@@ -276,21 +293,12 @@ than a capability to build on, on this platform. Two substitutes look attractive
   2026-11-04; recheck when that entry stops covering subprocesses): it carries the same
   version-pinned-path rot, and overriding `PATH` wholesale in settings is its own hazard.
 
-One candidate is untested rather than rejected. Bash rules accept a wildcard in any position,
-including leading, so a rule anchored on the wrapper's own name rather than on the interpreter could
-reach the bundled-path invocation without naming one. Two things have to be established before
-building on it.
-
-- **It has to match the invocation as actually written.** The documented bundled-path form quotes the
-  path, so the character following the wrapper name is a closing quote, not a space. A candidate
-  shaped `Bash(*<wrapper-name> *)` does not match it, and fails before the auto-mode question is even
-  reached. Derive the candidate from the exact command string operators are told to run.
-- **Whether a leading-wildcard rule survives auto mode is unverified.** The documented drop list
-  enumerates blanket rules, wildcarded interpreters, package-manager runners, `Agent` rules, and
-  `Monitor` rules, and says nothing about a leading wildcard in the command position.
-
-Weigh too that a rule anchored on a bare wrapper name matches that name at *any* path, including an
-unvetted copy.
+A third substitute fails too: a rule anchored on the wrapper's own name behind a leading wildcard,
+shaped `Bash(*<wrapper-name> *)`. Bash rules accept a wildcard in any position, but auto mode drops
+shell rules that start with a wildcard (anti-pattern 1), so the rule grants nothing there. It also
+fails to match the bundled-path form as written: that form quotes the path, so the character after
+the wrapper name is a closing quote, not a space. And a rule anchored on a bare wrapper name matches
+that name at *any* path, including an unvetted copy.
 
 ## Probed behaviors
 
