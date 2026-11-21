@@ -212,7 +212,7 @@ const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace
 // pronoun that could point at the secret but "it", or a word in another
 // script, holds. "this" and "that" count only before "lane", "needs" or "ci".
 const CAPABILITY_WORDS = new Set(
-  "a an the and or to on of for with not no cannot can does do only lane host desktop machine gpu run runs need needs requires lacks hold invoke call calls spend paid credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver it has role s ci azure gh dequeue step merge job whose read write cover workflow".split(" "),
+  "a an the and or to on of for with not no cannot can does do only lane host desktop machine gpu run runs need needs requires lacks hold invoke call calls spend paid credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver it has have had role s ci azure gh dequeue step merge job whose read write cover workflow".split(" "),
 );
 const capabilityOnly = (text) => {
   const words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);

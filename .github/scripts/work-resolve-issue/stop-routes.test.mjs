@@ -268,6 +268,9 @@ test("an ending reason that names a token or credential only in a technical sens
     "manual-external: this lane has no gh and no token.",
     "host-only: the lane has no Azure token",
     "host-only: this lane has no gh or no secret",
+    "host-only: the job had no credentials",
+    "host-only: the job had no Azure credentials",
+    "host-only: the job and the lane have no API key",
   ]) {
     assert.equal(runCode(reason), reason.split(":")[0], reason);
     assert.equal(securityWord(reason), "", reason);
