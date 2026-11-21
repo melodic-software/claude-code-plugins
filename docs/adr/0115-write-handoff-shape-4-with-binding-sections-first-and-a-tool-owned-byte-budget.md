@@ -31,12 +31,21 @@ reads of handoff chains cost up to 250,000 tokens.
    Decisions in force, Pending commands, Environment to re-establish, This session, Review before
    you continue. Direction changes, Observations and Suggested skills are movable. Prior sessions
    and Resume prompt are carried by the tool.
-3. **`new` and `fill` own the byte budget, the fit and the verdict.** `new` prints the remaining
-   budget under the 24,600-byte hot-file cap. When the file is over the cap, `fill` moves whole
-   movable sections to this hop's file in the order Observations, Suggested skills, then Direction
-   changes lines older than the last 3 hops. Each move leaves a pointer in Review before you
-   continue, and `validate` fails a pointer whose file or heading does not exist. `fill` validates
-   in memory, writes both files in one guarded write, and prints the verdict and the resume prompt.
+3. **`new` and `fill` own the byte budget, the fit and the verdict.** Two separate operations
+   keep the hot file small:
+   - **Age fold, in `new`.** A Direction changes line whose newest hop tag is 3 or more hops old
+     moves to the hop file of the hop that folds it. One `- Folded:` line stays in Direction
+     changes and points at the folded lines.
+   - **Over-cap move, in `fill`.** When the file is over the 24,600-byte cap, `fill` moves whole
+     movable sections to this hop's file under `## <Section> (h<k>)`, in the order Observations,
+     Suggested skills, then Direction changes. A moved Direction changes section includes its
+     newest lines; nothing guarantees recent direction changes stay inline. A `- Moved:` line
+     pointing at the hop-file heading replaces the moved section's body, inside that section.
+     `save_point.py read --section` follows it, and exits 1 when the file or heading is not on
+     disk.
+
+   `new` prints the remaining budget. `fill` validates in memory, writes both files in one guarded
+   write, and prints the verdict and the resume prompt.
 4. **Binding content over the cap is reported, not failed.** When the binding and carried sections
    alone exceed the cap, `fill` still writes both files and the resume prompt, exits 0, and prints
    one `OVER-CAP:` line naming the section and how to shrink it. To shrink, retire entries per ADR
@@ -59,7 +68,8 @@ reads of handoff chains cost up to 250,000 tokens.
 
 - Writers hold two calls and no fit rules. Size classes, order and the move policy live in the
   script, not in the skill's prose.
-- A reader reaches moved history through the pointers in Review before you continue.
+- A reader reaches moved history through the `- Moved:` and `- Folded:` lines left in each
+  moved section.
 - The 24,600-byte cap stays fixed until a passing eval justifies another number.
 - Resume-eval runs keep the owner's guardrails hooks loaded. #17874 counts hook-blocked runs per
   arm, so a format that leads readers into a hook shows up apart from accuracy.
