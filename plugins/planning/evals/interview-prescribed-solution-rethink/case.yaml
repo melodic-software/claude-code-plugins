@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: rethink-or-accept-asked
     type: regex
-    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\brethink\b)(?=[^\n]*(?:\b(?:accept|keep|go (?:ahead )?with|proceed with|stick with)\b[^\n]{0,60}\bwrapper\b|\bwrapper\b[^\n]{0,30}\b(?:stand|stay|the right (?:fix|approach))\b))'
+    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\brethink\b)(?=[^\n]*(?:\b(?:accept|keep|go (?:ahead )?with|proceed with|stick with)\s+(?:the\s+|a\s+)?(?:retry\s+)?wrapper\b(?![’'']s)|\b(?:is|should)\s+(?:the\s+|a\s+)?(?:retry\s+)?wrapper\s+(?:stand|stay|(?:be\s+)?the right (?:fix|approach))\b))'
     flags: i
     arm: both
   - name: no-plan-write

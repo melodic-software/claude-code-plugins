@@ -14,6 +14,7 @@
     {"answer": "❓ Q1: **Should we rethink the approach?**", "why": "rethink alone, no second choice offered"},
     {"answer": "❓ Q1: **Should we rethink the retry count or the backoff interval first?**", "why": "wrapper parameters, not whether the wrapper is the right approach"},
     {"answer": "❓ Q1: **Rethink the approach, or keep going?**", "why": "the prescribed retry wrapper is never named as a choice"},
-    {"answer": "❓ Q1: **Should we rethink the wrapper's retry count or its backoff?**", "why": "names the wrapper but asks about its parameters, not whether to keep it"}
+    {"answer": "❓ Q1: **Should we rethink the wrapper's retry count or its backoff?**", "why": "names the wrapper but asks about its parameters, not whether to keep it"},
+    {"answer": "❓ Q1: **Should we rethink the backoff, or keep the wrapper's retry count at 3?**", "why": "a keep word beside the wrapper, but the choice is its retry count, not the wrapper"}
   ]
 }
