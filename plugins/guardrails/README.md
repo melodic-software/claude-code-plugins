@@ -133,7 +133,7 @@ hooks) under the check-placement convention's contract
 (`docs/contracts/check-placement/README.md` in the marketplace repository): local
 scope is this clone only. Shared scope with lefthook adds one `remotes:` entry to the
 committed `lefthook.yml`, so every clone runs the hooks from this marketplace repository's
-`main` branch (`git-hooks/lefthook-remote.yml`), refetched hourly: whoever can merge to that
+`main` branch (`git-hooks/lefthook-remote.yml`), refetched hourly, so whoever can merge to that
 `main` runs code in every such clone within an hour, with its user's privileges and git
 credentials. With husky or plain hooks it commits copies under
 `.githooks/guardrails/`. A clone whose fetched remote no longer parses (every commit and
@@ -460,7 +460,7 @@ out of scope until such a signal exists.
   `mcp__plugin_<plugin>_github__<tool>`. Pointer:
   <https://code.claude.com/docs/en/hooks#match-mcp-tools>. As of: 2026-09-27.
   Recheck trigger: that section changes how a plugin-bundled server's tools are
-  named. This closes a real hole. A
+  named. A
   `Write|Edit` matcher does not see an MCP write, so a session could be cleared
   by these guards and still push the same secret to a repository by another
   route, where there is no local file to fix afterwards and no `pre-commit`
@@ -1334,7 +1334,7 @@ the always-on write path pays nothing for it.
 
 *Method.* Wall time of 20 to 30 dispatcher runs per payload, divided by the run
 count, on an otherwise idle host, `HOOK_TELEMETRY_SINK` unset. Absolute
-milliseconds rather than spawn-equivalents: this is a same-host before/after on one
+milliseconds rather than spawn-equivalents, because this is a same-host before/after on one
 machine, and a spawn-equivalent only survives a host change for a spawn-dominated
 hook.
 
@@ -1576,8 +1576,8 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
   some genuine stalls are still denied for it. On a shell whose `read -t`
   accepts fractional values the bound is read in four slices, so a stall is
   declared within a quarter of the configured interval of it. That quarter is
-  the limit of the approximation, and it errs toward waiting rather than toward
-  calling a live producer dead. Where fractional timeouts are unavailable (Bash
+  the limit of the approximation, and it waits longer rather than
+  declaring a live producer dead. Where fractional timeouts are unavailable (Bash
   3.2, the macOS system shell) the bound is read as one window instead, and a
   producer that sends bytes and then goes silent can take up to **two** intervals
   to be declared stalled. A value this shell's
@@ -1979,7 +1979,7 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 block-dangerous-git and block-root-delete-target ask instead of blocking when
 `CLAUDE_CODE_SESSION_ATTENDED` is `1`, and settings-write-ask asks only then, denying
 otherwise. Every interactive session reads `1`, including one
-left running with nobody at it, and there the ask waits for an answer that never comes.
+left running with nobody at it, and there the ask blocks with nobody to answer it.
 Claude Code tells a hook nothing about whether a person is watching, so the session has to
 say so: set `GUARDRAILS_SESSION_UNWATCHED=1` in the environment you start it from, or under
 `env` in a settings file. Then those guards block as they do in `claude -p`, and the reason
