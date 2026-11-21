@@ -15,6 +15,8 @@ export const RESTART_GAP_MS = 3000;
 const NAME_REFUSED = new Set([400, 422]);
 // The state whose write starts the issue lane.
 const AGENT_READY = "agent-ready";
+// The state a host-run or park stop writes.
+const STOPPED = "confirmed";
 const fold = (name) => String(name).toLowerCase();
 const notFound = (error) => error?.status === 404 || /\bstatus 404\b/.test(String(error?.message ?? error));
 const titleCased = (name) => name.charAt(0).toUpperCase() + name.slice(1);
@@ -146,9 +148,13 @@ export async function writeState({ github, repository, number, state, config, cu
 // removal that fails throws, so agent-ready is never set over a status label
 // left on, and a `set` whose field write then fails puts the removed labels
 // back.
+// A `set` that writes confirmed or a hold removes the agent-ready label after
+// the field write lands (dropAgentReadyLabel), so label queries stop reading
+// the issue as lane-ready; a removal that fails is logged, not thrown. A queue
+// state keeps the label: admission reads its `unlabeled` event as a stop.
 // A config that cannot be read makes every call throw StatusWriteError; a
 // trusted-actor list that cannot be read, every call that reads the field.
-export async function statusWriter({ env, github, repository, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+export async function statusWriter({ env, github, repository, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), log = console.log }) {
   let config;
   let trustedActors;
   let failure;
@@ -227,6 +233,18 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
     }
     throw error;
   };
+  const dropAgentReadyLabel = async (number) => {
+    for (const name of config?.labels?.[AGENT_READY] ?? []) {
+      try {
+        await github("DELETE", `/repos/${repository}/issues/${number}/labels/${encodeURIComponent(name)}`);
+      } catch (error) {
+        if (!notFound(error)) {
+          log(`::warning title=write-status::#${number}'s \`${name}\` label was not removed after its Work status left agent-ready: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+        }
+      }
+    }
+  };
+  const stopsLane = async (state) => state === STOPPED || (await import("./read-status.mjs")).HOLD_STATES.includes(state);
   const set = async (number, state, { fields, keepHold, releases, from } = {}) => {
     if (failure) {
       throw failure;
@@ -261,6 +279,9 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
       await restoreAndThrow(number, removed, error);
     }
     wrote.set(number, result.option);
+    if (result.outcome === "written" && (await stopsLane(state))) {
+      await dropAgentReadyLabel(number);
+    }
     return result;
   };
   const leaveAgentReady = async (number, state, { orUnset = false } = {}) => {
