@@ -4,6 +4,18 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [6.8.0] - 2026-11-21
+
+Changed guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+Claude Code release intake files each handoff row as its own lanes App issue, labeled
+`source: upstream-apply-changelog`, in place of one issue per release, which intake never split
+and admission never took. A row whose key or `Drift key:` line is already on an open lanes App
+issue files nothing. A replace row is a nomination for `/harness-ops:audit-native-overlap` held by a
+`Hold:` line, a docs-lag row is named in the run summary only, and a plan with a stop reason also
+files one stop notice with no row and no label. The "Claude Code release intake" section says so.
+
 ## [6.7.0] - 2026-11-20
 
 Changed guidance; minor under this contract's own rule. No required part, canonical name, or

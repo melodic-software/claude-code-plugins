@@ -5,6 +5,19 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.2.0] - 2026-11-21
+
+Minor. Additive operator guidance; no topology, escalation-contract mechanism, capability-tier or
+§4 invariant changed.
+
+- **Keep the lanes off work a local session owns (§7).** A new paragraph after "Skip an issue"
+  documents the session-owned role label (default `session-owned`,
+  `config.role_labels["session-owned"]`): a local Claude Code session applies it to work it will do
+  itself, the lanes' shared skip step and `list-frontier --autonomous` skip the item, and the
+  interactive frontier keeps it. It names when to use it rather than the human-gated label (an
+  owner decision is needed) and keeps `attended`/unattended as the word for whether a person
+  drives a run.
+
 ## [20.1.0] - 2026-11-21
 
 Minor. One more source of the eval-pair record; no topology, escalation-contract mechanism,

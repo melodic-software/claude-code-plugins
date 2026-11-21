@@ -33,6 +33,12 @@ test('every /bedroom word answers', { timeoutMs: 20000, options: QUIET }, async 
     expect(now, name).toMatch(/^on: /)
     expect(await run(`${name} maybe`)).toBe(`say on or off, as in /bedroom ${name} off; with neither, it flips`)
   }
+  await room.clock.advance(8000)
+  const screen = (await room.values())?.screen
+  expect(await run('tape on')).toMatch(/^the tape is already on\. If the room shows it otherwise, \/bedroom sync/)
+  expect(await run('console on')).toMatch(/^the console is already on\. If the room shows it otherwise, \/bedroom sync/)
+  await room.clock.advance(4000)
+  expect((await room.values())?.screen).toBe(screen)
 
   await room.clock.advance(7300)
   expect(await room.values()).toBeDefined()

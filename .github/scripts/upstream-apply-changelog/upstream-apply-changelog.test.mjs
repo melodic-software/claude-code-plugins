@@ -15,8 +15,9 @@ import {
   commitNetTree,
   driftKeyOf,
   fetchSynthetic,
-  fileReleaseHandoffs,
+  fileHandoffs,
   handoffMarker,
+  NOMINATION_HOLD,
   holdPathBranch,
   KEY,
   loadHoldPaths,
@@ -29,18 +30,21 @@ import {
   readPlan,
   readSynthetic,
   refuseBinary,
-  releaseIssue,
   releaseMarker,
   releasesFromStatus,
-  renderItems,
+  routeOf,
+  rowIssue,
   scheduledCandidates,
+  SOURCE_LABEL,
   STARTED_ARTIFACT,
   startedInWindow,
+  stopIssue,
   stoppedPlanText,
   SYNTHETIC_MESSAGE,
   syntheticBundle,
   validatePlan,
 } from "./upstream-apply-changelog.mjs";
+import { BODY_HOLD } from "../intake-triage/admit.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -94,7 +98,7 @@ test("a valid plan passes and a stopped plan keeps its handoffs and publishes no
     status: "stopped",
     stop_reason: "cap-exceeded",
     branches: [],
-    handoffs: [conformance],
+    handoffs: [{ ...conformance, body: "" }],
   });
   assert.equal(validatePlan(plan({ status: "stopped", stop_reason: "range-not-computed", handoffs: [] }), ctx).stop_reason, "range-not-computed");
   assert.equal(validatePlan(plan(), ctx).stop_reason, null);
@@ -239,12 +243,12 @@ test("ci-mode.md keys native drift per item: its example passes, and two items o
   assert.equal(validatePlan(plan({ handoffs }), ctx).handoffs.length, 2, "both keys pass and neither repeats the other");
 });
 
-test("the publish text holds every pull request and issue string publish can post, decoded", async () => {
+test("the publish text holds every pull request, row issue and summary string publish can post, decoded", async () => {
   const p = plan({
     handoffs: [
-      { key: "changelog:2.1.300..2.1.300:adopt:a", kind: "adopt", title: "first \"quoted\"", body: "line one\nline two" },
-      { key: "changelog:2.1.300..2.1.300:adopt:b", kind: "adopt", title: "second", body: "z".repeat(50000) },
-      { key: "changelog:2.1.300..2.1.300:adopt:c", kind: "adopt", title: "third", body: "y".repeat(50000) },
+      { key: "changelog:2.1.300..2.1.300:adopt:a", kind: "adopt", reason: "adopting is a decision", title: "first \"quoted\"", body: "line one\nline two" },
+      { key: "changelog:2.1.300..2.1.300:replace:b", kind: "nomination", title: "second", body: "z".repeat(50000) },
+      { key: "changelog:2.1.300..2.1.300:docs-lag:c", kind: "docs-lag", title: "third", body: "y".repeat(500) },
     ],
   });
   p.branches[0].pr.body = "Refs: #7407\nwith \"quotes\" and a tab\t.";
@@ -252,22 +256,24 @@ test("the publish text holds every pull request and issue string publish can pos
   const text = publishText(v, "2.1.300");
   assert.ok(text.includes(v.branches[0].pr.title));
   assert.ok(text.includes("with \"quotes\" and a tab\t."));
-  const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, api: f.api });
-  const posted = f.writes()[0].body;
-  assert.deepEqual(posted, releaseIssue("2.1.300", v.handoffs));
-  assert.equal(posted.type, "Task");
-  assert.ok(text.includes(posted.title) && text.includes(posted.body));
-  assert.ok(posted.body.includes("truncated proportionally"));
-  assert.ok(text.includes(renderItems(v.handoffs, Number.POSITIVE_INFINITY)));
-  assert.equal(publishText(validatePlan(plan({ handoffs: [] }), ctx), "2.1.300").includes(releaseMarker("2.1.300")), false);
+  const f = trackerApi();
+  const lines = [];
+  await fileHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, api: f.api, summary: (l) => lines.push(l) });
+  const posted = f.writes().map((w) => w.body);
+  assert.equal(posted.length, 2);
+  assert.deepEqual(posted, v.handoffs.slice(0, 2).map(rowIssue));
+  for (const issue of posted) assert.ok(text.includes(issue.title) && text.includes(issue.body));
+  assert.equal(lines.length, 1);
+  assert.ok(text.includes(lines[0]));
+  assert.equal(publishText(validatePlan(plan({ handoffs: [] }), ctx), "2.1.300").includes("upstream-apply-changelog"), false);
 });
 
-test("a stopped plan's publish text holds the issue it posts, stop line included, even with no handoffs", async () => {
+test("a stopped plan's publish text holds the stop notice it posts, even with no handoffs", async () => {
   const v = validatePlan(plan({ status: "stopped", stop_reason: "cap-exceeded", handoffs: [] }), ctx);
   const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, stop: v.stop_reason, api: f.api });
+  await fileHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, stop: v.stop_reason, api: f.api });
   const posted = f.writes()[0].body;
+  assert.deepEqual(posted, stopIssue("2.1.300", "cap-exceeded"));
   const text = publishText(v, "2.1.300");
   assert.ok(text.includes(posted.title) && text.includes(posted.body));
   assert.ok(posted.body.includes("stop_reason `cap-exceeded`"));
@@ -808,9 +814,11 @@ test("the scan stops a release whose planned branch changes a hold path, naming 
   assert.deepEqual([stopped.status, stopped.stop_reason, stopped.branches], ["stopped", "hold-path", []]);
   assert.equal(stopped.handoffs.length, 1);
   assert.equal(marksDone(stopped.stop_reason), true);
-  const issue = releaseIssue("2.1.300", stopped.handoffs, stopped.stop_reason);
-  assert.ok(issue.body.includes("stop_reason `hold-path`): a planned branch changed a hold path"));
-  assert.ok(publishText(stopped, "2.1.300").includes(issue.body));
+  const notice = stopIssue("2.1.300", stopped.stop_reason);
+  assert.ok(notice.body.includes("stop_reason `hold-path`): a planned branch changed a hold path"));
+  const text = publishText(stopped, "2.1.300");
+  assert.ok(text.includes(notice.body));
+  assert.ok(text.includes(rowIssue(stopped.handoffs[0]).body));
 });
 
 test("only the done marker skips a release, so a run after a failed publish finishes the work", () => {
@@ -973,206 +981,300 @@ const REL = "2.1.300";
 const APP = { login: "melodic-automation-lanes[bot]", type: "Bot" };
 const OUTSIDER = { login: "someone", type: "User" };
 const handoff = (n, over = {}) => ({ key: `changelog:${REL}..${REL}:adopt:plugins/x/${n}.sh`, kind: "adopt", title: `adopt ${n}`, body: `body ${n}\nline two`, ...over });
-// A fake API: answers the search with `items`, a comment read with the page of
-// `comments` it asks for (or `comments` itself when not a list), and records every call.
-const issueApi = (items = [], comments = []) => {
+const issueApi = (items = []) => {
   const calls = [];
   const api = async (path, opts = {}) => {
     const method = opts.method ?? "GET";
     calls.push({ path, method, body: opts.body });
-    if (path.startsWith("/search/issues")) return { items };
-    if (method === "GET" && path.includes("/comments?")) {
-      if (!Array.isArray(comments)) return comments;
-      const page = Number(path.match(/page=(\d+)$/)[1]);
-      return comments.slice((page - 1) * 100, page * 100);
-    }
-    return {};
+    return path.startsWith("/search/issues") ? { items } : {};
   };
   return { api, calls, writes: () => calls.filter((c) => c.method !== "GET") };
 };
 
+const trackerApi = (issues = []) => {
+  const calls = [];
+  const api = async (path, opts = {}) => {
+    const method = opts.method ?? "GET";
+    calls.push({ path, method, body: opts.body });
+    if (path.startsWith("/search/issues")) {
+      const q = decodeURIComponent(path.match(/q=([^&]+)/)[1]);
+      const phrase = q.match(/"([^"]+)"/)[1];
+      const page = Number(path.match(/[?&]page=(\d+)/)?.[1] ?? 1);
+      const hits = issues.filter((i) => i.body.includes(phrase) && (!q.includes("is:open") || i.state === "open"));
+      return { items: hits.slice((page - 1) * 100, page * 100) };
+    }
+    if (method === "POST" && path === `/repos/${REPO}/issues`) {
+      const { title, body, labels = [], type } = opts.body;
+      const filed = { number: 100 + issues.length, user: APP, state: "open", title, body, labels: labels.map((name) => ({ name })), type: { name: type } };
+      issues.push(filed);
+      return filed;
+    }
+    return method === "GET" ? [] : {};
+  };
+  return { api, calls, issues, writes: () => calls.filter((c) => c.method !== "GET") };
+};
+const searches = (f, phrase) => f.calls.filter((c) => c.path.startsWith("/search/issues") && decodeURIComponent(c.path).includes(phrase));
+const KEY_PHRASE = `upstream-apply-changelog key=changelog:${REL}..${REL}`;
+const lensRow = (lens, kind, n = lens) => handoff(n, { key: `changelog:${REL}..${REL}:${lens}:plugins/x/${n}.sh`, kind, reason: `why ${n}`, title: `${kind} ${n}` });
+
 test("no handoffs files nothing and makes no call", async () => {
   const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [], api: f.api });
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [], api: f.api });
   assert.equal(f.calls.length, 0);
 });
 
-test("one handoff files one release issue with the release marker and its keyed checklist item", async () => {
-  const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+test("one handoff files one issue with its key marker, its lens and reason, and the one source label", async () => {
+  const f = trackerApi();
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1, { reason: "adopting is a decision" })], api: f.api });
   const [w] = f.writes();
   assert.equal(f.writes().length, 1);
   assert.equal(w.path, `/repos/${REPO}/issues`);
   assert.equal(w.method, "POST");
-  assert.equal(w.body.title, `Claude Code v${REL} changelog: 1 handoff`);
-  assert.ok(w.body.body.startsWith(`${releaseMarker(REL)}\n`));
-  assert.ok(w.body.body.includes("- [ ] adopt: adopt 1\n\n  body 1\n  line two\n\n  "));
-  assert.ok(w.body.body.includes(handoffMarker(handoff(1).key)));
+  assert.equal(w.body.title, "adopt 1");
+  assert.deepEqual(w.body.labels, [SOURCE_LABEL]);
+  assert.equal(SOURCE_LABEL, "source: upstream-apply-changelog");
+  assert.equal(w.body.type, "Task");
+  assert.ok(w.body.body.startsWith(`${handoffMarker(handoff(1).key)}\n`));
+  assert.ok(w.body.body.includes("Lens: `adopt`"));
+  assert.ok(w.body.body.includes("Handoff reason (`adopt`): adopting is a decision"));
+  assert.ok(w.body.body.includes("body 1\nline two"));
+  assert.equal(BODY_HOLD.test(w.body.body), false, "an ordinary row carries no hold; intake and review decide one");
 });
 
-test("several handoffs go into one issue, one checklist item each, in plan order", async () => {
-  const f = issueApi();
-  const hs = [handoff(1), handoff(2, { kind: "security" }), handoff(3)];
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
-  assert.equal(f.writes().length, 1);
-  const { title, body } = f.writes()[0].body;
-  assert.equal(title, `Claude Code v${REL} changelog: 3 handoffs`);
-  assert.equal(body.match(/^- \[ \] /gm).length, 3);
-  assert.ok(body.includes("- [ ] security: adopt 2"));
-  const at = hs.map((h) => body.indexOf(handoffMarker(h.key)));
-  assert.ok(at.every((i) => i > 0) && at[0] < at[1] && at[1] < at[2]);
-});
-
-test("bodies over the issue limit are cut in proportion, every key kept, and a line says so", async () => {
-  const f = issueApi();
-  const hs = [handoff(1, { body: "a".repeat(50000) }), handoff(2, { body: "b".repeat(25000) })];
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
-  const { body } = f.writes()[0].body;
-  assert.ok(body.length <= 65536);
-  assert.match(body, /truncated proportionally/);
-  for (const h of hs) assert.ok(body.includes(handoffMarker(h.key)));
-  const a = body.match(/a+/g).reduce((m, s) => Math.max(m, s.length), 0);
-  const b = body.match(/b{100,}/g)[0].length;
-  assert.ok(Math.abs(a / b - 2) < 0.01);
-  assert.equal(renderItems(hs.slice(0, 1).map((h) => ({ ...h, body: "x" })), 1000).includes("truncated"), false);
-});
-
-test("a release issue holding every key gets no write", async () => {
-  const hs = [handoff(1), handoff(2)];
-  const body = `${releaseMarker(REL)}\n\n${renderItems(hs, 65536)}`;
-  const f = issueApi([{ user: APP, number: 7, state:"open", body }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
-  assert.equal(f.writes().length, 0);
-});
-
-test("an open release issue missing a key gets the missing item appended in one update", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ user: APP, number: 7, state:"open", body }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
+test("several handoffs file one issue each, in plan order, and no release issue", async () => {
+  const f = trackerApi();
+  const hs = [handoff(1), handoff(2, { kind: "security" }), handoff(3, { kind: "unverified" })];
+  const said = await fileHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
   const writes = f.writes();
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].path, `/repos/${REPO}/issues/7`);
-  assert.equal(writes[0].method, "PATCH");
-  assert.equal(writes[0].body.title, `Claude Code v${REL} changelog: 2 handoffs`);
-  assert.ok(writes[0].body.body.startsWith(body.trimEnd()));
-  assert.equal(writes[0].body.body.split(handoffMarker(handoff(1).key)).length, 2);
-  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(2).key)));
+  assert.equal(writes.length, 3);
+  assert.deepEqual(writes.map((w) => w.body.body.split("\n")[0]), hs.map((h) => handoffMarker(h.key)));
+  for (const w of writes) {
+    assert.deepEqual(w.body.labels, [SOURCE_LABEL]);
+    assert.equal(w.body.body.includes(releaseMarker(REL)), false);
+  }
+  assert.ok(writes[1].body.body.includes("Handoff reason (`security`)"));
+  assert.match(said, /filed 3 handoff issues/);
+  assert.equal(searches(f, KEY_PHRASE).length, 1, "one key search covers the whole release");
 });
 
-test("a closed release issue gets no write, even when it lacks a key", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ user: APP, number: 7, state:"closed", body }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
-  assert.equal(f.writes().length, 0);
-});
-
-test("an issue for another release does not count as this release's issue", async () => {
-  const f = issueApi([{ user: APP, number: 7, state:"open", body: `${releaseMarker("2.1.30")}\n` }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
-  assert.equal(f.writes()[0].method, "POST");
-});
-
-test("missing items that would push the body past the limit go in one comment instead", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1, { body: "a".repeat(60000) })], 65536)}`;
-  const f = issueApi([{ user: APP, number: 7, state:"open", body }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2, { body: "b".repeat(10000) })], api: f.api });
-  const writes = f.writes();
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].path, `/repos/${REPO}/issues/7/comments`);
-  assert.equal(writes[0].method, "POST");
-  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(2).key)));
-  assert.ok(!writes[0].body.body.includes(handoffMarker(handoff(1).key)));
-  assert.ok(writes[0].body.body.length <= 65536);
-});
-
-test("a key already in a comment, past the first page, is not added again", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const comments = [...Array.from({ length: 100 }, () => ({ body: "noise" })), { user: APP, body: renderItems([handoff(2)], 65536) }];
-  const f = issueApi([{ user: APP, number: 7, state:"open", body }], comments);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2), handoff(3)], api: f.api });
-  const writes = f.writes();
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].method, "PATCH");
-  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(3).key)));
-  assert.ok(!writes[0].body.body.includes(handoffMarker(handoff(2).key)));
-  assert.equal(f.calls.filter((c) => c.path.includes("/comments?")).length, 2);
-});
-
-test("a comment read that fails, or runs past the page cap, files nothing", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const hs = [handoff(1), handoff(2)];
-  const bad = issueApi([{ user: APP, number: 7, state:"open", body }], { message: "Server Error" });
-  await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: bad.api }), /not come back as a list/);
-  assert.equal(bad.writes().length, 0);
-  const many = issueApi([{ user: APP, number: 7, state:"open", body }], Array.from({ length: 1000 }, () => ({ body: "" })));
-  await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: many.api }), /more comments/);
-  assert.equal(many.writes().length, 0);
-});
-
-test("the search asks for issues the lanes App opened", async () => {
-  const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
-  const q = decodeURIComponent(f.calls[0].path.match(/q=([^&]+)/)[1]);
-  assert.match(q, /(^| )author:app\/melodic-automation-lanes( |$)/);
-});
-
-test("an outsider's issue carrying the release marker is ignored and a new issue is filed", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ user: OUTSIDER, number: 7, state: "open", body }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
-  const writes = f.writes();
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].path, `/repos/${REPO}/issues`);
-  assert.equal(writes[0].method, "POST");
-});
-
-test("a stopped plan with no handoffs still files one issue that names its stop_reason", async () => {
-  const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "cap-exceeded", api: f.api });
-  const writes = f.writes();
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].path, `/repos/${REPO}/issues`);
-  assert.equal(writes[0].body.title, `Claude Code v${REL} changelog: 0 handoffs`);
-  assert.ok(writes[0].body.body.startsWith(`${releaseMarker(REL)}\n\n`));
-  assert.ok(writes[0].body.body.includes(`Claude Code v${REL} stopped (stop_reason \`cap-exceeded\`)`));
-});
-
-test("a stopped plan's handoff issue opens with the stop line above its checklist", async () => {
-  const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: f.api });
-  const { body } = f.writes()[0].body;
-  const stopAt = body.indexOf("stop_reason `cap-exceeded`");
-  assert.ok(stopAt > 0 && stopAt < body.indexOf("- [ ] adopt: adopt 1"));
-  assert.ok(body.includes(handoffMarker(handoff(1).key)));
-});
-
-test("a stopped plan whose closed release issue lacks a key fails with no write", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ user: APP, number: 7, state: "closed", body }]);
-  await assert.rejects(
-    fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], stop: "cap-exceeded", api: f.api }),
-    /#7 is closed and lacks 1 handoffs/,
-  );
-  assert.equal(f.writes().length, 0);
-});
-
-test("a stopped plan whose release issue already holds every key succeeds with no write, open or closed", async () => {
-  const hs = [handoff(1), handoff(2)];
-  const body = `${releaseMarker(REL)}\n\n${renderItems(hs, 65536)}`;
-  for (const state of ["open", "closed"]) {
-    const f = issueApi([{ user: APP, number: 7, state, body }]);
-    await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, stop: "cap-exceeded", api: f.api });
-    assert.equal(f.writes().length, 0);
+test("the route comes from the key's lens or the handoff's kind", () => {
+  assert.equal(routeOf(lensRow("replace", "nomination")), "nomination");
+  assert.equal(routeOf(lensRow("correct", "nomination")), "nomination");
+  assert.equal(routeOf(lensRow("replace", "handoff")), "nomination");
+  assert.equal(routeOf(lensRow("docs-lag", "docs-lag")), "log");
+  assert.equal(routeOf(lensRow("correct", "docs-lag")), "log");
+  for (const [lens, kind] of [["adopt", "adopt"], ["correct", "security"], ["correct", "too-large"], ["native-drift", "native-drift"], ["docs-conformance", "docs-conformance"]]) {
+    assert.equal(routeOf(lensRow(lens, kind)), "issue", `${lens}/${kind}`);
   }
 });
 
-test("a stopped plan whose issue filing fails rejects, so publish fails and the release is retried", async () => {
+test("a replace row is filed as a nomination for audit-native-overlap, held by a Hold: line with no agent-ready path", async () => {
+  const f = trackerApi();
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [lensRow("replace", "nomination")], api: f.api });
+  const [w] = f.writes();
+  assert.deepEqual(w.body.labels, [SOURCE_LABEL]);
+  assert.ok(BODY_HOLD.test(w.body.body), "admission refuses a body line opening with Hold:");
+  assert.ok(w.body.body.split("\n").includes(NOMINATION_HOLD));
+  assert.match(NOMINATION_HOLD, /^Hold: /);
+  assert.match(NOMINATION_HOLD, /upstream-apply-changelog lane/);
+  assert.match(NOMINATION_HOLD, /\/harness-ops:audit-native-overlap/);
+  assert.match(NOMINATION_HOLD, /a person, or a session acting on the owner's recorded direction/);
+});
+
+test("a docs-lag row is logged in the run summary and not filed", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (m) => logs.push(String(m)));
+  const f = trackerApi();
+  const lines = [];
+  const row = lensRow("docs-lag", "docs-lag");
+  const said = await fileHandoffs({ repo: REPO, release: REL, handoffs: [row], api: f.api, summary: (l) => lines.push(l) });
+  assert.equal(f.calls.length, 0);
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes(row.key) && lines[0].includes(row.title));
+  assert.ok(logs.includes(lines[0]));
+  assert.match(said, /1 docs-lag row logged/);
+});
+
+test("a key already on an open lanes App issue, a per-release checklist included, files nothing and is logged", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (m) => logs.push(String(m)));
+  const legacy = { number: 7, user: APP, state: "open", body: `${releaseMarker(REL)}\n\n- [ ] adopt: adopt 1\n\n  ${handoffMarker(handoff(1).key)}\n` };
+  const f = trackerApi([legacy]);
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
+  assert.equal(f.writes().length, 1);
+  assert.ok(f.writes()[0].body.body.startsWith(handoffMarker(handoff(2).key)));
+  assert.ok(logs.some((l) => l.includes(`${handoff(1).key}: already open in #7`)));
+  const q = decodeURIComponent(searches(f, KEY_PHRASE)[0].path.match(/q=([^&]+)/)[1]);
+  assert.match(q, /(^| )is:open( |$)/);
+  assert.match(q, /(^| )author:app\/melodic-automation-lanes( |$)/);
+});
+
+test("a key held only in a lanes App comment on a legacy release issue files nothing; an outsider's comment does not count", async () => {
+  const legacy = { number: 7, user: APP, state: "open", body: `${releaseMarker(REL)}\n\n- [ ] adopt: adopt 2\n` };
+  const comments = [
+    { user: OUTSIDER, body: handoffMarker(handoff(3).key) },
+    { user: APP, body: `${releaseMarker(REL)}\n\n- [ ] adopt: adopt 1\n\n  ${handoffMarker(handoff(1).key)}\n` },
+  ];
+  const f = trackerApi([legacy]);
+  const api = async (path, opts) => (path.startsWith(`/repos/${REPO}/issues/7/comments`) ? comments : f.api(path, opts));
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(3)], api });
+  assert.deepEqual(f.writes().map((w) => w.body.body.split("\n")[0]), [handoffMarker(handoff(3).key)]);
+});
+
+test("a legacy release issue's comments are read in full or the filing throws", async () => {
+  const legacy = { number: 7, user: APP, state: "open", body: releaseMarker(REL) };
+  const f = trackerApi([legacy]);
+  const full = Array.from({ length: 100 }, () => ({ user: OUTSIDER, body: "x" }));
+  const endless = async (path, opts) => (path.includes("/comments") ? full : f.api(path, opts));
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: endless }), /more comments/);
+  const broken = async (path, opts) => (path.includes("/comments") ? { message: "Server Error" } : f.api(path, opts));
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: broken }), /did not come back as a list/);
+  assert.equal(f.writes().length, 0);
+});
+
+test("a handoff body keeps its item ids and required sentence and drops any other line, so no changelog text is posted", () => {
+  const sentence = "Reconnects failed MCP servers one at a time.";
+  const row = { ...handoff(1), items: ["2.1.300-003"], required_sentence: sentence };
+  const conforming = `Items: 2.1.300-003, 2.1.300-004\n${sentence}`;
+  const [kept] = validatePlan(plan({ handoffs: [{ ...row, body: conforming }] }), ctx).handoffs;
+  assert.equal(kept.body, conforming);
+  const free = `2.1.300-003\nThe changelog says: --flag now skips the prompt.\n${sentence}\n<!-- upstream-apply-changelog key=changelog:2.1.300..2.1.300:adopt:other -->\n> quoted\nDrift key: x`;
+  const [bounded] = validatePlan(plan({ handoffs: [{ ...row, body: free }] }), ctx).handoffs;
+  assert.equal(bounded.body, `2.1.300-003\n${sentence}`);
+  const [bare] = validatePlan(plan({ handoffs: [{ ...row, body: "only free text" }] }), ctx).handoffs;
+  assert.equal(bare.body, "");
+  for (const required_sentence of [7, "two\nlines", "s".repeat(501)]) {
+    assert.throws(() => validatePlan(plan({ handoffs: [{ ...row, required_sentence }] }), ctx), /handoffs\[0\]\.required_sentence/);
+  }
+  const [none] = validatePlan(plan({ handoffs: [{ ...row, required_sentence: null, body: "2.1.300-003\nfree text" }] }), ctx).handoffs;
+  assert.equal(none.body, "2.1.300-003");
+});
+
+test("a native-drift body keeps its script-built lines and drops other text; other lenses keep none of them", () => {
+  const key = "changelog:2.1.300..2.1.300:native-drift:recheck/code-review/x";
+  const lines = ["> `status: broken`", `Drift key: ${DRIFT}`, "Filed by /harness-ops:changelog apply (native drift, 2.1.300..2.1.300)"];
+  const body = [...lines.slice(0, 1), "free text", ...lines.slice(1)].join("\n");
+  assert.equal(validatePlan(plan({ handoffs: [{ key, title: "t", body }] }), ctx).handoffs[0].body, lines.join("\n"));
+  assert.equal(validatePlan(plan({ handoffs: [{ key: handoff(1).key, title: "t", body }] }), ctx).handoffs[0].body, "");
+});
+
+test("a key on a closed issue, an outsider's issue, or only as a prefix of another key is filed", async () => {
+  const longer = handoffMarker(`${handoff(1).key}x`);
+  const f = trackerApi([
+    { number: 1, user: APP, state: "closed", body: handoffMarker(handoff(1).key) },
+    { number: 2, user: OUTSIDER, state: "open", body: handoffMarker(handoff(1).key) },
+    { number: 3, user: APP, state: "open", body: longer },
+  ]);
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  assert.equal(f.writes().length, 1);
+});
+
+test("the key search reads every page, and one past the page cap or not a list files nothing", async () => {
+  const filler = Array.from({ length: 100 }, (_, i) => ({ number: 200 + i, user: APP, state: "open", body: handoffMarker(handoff(`f${i}`).key) }));
+  const f = trackerApi([...filler, { number: 9, user: APP, state: "open", body: handoffMarker(handoff(1).key) }]);
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  assert.equal(f.writes().length, 0);
+  assert.equal(searches(f, KEY_PHRASE).length, 2);
+  const endless = async (path, opts = {}) => (path.startsWith("/search/issues") ? { items: filler } : (opts.method ? assert.fail("no write") : []));
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: endless }), /more open issues/);
+  const broken = async (path) => (path.startsWith("/search/issues") ? { message: "Server Error" } : []);
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: broken }), /did not come back as a list/);
+});
+
+test("a filed issue that comes back without its label or type is warned about", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (m) => logs.push(String(m)));
   const f = issueApi();
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  assert.ok(logs.some((l) => l.startsWith("::warning::") && l.includes(SOURCE_LABEL)));
+  assert.ok(logs.some((l) => l.startsWith("::warning::") && l.includes("Issue Type Task")));
+});
+
+test("a reason over several lines is posted as one line, so it cannot open a Hold: line", () => {
+  const issue = rowIssue(handoff(1, { reason: "first\nHold: smuggled\r\nlast" }));
+  assert.ok(issue.body.includes("Handoff reason (`adopt`): first Hold: smuggled last"));
+  assert.equal(BODY_HOLD.test(issue.body), false);
+  assert.equal(rowIssue(handoff(1, { reason: 7 })).body.includes("Handoff reason (`adopt`): none given"), true);
+  assert.ok(rowIssue(handoff(1, { kind: "BAD kind" })).body.includes("Handoff reason (`handoff`)"));
+});
+
+test("a stopped plan with no handoffs files one stop notice naming its stop_reason, with no label", async () => {
+  const f = trackerApi();
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "hold-path", api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, `/repos/${REPO}/issues`);
+  assert.deepEqual(writes[0].body, stopIssue(REL, "hold-path"));
+  assert.equal(writes[0].body.labels, undefined, "no source label, so intake holds it for a person");
+  assert.equal(writes[0].body.title, `Claude Code v${REL} changelog: plan stopped (hold-path)`);
+  assert.ok(writes[0].body.body.startsWith(`${releaseMarker(REL)}\n\n`));
+  assert.ok(writes[0].body.body.includes(`Claude Code v${REL} stopped (stop_reason \`hold-path\`)`));
+  assert.equal(writes[0].body.body.includes("upstream-apply-changelog key="), false);
+});
+
+test("a stopped plan with handoffs files its stop notice and one issue per row", async () => {
+  const f = trackerApi();
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 2);
+  assert.deepEqual(writes[0].body, stopIssue(REL, "cap-exceeded"));
+  assert.deepEqual(writes[1].body, rowIssue(handoff(1)));
+});
+
+test("a stop notice already filed by the lanes App, open or closed, is not filed again; an outsider's is ignored", async () => {
+  for (const state of ["open", "closed"]) {
+    const f = trackerApi([{ number: 7, user: APP, state, body: stopIssue(REL, "cap-exceeded").body }]);
+    await fileHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "cap-exceeded", api: f.api });
+    assert.equal(f.writes().length, 0, state);
+  }
+  const f = trackerApi([{ number: 7, user: OUTSIDER, state: "open", body: stopIssue(REL, "cap-exceeded").body }]);
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "cap-exceeded", api: f.api });
+  assert.equal(f.writes().length, 1);
+  const other = trackerApi([{ number: 8, user: APP, state: "open", body: `${releaseMarker("2.1.30")}\n` }]);
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "cap-exceeded", api: other.api });
+  assert.equal(other.writes().length, 1, "another release's marker does not count");
+});
+
+test("a filing that fails rejects, so publish fails and the release is retried", async () => {
+  const f = trackerApi();
   const failing = async (path, opts = {}) => {
     if (opts.method === "POST") throw new Error("POST /repos/o/r/issues answered 502");
     return f.api(path, opts);
   };
-  await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: failing }), /answered 502/);
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: failing }), /answered 502/);
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: failing }), /answered 502/);
+});
+
+test("a release with rows of every lens files the expected issues and labels, and a second run files nothing new", async () => {
+  const rows = [
+    lensRow("correct", "unverified"),
+    lensRow("adopt", "adopt"),
+    lensRow("correct", "security", "sec"),
+    lensRow("correct", "too-large", "big"),
+    lensRow("replace", "nomination"),
+    lensRow("docs-lag", "docs-lag"),
+    lensRow("native-drift", "native-drift"),
+    lensRow("docs-conformance", "docs-conformance"),
+    lensRow("correct", "not-applied", "na"),
+  ];
+  const v = validatePlan(plan({ handoffs: rows }), ctx);
+  const f = trackerApi();
+  const lines = [];
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: v.handoffs, api: f.api, summary: (l) => lines.push(l) });
+  const filed = f.writes().map((w) => w.body);
+  const expected = rows.filter((h) => h.kind !== "docs-lag");
+  assert.equal(filed.length, expected.length);
+  assert.deepEqual(filed.map((b) => b.body.split("\n")[0]), expected.map((h) => handoffMarker(h.key)));
+  for (const b of filed) assert.deepEqual(b.labels, [SOURCE_LABEL]);
+  assert.deepEqual(filed.filter((b) => BODY_HOLD.test(b.body)).map((b) => b.title), ["nomination replace"]);
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes(rows[5].key));
+  const text = publishText(v, REL);
+  for (const b of filed) assert.ok(text.includes(b.title) && text.includes(b.body));
+  const before = f.writes().length;
+  const again = await fileHandoffs({ repo: REPO, release: REL, handoffs: v.handoffs, api: f.api, summary: () => {} });
+  assert.equal(f.writes().length, before, "the second run files nothing new");
+  assert.match(again, /8 already open/);
 });
 
 const DRIFT = "native-drift:inventory-broken:unknown:inventory";
@@ -1182,52 +1284,33 @@ const driftHandoff = (rel, driftKey = DRIFT) => ({
   title: "harness-ops/inventory: extraction broken on Claude Code unknown",
   body: `> \`status: broken\`\nDrift key: ${driftKey}\nFiled by /harness-ops:changelog apply (native drift, ${rel}..${rel})`,
 });
-const trackerApi = (issues = []) => {
-  const calls = [];
-  const api = async (path, opts = {}) => {
-    const method = opts.method ?? "GET";
-    calls.push({ path, method, body: opts.body });
-    if (path.startsWith("/search/issues")) {
-      const q = decodeURIComponent(path.match(/q=([^&]+)/)[1]);
-      const phrase = q.match(/"([^"]+)"/)[1];
-      return { items: issues.filter((i) => i.body.includes(phrase) && (!q.includes("is:open") || i.state === "open")) };
-    }
-    if (method === "POST" && path === `/repos/${REPO}/issues`) {
-      const filed = { number: 100 + issues.length, user: APP, state: "open", body: opts.body.body, type: { name: "Task" } };
-      issues.push(filed);
-      return filed;
-    }
-    return method === "GET" ? [] : {};
-  };
-  return { api, calls, issues, writes: () => calls.filter((c) => c.method !== "GET") };
-};
 const holdsDrift = (issue, driftKey = DRIFT) => issue.body.split("\n").some((l) => l.trim() === `Drift key: ${driftKey}`);
 
 test("two releases producing the same drift key end with one open issue holding it, and the second run names it", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (m) => logs.push(String(m)));
   const f = trackerApi();
-  await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: [driftHandoff("2.1.300")], api: f.api });
+  await fileHandoffs({ repo: REPO, release: "2.1.300", handoffs: [driftHandoff("2.1.300")], api: f.api });
   assert.equal(f.issues.length, 1);
-  const second = await fileReleaseHandoffs({ repo: REPO, release: "2.1.301", handoffs: [driftHandoff("2.1.301"), handoff(9)], api: f.api });
+  const second = await fileHandoffs({ repo: REPO, release: "2.1.301", handoffs: [driftHandoff("2.1.301"), handoff(9)], api: f.api });
   assert.equal(f.issues.filter((i) => i.state === "open" && holdsDrift(i)).length, 1);
   assert.equal(f.issues.length, 2, "the second release files only its handoff with no open drift key");
   assert.equal(holdsDrift(f.issues[1]), false);
   assert.ok(f.issues[1].body.includes(handoffMarker(handoff(9).key)));
-  assert.match(second, /filed 1 handoffs/);
+  assert.match(second, /filed 1 handoff issue/);
   assert.ok(logs.some((l) => l.includes(`drift key ${DRIFT} is already open in #100`)));
 });
 
-test("a release whose only handoff's drift key is open files nothing; a stopped one files its stop line alone", async () => {
+test("a release whose only handoff's drift key is open files nothing; a stopped one files its stop notice alone", async () => {
   const open = { number: 5, user: APP, state: "open", body: `x\n\n  Drift key: ${DRIFT}\n` };
   const f = trackerApi([open]);
-  const said = await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], api: f.api });
+  const said = await fileHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], api: f.api });
   assert.equal(f.writes().length, 0);
-  assert.match(said, /already open; nothing filed/);
+  assert.match(said, /1 drift key already open/);
   const s = trackerApi([{ ...open }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], stop: "cap-exceeded", api: s.api });
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], stop: "cap-exceeded", api: s.api });
   assert.equal(s.writes().length, 1);
-  assert.equal(s.writes()[0].body.title, `Claude Code v${REL} changelog: 0 handoffs`);
+  assert.equal(s.writes()[0].body.title, `Claude Code v${REL} changelog: plan stopped (cap-exceeded)`);
 });
 
 test("a drift key counts as filed only on an open lanes App issue holding the exact line", async () => {
@@ -1237,7 +1320,7 @@ test("a drift key counts as filed only on an open lanes App issue holding the ex
     { number: 3, user: APP, state: "open", body: `Drift key: ${DRIFT}-x\nsee Drift key: ${DRIFT}\n` },
   ];
   const f = trackerApi(others);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], api: f.api });
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL)], api: f.api });
   assert.equal(f.writes().length, 1);
   assert.equal(f.writes()[0].path, `/repos/${REPO}/issues`);
   const q = decodeURIComponent(f.calls[0].path.match(/q=([^&]+)/)[1]);
@@ -1250,17 +1333,7 @@ test("a drift key outside the searchable shape is not searched, and its handoff 
   assert.equal(driftKeyOf(`Drift key: native-drift:${"s".repeat(200)}\n`), null);
   assert.equal(driftKeyOf(`a\n  Drift key: ${DRIFT}  \r\nb`), DRIFT);
   const f = trackerApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL, 'native-drift:x:"q":y')], api: f.api });
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [driftHandoff(REL, 'native-drift:x:"q":y')], api: f.api });
   assert.equal(f.calls.filter((c) => c.path.includes("Drift%20key")).length, 0);
   assert.equal(f.writes().length, 1);
-});
-
-test("a key marker in an outsider's comment does not count as filed", async () => {
-  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ user: APP, number: 7, state: "open", body }], [{ user: OUTSIDER, body: renderItems([handoff(2)], 65536) }]);
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
-  const writes = f.writes();
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].method, "PATCH");
-  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(2).key)));
 });

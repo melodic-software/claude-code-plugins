@@ -45,6 +45,8 @@ export type Room = {
   /** The Svg element's source as last drawn. */
   source: () => Promise<string | undefined>
   toasts: string[]
+  /** Every theme call that reached the engine, oldest first: `set <scene>` or `clear`. */
+  themes: string[]
   /** The mod's debug log lines, oldest first. */
   events: () => string[]
   /** Every path the mod asked to write. */
@@ -59,7 +61,11 @@ export type Room = {
  * own hooks before calling startRoom, since the kit refuses an event hooked twice, and a hook added after the test's
  * first call to `$`.
  */
-export async function startRoom($: Engine, on: On, options: { saved?: unknown; now?: number; hold?: boolean; fakes?: boolean; early?: boolean } = {}): Promise<Room> {
+export async function startRoom(
+  $: Engine,
+  on: On,
+  options: { saved?: unknown; now?: number; hold?: boolean; fakes?: boolean; early?: boolean; onWrite?: (path: string, text: string) => void } = {},
+): Promise<Room> {
   const clock = mock.clock(on, { now: options.now ?? EVENING })
   const store = new Map<string, unknown>(options.saved === undefined ? [] : [[STORE_KEY, options.saved]])
   on('store.get', (_, e) => ({ value: store.get(e.key) }))
@@ -74,11 +80,19 @@ export async function startRoom($: Engine, on: On, options: { saved?: unknown; n
   on('store.keys', () => ({ value: [...store.keys()] }))
   const toasts: string[] = []
   on('command.register', () => ({ value: { command: 'bedroom' } }))
-  on('theme.set', () => ({ value: { isDrawn: true, requestId: 'backdrop' } }))
-  on('theme.clear', () => ({ value: { isDrawn: false, reason: 'cleared' } }))
+  const themes: string[] = []
+  on('theme.set', (_, e) => {
+    themes.push(`set ${e.backdrop !== undefined && 'scene' in e.backdrop ? e.backdrop.scene : 'none'}`)
+    return { value: { isDrawn: true, requestId: 'backdrop' } }
+  })
+  on('theme.clear', () => {
+    themes.push('clear')
+    return { value: { isDrawn: false, reason: 'cleared' } }
+  })
   const writes: string[] = []
   on('fs.write', (_, e) => {
     writes.push(e.path)
+    options.onWrite?.(e.path, e.text)
     return { value: undefined }
   })
   const log: string[] = []
@@ -108,6 +122,7 @@ export async function startRoom($: Engine, on: On, options: { saved?: unknown; n
     clock,
     store,
     toasts,
+    themes,
     writes,
     events: () => [...log],
     run: async args => {

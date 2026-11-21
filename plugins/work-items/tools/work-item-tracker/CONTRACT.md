@@ -33,9 +33,9 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 ## Prerequisites
 
-- `jq` on PATH (all providers). Missing → exit `3` with an actionable message.
-- `gh` on PATH when the bound provider is `github` and the verb shells out. Missing →
-  exit `3`. `capabilities` is the one exception: it reads the adapter manifest and never
+- `jq` on PATH (all providers). When it is missing, the verb exits `3` with an actionable message.
+- `gh` on PATH when the bound provider is `github` and the verb shells out. When it is missing,
+  the verb exits `3`. `capabilities` is the one exception: it reads the adapter manifest and never
   invokes `gh`, so it answers without the binary.
 - `gh` ≥ **2.94** additionally for the paths that use the native sub-issue/dependency
   surface: the `--parent`, `--blocked-by`, `--add-blocked-by` flags and the `blockedBy`,
@@ -55,7 +55,7 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 ### Degradation without `gh` (cloud / MCP-only sessions)
 
-Some execution environments have GitHub access but no `gh` binary: their GitHub surface is MCP
+Some execution environments have GitHub access but no `gh` binary, so their GitHub surface is MCP
 tools (model-plane, not shell-plane). Anthropic-hosted cloud sessions are not that case by
 default, since `gh` is in their
 [installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools), but their
@@ -399,7 +399,9 @@ assignee AND not a container (a container item is never its own frontier item, s
 "Containers and state") AND no label starting with the wayfind prefix (`config.wayfind_label_prefix`,
 default `wayfind:`; a wayfind map item belongs to
 `/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
-`needs-human` are additionally excluded, as are items carrying the **human-floor class**
+`needs-human` are additionally excluded, as are items carrying the `session-owned` role label
+(`config.role_labels["session-owned"]`, default `session-owned`), which a local session works itself,
+and items carrying the **human-floor class**
 label `provenance: untrusted` (C5) or the
 `provenance: signal` label, which are human-gated regardless of any other signal, and items carrying a hold label
 (`config.hold_labels`, default the `owner-decision` role label, `needs-reporter-info` and `needs-spec`),
@@ -811,8 +813,8 @@ the TTL.
 
 Reclaim (idempotent, run at session start, no scheduled sweep): when the latest lease is
 expired, check activity (non-lease comments since `renewed_at`; open cross-referenced
-PRs via the issue timeline). Activity → renew the lease in place, `reclaimed: false`.
-No activity → unassign **only the expired lease's `holder`** (a co-assignee added by a
+PRs via the issue timeline). With activity, renew the lease in place, `reclaimed: false`.
+With no activity, unassign **only the expired lease's `holder`** (a co-assignee added by a
 human or a concurrent claimer is left in place, because removing it would strip a live claim and
 leave the frontier treating the item as unassigned), supersede the lease, append an
 explanatory comment, `reclaimed: true`. Ownership is **revalidated immediately before the

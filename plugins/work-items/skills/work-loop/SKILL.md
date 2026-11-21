@@ -473,7 +473,9 @@ container and map items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `sp
 any label starting with `WIT_WAYFIND_PREFIX`, default `wayfind:`, a map's decision items included:
 never claimable, never closed by this lane, openness means the container or map exists;
 [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
-"Maps and containers"), are excluded from the
+"Maps and containers"), **and open session-owned items** (the tracker seam's session-owned role
+label, default `session-owned`: a local session works the item itself, so this lane never triages,
+works, closes or waits on it), are excluded from the
 cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapshot intake report.
 The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog
