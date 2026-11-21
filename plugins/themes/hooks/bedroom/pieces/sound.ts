@@ -559,8 +559,11 @@ async function stepBeds($: EngineInterface): Promise<void> {
   }
   if (out === undefined || out.isDone) {
     if (!(await holdsPlayer($, await $.clock.now()))) return
-    out = openOut($, player)
-    bed = undefined
+    // A one-shot may have opened one while this awaited: use it, never open a second that nothing would stop.
+    if (out === undefined || out.isDone) {
+      out = openOut($, player)
+      bed = undefined
+    }
   }
   const gain = gainOf(volumeOf(ctx.saved))
   const now = await $.clock.now()
@@ -678,18 +681,24 @@ async function reloaded($: EngineInterface): Promise<boolean> {
   return value !== undefined && value > chain
 }
 
-/** Plays one file now, or after delayMs, at the volume times factor; nothing while sound is off or at volume 0. */
-function shoot($: EngineInterface, file: string, factor: number, delayMs = 0): void {
+/**
+ * Plays one file now, or after delayMs, at the volume times factor; nothing while sound is off or at volume 0, nor when
+ * `still`, asked when it is due, says the sound no longer belongs.
+ */
+function shoot($: EngineInterface, file: string, factor: number, delayMs = 0, still: () => boolean = () => true): void {
   const fire = (): void => {
     const ctx = ctxOf($)
-    if (!ctx.setting('sound') || volumeOf(ctx.saved) === 0 || failure !== undefined || away) return
+    if (!ctx.setting('sound') || volumeOf(ctx.saved) === 0 || failure !== undefined || away || !still()) return
     void ready($).then(async player => {
       if (player === undefined) return
       if (out === undefined || out.isDone) {
         if (!(await holdsPlayer($, await $.clock.now()))) return
-        out = openOut($, player)
-        bed = undefined
-        void follow($)
+        // The bed's step may have opened one while this awaited: use it, never open a second that nothing would stop.
+        if (out === undefined || out.isDone) {
+          out = openOut($, player)
+          bed = undefined
+          void follow($)
+        }
       }
       outShot($, out, file, Math.min(1, gainOf(volumeOf(ctxOf($).saved)) * factor))
     })
@@ -751,14 +760,19 @@ export const THUNDER_LIFT = 2
 export const DUCK = 0.5
 export const DUCK_FADE_MS = { down: 300, up: 1500 } as const
 
-/** Plays a strike's thunder when it is due: each minute's scheduled strike and each one /bedroom weather strike asks for come through it. */
-export async function thunderFor($: EngineInterface, given: Strike): Promise<void> {
+/**
+ * Plays a strike's thunder when it is due: each minute's scheduled strike and each one /bedroom weather strike asks for
+ * come through it. `still`, asked when the thunder is due, can drop it and its dip, as for a strike no longer drawn.
+ */
+export async function thunderFor($: EngineInterface, given: Strike, still: () => boolean = () => true): Promise<void> {
   const ctx = ctxOf($)
   if (!THUNDERS || !ctx.setting('sound')) return
   const { file, factor, at } = thunderOf(ctx.saved, given)
   const delayMs = at - (await $.clock.now())
-  shoot($, file, factor, delayMs)
-  $.clock.after(Math.max(0, delayMs), () => duck($, lengthOf(file)))
+  shoot($, file, factor, delayMs, still)
+  $.clock.after(Math.max(0, delayMs), () => {
+    if (still()) duck($, lengthOf(file))
+  })
 }
 
 /** Through the mixer, the bed dips under a roll of thunder for `ms` and comes back to its level; elsewhere it plays on. */
@@ -812,8 +826,15 @@ async function scheduledStrike($: EngineInterface, ctx: Ctx): Promise<void> {
   const second = strike(minute)
   if (second === undefined) return
   const at = ctx.nowMs + TAKEN_MS + second * 1000
-  if (!scheduledEventShows(at, worldMove().hurryAt)) return
-  await thunderFor($, { at, delayS: strikeDelayS(minute) })
+  const shows = (): boolean => ctxOf($).fields().weather === 4 && scheduledEventShows(at, worldMove().hurryAt)
+  if (!shows()) return
+  // Asked again at the strike: a command between the tick and then can leave the storm or hurry the shader, and a
+  // strike the shader does not draw brings no thunder. A command after the flash leaves its thunder to roll.
+  let drawn = true
+  $.clock.after(Math.max(0, at - (await $.clock.now())), () => {
+    drawn = shows()
+  })
+  await thunderFor($, { at, delayS: strikeDelayS(minute) }, () => drawn)
 }
 
 export const piece: Piece = { name: 'sound' }
