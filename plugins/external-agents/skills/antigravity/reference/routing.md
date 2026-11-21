@@ -21,7 +21,7 @@ sources below and answer from them, citing the section:
   [§ Reasoning model](https://antigravity.google/docs/models/#reasoning-model).
 - Thinking levels and effort:
   [Choose a model § Select a model](https://antigravity.google/docs/models/#select-a-model) and
-  [Effort command](https://antigravity.google/docs/cli/commands/effort).
+  [Effort command § Inspect or override effort in headless mode](https://antigravity.google/docs/cli/commands/effort#inspect-or-override-effort-in-headless-mode).
 
 A recommendation goes to the user as a config change for them to make (`antigravity.model`,
 `antigravity.effort`), with the section it rests on. On `routing: due`, the check is the one in

@@ -78,23 +78,20 @@ process tree; stopping the background Bash task alone may leave agy running.
   after a refusal and may still answer well; the command records the run `blocked-by-mode`, exits
   `3` and prints the answer. Relay the answer, name the refused actions from the first line, and
   never report a task done.
-- **A write task's limit is agy's sandbox plus agy's own review.** `--mode auto` keeps commands
-  in agy's terminal sandbox, but its review lets commands it judges safe and reversible run outside
-  it ([Terminal sandbox](https://antigravity.google/docs/sandbox/)). Sandboxed commands have no
-  network by default, but a write task on WSL (agy 1.5.14) reached the internet with and without
-  `--sandbox`, so treat write mode as having network access. Never ask agy to push, open or
-  merge pull requests, or run `gh` or `az`; Claude Code stays the only actor for those.
-- **Check the work, not the warning.** agy may print `--mode auto is not available ...;
-  continuing in the default mode` (relayed as a `notice:`) and still run in auto mode, writes
-  included. Before reporting a task done, check that its files exist; trust neither the notice nor
-  the exit code alone.
-- **On Windows, auto-mode commands cannot write files** (`EPERM`, observed on agy 1.5.14, also
-  with an added directory), so a build or test that writes output fails there. For those, run
-  from WSL.
-- **Workspace configuration from the branch loads into agy.** agy reads hooks from
-  `.agents/hooks.json` in the workspace ([Hooks](https://antigravity.google/docs/hooks/)), plus
-  the user's `~/.gemini/config/hooks.json` and installed agy plugins. The command prints a
-  `notice:` when a reviewed change touches `.agents/`; relay it before the findings.
+- **Treat write mode as having network access.** Its limit is agy's sandbox plus agy's own
+  review, which can run a command outside the sandbox
+  ([Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox/#cli-permissions-integration));
+  ADR 0119 decision 2 records why write is opt-in. Never ask agy to push, open or merge pull
+  requests, or run `gh` or `az`; Claude Code stays the only actor for those.
+- **Check the work, not the warning.** A `notice:` saying auto mode fell back to the default mode
+  does not prove writes were refused. Before reporting a task done, check that its files exist;
+  trust neither the notice nor the exit code alone.
+- **On Windows, a write task's commands may fail to write files**, so a build or test that writes
+  output belongs on WSL.
+- **Workspace configuration from the branch loads into agy**
+  ([Hooks § Managing hooks in Antigravity CLI](https://antigravity.google/docs/hooks/#managing-hooks-in-antigravity-cli)).
+  The command prints a `notice:` when a reviewed change touches `.agents/`; relay it before the
+  findings.
 - **The breaker refuses runs after an unavailable-class failure** until the time it prints.
   `external-agents update antigravity` closes it once agy is ready again; do not retry in a loop.
 - **`antigravity.binary_path` is read only from an untracked personal file**

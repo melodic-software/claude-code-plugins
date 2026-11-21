@@ -28,9 +28,7 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
   command and file write it would have to ask about, and the command records each refusal from
   agy's `denied_actions` field. The prompt gets a preface saying so, so name the files to read.
 - **write** runs `--mode auto` with a per-run settings file that turns off agy's access beyond the
-  workspace (`allowNonWorkspaceAccess: false`). Its limits are in the hub's gotchas: agy's sandbox
-  plus agy's own review (which let a write outside the workspace through on WSL), network access,
-  and no file writes from commands on Windows.
+  workspace (`allowNonWorkspaceAccess: false`). Its limits are in the hub's gotchas.
 
 ### First stdout line
 

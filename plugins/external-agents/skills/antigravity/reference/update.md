@@ -9,7 +9,9 @@ upgrades anything: a missing agy is installed through the user's dotfiles instal
 follows the hint the user set in `antigravity.update_hint`.
 
 Run it when a run reports agy unavailable or the breaker open, when the user asks whether agy is
-ready, and after an agy upgrade. Exit `0` when agy is ready, `4` when it is missing or logged out.
+ready, and after an agy upgrade. Exit `0` when agy is ready, `4` when it is missing. The agy
+record has no login check, so the `login:` line does not show whether agy is signed in; a signed-out
+agy shows up as a failed run.
 
 ## Reading the output
 
