@@ -160,7 +160,10 @@ the paired hook-blocked rate change. Compare a pair's accuracy with `/evals:plug
 `scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`. Each pair
 line prints `h`, the 95% interval's half-width; on an A/A pair of `before` runs, M = 1.43h
 for accuracy, `--nondelivery-margin` = 1.43h for the non-delivery rate and `--hook-margin` = 1.43h
-for the hook-blocked rate, each rounded up to 0.01.
+for the hook-blocked rate, each rounded up to 0.01. When neither A/A half has a run of that
+kind, h is 0 and its margin 0.01, so one such run in the compared pair fails it: read a
+`non-delivery rise:` or `hook-blocked rise:` against the run counts on its pair lines before
+calling it real.
 `--token-margin` is a fraction of baseline the whole-run reader m1 interval may reach.
 `report` exits 1 on any `left out`, `case drop:`, `pass-to-fail:` (only with `--threshold`),
 `non-delivery rise:` (only with `--nondelivery-margin`), `hook-blocked rise:` (only with
