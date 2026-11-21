@@ -78,6 +78,7 @@ function fakeApi(overrides = {}) {
     },
     listPullCommits: async () => Object.keys(overrides.checks ?? { [HEAD]: [] }).map((sha) => ({ sha })),
     listCheckRuns: async (sha) => (overrides.checks ?? {})[sha] ?? [],
+    listModelRounds: async () => Object.values(overrides.checks ?? { [HEAD]: [] }),
     createIssueComment: async (pr, body) => posted.push({ pr, body }),
   };
 }
@@ -1777,7 +1778,7 @@ test("at the round cap a Codex finding is a bot finding: it gets the fresh fixer
 
 test("at the round cap a Codex finding goes to a person when the security-review lane held its head, and to a session when a person directed it", async () => {
   const held = codexAt(lanesMarked(securityMarked(), securityHold(HEAD)));
-  const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [] }, { maxRounds: 2 });
+  const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [], listModelRounds: async () => Object.values(modelRounds(2)) }, { maxRounds: 2 });
   assert.deepEqual([heldResult.decision, heldResult.escalationReason], ["escalate", "feedback-round-cap-security"]);
   // A write-access fix request older than the newest round directed it.
   const directed = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), checks: modelRounds(2) }), { maxRounds: 2 });
@@ -2886,4 +2887,68 @@ test("a gated PR's fix-request thread proceeds without the comment items", async
 test("an ungated PR's kept thread and a workflow change escalate as before, with the comment ignored", async () => {
   const result = await run(fakeApi({ files: [{ filename: ".github/workflows/ci.yml" }, { filename: "src/a.js" }], issueComments: [reviewMarker, asking(500)] }));
   assert.equal(result.escalationReason, "feedback-protected-path");
+});
+
+const roundsAnswer = (commits, { more = false } = {}) => ({
+  data: {
+    repository: {
+      pullRequest: {
+        commits: {
+          pageInfo: { hasNextPage: more },
+          nodes: commits.map(({ oid, runs = [], suitesMore = false, runsMore = false }) => ({
+            commit: { oid, checkSuites: { pageInfo: { hasNextPage: suitesMore }, nodes: [{ checkRuns: { pageInfo: { hasNextPage: runsMore }, nodes: runs } }] } },
+          })),
+        },
+      },
+    },
+  },
+});
+const roundsApi = (answer, rest = {}) => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    const data = url === "https://gql" ? answer : rest[url];
+    return { ok: true, status: 200, json: async () => data, headers: { get: () => "" } };
+  };
+  return { urls, api: createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch }) };
+};
+const restRuns = (sha) => `https://api/repos/o/r/commits/${sha}/check-runs?check_name=pr-unblock%20%2F%20address-feedback&filter=all&per_page=100`;
+
+test("listModelRounds reads every commit's model runs in one GraphQL query, in listCheckRuns' shape", async () => {
+  const { urls, api } = roundsApi(
+    roundsAnswer([
+      { oid: "a".repeat(40), runs: [{ name: "pr-unblock / address-feedback", conclusion: "SUCCESS", completedAt: "2026-11-21T15:19:12Z" }, { name: "pr-unblock / address-feedback", conclusion: null, completedAt: null }] },
+      { oid: "b".repeat(40) },
+    ]),
+  );
+  assert.deepEqual(await api.listModelRounds(17939, "pr-unblock / address-feedback"), [
+    [
+      { name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success", completed_at: "2026-11-21T15:19:12Z" },
+      { name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: null, completed_at: null },
+    ],
+    [],
+  ]);
+  assert.deepEqual(urls, ["https://gql"]);
+});
+
+test("listModelRounds reads a commit over REST when its suites or runs run past a page", async () => {
+  const [a, b, c] = ["a", "b", "c"].map((x) => x.repeat(40));
+  const kept = { name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "failure" };
+  const { urls, api } = roundsApi(roundsAnswer([{ oid: a, suitesMore: true }, { oid: b, runsMore: true }, { oid: c }]), {
+    [restRuns(a)]: { check_runs: [kept] },
+    [restRuns(b)]: { check_runs: [] },
+  });
+  assert.deepEqual(await api.listModelRounds(1, "pr-unblock / address-feedback"), [[kept], [], []]);
+  assert.deepEqual(urls, ["https://gql", restRuns(a), restRuns(b)]);
+});
+
+test("listModelRounds reads every commit over REST for a PR past 100 commits", async () => {
+  const shas = ["d", "e"].map((x) => x.repeat(40));
+  const { urls, api } = roundsApi(roundsAnswer([], { more: true }), {
+    "https://api/repos/o/r/pulls/7/commits?per_page=100": shas.map((sha) => ({ sha })),
+    [restRuns(shas[0])]: { check_runs: [{ name: "x" }] },
+    [restRuns(shas[1])]: { check_runs: [] },
+  });
+  assert.deepEqual(await api.listModelRounds(7, "pr-unblock / address-feedback"), [[{ name: "x" }], []]);
+  assert.deepEqual(urls, ["https://gql", "https://api/repos/o/r/pulls/7/commits?per_page=100", restRuns(shas[0]), restRuns(shas[1])]);
 });

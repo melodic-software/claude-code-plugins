@@ -1143,11 +1143,7 @@ const touchesProtected = (files) => files.length >= FILES_CAP || files.some((fil
 // The rounds the PR has had: round markers or model check runs on its
 // commits, whichever count more, and those check runs.
 async function roundsSoFar(api, pr, issueComments, appId) {
-  const commits = await api.listPullCommits(pr);
-  const checkRuns = [];
-  for (const commit of commits) {
-    checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
-  }
+  const checkRuns = await api.listModelRounds(pr, MODEL_CHECK);
   return { rounds: Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns)), checkRuns };
 }
 
@@ -1745,6 +1741,26 @@ const RESOLVE_MUTATION = `mutation($id: ID!) {
   resolveReviewThread(input: { threadId: $id }) { thread { isResolved } }
 }`;
 
+const GITHUB_ACTIONS_APP_ID = 15368;
+const ROUNDS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $check: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $pr) {
+      commits(first: 100) {
+        pageInfo { hasNextPage }
+        nodes {
+          commit {
+            oid
+            checkSuites(first: 3, filterBy: { appId: ${GITHUB_ACTIONS_APP_ID} }) {
+              pageInfo { hasNextPage }
+              nodes { checkRuns(first: 10, filterBy: { checkName: $check, checkType: ALL }) { pageInfo { hasNextPage } nodes { name conclusion completedAt } } }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+
 const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $pr) {
@@ -1815,6 +1831,15 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     return data.data;
   }
   const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
+  const checkRunsNamed = async (sha, check) =>
+    (await requestData(`${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(check)}&filter=all&per_page=100`)).check_runs ?? [];
+  const eachCommit = async (shas, check) => {
+    const runs = [];
+    for (const sha of shas) {
+      runs.push(await checkRunsNamed(sha, check));
+    }
+    return runs;
+  };
   return {
     getPull: async (pr) => requestData(`${repo}/pulls/${pr}`),
     // A GraphQL answer whole, errors kept for the caller to judge
@@ -1845,6 +1870,24 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (pr, since) => paginate(`pulls/${pr}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
+    async listModelRounds(pr, check) {
+      const commits = (await graphql(ROUNDS_QUERY, { owner, name, pr, check })).repository.pullRequest.commits;
+      if (commits.pageInfo.hasNextPage) {
+        return eachCommit((await paginate(`pulls/${pr}/commits`)).map((commit) => commit.sha), check);
+      }
+      const runs = [];
+      for (const { commit } of commits.nodes) {
+        const suites = commit.checkSuites;
+        runs.push(
+          suites.pageInfo.hasNextPage || suites.nodes.some((suite) => suite.checkRuns.pageInfo.hasNextPage)
+            ? await checkRunsNamed(commit.oid, check)
+            : suites.nodes.flatMap((suite) =>
+                suite.checkRuns.nodes.map((run) => ({ name: run.name, app: { slug: "github-actions" }, conclusion: String(run.conclusion ?? "").toLowerCase() || null, completed_at: run.completedAt })),
+              ),
+        );
+      }
+      return runs;
+    },
     // A commit's statuses, newest first (fix-ci-context.mjs weakenStopped).
     listCommitStatuses: (sha) => paginate(`commits/${sha}/statuses`),
     // A branch's repository activity, newest first, read by cursor to its end
@@ -1858,10 +1901,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       };
       return branchActivity(read, `${owner}/${name}`, branch);
     },
-    async listCheckRuns(sha, name) {
-      const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
-      return (await requestData(url)).check_runs ?? [];
-    },
+    listCheckRuns: checkRunsNamed,
     // Every check run on a commit, re-runs and a contract-only run's skips
     // included (failingChecks prefers a real result over a skip), up to 300
     // (fix-ci-context.mjs).
