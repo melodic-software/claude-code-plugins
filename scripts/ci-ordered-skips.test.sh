@@ -117,7 +117,7 @@ trace_step="$(awk '/^      - name: Trace the changed suites$/ { on = 1; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW")"
 if grep -qE 'selection-audit\.sh trace --strict .*--budget [0-9]+' <<<"$trace_step" &&
-  [[ "$(grep -v '^[[:space:]]*$' <<<"$trace_step" | tail -n1)" == '          exit "$rc"' ]] &&
+  [[ "$(grep -v '^[[:space:]]*$' <<<"$trace_step" | tail -n1)" == "          exit \"\$rc\"" ]] &&
   ! grep -qE 'exit 0|\|\| true' <<<"$trace_step"; then
   ok "test-selection traces with --strict and a --budget, and exits with the trace's own status"
 else
