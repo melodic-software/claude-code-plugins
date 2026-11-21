@@ -2,6 +2,7 @@
 // state's option name, checked against the mapped option id; a write that
 // does not land throws, so the caller's run fails rather than leave the field
 // wrong. Option ids are written by hand from the org field.
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -284,12 +285,54 @@ test("statusWriter restart removes the other status labels before it clears the 
   assert.deepEqual(hold.steps(), ["GET /labels?per_page=100&page=1"], "the field is not cleared");
 });
 
-test("statusWriter writes of any other state read and remove no label", async () => {
-  const w = fieldWorld(null, undefined, ["needs-triage"]);
+test("statusWriter writes of any other state read no label, and a queue state removes none", async () => {
+  const w = fieldWorld(null, undefined, ["agent-ready", "needs-triage"]);
   const { set } = await writerOver(w.github);
   assert.equal((await set(7, "ready", { keepHold: true })).outcome, "written");
+  assert.equal((await set(7, "deferred")).outcome, "written");
+  assert.equal((await set(7, "needs-triage")).outcome, "written");
+  assert.deepEqual(w.steps(), ["POST ready", "POST deferred", "POST needs-triage"]);
   assert.equal((await set(7, "confirmed")).outcome, "written");
-  assert.deepEqual(w.steps(), ["POST ready", "POST confirmed"]);
+  assert.equal((await set(7, "confirmed")).outcome, "unchanged");
+  assert.deepEqual(w.steps().slice(3), ["POST confirmed", "DELETE /labels/agent-ready"], "only the confirmed write takes agent-ready off");
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+});
+
+test("statusWriter set for a host-run stop or a hold takes the agent-ready label off", async () => {
+  const app = 337595936;
+  for (const state of ["confirmed", "needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"]) {
+    const w = fieldWorld(84879220, app, ["agent-ready", "host-run", "area: security"]);
+    assert.equal((await (await writerOver(w.github)).set(7, state)).outcome, "written", state);
+    assert.deepEqual(w.labels(), ["host-run", "area: security"], state);
+    assert.deepEqual(w.steps(), [`POST ${state}`, "DELETE /labels/agent-ready"], `${state}: the field is written first`);
+  }
+});
+
+test("statusWriter leaves the agent-ready label on when its set writes nothing", async () => {
+  const human = 153232337;
+  const held = fieldWorld(86380005, human, ["agent-ready"]);
+  assert.equal((await (await writerOver(held.github)).set(7, "confirmed", { keepHold: true })).outcome, "held");
+  const failing = fieldWorld(84879220, human, ["agent-ready"]);
+  const github = async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issue-field-values")) throw new Error("HTTP 500");
+    return failing.github(method, path, body);
+  };
+  await assert.rejects(() => writerOver(github).then(({ set }) => set(7, "confirmed")), StatusWriteError);
+  assert.deepEqual([held.labels(), failing.labels()], [["agent-ready"], ["agent-ready"]]);
+});
+
+test("statusWriter set answers the field write when the agent-ready label removal fails, and logs it", async () => {
+  for (const [status, warned] of [[500, true], [404, false]]) {
+    const w = fieldWorld(84879220, 337595936, ["agent-ready"]);
+    const github = async (method, path, body) => {
+      if (method === "DELETE" && path.includes("/labels/")) throw Object.assign(new Error(`failed with status ${status}`), { status });
+      return w.github(method, path, body);
+    };
+    const logs = [];
+    const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r", log: (line) => logs.push(line) });
+    assert.equal((await set(7, "confirmed")).outcome, "written", String(status));
+    assert.equal(logs.some((line) => line.includes("`agent-ready` label was not removed")), warned, logs.join("\n"));
+  }
 });
 
 test("statusWriter leaveAgentReady writes only while the trusted field reads agent-ready", async () => {

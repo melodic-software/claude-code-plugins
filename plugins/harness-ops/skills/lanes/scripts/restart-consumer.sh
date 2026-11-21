@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # restart-consumer.sh — consume lane restart-requests and relaunch the lanes.
 #
-# A loop lane that hits its per-session cycle budget or the /loop seven-day
-# expiry writes a restart-request into the `restart_request` field of the
+# A loop lane that hits its per-session cycle budget or the /loop expiry (30
+# days for a loop created on Claude Code 2.1.330 or later, 7 days for an older
+# one) writes a restart-request into the `restart_request` field of the
 # machine-readable durable-state block on its telemetry comment, then stops
 # cleanly — a running loop cannot relaunch itself. Nothing consumed that field,
 # so every budget or expiry hit was a terminal manual-restart state. This script
@@ -12,8 +13,8 @@
 # It is meant to run unattended on a schedule owned by the OPERATING SYSTEM
 # (Task Scheduler / launchd / systemd --user / cron) rather than by anything
 # inside the harness: a watchdog lane is itself a /loop bounded by the same
-# seven-day expiry it would remediate, and no in-harness surface survives a
-# crashed lane, a harness restart, or a reboot. The schedule survives those; a
+# expiry it would remediate, and no in-harness surface survives a crashed lane,
+# a harness restart, or a reboot. The schedule survives those; a
 # crashed lane writes no restart_request, so this consumer does not relaunch it.
 # `print-schedule` emits the exact
 # registration commands; registering them is an operator action this script
