@@ -53,7 +53,7 @@ This plugin still reads, or reports as retired, the `.claude/` paths named here;
 run persists a ranked report and files top candidates as work items, with prioritization always
 human-gated. The recommended wrapper is a **weekly
 [Routine](https://code.claude.com/docs/en/routines)**. Each firing gets a fresh session, and the
-routine's saved prompt is the tuning surface. Consult that docs page for current Routine
+routine's saved prompt is where you tune it. Consult that docs page for current Routine
 capabilities and limits rather than relying on numbers written here.
 
 ### Prerequisite: the plugin must be loaded in the fired session

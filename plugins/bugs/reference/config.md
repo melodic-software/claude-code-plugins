@@ -124,7 +124,7 @@ one entry were absent. Do not discard the whole layer.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the personal override here and every other cascade surface:
+One recursive line covers the personal override here and every other cascade config file:
 
 ```gitignore
 .claude/**/*.local.*

@@ -20,7 +20,7 @@ A copied paragraph starts accurate and silently stops being accurate the next ti
 page changes. Nothing in the repository records that it drifted. Citing the source and fetching
 it at read time removes the drift risk entirely; where a surface must act on a volatile specific
 without the source, a stamped record (the surface's own decision in its own words, a pointer, an
-as-of date, a recheck trigger) keeps it honest and re-checkable without copying the source.
+as-of date, a recheck trigger) lets a reader tell when to recheck it, without copying the source.
 
 ## Skills
 

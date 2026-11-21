@@ -1,6 +1,6 @@
 # The code-metrics configuration
 
-Every tunable value in this plugin resolves through one consumer surface. This document is its
+Every tunable value in this plugin resolves through one set of config layers. This document is their
 contract: the layers, the merge form, the YAML subset, and every key with its default and
 provenance. `/code-metrics:setup` writes the team layer; every audit skill reads the resolved
 document at run time and prints the layer that supplied any value a personal layer changed. The

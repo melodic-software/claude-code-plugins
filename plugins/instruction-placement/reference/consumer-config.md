@@ -118,7 +118,7 @@ Three obligations this plugin takes on top of the convention:
   writes it only on the operator's explicit yes, the same per-item gate that authorizes a move,
   reused for the decision to stop being asked. A skill that wrote one unprompted would record an
   acceptance nobody made. `instruction-placement:delta` and `instruction-placement:audit` never write
-  this surface at all; they only read it.
+  this file at all; they only read it.
 - **Visible, never silent.** Every run reports each suppressed finding with its reason, date, and
   contributing layer, and every entry that did *not* suppress: each `personal-only, not applied` and
   each malformed one. A scoped run reports what it examined: it evaluates only entries with a site in
