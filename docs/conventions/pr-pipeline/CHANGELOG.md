@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [11.2.6] - 2026-11-21
+
+### Changed
+
+- pr-unblock skips its API-key calls (resolve-conflicts, address-feedback, review-dependency and fix-ci) while `vars.CLAUDE_API_KEYS_DISABLED` is `true`. Each handoff job then reads no check posted, as for a key the credit read skipped, and the subscription call starts directly. An unblock round no longer spends the key call's runner setup, GitHub reads and job hop before the subscription leg works. With the switch off the chain is unchanged; fix-ci-rung-up keeps its key call.
+
+### Fixed
+
+- release-eval-hold reads the held pull requests oldest first, so its five-a-run cap leaves the newest waiting one tick instead of stranding the oldest.
+
 ## [11.2.5] - 2026-11-21
 
 ### Changed
