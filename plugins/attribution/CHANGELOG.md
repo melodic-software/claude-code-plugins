@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.2] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.21.1] - 2026-11-21
 
 ### Fixed
