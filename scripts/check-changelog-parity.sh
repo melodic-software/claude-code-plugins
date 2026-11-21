@@ -689,7 +689,7 @@ if [[ "$mode" == "--check-preserved" ]]; then
       # heading "above the entry that replaced it" names an entry that does not
       # exist.
       if [[ -n "$changelog_at_head" ]]; then
-        echo "  A released section's heading vanished. The usual cause is a CHANGELOG merge-forward resolved by writing the new release under the PREVIOUS release's heading — absorbing it — or by RELABELLING that heading to the new version; git leaves no conflict marker behind for either. Restore the heading with its own notes above the entry that replaced it." >&2
+        echo "  A released section's heading vanished. The usual cause is a CHANGELOG merge-forward resolved by writing the new release under the PREVIOUS release's heading — absorbing it — or by RELABELING that heading to the new version; git leaves no conflict marker behind for either. Restore the heading with its own notes above the entry that replaced it." >&2
       else
         echo "  The changelog itself was deleted while its directory survived. Restore $changelog with every release note it carried at $merge_base." >&2
       fi
@@ -958,7 +958,7 @@ if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 ||
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   ((nonmonotonic > 0)) && echo "Renumber every bumped version strictly above the base ref's CURRENT version, not the version the branch was cut from." >&2
-  ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabelled or absorbed into a newer section." >&2
+  ((absorbed > 0)) && echo "Restore every '## [<version>]' heading that existed at the fork point; release notes must not be relabeled or absorbed into a newer section." >&2
   ((repeated > 0)) && echo "An entry added by this change set may not repeat another entry's body verbatim (bodies under $MIN_REPEATED_BODY characters are exempt)." >&2
   ((empty_bump > 0)) && echo "Bump a plugin's version only in the change set that changes a file it ships." >&2
   ((published_reuse > 0)) && echo "Bump the manifest version and add a new '## [<version>]' release entry whenever this change set modifies shipped plugin files — reusing a published version number is not allowed." >&2

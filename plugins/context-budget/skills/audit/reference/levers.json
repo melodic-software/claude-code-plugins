@@ -172,10 +172,10 @@
     {
       "id": "simple-system-prompt",
       "title": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1",
-      "mechanism": "Switches to the lean system prompt on models where the full prompt is default.",
+      "mechanism": "=1 switches to the lean system prompt on models where the full prompt is default; =0 (or false, no, off) does the reverse and gives every model the full prompt.",
       "category": "removes-weight",
       "categoryBasis": "Env row documented; measured large on some models and a measured no-op on models where the lean prompt is already default.",
-      "conditions": "Model-dependent. On a model that already defaults to the lean prompt the env var can only measure zero, and that zero is explained (already-default), not merely reported. Which models already default lean is read from the probe record https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code-lean-prompt-selector.md, rerun against the installed binary; no docs page covers it as of 2026-10-10. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
+      "conditions": "Model-dependent. On a model that already defaults to the lean prompt the env var can only measure zero, and that zero is explained (already-default), not merely reported. Which models already default lean is read from the probe record https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code-lean-prompt-selector.md, rerun against the installed binary; the env-vars row names the default only by model family, and no docs page lists it per model id as of 2026-11-21. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
       "posture": "recommendable-on-fit",
       "scope": "Environment variable only; no settings key.",
       "detection": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT in the environment; the session model from the baseline snapshot.",
@@ -183,12 +183,13 @@
       "emittedConfig": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1 (environment; no settings.json form)",
       "caveats": [
         "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling bare-simple-mode row changes startup behavior wholesale, and its smaller system prompt and tool set come with that; this row trims only the prompt. Never conflate them.",
+        "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=0 (or false, no, off) forces the full prompt on every model, even where an experiment or server configuration would pick the lean one. It adds weight, so it is never the emitted config; found in the consumer's environment, it explains a full-prompt baseline on a model that would otherwise be lean.",
         "Headless sdk-mode /context may omit a System prompt category at this version; a lean-vs-full delta then surfaces only in the buckets that move."
       ],
       "citations": [
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-10-10",
+      "verified": "2026-11-21",
       "recheckTrigger": "Either variable's env-vars row changes, the probe record's recheck trigger fires, or the lean prompt becomes default everywhere (the lever then measures zero universally)."
     },
     {

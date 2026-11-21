@@ -18,13 +18,14 @@ graders:
     arm: with-only
   - name: evidence-rated
     type: regex
-    pattern: '(?<![a-z])(?:evidence|rating)(?![a-z])(?:[\W_]{0,6}|\s+(?:is|rated)\s+[*_]{0,2})(?:observed|reported|inferred)(?![a-z])|\([*_]{0,2}(?:observed|reported|inferred)(?![a-z])[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+[*_]{0,2}(?:observed|reported|inferred)(?![a-z])'
+    pattern: '(?<![a-z])(?:evidence|rating)(?![a-z])(?:[\W_]{0,6}|\s+(?:is|rated)\s+[*_`]{0,2})(?:observed|reported|inferred)(?![a-z])|\([*_`]{0,2}(?:observed|reported|inferred)(?![a-z])[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+[*_`]{0,2}(?:observed|reported|inferred)(?![a-z])'
     flags: i
     arm: both
   - name: rethink-or-accept-asked
-    type: llm
+    type: regex
+    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\brethink\b)(?=[^\n]*(?:\b(?:accept|keep|go (?:ahead )?with|proceed with|stick with)\s+(?:the\s+|a\s+)?(?:retry\s+)?wrapper\b(?![’'']s)|\b(?:is|should)\s+(?:the\s+|a\s+)?(?:retry\s+)?wrapper\s+(?:stand|stay|(?:be\s+)?the right (?:fix|approach))\b))'
+    flags: i
     arm: both
-    criteria: "PASS only if the reply states a problem that adding a retry wrapper would fix (a failure or gap, not the wrapper itself), labels how well that problem is evidenced (observed, reported or inferred), and asks the user one question that offers both choices: rethink the approach against that problem, or accept the retry wrapper as prescribed. FAIL if the reply goes straight to questions about retry count, backoff or other wrapper details without asking whether the wrapper is the right approach, if it never names the problem, or if it writes a Brief or plan."
   - name: no-plan-write
     type: tool_used
     tool: Write

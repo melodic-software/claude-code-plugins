@@ -205,6 +205,55 @@ describe("selectRefinement", () => {
     assert.equal(writes(fake.calls).length, 0, "selection writes nothing");
   });
 
+  describe("factory-monitor incidents", () => {
+    const actions = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
+    const markerOf = (key) => `<!-- factory-monitor key=${key} fp=0123456789abcdef -->\n**Signal:** 1 main red`;
+    const incidentTitle = "Restore the failing required-checks!";
+    const incident = (number, overrides = {}) => ({ number, title: incidentTitle, state: "open", body: markerOf("incident:main-red"), user: actions, ...overrides });
+    const selectWith = (issue, items) => select(fakeGitHub({ issue: issueOf(issue), comments: [laneComment()], search: { items } }));
+
+    test("an open incident whose title matches once normalized is a duplicate by number and key only", async () => {
+      const result = await selectWith({ title: "Restore the failing required checks" }, [incident(20), { number: 3, title: "README count", state: "closed", user: { id: HUMAN } }]);
+      assert.equal(result.refine, true);
+      assert.deepEqual(result.context.monitor_duplicates, [{ number: 20, key: "incident:main-red" }]);
+      assert.deepEqual(
+        result.context.candidates.map((c) => c.number),
+        [3],
+        "a github-actions[bot] issue is never a titled candidate",
+      );
+      const seen = JSON.stringify(result.context);
+      assert.equal(seen.includes(incidentTitle), false, "the incident's title is not in the model context");
+      assert.equal(seen.includes("**Signal:**"), false, "the incident's body is not in the model context");
+    });
+
+    test("an open incident whose key the new issue names is a duplicate even when the titles differ", async () => {
+      const result = await selectWith({ title: "Checks keep failing on main", body: "Looks like incident:main-red again." }, [incident(20, { title: "Restore the failing required checks" })]);
+      assert.deepEqual(result.context.monitor_duplicates, [{ number: 20, key: "incident:main-red" }]);
+      assert.deepEqual(result.context.candidates, []);
+    });
+
+    test("a github-actions[bot] issue without the marker, a closed incident, a pull request and a malformed key are ignored", async () => {
+      const result = await selectWith({ title: "Restore the failing required checks" }, [
+        incident(20),
+        incident(21, { body: "No marker here." }),
+        incident(22, { body: `Quoted:\n${markerOf("incident:main-red")}` }),
+        incident(23, { state: "closed", state_reason: "completed" }),
+        incident(24, { pull_request: {} }),
+        incident(25, { user: { id: OUTSIDER } }),
+        incident(26, { body: markerOf("Incident:main-red") }),
+        incident(27, { body: markerOf("incident:main red") }),
+        incident(28, { body: markerOf(`incident:${"a".repeat(81)}`) }),
+      ]);
+      assert.deepEqual(result.context.monitor_duplicates, [{ number: 20, key: "incident:main-red" }]);
+      assert.deepEqual(result.context.candidates, []);
+    });
+
+    test("an incident that matches nothing about the new issue is not a duplicate", async () => {
+      const result = await selectWith({ title: "Restore the failing required checks" }, [incident(20, { title: "Find why no lane pull request is merging", body: markerOf("incident:throughput") })]);
+      assert.deepEqual(result.context.monitor_duplicates, []);
+    });
+  });
+
   const skips = [
     ["a closed issue", { issue: issueOf({ state: "closed" }), comments: [laneComment()] }, /open issue/],
     ["an outsider's issue", { issue: issueOf({ user: { id: OUTSIDER } }), comments: [laneComment()] }, /author/],
@@ -306,6 +355,27 @@ describe("validateOutput", () => {
   test("drops related work that is not one of the fetched candidates", () => {
     const output = validateOutput({ ...INEXACT, related: [{ number: 99, relation: "related", note: "x" }] }, new Set([3]));
     assert.deepEqual(output.related, []);
+  });
+
+  test("a factory-monitor match is a duplicate that turns an exact refinement into a question whether to close", () => {
+    const output = validateOutput(EXACT, new Set([3]), null, {}, [{ number: 20, key: "incident:main-red" }]);
+    assert.deepEqual(output.related, [{ number: 20, relation: "duplicate", note: "factory-monitor incident key=incident:main-red" }]);
+    assert.equal(output.exact, false);
+    assert.deepEqual(output.criteria, []);
+    assert.match(output.questions[0].question, /^Should this issue close\?.*#20 \(duplicate\)/);
+  });
+
+  test("a factory-monitor match the model already listed keeps the model's entry", () => {
+    const listed = { number: 20, relation: "related", note: "same area" };
+    const output = validateOutput({ ...INEXACT, related: [listed] }, new Set([20]), null, {}, [{ number: 20, key: "incident:main-red" }]);
+    assert.deepEqual(output.related, [listed]);
+  });
+
+  test("a factory-monitor match with a malformed key or number is dropped", () => {
+    const bad = [{ number: 20, key: "Incident:main-red" }, { number: 21, key: "incident:main red" }, { number: 22, key: `incident:${"a".repeat(81)}` }, { number: "23", key: "incident:x" }, { number: 24, key: "incident:x -->\n<!-- x" }, null];
+    const output = validateOutput(EXACT, new Set([3]), null, {}, bad);
+    assert.deepEqual(output.related, []);
+    assert.equal(output.exact, true);
   });
 });
 

@@ -87,6 +87,7 @@ jobs:
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
       run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
       run_check_tests: ${{ steps.base.outputs.ref == '' }}
+      run_selection: ${{ steps.base.outputs.ref != '' && github.event.pull_request.draft != true && steps.suites.outputs.any != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -99,6 +100,7 @@ jobs:
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_legs: ${{ steps.plan.outputs.node_legs }}
       node_plan: ${{ steps.plan.outputs.node_plan }}
+      selection_suites: ${{ steps.suites.outputs.list }}
       playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
@@ -709,7 +711,7 @@ expect "an unparsed workflow shape is inconclusive, never a pass" 2 "unrecognize
 
 f="$scratch/bad-needs-entry.yml"
 xform_replace_line "$base" "      - select-tests # the resolver" "      - [select-tests]" "$f"
-expect "an unmodelled needs entry is inconclusive, never a bogus defect" 2 "unsupported needs entry" --check "$f"
+expect "an unmodeled needs entry is inconclusive, never a bogus defect" 2 "unsupported needs entry" --check "$f"
 
 # A sequence item at the key's own indent is valid YAML and must not read as a
 # missing edge — a gate that cries wolf on a legal shape gets switched off.

@@ -2015,7 +2015,12 @@ def test_non_delivery_leaves_accuracy_alone_and_is_reported_as_a_rate(tmp_path, 
 def test_non_delivery_rise_past_the_margin_fails_and_within_it_passes(tmp_path, capsys):
     whole = {"re-a": 100, "re-b": 200, "re-c": 300}
     code, out = _nondelivery_report(
-        tmp_path / "1", capsys, {"re-a": 2, "re-b": 2, "re-c": 1}, whole, "--nondelivery-margin", "0.10"
+        tmp_path / "1",
+        capsys,
+        {"re-a": 2, "re-b": 2, "re-c": 1},
+        whole,
+        "--nondelivery-margin",
+        "0.10",
     )
     assert code == 1
     assert "non-delivery rise: after.claude-code's rate interval reaches" in out
@@ -2187,9 +2192,19 @@ def test_a_second_readers_copy_gets_settings_that_name_its_own_folder(tmp_path):
     repo = run_dir / "repo"
     repo.mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    subprocess.run(["git", "init", "-q", "--bare", str(run_dir / "origin.git")], check=True)
     subprocess.run(
-        ["git", "-C", str(repo), "remote", "add", "origin", str(run_dir / "origin.git")],
+        ["git", "init", "-q", "--bare", str(run_dir / "origin.git")], check=True
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "remote",
+            "add",
+            "origin",
+            str(run_dir / "origin.git"),
+        ],
         check=True,
     )
     case = {"seed": {"gh_fixture": {"responses": [], "default": {"stdout": ""}}}}
@@ -2210,3 +2225,150 @@ def test_a_second_readers_copy_gets_settings_that_name_its_own_folder(tmp_path):
     ]
     first = json.loads((run_dir / "settings.json").read_text())
     assert first["sandbox"]["filesystem"]["allowWrite"][0] == str(run_dir)
+
+
+CD_PREFIX_REFUSAL = (
+    "PreToolUse:Bash hook error: [node .../guardrails/3.12.1/hooks/exec-bash.mjs --fail-closed"
+    " .../run-guards.sh block-dangerous-git.sh block-cd-prefix.sh block-foreground-wait.sh]:"
+    " BLOCKED: Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a"
+    " multi-line commit message, Write the message to a file and use `git commit -F <file>`."
+    "\n\nThis hook comes from the guardrails@melodic-software plugin."
+)
+CD_PREFIX_HOOK = "guardrails@melodic-software PreToolUse:Bash: BLOCKED: Run `git -C"
+
+
+def _refused(*denied):
+    """A reader whose call `t1` the hook refused, then denials of (tool, tool use id)."""
+    refusal = {
+        "type": "tool_result",
+        "tool_use_id": "t1",
+        "is_error": True,
+        "content": CD_PREFIX_REFUSAL,
+    }
+    talk = {"type": "user", "message": {"content": [refusal]}}
+    denials = [{"tool_name": t, "tool_use_id": i} for t, i in denied]
+    return [talk, *_result(permission_denials=denials)]
+
+
+def test_a_reader_refused_by_block_cd_prefix_is_hook_blocked_under_the_hooks_name():
+    S, K = resume_eval.Source, resume_eval.Kind
+    found = resume_eval.exclusion(S.READER, 0, "", "", _refused(("Bash", "t1")))
+    assert found.kind is K.HOOK_BLOCKED and found.cause is resume_eval.Cause.BEHAVIOR
+    assert CD_PREFIX_HOOK in found.text
+    graded = {"probes": {}}
+    resume_eval.mark_excluded(graded, found, {"probes": [{"id": "p1"}]}, "after")
+    assert graded["hook_blocked"] == found.text == graded["nondelivery"]
+    assert graded["probes"] == {"p1": False}
+    for denied in ([("Bash", "t1"), ("Bash", "t2")], [("Bash", "t2")]):
+        assert (
+            resume_eval.exclusion(S.READER, 0, "", "", _refused(*denied)).kind
+            is K.DENIED
+        )
+    plain = _result(permission_denials=[{"tool_name": "Bash"}])
+    assert resume_eval.exclusion(S.READER, 0, "", "", plain).kind is K.DENIED
+    assert resume_eval.hook_blocks(plain) == {}
+    assert resume_eval.exclusion(S.READER, 0, "", "", _refused()) is None
+
+
+def test_only_the_readers_turns_are_hook_blocked():
+    S, K = resume_eval.Source, resume_eval.Kind
+    refused = _refused(("Bash", "t1"))
+    assert resume_eval.exclusion(S.FOLLOW_UP, 0, "", "", refused).kind is K.HOOK_BLOCKED
+    writer = resume_eval.exclusion(S.WRITER, 0, "", "", refused)
+    assert writer.kind is K.DENIED and writer.cause is resume_eval.Cause.BEHAVIOR
+    graded = {"probes": {}}
+    resume_eval.mark_excluded(graded, writer, {"probes": []}, "after")
+    assert "hook_blocked" not in graded and graded["nondelivery"] == writer.text
+
+
+def test_hook_refusals_count_from_the_main_turn_and_the_follow_up():
+    refused, clean = _refused(), _result()
+    hook = resume_eval.read_hook_blocks
+    assert hook({"main": {"events": clean}, "followup_events": refused})[0].startswith(
+        CD_PREFIX_HOOK
+    )
+    assert hook({"excluded": None, "events": refused})[0].startswith(CD_PREFIX_HOOK)
+    assert hook({"main": {"events": refused}, "followup_events": refused}) == hook(
+        {"main": {"events": refused}}
+    )
+    assert hook({"main": {"events": clean}, "followup_events": clean}) == []
+
+
+def test_hook_blocked_runs_are_counted_per_arm_apart_from_non_delivery(
+    tmp_path, capsys
+):
+    whole = {"re-a": 100, "re-b": 200, "re-c": 300}
+    after = _nondelivery_rows("after", {}, whole)
+    text = f"reader: hook blocked: [{CD_PREFIX_HOOK!r}]"
+    after[0] = {
+        **after[0],
+        "nondelivery": text,
+        "hook_blocked": text,
+        "hook_blocks": [CD_PREFIX_HOOK],
+    }
+    after[1] = {**after[1], "hook_blocks": [CD_PREFIX_HOOK]}
+    rows = _nondelivery_rows("before", {}, whole) + after
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    code, out = _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--baseline",
+        "before.claude-code",
+        "--evals-dir",
+        str(_evals(tmp_path, PAIR_SPECS)),
+        "--nondelivery-margin",
+        "0.10",
+    )
+    assert code == 0, out
+    pair = "after.claude-code vs before.claude-code"
+    assert f"pair {pair}: non-delivery 0 vs 0 runs" in out
+    assert (
+        f"pair {pair}: hooks after.claude-code 1 hook-blocked, a hook refused a call in 2 runs;"
+        " before.claude-code 0 hook-blocked, a hook refused a call in 0 runs"
+    ) in out
+    assert (
+        "after.claude-code: 6 kept, 0 excluded, 0 non-delivery, 1 hook-blocked" in out
+    )
+
+
+def _hook_margin_report(tmp_path, capsys, blocked_cases, *extra):
+    whole = {"re-a": 100, "re-b": 200, "re-c": 300}
+    after = _nondelivery_rows("after", {}, whole)
+    text = f"reader: hook blocked: [{CD_PREFIX_HOOK!r}]"
+    for i, row in enumerate(after):
+        if row["case"] in blocked_cases and row["index"] == 0:
+            after[i] = {**row, "nondelivery": text, "hook_blocked": text}
+    rows = _nondelivery_rows("before", {}, whole) + after
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    return _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--baseline",
+        "before.claude-code",
+        "--evals-dir",
+        str(_evals(tmp_path, PAIR_SPECS)),
+        "--nondelivery-margin",
+        "0.10",
+        *extra,
+    )
+
+
+def test_hook_blocked_rise_past_the_hook_margin_fails_apart_from_non_delivery(
+    tmp_path, capsys
+):
+    code, out = _hook_margin_report(
+        tmp_path / "1", capsys, {"re-a", "re-b", "re-c"}, "--hook-margin", "0.10"
+    )
+    assert code == 1
+    assert "hook-blocked rise: after.claude-code's rate interval reaches +0.500" in out
+    assert "non-delivery rise" not in out
+    code, out = _hook_margin_report(
+        tmp_path / "2", capsys, {"re-a"}, "--hook-margin", "0.60"
+    )
+    assert code == 0, out
+    assert "hook-blocked rate change +0.17" in out and "hook-blocked rise" not in out
+    code, out = _hook_margin_report(tmp_path / "3", capsys, {"re-a", "re-b", "re-c"})
+    assert code == 0, out
+    assert "hook-margin: none given, so no hook-blocked check ran" in out

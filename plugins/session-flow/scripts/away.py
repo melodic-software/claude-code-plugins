@@ -62,7 +62,9 @@ except ImportError:
 
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
+import dialect  # noqa: E402
 import plugin_paths  # noqa: E402
+from away_files import scan_files  # noqa: E402
 from away_launch import launch_warnings  # noqa: E402
 
 DEFAULT_PLUGIN_ROOT = SCRIPT.parent.parent
@@ -80,6 +82,7 @@ SCAN_BUDGET_SECONDS = 60.0
 NEEDS_YOU, FOUND, NOTES = "Needs you", "Found", "Additional notes"
 HEADINGS = (NEEDS_YOU, "Decided while you were away", "Waiting on me", "Done", FOUND, NOTES)
 BLOCKS = {"refused": "Refused actions", "externals": "External actions", "files": "Files written"}
+SCRIPT_OWNED_RE = re.compile(r"\A.*?(?=^## |\Z)|<!-- away:\w+:begin -->.*?<!-- away:\w+:end -->", re.S | re.M)
 KINDS = ("bed", "break", "trip", "until")
 EVENT_LABELS = {"PermissionRequest": "permission prompt", "Elicitation": "MCP question", "AutoModeDenial": "auto mode denial"}
 
@@ -752,39 +755,6 @@ def run_roots(state: Mapping, cwds: set[str]) -> set[str]:
     return roots
 
 
-class FileScan(NamedTuple):
-    files: list[str]
-    complete: bool
-
-
-def _pruned(dirpath: str, name: str, prune: set[str]) -> bool:
-    path = os.path.join(dirpath, name)
-    return name.startswith(".") or path in prune or os.path.lexists(os.path.join(path, ".git"))
-
-
-def scan_files(watched: list[str], since: float, prune: set[str]) -> FileScan:
-    """Files modified since `since` under the watched folders, skipping dot entries, the run's roots
-    and every git repository or worktree; stops once SCAN_BUDGET_SECONDS have passed."""
-    deadline = time.monotonic() + SCAN_BUDGET_SECONDS
-    found = []
-    for folder in watched:
-        top = os.path.realpath(folder)
-        if not os.path.isdir(top):
-            continue
-        for dirpath, dirnames, filenames in os.walk(top):
-            if time.monotonic() > deadline:
-                return FileScan(found, False)
-            dirnames[:] = sorted(d for d in dirnames if not _pruned(dirpath, d, prune))
-            for name in sorted(filenames):
-                if name.startswith("."):
-                    continue
-                path = os.path.join(dirpath, name)
-                with contextlib.suppress(OSError):
-                    if os.lstat(path).st_mtime >= since and os.path.isfile(path):
-                        found.append(path)
-    return FileScan(found, True)
-
-
 def _limited(lines: list[str], limit: int) -> list[str]:
     return lines if len(lines) <= limit else [*lines[:limit], f"- … and {len(lines) - limit} more"]
 
@@ -833,7 +803,7 @@ def refresh(state: dict, paths: Paths, files: bool) -> None:
     clock = time.monotonic()
     watched = state.get("watched") or [str(Path.home())]
     write_blocks(state, {"files": ["- Scan in progress; if this line stays, the scan was cut short and the list is incomplete."]})
-    scan = scan_files(watched, started.timestamp(), run_roots(state, cwds))
+    scan = scan_files(watched, started.timestamp(), run_roots(state, cwds), SCAN_BUDGET_SECONDS)
     seconds = time.monotonic() - clock
     file_lines = [
         "The list can include files other sessions wrote in the same folders during the absence.",
@@ -864,7 +834,7 @@ def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
     for name, lines in blocks.items():
         text = replace_block(text, name, render_block(name, lines))
-    write_atomic(report, text)
+    write_atomic(report, dialect.americanize(text, report.parent, keep=SCRIPT_OWNED_RE)[0])
 
 
 def cmd_refresh(args: argparse.Namespace, paths: Paths) -> int:

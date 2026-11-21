@@ -24,3 +24,4 @@ plugins/planning/shared/tests/fixtures/state-written-b5ed34f.json:generic-api-ke
 plugins/planning/shared/tests/fixtures/state-written-e27acc5.json:generic-api-key:1
 plugins/planning/shared/tests/fixtures/state-written-f6f1318.json:generic-api-key:1
 plugins/gaming/evals/dl-cyberpunk-preset/prompt.md:generic-api-key:28
+ea0f9aa58e9c81135545a9f1ca10f793c54f4205:plugins/session-flow/evals/fh-confirms-before-resume/scaffold.sh:generic-api-key:39

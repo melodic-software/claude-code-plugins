@@ -3,6 +3,21 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.7] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [0.11.6] - 2026-11-21
+
+### Security
+
+- **A local-file page checks its CDN library.** `/adhd:clarify`'s restatement of the rendered-views
+  baseline now says each CDN `<script>` and `<link>` tag carries `crossorigin="anonymous"` and an
+  `integrity` hash of the exact file its pinned URL serves, so a changed file at that URL does not
+  load. ([#17718](https://github.com/melodic-software/claude-code-plugins/issues/17718))
+
 ## [0.11.5] - 2026-11-18
 
 ### Changed

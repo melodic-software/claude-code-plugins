@@ -776,11 +776,14 @@ class Kind(Enum):
     RESULT_ERROR = "result-error"
     ZERO_TURNS = "zero-turns"
     DENIED = "denied"
+    HOOK_BLOCKED = "hook-blocked"
     NO_HANDOFF = "no-handoff"
     NO_VERDICT = "no-verdict"
 
 
-_RUN_BEHAVIOR = frozenset({Kind.RESULT_ERROR, Kind.ZERO_TURNS, Kind.DENIED})
+_RUN_BEHAVIOR = frozenset(
+    {Kind.RESULT_ERROR, Kind.ZERO_TURNS, Kind.DENIED, Kind.HOOK_BLOCKED}
+)
 BEHAVIOR_KINDS: dict[Source, frozenset[Kind]] = {
     Source.WRITER: _RUN_BEHAVIOR | {Kind.NO_HANDOFF},
     Source.READER: _RUN_BEHAVIOR,
@@ -809,6 +812,9 @@ class Exclusion:
         }
 
 
+READER_TURNS = frozenset({Source.READER, Source.FOLLOW_UP})
+
+
 def exclusion(
     source: Source,
     returncode: int,
@@ -820,7 +826,14 @@ def exclusion(
 ) -> Exclusion | None:
     """Why a call's run cannot be graded as delivered, classed by its source, or None.
     `label` prefixes the text (default: the source)."""
-    found = exclusion_reason(returncode, stdout, stderr, events, allowed_denials)
+    found = exclusion_reason(
+        returncode,
+        stdout,
+        stderr,
+        events,
+        allowed_denials,
+        hooks=source in READER_TURNS,
+    )
     if found is None:
         return None
     kind, detail = found
@@ -836,6 +849,8 @@ def mark_excluded(graded: dict, excluded: Exclusion, case: dict, arm: str) -> No
         graded["error"] = excluded.text
         return
     graded["nondelivery"] = excluded.text
+    if excluded.kind is Kind.HOOK_BLOCKED:
+        graded["hook_blocked"] = excluded.text
     graded["probes"] = {
         probe["id"]: False
         for probe in case["probes"]
@@ -872,9 +887,16 @@ def _read_rows(path: Path) -> list[dict]:
 
 
 def exclusion_reason(
-    returncode: int, stdout: str, stderr: str, events: list[dict], allowed_denials=()
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    events: list[dict],
+    allowed_denials=(),
+    hooks: bool = False,
 ) -> tuple[Kind, str] | None:
-    """What kind of failure keeps a run from counting (PLAN.md run rule d), and why."""
+    """What kind of failure keeps a run from counting (PLAN.md run rule d), and why.
+    With `hooks`, a reader's turn whose denials were all hook refusals is hook-blocked;
+    any other stage refused by a hook stays a plain denial."""
     if returncode != 0 and not events:
         return Kind.CLI_NO_OUTPUT, f"CLI exited {returncode}: {stderr.strip()[:200]}"
     result = _result_event(events)
@@ -903,11 +925,64 @@ def exclusion_reason(
             and result.get("local_command") is None
         ):
             return Kind.ZERO_TURNS, "0 turns"
-        denied = [d.get("tool_name") for d in result.get("permission_denials") or []]
-        extra = [name for name in denied if name not in allowed_denials]
-        if extra:
-            return Kind.DENIED, f"denied tool calls: {extra}"
+        denials = [
+            d
+            for d in result.get("permission_denials") or []
+            if d.get("tool_name") not in allowed_denials
+        ]
+        blocks = hook_blocks(events)
+        if hooks and denials and all(d.get("tool_use_id") in blocks for d in denials):
+            hooks = sorted({blocks[d["tool_use_id"]] for d in denials})
+            return Kind.HOOK_BLOCKED, f"hook blocked: {hooks}"
+        if denials:
+            return (
+                Kind.DENIED,
+                f"denied tool calls: {[d.get('tool_name') for d in denials]}",
+            )
     return None
+
+
+HOOK_BLOCK_RE = re.compile(
+    r"^PreToolUse:(?P<tool>\w+) hook error: \[.*?\]: (?P<reason>[^\n]*)"
+    r".*?This hook comes from the (?P<plugin>\S+) plugin\.",
+    re.S,
+)
+
+
+def _result_text(content) -> str:
+    if isinstance(content, list):
+        return "".join(
+            str(part.get("text") or "") for part in content if isinstance(part, dict)
+        )
+    return str(content or "")
+
+
+def hook_blocks(events: list[dict]) -> dict[str, str]:
+    """Tool use id to hook for each tool call a plugin's PreToolUse hook refused. Claude
+    Code's refusal names the plugin and event, and its bracket lists every guard the
+    hook ran, so the hook is named by plugin, event and the refusal's first line."""
+    found = {}
+    for event in events:
+        if event.get("type") != "user":
+            continue
+        for block in (event.get("message") or {}).get("content") or []:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_result"
+                and block.get("is_error")
+                and (m := HOOK_BLOCK_RE.match(_result_text(block.get("content"))))
+            ):
+                found[block.get("tool_use_id")] = (
+                    f"{m['plugin']} PreToolUse:{m['tool']}: {m['reason'][:80]}"
+                )
+    return found
+
+
+def read_hook_blocks(read: dict) -> list[str]:
+    """The hooks that refused any call in a reader's main turn or its follow-up."""
+    main = read.get("main")
+    events = main["events"] if main else read.get("events") or []
+    return list(hook_blocks(events + (read.get("followup_events") or [])).values())
 
 
 def write_fixture(path: Path, content: str) -> None:
@@ -1345,7 +1420,7 @@ def read_stage(
             cfg, run, prompt, arm=arm, resume=resume, extra=extra
         )
         if excluded := exclusion(Source.READER, code, out, err, events):
-            return {"excluded": excluded}
+            return {"excluded": excluded, "events": events}
         main = {
             "events": events,
             "tokens": reader_tokens(events),
@@ -1355,7 +1430,7 @@ def read_stage(
             cfg, run, followup, arm=arm, resume=session_of(events), extra=extra
         )
     if excluded := exclusion(Source.FOLLOW_UP, code, out, err, follow_events):
-        return {"excluded": excluded, "main": main}
+        return {"excluded": excluded, "main": main, "followup_events": follow_events}
     return {
         "main": main,
         "followup_events": follow_events,
@@ -1586,6 +1661,8 @@ def run_once(
                 graded["reader_tokens"] = main["tokens"]
                 graded["reader_m1"] = main["tokens"]["m1"]
                 graded["reader_whole_m1"] = main["whole_m1"]
+            if blocks := read_hook_blocks(read):
+                graded["hook_blocks"] = blocks
             if read.get("excluded"):
                 mark_excluded(graded, read["excluded"], case, arm)
                 continue
@@ -1930,6 +2007,23 @@ def row_score(row: dict, probes: frozenset[str] | None = None) -> float | None:
     return _mean(map(bool, graded))
 
 
+def other_nondelivery(row: dict) -> bool:
+    """A run that did not deliver for a reason other than a hook refusal, which
+    `report` counts on its own line (#17874)."""
+    return bool(row.get("nondelivery")) and not row.get("hook_blocked")
+
+
+def hook_blocked(row: dict) -> bool:
+    return bool(row.get("hook_blocked"))
+
+
+def hook_counts(rows) -> str:
+    rows = list(rows)
+    blocked = sum(bool(r.get("hook_blocked")) for r in rows)
+    fired = sum(bool(r.get("hook_blocks")) for r in rows)
+    return f"{blocked} hook-blocked, a hook refused a call in {_count(fired, 'run')}"
+
+
 def row_reader_m1(row: dict) -> int | None:
     """Reader tokens to the first state change; older rows hold them in `reader_tokens`."""
     if row.get("reader_m1") is not None:
@@ -1952,10 +2046,11 @@ class Cell:
     def accuracy(self, probes: frozenset[str] | None = None) -> float | None:
         return _mean(self.scores(probes))
 
-    def nondelivery_rate(self) -> float | None:
+    def rate(self, counted) -> float | None:
+        """The share of kept runs `counted` holds true for."""
         if not self.runs:
             return None
-        return sum(bool(r.get("nondelivery")) for r in self.runs) / len(self.runs)
+        return sum(map(counted, self.runs)) / len(self.runs)
 
     def reader_m1(self) -> float | None:
         return _mean(v for v in map(row_reader_m1, self.runs) if v is not None)
@@ -2096,25 +2191,43 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
         else:
             scored[name] = (b, o)
     deltas = [o - b for b, o in scored.values()]
-    lines.say(f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)")
-    rates = [
-        o_cells[n].nondelivery_rate() - b_cells[n].nondelivery_rate()
-        for n in names
-        if b_cells[n].runs and o_cells[n].runs
-    ]
+    lines.say(
+        f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)"
+    )
+    def rate_change(counted) -> tuple[str, float | None]:
+        return _paired(
+            [
+                o_cells[n].rate(counted) - b_cells[n].rate(counted)
+                for n in names
+                if b_cells[n].runs and o_cells[n].runs
+            ],
+            -1.0,
+            1.0,
+        )
+
     counts = [
-        sum(bool(r.get("nondelivery")) for n in names for r in cells[n].runs)
+        sum(other_nondelivery(r) for n in names for r in cells[n].runs)
         for cells in (b_cells, o_cells)
     ]
-    text, upper = _paired(rates, -1.0, 1.0)
+    nondelivery, nondelivery_upper = rate_change(other_nondelivery)
     lines.say(
-        f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {text}"
+        f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {nondelivery}"
     )
-    if args.nondelivery_margin is not None and upper is not None and upper > args.nondelivery_margin + 1e-9:
-        lines.say(
-            f"non-delivery rise: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {args.nondelivery_margin:.2f}",
-            fail=True,
-        )
+    blocked, blocked_upper = rate_change(hook_blocked)
+    lines.say(
+        f"pair {pair}: hooks {o_label} {hook_counts(r for n in names for r in o_cells[n].runs)};"
+        f" {b_label} {hook_counts(r for n in names for r in b_cells[n].runs)};"
+        f" hook-blocked rate change {blocked}"
+    )
+    for rise, upper, margin in (
+        ("non-delivery rise", nondelivery_upper, args.nondelivery_margin),
+        ("hook-blocked rise", blocked_upper, args.hook_margin),
+    ):
+        if margin is not None and upper is not None and upper > margin + 1e-9:
+            lines.say(
+                f"{rise}: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {margin:.2f}",
+                fail=True,
+            )
     for metric, read, margin in (
         ("reader m1 to first action", Cell.reader_m1, None),
         ("whole-run reader m1", Cell.whole_m1, args.token_margin),
@@ -2148,8 +2261,8 @@ def cmd_report(args) -> int:
     """Per (arm, reader): a plugin-eval result file and accuracy, reader tokens and pass
     counts on every case; with `--baseline`, one shared-probe result pair per compared
     group. Accuracy counts delivered runs only; non-delivery is compared as a per-case
-    rate. Exits 1 on any `left out`, `case drop:`, `pass-to-fail:`, `non-delivery rise:`,
-    `token rise:`, `untagged:` or `seed mismatch:` line, 2 on an unknown baseline."""
+    rate, and hook-blocked runs as a rate of their own. Exits 1 on any `left out`,
+    `case drop:`, `pass-to-fail:`, `non-delivery rise:`, `hook-blocked rise:`, `token rise:`, `untagged:` or `seed mismatch:` line, 2 on an unknown baseline."""
     groups = load_groups(args.graded)
     if args.baseline and args.baseline not in groups:
         print(
@@ -2218,10 +2331,11 @@ def cmd_report(args) -> int:
         write_report(kept, out / f"{label}.json", label.replace(".", "-"))
         means = {n: c.accuracy() for n, c in mine.items() if c.accuracy() is not None}
         passing = sum(m >= threshold for m in means.values())
-        undelivered = sum(bool(r.get("nondelivery")) for r in kept)
+        undelivered = sum(map(other_nondelivery, kept))
         accuracy = _mean(means.values())
         lines.say(
-            f"{label}: {len(kept)} kept, {group.excluded} excluded, {undelivered} non-delivery;"
+            f"{label}: {len(kept)} kept, {group.excluded} excluded, {undelivered} non-delivery,"
+            f" {hook_counts(kept)};"
             f" accuracy {'n/a' if accuracy is None else f'{accuracy:.2f}'} over {_count(len(means), 'case')};"
             f" reader m1 {_tokens(_mean(v for c in mine.values() if (v := c.reader_m1()) is not None))};"
             f" whole-run m1 {_tokens(_mean(v for c in mine.values() if (v := c.whole_m1()) is not None))};"
@@ -2240,8 +2354,18 @@ def cmd_report(args) -> int:
     if args.baseline:
         for value, check in (
             (args.threshold, "threshold: none given, so no pass-to-fail check ran"),
-            (args.nondelivery_margin, "nondelivery-margin: none given, so no non-delivery check ran"),
-            (args.token_margin, "token-margin: none given, so no whole-run token check ran"),
+            (
+                args.nondelivery_margin,
+                "nondelivery-margin: none given, so no non-delivery check ran",
+            ),
+            (
+                args.hook_margin,
+                "hook-margin: none given, so no hook-blocked check ran",
+            ),
+            (
+                args.token_margin,
+                "token-margin: none given, so no whole-run token check ran",
+            ),
         ):
             if value is None:
                 lines.say(check)
@@ -2358,6 +2482,11 @@ def main(argv=None) -> int:
         "--nondelivery-margin",
         type=float,
         help="M_nondelivery: fail a pair whose per-case non-delivery rate change has a 95%% upper end above it",
+    )
+    report.add_argument(
+        "--hook-margin",
+        type=float,
+        help="M_hook: fail a pair whose per-case hook-blocked rate change has a 95%% upper end above it",
     )
     report.add_argument(
         "--token-margin",

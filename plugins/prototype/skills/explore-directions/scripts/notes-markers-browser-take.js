@@ -57,7 +57,20 @@ async page => {
     ok("a note sent after the reload draws no marker while they are hidden", (await markers()) === "", await markers());
     await page.click("#markers");
     await marker("2");
-    ok("the toggle shows the markers again after the reload", (await markers()) === "2" && (await page.textContent("#markers")) === "Hide markers (M)", await markers());
+    ok("the toggle shows the markers again after the reload, the run's earlier note's too", (await markers()) === "1,2" && (await page.textContent("#markers")) === "Hide markers (M)", await markers());
+
+    const drawn = (want) => frame.waitForFunction((want) => [...document.documentElement.lastElementChild.children].filter((e) => !e.style.outline && e.textContent).map((e) => e.textContent).join() === want, want, { timeout: 5000 }).catch(() => {});
+    await inFrame.locator('nav.vs [aria-label="Previous variant"]').click();
+    await drawn("1");
+    ok("switching to variant C hides note 2's marker, made on variant A, and keeps note 1's, made outside every variant", (await shownVariant()) === "C" && (await markers()) === "1", `${await shownVariant()}: ${await markers()}`);
+    await frame.evaluate(() => document.dispatchEvent(new CustomEvent("vs:show", { detail: { variant: "B" } })));
+    await drawn("1");
+    ok("variant B does not draw note 2's marker either", (await shownVariant()) === "B" && (await markers()) === "1", `${await shownVariant()}: ${await markers()}`);
+    const row2 = page.locator("#notes li", { hasText: "Bolder parcel ids." });
+    ok("the notes list names the variant note 2 was made on", /variant A/.test(await row2.locator(".where").textContent()), await row2.locator(".where").textContent());
+    await row2.click();
+    await drawn("1,2");
+    ok("choosing note 2 from variant B switches the mockup to variant A and draws its marker", (await shownVariant()) === "A" && (await markers()) === "1,2", `${await shownVariant()}: ${await markers()}`);
   } catch (err) {
     R.push("ERROR " + String(err && err.message || err).slice(0, 300));
   }

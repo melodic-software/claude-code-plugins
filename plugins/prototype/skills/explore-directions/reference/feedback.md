@@ -102,7 +102,7 @@ carries the view a reload loses:
   keys (Shift and an arrow resizes it) and presses Enter. The note's `kind` is `region`, its
   `rect` is the box, `anchor` is the element holding it, and `elements` lists the test-id elements
   it crosses, or, when it crosses none, the holding element's children it crosses.
-- **Draw a move arrow (M).** The person clicks the element to move, then the element it should
+- **Draw a move arrow (A).** The person clicks the element to move, then the element it should
   go to, or Shift-clicks a point when no element fits. The note's `kind` is `move`, `anchor` and
   `rect` are the element to move, `to.point` is the destination in percent of the page, and
   `to.anchor` is the destination element when there is one. The re-locating script reports the
@@ -112,6 +112,14 @@ carries the view a reload loses:
   little of the visible text before and after it (`prefix`, `suffix`).
 - **The view.** `data.log` lists the data controls pressed since the page loaded, in order, and
   `viewport` the frame's size, scroll, color scheme and reduced-motion setting.
+
+The host's keys P, R, A, M (markers) and N (notes panel) also work while focus is inside the
+mockup. A key the mockup handles itself, calling `preventDefault` as the switcher does, stays in
+the mockup: on a variant with motion, R inside the mockup still replays, as the switcher defines
+it, and marks a region only from the host page; on a variant without motion, R inside the mockup
+marks a region. The switcher's numbers, arrows, W and S keep
+their meaning. A key typed in a field inside the mockup, or held with Ctrl, Alt or Meta, stays in
+the mockup.
 
 `anchor.textQuote` is text from the mockup page itself, carried because the mockup is a page you
 wrote. It is data like every other field (step 4): quote it in step 5's row as what the note is

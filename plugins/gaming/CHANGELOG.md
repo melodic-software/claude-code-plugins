@@ -3,6 +3,18 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.34] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [0.10.33] - 2026-11-21
+
+### Fixed
+
+- The Cyberpunk 2077 preset note and the candidate-selection reference spell grays in American English.
+
 ## [0.10.32] - 2026-11-18
 
 ### Changed

@@ -1169,13 +1169,12 @@ def test_file_walk_budget(ctx, monkeypatch):
     ctx.start()
     (ctx.home / "a" / "b").mkdir(parents=True)
     monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 0.0)
-    assert away.scan_files([str(ctx.home)], 0.0, set()).complete is False
+    assert away.scan_files([str(ctx.home)], 0.0, set(), 0.0).complete is False
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(ctx.data))
     monkeypatch.setenv("HOME", str(ctx.home))
     assert away.main(["refresh", "--session", SESSION, "--files"]) == 0
     assert "- Scan stopped after 0 s; the list is incomplete." in block(ctx.report().read_text(encoding="utf-8"), "files")
-    monkeypatch.setattr(away, "SCAN_BUDGET_SECONDS", 120.0)
-    assert away.scan_files([str(ctx.home)], 0.0, set()).complete is True
+    assert away.scan_files([str(ctx.home)], 0.0, set(), 120.0).complete is True
 
 
 def test_file_scan_cut_short_leaves_an_honest_line(ctx, monkeypatch):

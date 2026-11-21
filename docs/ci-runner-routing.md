@@ -36,15 +36,16 @@ reviewed pull request.
 
 The `ci-status` required check depends on every **required** workload lane
 (`mark-lanes`, `select-tests`, `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`,
-`check-skills`, `test-bash`, `test-python`, `test-node`, `check-managed-files`,
-`check-tests`) and requires
+`check-skills`, `test-bash`, `test-python`, `test-node`, `test-selection`,
+`check-managed-files`, `check-tests`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). The one exception is an ordered skip: a test
-lane, `lint-shell` or `check-tests` the change gives no work skips as a job,
-and `ci-status` counts that skip as `success` only when `select-tests`
-succeeded and its row for that lane (`run_bash`, `run_python`, `run_node`,
-`run_shell`, `run_check_tests`) is `false`; any other skip stays red.
+lane, `test-selection`, `lint-shell` or `check-tests` the change gives no work
+skips as a job, and `ci-status` counts that skip as `success` only when
+`select-tests` succeeded and its row for that lane (`run_bash`, `run_python`,
+`run_node`, `run_selection`, `run_shell`, `run_check_tests`) is `false`; any
+other skip stays red.
 On a draft pull request every lane but
 `select-tests` carries a draft gate, so a draft run lints and tests nothing, and its
 `ci-status` passes those skips with the notice `draft: lanes not run; the

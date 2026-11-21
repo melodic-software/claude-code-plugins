@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.6] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [4.2.5] - 2026-11-21
 
 ### Changed

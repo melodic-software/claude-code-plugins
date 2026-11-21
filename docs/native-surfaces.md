@@ -21,7 +21,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
 | Bundled skills | 30 | 24 | route 19, suggest 9, wrap 2 | complementary 25, defer 5 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
-| Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
+| Plugin-backed built-ins | 5 | 3 | route 5 | complementary 4, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
 | Built-in tools | 7 | 7 | route 7 | complementary 7 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
@@ -1078,6 +1078,24 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
+### `cc-plugin-easel` → `visualization:visualize`
+
+- **Verdict:** `complementary`: Partial overlap, kept. The built-in `cc-plugin-easel` mod gives Claude a chart tool and draws charts under time-series MCP results; visualization:visualize picks a visual form and medium for any conversation content (mermaid, tables, hand-authored SVG/CSS charts, ASCII, rich pages), of which a quantity chart is one form. The mod covers only that chart form and only where it loads: it needs a claude.ai subscription, Claude Code v2.1.321 or later (v2.1.326 on Team and Enterprise) and macOS or Linux outside WSL, and its automatic charts can be turned off in /config, so it is not routable everywhere. Route: where the mod resolves, a request for a chart of quantities can go to its chart tool; every other form stays with this skill. Ruled 2026-11-21 by owner direction ('go w/ recommendations' to option (a), keep the skill and record easel as a partial overlap; melodic-software/architecture#148).
+- **Integration:** `route`
+- **Native surface:** `cc-plugin-easel` (plugin-backed built-in; markers: gated)
+- **Our component:** `visualization:visualize` (skill)
+- **Evidence:**
+  - `cc-plugin-easel` present in the extraction as plugin-backed-builtin (the `builtin_plugins` lane), aliases: easel
+  - markers: gated; gate flag `tengu_joyful_otter`, default false; load conditional; default_enabled true (absent-default); declares userConfig; hooks module on session.start, session.attach, prompt.section, tool.call, ui.render; no skills, agents or commands
+  - native description: Draws charts in the transcript: a chart tool for Claude, and automatic charts for MCP results that are metrics over time
+  - docs: https://code.claude.com/docs/en/plugins/mods/overview.md, sections 'Mods built into Claude Code' and 'Check the charts mod requirements', read 2026-11-21 (HTTP 200, sha256 5a4b5ffd892271c8): requirements are a claude.ai subscription, v2.1.321 or later (v2.1.326 for Team and Enterprise), macOS or Linux outside WSL; turn off in /plugin, or only the automatic charts via Auto charts in /config
+  - our description: Decide the best visual form and medium for what is in the conversation right now, then render it (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page)
+  - changelog item 2.1.330-002, handed off by the v2.1.330 changelog apply run (melodic-software/claude-code-plugins#17713, #17830)
+- **Observation:** extraction: extracted from binary v2.1.330 on 2026-11-21 (the /harness-ops:inventory --binary-only extraction of the installed native build; `cc-plugin-easel` read in the builtin_plugins lane; that lane reported components of cc-plugin-hipaa-default and claude-platform as floors, not easel's) (2026-11-21)
+- **Recheck trigger:** an extraction stops reporting `cc-plugin-easel` in the builtin_plugins lane, reads its `tengu_joyful_otter` gate default as true or drops the gate, or the mod gains a skill or command; or the mods overview page changes the charts mod's requirements or what it draws (verified 2026-11-21)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
 ### `claude-test` → `testing:run-e2e`
 
 - **Verdict:** `defer`: Deferred: both verify a running web app in a real browser and return screenshot evidence, so the overlap is real, but the native side is the `claude-test` skill of the built-in `cc-plugin-claude-test` plugin, whose availability gate tests the flag `tengu_mellow_hollerith` with a code default of false. A surface off by default in most sessions is not a basis for a routing line. Re-rule as complementary with integration route when the flag defaults on. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
@@ -1238,19 +1256,21 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 
 ### `ExitWorktree` → `source-control:worktree`
 
-- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory: `action: "keep"` leaves the worktree and its branch on disk, `action: "remove"` deletes both but is refused for a worktree entered by `path`, which is how ours enters. Leaving a worktree goes to the tool with `action: "keep"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action.
+- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory: `action: "keep"` leaves the worktree and its branch on disk, `action: "remove"` deletes both but is refused for a worktree entered by `path`, which is how ours enters, since 2.1.327 `remove` asks first when the worktree may hold unsaved work and is refused in don't-ask mode or with nobody to answer unless an allow rule, auto mode or bypass permissions mode allows it, and since 2.1.330 neither `remove` nor the worktree exit dialog deletes a worktree another running Claude Code session is working in. Leaving a worktree goes to the tool with `action: "keep"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action, and 2026-11-21 for changelog items 2.1.327-131 and 2.1.330-012.
 - **Integration:** `route`
 - **Native surface:** `ExitWorktree` (built-in tool; markers: none)
 - **Our component:** `source-control:worktree` (skill)
 - **Evidence:**
-  - `ExitWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Exiting worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'exit a worktree session and return to the original directory'
+  - `ExitWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Exiting worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'exit a worktree session and return to the original directory'; gated false stays as observed: the field records whether the tool definition carries an `isEnabled` availability check (inventory.py), which the 2.1.327 removal ask, a permission ask on `remove`, does not change
   - native description: Exits a worktree session created by EnterWorktree and restores the original working directory
   - detect: origin discovered, score 0.4063, invocable_by model-only, recommended integration route
   - docs cross-check (tools reference, 2026-10-01): documented; not available to subagents that already run in their own working directory
   - our skill already names the tool: the `create` pre-flight says to use `ExitWorktree` to leave the current worktree first
   - tool schema in the 2.1.285 binary (string search 2026-10-01): `action` "keep" leaves the worktree and branch on disk, "remove" deletes both (isDestructive, user-facing name 'Cleaning up worktree') and needs `discard_changes` when work would be lost; the EnterWorktree prompt says ExitWorktree will not remove a worktree entered by `path`
+  - changelog item 2.1.327-131 (https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md, read 2026-11-21): 'Changed `ExitWorktree` to ask before removing a worktree that may hold unsaved work; refused in don't-ask mode or with nobody to answer, unless an allow rule, auto or bypass permissions mode allows it'; the tools reference ExitWorktree row (read 2026-11-21) names no ask; folded into #17829 from the v2.1.327 triage (melodic-software/claude-code-plugins#16982, row 6)
+  - changelog item 2.1.330-012 (https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md, read 2026-11-21): 'Fixed `ExitWorktree` and the worktree exit dialog deleting a worktree that another running Claude Code session was working in'; the worktrees page's 'Clean up worktrees' section (read 2026-11-21) states the exit-dialog half, not the tool's; handed off by the v2.1.330 changelog apply run (melodic-software/claude-code-plugins#17713, #17829)
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
-- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path`, or the tools reference stops documenting it (verified 2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path` or one another running Claude Code session is working in, changes when `remove` asks or is refused, or the tools reference stops documenting it or documents the removal ask or that other-session exception (verified 2026-10-01)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

@@ -3,6 +3,18 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-21
+
+### Added
+
+- daily latest-release check for context7, firecrawl and playwright
+
+## [2.0.24] - 2026-11-21
+
+### Fixed
+
+- The tracing and video reference spells gray in American English.
+
 ## [2.0.23] - 2026-11-20
 
 ### Removed

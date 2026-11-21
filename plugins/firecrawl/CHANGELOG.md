@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-21
+
+### Added
+
+- daily latest-release check for context7, firecrawl and playwright
+
 ## [0.8.21] - 2026-11-17
 
 ### Changed

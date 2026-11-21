@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [2.2.6] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [2.2.5] - 2026-11-21
+
+### Changed
+
+- The shared `reference/rendered-view.md` copy says `/architecture:improve deepening` now builds its report with `build-view.mjs deepening` instead of writing the HTML itself ([#17798](https://github.com/melodic-software/claude-code-plugins/issues/17798)).
+
 ## [2.2.4] - 2026-11-19
 
 ### Changed

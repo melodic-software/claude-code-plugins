@@ -7,7 +7,7 @@ f=notes/x-8888888888888888888-h2.md
 awk 'BEGIN {
   print "**@fakehandle** · 2026-10-29"
   print ""
-  print "# Coastal monitoring programme: the full station log"
+  print "# Coastal monitoring program: the full station log"
   for (s = 1; s <= 450; s++) {
     print ""
     printf "## Station %d\n\n", s

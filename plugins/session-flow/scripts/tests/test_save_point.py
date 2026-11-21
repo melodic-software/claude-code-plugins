@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 """Contract tests for save_point.py (new / fill / validate / emit).
 
 Runs the script as a subprocess to test the CLI interface, not internals,
@@ -1463,6 +1464,7 @@ def _install_in_cache(version_dir):
     scripts.mkdir(parents=True)
     for name in (
         "save_point.py",
+        "dialect.py",
         "io_streams.py",
         "handoff_chain.py",
         "handoff_fit.py",
