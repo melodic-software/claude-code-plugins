@@ -183,7 +183,7 @@
             "role_labels": {
               "type": "object",
               "additionalProperties": { "type": "string" },
-              "description": "Canonical role to label remaps (human-gated, autonomous-eligible, recurring-maintenance, owner-decision); an absent or empty value keeps the default label."
+              "description": "Canonical role to label remaps (human-gated, autonomous-eligible, recurring-maintenance, owner-decision, session-owned); an absent or empty value keeps the default label."
             },
             "hold_labels": {
               "type": "array",

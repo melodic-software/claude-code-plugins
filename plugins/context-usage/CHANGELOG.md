@@ -5,6 +5,12 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.5] - 2026-11-21
+
+### Fixed
+
+- `hooks/post-compact-mark.sh` no longer writes the main session's `.compacted` marker when a subagent compacts. Claude Code 2.1.323 and later send `agent_id` on PostCompact for a subagent compaction, and the hook now exits without writing when that field is set. A main-session compaction still writes the marker, including one under `--agent`, whose payload has `agent_type` but no `agent_id`. Builds before 2.1.323 send no `agent_id` on any compaction, so there a subagent compaction still marks the main session. `reference/reader-contract.md` states the skip.
+
 ## [6.1.4] - 2026-11-21
 
 ### Changed

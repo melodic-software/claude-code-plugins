@@ -281,7 +281,7 @@ class TestOneHostSpelling(NotesCase):
         return source
 
     def test_the_origin_check_the_frame_url_and_frame_ancestors_share_one_host(self):
-        host = (HERE / "host.html").read_text(encoding="utf-8")
+        host = (HERE / "host.mjs").read_text(encoding="utf-8")
         self.assertIn("if (!fromFrame(e, frame.contentWindow, devOrigin)", host)
         self.assertIn(
             "const target = frameTarget(devOrigin, frame.dataset.mockupTarget || null);",
@@ -784,6 +784,7 @@ class TestLoop(unittest.TestCase):
             "notes_bridge.py",
             "notes-bridge.sh",
             "host.html",
+            "host.mjs",
             "proto-pin.js",
             "note-model.mjs",
             "frame-channel.mjs",

@@ -357,6 +357,21 @@ END {
     if (mid_colon_star && kind != "allow" && is_param_shape && !is_documented && !is_param_only)
       finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a literal-colon command wildcard or a parameter wildcard — verify which you intended")
 
+    # A trailing `:*` on the last word is the end-of-pattern prefix syntax
+    # (see C6-colonStar above), not part of the value of the assignment, so
+    # `Bash(NODE_ENV=production:*)` has the literal value `production`.
+    if (kind == "allow" && tool == "Bash") {
+      n_words = split(body, words, " ")
+      if (n_words > 0) sub(/:\*$/, "", words[n_words])
+      for (w = 1; w <= n_words; w++) {
+        if (words[w] !~ /^[A-Za-z_][A-Za-z0-9_]*=/) break
+        if (index(words[w], "*")) {
+          finding("warning", "C6-assignStar", scope, text " — a * in a leading variable assignment of a Bash allow rule draws a startup warning (v2.1.323+); spell the value out, one rule per value")
+          break
+        }
+      }
+    }
+
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.
     colon = index(body, ":")
     if (colon > 1) {
@@ -406,7 +421,7 @@ END {
   }
   if (n_unread_surfaces > 0)
     print "LINT-NOTE: " n_unread_surfaces + 0 " surface(s) across " n_unread_scopes + 0 " scope(s) could not be read: " unread_list ". Their configuration was never linted, so a finding count of " n_findings + 0 " covers the surfaces that WERE read and is not a clean bill for the plane."
-  print "lint summary findings=" n_findings + 0 " checks_run=11 status=" (n_unread_surfaces > 0 ? "incomplete" : "read")
+  print "lint summary findings=" n_findings + 0 " checks_run=12 status=" (n_unread_surfaces > 0 ? "incomplete" : "read")
 }
 ')" || {
   echo "ERROR: no scope records on input — permission-plane-lint.sh will not report a clean plane it never read" >&2
