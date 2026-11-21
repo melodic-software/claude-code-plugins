@@ -37,7 +37,7 @@ Start from the assertion and work backward. This forces you to answer "what's th
 
 ### Evident Data (Ch 25)
 
-Make the relationship between inputs and expected outputs visible in the test itself: write the expected value as the calculation from the inputs (100 / 2 × (1 − 0.015)), not as the precomputed result (49.25).
+Make the relationship between inputs and expected outputs visible in the test itself: write the expected value as the calculation from the inputs (converting an amount of 100 at a rate of 2 with a 0.015 commission: 100 / 2 × (1 − 0.015)), not as the precomputed result (49.25).
 
 "I can read this test and see the connection between the numbers used in the input and the numbers used to calculate the expected result."
 
@@ -175,7 +175,7 @@ Khorikov prefers **Object Mother** (factory methods with defaults) over **Test D
 
 Group similar facts about a behavior into a single parameterized test.
 
-**Positive/negative split pattern**: when behavior differs significantly between positive and negative cases, extract the positive test into its own test method with a descriptive name, and keep only the negative cases parameterized.
+**Positive/negative split pattern**: when behavior differs significantly between positive and negative cases, extract the positive test into its own test method with a descriptive name, and keep only the negative cases parameterized. A combined test passes the expected result in as a Boolean parameter.
 
 This removes the `expected` Boolean parameter entirely from the negative cases (they're all `false`), and the positive case gets its own expressive name.
 
