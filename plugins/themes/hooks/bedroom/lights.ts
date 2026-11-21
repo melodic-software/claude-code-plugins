@@ -443,11 +443,16 @@ acc = vec4(vec4(acc.rgb * (1 - td_st) + vec3(0.86, 0.88, 0.98) * td_st, acc.a * 
 let wx_wet = state.at(vec2(13, 0)).y
 let wx_storm = state.at(vec2(13, 0)).z
 let wx_glass = w_pane + w_open
-// The cloud: soft rolls drifting slowly, a dull gray at every hour, near black at night, darker with rain and a storm.
+// The cloud: soft rolls drifting slowly, a dull gray by day, darker with rain and a storm. Late in the day it turns a dark
+// blue-gray lit by the town below, never black: a little lighter than the wall round the window, so the glass still
+// reads as sky and the land still stands dark against it; rain and a storm darken it less at night than by day. Behind
+// it the moon is a soft glow with no disc (wx_mg), where the clear sky shows it.
 let wx_n = 0.5 + 0.25 * sin(at.x * 0.045 + time * 0.03 + 2 * sin(at.y * 0.07)) + 0.25 * sin(at.y * 0.11 + at.x * 0.013 - time * 0.021)
-let wx_cc = vec3(mix(vec3(0.19, 0.17, 0.22), vec3(0.68, 0.70, 0.74), state.at(vec2(11, 0)).x) * (1 - 0.75 * state.at(vec2(11, 0)).y) * (1 - 0.3 * wx_wet - 0.25 * wx_storm))
+let wx_cc = vec3(mix(mix(vec3(0.19, 0.17, 0.22), vec3(0.68, 0.70, 0.74), state.at(vec2(11, 0)).x), vec3(0.075, 0.085, 0.115), state.at(vec2(11, 0)).y) * (1 - (0.3 * wx_wet + 0.25 * wx_storm) * (1 - 0.5 * state.at(vec2(11, 0)).y)))
+let wx_m = vec2(at - vec2(322, 361))
+let wx_mg = exp(-dot(wx_m, wx_m) / 2500) * state.at(vec2(11, 0)).y * (1 - 0.6 * wx_wet)
 let wx_cv = min(1, 1.3 * state.at(vec2(13, 0)).x) * mix(0.3 + 0.4 * wx_wet, 1, w_sky) * wx_glass
-acc = vec4(vec4(acc.rgb * (1 - wx_cv) + wx_cc * (0.85 + 0.26 * wx_n) * wx_cv, acc.a * (1 - wx_cv) + wx_cv))
+acc = vec4(vec4(acc.rgb * (1 - wx_cv) + (wx_cc * (0.85 + 0.26 * wx_n) + vec3(0.09, 0.09, 0.1) * wx_mg * w_sky) * wx_cv, acc.a * (1 - wx_cv) + wx_cv))
 // Beads on the panes (the open sash has no glass): a grid of 7-unit cells whose columns slide down each at its own
 // speed and wander a little side to side, a bead in some cells, each shown for its own share of its own cycle so they
 // come and go at different times; more and larger as the rain grows. A bead shows the lighter sky below it upside down.
