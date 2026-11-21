@@ -2,7 +2,8 @@
 
 - Status: accepted; amended 2026-11-16 (source citations exclude one ecosystem's tool documentation
   and examples, see the amendment below); amended 2026-11-17 (two kept classes: operating a kept
-  adapter's tool, and a measured fact; see the second amendment)
+  adapter's tool, and a measured fact; see the second amendment); amended 2026-11-21 (the bundled
+  ecosystems folder is deleted; see the third amendment)
 - Date: 2026-11-13
 - Refs: [#15703](https://github.com/melodic-software/claude-code-plugins/issues/15703) (spec),
   [#15706](https://github.com/melodic-software/claude-code-plugins/issues/15706); owner decision of
@@ -14,8 +15,8 @@ Generic skills ship language, framework, tool and library choices that a model r
 In a repository the skill's authors did not anticipate, those choices run the wrong command, or a
 shipped default runs unnoticed in place of the repository's own tool. Two examples on `main`:
 
-- `toolchain` bundles nine per-ecosystem default files in its reference folder. The Python
-  file's `check-cmd` runs
+- `toolchain` bundles nine per-ecosystem default files under
+  `plugins/toolchain/reference/ecosystems/`. The Python file's `check-cmd` runs
   `uv run ruff check . --no-fix && uv run ruff format . --check && uv run pyright`, so a repository
   with a ruff config and no ecosystem record gets pyright in its check whether or not it uses
   pyright.
@@ -128,3 +129,9 @@ wrong thing, and only while a targeted eval case shows the loss without it. Neit
 default: no bundled default survives decision 2. A record of this marketplace's own files, keys,
 rule ids, scripts or behavior, and the upstream source of a kept script's patterns, is not a
 choice made for the consumer and is outside these classes.
+
+## Amendment (2026-11-21): the bundled ecosystems folder is deleted
+
+[#16032](https://github.com/melodic-software/claude-code-plugins/issues/16032) deleted the nine
+default files under `plugins/toolchain/reference/ecosystems/`, and the Context section above still
+describes `main` as it stood when this record was accepted.
