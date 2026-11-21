@@ -43,7 +43,7 @@ modes:
       agentMode: ""
       allowNonWorkspaceAccess: false
     settings_arg: --settings
-    prompt_preface: "This run is read-only: shell commands and file writes are refused, so use only your file-reading tools."
+    prompt_preface: "This run is read-only: every shell command, search commands such as grep, find and ls included, and every file write is refused. Read files by path with your file-reading tool."
   write:
     enforcement: sandbox
     args:
