@@ -13,6 +13,7 @@ import { rebuild, startShader } from '../core/values.js'
 import { DEFAULT_STATE } from '../scene/lib.ts'
 import { BUILT, WITHOUT } from './index.js'
 import { BANK, LENGTH_MS, OBJECTS, PURR, chosenName, lengthOf, namesOf } from './sound-bank.js'
+import { rowStarts, seasonOf } from './time.js'
 import { BEAT_MS, PING_MS, QUIET_MS, STEADY_MS, encodedOf, fileOf, linesOf, mixerScript, powershellArgv, wordsOf } from './sound-mixer.js'
 import {
   COMMAND_LAG_MS,
@@ -124,7 +125,7 @@ test('in the plugin, one mixer plays the bed, the television and a change of wea
   expect(await room.run('sound on')).toMatch(/^sound is on, played by the Windows mixer \(powershell\.exe\) at volume 70/)
   await wait(50)
   expect(mixers.length).toBe(1)
-  expect(verbs()).toContain(`bed ${BANK.crickets.entries.katydids.bed} ${(gainOf(70) * NIGHT_LEVEL).toFixed(4)} ${START_FADE_MS}`)
+  expect(verbs()).toContain(`bed ${BANK.night.entries.katydids.bed} ${(gainOf(70) * NIGHT_LEVEL).toFixed(4)} ${START_FADE_MS}`)
   expect(verbs()).toContain(`load ${BANK.tv.entries.tube.on}`)
 
   await room.run('tv')
@@ -212,6 +213,8 @@ test('in the plugin, /bedroom weather strike (the card\'s bolt) brings one thund
 
 test("the mixer's command file, its answers and its script", () => {
   expect(wordsOf({ verb: 'bed', name: undefined, gain: 0.5, fadeMs: 6000.4 })).toBe('bed - 0.5000 6000')
+  expect(wordsOf({ verb: 'bed', name: 'night/x.wav', gain: 0.5, fadeMs: 60, from: 0.125 })).toBe('bed night/x.wav 0.5000 60 0.1250')
+  expect(mixerScript('W:\\s')).toContain('a=$(if($w.Count -gt 5){[double]$w[5]}else{0})')
   expect(wordsOf({ verb: 'shot', name: 'tv/tube-on.wav', gain: 1.2 })).toBe('shot tv/tube-on.wav 1.0000')
   expect(fileOf([{ seq: 3, command: { verb: 'ping' } }, { seq: 4, command: { verb: 'quit', fadeMs: 150 } }])).toBe('3 ping\n4 quit 150\nend\n')
   expect(linesOf('..ready D:\\tmp\\a.b\\commands.txt\n.ok 3\nsounding 3\n..ok')).toEqual({
@@ -444,7 +447,7 @@ test('nothing reaches the engine while sound is off', async () => {
     await s.advance(60_000)
   }
   expect(s.calls).toEqual([])
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is off, volume 70, objects on\. bank: cicadas chorus, crickets katydids, rain roof, thunder storm, tv tube\. player: not looked for yet/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is off, volume 70, objects on\. bank: cicadas chorus, night katydids, rain roof, thunder storm, tv tube\. player: not looked for yet/)
   expect(s.calls).toEqual([])
 })
 
@@ -700,8 +703,11 @@ test('S1: each kind has named entries with a default, picked by name or number a
   expect((await s.ctx()).saved.bank).toEqual({ cicadas: 'river' })
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', '1'])).toBe('cicadas plays chorus')
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'thunder', 'distant'])).toBe('thunder plays distant')
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'crickets'])).toBe('night plays crickets')
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'katydids'])).toBe('night plays katydids')
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'crickets', 'crickets'])).toMatch(/^say a kind and one of its sounds/)
   expect(ranBy(s)).toContain(`load ${BANK.thunder.entries.distant.far[0]}`)
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'wind', 'x'])).toMatch(/^say a kind and one of its sounds, as in \/bedroom sound pick cicadas river\. cicadas: chorus or river; crickets: katydids or crickets; rain: roof; thunder: storm or distant; tv: tube\. Now:/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'wind', 'x'])).toMatch(/^say a kind and one of its sounds, as in \/bedroom sound pick cicadas river\. cicadas: chorus or river; night: katydids or crickets; rain: roof; thunder: storm or distant; tv: tube\. Now:/)
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'rain', 'tin'])).toMatch(/^say a kind/)
   await quiet(s)
 })
@@ -710,7 +716,7 @@ test('the insects follow the hour when dry: cicadas from noon through dusk, the 
   if (!BUILT.includes('sound')) return
   const saved = savedOf({})
   const cicadas = BANK.cicadas.entries.chorus.bed
-  const night = BANK.crickets.entries.katydids.bed
+  const night = BANK.night.entries.katydids.bed
   const dry = PHASES.map((phase, sun) => [phase, bedOf(saved, { sun, weather: 0 }) ?? '-', levelOf({ sun, weather: 0 })])
   expect(dry).toEqual([
     ['dusk', cicadas, 1],
@@ -732,7 +738,10 @@ test('the insects follow the hour when dry: cicadas from noon through dusk, the 
   for (let sun = 0; sun < 8; sun++) {
     expect([sun, bedOf(saved, { sun, weather: 2 }), bedOf(saved, { sun, weather: 3 }), bedOf(saved, { sun, weather: 4 }), levelOf({ sun, weather: 3 })]).toEqual([sun, roof.rain, roof.downpour, roof.storm, 1])
   }
-  expect(bedOf(savedOf({ bank: { crickets: 'crickets' } }), { sun: 2, weather: 0 })).toBe(BANK.crickets.entries.crickets.bed)
+  expect(bedOf(savedOf({ bank: { night: 'crickets' } }), { sun: 2, weather: 0 })).toBe(BANK.night.entries.crickets.bed)
+  const older = savedOf({ bank: { crickets: 'crickets' } })
+  expect(chosenName(older, 'night')).toBe('katydids')
+  expect(bedOf(older, { sun: 2, weather: 0 })).toBe(BANK.night.entries.katydids.bed)
 })
 
 test('one bed at a time: the hour\'s insects when dry, and rain, downpour and storm each their own', async () => {
@@ -744,7 +753,7 @@ test('one bed at a time: the hour\'s insects when dry, and rain, downpour and st
   await s.settle()
   expect(live(s)).toEqual([BANK.cicadas.entries.chorus.bed])
   const roof = BANK.rain.entries.roof
-  const night = BANK.crickets.entries.katydids.bed
+  const night = BANK.night.entries.katydids.bed
   const cases = [
     [{ sun: 1, weather: 1 }, [night]],
     [{ sun: 2, weather: 2 }, [roof.rain]],
@@ -833,6 +842,60 @@ test('a volume, bank and objects stored outside their range load as the defaults
   expect(savedOf({ objects: 'yes' }).objects).toBeUndefined()
 })
 
+/** A local clock time on 2026-11-19, `minutesIn` after the start of row `row` by the season's sunrise and sunset. */
+function intoRow(row: number, minutesIn: number): number {
+  const noonOfDay = new Date(2026, 10, 19, 12).getTime()
+  const { sunrise, sunset } = seasonOf(noonOfDay)
+  const start = rowStarts(sunrise, sunset)[row]!
+  return new Date(2026, 10, 19, 0, start + minutesIn, 0).getTime()
+}
+
+test('sound turned on partway through the evening starts both beds where the cross-fade is then', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand(intoRow(1, 30))
+  onWindows(s)
+  Object.assign(sky, { sun: 1, weather: 0 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  const beds = ranBy(s).filter(line => line.startsWith('bed '))
+  const turn = (30 / 75) * (Math.PI / 2)
+  const g = gainOf(70)
+  expect(beds).toEqual([
+    `bed ${BANK.cicadas.entries.chorus.bed} ${(g * Math.cos(turn)).toFixed(4)} 0 ${(g * Math.cos(turn)).toFixed(4)}`,
+    `bed ${BANK.night.entries.katydids.bed} ${(g * NIGHT_LEVEL).toFixed(4)} ${45 * 60_000} ${(g * NIGHT_LEVEL * Math.sin(turn)).toFixed(4)}`,
+  ])
+  await quiet(s)
+})
+
+test('through the mixer the afternoon builds in one ease to the golden hour, re-aimed when the hour is held or follows the clock again', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand(intoRow(6, 120))
+  onWindows(s)
+  Object.assign(sky, { sun: 6, weather: 0 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  const g = gainOf(70)
+  const span = (rowStarts(seasonOf(s.now()).sunrise, seasonOf(s.now()).sunset)[7]! - rowStarts(seasonOf(s.now()).sunrise, seasonOf(s.now()).sunset)[6]!) * 60_000
+  const lines = (): string[] => ranBy(s).filter(line => line.startsWith('bed ') || line.startsWith('level '))
+  expect(lines()).toEqual([`bed ${BANK.cicadas.entries.chorus.bed} ${(g * levelOf({ sun: 6, weather: 0 }, (120 * 60_000) / span, true)).toFixed(4)} ${START_FADE_MS}`])
+  await s.advance(START_FADE_MS + WATCH_MS)
+  const aimed = lines().at(-1)!.split(' ')
+  expect(aimed.slice(0, 2)).toEqual(['level', g.toFixed(4)])
+  expect(Math.abs(Number(aimed[2]) - (span - 120 * 60_000))).toBeLessThan(START_FADE_MS + 2 * WATCH_MS)
+  await s.advance(10 * 60_000)
+  expect(lines().length).toBe(2)
+
+  await (await s.ctx()).save({ time: 'noon' })
+  await s.advance(WATCH_MS + 10)
+  expect(lines().at(-1)).toBe(`level ${(g * NOON_LEVEL).toFixed(4)} ${SUN_FADE_MS}`)
+  await (await s.ctx()).save({ time: undefined })
+  await s.advance(SUN_FADE_MS + WATCH_MS + 10)
+  const again = lines().at(-1)!.split(' ')
+  expect(again.slice(0, 2)).toEqual(['level', g.toFixed(4)])
+  expect(Number(again[2])).toBeLessThan(span - 120 * 60_000 - 10 * 60_000)
+  await quiet(s)
+})
+
 /**
  * Starts the shader's values with this sky, as the room does at load: from then on the bed follows the world code sent.
  * The values module stays started for the rest of the file, so this test runs last.
@@ -898,7 +961,7 @@ test('from dusk the cicadas give way to the night insects across the whole eveni
 
   await moveTo(1)
   const evening = beds().at(-1)!.split(' ')
-  expect(evening.slice(0, 3)).toEqual(['bed', BANK.crickets.entries.katydids.bed, (gainOf(70) * NIGHT_LEVEL).toFixed(4)])
+  expect(evening.slice(0, 3)).toEqual(['bed', BANK.night.entries.katydids.bed, (gainOf(70) * NIGHT_LEVEL).toFixed(4)])
   expect(Number(evening[3])).toBeGreaterThan(EVENING_FADE_MS - WATCH_MS - 50)
   expect(Number(evening[3])).toBeLessThanOrEqual(EVENING_FADE_MS)
   expect(bedName()).toBe('night insects')

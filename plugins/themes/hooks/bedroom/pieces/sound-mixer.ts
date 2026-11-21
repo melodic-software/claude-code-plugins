@@ -31,9 +31,12 @@ export const BEAT_MS = 250
 export const QUIET_MS = 20_000
 export const PING_MS = 5000
 
-/** One command to the mixer. Gains are 0 to 1, times in ms, names relative to the sounds folder. */
+/**
+ * One command to the mixer. Gains are 0 to 1, times in ms, names relative to the sounds folder. A bed's `from` is the
+ * level its voice starts at in place of silence, for a cross-fade picked up partway.
+ */
 export type MixerCommand =
-  | { verb: 'bed'; name: string | undefined; gain: number; fadeMs: number }
+  | { verb: 'bed'; name: string | undefined; gain: number; fadeMs: number; from?: number }
   | { verb: 'level'; gain: number; fadeMs: number }
   | { verb: 'shot'; name: string; gain: number }
   | { verb: 'load'; name: string }
@@ -45,7 +48,7 @@ const gain = (value: number): string => Math.min(1, Math.max(0, value)).toFixed(
 
 /** One command as its line in the file, without its seq. A name holds no space: the bank's names are words and dashes. */
 export function wordsOf(command: MixerCommand): string {
-  if (command.verb === 'bed') return `bed ${command.name ?? '-'} ${gain(command.gain)} ${ms(command.fadeMs)}`
+  if (command.verb === 'bed') return `bed ${command.name ?? '-'} ${gain(command.gain)} ${ms(command.fadeMs)}${command.from === undefined ? '' : ` ${gain(command.from)}`}`
   if (command.verb === 'level') return `level ${gain(command.gain)} ${ms(command.fadeMs)}`
   if (command.verb === 'shot') return `shot ${command.name} ${gain(command.gain)}`
   if (command.verb === 'load') return `load ${command.name}`
@@ -123,7 +126,7 @@ export function mixerScript(root: string): string {
     '$waits=New-Object System.Collections.ArrayList',
     '$last=0;$seen=0;$beat=-1000;$armedAt=0;$stamp=\'\';$reread=0;$quit=-1;$code=0',
     'function Shot($n){if(-not $shots.ContainsKey($n)){$shots[$n]=New-Object System.Collections.ArrayList};$pool=$shots[$n];foreach($s in $pool){if($s.armed -or $s.until -eq 0){return $s}};$s=[pscustomobject]@{p=(Open $n);until=0;armed=$false;from=0;long=$false};[void]$pool.Add($s);$s}',
-    "function Run($w,$now){switch($w[1]){'bed'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v 0 ([int]$w[4]) $now;$v.drop=$true}};if($w[2] -ne '-'){$v=[pscustomobject]@{p=(Open $w[2]);loop=$true;bed=$true;drop=$false;a=0;b=[double]$w[3];t=$now;n=[int]$w[4]};[void]$voices.Add($v);$v.p.Play()}}'level'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v ([double]$w[2]) ([int]$w[3]) $now}}}'shot'{$s=Shot $w[2];$s.armed=$false;$s.p.Volume=[double]$w[3];if($s.p.Position.TotalMilliseconds -gt 0){$s.p.Position=[TimeSpan]::Zero};$s.p.Play();$s.from=$now;$s.long=$true;$s.until=$now+60000;[void]$waits.Add([pscustomobject]@{p=$s.p;seq=$w[0];by=$now+2000})}'load'{if(-not $shots.ContainsKey($w[2])){$shots[$w[2]]=New-Object System.Collections.ArrayList;[void]$shots[$w[2]].Add([pscustomobject]@{p=(Open $w[2]);until=0;armed=$false;from=0;long=$false})}}'quit'{foreach($v in $voices){Fade $v 0 ([int]$w[2]) $now;$v.drop=$true};$script:quit=$now+[int]$w[2]}};Say ('ok '+$w[0])}",
+    "function Run($w,$now){switch($w[1]){'bed'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v 0 ([int]$w[4]) $now;$v.drop=$true}};if($w[2] -ne '-'){$v=[pscustomobject]@{p=(Open $w[2]);loop=$true;bed=$true;drop=$false;a=$(if($w.Count -gt 5){[double]$w[5]}else{0});b=[double]$w[3];t=$now;n=[int]$w[4]};[void]$voices.Add($v);$v.p.Play()}}'level'{foreach($v in $voices){if($v.bed -and -not $v.drop){Fade $v ([double]$w[2]) ([int]$w[3]) $now}}}'shot'{$s=Shot $w[2];$s.armed=$false;$s.p.Volume=[double]$w[3];if($s.p.Position.TotalMilliseconds -gt 0){$s.p.Position=[TimeSpan]::Zero};$s.p.Play();$s.from=$now;$s.long=$true;$s.until=$now+60000;[void]$waits.Add([pscustomobject]@{p=$s.p;seq=$w[0];by=$now+2000})}'load'{if(-not $shots.ContainsKey($w[2])){$shots[$w[2]]=New-Object System.Collections.ArrayList;[void]$shots[$w[2]].Add([pscustomobject]@{p=(Open $w[2]);until=0;armed=$false;from=0;long=$false})}}'quit'{foreach($v in $voices){Fade $v 0 ([int]$w[2]) $now;$v.drop=$true};$script:quit=$now+[int]$w[2]}};Say ('ok '+$w[0])}",
     "Say ('ready '+$file)",
     '$i=New-Object IO.FileInfo $file;$nextVoices=0',
     'try{while($true){' +

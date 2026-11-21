@@ -7,7 +7,7 @@ import type { Saved } from '../core/saved.js'
  */
 export const BANK = {
   cicadas: { default: 'chorus', entries: { chorus: { bed: 'cicadas/chorus.wav' }, river: { bed: 'cicadas/river.wav' } } },
-  crickets: { default: 'katydids', entries: { katydids: { bed: 'crickets/katydids.wav' }, crickets: { bed: 'crickets/crickets.wav' } } },
+  night: { default: 'katydids', entries: { katydids: { bed: 'crickets/katydids.wav' }, crickets: { bed: 'crickets/crickets.wav' } } },
   rain: {
     default: 'roof',
     entries: { roof: { rain: 'rain/roof-rain.wav', downpour: 'rain/roof-downpour.wav', storm: 'rain/roof-storm.wav' } },

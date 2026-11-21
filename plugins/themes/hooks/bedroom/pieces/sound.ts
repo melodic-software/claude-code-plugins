@@ -146,8 +146,11 @@ const stopPlay = (play: Play): void => {
 type Mixer = { seq: number; pending: { seq: number; command: MixerCommand }[]; path?: string; writing: Promise<void>; kill?: () => void; heard: number }
 type Out = { player: Player; isDone: boolean; mixer?: Mixer; bedPlay?: Play; shots: Set<Play> }
 let out: Out | undefined
-/** The bed playing now: its file, the sky it was chosen for, the volume's gain and the sky's level (levelOf). */
-let bed: { file: string | undefined; sky: Sky; gain: number; level: number } | undefined
+/**
+ * The bed playing now: its file, the sky it was chosen for, the volume's gain and the sky's level (levelOf), when its
+ * last fade ends, and, while the afternoon builds through the mixer, when that one long ease reaches the golden hour.
+ */
+let bed: { file: string | undefined; sky: Sky; gain: number; level: number; settledAt: number; aim?: number } | undefined
 
 /** The mixer reports this many one-shots' latency in the debug log, from the write to the player's position moving. */
 const LATENCY_NOTES = 3
@@ -299,9 +302,9 @@ async function playThrough($: EngineInterface, o: Out, file: string, gain: numbe
   return false
 }
 
-/** Changes the bed: a cross-fade of fadeMs through the mixer, a cut elsewhere. */
-function outBed($: EngineInterface, o: Out, file: string | undefined, gain: number, fadeMs: number): void {
-  if (o.mixer !== undefined) return mixerSend($, o, { verb: 'bed', name: file, gain, fadeMs })
+/** Changes the bed: a cross-fade of fadeMs through the mixer, the new bed rising from `from`; a cut elsewhere. */
+function outBed($: EngineInterface, o: Out, file: string | undefined, gain: number, fadeMs: number, from?: number): void {
+  if (o.mixer !== undefined) return mixerSend($, o, { verb: 'bed', name: file, gain, fadeMs, from })
   if (o.bedPlay !== undefined) stopPlay(o.bedPlay)
   o.bedPlay = undefined
   if (file === undefined) return
@@ -364,7 +367,7 @@ export function bedOf(saved: Saved, sky: Sky): string | undefined {
     return sky.weather === 2 ? rain.rain : sky.weather === 3 ? rain.downpour : rain.storm
   }
   if (sky.sun === NOON || sky.sun === GOLDEN || sky.sun === DUSK) return chosen(saved, 'cicadas').bed
-  if (sky.sun === EVENING || sky.sun === NIGHT || sky.sun === PREDAWN) return chosen(saved, 'crickets').bed
+  if (sky.sun === EVENING || sky.sun === NIGHT || sky.sun === PREDAWN) return chosen(saved, 'night').bed
   return undefined
 }
 
@@ -376,25 +379,34 @@ export function bedOf(saved: Saved, sky: Sky): string | undefined {
 export const NOON_LEVEL = 0.25
 export const NIGHT_LEVEL = 0.5
 export const PREDAWN_LEVEL = 0.4
-export function levelOf(sky: Sky, afternoon = 0): number {
+export function levelOf(sky: Sky, afternoon = 0, continuous = false): number {
   if (sky.weather >= 2) return 1
-  if (sky.sun === NOON) return NOON_LEVEL + (1 - NOON_LEVEL) * Math.floor(Math.min(1, Math.max(0, afternoon)) * AFTERNOON_STEPS) / AFTERNOON_STEPS
+  const share = Math.min(1, Math.max(0, afternoon))
+  if (sky.sun === NOON) return NOON_LEVEL + (1 - NOON_LEVEL) * (continuous ? share : Math.floor(share * AFTERNOON_STEPS) / AFTERNOON_STEPS)
   if (sky.sun === EVENING || sky.sun === NIGHT) return NIGHT_LEVEL
   if (sky.sun === PREDAWN) return PREDAWN_LEVEL
   return 1
 }
-/** The afternoon's build moves in this many steps, each eased over SUN_FADE_MS. */
+/**
+ * Where a player cannot ease one level into another over hours, the afternoon's build moves in this many steps, each
+ * eased over SUN_FADE_MS; through the mixer it is one ease, from the level now to the golden hour's at its start.
+ */
 export const AFTERNOON_STEPS = 12
 /** Evening lasts 75 minutes (pieces/time.ts rowStarts): the cicadas give way to the night insects across all of it. */
 export const EVENING_FADE_MS = 75 * 60_000
 
-/** How much of the afternoon has gone at `now`, from noon's start to the golden hour's; 0 while a phase is held. */
-function afternoonOf(ctx: Ctx, now: number): number {
-  if (ctx.setting('time') !== 'auto') return 0
+/**
+ * How far `now` is through the stretch of the day from the start of row `from` to the start of row `to`, 0 to 1, and
+ * the ms left of it; undefined while a phase is held, when the clock does not move the room.
+ */
+function stretchOf(ctx: Ctx, now: number, from: number, to: number): { share: number; leftMs: number } | undefined {
+  if (ctx.setting('time') !== 'auto') return undefined
   const starts = rowStarts(...sunTimes(ctx))
   const { hours, minutes } = local(now)
-  const span = (starts[GOLDEN]! - starts[NOON]! + 1440) % 1440
-  return span === 0 ? 1 : (((hours * 60 + minutes - starts[NOON]! + 1440) % 1440) / span)
+  const minute = hours * 60 + minutes + (now % 60_000) / 60_000
+  const span = (starts[to]! - starts[from]! + 1440) % 1440 || 1440
+  const gone = Math.min(span, (minute - starts[from]! + 1440) % 1440)
+  return { share: gone / span, leftMs: (span - gone) * 60_000 }
 }
 
 /**
@@ -444,10 +456,21 @@ async function step($: EngineInterface): Promise<void> {
   const shown = shownOf(worldMove(), ctx.fields(), bed?.sky, now)
   if (shown === undefined) return
   const file = bedOf(ctx.saved, shown.sky)
-  const level = levelOf(shown.sky, afternoonOf(ctx, now))
+  const dry = shown.sky.weather < 2
+  const mixer = out.mixer !== undefined
+  const afternoon = dry && shown.sky.sun === NOON ? stretchOf(ctx, now, NOON, GOLDEN) : undefined
+  const ramp = mixer && afternoon !== undefined
+  const level = levelOf(shown.sky, afternoon?.share ?? 0, ramp)
   if (bed === undefined) {
-    outBed($, out, file, gain * level, START_FADE_MS)
-    bed = { file, sky: shown.sky, gain, level }
+    const evening = mixer && dry && shown.sky.sun === EVENING ? stretchOf(ctx, now, EVENING, NIGHT) : undefined
+    if (evening !== undefined && evening.leftMs > 0) {
+      const turn = (evening.share * Math.PI) / 2
+      mixerSend($, out, { verb: 'bed', name: chosen(ctx.saved, 'cicadas').bed, gain: gain * Math.cos(turn), fadeMs: 0, from: gain * Math.cos(turn) })
+      outBed($, out, file, gain * level, evening.leftMs, gain * level * Math.sin(turn))
+    } else {
+      outBed($, out, file, gain * level, START_FADE_MS)
+    }
+    bed = { file, sky: shown.sky, gain, level, settledAt: now + START_FADE_MS }
     return
   }
   const skyMoved = shown.sky.sun !== bed.sky.sun || shown.sky.weather !== bed.sky.weather
@@ -456,15 +479,26 @@ async function step($: EngineInterface): Promise<void> {
     const intoEvening = shown.sky.sun === EVENING && bed.sky.sun === DUSK && shown.sky.weather === bed.sky.weather && shown.fadeMs === SUN_FADE_MS
     const fadeMs = !skyMoved ? PICK_FADE_MS : Math.max(OFF_FADE_MS, (intoEvening ? EVENING_FADE_MS : shown.fadeMs) - (now - shown.at))
     outBed($, out, file, gain * level, fadeMs)
-    bed = { file, sky: shown.sky, gain, level }
+    bed = { file, sky: shown.sky, gain, level, settledAt: now + fadeMs }
     return
   }
   if (skyMoved && level !== bed.level && now < shown.at) return waitUntil($, shown.at, now)
   bed.sky = shown.sky
-  if (gain !== bed.gain || level !== bed.level) {
-    outLevel($, out, bed.file, gain * level, gain !== bed.gain ? LEVEL_FADE_MS : SUN_FADE_MS)
-    bed.gain = gain
-    bed.level = level
+  if (gain !== bed.gain) {
+    outLevel($, out, bed.file, gain * level, LEVEL_FADE_MS)
+    Object.assign(bed, { gain, level, aim: undefined, settledAt: now + LEVEL_FADE_MS })
+    return
+  }
+  if (ramp && afternoon !== undefined) {
+    const aim = now + afternoon.leftMs
+    if (now < bed.settledAt || (bed.aim !== undefined && Math.abs(bed.aim - aim) < 60_000)) return
+    outLevel($, out, bed.file, gain, afternoon.leftMs)
+    Object.assign(bed, { level, aim })
+    return
+  }
+  if (level !== bed.level || bed.aim !== undefined) {
+    outLevel($, out, bed.file, gain * level, SUN_FADE_MS)
+    Object.assign(bed, { level, aim: undefined, settledAt: now + SUN_FADE_MS })
   }
 }
 

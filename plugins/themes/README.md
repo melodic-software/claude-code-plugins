@@ -87,7 +87,9 @@ bottom-left corner of the front of the dresser.
     few distant cicadas (a quarter of the dusk level) build through the afternoon to full at the
     golden hour and dusk; across the evening the cicadas fade out as crickets and katydids fade in,
     6 dB under the cicadas; the night keeps them, and before dawn they are quieter again (8 dB
-    under). Each change of level eases with the picture. In wet weather there are no insects but
+    under). Each change of level eases with the picture: through the Windows mixer the afternoon's
+    build is one ease to the golden hour, and sound turned on partway through the evening starts
+    both beds where the cross-fade is then. In wet weather there are no insects but
     rain on the roof, the same rain heavier as a downpour, or a storm with wind.
   - The bed follows the picture: a change of weather fades the old bed out and the new one in over
     the time the window takes, starting when the window starts to change (about 3 s after the
@@ -105,7 +107,7 @@ bottom-left corner of the front of the dresser.
     plays nothing); the card steps it by ten.
   - A small bank of sounds: each kind has named entries and a default, chosen by
     `/bedroom sound pick <kind> <name>` or on the card, and kept. Cicadas: `chorus` (the default)
-    or `river`; crickets: `katydids` (crickets and katydids, the default) or `crickets` (crickets
+    or `river`; night: `katydids` (crickets and katydids, the default) or `crickets` (crickets
     alone); rain: `roof`; thunder: `storm` (near cracks to far rolls, the default) or
     `distant` (rolls only); television: `tube`. `sounds/bedroom/sources.md` lists each recording,
     its page and its license. The television's and the room's sounds are made by code, the purr
@@ -175,7 +177,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom hall <pass\|light>` | While the hallway is on: someone passes the door, or the hall light turns on for three minutes (off, if it is on), within about five seconds |
 | `/bedroom sound <on\|off\|test>` | Sound, off by default; `test` checks the player |
 | `/bedroom sound volume <0-100>` | The volume of every sound |
-| `/bedroom sound pick <cicadas\|crickets\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
+| `/bedroom sound pick <cicadas\|night\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
 | `/bedroom sound objects <on\|off>` | The sounds of the lamp, light, monitor, console, tape and cat |
 | `/bedroom <time\|date\|weather\|lightning\|signal\|hall\|sound> default` | Follows the plugin's setting again |
 | `/bedroom sync` | Shows the room alone for seven seconds, then brings the shader back with every switch as saved |
