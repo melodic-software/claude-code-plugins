@@ -1127,6 +1127,37 @@ class TestBriefRestatements(SessionCase):
             ],
         )
 
+    def test_a_deferral_routed_to_design_keeps_the_design_arbiter(self):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept"), self.confirm(2, 1)],
+            restatements=[
+                self.rev(
+                    1,
+                    deferred="- Q2: cache topology\n- the module seam, /planning:design",
+                )
+            ],
+        )
+        ledger = self.tmp / "design-ledger.md"
+        ledger.write_text(
+            LEDGER_HEAD + "- Q1 | answered | round 1 | Question Q1? | accepted\n"
+            "- Q2 | deferred | round 1 | Which topology? | below the interview's level; "
+            "arbiter: /planning:design\n",
+            encoding="utf-8",
+        )
+        out = self.tmp / "design-brief.md"
+        rc, msg = self.rp("export-brief", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, msg)
+        lines = self.section(out.read_text(encoding="utf-8"), "Deferred questions")
+        self.assertTrue(lines[0].endswith("; **arbiter: /planning:design**"), lines[0])
+        self.assertEqual(
+            lines[1:],
+            [
+                "- Q2: cache topology; **arbiter: /planning:design**",
+                "- the module seam, /planning:design; **arbiter: /planning:design**",
+            ],
+        )
+
     def test_no_restatement_is_stamped_unconfirmed_and_fails_the_gate(self):
         self.session([question("Q1")], [event(1, "Q1", "accept")])
         text = self.export("brief").read_text(encoding="utf-8")

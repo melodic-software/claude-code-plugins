@@ -24,9 +24,11 @@ always-loaded surface than for an on-demand one.
 
 Every line spends two budgets, and cutting one can overspend the other:
 
-- **Context load**. Tokens the agent pays, every session for always-loaded surfaces. Governed
-  marketplace-wide by plugin-philosophy's Instruction economy: an instruction earns its place
-  with observed-stumble evidence, or it goes.
+- **Context load**. Tokens and attention the agent pays, every session for always-loaded
+  surfaces: we count each added line as diluting the agent's adherence to the rest, not only as
+  tokens. Governed marketplace-wide by plugin-philosophy's Instruction economy: an instruction
+  earns its place with observed-stumble evidence, or it goes. Pointer: for the size guidance,
+  see [write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions).
 - **Cognitive load**. Attention the human maintainer pays: they must be able to hold the map of
   where things live. Ten tiny fragment files can be cheaper for the agent and ruinous for the
   human; one 500-line file the reverse. When the two budgets conflict, say which one you spent
@@ -70,6 +72,11 @@ follow it, without opening the target.
   together: a pointer papering over low cohesion outlives the reorganization that would have
   removed it. (Audit-side remediation home: `harness-memory:audit`'s C5 fix guidance, if that
   plugin is enabled.)
+- **Pointer what has a predictable trigger; keep symptom triage inline.** A procedure the agent
+  knows it is starting (a release, a deploy, a migration) goes behind a pointer that names that
+  trigger. Triage keyed to an error symptom stays on the always-loaded surface: the agent cannot
+  follow a pointer for a symptom it has not yet recognized. Correlate with the `/doctor` trim in
+  [my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large).
 
 The sibling audit skill owns the full pointer-quality criteria. Invoke
 `/docs-hygiene:audit-progressive-disclosure` via the Skill tool to grade a draft against them,
