@@ -39,7 +39,8 @@ actions below:
 - [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md):
   the item shape `add` follows; its title rule points at the house style.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md):
-  the brief template `add --agent-ready` uses instead of the default body.
+  the brief template `add --agent-ready` uses instead of the default body. `add --session-owned`
+  applies the session-owned role label instead, for an item the filing session works itself.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md):
   the precondition `recheck` evaluates before advancing dates or closing the associated item.
 

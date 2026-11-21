@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "create-item --title 'Rename the export flag to --format' --labels 'category:general,type: task,local-session'",
+      "why": "seam flag"
+    },
+    {
+      "answer": "It applies the binding's session-owned label, local-session, and no needs-triage floor.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "create-item --labels 'category:general,type: task,session-owned'",
+      "why": "default literal after a remap"
+    },
+    {
+      "answer": "It adds needs-triage and agent-ready.",
+      "why": "no ownership label"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
