@@ -173,17 +173,15 @@ Report it as its own `secret-scan` row with one Lint column: `pass` on exit 0, `
 
 ### Workflow-security scan
 
-In check mode, when GitHub Actions workflow files exist under `.github/` and the repository uses zizmor (a `zizmor.yml` or `zizmor.yaml` under `.github/` or at the repository root, where zizmor looks for its config), run the workflow-security scan from the repository root:
+In check mode, when GitHub Actions workflow files exist under `.github/` and the repository uses zizmor (it holds a zizmor config file in a place zizmor's own config discovery reads; read the names and places from [Configuration § Discovery](https://docs.zizmor.sh/configuration/#discovery) when you need them), run the workflow-security scan from the repository root:
 
 ```bash
 zizmor --offline .
 ```
 
-`--offline` turns off every online action, repository fetches included. As with the secret scan, the skill states the command, so the ladder does not resolve it, and an unattended run runs it like an attended one and logs it as `assumed: workflow-security.check-cmd=zizmor --offline . (SKILL.md, <the config file>)`. It runs on every check-mode run with changed files, `all` and an ecosystem filter included, whether or not any record exists or any ecosystem runs, and even when a recorded command already ran zizmor.
+The scan runs offline because a lint run makes no network request; what offline mode turns off is [Usage § Operating modes](https://docs.zizmor.sh/usage/#operating-modes). As with the secret scan, the skill states the command, so the ladder does not resolve it, and an unattended run runs it like an attended one and logs it as `assumed: workflow-security.check-cmd=zizmor --offline . (SKILL.md, <the config file>)`. It runs on every check-mode run with changed files, `all` and an ecosystem filter included, whether or not any record exists or any ecosystem runs, and even when a recorded command already ran zizmor.
 
-Report it as its own `workflow-security` row with one Lint column. A finding is advisory: exit 0 reads `pass`; exit 11 to 14 (one or more findings, the code naming the highest severity) reads `advisory (findings: exit <code>)` with the findings below the table, and changes no Status and no Overall line; any other non-zero exit reads `FAIL`. When `zizmor` is not on `PATH` it reads `skip (tool missing: zizmor)` with the hint `pip install zizmor`, an environment skip that leaves the run `INCOMPLETE`. With no zizmor config it reads `skip (opt-in unmet: no zizmor config)`. The row counts toward the table's totals like an ecosystem row, and it claims no file for the unclaimed-file lines. `--fix` and `--code-fix` do not run it.
-
-Basis: zizmor's [usage page](https://docs.zizmor.sh/usage/) (`--offline`, a repository-root input, exit codes 11 to 14) and [configuration page](https://docs.zizmor.sh/configuration/) (config discovery), read 2026-11-21. Recheck when either page changes those.
+Report it as its own `workflow-security` row with one Lint column. A finding is advisory, and an error that is not a finding fails: exit 0 reads `pass`; on a non-zero exit, read what the code means from [Usage § Exit codes](https://docs.zizmor.sh/usage/#exit-codes). A code that means zizmor reported findings reads `advisory (findings: exit <code>)` with the findings below the table, and changes no Status and no Overall line; any other non-zero exit reads `FAIL`. When `zizmor` is not on `PATH` it reads `skip (tool missing: zizmor)` with the hint `pip install zizmor`, an environment skip that leaves the run `INCOMPLETE`. With no zizmor config it reads `skip (opt-in unmet: no zizmor config)`. The row counts toward the table's totals like an ecosystem row, and it claims no file for the unclaimed-file lines. `--fix` and `--code-fix` do not run it.
 
 ### Code-fix confirmation gate
 

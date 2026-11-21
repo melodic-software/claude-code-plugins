@@ -43,22 +43,22 @@ holds:
 - **Stated.** The repository's own instructions (the files "Unattended runs" lists under
   Stated) name a command for the id. Its globs are the file types that command checks.
 - **Inferred this run.** Rung 2 inferred a command surface for the id from the repo's build files
-  in this run. In a repository with no ecosystem record at any layer, a changed file's own
-  language or format, read from its extension, also infers its id, with that type's extensions as
-  its globs. The report names each inferred id with the globs inferred for it, on one line per
+  in this run. In a repository with no ecosystem record of its own (none at the team or personal
+  layer; a user-global record does not count), a changed file's own language or format, read from
+  its extension, also infers its id, with that type's extensions as its globs. The report names each inferred id with the globs inferred for it, on one line per
   id: `Inferred <id>: globs <glob>, <glob>`.
 
 Name a stated or inferred id by the id the skills' aliases resolve to where one fits (`dotnet`,
 `python`, `typescript` for a JavaScript or TypeScript package, `bash` for shell, `powershell`,
 `markdown`, `go`), else by the language or format's lowercase kebab-case name. The plugin ships no
 ecosystem file, so no id is covered unless it is recorded, stated or inferred. Once a repository
-records any ecosystem, a file type it neither records, states nor has a build file for is outside
-every ecosystem.
+records any ecosystem of its own (at the team or personal layer), a file type no layer records,
+nothing states and no build file implies is outside every ecosystem.
 
 Before detection, `all` or an ecosystem filter, look for build files of ecosystems that are not
 recorded (a `Cargo.toml`, a `pyproject.toml`, a `package.json`) and run rung 2 for each id they
-point to. Add each stated id, and in a repository with no record, each id a changed file's type
-infers. So a stated or inferred id joins the set before any glob is matched or any filter is
+point to. Add each stated id, and in a repository with no ecosystem record of its own (none at
+the team or personal layer), each id a changed file's type infers. So a stated or inferred id joins the set before any glob is matched or any filter is
 checked.
 Detection, `all`, an ecosystem filter and the files-outside-every-ecosystem rule all read this set.
 An unattended run takes only the id and its globs from this pass, offers nothing, and resolves the
@@ -81,6 +81,11 @@ order; stop at the first rung that yields it:
 2. **Absent → infer, then offer to persist.** Infer the command surface from the repo's build files
    (solution files, `pyproject.toml`, `package.json`, …) and **offer to write** the inferred
    `.claude/ecosystems/<ecosystem>.yaml` via `/toolchain:setup` so the next run reads rung 1.
+   An inferred command that runs a tool through a package runner (`npx`, `pnpm dlx`, `yarn dlx`,
+   `bunx`, `uvx`) names the package the project's manifest declares, never a shorter name the
+   runner could resolve to someone else's package (`@biomejs/biome`, not `biome`), and passes the
+   runner's no-download option where it has one (`npx --no`), so the runner never fetches and runs
+   a package the project did not declare.
 3. **Cannot infer → ask.** Ask the user for the command; offer to persist it via `/toolchain:setup`.
 
 **Nothing resolved → report it unresolved.** When no rung yields a command for a key, run nothing

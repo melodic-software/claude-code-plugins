@@ -74,6 +74,12 @@ inference only: the repo's records, instructions, build files, tool configs and 
 no default file to seed a draft from; a key nothing implies goes to the interview, never to a
 command the plugin picks.
 
+A drafted command that runs a tool through a package runner (`npx`, `pnpm dlx`, `yarn dlx`, `bunx`,
+`uvx`) names the package the project's manifest declares, never a shorter name the runner could
+resolve to someone else's package (`@biomejs/biome`, not `biome`), and passes the runner's
+no-download option where it has one (`npx --no`). A recorded command runs on later unattended runs
+too, so a bare name here would fetch and run an undeclared package on every one of them.
+
 When the repo has its own task runner or wrapper scripts (a task file, a manifest's scripts block,
 a scripts directory its docs or CI call), draft each command key from the matching task or script
 first, in any ecosystem. Draft `test-changed-cmd` from the repo's own test
