@@ -1042,6 +1042,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["address-feedback-not-run"];
   const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "", resolveOnly = "") => ({
+    "vars.CLAUDE_API_KEYS_DISABLED": "",
     "inputs.activity": activity,
     "needs.address-feedback-select.outputs.proceed": proceed,
     "needs.address-feedback-select.outputs.resolve-only": resolveOnly,
@@ -1179,6 +1180,7 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   // fix-ci-context.mjs writes proceed "true" or "false"; a kill-switch stop
   // skips its step and leaves every output empty.
   const context = (proceed, escalation, headSha, activity = "fix-ci", skip = "") => ({
+    "vars.CLAUDE_API_KEYS_DISABLED": "",
     "inputs.activity": activity,
     "needs.fix-ci-context.outputs.proceed": proceed,
     "needs.fix-ci-context.outputs.escalation-reason": escalation,
@@ -6690,6 +6692,7 @@ test("pr-unblock.yml: review-dependency is reported neutral when the select job 
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["review-dependency-not-run"];
   const context = (proceed, headSha, skip = "", activity = "review-dependency") => ({
+    "vars.CLAUDE_API_KEYS_DISABLED": "",
     "inputs.activity": activity,
     "needs.review-dependency-select.outputs.proceed": proceed,
     "needs.review-dependency-select.outputs.head-sha": headSha,
@@ -7393,7 +7396,7 @@ test("pr-unblock.yml: apply-conflict-patch runs on a clean merge, or on a confli
   }
   // A forged run job output cannot make a clean merge take a patch: the
   // select job's merge-state is clean only when no model call ran.
-  assert.equal(evaluate(jobs["resolve-conflicts"].if, { "needs.resolve-conflicts-select.outputs.proceed": "false" }), false);
+  assert.equal(evaluate(jobs["resolve-conflicts"].if, { "needs.resolve-conflicts-select.outputs.proceed": "false", "vars.CLAUDE_API_KEYS_DISABLED": "" }), false);
 });
 
 // A refused scan hands no patch state on, so apply-conflict-patch skips; the

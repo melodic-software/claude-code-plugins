@@ -462,6 +462,39 @@ test("pr-unblock.yml: every address-feedback job after a model call starts its i
   }
 });
 
+test("pr-unblock.yml: each key call is skipped while API keys are off and runs as before otherwise, and its subscription call starts on the handoff's no-post", () => {
+  for (const [key, select] of [
+    ["resolve-conflicts", "resolve-conflicts-select"],
+    ["address-feedback", "address-feedback-select"],
+    ["review-dependency", "review-dependency-select"],
+    ["fix-ci", "fix-ci-context"],
+  ]) {
+    const { gate, needs } = jobGate(UNBLOCK, key);
+    assert.deepEqual(needs, [select], key);
+    const proceed = `needs.${select}.outputs.proceed`;
+    for (const [keysOff, runs] of [
+      ["true", false],
+      ["false", true],
+      ["", true],
+    ]) {
+      assert.equal(evaluate(gate, { [proceed]: "true", "vars.CLAUDE_API_KEYS_DISABLED": keysOff }), runs, `${key} keys-off=${keysOff}`);
+    }
+    assert.equal(evaluate(gate, { [proceed]: "false", "vars.CLAUDE_API_KEYS_DISABLED": "" }), false, `${key} not proceeding`);
+    const handoff = jobGate(UNBLOCK, `${key}-handoff`);
+    assert.ok(handoff.needs.includes(key), `${key}-handoff needs ${key}`);
+    assert.doesNotMatch(handoff.gate, new RegExp(`needs\\.${key}\\.result`), `${key}-handoff runs whatever ${key}'s result`);
+    const subscription = jobGate(UNBLOCK, `${key}-subscription`);
+    assert.doesNotMatch(subscription.gate, new RegExp(`needs\\.${key}\\.result`), `${key}-subscription runs whatever ${key}'s result`);
+    for (const [posted, runs] of [
+      ["false", true],
+      ["", true],
+      ["true", false],
+    ]) {
+      assert.equal(evaluate(subscription.gate, { [proceed]: "true", [`needs.${key}-handoff.outputs.posted`]: posted }), runs, `${key}-subscription posted=${posted}`);
+    }
+  }
+});
+
 // The reply job decides on the select job's proceed alone: a hostile model
 // job can forge a handoff, a neutral check or any output of its own, and the
 // round still posts its marker, so the round cap holds.
@@ -841,7 +874,7 @@ test("pr-unblock.yml: the resolve-conflicts model calls run only when the select
   const { gate, needs } = jobGate(UNBLOCK, "resolve-conflicts");
   assert.deepEqual(needs, ["resolve-conflicts-select"]);
   for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
-    assert.equal(evaluate(gate, { "needs.resolve-conflicts-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+    assert.equal(evaluate(gate, { "needs.resolve-conflicts-select.outputs.proceed": proceed, "vars.CLAUDE_API_KEYS_DISABLED": "" }), runs, JSON.stringify(proceed));
   }
 });
 
