@@ -1,0 +1,7 @@
+# Executables and archives a pull request may change without a person's
+# review, read at the merge base (ci-workflows pr-review-cli.yml
+# `binary-allowlist`). One `<sha256>  <path>` line per file, as `sha256sum`
+# prints it: the path and the SHA-256 of the file's new bytes must both match.
+# Any other changed executable or archive holds the pull request with the
+# needs-human label. A pull request cannot list its own file: add the line in a
+# pull request merged first.

@@ -47,7 +47,7 @@ import { appendFileSync } from "node:fs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
+import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
@@ -529,7 +529,7 @@ export function createGitHubApi({
   repository,
   apiUrl,
   graphqlUrl,
-  fetch: rawFetch = globalThis.fetch,
+  fetch: rawFetch = rateLimitLatch.guard(globalThis.fetch, { floorGraceMs: DISPATCH_FLOOR_GRACE_MS }),
 }) {
   // Each request's rate-limit reading goes to the job-end api-calls notice.
   const fetch = countRequests(rawFetch);

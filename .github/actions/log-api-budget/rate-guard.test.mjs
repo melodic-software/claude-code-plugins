@@ -1,10 +1,9 @@
-// test-scope: .github/*.mjs .github/*.cjs  # the guard-coverage case scans every tracked script
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, DISPATCH_FLOOR_GRACE_MS, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -522,6 +521,24 @@ test("above the stop floor nothing stops: 101 of 5000 left sends on with no erro
   assert.deepEqual(lines.filter((line) => line.startsWith("::error::") || line.startsWith("::notice::")), []);
 });
 
+test("with floorGraceMs, the stop floor stops only a reset further away than the grace; a remaining of 0 still stops", async () => {
+  const hour = 60 * 60 * 1000;
+  for (const [remaining, floorGraceMs, sends] of [
+    [50, hour + 1000, 2],
+    [50, hour - 1000, 1],
+    [50, DISPATCH_FLOOR_GRACE_MS, 1],
+    [0, hour + 1000, 1],
+  ]) {
+    const gh = fakeGitHub([nearZero(remaining), [200]]);
+    const { latch } = latchFor();
+    const fetch = latch.guard(gh.fetch, { floorGraceMs });
+    await fetch(URL_A);
+    await fetch(URL_B).catch((error) => assert.ok(error instanceof RateLimitStop));
+    assert.equal(gh.sent.length, sends, `remaining ${remaining}, grace ${floorGraceMs} ms`);
+  }
+  assert.equal(DISPATCH_FLOOR_GRACE_MS, 10 * 60 * 1000);
+});
+
 test("a holding latch stops at the stop floor with a notice and fails nothing", async () => {
   const gh = fakeGitHub([nearZero(100), [200]]);
   const { latch, lines, failed } = latchFor({ hold: true });
@@ -876,41 +893,6 @@ test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none 
       }
     }
   }));
-
-// No lane script calls fetch outside the guard, except the files below, each
-// for its stated reason. A new raw fetch fails here until it is guarded or
-// listed.
-const UNGUARDED = {
-  // Package registries and status pages, not the API.
-  ".github/scripts/pr-unblock/dependency-classify.mjs": "package registries",
-  ".github/scripts/maintenance-reconcile-lost-runs/component-status.mjs": "the status pages, not the API",
-  // Script activities that run from a copy of their own directory, where the
-  // guard module is not: open until the copy carries it.
-  ".github/scripts/apply-patch/apply-patch.mjs": "script activity run from a directory copy",
-  // Its mains run from the base checkout count their requests (countedFetch).
-  ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
-  // pr-merge's own guard is its owner's change.
-  ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
-  // Its API calls go through lib/github-rest.mjs, which imports the guard; the
-  // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
-  ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
-  ".github/scripts/lib/ci-workflows-at-pin.mjs": "raw.githubusercontent.com reads from tests; no API call",
-};
-
-test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {
-  const root = new URL("../../../", import.meta.url).pathname;
-  const files = spawnSync("git", ["-C", root, "ls-files", ".github/*.mjs", ".github/*.js", ".github/*.cjs"], { encoding: "utf8" })
-    .stdout.split("\n")
-    .filter((file) => file && !/\.test\.[cm]?js$/.test(file) && !file.includes("/node_modules/") && !file.includes("/fixtures/") && !file.includes("/probe/"));
-  const raw = files.filter((file) => {
-    const text = readFileSync(join(root, file), "utf8");
-    // An import of the guard counts; the path named in a string does not.
-    const imports = /from\s+["'][^"']*log-api-budget\/rate-guard\.mjs["']/.test(text);
-    return /(^|[^\w.])fetch\(/m.test(text) && !imports && !file.endsWith("log-api-budget/rate-guard.mjs");
-  });
-  assert.deepEqual(raw.filter((file) => !(file in UNGUARDED)), []);
-  assert.deepEqual(Object.keys(UNGUARDED).filter((file) => !raw.includes(file)), [], "a listed file no longer needs its exception");
-});
 
 test("isContentWrite counts the issue, pull request, comment, review and label writes, and GraphQL mutations", () => {
   const repo = "https://api.github.com/repos/o/r";

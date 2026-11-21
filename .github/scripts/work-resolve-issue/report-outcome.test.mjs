@@ -1170,10 +1170,12 @@ function fakeFetch(routes) {
           : null;
     const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
-    return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
+    return jsonResponse(status, body);
   };
   return { fetch, calls };
 }
+
+const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 function env(dir) {
   return {
@@ -3362,6 +3364,7 @@ async function runPrior({
   commitAnswer = LANE_TIP,
   graphqlPages,
   env = {},
+  latchOptions,
 }) {
   return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
     const fake = fakeFetch([
@@ -3383,7 +3386,7 @@ async function runPrior({
         const index = after ? Number(after.slice(1)) : 0;
         const pageInfo = { hasNextPage: index + 1 < graphqlPages.length, endCursor: `c${index + 1}` };
         const body = { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: graphqlPages[index], pageInfo } } } } };
-        return { ok: true, status: 200, json: async () => body };
+        return jsonResponse(200, body);
       }
       return fake.fetch(url, init);
     };
@@ -3397,7 +3400,8 @@ async function runPrior({
         GITHUB_OUTPUT: join(dir, "output"),
         ...env,
       },
-      fetch,
+      fetchImpl: fetch,
+      latchOptions,
     });
     return { code, calls, output: readFileSync(join(dir, "output"), "utf8") };
   });
@@ -3476,7 +3480,7 @@ test("--find-prior holds when a read fails: green with a notice and proceed=fals
           TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
           GITHUB_OUTPUT: join(dir, "output"),
         },
-        fetch,
+        fetchImpl: fetch,
         sleep: async () => {},
       });
       assert.equal(code, 0, status);
@@ -3496,6 +3500,49 @@ test("--find-prior re-deriving a claim (FIND_PRIOR_KEEP_BEHIND) still fails on a
   const { code, output } = await runPrior({ refs: { message: "odd" }, env: { FIND_PRIOR_KEEP_BEHIND: "true" } });
   assert.equal(code, 1);
   assert.equal(output, "");
+});
+
+const STOP_NOW_MS = 1_800_000_000_000;
+const STOP_HOUR_PAST_ANY_GUARD_WAIT = 3600;
+async function priorUnderStop({ stopped, env = {} }) {
+  const dir = tempDir("prior-stop-");
+  try {
+    const stopFile = join(dir, "stop");
+    if (stopped) {
+      writeFileSync(stopFile, `core ${STOP_NOW_MS / 1000 + STOP_HOUR_PAST_ANY_GUARD_WAIT}\n`);
+    }
+    const lines = [];
+    let failed = 0;
+    const latchOptions = { stopFile, now: () => STOP_NOW_MS, log: (line) => lines.push(line), fail: () => (failed += 1), limits: () => ({}) };
+    return { ...(await runPrior({ env, latchOptions })), lines, failed };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("--find-prior sends no request while the job's stop file holds the REST pool, and holds green with a notice", async () => {
+  const { code, calls, output, lines, failed } = await priorUnderStop({ stopped: true });
+  assert.equal(code, 0);
+  assert.equal(output, HELD);
+  assert.deepEqual(calls, [], "no call reached GitHub");
+  assert.equal(failed, 0, "the guard failed nothing: this step holds");
+  assert.ok(lines.some((line) => line.startsWith("::notice::") && line.includes("this step holds")), lines.join("\n"));
+});
+
+test("--find-prior reads and decides through the same guard when the stop file holds no pool", async () => {
+  const { code, calls, output, failed } = await priorUnderStop({ stopped: false });
+  assert.equal(code, 0);
+  assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+  assert.ok(calls.length > 0, "the reads went out");
+  assert.equal(failed, 0);
+});
+
+test("--find-prior re-deriving a claim fails while the stop file holds the REST pool, so the claim is withheld", async () => {
+  const { code, calls, output, failed } = await priorUnderStop({ stopped: true, env: { FIND_PRIOR_KEEP_BEHIND: "true" } });
+  assert.equal(code, 1);
+  assert.equal(output, "");
+  assert.deepEqual(calls, [], "no call reached GitHub");
+  assert.equal(failed, 1, "the guard failed the step");
 });
 
 // What no read can fix is a fault in the step, not an outage.
