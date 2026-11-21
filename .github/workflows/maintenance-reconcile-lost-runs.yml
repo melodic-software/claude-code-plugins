@@ -57,11 +57,13 @@ name: Maintenance Reconcile Lost Runs
 #
 # It does nothing while githubstatus.com shows Actions as anything but
 # operational, or the page cannot be read, so it adds no load mid-incident. At
-# most 3 re-runs are in flight at once, auto-merge PRs first, and its writes
+# most 3 re-runs are in flight at once, auto-merge PRs first, beside at most
+# 12 re-runs a pass of hosted reviews the defer gate stopped, each once its
+# window's reset is a minute past, and its writes
 # are at least a second apart. A lost pull_request review or refine lane run is listed in
 # the run summary for a person: those lanes, or the lanes token broker, refuse
 # a re-run github-actions[bot] starts. No model, and no PR code is checked out.
-# Rules: .github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
+# Rules: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false".
@@ -240,6 +242,222 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.plan.outputs.record-3 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-4
+        if: >-
+          steps.plan.outputs.record-4 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 4
+        if: >-
+          (steps.plan.outputs.record-4 != '') && steps.scan-record-4.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-4 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-5
+        if: >-
+          steps.plan.outputs.record-5 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 5
+        if: >-
+          (steps.plan.outputs.record-5 != '') && steps.scan-record-5.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-5 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-6
+        if: >-
+          steps.plan.outputs.record-6 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 6
+        if: >-
+          (steps.plan.outputs.record-6 != '') && steps.scan-record-6.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-6 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-7
+        if: >-
+          steps.plan.outputs.record-7 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 7
+        if: >-
+          (steps.plan.outputs.record-7 != '') && steps.scan-record-7.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-7 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-8
+        if: >-
+          steps.plan.outputs.record-8 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 8
+        if: >-
+          (steps.plan.outputs.record-8 != '') && steps.scan-record-8.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-8 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-9
+        if: >-
+          steps.plan.outputs.record-9 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 9
+        if: >-
+          (steps.plan.outputs.record-9 != '') && steps.scan-record-9.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-9 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-10
+        if: >-
+          steps.plan.outputs.record-10 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 10
+        if: >-
+          (steps.plan.outputs.record-10 != '') && steps.scan-record-10.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-10 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-11
+        if: >-
+          steps.plan.outputs.record-11 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 11
+        if: >-
+          (steps.plan.outputs.record-11 != '') && steps.scan-record-11.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-11 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-12
+        if: >-
+          steps.plan.outputs.record-12 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 12
+        if: >-
+          (steps.plan.outputs.record-12 != '') && steps.scan-record-12.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-12 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-13
+        if: >-
+          steps.plan.outputs.record-13 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 13
+        if: >-
+          (steps.plan.outputs.record-13 != '') && steps.scan-record-13.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-13 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-14
+        if: >-
+          steps.plan.outputs.record-14 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 14
+        if: >-
+          (steps.plan.outputs.record-14 != '') && steps.scan-record-14.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-14 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Scan the upload for credentials
+        id: scan-record-15
+        if: >-
+          steps.plan.outputs.record-15 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
+      - name: Record re-run 15
+        if: >-
+          (steps.plan.outputs.record-15 != '') && steps.scan-record-15.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-15 }}
           path: ${{ runner.temp }}/reconcile-record/record.json
           if-no-files-found: error
           retention-days: 1
