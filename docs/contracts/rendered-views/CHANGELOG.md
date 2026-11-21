@@ -3,6 +3,14 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## A CDN library is pinned to a major version, 2026-11-21
+
+- **The Security baseline pins a CDN library to a major version, not an exact one.** A URL such as
+  `mermaid@12` takes the major's minor and patch security fixes without anyone bumping it;
+  `@latest` stays ruled out. Recheck the pin when the library ships a new major version or an
+  advisory names the pinned major. The `cdn-pinned-version` qualifier, the shared chrome's network
+  panel and the inline copies follow the new wording.
+
 ## The architecture plugin carries the chrome, 2026-11-16
 
 - **A fourth adopter.** `plugins/architecture/reference/html-chrome.html` is generated from the

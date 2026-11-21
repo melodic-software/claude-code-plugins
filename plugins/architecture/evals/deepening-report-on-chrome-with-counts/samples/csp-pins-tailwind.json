@@ -1,4 +1,4 @@
 {
-  "pass": [{ "answer": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js\">", "why": "exact file in the policy" }],
-  "fail": [{ "answer": "", "why": "empty" }, { "answer": "<script src=\"https://cdn.tailwindcss.com\"></script>", "why": "unpinned, not in a policy" }]
+  "pass": [{ "answer": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4/dist/index.global.js\">", "why": "major-version file in the policy" }],
+  "fail": [{ "answer": "", "why": "empty" }, { "answer": "<script src=\"https://cdn.tailwindcss.com\"></script>", "why": "unpinned, not in a policy" }, { "answer": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js\">", "why": "exact version, not a major version" }]
 }

@@ -17,7 +17,7 @@ The page is built on this plugin's bundled chrome reference, [reference/html-chr
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4/dist/index.global.js https://cdn.jsdelivr.net/npm/mermaid@12/dist/mermaid.min.js; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Deepening review: {{repo name}}</title>
     <style>
@@ -35,8 +35,8 @@ The page is built on this plugin's bundled chrome reference, [reference/html-chr
       .deep { background: var(--fg); color: var(--bg); }
       .paper { background: var(--white); color: var(--slate); }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4/dist/index.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@12/dist/mermaid.min.js"></script>
   </head>
   <body>
     <!-- CHROME: the theme toggle (the .rv-bar element), copied verbatim. -->
@@ -61,7 +61,7 @@ The page is built on this plugin's bundled chrome reference, [reference/html-chr
 
 Read the chrome reference and put its three parts where the `CHROME` comments stand. The comment box is left out: a report is read, not answered.
 
-The two library versions are exact, and each URL appears twice: in the policy and on its `<script>` tag. The policy names each file, never the CDN's origin. As of 2026-11-15: `mermaid` 12.3.0 and `@tailwindcss/browser` 4.3.5, the latest on the npm registry, rendered together under this policy in headless Chromium. Recheck trigger: either package publishes a new major version, or a security advisory names a pinned one; change all four URLs together and render the scaffold again.
+Each library is pinned to its major version, and each URL appears twice: in the policy and on its `<script>` tag. The policy names each file, never the CDN's origin. jsDelivr serves a major-version range from the newest release inside it ([jsDelivr README](https://github.com/jsdelivr/jsdelivr/blob/master/README.md), "Use a version range instead of an exact version"), so a minor or patch security fix reaches the page with no URL change. As of 2026-11-15, `mermaid` 12.3.0 and `@tailwindcss/browser` 4.3.5 rendered together under this policy in headless Chromium. Recheck trigger: either package publishes a new major version, or a security advisory names a pinned major; change all four URLs together and render the scaffold again.
 
 **When the CDN cannot be reached** the page still reads: the chrome's own rules style the text, each Mermaid block shows its source in its `<pre>`, and the hand-built diagrams draw as they are. So nothing in a card may depend on a library to be legible: no content hidden until a script runs, and no diagram whose only form is a Mermaid block the reader could not follow as text.
 

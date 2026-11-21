@@ -5,7 +5,7 @@ runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Write]
-expected_outcome: "Reproduces the export chain's shallow-signal, finds three call sites where the scan said five, and writes deepening-report/report.html: the chrome's toggle and dark-scheme rules, a content security policy naming the exact Mermaid and Tailwind files, a Mermaid block with strict mode, and a header count of three call sites; ends asking which candidate to explore."
+expected_outcome: "Reproduces the export chain's shallow-signal, finds three call sites where the scan said five, and writes deepening-report/report.html: the chrome's toggle and dark-scheme rules, a content security policy naming the major-version Mermaid and Tailwind files, a Mermaid block with strict mode, and a header count of three call sites; ends asking which candidate to explore."
 ---
 
 /architecture:improve deepening --medium file

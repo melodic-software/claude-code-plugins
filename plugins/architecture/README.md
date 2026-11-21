@@ -27,7 +27,7 @@ name.
    Would deleting it concentrate complexity, or merely move it?
 2. **Present candidates.** Writes one HTML report to the OS temp directory, on the
    marketplace's shared page chrome (light and dark from the system setting, with a
-   toggle). Tailwind and Mermaid load from a CDN at exact versions; without the
+   toggle). Tailwind and Mermaid load from a CDN pinned to their major versions; without the
    network the page still reads. The header gives the evidence counts the
    verification gate reproduced, and each candidate has a card with a before/after
    diagram, a recommendation badge, and a dependency-category badge. Alongside it, writes a durable machine-readable
