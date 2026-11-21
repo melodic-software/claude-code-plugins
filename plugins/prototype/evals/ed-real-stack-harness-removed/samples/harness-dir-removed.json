@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "rm -rf prototype-harness" } }],
+      "why": "deletes the harness directory"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git rm -r -q prototype-harness src/pages/shipments-variants" } }],
+      "why": "git rm of the harness directory beside the variant files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "rm -rf src/pages/shipments-variants" } }],
+      "why": "deletes the variants but leaves the harness directory"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "rm -rf src/pages/shipments-variants && git grep -n data-prototype-harness" } }],
+      "why": "the rm deletes only the variants; the marker appears in a chained grep"
+    }
+  ]
+}

@@ -359,7 +359,7 @@ Side-by-side thumbnails distort spacing and scale; never judge UI at postage-sta
 Sub-shape A runs a live wire through code you ship, and the real-stack switcher has its own
 parts (URL, keyboard, states, buttons, label, reuse, production gate, look). Read
 [reference/real-stack.md](reference/real-stack.md) before building on the real stack: it holds
-sub-shape A's four rules and the switcher table.
+sub-shape A's four rules, the switcher table and the notes harness (its `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`).
 
 **When the brief has numbers in it** (a duration, an easing, a spring, a blur, a radius, an
 offset), add the [control panel](../../context/control-panel.md), or run `controls` later. Any
@@ -448,7 +448,8 @@ ends" column of the intent selector for the host you used. Those deletions are i
 whatever is not written down first is gone. On the real stack,
 delete the switcher and every variant file in the same change that merges the winner; code left
 behind gets imported by mistake and falls out of date. Under sub-shape A, revert the mount block
-too, then grep for its fence comments and confirm nothing is left.
+too, then grep for its fence comments and confirm nothing is left. Remove a mounted notes harness
+as [real-stack.md](reference/real-stack.md#the-notes-harness) says: `git grep -n data-prototype-harness` then prints nothing.
 
 ## Boundary
 

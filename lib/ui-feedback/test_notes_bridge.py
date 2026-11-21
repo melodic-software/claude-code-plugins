@@ -757,6 +757,62 @@ class TestLoop(unittest.TestCase):
         hosts = {urlsplit(u).hostname for u in (checked, f"{checked}/", source)}
         self.assertEqual(hosts, {urlsplit(DEV).hostname})
 
+    @unittest.skipUnless(shutil.which("node"), "dev-origin.mjs runs on node")
+    def test_a_note_taken_on_a_real_stack_route_reaches_the_session_through_the_bridge(
+        self,
+    ):
+        r = self.control("ensure-running", "--dev-origin", DEV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        origin = json.loads(r.stdout)["origin"]
+        port = self.session()["port"]
+        host = {"Host": urlsplit(origin).netloc}
+
+        def call(method, path, headers, body=None):
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT)
+            try:
+                conn.request(method, path, body=body, headers=headers)
+                resp = conn.getresponse()
+                return resp.status, resp.read()
+            finally:
+                conn.close()
+
+        code, page = call("GET", "/", host)
+        self.assertEqual(code, 200)
+        self.assertEqual(frame_of(page)["data-dev-origin"], DEV)
+        code, raw = call("GET", "/api/token", {**host, **SAME_ORIGIN})
+        self.assertEqual(code, 200)
+        note = {
+            **NOTE,
+            "text": "On the real /shipments route: the arrival date wraps.",
+        }
+        post = {
+            **host,
+            "Content-Type": "application/json",
+            "X-Notes-Token": json.loads(raw)["token"],
+        }
+        code, body = call(
+            "POST", "/api/note", {**post, "Origin": DEV}, json.dumps(note)
+        )
+        self.assertEqual(code, 403, "the dev origin cannot post a note itself")
+        self.assertEqual(json.loads(body), {"error": "bad host or origin"})
+        code, _ = call(
+            "POST", "/api/note", {**post, "Origin": origin}, json.dumps(note)
+        )
+        self.assertEqual(code, 200)
+
+        watch = subprocess.run(
+            ["bash", str(self.bin / "watch.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT + 15,
+            env=self.env,
+        )
+        self.assertEqual(watch.returncode, 0, watch.stderr)
+        line = json.loads(watch.stdout)
+        self.assertEqual(line["note"], sb.DATA_NOTE)
+        self.assertEqual([e["text"] for e in line["events"]], [note["text"]])
+        self.assertEqual(line["events"][0]["anchor"], NOTE["anchor"])
+
     def test_ensure_running_with_another_page_restarts_on_that_page(self):
         for name in ("first.html", "second.html"):
             (self.dir / name).write_text(f"<p>{name}</p>", encoding="utf-8")

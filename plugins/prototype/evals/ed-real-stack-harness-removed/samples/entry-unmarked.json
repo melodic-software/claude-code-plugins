@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport Shipments from './pages/Shipments.jsx';\ncreateRoot(document.getElementById('root')).render(<Shipments />);\n",
+      "why": "the dev-only helper import is gone"
+    },
+    {
+      "answer": "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport Shipments from './pages/Shipments.jsx';\nif (import.meta.env.DEV) console.debug('shipments dev build');\ncreateRoot(document.getElementById('root')).render(<Shipments />);\n",
+      "why": "another dev-only line that is not the harness stays"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport Shipments from './pages/Shipments.jsx';\nif (import.meta.env.DEV) import('../prototype-harness/mount.js'); // data-prototype-harness\ncreateRoot(document.getElementById('root')).render(<Shipments />);\n",
+      "why": "the marked helper import is left behind"
+    },
+    {
+      "answer": "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport Shipments from './pages/Shipments.jsx';\nif (import.meta.env.DEV) import('../prototype-harness/mount.js');\ncreateRoot(document.getElementById('root')).render(<Shipments />);\n",
+      "why": "the marker comment was stripped but the helper still loads"
+    }
+  ]
+}
