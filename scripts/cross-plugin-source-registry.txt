@@ -864,3 +864,11 @@ scripts/media_encode.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/media-render/media_encode.py -> plugins/*/scripts/media_encode.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/cli-version-check.mjs.
+lib/cli-version-check.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/cli-version-check.mjs -> plugins/*/lib/cli-version-check.mjs
