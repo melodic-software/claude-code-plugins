@@ -178,8 +178,8 @@ concurrency:
 # 240 on the whole tree (1462 s of suites over 9 legs estimated from
 # scripts/suite-seconds.txt, which main measured 10 to 25% higher, plus 30 to
 # 75 s of setup; at 5 legs main's job p95 reached 414), 7;
-# test-node per leg about 160 on the whole tree (632 package-seconds over 5
-# legs from scripts/suite-seconds.txt, plus 27 to 31 s of setup; as one job,
+# test-node per leg 108 to 186 of work over the 5 legs of one whole-tree run
+# (44842387789; 632 package-seconds from scripts/suite-seconds.txt; as one job,
 # three whole-tree main runs of 2026-11-20 took 557, 674 and 675 s, the last
 # two cancelled at its 11-minute timeout), 5;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
