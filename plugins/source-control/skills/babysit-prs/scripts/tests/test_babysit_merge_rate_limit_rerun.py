@@ -3,9 +3,9 @@
 or on its runner install.
 
 The re-run fires only for a failure annotation the review evidence accepts a
-re-run after and the gate re-runs (a `rate-limit` lane-outcome record or this lane's publish
-failure on GitHub's API rate limit, one hour after the failure; a
-`rate-limit` five hours after; this lane's
+re-run after and the gate re-runs (a `rate-limit` lane-outcome record, five
+hours after the failure; this lane's publish failure on GitHub's API rate
+limit, one hour after; this lane's
 `install-failed` failure at once), only on the pinned live head, and only on a
 run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
 """

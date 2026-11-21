@@ -340,9 +340,8 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # five hours after the failure that window has reset whenever it started. A
 # weekly limit outlasts it; the re-run then fails again and stays failed,
 # since a run is re-run at most once. A `publish-rate-limit` is GitHub's
-# installation REST pool, which resets on its own hourly window, so one hour
-# after the failure is enough
-# (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations).
+# installation REST pool; our decision is to wait one hour after the failure
+# (read its reset window at https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations).
 # With both classes on one check the longer wait applies. A failed install is
 # re-run at once: a slow package mirror is not a window to wait out. So is a
 # run an outage lost (`review_evidence.LOST`), once nothing shows its lane

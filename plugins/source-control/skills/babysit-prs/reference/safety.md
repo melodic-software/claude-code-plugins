@@ -880,9 +880,8 @@ before the review ran); for a `rate-limit`, its job finished at least five hours
 `publish-rate-limit`, at least one hour ago; an install failure is rerun at once; and the run is on
 its first attempt. Five hours is the plan's session-limit window, so that window has reset whenever
 it started. A weekly limit outlasts it, and the rerun then fails again and stays failed, because an
-attempt above one is never rerun: at most one gate rerun per check per head. One hour is GitHub's
-installation REST pool, which resets on its own hourly window, so a publish failure on it does not
-wait out the plan window (our decision; the pool's window is under
+attempt above one is never rerun: at most one gate rerun per check per head. For a `publish-rate-limit`, the gate waits one hour
+after the job finished, not the plan window (our decision; read the installation pool's reset under
 [Primary rate limit for GitHub App installations](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations)).
 A check carrying several of these classes waits the longest delay among them. An install failure,
 often a slow package mirror, has no window to wait out. Any other failure class is never rerun, even
