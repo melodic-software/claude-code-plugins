@@ -50,9 +50,9 @@ Each candidate:
 
 ## Page order
 
-1. **Header**: the repo name; the date, scope and commit; then on separate lines the evidence counts, the candidate tally per badge, and the verification level with what it checked. A legend follows, one short line per item the page uses and none it does not: each drawing style (deep box, plain box, solid grey arrow for a call or read, dotted grey arrow for a pointer, rust arrow for a leak, and the box, stack and nesting patterns), each badge, each dependency category, each win term, and each Verified value. The builder writes the legend from the record; the definitions follow [vocabulary.md](../../../../reference/vocabulary.md) and [dependencies.md](dependencies.md).
-2. **Top recommendation**: the candidate's title linked to its card, and `top_why`. A `top_why` that cites dependents names the ones `depends_on` links, no more.
-3. **Index**: every candidate as a row with its title linked to its card, its badge, its Verified word, the candidate it depends on (linked) and its solution. Below 600 px wide each row stacks into a block, so the index never scrolls sideways.
+1. **Header**: the repo name; the date, scope and commit; then on separate lines the evidence counts, the candidate tally per badge, and the verification level with what it checked. A key follows, collapsed by default so the top recommendation stays near the top, with one short line per item the page uses and none it does not: each drawing style (deep box, plain box, solid grey arrow for a call or read, dotted grey arrow for a pointer, rust arrow for a leak, and the box, stack and nesting patterns), each badge (Strong defines the deletion test and the two-adapter rule it rests on), each dependency category, each win term, and each Verified value. The builder writes the key from the record; the definitions follow [vocabulary.md](../../../../reference/vocabulary.md), [dependencies.md](dependencies.md) and the acceptance heuristics in [deepening.md](../../actions/deepening.md).
+2. **Top recommendation**: the candidate's short id and title linked to its card, `top_why`, and a "Built on it" list the builder derives from `depends_on`: each candidate that depends on it, directly or through another. `top_why` gives the reason and leaves the names to that list.
+3. **Index**: every candidate as a row with its short id (the `id` in capitals, such as `S1`) and title linked to its card with its problem under it, its badge, its Verified word, the candidate it depends on (linked) and its solution. Below 600 px wide each row stacks into a block, so the index never scrolls sideways.
 4. **Cards** in one band per badge, `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every count, with no cap, pagination or collapse: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
 
 ## Header
@@ -61,7 +61,7 @@ Each evidence count comes from a `shallow-signal` or `runtime-claim` that Phase 
 
 ## Candidate card
 
-The card holds these parts in this order and nothing else: title and badges (recommendation and dependency category), problem, solution, the before and after diagram, wins, the Verified line, files, then depends-on and the recorded decision when present. A candidate that will not read without a paragraph has a drawing that leaves out the relation the paragraph would explain; add that relation to the diagram data.
+The card holds these parts in this order and nothing else: short id and title, badges (recommendation and dependency category), problem, solution, the before and after diagram, wins, the Verified line, files, then depends-on and the recorded decision when present, and last a link back to the index. A candidate that will not read without a paragraph has a drawing that leaves out the relation the paragraph would explain; add that relation to the diagram data.
 
 **Wins.** Each entry is `<term>: <gain>`, the term one of the eight in [vocabulary.md](../../../../reference/vocabulary.md) and the gain at most six words, such as `locality: a rounding fix, one file` or `leverage: twelve callers, one interface`. Write at least one `leverage` or `locality` win; the builder refuses a card with neither. A gain written as "more maintainable" fails the wording rule below; restate it as the leverage or locality it stands for.
 
@@ -77,7 +77,7 @@ Each side of a diagram is one panel, `before` the current state and `after` the 
 | `stack` | shallowness spread over layers | `layers`: one row per layer a call passes through; one row alone is drawn as the deep module |
 | `collapse` | calls that should become internal | `calls`: nested on the before side; with `module`, the calls drawn faded inside that one deep box |
 
-Each Mermaid panel takes the width its drawing needs, up to the card's width: two narrow panels sit side by side, a wide one takes the card's full width. A node label wraps only between words, at 260 px. Below 600 px wide a drawing keeps its own size and the panel scrolls sideways, so its text never shrinks below reading size.
+Each Mermaid panel takes the width its drawing needs, up to the card's width: two narrow panels sit side by side, a wide one takes the card's full width. A node label wraps only between words, at 260 px. Below 600 px wide a drawing keeps its own size and the panel scrolls sideways, so its text never shrinks below reading size. Every diagram sits on white paper in both themes, so a deep box reads the same in a hand-drawn panel and a Mermaid one, and labels keep the case they were written in. The text list each Mermaid panel carries stays in the page for screen readers when the drawing renders.
 
 ## Wording
 

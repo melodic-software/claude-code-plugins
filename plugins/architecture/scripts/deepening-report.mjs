@@ -11,9 +11,9 @@ export const BANDS = [
   ["Speculative", "speculative", "badge-speculative"],
 ];
 const BAND_MEANING = {
-  Strong: "passes the deletion test and the two-adapter rule; its signal was reproduced unless marked unverified",
+  Strong: "passes the deletion test (a maintainer who found the module gone would rebuild it much the same way) and the two-adapter rule (a seam earns its place only with two real adapters, typically production and test); its signal was reproduced unless marked unverified",
   "Worth exploring": "likely worth doing; the evidence does not yet carry Strong",
-  Speculative: "rests on judgment, or on an abstraction with only one adapter",
+  Speculative: "rests on judgment, or on a seam with only one adapter",
 };
 const CATEGORY_MEANING = {
   "in-process": "a test calls the deepened module directly; no I/O, nothing to substitute",
@@ -39,8 +39,8 @@ const VERIFIED_MEANING = {
   unverified: "not checked against the code",
 };
 const LEVEL_MEANING = {
-  strict: "every Strong candidate and every live-defect or dead-code claim was reproduced against the code",
-  standard: "every Strong candidate and every live-defect or dead-code claim was reproduced against the code",
+  strict: "every Strong candidate and every live-defect or dead-code claim was checked against the code, and held as stated or after the correction shown",
+  standard: "every Strong candidate and every live-defect or dead-code claim was checked against the code, and held as stated or after the correction shown",
   light: "nothing was reproduced; claims stand as the scan reported them",
   off: "nothing was reproduced; claims stand as the scan reported them",
 };
@@ -219,7 +219,13 @@ const REPORT_STYLE = `
   h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
   h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 .25rem; }
   header p { margin: .2rem 0; }
-  header, td, .files { overflow-wrap: anywhere; }
+  header, .files { overflow-wrap: anywhere; }
+  td { overflow-wrap: break-word; }
+  .cid { font-family: var(--mono); font-size: .85em; color: var(--muted); }
+  .row-problem { margin: .2rem 0 0; font-size: .85rem; color: var(--muted); }
+  .key summary { cursor: pointer; font-weight: 600; margin-top: .5rem; }
+  .built-on { margin: 0; padding-left: 1.2rem; list-style: disc; }
+  .back { margin: 0; font-size: .85rem; }
   .legend { margin: .75rem 0 0; padding-left: 1.2rem; list-style: disc; font-size: .92rem; }
   .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0 0 2.5rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .top { border-width: 3px; }
@@ -241,13 +247,15 @@ const REPORT_STYLE = `
   .paper svg { display: block; max-width: 100%; height: auto; }
   pre.mermaid { display: none; margin: 0; }
   .rv-mermaid pre.mermaid { display: block; }
-  .rv-mermaid .edge-list { display: none; }
+  .rv-mermaid .edge-list { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .edge-list { margin: 0; padding-left: 1.1rem; font-size: .85rem; }
-  .drawn { border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; display: grid; gap: .35rem; }
+  .drawn { background: var(--white); color: var(--slate); border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; display: grid; gap: .35rem; }
+  .drawn .box, .drawn .nest { border-color: #87867F; }
+  .drawn .deep { border-color: #141413; }
   .drawn.boxes { display: flex; flex-wrap: wrap; }
-  .box { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+  .box { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem; font-size: .8rem; }
   .layer { border-left-width: 6px; }
-  .deep { background: var(--fg); color: var(--bg); border: 3px solid var(--fg); }
+  .deep { background: #141413; color: #FAF9F5; border: 3px solid #141413; }
   .nest { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem .5rem; font-size: .75rem; }
   .nest .nest { margin-top: .3rem; }
   .faded { opacity: .6; }
@@ -310,7 +318,7 @@ function card(candidate, titles) {
   const p = (value) => `<p class="v">${esc(value)}</p>`;
   return [
     `<article class="card" id="${cardId(candidate.id)}">`,
-    `<h3 class="v" data-part="title">${esc(candidate.title)}</h3>`,
+    `<h3 class="v" data-part="title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</h3>`,
     `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span></p>`,
     part("problem", "Problem", p(candidate.problem)),
     part("solution", "Solution", p(candidate.solution)),
@@ -320,11 +328,13 @@ function card(candidate, titles) {
     part("files", "Files", `<ul class="v files">${candidate.files.map((file) => `<li>${esc(file)}</li>`).join("")}</ul>`),
     candidate.dependsOn === null ? "" : part("depends-on", "Depends on", `<p class="v"><a href="#${cardId(candidate.dependsOn)}">${esc(titles.get(candidate.dependsOn))}</a></p>`),
     candidate.adr === null ? "" : part("adr", "Recorded decision", p(candidate.adr), " adr"),
+    `<p class="back"><a href="#index">Back to every candidate</a></p>`,
     "</article>",
   ].join("\n");
 }
 
 const verifiedWord = (verified) => verified.split(":")[0];
+const shortId = (id) => id.toUpperCase();
 
 /** One line per drawing style, badge and term the page uses, and none it does not. */
 export function legendLines(report) {
@@ -339,8 +349,8 @@ export function legendLines(report) {
     [edges.some((edge) => edge.dashed && !edge.leak), "Dotted grey arrow", "a pointer: one file refers the reader to another, with no call"],
     [edges.some((edge) => edge.leak), "Rust arrow, solid or dotted", "a leak, one module reaching past another's interface; its label says how"],
     [graphs.some((graphData) => graphData.edges.length === 0), "Boxes side by side", "the separate places that hold one thing"],
-    [panels.some((p) => p.pattern === "stack" && p.layers.length > 1), "Stacked rows", "the layers one call passes through"],
-    [panels.some((p) => p.pattern === "collapse" && p.module === null), "Nested boxes", "calls that pass through one another"],
+    [panels.some((p) => p.pattern === "stack" && p.layers.length > 1), "Stacked rows", "the places one rule, step or call runs through, one row each"],
+    [panels.some((p) => p.pattern === "collapse" && p.module === null), "Nested boxes", "each part held inside the one around it"],
     [panels.some((p) => p.pattern === "collapse" && p.module !== null), "Faded text in a dark box", "calls the deep module makes internal"],
   ].filter(([shown]) => shown).map(([, term, meaning]) => [term, meaning]);
   return [
@@ -361,9 +371,15 @@ export function renderDeepening(report) {
     const cards = report.candidates.filter((candidate) => candidate.recommendation === word);
     return cards.length ? `<section class="band" id="band-${slug}">\n<h2>${esc(word)}</h2>\n${cards.map((candidate) => card(candidate, titles)).join("\n")}\n</section>` : "";
   }).filter(Boolean);
-  const link = (id) => `<a href="#${cardId(id)}">${esc(titles.get(id))}</a>`;
+  const link = (id) => `<a href="#${cardId(id)}">${esc(shortId(id))} ${esc(titles.get(id))}</a>`;
+  const dependents = (id) => report.candidates.filter((candidate) => candidate.dependsOn === id);
+  const builtOn = (id, seen = new Set([id])) => dependents(id).filter((candidate) => !seen.has(candidate.id)).flatMap((candidate) => {
+    seen.add(candidate.id);
+    return [`<li>${link(candidate.id)}${candidate.dependsOn === top.id ? "" : `, through ${esc(shortId(candidate.dependsOn))}`}</li>`, ...builtOn(candidate.id, seen)];
+  });
+  const topDependents = builtOn(top.id);
   const index = report.candidates
-    .map((candidate) => `<tr><td>${link(candidate.id)}</td><td><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span></td><td>${esc(verifiedWord(candidate.verified))}</td><td>${candidate.dependsOn === null ? "" : link(candidate.dependsOn)}</td><td>${esc(candidate.solution)}</td></tr>`)
+    .map((candidate) => `<tr><td>${link(candidate.id)}<p class="row-problem">${esc(candidate.problem)}</p></td><td><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span></td><td>${esc(verifiedWord(candidate.verified))}</td><td>${candidate.dependsOn === null ? "" : link(candidate.dependsOn)}</td><td>${esc(candidate.solution)}</td></tr>`)
     .join("\n");
   const legend = legendLines(report).map(([term, meaning]) => `<li><strong>${esc(term)}:</strong> ${esc(meaning)}</li>`).join("\n");
   return `<!doctype html>
@@ -386,13 +402,15 @@ ${CHROME_BAR}
 <p>${esc(report.date)} · scope: ${esc(report.scope)} · commit <span class="mono">${esc(report.commit)}</span></p>
 ${report.counts.length ? `<p>Evidence: ${esc(report.counts.join(" · "))}</p>\n` : ""}<p>Candidates: ${report.candidates.length} (${esc(tally)})</p>
 <p>Verification: ${esc(report.verification)}: ${esc(LEVEL_MEANING[report.level])}.</p>
+<details class="key"><summary>Key: what the badges, tags, terms and diagram styles mean</summary>
 <ul class="legend">
 ${legend}
 </ul>
+</details>
 </header>
 <section id="top-recommendation">
 <h2>Top recommendation</h2>
-<article class="top"><h3><a href="#${cardId(top.id)}">${esc(top.title)}</a></h3><p>${esc(report.topWhy)}</p></article>
+<article class="top"><h3>${link(top.id)}</h3><p>${esc(report.topWhy)}</p>${topDependents.length ? `<div><h4>Built on it</h4><ul class="built-on">${topDependents.join("")}</ul></div>` : ""}</article>
 </section>
 <section id="index">
 <h2>Every candidate</h2>
@@ -417,7 +435,7 @@ ${SCRIPTS[2]}
 const TAGS = new Set([
   "html", "head", "meta", "title", "style", "body", "main", "header", "section", "article", "nav",
   "h1", "h2", "h3", "h4", "p", "ul", "li", "a", "div", "span", "pre", "strong", "figure", "figcaption",
-  "table", "thead", "tbody", "tr", "th", "td", "button",
+  "table", "thead", "tbody", "tr", "th", "td", "button", "details", "summary",
 ]);
 const ATTRS = new Set(["lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "aria-label", "aria-pressed", "data-rv-theme", "data-part"]);
 const ESCAPED_TEXT = /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;

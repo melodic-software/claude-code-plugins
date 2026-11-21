@@ -207,7 +207,17 @@ test("the index row carries the Verified word and links the candidate it depends
   const page = renderDeepening(parseDeepening(record({}, [first, second])));
   assert.match(page, /<thead><tr><th>Candidate<\/th><th>Badge<\/th><th>Verified<\/th><th>Depends on<\/th><th>Solution<\/th><\/tr><\/thead>/);
   assert.match(page, /<td>corrected<\/td><td><\/td>/);
-  assert.match(page, /<td>reproduced<\/td><td><a href="#c-invoice-export">Fold the invoice export steps into one module<\/a><\/td>/);
+  assert.match(page, /<td>reproduced<\/td><td><a href="#c-invoice-export">INVOICE-EXPORT Fold the invoice export steps into one module<\/a><\/td>/);
+  assert.match(page, /<p class="row-problem">[^<]+<\/p><\/td>/);
+});
+
+test("the top recommendation lists every candidate built on it, directly or through another", () => {
+  const top = candidate();
+  const direct = candidate({ id: "tax-rounding", title: "Move rounding into TaxCalculator", depends_on: "invoice-export" });
+  const indirect = candidate({ id: "tax-report", title: "Report tax from one place", depends_on: "tax-rounding" });
+  const page = renderDeepening(parseDeepening(record({}, [top, direct, indirect])));
+  assert.match(page, /<h4>Built on it<\/h4><ul class="built-on"><li><a href="#c-tax-rounding">TAX-ROUNDING [^<]+<\/a><\/li><li><a href="#c-tax-report">TAX-REPORT [^<]+<\/a>, through TAX-ROUNDING<\/li><\/ul>/);
+  assert.equal(page.split('<p class="back"><a href="#index">').length, 4);
 });
 
 test("the legend names the drawing styles, badges and terms the page uses and no others", () => {
