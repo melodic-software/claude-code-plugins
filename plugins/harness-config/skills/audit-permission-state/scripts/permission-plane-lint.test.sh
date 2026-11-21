@@ -683,13 +683,17 @@ ASSIGN_STAR=$(
     'rule user settings allow Bash(PORT=4000 npm *)' \
     'rule user settings allow Bash(npm run dev --port=*)' \
     'rule user settings allow Bash(NODE_ENV*)' \
+    'rule user settings allow Bash(NODE_ENV=production:*)' \
+    'rule user settings allow Bash(PORT=3*:*)' \
     'rule user settings deny Bash(PORT=* rm *)' \
     'rule user settings allow PowerShell(X=* Get-Item)'
 )
 OUT=$(lint "$ASSIGN_STAR")
-assert_eq "a wildcard in a leading assignment of a Bash allow fires" 2 "$(count_matching "$OUT" '\[C6-assignStar\]')"
+assert_eq "a wildcard in a leading assignment of a Bash allow fires" 3 "$(count_matching "$OUT" '\[C6-assignStar\]')"
 assert_contains "the first assignment's wildcard fires" "$OUT" "[C6-assignStar] user Bash(PORT=* npm run dev)"
 assert_contains "a wildcard in a later leading assignment fires" "$OUT" "[C6-assignStar] user Bash(CI=1 PORT=3* npm start)"
+assert_not_contains "a trailing :* prefix is not a wildcard in the value" "$OUT" "[C6-assignStar] user Bash(NODE_ENV=production:*)"
+assert_contains "a wildcard in the value before a trailing :* still fires" "$OUT" "[C6-assignStar] user Bash(PORT=3*:*)"
 assert_contains "the finding names the startup warning's version" "$OUT" "v2.1.323"
 assert_not_contains "a literal assignment value is silent" "$OUT" "PORT=3000"
 assert_not_contains "a wildcard after a literal assignment is silent" "$OUT" "PORT=4000"

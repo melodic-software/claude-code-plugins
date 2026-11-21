@@ -357,8 +357,12 @@ END {
     if (mid_colon_star && kind != "allow" && is_param_shape && !is_documented && !is_param_only)
       finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a literal-colon command wildcard or a parameter wildcard — verify which you intended")
 
+    # A trailing `:*` on the last word is the end-of-pattern prefix syntax
+    # (see C6-colonStar above), not part of the assignment's value, so
+    # `Bash(NODE_ENV=production:*)` has the literal value `production`.
     if (kind == "allow" && tool == "Bash") {
       n_words = split(body, words, " ")
+      if (n_words > 0) sub(/:\*$/, "", words[n_words])
       for (w = 1; w <= n_words; w++) {
         if (words[w] !~ /^[A-Za-z_][A-Za-z0-9_]*=/) break
         if (index(words[w], "*")) {
