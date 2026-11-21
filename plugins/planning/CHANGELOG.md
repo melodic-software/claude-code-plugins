@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.12.2] - 2026-11-21
+
+### Changed
+
+- Shared `proto-pin.js` synced where this plugin carries it: the frame helper answers a host page's copy-out ask with the page's copy-out text; no other change to this plugin.
+
 ## [5.12.1] - 2026-11-21
 
 ### Changed
