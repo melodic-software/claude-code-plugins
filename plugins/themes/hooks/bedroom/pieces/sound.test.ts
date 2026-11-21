@@ -109,6 +109,7 @@ test("each player's argument list carries the volume; macOS plays through the en
   if (!BUILT.includes('sound')) return
   expect([0, 50, 70, 100].map(gainOf)).toEqual([0, 0.25, 0.48999999999999994, 1])
   expect(argvOf('ffplay', '/x/rain-1.wav', 0.25, true)).toEqual(['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', '-stats', '-volume', '25', '-loop', '0', '/x/rain-1.wav'])
+  expect(argvOf('ffplay', '/x/tv-on.wav', 1, false)).toEqual(['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', '-stats', '-volume', '100', '/x/tv-on.wav'])
   expect(argvOf('paplay', '/x/tv-on.wav', 0.25, true)).toEqual(['paplay', '--verbose', '--volume=16384', '/x/tv-on.wav'])
   expect(argvOf('aplay', '/x/tv-on.wav', 0.25, false)).toEqual(['aplay', '-V', 'mono', '/x/tv-on.wav'])
   expect(commandLineOf('mpv --volume={volume} {file}', '/x/rain-1.wav', 0.25)).toEqual(['mpv', '--volume=25', '/x/rain-1.wav'])
