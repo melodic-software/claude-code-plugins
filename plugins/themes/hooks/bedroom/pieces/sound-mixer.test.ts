@@ -21,6 +21,7 @@ import {
   engineCommand,
   engineSwitched,
   engineTick,
+  follow,
   gainOf,
   purr,
   thunderFor,
@@ -355,4 +356,26 @@ test('with sound saved on and nothing started yet, as after a reload, a change o
   await s.advance(5 * PING_MS)
   expect(ranBy(s).filter(line => line === 'ping').length).toBe(5)
   await quiet(s)
+})
+
+test('a one-shot and the bed both waiting to hold the player open one mixer between them, and sound off ends it', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand()
+  onWindows(s)
+  Object.assign(sky, { sun: 0, weather: 0 })
+  const state = s.$.state as unknown as { set: (key: unknown, value: unknown) => Promise<void> }
+  const set = state.set
+  const held: (() => void)[] = []
+  state.set = (key, value) => new Promise(resolve => void held.push(() => void set(key, value).then(resolve)))
+  await (await s.ctx()).save({ sound: true })
+  purr(s.$)
+  void follow(s.$)
+  await s.settle()
+  expect(held.length).toBe(2)
+  state.set = set
+  for (const release of held.splice(0)) release()
+  await s.advance(10)
+  expect(s.mixers.length).toBe(1)
+  await quiet(s)
+  expect(s.mixers.every(m => m.ended)).toBe(true)
 })

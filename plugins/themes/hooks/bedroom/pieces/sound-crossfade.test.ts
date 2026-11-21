@@ -24,6 +24,32 @@ test('sound turned on partway through the evening starts both beds where the cro
   await quiet(s)
 })
 
+test('in the evening, the weather clearing or another recording picked fades out the bed it replaces', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand(intoRow(1, 30))
+  onWindows(s)
+  Object.assign(sky, { sun: 1, weather: 2 })
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  const rain = BANK.rain.entries.roof.rain
+  expect(ranBy(s).filter(line => line.startsWith('bed '))).toEqual([`bed ${rain} ${gainOf(70).toFixed(4)} ${START_FADE_MS}`])
+  const gone = (file: string): number => ranBy(s).filter(line => line.startsWith(`to ${file} 0.0000 `)).length
+  const rises = (file: string): boolean => ranBy(s).some(line => line.startsWith(`to ${file} `) && !line.startsWith(`to ${file} 0.0000 `))
+
+  sky.weather = 0
+  await s.advance(WATCH_MS + 10)
+  expect([gone(rain), rises(BANK.cicadas.entries.chorus.bed), rises(KATYDIDS)]).toEqual([1, true, true])
+
+  await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'crickets'])
+  await s.settle()
+  expect([gone(KATYDIDS), rises(CRICKETS)]).toEqual([1, true])
+
+  await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'river'])
+  await s.settle()
+  expect([gone(BANK.cicadas.entries.chorus.bed), rises(BANK.cicadas.entries.river.bed)]).toEqual([1, true])
+  await quiet(s)
+})
+
 test('from dusk the cicadas give way to the night insects across the whole evening, the night stays, before dawn is quieter, and dawn is quiet', async () => {
   if (!BUILT.includes('sound')) return
   const s = await stand()

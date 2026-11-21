@@ -146,7 +146,7 @@ test('S6: thunder comes 1 to 6 s after its strike, quieter and farther the longe
   await quiet(s)
 })
 
-test("S6: a minute's scheduled strike in a storm brings its thunder through the same call, and none in rain", async () => {
+test("S6: a minute's scheduled strike in a storm brings its thunder through the same call, and neither thunder nor a dip once the storm has gone, at the tick or before the strike shows", async () => {
   if (!BUILT.includes('sound')) return
   const evening = new Date(EVENING)
   const strikes = Array.from({ length: 240 }, (_, i) => 480 + i).filter(minute => strike(minute) !== undefined)
@@ -179,9 +179,16 @@ test("S6: a minute's scheduled strike in a storm brings its thunder through the 
       expect(Number(heard().at(-1)!.words[2])).toBeGreaterThan(0.3)
     }
   }
-  sky.weather = 2
   const stormed = heard().length
+  const ducks = (): number => s.mixers.flatMap(m => m.ran).filter(r => r.words[0] === 'level' && r.words[2] === String(DUCK_FADE_MS.down)).length
+  const ducked = ducks()
   await s.advance(tickAt(strikes[4] ?? 0) - s.now())
+  await engineTick(s.$, await s.ctx())
+  await s.settle()
+  sky.weather = 2
+  await s.advance(55_000)
+  expect([heard().length, ducks()]).toEqual([stormed, ducked])
+  await s.advance(tickAt(strikes[5] ?? 0) - s.now())
   await engineTick(s.$, await s.ctx())
   await s.advance(55_000)
   expect(heard().length).toBe(stormed)

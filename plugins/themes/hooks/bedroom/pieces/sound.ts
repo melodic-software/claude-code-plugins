@@ -179,9 +179,10 @@ type Out = { player: Player; isDone: boolean; mixer?: Mixer; bedPlay?: Play; sho
 let out: Out | undefined
 /**
  * The bed playing now: its file, the sky it was chosen for, the volume's gain and the sky's level (levelOf), when its
- * last fade ends, and, while the afternoon builds through the mixer, when that one long ease reaches the golden hour.
+ * last fade ends, while the afternoon builds through the mixer, when that one long ease reaches the golden hour, and,
+ * across the evening, the cicadas the night insects take over from.
  */
-let bed: { file: string | undefined; sky: Sky; gain: number; level: number; settledAt: number; aim?: number; evening?: boolean } | undefined
+let bed: { file: string | undefined; sky: Sky; gain: number; level: number; settledAt: number; aim?: number; evening?: string } | undefined
 
 /**
  * This copy of the module, by when it loaded: a reload loads a newer copy. One player per session: the newest copy
@@ -581,9 +582,12 @@ async function stepBeds($: EngineInterface): Promise<void> {
     if (evening === undefined || out?.mixer === undefined || file === undefined) return
     const turn = (Math.min(1, evening.share + ease / EVENING_FADE_MS) * Math.PI) / 2
     const rest = Math.max(0, evening.leftMs - ease)
+    for (const gone of new Set([bed?.file, bed?.evening])) {
+      if (gone !== undefined && gone !== cicadas && gone !== file) mixerSend($, out, { verb: 'to', name: gone, gain: 0, fadeMs: ease, then: 0, thenMs: 0 })
+    }
     mixerSend($, out, { verb: 'to', name: cicadas, gain: gain * Math.cos(turn), fadeMs: ease, then: 0, thenMs: rest })
     mixerSend($, out, { verb: 'to', name: file, gain: gain * level * Math.sin(turn), fadeMs: ease, then: gain * level, thenMs: rest })
-    bed = { file, sky: shown.sky, gain, level, settledAt: now + ease, evening: true }
+    bed = { file, sky: shown.sky, gain, level, settledAt: now + ease, evening: cicadas }
   }
   if (bed === undefined) {
     if (evening !== undefined) return cross(START_FADE_MS)
@@ -592,21 +596,21 @@ async function stepBeds($: EngineInterface): Promise<void> {
     return
   }
   const skyMoved = shown.sky.sun !== bed.sky.sun || shown.sky.weather !== bed.sky.weather
-  if (skyMoved && now < shown.at && (file !== bed.file || level !== bed.level || evening !== undefined || bed.evening === true)) return waitUntil($, shown.at, now)
+  if (skyMoved && now < shown.at && (file !== bed.file || level !== bed.level || evening !== undefined || bed.evening !== undefined)) return waitUntil($, shown.at, now)
   const ease = skyMoved ? Math.max(OFF_FADE_MS, shown.fadeMs - (now - shown.at)) : HURRIED_MS
   if (evening !== undefined) {
     const walked = bed.sky.sun === DUSK && bed.file === cicadas && shown.fadeMs === SUN_FADE_MS
     if (walked && !bed.evening) {
       outBed($, out, file, gain * level, Math.max(OFF_FADE_MS, EVENING_FADE_MS - (now - shown.at)))
-      bed = { file, sky: shown.sky, gain, level, settledAt: now, evening: true }
+      bed = { file, sky: shown.sky, gain, level, settledAt: now, evening: cicadas }
       return
     }
-    if (!bed.evening || gain !== bed.gain || file !== bed.file) return cross(gain !== bed.gain && !skyMoved ? LEVEL_FADE_MS : ease)
+    if (!bed.evening || gain !== bed.gain || file !== bed.file || cicadas !== bed.evening) return cross(gain !== bed.gain && !skyMoved ? LEVEL_FADE_MS : ease)
     bed.sky = shown.sky
     return
   }
   if (bed.evening && out.mixer !== undefined) {
-    for (const gone of new Set([cicadas, bed.file])) {
+    for (const gone of new Set([bed.evening, bed.file])) {
       if (gone !== undefined && gone !== file) mixerSend($, out, { verb: 'to', name: gone, gain: 0, fadeMs: ease, then: 0, thenMs: 0 })
     }
     if (file !== undefined) mixerSend($, out, { verb: 'to', name: file, gain: gain * level, fadeMs: ease, then: gain * level, thenMs: 0 })
