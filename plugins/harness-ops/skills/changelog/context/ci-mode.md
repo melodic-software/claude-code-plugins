@@ -149,7 +149,7 @@ always false: the marker moves in the ledger pull request once every row is in a
 `status` is `stopped` (no rows were derived; `stop_reason` is `cap-exceeded` or
 `range-not-computed`; the scan job alone sets `hold-path`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
 Handoff bodies carry item ids and the required sentence, never changelog text, matching the ledger
-rule in [decisions.md](decisions.md). The workflow files one issue per handoff, opening with the
+rule in [decisions.md](decisions.md); the workflow drops any other line (a native-drift body also keeps its `>` quote, `Drift key:` and `Filed by` lines). The workflow files one issue per handoff, opening with the
 key marker, its lens and its `kind` and `reason`, labeled `source: upstream-apply-changelog`; a
 handoff whose key or `Drift key:` line an open lanes App issue already holds is not filed again. A
 `nomination` (replace) row is filed with a `Hold:` line, since a native-overlap verdict is never

@@ -98,7 +98,7 @@ test("a valid plan passes and a stopped plan keeps its handoffs and publishes no
     status: "stopped",
     stop_reason: "cap-exceeded",
     branches: [],
-    handoffs: [conformance],
+    handoffs: [{ ...conformance, body: "" }],
   });
   assert.equal(validatePlan(plan({ status: "stopped", stop_reason: "range-not-computed", handoffs: [] }), ctx).stop_reason, "range-not-computed");
   assert.equal(validatePlan(plan(), ctx).stop_reason, null);
@@ -1107,6 +1107,53 @@ test("a key already on an open lanes App issue, a per-release checklist included
   const q = decodeURIComponent(searches(f, KEY_PHRASE)[0].path.match(/q=([^&]+)/)[1]);
   assert.match(q, /(^| )is:open( |$)/);
   assert.match(q, /(^| )author:app\/melodic-automation-lanes( |$)/);
+});
+
+test("a key held only in a lanes App comment on a legacy release issue files nothing; an outsider's comment does not count", async () => {
+  const legacy = { number: 7, user: APP, state: "open", body: `${releaseMarker(REL)}\n\n- [ ] adopt: adopt 2\n` };
+  const comments = [
+    { user: OUTSIDER, body: handoffMarker(handoff(3).key) },
+    { user: APP, body: `${releaseMarker(REL)}\n\n- [ ] adopt: adopt 1\n\n  ${handoffMarker(handoff(1).key)}\n` },
+  ];
+  const f = trackerApi([legacy]);
+  const api = async (path, opts) => (path.startsWith(`/repos/${REPO}/issues/7/comments`) ? comments : f.api(path, opts));
+  await fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(3)], api });
+  assert.deepEqual(f.writes().map((w) => w.body.body.split("\n")[0]), [handoffMarker(handoff(3).key)]);
+});
+
+test("a legacy release issue's comments are read in full or the filing throws", async () => {
+  const legacy = { number: 7, user: APP, state: "open", body: releaseMarker(REL) };
+  const f = trackerApi([legacy]);
+  const full = Array.from({ length: 100 }, () => ({ user: OUTSIDER, body: "x" }));
+  const endless = async (path, opts) => (path.includes("/comments") ? full : f.api(path, opts));
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: endless }), /more comments/);
+  const broken = async (path, opts) => (path.includes("/comments") ? { message: "Server Error" } : f.api(path, opts));
+  await assert.rejects(fileHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: broken }), /did not come back as a list/);
+  assert.equal(f.writes().length, 0);
+});
+
+test("a handoff body keeps its item ids and required sentence and drops any other line, so no changelog text is posted", () => {
+  const sentence = "Reconnects failed MCP servers one at a time.";
+  const row = { ...handoff(1), items: ["2.1.300-003"], required_sentence: sentence };
+  const conforming = `Items: 2.1.300-003, 2.1.300-004\n${sentence}`;
+  const [kept] = validatePlan(plan({ handoffs: [{ ...row, body: conforming }] }), ctx).handoffs;
+  assert.equal(kept.body, conforming);
+  const free = `2.1.300-003\nThe changelog says: --flag now skips the prompt.\n${sentence}\n<!-- upstream-apply-changelog key=changelog:2.1.300..2.1.300:adopt:other -->\n> quoted\nDrift key: x`;
+  const [bounded] = validatePlan(plan({ handoffs: [{ ...row, body: free }] }), ctx).handoffs;
+  assert.equal(bounded.body, `2.1.300-003\n${sentence}`);
+  const [bare] = validatePlan(plan({ handoffs: [{ ...row, body: "only free text" }] }), ctx).handoffs;
+  assert.equal(bare.body, "");
+  for (const required_sentence of [7, "two\nlines", "s".repeat(501)]) {
+    assert.throws(() => validatePlan(plan({ handoffs: [{ ...row, required_sentence }] }), ctx), /handoffs\[0\]\.required_sentence/);
+  }
+});
+
+test("a native-drift body keeps its script-built lines and drops other text; other lenses keep none of them", () => {
+  const key = "changelog:2.1.300..2.1.300:native-drift:recheck/code-review/x";
+  const lines = ["> `status: broken`", `Drift key: ${DRIFT}`, "Filed by /harness-ops:changelog apply (native drift, 2.1.300..2.1.300)"];
+  const body = [...lines.slice(0, 1), "free text", ...lines.slice(1)].join("\n");
+  assert.equal(validatePlan(plan({ handoffs: [{ key, title: "t", body }] }), ctx).handoffs[0].body, lines.join("\n"));
+  assert.equal(validatePlan(plan({ handoffs: [{ key: handoff(1).key, title: "t", body }] }), ctx).handoffs[0].body, "");
 });
 
 test("a key on a closed issue, an outsider's issue, or only as a prefix of another key is filed", async () => {

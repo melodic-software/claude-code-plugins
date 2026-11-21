@@ -163,8 +163,35 @@ const APP_AUTHOR = `author:app/${LANES_APP_LOGIN.replace(/\[bot\]$/, "")}`;
 const SEARCH_PAGES = 10;
 const ownOpen = (i) => i?.user?.login === LANES_APP_LOGIN && i.state === "open" && typeof i.body === "string";
 
+const COMMENT_PAGES = 10;
+
+// An older per-release checklist issue moved the rows its full body could not
+// hold into lanes App comments, which no body search reads
+// (https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests).
+// More comments than COMMENT_PAGES pages hold, or an answer that is not a
+// list, throws so no key is filed twice.
+async function commentKeys(api, repo, number, open) {
+  for (let page = 1; page <= COMMENT_PAGES; page++) {
+    const batch = await api(`/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error(`the comments on #${number} did not come back as a list`);
+    for (const c of batch) {
+      if (c?.user?.login === LANES_APP_LOGIN && typeof c.body === "string") for (const k of keysIn(c.body)) if (!open.has(k)) open.set(k, number);
+    }
+    if (batch.length < 100) return;
+  }
+  throw new Error(`#${number} has more comments than ${COMMENT_PAGES} pages hold`);
+}
+
+async function legacyCommentKeys(api, repo, release, open) {
+  const q = encodeURIComponent(`repo:${repo} is:issue is:open ${APP_AUTHOR} in:body "upstream-apply-changelog release=${release}"`);
+  const items = (await api(`/search/issues?q=${q}&per_page=100`))?.items;
+  if (!Array.isArray(items)) throw new Error("the legacy release-issue search did not come back as a list");
+  for (const i of items.filter(ownOpen)) if (i.body.includes(releaseMarker(release))) await commentKeys(api, repo, i.number, open);
+}
+
 // Keys carry the release, so one search finds them all, an older per-release
-// checklist's included. The search API returns at most 1000 results
+// checklist's included, and that checklist's comments are read too. The search
+// API returns at most 1000 results
 // (https://docs.github.com/en/rest/search/search#about-search), so past that
 // it throws rather than file a key twice.
 async function openKeys(api, repo, release) {
@@ -174,7 +201,10 @@ async function openKeys(api, repo, release) {
     const items = (await api(`/search/issues?q=${q}&per_page=100&page=${page}`))?.items;
     if (!Array.isArray(items)) throw new Error("the open-key search did not come back as a list");
     for (const i of items.filter(ownOpen)) for (const k of keysIn(i.body)) if (!open.has(k)) open.set(k, i.number);
-    if (items.length < 100) return open;
+    if (items.length < 100) {
+      await legacyCommentKeys(api, repo, release, open);
+      return open;
+    }
   }
   throw new Error(`more open issues hold this release's keys than ${SEARCH_PAGES} search pages return`);
 }
@@ -339,6 +369,27 @@ export function pluginProblem(plugin) {
   return null;
 }
 
+const ITEM_IDS = /^(?:Items: )?\d+\.\d+\.\d+-\d{3}(?:, \d+\.\d+\.\d+-\d{3})*$/;
+const FILED_BY = /^Filed by \/harness-ops:changelog apply \(native drift, [0-9.]+\.\.[0-9.]+\)$/;
+const SENTENCE_MAX = 500;
+
+// A handoff body is item ids and the required sentence, never changelog text
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
+// A native-drift body also holds its script-built lines: quoted `>` data, the
+// `Drift key:` line and the `Filed by` line. Any other line is dropped, so
+// model text outside that shape is never posted.
+export function boundBody(h) {
+  const sentence = typeof h.required_sentence === "string" ? h.required_sentence.trim() : "";
+  const drift = lensOf(h.key) === "native-drift";
+  const keep = (line) => {
+    const t = line.trim();
+    if (!t || ITEM_IDS.test(t) || (sentence && t === sentence)) return true;
+    if (!drift) return false;
+    return t.startsWith("> ") || FILED_BY.test(t) || (t.startsWith(DRIFT_LINE) && DRIFT_KEY.test(t.slice(DRIFT_LINE.length)));
+  };
+  return h.body.split(/\r?\n/).filter(keep).join("\n").trim();
+}
+
 // Every message names a field and its index, never a value: the plan is
 // model output and the scan job reports these before it scans anything.
 export function validatePlan(plan, { release, baseSha }) {
@@ -382,8 +433,12 @@ export function validatePlan(plan, { release, baseSha }) {
     keys.add(h.key);
     if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);
     if (typeof h.body !== "string" || h.body.length > 60000) fail(`${at}.body is bad`);
+    const sentence = h.required_sentence;
+    if (sentence !== undefined && (typeof sentence !== "string" || sentence.length > SENTENCE_MAX || /[\r\n]/.test(sentence))) {
+      fail(`${at}.required_sentence is not one line of at most ${SENTENCE_MAX} characters`);
+    }
   });
-  return { status, stop_reason, branches, handoffs };
+  return { status, stop_reason, branches, handoffs: handoffs.map((h) => ({ ...h, body: boundBody(h) })) };
 }
 
 // The change lines of a raw diff (`:<modes> <shas> <status>\t<path>...`).
