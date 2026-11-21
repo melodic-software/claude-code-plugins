@@ -37,3 +37,4 @@ bump: minor
 - The room's sound kept playing after the app was exited while its session ran on; it now fades out within seconds.
 - After a reload, or a mixer that went away unseen, sound could stay silent while set on until it was turned off and on; the mod now notices and starts the mixer again.
 - An evening set by command left the night insects near silence for over an hour, waiting on the clock's long cross-fade; a held evening now plays them at once, over the picture's quick ease.
+- Another plugin clearing the theme, as theme-examples does after its fireworks, removed the bedroom until `/bedroom on`. While the room is on, the bedroom now puts its look back right after such a clear, the room showing alone for 7 seconds before the shader starts over it. A theme another plugin sets is left to show until it is cleared, and after `/bedroom off` the room stays off.

@@ -45,6 +45,8 @@ export type Room = {
   /** The Svg element's source as last drawn. */
   source: () => Promise<string | undefined>
   toasts: string[]
+  /** Every theme call that reached the engine, oldest first: `set <scene>` or `clear`. */
+  themes: string[]
   /** The mod's debug log lines, oldest first. */
   events: () => string[]
   /** Every path the mod asked to write. */
@@ -78,8 +80,15 @@ export async function startRoom(
   on('store.keys', () => ({ value: [...store.keys()] }))
   const toasts: string[] = []
   on('command.register', () => ({ value: { command: 'bedroom' } }))
-  on('theme.set', () => ({ value: { isDrawn: true, requestId: 'backdrop' } }))
-  on('theme.clear', () => ({ value: { isDrawn: false, reason: 'cleared' } }))
+  const themes: string[] = []
+  on('theme.set', (_, e) => {
+    themes.push(`set ${e.backdrop !== undefined && 'scene' in e.backdrop ? e.backdrop.scene : 'none'}`)
+    return { value: { isDrawn: true, requestId: 'backdrop' } }
+  })
+  on('theme.clear', () => {
+    themes.push('clear')
+    return { value: { isDrawn: false, reason: 'cleared' } }
+  })
   const writes: string[] = []
   on('fs.write', (_, e) => {
     writes.push(e.path)
@@ -113,6 +122,7 @@ export async function startRoom(
     clock,
     store,
     toasts,
+    themes,
     writes,
     events: () => [...log],
     run: async args => {

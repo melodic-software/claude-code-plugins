@@ -6,7 +6,7 @@ import { handleClick } from './core/clicks.js'
 import { minuteOfHalfDay, readNow, startMinuteChain } from './core/clock.js'
 import { describe, runCommand } from './core/commands.js'
 import { ctxOf, usePieces } from './core/context.js'
-import { SCENE, colorProblems, draw, markStarted, setLook } from './core/render.js'
+import { SCENE, colorProblems, draw, holdShader, isThemeOn, markStarted, setLook } from './core/render.js'
 import { load } from './core/saved.js'
 import { useOptions } from './core/settings.js'
 import { failed, flush, note } from './core/telemetry.js'
@@ -56,6 +56,21 @@ export const register: Register = (on, options) => {
     if (!set.isDrawn) $.ui.toast(`bedroom is not drawn: ${set.reason}`)
     await ask($, 'the session starting')
     return next(e)
+  })
+
+  on('theme.clear', async ($, e, next) => {
+    const cleared = await next(e)
+    if (next.origin.plugin === $.plugin.name || !isThemeOn()) return cleared
+    note(`${next.origin.plugin} cleared the theme while the room is on: setting the room again`)
+    try {
+      await setLook($, ctxOf($))
+      holdShader($, 'the room set again')
+      await ask($, 'the room set again')
+    } catch (error) {
+      note(`setting the room again failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    flush($)
+    return cleared
   })
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
