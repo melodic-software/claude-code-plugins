@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
-import { loadConfig } from "../scripts/lib/config.mjs";
+import { loadConfig, pluginRoot } from "../scripts/lib/config.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { resolveBinary, unavailableMessage } from "../scripts/lib/binary.mjs";
 import { listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "../scripts/lib/jobs.mjs";
@@ -18,17 +18,36 @@ const dir = (...parts) => {
 };
 
 describe("config", () => {
-  test("bundled defaults apply with no file layers", () => {
+  test("bundled defaults match the defaults the schema documents", () => {
     const { values, provenance } = loadConfig({ projectRoot: dir("empty-repo") });
-    assert.equal(values.codex.uses.task.mode, "write");
-    assert.equal(values.codex.uses.investigate.mode, "read-only");
-    assert.equal(values.codex.uses.review.mode, "read-only");
-    assert.equal(values.codex.timeout_seconds, 1800);
-    assert.equal(values.codex.council.enabled, true);
-    assert.equal(values.breaker.cooldown_hours, 24);
-    assert.equal(values.jobs.keep, 50);
+    const documented = [];
+    const walk = (node, path) => {
+      if (node.default !== undefined) documented.push([path, node.default]);
+      for (const [key, child] of Object.entries(node.properties ?? {})) walk(child, [...path, key]);
+    };
+    walk(JSON.parse(readFileSync(join(pluginRoot, "schemas", "external-agents.schema.json"), "utf8")), []);
+    assert.ok(documented.length >= 7, "the schema documents the bundled defaults");
+    for (const [path, value] of documented) {
+      assert.deepEqual(path.reduce((v, k) => v?.[k], values), value, path.join("."));
+      assert.equal(provenance[path.join(".")], "defaults", path.join("."));
+    }
     assert.equal(values.codex.model, undefined);
-    assert.equal(provenance["codex.uses.task.mode"], "defaults");
+  });
+
+  test("binary_path is taken only from the personal layer, and only when absolute", () => {
+    const root = dir("binary-path");
+    const home = dir("binary-path", "docs", "conventions");
+    writeFileSync(join(home, "external-agents.yaml"), "schema: 1\ncodex:\n  binary_path: /tmp/team-chosen\n");
+    const team = loadConfig({ projectRoot: root });
+    assert.equal(team.values.codex.binary_path, undefined, "a committed team file never picks the executable");
+    assert.ok(team.errors.some((e) => e.includes("codex.binary_path")), team.errors.join("\n"));
+    writeFileSync(join(home, "external-agents.local.yaml"), "schema: 1\ncodex:\n  binary_path: relative/codex\n");
+    const relative = loadConfig({ projectRoot: root });
+    assert.equal(relative.values.codex.binary_path, undefined);
+    assert.ok(relative.errors.some((e) => e.includes("absolute")), relative.errors.join("\n"));
+    const absolute = join(root, "bin", "codex");
+    writeFileSync(join(home, "external-agents.local.yaml"), `schema: 1\ncodex:\n  binary_path: "${absolute.replace(/\\/g, "/")}"\n`);
+    assert.equal(loadConfig({ projectRoot: root }).values.codex.binary_path, absolute.replace(/\\/g, "/"));
   });
 
   test("team layer refines a key and personal layer refines the team", () => {
@@ -121,7 +140,12 @@ describe("binary resolution", () => {
   test("binary_path wins over every candidate", () => {
     const fake = join(dir("bin-override"), "custom-demo");
     writeFileSync(fake, "");
-    const found = resolveBinary(record, { binaryPath: fake, platform: "linux", env: { PATH: "" } });
+    const local = dir("bin-override-local");
+    const onPath = dir("bin-override-path");
+    mkdirSync(join(local, "Demo"), { recursive: true });
+    writeFileSync(join(local, "Demo", "demo.exe"), "");
+    writeFileSync(join(onPath, "demo.exe"), "");
+    const found = resolveBinary(record, { binaryPath: fake, platform: "win32", env: { LOCALAPPDATA: local, PATH: onPath, PATHEXT: ".EXE" } });
     assert.equal(found.path, fake);
     assert.equal(found.source, "binary_path");
   });
