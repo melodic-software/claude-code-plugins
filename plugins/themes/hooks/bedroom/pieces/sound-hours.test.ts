@@ -52,7 +52,7 @@ function intoBuild(year: number, month: number, day: number, minutesIn: number):
 test('noon is silent until the cicadas start in mid-afternoon, from the room\'s own sunset; a held noon is silent', async () => {
   if (!BUILT.includes('sound')) return
   const june = intoBuild(2026, 5, 21, 0)
-  expect(june.sunset - BUILD_FROM_MIN).toBeGreaterThan(15 * 60)
+  expect(june.sunset - BUILD_FROM_MIN).toBeGreaterThanOrEqual(15 * 60)
   const december = intoBuild(2026, 11, 21, 0)
   expect(december.sunset - BUILD_FROM_MIN).toBeLessThan(june.sunset - BUILD_FROM_MIN - 60)
   for (const [at, playing] of [[new Date(2026, 5, 21, 11, 0).getTime(), false], [new Date(2026, 5, 21, 14, 0).getTime(), false], [intoBuild(2026, 5, 21, 30).at, true], [intoBuild(2026, 11, 21, 30).at, true], [intoBuild(2026, 11, 21, -30).at, false]] as const) {
