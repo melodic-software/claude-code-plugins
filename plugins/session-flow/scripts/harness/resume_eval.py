@@ -71,25 +71,41 @@ TOKEN_KEYS = (
 )
 
 
+_GIT = ("git", "git -C *")
 NETWORK_DENY = (
     "Bash(curl:*)",
     "Bash(curl *)",
     "Bash(wget:*)",
     "Bash(wget *)",
-    "Bash(git ls-remote:*)",
-    "Bash(git ls-remote *)",
-    "Bash(git fetch *://*)",
-    "Bash(git fetch *@*)",
+    *(
+        f"Bash({g} {cmd} {form})"
+        for g in _GIT
+        for cmd in ("ls-remote", "fetch")
+        for form in ("*://*", "*@*")
+    ),
     "WebFetch",
     "WebSearch",
 )
 
 
-def run_settings(plugin_configs: dict | None = None) -> dict:
+def run_settings(
+    plugin_configs: dict | None = None, writable: list[str] | tuple[str, ...] = ()
+) -> dict:
     """`--settings` for a real-setup run: the installed session-flow off, so only the copy
-    under test loads (probes.md P7), the network denied, and any option a case sets."""
+    under test loads (probes.md P7); every shell command in the OS sandbox with no network
+    host allowed and no unsandboxed retry, the session refusing to start without the
+    sandbox, writable beyond the working directory only at `writable`; the network tools
+    and remote-URL git forms also denied; and any option a case sets."""
     doc: dict = {
         "enabledPlugins": {"session-flow@melodic-software": False},
+        "sandbox": {
+            "enabled": True,
+            "autoAllowBashIfSandboxed": True,
+            "allowUnsandboxedCommands": False,
+            "failIfUnavailable": True,
+            "network": {"allowedDomains": [], "strictAllowlist": True},
+            "filesystem": {"allowWrite": list(writable)},
+        },
         "permissions": {"deny": list(NETWORK_DENY)},
     }
     if plugin_configs:
@@ -903,10 +919,58 @@ def write_fixture(path: Path, content: str) -> None:
         path.chmod(0o755)
 
 
-def _git(call, repo: Path, env: dict, *args: str) -> None:
+def _git(call, repo: Path, env: dict, *args: str) -> str:
     code, out, err = call(["git", *args], str(repo), env)
     if code != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {err or out}")
+    return out
+
+
+REMOTE_REF_PREFIXES = ("refs/heads/", "refs/tags/", "refs/pull/")
+
+
+def seed_remote_refs(call, repo: Path, bare: Path, env: dict, refs: list[str]) -> None:
+    """Create `refs` at the seeded HEAD in `bare` (the run's `origin`), then fetch from
+    it so `refs/remotes/origin/*` and the tags mirror it with nothing stale left from
+    the base clone: the reader answers branch, tag and PR-head lookups locally."""
+    bad = [ref for ref in refs if not ref.startswith(REMOTE_REF_PREFIXES)]
+    if bad:
+        raise ValueError(
+            f"seed.remote_refs {bad} must start with one of {REMOTE_REF_PREFIXES}"
+        )
+    pushes = []
+    for ref in refs:
+        if ref.startswith("refs/tags/"):
+            name = ref.removeprefix("refs/tags/")
+            _git(call, repo, env, "tag", "-a", "-m", name, name)
+            pushes.append(f"{ref}:{ref}")
+        else:
+            pushes.append(f"HEAD:{ref}")
+    _git(call, repo, env, "push", "-q", "origin", *pushes)
+    if any(ref.startswith("refs/pull/") for ref in refs):
+        _git(
+            call,
+            repo,
+            env,
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "+refs/pull/*:refs/remotes/origin/pull/*",
+        )
+    _git(call, repo, env, "fetch", "-q", "--prune", "--prune-tags", "origin")
+    branch = _git(call, repo, env, "symbolic-ref", "--short", "HEAD").strip()
+    _git(call, bare, env, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
+    _git(call, repo, env, "remote", "set-head", "origin", branch)
+
+
+def write_run_settings(case: dict, run_dir: Path, cfg: "RunConfig") -> None:
+    """Write `run_dir/settings.json`, writable at `run_dir` itself and the harness temp."""
+    (run_dir / "settings.json").write_text(
+        json.dumps(
+            run_settings(case["seed"].get("plugin_configs"), [str(run_dir), cfg.tmpdir])
+        ),
+        encoding="utf-8",
+    )
 
 
 def seed_save_point(copies: dict, arm: str) -> Path:
@@ -968,6 +1032,8 @@ def seed_run(
     _git(call, run_dir, env, "init", "-q", "--bare", str(bare))
     _git(call, repo, env, "remote", "set-url", "origin", str(bare))
     _git(call, repo, env, "push", "-q", "origin", "HEAD")
+    if (refs := case["seed"].get("remote_refs")) is not None:
+        seed_remote_refs(call, repo, bare, env, refs)
     write_stub_gh(
         run_dir / "bin",
         run_dir / "gh-fixture.json",
@@ -976,10 +1042,7 @@ def seed_run(
         cfg.python,
     )
     (run_dir / "gh-calls.log").write_text("", encoding="utf-8")
-    plugin_configs = case["seed"].get("plugin_configs")
-    (run_dir / "settings.json").write_text(
-        json.dumps(run_settings(plugin_configs)), encoding="utf-8"
-    )
+    write_run_settings(case, run_dir, cfg)
     (run_dir / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
     sid = str(uuid.uuid4())
     turns = resume_cases.seed_history(case, chain, repo)
@@ -1424,6 +1487,7 @@ def _reader_workspace(
         cfg.python,
     )
     (copy_dir / "gh-calls.log").write_text("", encoding="utf-8")
+    write_run_settings(case, copy_dir, cfg)
     repo = copy_dir / "repo"
     _git(
         cfg.call or default_call,
