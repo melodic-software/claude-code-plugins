@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.0] - 2026-11-21
+
+### Added
+
+- **The notes bridge can frame a real-stack route from the app's dev server.** `notes-bridge.sh ensure-running --dev-origin <origin>` takes the origin only when `new URL(input).origin` returns it unchanged, so an input such as `http://localhost:80` is refused with the canonical form to pass instead. In that mode the host page frames the dev origin with no `sandbox` attribute, its policy adds `frame-src <dev origin>` and keeps `frame-ancestors 'none'`, and it trades messages only with that origin. Starting the mode needs `node` on `PATH` ([#17749](https://github.com/melodic-software/claude-code-plugins/issues/17749)).
+
 ## [0.37.0] - 2026-11-20
 
 ### Changed
