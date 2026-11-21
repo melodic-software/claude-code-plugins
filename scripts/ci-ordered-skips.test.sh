@@ -113,4 +113,15 @@ for line in "      run_check_tests: \${{ steps.base.outputs.ref == '' }}" \
   if grep -qF -- "$line" "$WORKFLOW"; then ok "the workflow carries '$line'"; else fail "the workflow lost '$line'"; fi
 done
 
+trace_step="$(awk '/^      - name: Trace the changed suites$/ { on = 1; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW")"
+if grep -qE 'selection-audit\.sh trace --strict .*--budget [0-9]+' <<<"$trace_step" &&
+  [[ "$(grep -v '^[[:space:]]*$' <<<"$trace_step" | tail -n1)" == '          exit "$rc"' ]] &&
+  ! grep -qE 'exit 0|\|\| true' <<<"$trace_step"; then
+  ok "test-selection traces with --strict and a --budget, and exits with the trace's own status"
+else
+  fail "test-selection's trace step lost --strict, its --budget or its closing exit \"\$rc\": [$trace_step]"
+fi
+
 test_harness::report
