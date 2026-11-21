@@ -120,6 +120,12 @@ carries the view a reload loses:
 - **The view.** `data.log` lists the data controls pressed since the page loaded, in order, and
   `viewport` the frame's size, scroll, color scheme and reduced-motion setting.
 
+The person can edit or withdraw a sent note from its row. An event that carries `edit` is not a
+new note but note `<edit>` edited: its `text` is the note's new text, which the log's note now
+carries too. Restate that note with its new text and act on that. An event that carries `withdraw`
+is note `<withdraw>` taken back: do not act on it, and undo an edit you already made for it. Put
+both events' seqs in `handled`.
+
 The host's keys P, R, A, M (markers) and N (notes popover) also work while focus is inside the
 mockup. A key the mockup handles itself, calling `preventDefault` as the switcher does, stays in
 the mockup: on a variant with motion, R inside the mockup still replays, as the switcher defines

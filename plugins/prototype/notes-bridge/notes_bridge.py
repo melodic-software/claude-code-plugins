@@ -17,14 +17,16 @@ Usage: python notes_bridge.py --dir DATA_DIR <command>
                              one runs on the data dir
   stop                       stop the server and its watcher
   lease [--release]          show (or clear) the watcher lease
-  status                     list the unhandled notes; needs no server or watcher
+  status                     list the unhandled notes, less a withdrawn one; needs no server or
+                             watcher
 
 The framed page is `<data_dir>/<NAME>` (default page.html), a model-written page the session
 wrote. `/` serves host.html, the checked-in host page. It fetches the page at `/api/page`, with
 the mockup policy (PAGE_CSP) put first and the pin helper (proto-pin.js) appended, and frames it
 through `srcdoc` with sandbox="allow-scripts" and never allow-same-origin, so the page has an
 opaque origin, no storage, and no network. The host page alone holds the token and posts each
-note to `POST /api/note`, which takes one note that note.schema.json accepts, and reads the
+note to `POST /api/note`, which takes one note that note.schema.json accepts, a sent note's new
+text to `POST /api/note/edit` and its withdrawal to `POST /api/note/withdraw`, and reads the
 run's sent notes back from `GET /api/notes` with the same token after a reload. Notes go into `actions.json`, the view app's event log, and the
 session's replies into `replies.json`, so this app reuses the view app's hub, token route, expiry and
 apply (lib/session-bridge/README.md, "The view app"). Nothing here acts on a note: the watcher
@@ -149,6 +151,29 @@ PIN_HELPER = "".join(
 )
 
 
+NAMING = ("change", "edit", "withdraw")
+
+
+def is_note(e):
+    """Whether a log event is a note, not an event naming one."""
+    return not any(k in e for k in NAMING)
+
+
+def withdrawn(log):
+    return {e["withdraw"] for e in log.get("events", []) if "withdraw" in e}
+
+
+def pending(events, handled):
+    """The unhandled events, less a withdrawn note and the events changing it; its withdraw stays."""
+    gone = withdrawn({"events": events})
+    return [
+        e
+        for e in events
+        if e["seq"] not in handled
+        and (e["seq"] if is_note(e) else e.get("change", e.get("edit"))) not in gone
+    ]
+
+
 def is_number(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
@@ -267,21 +292,26 @@ class NotesHub(view.ViewHub):
             handled, replies = self.read_replies()
         except (OSError, ValueError):
             return None, True
+        gone = withdrawn(log)
         notes = [
             {
                 "seq": e["seq"],
                 "delivered": bool(e.get("deliveredAt")),
                 "handled": e["seq"] in handled,
                 "reply": replies.get(str(e["seq"])),
+                **({"withdrawn": True} if e["seq"] in gone else {}),
             }
             for e in log.get("events", [])
-            if "change" not in e
+            if is_note(e)
         ]
         return {
             "instance": self.instance,
             "listening": self.listener()["state"],
             "notes": notes,
         }, False
+
+    def unhandled(self, log):
+        return pending(log.get("events", []), self.read_replies()[0])
 
     def record(self, msg):
         found = problems(msg)
@@ -299,32 +329,46 @@ class NotesHub(view.ViewHub):
             self.cond.notify_all()
             return log["seq"]
 
-    def record_change(self, msg):
-        """A sent region note moved or resized: its anchor, rect and elements are replaced in the
-        log, and the change is appended as an event of its own naming the note, so the watcher
-        wakes and the session reads it as that note changed."""
-        found = problems(msg, SCHEMA["$defs"]["change"], "change")
+    def record_naming(self, msg, field, kinds, keys):
+        """An event naming sent note msg[field], one of `kinds` and not withdrawn: its `keys` are
+        replaced in the log, and the event is appended as one of its own, so the watcher wakes and
+        the session reads it as that note changed, not as a new note."""
+        found = problems(msg, SCHEMA["$defs"][field], field)
         if found:
             raise ValueError(found[0])
         with self.cond:
             log = self.read_log()
+            seq = msg[field]
             note = next(
-                (e for e in log["events"] if e["seq"] == msg["change"] and "change" not in e),
-                None,
+                (e for e in log["events"] if e["seq"] == seq and is_note(e)), None
             )
-            if note is None or note.get("kind") != "region":
-                raise ValueError(f"change: no region note {msg['change']} in this run")
+            if note is None or (kinds and note.get("kind") not in kinds):
+                raise ValueError(f"{field}: no {kinds[0] + ' ' if kinds else ''}note {seq} in this run")
+            if seq in withdrawn(log):
+                raise ValueError(f"{field}: note {seq} was withdrawn")
             if len(log["events"]) >= MAX_NOTES:
                 raise ValueError(
                     f"the page has sent {MAX_NOTES} notes; restart the server"
                 )
-            for k in ("anchor", "rect", "elements"):
+            for k in keys:
                 note[k] = msg[k]
             log["seq"] += 1
             log["events"].append({"seq": log["seq"], "at": bridge.now_iso(), **msg})
             self.write_log(log)
             self.cond.notify_all()
             return log["seq"]
+
+    def record_change(self, msg):
+        """A sent region note moved or resized: its anchor, rect and elements."""
+        return self.record_naming(msg, "change", ("region",), ("anchor", "rect", "elements"))
+
+    def record_edit(self, msg):
+        """A sent note's new text."""
+        return self.record_naming(msg, "edit", (), ("text",))
+
+    def record_withdraw(self, msg):
+        """A sent note taken back: the note stays in the log, and the withdraw event marks it."""
+        return self.record_naming(msg, "withdraw", (), ())
 
 
 class NotesHandler(view.ViewHandler):
@@ -370,7 +414,12 @@ class NotesHandler(view.ViewHandler):
         return self.send(404, {"error": "not found"})
 
     def route_post(self, path, msg):
-        record = {"/api/note": self.hub.record, "/api/note/change": self.hub.record_change}.get(path)
+        record = {
+            "/api/note": self.hub.record,
+            "/api/note/change": self.hub.record_change,
+            "/api/note/edit": self.hub.record_edit,
+            "/api/note/withdraw": self.hub.record_withdraw,
+        }.get(path)
         if record is None:
             return self.send(404, {"error": "not found"})
         try:
@@ -390,8 +439,7 @@ def cmd_status(d, a):
     handled = set(view.load_json(d / "replies.json", {}).get("handled", []))
     events = [
         {k: v for k, v in e.items() if k != "deliveredAt"}
-        for e in log.get("events", [])
-        if e["seq"] not in handled
+        for e in pending(log.get("events", []), handled)
     ]
     print(bridge.dumps_line({"note": bridge.DATA_NOTE, "events": events}))
 
