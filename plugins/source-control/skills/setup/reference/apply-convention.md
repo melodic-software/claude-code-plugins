@@ -39,6 +39,8 @@ absent, since a convention is a team artifact until someone says otherwise.
 | `team` (default) | `REPO_ROOT/docs/conventions/source-control.yaml` | the shared, tracked convention |
 | `local` | `REPO_ROOT/.claude/source-control.local.md` | a personal deviation from team policy here |
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
+
 The team layer is YAML, validated by `plugins/source-control/schemas/source-control.schema.json`
 ([config-resolution.md](../../../reference/config-resolution.md), "The config files"). The user
 and local layers stay markdown, one `## <key>` section per key. The retired team file

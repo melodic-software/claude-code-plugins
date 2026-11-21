@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.20.1] - 2026-11-21
+
+### Changed
+
+- `workflow`: the continuation router's compact edge points at the docs on what survives compaction before the focus is written, and at the CLAUDE.md "Compact Instructions" section for a standing focus.
+
 ## [9.20.0] - 2026-11-21
 
 ### Changed

@@ -94,6 +94,8 @@ an earlier one:
 | 2 | team | `<repo>/<home>/attribution.yaml` | the repository, tracked |
 | 3 | personal override | `<repo>/<home>/attribution.local.yaml` | one operator in one repo, gitignored |
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 `apply` writes only the team layer and the personal override, never the user-global file. Before it
 writes the personal override, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must exit 0; when
 it does not, say the file would be tracked and get the operator's choice before writing.

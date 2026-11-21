@@ -124,6 +124,8 @@ never written.
    already covered.
 7. **Remind them to stage it.** The team file reaches teammates only once committed.
 
+   This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 Re-running `apply` when everything already matches changes nothing and reports "already configured".
 
 ## Output

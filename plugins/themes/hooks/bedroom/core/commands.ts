@@ -7,7 +7,7 @@ import { calibrateNext } from './clicks.js'
 import { readNow } from './clock.js'
 import { builtPieces, ctxOf } from './context.js'
 import { NOT_BUILT, SWITCHES, type Ctx, type Switch } from './piece.js'
-import { clearLook, holdShader, isShaderRunning, noteAsked, setLook } from './render.js'
+import { clearLook, coveringPlugin, holdShader, isShaderRunning, noteAsked, setLook } from './render.js'
 import { defaults } from './saved.js'
 import { OVERRIDES, accepts, type Override } from './settings.js'
 import { switched } from './switched.js'
@@ -69,14 +69,22 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
   const rest = words.slice(2).join(' ')
   note(`/bedroom ${word}`)
 
-  if (word === '' || word === 'status') return describe(ctx)
+  if (word === '' || word === 'status') {
+    const covering = coveringPlugin()
+    return covering === undefined ? describe(ctx) : `the room is covered by the ${covering} theme; /bedroom on puts it back. ${describe(ctx)}`
+  }
   if (word === 'off') {
     const cleared = await clearLook($)
     return cleared.isDrawn ? 'the theme is cleared' : 'cleared'
   }
   if (word === 'on') {
+    const wasCovered = coveringPlugin() !== undefined
     const set = await setLook($, ctx)
-    return set.isDrawn ? 'the room is on' : `not drawn: ${set.reason}`
+    if (!set.isDrawn) return `not drawn: ${set.reason}`
+    if (!wasCovered) return 'the room is on'
+    holdShader($, 'the room set again')
+    await ask($, 'the room set again')
+    return 'the room is back'
   }
   if ((OVERRIDES as readonly string[]).includes(word) && value === 'default') {
     await ctx.save({ [word]: undefined })

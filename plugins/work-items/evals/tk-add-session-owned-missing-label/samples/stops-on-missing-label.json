@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The run stops before anything is created: the session-owned label is not in the live set. Define it with the repository's label owner first.",
+      "why": "stops, names label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "create-item --title 'Rename the export flag to --format' --labels 'category:general,type: task'",
+      "why": "filed without the label"
+    },
+    {
+      "answer": "The run stops before anything is created.",
+      "why": "names no label"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
