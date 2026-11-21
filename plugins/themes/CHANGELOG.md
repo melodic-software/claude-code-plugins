@@ -3,6 +3,12 @@
 All notable changes to the `themes` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2] - 2026-11-21
+
+### Fixed
+
+- The bedroom sound test passes on a Windows host. Its stand-in for the file check now compares the probed path with the drive letter and backslashes removed, since the engine resolves `/usr/bin/ffplay` to a drive path such as `D:\usr\bin\ffplay` there ([#17823](https://github.com/melodic-software/claude-code-plugins/issues/17823)).
+
 ## [0.3.1] - 2026-11-20
 
 ### Changed

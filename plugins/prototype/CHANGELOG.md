@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-11-21
+
+### Added
+
+- **Hide markers (M) shows or hides every note marker on the mockup.** The toggle sits beside Hide notes in the notes host's dock, so it works with the panel closed. It never starts or ends a pick, markers never take a click meant for the page, and the choice lasts across reloads for the tab's run ([#17802](https://github.com/melodic-software/claude-code-plugins/issues/17802)).
+
 ## [0.40.0] - 2026-11-21
 
 ### Changed

@@ -149,6 +149,20 @@ class SummarizeTests(unittest.TestCase):
         )
         self.assertEqual(s["detect"]["threshold"], 0.3)
 
+    def test_records_why_the_binary_source_is_unavailable(self):
+        s = native_drift.summarize(
+            {
+                "schema": 1,
+                "sources": {"binary": {"available": False, "reason": "no claude found"}},
+            },
+            None,
+        )
+        self.assertIsNone(s["cli_version"])
+        self.assertEqual(
+            s["integrity"]["problems"], ["binary source unavailable: no claude found"]
+        )
+        self.assertEqual(native_drift.shape_error("summary", s), None)
+
     def test_rejects_non_inventory(self):
         with self.assertRaises(native_drift.InputError):
             native_drift.summarize({"schema": 2}, None)
@@ -496,6 +510,24 @@ class DiffItemsTests(unittest.TestCase):
             ],
         )
         self.assertIn("unknown", report["items"][0]["facts"][-1])
+
+    def test_a_broken_baseline_item_says_why_it_broke(self):
+        cur = native_drift.summarize(
+            {
+                "schema": 1,
+                "sources": {"binary": {"available": False, "error": "cannot read"}},
+            },
+            None,
+        )
+        report = drift(cur, None, None, None, 1)
+        self.assertEqual(
+            self.kinds(report),
+            [("inventory-broken", "native-drift:inventory-broken:unknown:inventory")],
+        )
+        facts = report["items"][0]["facts"]
+        self.assertEqual(facts[0], "binary source unavailable: cannot read")
+        self.assertIn("not kept as the baseline", facts[1])
+        self.assertIn("unknown", facts[-1])
 
     def test_a_newly_unresolved_description_is_an_item(self):
         def with_unresolved(*names):

@@ -137,6 +137,8 @@ def shape_error(kind: str, data: Any) -> str | None:
             isinstance(a, str) for a in integrity.get("advisories") or []
         ):
             bad.append("integrity.advisories")
+        elif not _strs(integrity.get("problems")):
+            bad.append("integrity.problems")
         if not isinstance(surfaces, dict) or not all(
             isinstance(names, dict) and all(_record_ok(r) for r in names.values())
             for names in surfaces.values()
@@ -324,6 +326,16 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
             for c in detect.get("candidates") or []
             if isinstance(c, dict)
         ]
+    listed = integrity.get("problems")
+    problems = (
+        [p for p in listed if isinstance(p, str)] if isinstance(listed, list) else []
+    )
+    sources = inventory.get("sources")
+    binary = sources.get("binary") if isinstance(sources, dict) else None
+    if isinstance(binary, dict) and binary.get("available") is False:
+        why = binary.get("error") or binary.get("reason")
+        why = why if isinstance(why, str) else "no reason given"
+        problems.append(f"binary source unavailable: {why}")
     lanes = integrity.get("lanes") if isinstance(integrity.get("lanes"), dict) else {}
     undetermined = integrity.get("undetermined")
     unresolved = (
@@ -342,6 +354,7 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
             "advisories": [
                 a for a in integrity.get("advisories") or [] if isinstance(a, str)
             ],
+            "problems": problems,
         },
         "surfaces": surfaces,
         "docs": docs_block,
@@ -586,6 +599,7 @@ def inventory_verdict(
         "validated_against": cur.get("validated_against"),
         "surface_changes_known": surface_changes is not None,
         "advisories": advisories,
+        "problems": integrity.get("problems") or [],
     }
 
 
@@ -718,7 +732,12 @@ def diff(
             if inventory["verdict"] == "revalidate"
             else f"inventory-{inventory['verdict']}"
         )
-        facts = list(inventory["advisories"])
+        facts = list(inventory["problems"]) + list(inventory["advisories"])
+        if inventory["verdict"] == "broken":
+            facts.append(
+                "a broken extraction is not kept as the baseline: the next run "
+                "compares against the last kept summary, or has none"
+            )
         if not inventory["surface_changes_known"]:
             facts.append(
                 "no previous extraction summary: surface changes since the last run are unknown"

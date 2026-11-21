@@ -127,8 +127,8 @@ test("the mermaid source quotes every label, styles leaks by edge position and m
 test("the page carries the pinned libraries, the policy, strict mermaid and the cards in their order", () => {
   const page = renderDeepening(parseDeepening(record()));
   assert.ok(page.includes(`<meta http-equiv="Content-Security-Policy" content="${escapeHtml(CSP)}">`));
-  assert.ok(page.includes('<script src="https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js"></script>'));
-  assert.ok(page.includes('<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js"></script>'));
+  assert.ok(page.includes('<script src="https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js" integrity="sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI+v5dchB0uaM=" crossorigin="anonymous"></script>'));
+  assert.ok(page.includes('<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js" integrity="sha256-LQdTYZ03u0RSdhuHT/xq5kKengUesm9ExayDxzYvx7E=" crossorigin="anonymous"></script>'));
   assert.match(page, /securityLevel: "strict"/);
   assert.match(page, /htmlLabels: false/);
   const at = (needle) => page.indexOf(needle);
@@ -209,6 +209,14 @@ test("the index row carries the Verified word and links the candidate it depends
   assert.match(page, /<td>corrected<\/td><td><\/td>/);
   assert.match(page, /<td>reproduced<\/td><td><a href="#c-invoice-export">INVOICE-EXPORT Fold the invoice export steps into one module<\/a><\/td>/);
   assert.match(page, /<p class="row-problem">[^<]+<\/p><\/td>/);
+});
+
+test("each CDN script carries crossorigin and the SRI hash of its pinned file, and a page without them fails validation", () => {
+  const page = renderDeepening(parseDeepening(record()));
+  assert.match(page, /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@tailwindcss\/browser@4\.3\.5\/dist\/index\.global\.js" integrity="sha256-LQdTYZ03u0RSdhuHT\/xq5kKengUesm9ExayDxzYvx7E=" crossorigin="anonymous"><\/script>/);
+  assert.match(page, /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@12\.3\.0\/dist\/mermaid\.min\.js" integrity="sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI\+v5dchB0uaM=" crossorigin="anonymous"><\/script>/);
+  assert.ok(validateDeepeningPage(page).ok);
+  assert.ok(!validateDeepeningPage(page.replace(/ integrity="[^"]*"/, "")).ok);
 });
 
 test("the top recommendation lists every candidate built on it, directly or through another", () => {

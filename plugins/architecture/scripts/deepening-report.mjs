@@ -3,6 +3,8 @@ import { escapeHtml } from "../lib/html-escape.mjs";
 
 const TAILWIND = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js";
 const MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js";
+const TAILWIND_SRI = "sha256-LQdTYZ03u0RSdhuHT/xq5kKengUesm9ExayDxzYvx7E=";
+const MERMAID_SRI = "sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI+v5dchB0uaM=";
 export const CSP = `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND} ${MERMAID}; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'`;
 
 export const BANDS = [
@@ -211,7 +213,11 @@ const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
     mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false, wrappingWidth: 260 } });
   }
 `;
-const SCRIPTS = [`<script src="${TAILWIND}"></script>`, `<script src="${MERMAID}"></script>`, `<script>\n${INLINE_SCRIPT}</script>`];
+const SCRIPTS = [
+  `<script src="${TAILWIND}" integrity="${TAILWIND_SRI}" crossorigin="anonymous"></script>`,
+  `<script src="${MERMAID}" integrity="${MERMAID_SRI}" crossorigin="anonymous"></script>`,
+  `<script>\n${INLINE_SCRIPT}</script>`,
+];
 
 const REPORT_STYLE = `
   :root { --amber: #B45309; --muted: #6B6A64; }
