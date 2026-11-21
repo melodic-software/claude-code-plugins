@@ -16,6 +16,9 @@
     "hooks",
     "skill"
   ],
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "metadata": {
     "category": "claude-code"
   },
