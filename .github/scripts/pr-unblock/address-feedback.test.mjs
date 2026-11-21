@@ -2610,6 +2610,13 @@ test("planLanes runs the root's scripts/plan-test-lanes.sh over the paths and re
   assert.deepEqual(coveringLanes(plan), ["test-bash (0)"]);
 });
 
+test("scripts/plan-test-lanes.sh still prints the <lane>, <lane>_legs and windows_jobs lines planLanes reads", () => {
+  const planner = readFileSync(new URL("../../../scripts/plan-test-lanes.sh", import.meta.url), "utf8");
+  assert.match(planner, /printf "%s=true\\n%s_legs=\[%s\]\\n/);
+  assert.match(planner, /printf "%s=false\\n%s_legs=\[0\]\\n/);
+  assert.match(planner, /echo "windows_jobs=\$\(json_on /);
+});
+
 test("select records the ci snapshot for run.json; with no snapshot function it records none", async () => {
   let asked;
   const ci = { state: "green", runs: [{ name: "Test Node", url: "https://github.com/o/r/actions/runs/1/job/3" }] };
