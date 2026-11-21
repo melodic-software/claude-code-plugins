@@ -101,7 +101,10 @@ test("pass a, a2 and b run the one pass workflow, and only pass b gets the scann
 test("every pass runs 3 runs per case per arm under --max-cost-usd 5, with no tool beyond the read-only set", () => {
   const run = step(pass, "Run the pass");
   assert.equal(run.match(/^\s+claude plugin eval /gm).length, 1);
-  assert.match(run, /--max-cost-usd 5 --runs 3 --scaffold --keep-temp/);
+  assert.match(run, /--max-cost-usd "\$MAX_COST" --runs 3 --scaffold --keep-temp/);
+  assert.match(run, /MAX_COST: \$\{\{ inputs\.max-cost-usd \}\}\n/);
+  assert.match(pass, /max-cost-usd:\n(?: {8}[^\n]*\n)*? {8}default: 5\n/);
+  assert.doesNotMatch(main, /max-cost-usd:/);
   assert.doesNotMatch(run, /--allow-tools|--allow-real-servers/);
   assert.match(run, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"/);
   assert.match(run, />"\$RUNNER_TEMP\/console\.log" 2>&1/);

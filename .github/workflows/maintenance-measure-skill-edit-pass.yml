@@ -55,20 +55,30 @@ on:
         type: string
         default: ""
       pass:
-        description: a, a2 or b.
+        description: The pass's name in its artifact, unique in the run, such as a, a2 or b.
         required: true
         type: string
+      max-cost-usd:
+        description: Per-run cost ceiling in whole US dollars, 1 to 12.
+        required: false
+        type: number
+        default: 5
+      lane:
+        description: The lane name in the pass's lane-outcome records.
+        required: false
+        type: string
+        default: eval-hill-climb-pass
       base-sha:
         description: The default branch commit every pass measures.
         required: true
         type: string
       edit-artifact-id:
-        description: Pass b only, the scan job's edit artifact.
+        description: The artifact holding edit.patch, applied before the run; empty runs the default branch as is.
         required: false
         type: string
         default: ""
       edit-sha256:
-        description: Pass b only, the SHA-256 the scan job recorded for edit.patch.
+        description: The SHA-256 recorded for edit.patch, with edit-artifact-id.
         required: false
         type: string
         default: ""
@@ -135,8 +145,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
         with:
           outcome: skipped
-          lane: eval-hill-climb-pass
-          lane-id: eval-hill-climb-pass
+          lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
           credential: MAINTENANCE_CLAUDE_API_KEY
           known-failure-class: credit-stop
           handoff: "true"
@@ -206,7 +216,7 @@ jobs:
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
       - name: Download the edit
-        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -215,7 +225,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -396,8 +406,13 @@ jobs:
           DIR: .base/plugins/${{ inputs.plugin }}
           TAGS: ${{ inputs.tags }}
           CASE: ${{ inputs.case }}
+          MAX_COST: ${{ inputs.max-cost-usd }}
           OUT: ${{ runner.temp }}/pass
         run: |
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
+            exit 1
+          fi
           if [ -n "${LANE_API_KEY:-}" ]; then
             export ANTHROPIC_API_KEY="$LANE_API_KEY"
             unset LANE_API_KEY
@@ -405,7 +420,7 @@ jobs:
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR" "$OUT"
           args=(--trust-plugin --no-publish --model "$EVAL_MODEL" --judge-model "$EVAL_JUDGE_MODEL"
-            --max-cost-usd 5 --runs 3 --scaffold --keep-temp)
+            --max-cost-usd "$MAX_COST" --runs 3 --scaffold --keep-temp)
           read -ra tags <<<"$TAGS"
           for value in "${tags[@]}" "$CASE"; do
             case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
@@ -535,8 +550,8 @@ jobs:
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
-          lane: eval-hill-climb-pass
-          lane-id: eval-hill-climb-pass
+          lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
           credential: MAINTENANCE_CLAUDE_API_KEY
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
@@ -635,14 +650,14 @@ jobs:
           exit 1
 
       - name: Download the edit
-        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
           path: ${{ runner.temp }}/edit
 
       - name: Apply the edit
-        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -804,8 +819,13 @@ jobs:
           DIR: .base/plugins/${{ inputs.plugin }}
           TAGS: ${{ inputs.tags }}
           CASE: ${{ inputs.case }}
+          MAX_COST: ${{ inputs.max-cost-usd }}
           OUT: ${{ runner.temp }}/pass
         run: |
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
+            exit 1
+          fi
           if [ -n "${LANE_API_KEY:-}" ]; then
             export ANTHROPIC_API_KEY="$LANE_API_KEY"
             unset LANE_API_KEY
@@ -813,7 +833,7 @@ jobs:
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR" "$OUT"
           args=(--trust-plugin --no-publish --model "$EVAL_MODEL" --judge-model "$EVAL_JUDGE_MODEL"
-            --max-cost-usd 5 --runs 3 --scaffold --keep-temp)
+            --max-cost-usd "$MAX_COST" --runs 3 --scaffold --keep-temp)
           read -ra tags <<<"$TAGS"
           for value in "${tags[@]}" "$CASE"; do
             case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
@@ -895,8 +915,8 @@ jobs:
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
-          lane: eval-hill-climb-pass
-          lane-id: eval-hill-climb-pass
+          lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
           credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
@@ -974,14 +994,14 @@ jobs:
           reason: ${{ needs.run-eval-subscription.outputs.next-reason }}
 
       - name: Download the edit
-        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
           path: ${{ runner.temp }}/edit
 
       - name: Apply the edit
-        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.edit-artifact-id != ''
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -1143,8 +1163,13 @@ jobs:
           DIR: .base/plugins/${{ inputs.plugin }}
           TAGS: ${{ inputs.tags }}
           CASE: ${{ inputs.case }}
+          MAX_COST: ${{ inputs.max-cost-usd }}
           OUT: ${{ runner.temp }}/pass
         run: |
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
+            exit 1
+          fi
           if [ -n "${LANE_API_KEY:-}" ]; then
             export ANTHROPIC_API_KEY="$LANE_API_KEY"
             unset LANE_API_KEY
@@ -1152,7 +1177,7 @@ jobs:
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR" "$OUT"
           args=(--trust-plugin --no-publish --model "$EVAL_MODEL" --judge-model "$EVAL_JUDGE_MODEL"
-            --max-cost-usd 5 --runs 3 --scaffold --keep-temp)
+            --max-cost-usd "$MAX_COST" --runs 3 --scaffold --keep-temp)
           read -ra tags <<<"$TAGS"
           for value in "${tags[@]}" "$CASE"; do
             case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
@@ -1234,8 +1259,8 @@ jobs:
         with:
           outcome: ${{ steps.judge.outputs.outcome }}
           execution-file: ${{ steps.judge.outputs.leg-result }}
-          lane: eval-hill-climb-pass
-          lane-id: eval-hill-climb-pass
+          lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
           credential: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
