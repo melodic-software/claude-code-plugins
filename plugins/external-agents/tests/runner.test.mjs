@@ -10,7 +10,7 @@ import { listJobs, readJob, repoKey, writeJob } from "../scripts/lib/jobs.mjs";
 import { classify } from "../scripts/lib/outcome.mjs";
 import { pidStartTime } from "../scripts/lib/process.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
-import { cancel, result, review, run, status } from "../scripts/lib/runner.mjs";
+import { cancel, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures");
@@ -273,13 +273,13 @@ describe("run", () => {
 });
 
 describe("review", () => {
-  test("a Codex review is read-only by config override, takes the brief on stdin and relays the findings", async () => {
+  test("a Codex review with a brief is read-only, names the base in the prompt on stdin instead of --base, and relays the findings", async () => {
     const w = world({ stdout: clean, final: "IMPORTANT | a.txt:1 | wrong | fix\n" });
     gitRepo(w.cwd, { "a.txt": "two\n" });
     const got = await review({ ...w.opts, base: "main", model: "gpt-test", brief: "look for races" });
     const final = join(w.dataDir, "jobs", repoKey(w.cwd), got.job.id, "final.txt");
-    assert.deepEqual(cliArgs(got.job), ["exec", "review", "--base", "main", "--json", "-o", final, "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"', "-m", "gpt-test", "-"]);
-    assert.equal(launched(w)[0].stdin, "look for races");
+    assert.deepEqual(cliArgs(got.job), ["exec", "review", "--json", "-o", final, "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"', "-m", "gpt-test", "-"]);
+    assert.equal(launched(w)[0].stdin, "Review the changes on this branch against main: the diff of main...HEAD.\n\nlook for races");
     assert.equal(got.stdout, "codex: ran\nIMPORTANT | a.txt:1 | wrong | fix\n");
     assert.equal(got.code, 0);
     assert.equal(got.job.use, "review");
@@ -287,10 +287,11 @@ describe("review", () => {
     assertNoBypass(got.job.argv);
   });
 
-  test("a review without a brief passes no prompt argument", async () => {
+  test("a review without a brief passes --base and no prompt argument", async () => {
     const w = world({ stdout: clean, final: "No findings." });
     gitRepo(w.cwd, { "a.txt": "two\n" });
     const { job } = await review({ ...w.opts, base: "main" });
+    assert.deepEqual(cliArgs(job).slice(0, 5), ["exec", "review", "--base", "main", "--json"]);
     assert.deepEqual(cliArgs(job).slice(-2), ["-c", 'approval_policy="never"']);
     assert.equal(launched(w)[0].stdin, null);
   });
@@ -348,6 +349,15 @@ describe("a binary run through cmd.exe", () => {
     assert.match(got.stdout, /^codex: failed \(base "a&b" cannot be passed safely .*codex\.binary_path/);
     assert.equal(w.calls().length, 0);
     assert.deepEqual(listJobs(w.dataDir, repoKey(w.cwd)), []);
+  });
+
+  test("with a brief the same base travels on stdin, so the review runs", { skip: process.platform !== "win32" }, async () => {
+    const w = world({ stdout: clean, final: "No findings." });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    const got = await review({ ...w.opts, binary: fakeCmd, base: "a&b", brief: "look for races" });
+    assert.equal(got.stdout, "codex: ran\nNo findings.\n");
+    assert.ok(!launched(w)[0].argv.includes("a&b"));
+    assert.equal(launched(w)[0].stdin, "Review the changes on this branch against a&b: the diff of a&b...HEAD.\n\nlook for races");
   });
 
   test("a team-layer model holding & is refused", async () => {
@@ -636,6 +646,13 @@ describe("the command", () => {
     const got = invoke(["status"], { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "cli-data") });
     assert.equal(got.stdout, "no jobs for this repository\n");
     assert.equal(got.status, 0);
+  });
+
+  test("an installed copy keeps its jobs in the plugin's documented data directory", () => {
+    const claude = join(scratch, "home", ".claude");
+    const installed = join(claude, "plugins", "cache", "melodic-software", "external-agents", "1.2.3");
+    assert.equal(installedDataDir(installed), join(claude, "plugins", "data", "external-agents-melodic-software"));
+    assert.equal(installedDataDir(join(scratch, "checkout", "plugins", "external-agents")), null);
   });
 
   test("an unknown option, a missing prompt and a missing data directory are usage errors", () => {

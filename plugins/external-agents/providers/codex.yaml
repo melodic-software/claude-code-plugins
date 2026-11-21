@@ -40,6 +40,8 @@ resume:
 review:
   kind: native
   args: [exec, review, --base, "{base}", --json]
+  brief_args: [exec, review, --json]
+  brief_preface: "Review the changes on this branch against {base}: the diff of {base}...HEAD."
   config_paths: [.codex/]
 modes:
   read-only:

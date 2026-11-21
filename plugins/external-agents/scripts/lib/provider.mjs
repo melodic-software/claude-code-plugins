@@ -81,7 +81,9 @@ export function validateProvider(record) {
   }
   optional(record.resume, (v) => (v?.args ?? []).some((a) => a.includes("{thread}")), "resume.args", "expected an argument holding {thread}");
   if (record.review !== undefined) {
-    known(record.review, ["kind", "args", "dir_arg", "config_paths"], "review");
+    known(record.review, ["kind", "args", "brief_args", "brief_preface", "dir_arg", "config_paths"], "review");
+    optional(record.review?.brief_args, isStrings, "review.brief_args", "expected the arguments of a review that carries a brief");
+    optional(record.review?.brief_preface, isText, "review.brief_preface", "expected text, with {base} where the base ref goes");
     need(REVIEW_KIND.includes(record.review?.kind), "review.kind", `expected one of ${REVIEW_KIND.join(", ")}`);
     if (record.review?.kind === "native") need(isStrings(record.review.args) && record.review.args.some((a) => a.includes("{base}")), "review.args", "expected arguments holding {base}");
     if (record.review?.kind === "diff_file") need(isText(record.review.dir_arg), "review.dir_arg", "expected the flag that adds a readable folder");

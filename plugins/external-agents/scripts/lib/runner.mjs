@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
 import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
-import { loadConfig } from "./config.mjs";
+import { loadConfig, pluginRoot } from "./config.mjs";
 import { jobFolder, listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "./jobs.mjs";
 import { classify } from "./outcome.mjs";
 import { killTree, pidStartTime, query, shellUnsafe, start } from "./process.mjs";
@@ -38,11 +38,24 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const withoutQuotesCmdWouldStrip = (arg) => arg.replaceAll('"', "");
 const clip = (text) => (text.length > 160 ? `${text.slice(0, 157)}...` : text);
 
+/**
+ * The plugin's data directory, worked out from where an installed copy sits, for a command run
+ * through the Bash tool, which receives no CLAUDE_PLUGIN_DATA. The directory name follows
+ * https://code.claude.com/docs/en/plugins-reference#environment-variables; null for any other layout.
+ */
+export function installedDataDir(root) {
+  const parts = root.split(sep);
+  const cache = parts.lastIndexOf("cache");
+  if (cache < 1 || parts[cache - 1] !== "plugins" || parts.length !== cache + 4) return null;
+  const [marketplace, plugin] = parts.slice(cache + 1);
+  return join(parts.slice(0, cache).join(sep), "data", `${plugin}@${marketplace}`.replace(/[^A-Za-z0-9_-]/g, "-"));
+}
+
 function context(opts) {
   const env = opts.env ?? process.env;
   const cwd = opts.cwd ?? process.cwd();
-  const dataDir = opts.dataDir ?? env.CLAUDE_PLUGIN_DATA;
-  if (!dataDir) throw refuse("CLAUDE_PLUGIN_DATA is not set, so there is nowhere to keep job files");
+  const dataDir = opts.dataDir ?? env.CLAUDE_PLUGIN_DATA ?? installedDataDir(pluginRoot);
+  if (!dataDir) throw refuse("CLAUDE_PLUGIN_DATA is not set and this copy is not an installed plugin, so there is nowhere to keep job files");
   return { cwd, env, dataDir, now: opts.now ?? Date.now, key: repoKey(cwd), binary: opts.binary };
 }
 
@@ -68,7 +81,7 @@ function modeFor(record, settings, use, requested, notices) {
 
 function buildArgs(record, binary, p) {
   const spec = record.modes[p.mode];
-  const args = fill(fill(record[p.command]?.args ?? [], "{thread}", p.thread), "{base}", p.base);
+  const args = fill(fill(p.baseArgs ?? record[p.command]?.args ?? [], "{thread}", p.thread), "{base}", p.base);
   if (record.output.final_message_arg) args.push(record.output.final_message_arg, p.finalPath);
   args.push(...(spec.args?.[p.command] ?? []), ...(record.always_args ?? []));
   if (spec.settings) args.push(spec.settings_arg, p.settingsPath);
@@ -143,7 +156,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   if (spec.settings) writeFileSync(paths.settings, `${JSON.stringify(spec.settings)}\n`);
 
   const args = buildArgs(record, binary, {
-    command: plan.command, mode: plan.mode, thread: plan.thread, base: plan.base, model, profile: settings.profile, effort: settings.effort,
+    command: plan.command, baseArgs: plan.baseArgs, mode: plan.mode, thread: plan.thread, base: plan.base, model, profile: settings.profile, effort: settings.effort,
     finalPath: paths.final, settingsPath: paths.settings, dir: plan.diffBase ? folder : null, prompt: promptInArgv ? prompt : prompt === null ? null : "",
   });
   if (binary.shell) {
@@ -268,9 +281,12 @@ export async function review(opts) {
       if (hits) state.notices.push(`the reviewed change touches ${prefix} (${plural(hits, "file")}): ${record.product} configuration there, MCP servers included, runs outside the read-only sandbox`);
     }
     const native = record.review.kind === "native";
+    const brief = opts.brief?.trim() ? opts.brief : null;
+    const briefed = native && brief !== null && record.review.brief_args !== undefined;
+    const prompt = briefed ? [record.review.brief_preface?.replaceAll("{base}", () => opts.base), brief].filter(Boolean).join("\n\n") : brief;
     const { job, message } = await launch(state, {
-      use: "review", mode: "read-only", command: native ? "review" : "run", model: opts.model, prompt: opts.brief?.trim() ? opts.brief : null,
-      base: native ? opts.base : undefined, diffBase: native ? undefined : opts.base, thread: null,
+      use: "review", mode: "read-only", command: native ? "review" : "run", model: opts.model, prompt, baseArgs: briefed ? record.review.brief_args : undefined,
+      base: native && !briefed ? opts.base : undefined, diffBase: native ? undefined : opts.base, thread: null,
     });
     const ran = (job.status === "ok" || (job.status === "blocked-by-mode" && !job.reason)) && message.trim() !== "";
     const line = ran ? `${job.product}: ran${within(details(job))}` : `${job.product}: failed${within([job.status === "failed" ? null : job.status, job.reason, ...details(job)].filter(Boolean))}`;
