@@ -5,6 +5,17 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.5.2] - 2026-11-21
+
+### Fixed
+
+- `/harness-config:audit-permission-grants` P3 now says that only the deprecated `agent` key takes effect in a plugin `settings.json`, since Claude Code 2.1.323 removed `subagentStatusLine`. A `permissions` block there is still reported as inert. Its `reference/criteria.md` explains why a nested `.claude/skills/` inside a plugin root stays audited even though 2.1.325 stopped loading one inside a `--plugin-dir` plugin: the scan cannot tell which roots were passed to `--plugin-dir`.
+
+- The audit's `failIfUnavailable` row in `required-permissions.md` now says that, from Claude Code
+  2.1.328, a sandbox that cannot start refuses the next sandboxed Bash command with a message that
+  the sandbox is off for the session. Before, the row said commands run unsandboxed after a
+  warning. A boundary still needs `failIfUnavailable: true` (#17915).
+
 ## [5.5.1] - 2026-11-21
 
 ### Changed
