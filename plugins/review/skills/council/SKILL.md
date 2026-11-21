@@ -19,8 +19,8 @@ rounds and nowhere else. `--unattended` declares that nobody is present (Step 1)
 A panel of members reviews one change. Each member is a catalog entry (provider, model, brief,
 effort) from the `council_*` keys in [config.md](../../reference/config.md); a
 provider is an adapter record in [`adapters/`](adapters/) plus its runner. The deterministic half
-(config layers, rule matching, routes, skips) is `scripts/council-plan.mjs`; its header comment is
-its CLI. This body orchestrates and reports. A member that cannot run as configured is reported
+(config layers, rule matching, routes, skips, script member status) is `scripts/council-plan.mjs`;
+its header comment gives `config` and `select`, and Step 5 gives `member`. This body orchestrates and reports. A member that cannot run as configured is reported
 with its reason and never replaced by another.
 
 `<plugin-root>` below is `${CLAUDE_PLUGIN_ROOT}`; `<run-dir>` is the findings location of
