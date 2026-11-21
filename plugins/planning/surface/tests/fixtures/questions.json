@@ -190,7 +190,7 @@
         {
           "at": "2026-09-24T01:00:27Z",
           "by": "claude",
-          "text": "Recorded: accept, plus two refinements. (1) Order: inside a group, questions always show in number order, and I number them in the order you should answer them (prerequisites get lower numbers), so Q6 never sits above Q3. Dependency chains show as a thin connector line in the rail ('needs Q3'), not by reordering. (2) Tree view: yes, it replaces the Dependency view. It draws the decision tree: the path you have taken highlighted, branches you left greyed but clickable, so you can revisit an old branch and see what it would have asked. The views become Groups, Rounds and Tree.",
+          "text": "Recorded: accept, plus two refinements. (1) Order: inside a group, questions always show in number order, and I number them in the order you should answer them (prerequisites get lower numbers), so Q6 never sits above Q3. Dependency chains show as a thin connector line in the rail ('needs Q3'), not by reordering. (2) Tree view: yes, it replaces the Dependency view. It draws the decision tree: the path you have taken highlighted, branches you left grayed but clickable, so you can revisit an old branch and see what it would have asked. The views become Groups, Rounds and Tree.",
           "replyTo": 11
         }
       ]
@@ -548,7 +548,7 @@
         {
           "at": "2026-09-24T00:24:15Z",
           "by": "claude",
-          "text": "Recorded as your own answer: a decision tree, not just a stale flag. How I'd build it: each question records which answer it hangs off (e.g. 'only if Q5 = b'). When you change an answer: (1) questions on the old branch become 'off-path' and are archived, not deleted; (2) questions that depend on it but stay on-path turn stale for a one-key reconfirm; (3) I add the new branch's questions and they flash in. The tree also gets a live map in the visuals flyout: current path highlighted, off-path branches greyed. If that matches what you meant, no action needed; otherwise correct it here.",
+          "text": "Recorded as your own answer: a decision tree, not just a stale flag. How I'd build it: each question records which answer it hangs off (e.g. 'only if Q5 = b'). When you change an answer: (1) questions on the old branch become 'off-path' and are archived, not deleted; (2) questions that depend on it but stay on-path turn stale for a one-key reconfirm; (3) I add the new branch's questions and they flash in. The tree also gets a live map in the visuals flyout: current path highlighted, off-path branches grayed. If that matches what you meant, no action needed; otherwise correct it here.",
           "replyTo": 2
         }
       ],

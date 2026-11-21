@@ -126,7 +126,7 @@ At each green checkpoint:
 1. Capture each state through the route that captured its baseline (read it from
    `baseline-routes.txt`). When that route is unavailable now, for example drive reports a
    capability gap or writes an empty PNG, do not fall through to another route: two renderers
-   differ in browser build, font rasterisation and scale factor, so the count would measure the
+   differ in browser build, font rasterization and scale factor, so the count would measure the
    renderer change. Stop that state with the gap report and name the route it needs. Capture the
    same states, on the same host with the same settings, into
    `<memory_dir>/<branch-slug>/visual-parity/after/<checkpoint>/`, and run `manifest` on that

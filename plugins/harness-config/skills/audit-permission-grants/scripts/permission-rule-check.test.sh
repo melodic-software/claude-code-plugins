@@ -721,7 +721,7 @@ assert_contains "flags tilde-user Bash path" "$OUT_TILDE" "~kyle"
 # emitted it as `P2` — so no report could ever contain a P2b row and a reader
 # could not tell which of the two error-tier checks fired.
 assert_contains "tilde-user finding is emitted under its own id P2b" "$OUT_TILDE" "[P2b]"
-assert_not_contains "tilde-user finding is no longer mislabelled P2" "$OUT_TILDE" "[P2] "
+assert_not_contains "tilde-user finding is no longer mislabeled P2" "$OUT_TILDE" "[P2] "
 assert_eq "the tilde-user rule produces exactly one finding" "1" "$(run "$D8F" --count)"
 assert_eq "portable ~/ anchor in Read is not flagged" "0" \
   "$(jq -n '{permissions:{allow:["Read(~/notes.md)"]}}' >"$D8F/.claude/settings.json" && run "$D8F" --count)"

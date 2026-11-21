@@ -357,8 +357,8 @@ export function legendLines(report) {
   const drawing = [
     [panels.some((p) => (p.pattern === "graph" && p.nodes.some((node) => node.deep)) || (p.pattern === "stack" && p.layers.length === 1) || (p.pattern === "collapse" && p.module !== null)), "Dark, heavy-bordered box", "a deep module, a small interface over a lot of behavior"],
     [true, "Plain box", "any other module"],
-    [edges.some((edge) => !edge.dashed && !edge.leak), "Solid grey arrow", "one module calls or reads another"],
-    [edges.some((edge) => edge.dashed && !edge.leak), "Dotted grey arrow", "a pointer: one file refers the reader to another, with no call"],
+    [edges.some((edge) => !edge.dashed && !edge.leak), "Solid gray arrow", "one module calls or reads another"],
+    [edges.some((edge) => edge.dashed && !edge.leak), "Dotted gray arrow", "a pointer: one file refers the reader to another, with no call"],
     [edges.some((edge) => edge.leak), "Rust arrow, solid or dotted", "a leak, one module reaching past another's interface; its label says how"],
     [graphs.some((graphData) => graphData.edges.length === 0), "Boxes side by side", "the separate places that hold one thing"],
     [panels.some((p) => p.pattern === "stack" && p.layers.length > 1), "Stacked rows", "the places one rule, step or call runs through, one row each"],

@@ -914,7 +914,7 @@ printf '# Changelog\n\n## [0.51.9]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$re
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'relabel 0.51.8 as 0.51.9'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
 rc=$?
-if [[ $rc -eq 1 && "$out" == *"0.51.8"* && "$out" == *"RELABELLING"* && "$out" == *"above the entry that replaced it"* ]]; then ok "a relabelled heading fails --check-preserved and the message names relabelling as a cause"; else fail "relabelled heading not caught or not explained: rc=$rc out='$out'"; fi
+if [[ $rc -eq 1 && "$out" == *"0.51.8"* && "$out" == *"RELABELING"* && "$out" == *"above the entry that replaced it"* ]]; then ok "a relabeled heading fails --check-preserved and the message names relabeling as a cause"; else fail "relabeled heading not caught or not explained: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # LEGITIMATE BUMP: adds a heading, preserves every predecessor -> passes. The
