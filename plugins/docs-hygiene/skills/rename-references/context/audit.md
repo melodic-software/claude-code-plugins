@@ -55,9 +55,11 @@ not a sweep. Use Read only to confirm a Grep hit in context before classifying i
 - Use `output_mode: "content"` with `-n` for line numbers and `-C 1` for one line of surrounding context
 - Use `multiline: true` for **Form 7** (frontmatter chain string) **and Form 14's Setext-title
   alternative**. Both patterns contain a literal `\n`, which ripgrep's single-line default
-  rejects outright (`the literal "\n" is not allowed in a regex`). Without it the Setext pattern
-  errors rather than under-matching, so the survey silently loses the form and a container's
-  landing-page title survives as Form-2 residue that container mode excludes
+  rejects outright. Without it the Grep call returns the rejected pattern instead of matches
+  (what Grep reports for a line-break pattern: the 2.1.330 Bug fixes entry in the
+  [Claude Code changelog](https://code.claude.com/docs/en/changelog)), so a survey that reads
+  only matches loses the form and a container's landing-page title survives as Form-2 residue
+  that container mode excludes. Treat a rejected-pattern report as a failed form, never a zero
 - Form 14's ATX and Setext alternatives embed `(?i)` so title-case headings match; do **not** add
   `-i` globally, because declaration alternatives must stay case-sensitive
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
