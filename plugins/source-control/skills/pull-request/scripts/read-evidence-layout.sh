@@ -1,11 +1,12 @@
 # shellcheck shell=bash
-# Resolve the two settings the evidence step reads: evidence_inline_max_captures, the most
-# captures a change may have and still show them inline as a Before/After table, and
-# evidence_record_fields, whether the comment carries the who, when and issues-found record.
+# Resolve the three settings the evidence step reads: evidence_inline_max_captures, the most
+# captures a change may have and still show them inline as a Before/After table;
+# evidence_record_fields, whether the comment carries the who, when and issues-found record; and
+# evidence_ocr_mpdecimate_hi, the mpdecimate hi threshold evidence-ocr.py samples video frames at.
 #
-# Resolution, lowest first: the default (4; false); the top-level key of
+# Resolution, lowest first: the default (4; false; 256); the top-level key of
 # docs/conventions/source-control.yaml as the pull request's base branch holds it. No userConfig
-# level: both are repository policy. Parsing is lib/yaml-subset.awk's.
+# level: all three are repository policy. Parsing is lib/yaml-subset.awk's.
 #
 # Usage:
 #   read-evidence-layout.sh
@@ -18,14 +19,16 @@
 # The repository level counts only when --base matches --default-branch: any other base is a
 # branch the PR's author may have pushed unreviewed. A base that does not match, a failed read, a
 # file that does not parse, or input holding a NUL byte leaves the repository level unread, with a
-# notice on stderr, and both keys take their defaults.
+# notice on stderr, and every key takes its default.
 #
-# A threshold other than a whole number from 0 to 999, or a switch other than true or false, is
-# not used: that key takes its default, with a notice on stderr naming the level.
+# A capture threshold other than a whole number from 0 to 999, a switch other than true or false,
+# or an mpdecimate threshold other than a whole number from 1 to 9999, is not used: that key takes
+# its default, with a notice on stderr naming the level.
 #
-# Output, two tab-separated lines:
+# Output, three tab-separated lines:
 #   evidence_inline_max_captures  <n>             <level>
 #   evidence_record_fields        <true|false>    <level>
+#   evidence_ocr_mpdecimate_hi    <n>             <level>
 # where <level> is `repository (docs/conventions/source-control.yaml at <base>)`, `default`, or
 # `invalid value at <level> (fell back to <default>)`.
 #
@@ -68,6 +71,7 @@ fi
 # Each key's value and level, defaults first.
 max=4 max_level=default
 rec=false rec_level=default
+hi=256 hi_level=default
 
 # pick <key> <value> <pattern> <default> <level>: print "<value>\t<level>" when value matches,
 # else the default with an invalid-value level and a notice.
@@ -92,12 +96,12 @@ read_repo() {
     notice "$BASE_FILE_REASON; the repository level is unread"
     return
   fi
-  # A key nested under one of the two (a list or a mapping) is not a single value.
+  # A key nested under one of the three (a list or a mapping) is not a single value.
   local -A seen=()
   while IFS=$'\t' read -r k v; do
     case "$k" in
-    evidence_inline_max_captures | evidence_record_fields) seen[$k]="$v" ;;
-    evidence_inline_max_captures.* | evidence_record_fields.*) seen[${k%%.*}]="(not a single value)" ;;
+    evidence_inline_max_captures | evidence_record_fields | evidence_ocr_mpdecimate_hi) seen[$k]="$v" ;;
+    evidence_inline_max_captures.* | evidence_record_fields.* | evidence_ocr_mpdecimate_hi.*) seen[${k%%.*}]="(not a single value)" ;;
     *) ;;
     esac
   done <<<"$BASE_FILE_RECORDS"
@@ -109,9 +113,14 @@ read_repo() {
     picked="$(pick evidence_record_fields "${seen[evidence_record_fields]}" '^(true|false)$' false "$level")"
     rec="${picked%%$'\t'*}" rec_level="${picked#*$'\t'}"
   fi
+  if [[ -v 'seen[evidence_ocr_mpdecimate_hi]' ]]; then
+    picked="$(pick evidence_ocr_mpdecimate_hi "${seen[evidence_ocr_mpdecimate_hi]}" '^[1-9][0-9]{0,3}$' 256 "$level")"
+    hi="${picked%%$'\t'*}" hi_level="${picked#*$'\t'}"
+  fi
 }
 
 [[ -z "$mode" ]] || read_repo
 
 printf 'evidence_inline_max_captures\t%s\t%s\n' "$max" "$max_level"
 printf 'evidence_record_fields\t%s\t%s\n' "$rec" "$rec_level"
+printf 'evidence_ocr_mpdecimate_hi\t%s\t%s\n' "$hi" "$hi_level"
