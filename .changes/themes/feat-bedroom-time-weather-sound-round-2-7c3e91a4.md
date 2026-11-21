@@ -15,6 +15,7 @@ bump: minor
 
 - Sunrise and sunset follow the season by default (`sunrise` and `sunset` settings `auto`): worked out from the date for 40 degrees north and moved by the clock's daylight saving time, so a June sunset comes near 20:30 and a December one near 16:40; southern daylight saving time turns the season. An `HH:MM` setting holds that time all year, as before.
 - Rain, the downpour and the storm are one recording of rain on a roof heard from indoors, the downpour and the storm heavier, so the three sound alike at the same distance. Thunder follows each strike after 1 to 6 seconds, quieter and rolling longer the farther the strike.
+- By day the trees outside the window show clumps of leaves and leafy edges, and the far treeline more detail; at night more stars fill the sky. Dusk and evening look as before.
 - The settings card's four title fields show two to a row, wide enough for each title and its set button, in place of the time and the weather, so the card stays six rows.
 - `/bedroom sound pick` takes a kind, `cicadas`, `rain`, `thunder` or `tv`, and an entry's name or number; 0.3's `downpour` and `storm` kinds are gone, since the rain entry holds all three wet beds.
 - The README states where `soundPlayer` is read from and how it runs.

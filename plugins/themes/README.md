@@ -51,9 +51,10 @@ bottom-left corner of the front of the dresser.
   changes at the minute it starts and the light eases into it over up to about 25 minutes.
   `/bedroom time noon` holds one phase all day; `/bedroom time auto` follows the clock again. The
   room starts at dusk and eases to the hour over about six seconds. The VCR always shows the real
-  time. The view outside is the dusk view at every hour, lit for it: by day the trees, the far
-  treeline, the field and the utility pole with its wires in daylight; at night a deep blue sky
-  with stars and the moon over the dark trees and the yard light.
+  time. The view outside is the dusk view at every hour, lit for it: by day the trees, with clumps
+  of leaves and leafy edges, the far treeline, the field and the utility pole with its wires in
+  daylight; at night a deep blue sky with many small stars and the moon over the dark trees and
+  the yard light.
 - **Weather.** In the window only. Overcast covers the sky with cloud at every hour. Rain falls
   light and slow with a few drops on the glass; a downpour adds a heavier, faster fall, more drops
   and a thicker veil; a storm slants the rain in the wind, darkens the sky further and flashes
