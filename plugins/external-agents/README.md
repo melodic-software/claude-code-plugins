@@ -10,8 +10,9 @@ none of its text or code is copied).
 
 ## Status
 
-Scaffold only: the `external-agents` command prints its usage. The runner, the Codex skill and
-council's switch-over follow in later changes.
+In progress: config, provider records, binary lookup and the job store exist; the
+`external-agents` command still prints only its usage. Runs, the Codex skill and council's
+switch-over follow in later changes.
 
 ## Surface
 
