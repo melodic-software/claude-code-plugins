@@ -4,7 +4,7 @@ Loaded when SKILL.md Step 1 picks own driving: app-control does not drive this r
 launches, operates and captures itself. Prerequisites, Resolve run config and the browser-driver
 check in Drive run first, in that order, before the drive subagent is dispatched; a stop in any of
 them dispatches no subagent and opens no browser session. The drive subagent runs the rest. The
-three commands that carry the run's settings stay in SKILL.md, under "Own driving", because only
+four commands that carry the run's settings stay in SKILL.md, under "Own driving", because only
 that file expands the values they need; the steps below name them.
 
 ## Contents
@@ -28,7 +28,7 @@ On a hard-fail, before stopping, write a structured verification-environment gap
 
 Five keys govern this path: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`), `reuse_running_instance` (`auto | true | false`) and `browser_driver`. [e2e-config.md](e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
 
-- `recording` and `browser_mode`: anchor at the repo root, read every layer of `.claude/testing/e2e.md` that exists (user-global, team, personal override), and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md)'s; this step names only the surface path, the keys, and the per-key merge.
+- `recording` and `browser_mode`: anchor at the repo root, resolve `<home>`, read every layer of the `e2e.md` surface that exists (team `<home>/testing/e2e.md`, personal override `<home>/testing/e2e.local.md`, and each old path still read, warning on each), and merge the two keys per key. [e2e-config.md § Convention home and old paths](e2e-config.md#convention-home-and-old-paths) owns the home resolution, the old paths and the warning. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md)'s; this step names only the surface path, the keys, and the per-key merge.
 - `e2e_driver` and `reuse_running_instance`: run SKILL.md's resolve command (Own driving) as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
   being the file that set it, `userConfig`, or `default`, and names on stderr any value it
   rejected. Use the printed values; a rejected value has already resolved to the default.
