@@ -39,10 +39,8 @@ the installed 2.1.263 binary by string search and against the two pages named ab
 2026-09-11. The registration carried `subcommands:{ultra:"ultrareview"}` and a menu description
 that had it review the diff or a PR for bugs and cleanups.
 
-Scope, as of Claude Code 2.1.328: on most models the bundled skill reports only bugs and CLAUDE.md
-violations, and reuse, simplification and efficiency cleanups go to the bundled `simplify` skill.
-Whether a review still covers cleanups depends on the model and effort level. Basis: the 2.1.328
-entry of the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21328)
-and the `/code-review` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands),
-both read 2026-11-21. Recheck when a release note changes what `/code-review` reports or moves work between
-it and `/simplify`.
+That menu description is history, not the current scope. Nothing in this lane acts on the bundled
+skill's scope. When someone needs to know what it reports, and which cleanups it leaves to the bundled
+`simplify` skill, read it live from the `/code-review` row of
+[commands: all commands](https://code.claude.com/docs/en/commands#all-commands); correlate with the
+2.1.328 entry of the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21328).
