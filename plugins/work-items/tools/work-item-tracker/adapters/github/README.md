@@ -589,11 +589,18 @@ this linkage, by design (see "Open linked PRs").
 
 `gh issue list --json ... --jq` projections for `stats` and `audit` (bare `gh`).
 
+The `stats` counts leave out a **parent with open sub-issues**: an issue whose
+`subIssuesSummary.total` is above its `completed`. A split copies the parent's done-when into its
+children, so counting the parent beside them counts that work twice. The containers projection
+lists those parents on their own line. `subIssuesSummary` needs `gh` ≥ 2.94, the floor CONTRACT.md
+sets for the other sub-issue fields.
+
 Category counts:
 
 ```bash
-gh issue list --state open --json labels --limit 500 --jq '
-  [.[].labels[].name] | map(select(startswith("category:"))) | group_by(.) | map({key: .[0], count: length}) | sort_by(.key)
+gh issue list --state open --json labels,subIssuesSummary --limit 500 --jq '
+  [.[] | select(.subIssuesSummary.total <= .subIssuesSummary.completed) | .labels[].name]
+  | map(select(startswith("category:"))) | group_by(.) | map({key: .[0], count: length}) | sort_by(.key)
 ' | tr -d '\r'
 ```
 
@@ -601,10 +608,22 @@ Claimed/unassigned counts. A seam claim is an **assignee** (+ lease), so count a
 the retired `status:claimed`/`status:considering` labels (which the seam never sets):
 
 ```bash
-gh issue list --state open --json assignees --limit 500 --jq '
-  { total: length,
-    claimed: [.[] | select(.assignees | length > 0)] | length,
-    unassigned: [.[] | select(.assignees | length == 0)] | length }
+gh issue list --state open --json assignees,subIssuesSummary --limit 500 --jq '
+  length as $read
+  | [.[] | select(.subIssuesSummary.total <= .subIssuesSummary.completed)]
+  | { read: $read,
+      total: length,
+      claimed: [.[] | select(.assignees | length > 0)] | length,
+      unassigned: [.[] | select(.assignees | length == 0)] | length }
+' | tr -d '\r'
+```
+
+Containers (open parents left out of the counts above):
+
+```bash
+gh issue list --state open --json number,subIssuesSummary --limit 500 --jq '
+  [.[] | select(.subIssuesSummary.total > .subIssuesSummary.completed)
+   | {number, open_sub_issues: (.subIssuesSummary.total - .subIssuesSummary.completed)}]
 ' | tr -d '\r'
 ```
 
