@@ -6,6 +6,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const MODULE = fileURLToPath(new URL("./ci-workflows-at-pin.mjs", import.meta.url));
 const WORKFLOW = fileURLToPath(new URL("../../workflows/pr-require-checks.yml", import.meta.url));
 const PIN = /check-machine-paths@([0-9a-f]{40})/.exec(readFileSync(WORKFLOW, "utf8"))[1];
