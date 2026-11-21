@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, describe, test } from "node:test";
 
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
@@ -17,7 +18,7 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 const TRUSTED = join(dir, "trusted-actors.json");
 writeFileSync(TRUSTED, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN.id, login: HUMAN.login }] }));
 // BASE_PATH: the checkout whose models.issue-status the field read takes.
-const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: new URL("../../..", import.meta.url).pathname };
+const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
 
 const issue = (number, state, { repo = "o/r", reason = state === "closed" ? "completed" : null, closer = HUMAN } = {}) => ({
   number,
@@ -437,26 +438,26 @@ test("a blocker someone other than the lanes App closed blocks even with an olde
 });
 
 // The read runner's in-slot re-check (RECHECK=true): a blocker added while
-// the run waited for its slot stops it as admission's blocker gate does, on
-// one blocked_by read; a list of closed blockers takes the full check.
+// the run waited for its slot: https://github.com/melodic-software/claude-code-plugins/issues/18061
 describe("the in-slot re-check", () => {
   const RECHECK = { ...ENV, RECHECK: "true" };
   const RECHECK_RUN = { proceed: "true", untrusted: "false" };
+  const TWO_READS = ["GET /repos/o/r/issues/42", "GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"];
 
-  test("no blocker proceeds on the one blocked_by read", async () => {
+  test("no blocker proceeds on the issue read and the one blocked_by read", async () => {
     const { code, calls, outputs } = await run([], { env: RECHECK });
     assert.equal(code, 0);
     assert.deepEqual(outputs, RECHECK_RUN);
-    assert.deepEqual(calls, ["GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"]);
+    assert.deepEqual(calls, TWO_READS);
   });
 
-  test("an open blocker added since admission stops the run as admission does, on the one read, with the same notice", async () => {
+  test("an open blocker added since admission stops the run as admission does, on the two reads, with the same notice", async () => {
     const admitted = await run([issue(7, "open")]);
     const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed")], { env: RECHECK });
     assert.equal(code, 0);
     assert.deepEqual(outputs, SKIP);
     assert.deepEqual(outputs, admitted.outputs);
-    assert.deepEqual(calls, ["GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"]);
+    assert.deepEqual(calls, TWO_READS);
     const notice = lines.find((line) => line.startsWith("::notice"));
     assert.match(notice, /^::notice title=blocked::/);
     assert.match(notice, /#7/);
@@ -466,7 +467,18 @@ describe("the in-slot re-check", () => {
     assert.deepEqual((await run([issue(8, "closed")], { env: RECHECK })).outputs, RUN);
     const stranger = await run([issue(7, "closed", { closer: STRANGER })], { env: RECHECK });
     assert.deepEqual(stranger.outputs, SKIP);
-    assert.ok(stranger.calls.includes("GET /repos/o/r/issues/42"), "the full check reads the issue");
+    assert.ok(stranger.calls.some((call) => call.startsWith("GET /repos/o/r/issues/42/events")), "the full check reads the events");
+  });
+
+  test("a session-owned label added while the run waited skips it as admission does, before any blocker read", async () => {
+    const { calls, lines, outputs } = await run([], { env: RECHECK, subject: { labels: ["agent-ready", "session-owned"] } });
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(!calls.some((call) => call.includes("/dependencies/")), calls.join("\n"));
+    assert.match(lines.find((line) => line.startsWith("::notice")), /^::notice title=map issue::the run is skipped: the issue carries 'session-owned'/);
+  });
+
+  test("an untrusted label added while the run waited stops it for good", async () => {
+    assert.deepEqual((await run([], { env: RECHECK, subject: { labels: ["agent-ready", UNTRUSTED] } })).outputs, FINAL);
   });
 
   test("a blocked_by read that fails stops the run with a warning, not for good", async () => {

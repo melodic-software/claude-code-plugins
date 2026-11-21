@@ -44,10 +44,7 @@
 //
 // With RECHECK=true it is the read runner's in-slot re-check
 // (pr-run-activity-read.yml check-broker), after admission passed and the run
-// waited for its slot: one read of the blocked_by list decides when the list
-// is empty (proceed) or names an open blocker (blocked, as above). A list of
-// closed blockers alone takes the full check, since only it judges who
-// closed them.
+// waited for its slot: https://github.com/melodic-software/claude-code-plugins/issues/18061
 //
 // Environment:
 //   GH_TOKEN             the job's GITHUB_TOKEN (issues: read)
@@ -114,22 +111,23 @@ export async function main({ env = process.env, github, log = console.log, write
     const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     const client = github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const base = `/repos/${repository}/issues/${number}`;
-    if (env.RECHECK === "true") {
+    const issue = await client("GET", base);
+    const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "check-blockers", log });
+    const labels = (issue?.labels ?? []).map((label) => String(label?.name ?? label));
+    const isApp = (actor) => actor?.id === appId;
+    if (env.RECHECK === "true" && !routingLabel(labels, routing) && !untrustedHold({ labels: issue?.labels, events: [], humans, isApp })) {
       const blockers = await blockersOf(client, base);
       pending = await stillBlocking(blockers, repository, async () => true, async () => true);
       rechecked = blockers.length === 0 || pending.length > 0;
       subs = [];
     }
     if (!rechecked) {
-      const issue = await client("GET", base);
-      const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "check-blockers", log });
       const trust = await authorTrust(client, repository, issue, humans, appId);
       outsider = trust === null;
       drift = trust === "drift";
       const events = outsider ? [] : await statusReader({ env, github: client, repository, log }).events(Number(number));
-      const isApp = (actor) => actor?.id === appId;
       held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
-      routed = outsider || held ? null : routingLabel((issue?.labels ?? []).map((label) => String(label?.name ?? label)), routing);
+      routed = outsider || held ? null : routingLabel(labels, routing);
       if (!outsider && !held && !routed) {
         // The same close admission counts (admit.mjs closedByTrusted), so a split
         // parent the lanes App closed does not hold an issue admission let through.
