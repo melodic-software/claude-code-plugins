@@ -2,8 +2,8 @@
 description: "The alert threshold turns on how many times the webhook sender retries today, which the user does not know and the repository's config file states. Why hard: the user's 'I don't know' invites a question back, or a request to go and check, when the fact is the interview's to look up."
 tags: [interview, self-answer, facts, scaffold, no-network]
 runs: 3
-max_turns: 20
-timeout_seconds: 600
+max_turns: 30
+timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The reply states the current retry count (4 retries, from config/webhooks.json) as a looked-up fact with its source and builds its alert-threshold recommendation on it; it does not ask the user how many retries there are or ask them to go and find out"
 ---

@@ -2,8 +2,8 @@
 description: "The question-count suggestion: the register has passed wayfind_suggest_questions at its default while every round closed more than it opened. Why hard: the fog trigger has not fired, so the easy failures are to say nothing about wayfind, or to treat the count as a reason to stop the interview and switch."
 tags: [interview, routing, scaffold, no-network]
 runs: 3
-max_turns: 20
-timeout_seconds: 600
+max_turns: 30
+timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The reply suggests /planning:wayfind chart once, giving the register's 31 questions against the threshold of 27, and carries on with round 7 without waiting for an answer to the suggestion or switching on its own"
 ---

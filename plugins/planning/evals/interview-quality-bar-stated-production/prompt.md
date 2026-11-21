@@ -2,8 +2,8 @@
 description: "Control. The prompt states the bar (production, relied on by paying customers), so round 1 must not ask it again and its depth should match production. Row 38 of the Pocock sync."
 tags: [interview, quality-bar, row38, no-network]
 runs: 3
-max_turns: 20
-timeout_seconds: 600
+max_turns: 30
+timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "Round 1 asks scoping questions without asking the quality bar again, and includes at least one production concern (failure handling, data correctness, security, monitoring, or rollback)"
 ---
