@@ -188,7 +188,7 @@ wit_resolve_repo() {
   rc=$?
   err="$(<"$errfile")"
   rm -f "$errfile"
-  printf '%s\n' "$err" >&2
+  [[ -n "$err" ]] && printf '%s\n' "$err" >&2
   if ((rc != 0)); then
     [[ "$err" == *"target-repo: the remotes name"* ]] && exit 3
     exit "$(wit_map_gh_error "$err")"
