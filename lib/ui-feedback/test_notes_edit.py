@@ -1,4 +1,4 @@
-# test-scope: lib/ui-feedback/test_notes_bridge.py lib/session-bridge/session_bridge.py lib/session-bridge/view_bridge.py
+# test-scope: lib/ui-feedback/test_notes_bridge.py lib/ui-feedback/notes_bridge.py lib/session-bridge/session_bridge.py lib/session-bridge/view_bridge.py
 # test-scope: lib/ui-feedback/controls.js lib/ui-feedback/controls.schema.json lib/ui-feedback/fixtures/controls.json
 # test-scope: lib/ui-feedback/fixtures/notes.json lib/ui-feedback/note.schema.json lib/ui-feedback/proto-pin.js
 """Tests for editing and withdrawing a sent note through notes-bridge: an edit keeps the note's seq,
