@@ -23,7 +23,8 @@ marked it thin), `split` (null, or the done-when items admission held it for), `
    check (a file says X, a test passes, a command prints Y), no decision the owner must make is
    open, and no candidate is a `duplicate` or `fixed-by`. Then fill `outcome` (one sentence),
    `criteria` (at most 12) and `dependencies` (issues or work it waits on, with why), and leave
-   `questions` and `split` empty.
+   `questions` and `split` empty. A scope exclusion (work this issue does not do, or that
+   another issue holds) is not a criterion: say it in `outcome`, never as an item in `criteria`.
    Set `external` to the outside state the work changes: `state` `none` when it changes
    none; `iac` with `repo` the owner/name of the IaC repository whose preview and deploy
    flow makes the change; or `manual` with `class` one of the names in `attended` and
