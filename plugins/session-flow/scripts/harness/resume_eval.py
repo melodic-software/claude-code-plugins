@@ -72,7 +72,7 @@ TOKEN_KEYS = (
 
 
 _GIT = ("git", "git -C *")
-_REMOTE_URL_FORMS = ("*://*", "*@*", "*:*")
+_REMOTE_URL_FORMS = {"ls-remote": ("*://*", "*@*", "*:*"), "fetch": ("*://*", "*@*")}
 NETWORK_DENY = (
     "Bash(curl:*)",
     "Bash(curl *)",
@@ -81,8 +81,8 @@ NETWORK_DENY = (
     *(
         f"Bash({g} {cmd} {form})"
         for g in _GIT
-        for cmd in ("ls-remote", "fetch")
-        for form in _REMOTE_URL_FORMS
+        for cmd, forms in _REMOTE_URL_FORMS.items()
+        for form in forms
     ),
     *(f"Bash({g} remote {verb} *)" for g in _GIT for verb in ("add", "set-url")),
     *(f"Bash({g} config *remote.*)" for g in _GIT),

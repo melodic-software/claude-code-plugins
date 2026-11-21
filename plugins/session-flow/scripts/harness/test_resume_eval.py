@@ -245,6 +245,8 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
         "git fetch origin",
         "git fetch --prune origin",
         "git -C /any/repo fetch -q origin",
+        "git fetch origin refs/pull/4460/head:review-4460",
+        "git -C /any/repo fetch origin refs/pull/4460/head:refs/remotes/origin/pr/4460",
     ):
         assert not matches(deny, local), local
         assert matches(allow, local), local
