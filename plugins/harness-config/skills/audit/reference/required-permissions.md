@@ -54,6 +54,16 @@ against Edit allow and deny rules. The 2.1.259 widening that applied `Read()` de
 arguments generally was reverted in 2.1.260 and is not the rule: a command that reads files without
 naming them, such as `grep -r pattern .` from the directory that holds the file, is not covered.
 
+**`cp` and `mv`: the file written into a directory is covered from Claude Code 2.1.321; the file
+read is not confirmed.** We report deny rules and protected-file prompts as reaching the file a
+`cp` or `mv` into a directory writes, and a `cp` or `mv` spelled by a path such as `/bin/cp` as
+checked like the bare command, on 2.1.321 and later only; on an older client that destination is
+uncovered. No upstream source says a `Read` deny covers the file a `cp` or `mv` reads, so that stays
+unverified with the commands under "Unverified" below. The version is as of 2026-11-21, read from
+[changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321); recheck when
+[permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) names `cp`
+or `mv`.
+
 **Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
 files indirectly, like a Python or Node script that opens files itself." Any script that opens the
 path, one-liners included, reads a `Read`-denied file with no deny firing. That is the real
@@ -100,6 +110,13 @@ the same defect as recommending the deny globs without their scope. Strict mode
 not close `!` shell mode in an interactive session. When strict mode may make the sandbox
 admin-required, audit the loosening settings only in the scopes it still reads, and do not report
 the repository's ignored entries as live.
+
+On a client older than Claude Code 2.1.321, report the sandbox as partial whatever its settings:
+until that release, a read-only Bash command could run outside it without a permission prompt. The
+version is as of 2026-11-21, read from
+[changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321); recheck when
+[what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox)
+states the case.
 
 - **Pointer**: when you need what makes the sandbox admin-required, or which loosening settings it
   then ignores from the repository, fetch
