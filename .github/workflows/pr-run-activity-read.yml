@@ -474,18 +474,6 @@ jobs:
           echo "lease=held" >>"$GITHUB_OUTPUT"
           echo "lease-comment-id=$id" >>"$GITHUB_OUTPUT"
 
-      # Issue mode, once the run holds its slot and its lease: the caller's
-      # check-admission job checked the issue's blockers before the slot wait, which
-      # can last an hour, so a blocker added since is read here, by the same
-      # check-blockers.mjs in its RECHECK mode (one blocked_by read unless
-      # only closed blockers are listed). An open blocker, or a read that
-      # fails, stops the run as check-admission's does: no model turn, no outcome
-      # marker, agent-ready kept, and work-unblock's sweep re-fires the issue
-      # once no blocker is open, matching the stop step below by name. The
-      # report job ends the lease. The first call in the slot alone checks:
-      # the key call, or the subscription call a caller's key-credit gate
-      # made first (fallback credit-stop). A later leg runs only after the
-      # first handed off.
       - name: Re-check the issue's blockers in the slot
         id: recheck-blockers
         if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key') && steps.lease.outputs.lease == 'held'
