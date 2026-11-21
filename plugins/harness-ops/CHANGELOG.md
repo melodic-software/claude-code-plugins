@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.7] - 2026-11-21
+
+### Fixed
+
+- The `lanes` restart-request consumer's docs and script header say a `/loop` created on Claude Code 2.1.330 or later runs up to 30 days and an older one still ends at 7 days, where they said seven days for every loop. The consumer's behavior is unchanged ([#17833](https://github.com/melodic-software/claude-code-plugins/issues/17833)).
+
 ## [10.5.6] - 2026-11-21
 
 ### Changed
