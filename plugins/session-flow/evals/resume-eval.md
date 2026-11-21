@@ -150,7 +150,12 @@ infrastructure exclusions remain (re-run the same command).
 `pairs/<group>--vs--<baseline>/{<group>,<baseline>}.json`, scored only on the probes both arms
 grade. Accuracy and the result files hold delivered runs only; a run that did not deliver
 (a denial, no handoff, zero turns, a result error) is counted as a per-case non-delivery rate
-instead. Compare a pair's accuracy with `/evals:plugin-eval`'s
+instead. A reader whose denials, in its main turn or its follow-up, were all refusals by a
+plugin's PreToolUse hook (a writer refused this way stays a plain denial; the
+guardrails hooks stay loaded, as the owner runs them) is `hook-blocked`, named by the hook's
+plugin, event and refusal line: it scores no accuracy and is counted apart from the
+non-delivery rate. Each group line and each pair's `hooks` line print the hook-blocked runs
+and the runs in which a hook refused any call, delivered or not. Compare a pair's accuracy with `/evals:plugin-eval`'s
 `scripts/noise-report.py <group>.json --baseline <baseline>.json --margin <M>`. Each pair
 line prints `h`, the 95% interval's half-width; on an A/A pair of `before` runs, M = 1.43h
 for accuracy and `--nondelivery-margin` = 1.43h for the non-delivery rate, each rounded up to 0.01.
