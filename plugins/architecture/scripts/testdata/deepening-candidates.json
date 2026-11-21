@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "repo": "melodic-software/claude-code-plugins",
+  "repo": "example-org/plugin-marketplace",
   "scope": "plugins/planning (the interview skill, its shared context and reference, and the scripts it calls)",
   "commit": "37579888d6960575ea79a05f673f630305f25625",
   "date": "2026-11-20",
