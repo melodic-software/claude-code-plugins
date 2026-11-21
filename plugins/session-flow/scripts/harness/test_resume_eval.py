@@ -228,6 +228,20 @@ def test_settings_disable_the_installed_plugin_and_deny_the_network():
         "git -C /any/repo fetch https://h/x",
     ):
         assert matches(deny, remote), remote
+    for exec_override in (
+        "git ls-remote --upload-pack='nc h 80; git-upload-pack' origin",
+        "git ls-remote --exec=/bin/sh origin",
+        "git ls-remote -u /bin/sh origin",
+        "git ls-remote --heads -u /bin/sh origin",
+        "git -C /any/repo ls-remote --upload-pack=x origin",
+        "git fetch --upload-pack=x origin",
+        "git -C /any/repo fetch --upload-pack x origin",
+        "git fetch 'ext::sh -c id' main",
+        "git -C /any/repo fetch ext::sh main",
+        "git -C /any/repo -c core.sshCommand=x ls-remote origin",
+        "git -C /any/repo -c protocol.ext.allow=always fetch origin",
+    ):
+        assert matches(deny, exec_override), exec_override
     for repoint in (
         "git remote set-url origin https://h/x",
         "git remote add up https://h/x",
