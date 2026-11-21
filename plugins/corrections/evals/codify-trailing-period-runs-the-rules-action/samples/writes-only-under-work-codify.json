@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/main/20261121T000000Z-rules-ledger.json",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/AGENTS.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}
