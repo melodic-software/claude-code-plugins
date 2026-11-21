@@ -8,7 +8,7 @@
 # With the server stopped under the open page, the page says no session, keeps a new note, and Copy
 # all notes makes a block that notes-bridge.sh import takes, skipping the notes already logged.
 # SKIPs without playwright-cli, node, python3 or curl.
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -106,7 +106,7 @@ t = r["events"][1]
 assert t["kind"] == "text" and t["anchor"]["textQuote"]["exact"] == "PT-1012", t
 assert t["anchor"]["testid"] == "shipments-row" and t["anchor"]["testidIndex"] == 12, t
 assert t["data"]["log"] == [{"op": "seed", "n": 10}, {"op": "clear"}, {"op": "reset"}, {"op": "seed", "n": 10}], t
-assert t["viewport"]["w"] == 960 and t["viewport"]["h"] == 800 and t["viewport"]["colorScheme"] in ("light", "dark"), t' "$status"
+assert t["viewport"]["w"] == 1280 and t["viewport"]["h"] == 800 and t["viewport"]["colorScheme"] in ("light", "dark"), t' "$status"
 check "the region note carries its box and the rows it crosses" '
 g = r["events"][2]
 assert g["kind"] == "region" and set(g["rect"]) == {"x", "y", "w", "h"}, g

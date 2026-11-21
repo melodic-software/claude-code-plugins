@@ -8,15 +8,6 @@ Beck's patterns for testing objects that depend on expensive or complicated reso
 
 **Solution:** Create a fake version that answers constants.
 
-```java
-public void testOrderLookup() {
-    Database db = new MockDatabase();
-    db.expectQuery("select order_no from Order where cust_no is 123");
-    db.returnResult(new String[] {"Order 2", "Order 3"});
-    // ...
-}
-```
-
 **Benefits beyond performance:**
 
 - **Readability**: you can read the test end-to-end. With a real database of realistic data, "you have no idea why 14 is the right answer"
@@ -32,33 +23,13 @@ public void testOrderLookup() {
 
 **Solution:** Have the object under test communicate with the test case itself (the test case implements the expected interface).
 
-```python
-def testNotification(self):
-    self.count = 0
-    result = TestResult()
-    result.addListener(self)
-    WasRun("testMethod").run(result)
-    assert 1 == self.count
-
-def startTest(self):
-    self.count = self.count + 1
-```
-
-The test case *is* the mock. "Tests written with Self Shunt tend to read better" because you can see both values in one place. May require Extract Interface. In Java, you'll implement "all sorts of bizarre interfaces."
+The test case *is* the mock. "Tests written with Self Shunt tend to read better." May require Extract Interface.
 
 ## Log String
 
 **Problem:** How do you test that messages are called in the correct sequence?
 
 **Solution:** Append to a string when each message is called.
-
-```python
-def testTemplateMethod(self):
-    test = WasRun("testMethod")
-    result = TestResult()
-    test.run(result)
-    assert("setUp testMethod tearDown " == test.log)
-```
 
 "Particularly useful when implementing Observer and you expect notifications in a certain order." Works well combined with Self Shunt. If order doesn't matter, use a set instead of a string.
 
@@ -68,21 +39,7 @@ def testTemplateMethod(self):
 
 **Solution:** Create a special object that throws an exception instead of doing real work.
 
-```java
-public void testFileSystemError() {
-    File f = new File("foo") {
-        public boolean createNewFile() throws IOException {
-            throw new IOException();
-        }
-    };
-    try {
-        saveAs(f);
-        fail();
-    } catch (IOException e) { }
-}
-```
-
-"Like a Mock Object, except you don't need to mock up the whole object." Java's anonymous inner classes let you override just the one method, right in your test.
+"Like a Mock Object, except you don't need to mock up the whole object."
 
 Beck's principle: "Code that isn't tested doesn't work. This seems to be the safe assumption."
 
@@ -119,7 +76,7 @@ When a single double serves both roles (provides canned answers AND is verified)
 2. **Verify interactions at system edges**: mock the last type in the chain (e.g., `IBus` not `IMessageBus`). Maximizes protection against regressions and resistance to refactoring
 3. **Mocks in integration tests only**: domain model tests are unit tests with no mocks. Controllers are integration tests, and that's where mocks belong
 4. **Multiple mocks per test are fine**: the "one mock per test" guideline is a misconception. The number depends on the number of unmanaged dependencies in the operation
-5. **Verify both expected AND unexpected calls**: use `Times.Once` + `VerifyNoOtherCalls()` to ensure backward compatibility in both directions
+5. **Verify both expected AND unexpected calls**: this ensures backward compatibility in both directions
 
 **Spies are superior to mocks at system edges**. Handwritten mocks with fluent assertion interfaces provide reusable, readable verification and don't rely on production code for assertions.
 
@@ -129,21 +86,7 @@ When a single double serves both roles (provides canned answers AND is verified)
 
 **Subordinate to best practice 1 above.** This shapes a boundary you have already decided to mock; it never widens what gets mocked. "Mock only unmanaged dependencies" still decides *whether* a boundary is mocked at all, and no interface is introduced for an in-process dependency to satisfy this shape.
 
-When a boundary is mocked, give each remote operation its own named function instead of routing every call through one pass-through request function:
-
-```typescript
-// Preferred: a test replaces only the operations it uses, each with a fixed return value
-const shipping = {
-  quoteRate: (parcel) => http.post('/rates', parcel),
-  bookPickup: (slot) => http.post('/pickups', slot),
-  trackParcel: (trackingId) => http.get(`/parcels/${trackingId}`),
-};
-
-// Avoid: the fake has to inspect the path and method to decide what to return
-const shipping = {
-  call: (method, path, body) => http.request(method, path, body),
-};
-```
+When a boundary is mocked, give each remote operation its own named function instead of routing every call through one pass-through request function.
 
 With named operations, each fake returns a single fixed value, test setup has no branching, each operation keeps its own types, and a reader sees from the setup which remote calls the test depends on.
 

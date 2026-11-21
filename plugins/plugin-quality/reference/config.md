@@ -30,6 +30,8 @@ layer and **no personal override channel**; the old layers are retired, each wit
 | personal override | `.claude/plugin-quality.local.md` | record `plugin-quality-r002` (delete). Never read; setup `check` WARNs while it exists rather than silently ignoring it. |
 | user-global | `~/.claude/plugin-quality.md` | machine scope, outside the retirement manifest by contract. Never read; setup `check` WARNs in prose when it exists. |
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+
 ## Resolution order
 
 1. The convention home resolves (resolver exit 0) and `<home>/plugin-quality/README.md` exists →
@@ -79,7 +81,7 @@ Two keys live outside the topic doc, in `<home>/plugin-quality.yaml`, checked ag
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/plugin-quality:audit` runs its adversarial re-examination seam. `standard` keeps the `high`-effort gate; `strict` runs it at every effort; `light` and `off` skip it at every effort and label the findings `unverified`. A skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/plugin-quality:audit` runs its adversarial re-examination step. `standard` keeps the `high`-effort gate; `strict` runs it at every effort; `light` and `off` skip it at every effort and label the findings `unverified`. A skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
 
 ## Sink resolution ladder (step 6 of the audit)
 

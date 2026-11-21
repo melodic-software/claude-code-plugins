@@ -376,6 +376,8 @@ see [hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove
   rules. Defaults (Conventional Commits, squash merge) apply only when the
   project declares nothing.
 
+  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+
 ## Requirements
 
 - **shfmt v3.14.1 or later**, which the PR-linkage and worktree gates read commands through.

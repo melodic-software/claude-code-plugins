@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Gaps:\n- gap: architecture entry \"Name the discount rule once\" has no size field; not used as a candidate", "why": "gap bullet naming the entry" },
+    { "answer": "gap: Name the discount rule once (no valid size)", "why": "bare gap line" }
+  ],
+  "fail": [
+    { "answer": "gap: one architecture entry has no size field", "why": "gap line does not name the entry" },
+    { "answer": "| 3 | Name the discount rule once | code / architecture | M | architecture:improve |", "why": "ranked as a candidate, no gap line" },
+    { "answer": "gap: architecture filing skipped\n\nName the discount rule once was not used because it has no size.", "why": "the name is outside the gap line" }
+  ]
+}

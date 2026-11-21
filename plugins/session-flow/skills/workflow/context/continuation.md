@@ -148,6 +148,11 @@ boundary.
    within one task, and it may repeat: a session already compacted compacts again when the window
    needs it. Within one task the session's context is still its context; at the task's end,
    question 5 hands off instead.*
+   Pointer: before writing the focus in an attended session, read
+   [what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
+   so the focus names only what the summary would otherwise lose; for a standing focus every
+   compaction applies, a "Compact Instructions" section in CLAUDE.md, see
+   [when context fills up](https://code.claude.com/docs/en/how-claude-code-works#when-context-fills-up).
 
 **Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
 leaving.

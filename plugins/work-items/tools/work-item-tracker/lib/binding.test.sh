@@ -200,6 +200,11 @@ write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{
 wit_read_binding "$BINDING"
 assert_eq "an owner-decision remap reaches the hold label defaults" '["awaiting-owner","needs-reporter-info","needs-spec"]' "$WIT_HOLD_LABELS_JSON"
 assert_eq "an owner-decision remap reaches the hold-state label defaults" '["needs-human","awaiting-owner","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATE_LABELS_JSON"
+assert_eq "session-owned label defaults when unset" "session-owned" "$WIT_SESSION_OWNED_LABEL"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"role_labels":{"session-owned":"mine"}}}'
+wit_read_binding "$BINDING"
+assert_eq "a session-owned remap is exported" "mine" "$WIT_SESSION_OWNED_LABEL"
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_labels":["on hold"],"hold_states":["parked"],"hold_state_labels":["parked"],"wayfind_label_prefix":"map:"}}'
 wit_read_binding "$BINDING"

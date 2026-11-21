@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [11.4.0] - 2026-11-21
+
+### Added
+
+- The lanes skip an issue a local Claude Code session owns. `check-born-triaged`'s routing labels (`routingLabels`, `routingLabel`) now include the work-items binding's session-owned role label (`tracker.config.role_labels["session-owned"]`, default `session-owned`) beside the container label and the wayfind prefix, so intake triage, the hourly triage sweep, intake re-entry, the WIP cap, the issue lane's admission (`check-blockers.mjs`) and the unblock sweep (`label-unblocked.mjs`) leave such an issue alone. A non-string value is a config error that keeps the defaults with a warning. The skip notices now read "a container, wayfind or session-owned label, so the skill or session that filed it routes it".
+
+## [11.3.1] - 2026-11-21
+
+### Changed
+
+- `merge.skip-unchanged` is off (`max-minutes: 0`). Measured over 172 pr-merge runs, the skip filter spent about 2,230 calls to skip 12 of 637 candidates and saved about 521. enable-auto-merge's skip kept nothing in 56 runs. With it off, every candidate is gated and neither path reads its key.
+
+- The `max-turns` key's description says what one turn counts: one model output plus the tool calls it makes, with one more for the final text-only reply, which is smaller than the docs glossary's conversation turn.
+
 ## [11.3.0] - 2026-11-21
 
 ### Added

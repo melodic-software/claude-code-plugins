@@ -10,11 +10,11 @@ async page => {
     const fb = await page.locator("#page").boundingBox();
     const status = (re) => page.waitForFunction((s) => new RegExp(s).test(document.getElementById("status").textContent), re.source, { timeout: 8000 });
     const outline = (line = "dashed") => frame.evaluate((l) => {
-      const o = [...document.querySelectorAll("[data-ui-feedback-layer] > div")].find(e => e.style.outline.includes(l) && /245, 158, 11|f59e0b/.test(e.style.outline));
+      const o = [...document.querySelectorAll("[data-ui-feedback-layer] > div")].find(e => e.style.outline.includes(l) && !e.dataset.note);
       return o ? { page: [o.style.left, o.style.top, o.style.width, o.style.height].map(parseFloat), scrollY } : null;
     }, line);
     const editingBox = async () => {
-      await frame.waitForFunction(() => [...document.querySelectorAll("[data-ui-feedback-layer] > div")].some(e => e.style.outline.includes("dashed") && /245, 158, 11|f59e0b/.test(e.style.outline)), null, { timeout: 5000 });
+      await frame.waitForFunction(() => [...document.querySelectorAll("[data-ui-feedback-layer] > div")].some(e => e.style.outline.includes("dashed") && !e.dataset.note), null, { timeout: 5000 });
       await page.waitForTimeout(800);
       return outline();
     };
@@ -53,6 +53,7 @@ async page => {
     await status(/Note 1 sent/);
 
     const shown = () => frame.evaluate(() => [...document.querySelectorAll("[data-variant]")].filter(v => !v.hidden).map(v => v.dataset.variant).join());
+    await page.click("#notes li .name");
     await frame.evaluate(() => document.dispatchEvent(new CustomEvent("vs:show", { detail: { variant: "B" } })));
     ok("the mockup shows variant B before Move or resize", await shown() === "B", await shown());
     await page.click('[data-key^="reshape-"]');

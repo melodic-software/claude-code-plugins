@@ -3702,7 +3702,12 @@ Each profile under `models.profiles` names:
   ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of
   2026-11-01; recheck when that section changes the order or adds an override such as a mod's
   `agent.spawn` hook).
-- `max-turns`: the turn budget, passed as `--max-turns`.
+- `max-turns`: the turn budget, passed as `--max-turns`. It counts agentic turns, each one model
+  output plus the tool calls it makes, and the final text-only reply takes one more
+  ([how the agent loop works](https://code.claude.com/docs/en/agent-sdk/agent-loop), read
+  2026-11-21). That is a smaller unit than the [glossary's turn](https://code.claude.com/docs/en/glossary#turn),
+  one user message through Claude's whole reply. Recheck when either page or the `--max-turns` row
+  of the [CLI reference](https://code.claude.com/docs/en/cli-reference) redefines a turn.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
   target's own `escalate-to` is never followed, and a profile with none refuses `model-rung` 1

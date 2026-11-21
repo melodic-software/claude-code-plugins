@@ -744,6 +744,8 @@ Layers, in resolution order, where a later layer refines an earlier one:
 3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal override, gitignored. A per-machine
    or per-operator deviation from team policy, never committed.
 
+   This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+
 Each layer is optional, and **fall-through is per key, not per file**. A key absent from every layer
 is unresolved even when some layer exists: a user-global file contributing only `trailer_policy`
 leaves `subject_pattern` as unresolved as no file at all. Each unresolved key falls through

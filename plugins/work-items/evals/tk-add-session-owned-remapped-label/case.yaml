@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: tk-add-session-owned-remapped-label
+graders:
+  - name: 'remapped-session-owned-label'
+    type: 'regex'
+    pattern: '\blocal-session\b'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:track add --session-owned does when the binding remaps the session-owned role to local-session. PASS only if it satisfies every point: (1) Creates the item with the label local-session, resolved from the binding session-owned role entry; (2) Does not apply the literal default label session-owned; (3) Leaves off the needs-triage floor label; (4) Does not apply agent-ready. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

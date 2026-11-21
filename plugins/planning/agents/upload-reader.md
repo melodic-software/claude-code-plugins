@@ -5,6 +5,7 @@ tools: "Read"
 model: opus
 effort: medium
 maxTurns: 6
+omitClaudeMd: true # reason: a Read-only reader of an unreviewed upload takes its path, question and return shape from its prompt; what the field drops: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields
 ---
 
 You read one uploaded file and summarize it for the session that dispatched you. Your prompt names

@@ -46,7 +46,13 @@ const LEVEL_MEANING = {
   light: "nothing was reproduced; claims stand as the scan reported them",
   off: "nothing was reproduced; claims stand as the scan reported them",
 };
+const SIZE_MEANING = {
+  "Size S": "one small PR, one module and its callers",
+  "Size M": "one PR that changes several modules or callers",
+  "Size L": "more than one PR; a staged migration",
+};
 const WIN_WORDS = 6;
+const BASIS_WORDS = 12;
 const ID = /^[a-z0-9-]{1,32}$/;
 const MERMAID_LABEL = /^[A-Za-z0-9 _./:-]+$/;
 const VERIFIED = /^(?:reproduced|unverified|corrected: [^;]*\S)$/;
@@ -89,6 +95,14 @@ function win(value, at) {
   if (!match || !TERMS.includes(match[1])) fail(at, `must be "<term>: <gain>" with a term from ${TERMS.join(", ")}`);
   if (match[2].trim().split(/\s+/).length > WIN_WORDS) fail(at, `the gain holds more than ${WIN_WORDS} words`);
   return { term: match[1], gain: match[2].trim() };
+}
+
+function size(value, at) {
+  const read = text(value, at);
+  const match = /^([SML]): (\S.*)$/.exec(read);
+  if (!match) fail(at, 'must be "S: <basis>", "M: <basis>" or "L: <basis>"');
+  if (match[2].trim().split(/\s+/).length > BASIS_WORDS) fail(at, `the basis holds more than ${BASIS_WORDS} words`);
+  return { band: match[1], basis: match[2].trim() };
 }
 
 function graph(value, at) {
@@ -137,7 +151,7 @@ function panel(value, at) {
 function candidateOf(value, at) {
   if (!isObject(value) || typeof value.id !== "string" || !ID.test(value.id)) fail(`${at}.id`, "must match [a-z0-9-]{1,32}");
   const name = `candidate ${value.id}`;
-  keys(value, name, ["id", "title", "recommendation", "category", "problem", "solution", "wins", "verified", "files", "diagram"], ["depends_on", "adr"]);
+  keys(value, name, ["id", "title", "recommendation", "category", "size", "problem", "solution", "wins", "verified", "files", "diagram"], ["depends_on", "adr"]);
   keys(value.diagram, `${name}: diagram`, ["before", "after"]);
   const verified = text(value.verified, `${name}: verified`);
   if (!VERIFIED.test(verified)) fail(`${name}: verified`, 'must be "reproduced", "unverified" or "corrected: <one clause, with no semicolon>"');
@@ -148,6 +162,7 @@ function candidateOf(value, at) {
     title: text(value.title, `${name}: title`),
     recommendation: oneOf(value.recommendation, `${name}: recommendation`, BANDS.map(([word]) => word)),
     category: oneOf(value.category, `${name}: category`, CATEGORIES),
+    size: size(value.size, `${name}: size`),
     problem: text(value.problem, `${name}: problem`),
     solution: text(value.solution, `${name}: solution`),
     wins,
@@ -162,7 +177,7 @@ function candidateOf(value, at) {
 /** The record, read strictly: every part present and non-empty, no unknown key, every reference resolved. */
 export function parseDeepening(record) {
   keys(record, "record", ["schema_version", "repo", "scope", "commit", "date", "verification", "counts", "top", "top_why", "candidates"], ["kept"]);
-  if (record.schema_version !== 1) fail("record", "schema_version must be 1");
+  if (record.schema_version !== 2) fail("record", "schema_version must be 2");
   if (!DATE.test(record.date)) fail("record: date", "must be YYYY-MM-DD");
   if (typeof record.commit !== "string" || !COMMIT.test(record.commit)) fail("record: commit", "must be the scanned commit's SHA, 7 to 40 lowercase hex digits");
   const verification = text(record.verification, "record: verification");
@@ -345,6 +360,7 @@ const REPORT_STYLE = `
   .badge-strong { border-color: var(--olive); }
   .badge-explore { border-color: var(--amber); }
   .badge-speculative { border-color: var(--muted); }
+  .size-basis { color: var(--muted); }
   .tag { font-family: var(--mono); font-size: .85rem; border: 1px solid var(--muted); border-radius: 6px; padding: 0 .4rem; }
   .adr { border-left: 4px solid var(--amber); padding-left: .75rem; }
   .panels { display: flex; flex-direction: column; gap: 1rem; }
@@ -438,7 +454,7 @@ function card(candidate, titles, isTop) {
   return [
     `<article class="card" id="${cardId(candidate.id)}"${isTop ? "" : ' hidden="until-found"'} tabindex="-1">`,
     `<h3 class="v" data-part="title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</h3>`,
-    `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span>${isTop ? '<span class="top-chip">Top recommendation</span>' : ""}</p>`,
+    `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span>${sizeBadge(candidate)}<span class="size-basis">${esc(candidate.size.basis)}</span>${isTop ? '<span class="top-chip">Top recommendation</span>' : ""}</p>`,
     part("problem", "Problem", p(candidate.problem)),
     part("solution", "Solution", p(candidate.solution)),
     part("diagram", "Before and after", `<div class="panels">${figure("Before", candidate.diagram.before, candidate)}${figure("After", candidate.diagram.after, candidate)}</div>`),
@@ -453,6 +469,7 @@ function card(candidate, titles, isTop) {
 }
 
 const verifiedWord = (verified) => verified.split(":")[0];
+const sizeBadge = (candidate) => `<span class="badge">Size ${esc(candidate.size.band)}</span>`;
 const shortId = (id) => id.toUpperCase();
 
 /** One line per drawing style, badge and term the page uses, and none it does not. */
@@ -476,6 +493,7 @@ export function legendLines(report) {
     ...drawing,
     ...used(report.candidates.map((candidate) => candidate.recommendation), BAND_MEANING),
     ...used(report.candidates.map((candidate) => candidate.category), CATEGORY_MEANING),
+    ...used(report.candidates.map((candidate) => `Size ${candidate.size.band}`), SIZE_MEANING),
     ...used(report.candidates.flatMap((candidate) => candidate.wins.map(({ term }) => term)), TERM_MEANING),
     ...used(report.candidates.map((candidate) => verifiedWord(candidate.verified)), VERIFIED_MEANING),
   ];
@@ -487,7 +505,7 @@ export function renderDeepening(report) {
   const top = report.candidates.find((candidate) => candidate.id === report.top);
   const tally = BANDS.map(([word]) => `${report.candidates.filter((candidate) => candidate.recommendation === word).length} ${word}`).join(", ");
   const order = BANDS.flatMap(([word]) => report.candidates.filter((candidate) => candidate.recommendation === word).sort((a, b) => (b.id === top.id) - (a.id === top.id)));
-  const item = (candidate) => `<li><a class="reader-item" href="#${cardId(candidate.id)}"${candidate.id === top.id ? ' aria-current="true"' : ""}><span class="reader-title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</span><span class="reader-meta"><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span><span>Verified: ${esc(verifiedWord(candidate.verified))}</span><span>${candidate.files.length} ${candidate.files.length === 1 ? "file" : "files"}</span>${candidate.dependsOn === null ? "" : `<span>Depends on ${esc(shortId(candidate.dependsOn))}</span>`}${candidate.id === top.id ? '<span class="top-chip">Top recommendation</span>' : ""}</span><span class="reader-problem"><span class="reader-label">Problem:</span> ${esc(candidate.problem)}</span><span class="reader-solution"><span class="reader-label">Solution:</span> ${esc(candidate.solution)}</span></a></li>`;
+  const item = (candidate) => `<li><a class="reader-item" href="#${cardId(candidate.id)}"${candidate.id === top.id ? ' aria-current="true"' : ""}><span class="reader-title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</span><span class="reader-meta"><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span>${sizeBadge(candidate)}<span>Verified: ${esc(verifiedWord(candidate.verified))}</span><span>${candidate.files.length} ${candidate.files.length === 1 ? "file" : "files"}</span>${candidate.dependsOn === null ? "" : `<span>Depends on ${esc(shortId(candidate.dependsOn))}</span>`}${candidate.id === top.id ? '<span class="top-chip">Top recommendation</span>' : ""}</span><span class="reader-problem"><span class="reader-label">Problem:</span> ${esc(candidate.problem)}</span><span class="reader-solution"><span class="reader-label">Solution:</span> ${esc(candidate.solution)}</span></a></li>`;
   const sidebar = BANDS.flatMap(([word]) => {
     const cards = order.filter((candidate) => candidate.recommendation === word);
     return cards.length ? [`<li class="reader-band">${esc(word)} · ${cards.length}</li>`, ...cards.map(item)] : [];

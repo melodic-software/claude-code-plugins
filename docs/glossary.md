@@ -37,8 +37,11 @@ confirmed in their own words before the deliverable is built.
 
 **context load**
 
-The tokens an agent pays to read a surface, charged on every session for always-loaded ones. Paired
-with cognitive load below; the two are distinct budgets and cutting one can overspend the other.
+What a surface costs an agent that reads it: the tokens, charged on every session for always-loaded
+ones, and the adherence it costs, since the agent follows a longer instruction file less reliably
+([memory: write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions),
+read 2026-11-21). Paired with cognitive load below; the two are distinct budgets and cutting one
+can overspend the other.
 
 **cognitive load**
 
@@ -122,6 +125,13 @@ meant; a bare "seam" outside these files reads as the module-design sense.
   ([`migration-playbook.md`](migration-playbook.md#extensibility-contract-v21-the-four-seams)).
 
 Avoid: renaming any of the five; each has a recorded decision that keeps it.
+
+**harness**
+
+The program that runs a model as an agent: it gives the model its tools, gates their use, loads
+its instructions and memory, and repeats the model-then-tools cycle. In this repository the
+harness is Claude Code, the sense in the `harness-config`, `harness-memory` and `harness-ops`
+plugin names ([Claude Code glossary](https://code.claude.com/docs/en/glossary), read 2026-11-21).
 
 ### Work items
 
@@ -350,7 +360,7 @@ Each maps to the term or doctrine that owns the concept.
 |---|---|
 | design concept | **shared understanding** above |
 | grill-execute-clear | the house workflow taxonomy, which already names the loop |
-| push vs point | **point, don't copy** (`discipline:point-dont-copy`) |
+| push vs point | always-loaded versus on-demand surfaces, the load tiers the `instruction-placement` plugin places content in |
 | highway / stale highway | **navigation pointer** above; survives only as a quoted mnemonic |
 | cache *(the doc-restating-environment sense)* | `docs-hygiene:audit-derivability`'s derivable-from-environment doctrine; the word is overloaded here (plugin cache, prompt cache) |
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |

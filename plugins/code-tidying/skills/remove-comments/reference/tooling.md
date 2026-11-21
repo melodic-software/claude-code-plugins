@@ -23,7 +23,7 @@ convention churn, and most repositories ship no such file.
 | scc | a release binary from the project's GitHub releases; also `brew install scc`, `go install github.com/boyter/scc/v3@latest` | none, static Go binary |
 | pygments | `pip install pygments` | Python 3 |
 | tree-sitter | `pip install tree-sitter tree-sitter-python tree-sitter-c-sharp tree-sitter-typescript tree-sitter-bash tree-sitter-javascript tree-sitter-yaml tree-sitter-toml` | Python 3; per-language wheels ship the grammar compiled in, so no network at run time |
-| pwsh | a platform package or release binary from the project's GitHub releases; `winget install Microsoft.PowerShell`, `brew install powershell/tap/powershell`. Preinstalled on the three GitHub-hosted runner images checked below | none, self-contained; not a pip install |
+| pwsh | a platform package or release binary from the project's GitHub releases; `winget install Microsoft.PowerShell`, `brew install powershell/tap/powershell` | none, self-contained; not a pip install |
 | ruff | `pip install ruff`, or the pinned wrapper a repository provides | none, static binary |
 | ast-grep | `pip install ast-grep-cli`, `npm i -g @ast-grep/cli`, `brew install ast-grep`, `cargo install ast-grep --locked` | none, static Rust binary |
 
@@ -35,29 +35,6 @@ Prefer the per-language tree-sitter wheels over `tree-sitter-language-pack`. The
 grammars from one install but downloads its parser bundle at first use, which fails behind a
 restricted proxy; the per-language wheels need no network after `pip install`.
 
-## What was measured, and when
-
-These are this skill's own measurements on this marketplace's tree (3,494 files, 40 MB), not
-claims about the tools' documentation. Recheck trigger: any of the pinned versions in
-`.github/requirements-ci.txt` moves, a new `tree-sitter-powershell` or PowerShell host release
-lands, or a probe row changes status on a machine where it used to pass.
-
-| Fact | Measured | Date |
-|---|---|---|
-| `scc` full-tree scan | 0.376 s | 2026-09-04 |
-| `pygments` per 100 shell files | 0.73 s | 2026-09-04 |
-| tree-sitter query vs pygments on the same 20.9 MB | 2.61 s vs 11.68 s; a Python-level node walk of the same parse is 5.4x slower than the query | 2026-09-04 |
-| Line-prefix grep vs `scc` on one heredoc-heavy test file | 95 "comments" vs 64; the 31 extra were fixture data inside heredocs | 2026-09-04 |
-| Shell files in this tree carrying a heredoc | 263 | 2026-09-04 |
-| `tree-sitter-language-pack` first-use download behind the cloud proxy | HTTP 502; per-language wheels unaffected | 2026-09-04 |
-| Both `sg` binaries present on the cloud image | `/usr/bin/sg -> newgrp` and `/usr/local/bin/sg` (ast-grep shim) | 2026-09-04 |
-| Versions pinned for CI | tree-sitter 0.26.0; grammars python 0.25.0, c-sharp 0.23.5, typescript 0.23.2, bash 0.25.1, javascript 0.25.0, yaml 0.7.2, toml 0.7.0 | 2026-09-07 |
-| tree-sitter-bash 0.25.1 rejects base-N arithmetic (`N#$var` inside `$(( ))`) | ERROR nodes, one spanning a third of `lib/hook-utils.sh`, so `change-shape.py` returns UNPROVABLE for the file against itself and no deletion or rename in it can carry a proof; 35 `.sh` files in this tree carry the form | 2026-09-08 |
-| tree-sitter-powershell 0.26.4 vs `Parser::ParseFile`, on 27,564 lines of real PowerShell (`Provisioning.psm1` 537 KB, `Provisioning.Tests.ps1` 1.0 MB) | the grammar: 33 ERROR + 1 MISSING and 115 ERROR + 172 MISSING, so both files are UNPROVABLE against themselves; the native parser: **0** parse errors on both, in 97 ms and 225 ms | 2026-09-20 |
-| Deleting every comment token by its extent, then comparing the `(Kind, Text)` sequence minus `Comment`/`NewLine` | identical for 1,069 comments in `Provisioning.psm1` and 2,114 in `Provisioning.Tests.ps1`; deleting only the `#Requires` line also leaves the sequence identical, which is why it is kept as its own leaf | 2026-09-20 |
-| PowerShell on the GitHub-hosted runner images, from [`actions/runner-images`](https://github.com/actions/runner-images) `main` | `ubuntu-24.04` 7.6.9 ([Ubuntu2404-Readme.md](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)), `windows-2025` 7.6.9 ([Windows2025-Readme.md](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md)), `macos-15` 7.6.4 ([macos-15-Readme.md](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)). Only these three were checked; other image labels are unverified. Recheck when a runner-images release changes the PowerShell version in any of the three readmes | 2026-11-11 |
-| `pwsh` 7.6.6 cold start, `-NoProfile -NonInteractive` | 0.50–0.69 s, plus roughly 1.5 s per megabyte of source to tokenize and serialize. A `List.Add` per token instead of an indexed write into a preallocated array costs 3.9 s on the 97k-token file where the indexed write costs 1.0 s, which is why nested string tokens are emitted as a side list rather than inline | 2026-09-21 |
-
 ## What no tool covers
 
 Six things this skill ships its own scripts for, because nothing packaged does them:
@@ -66,18 +43,10 @@ Six things this skill ships its own scripts for, because nothing packaged does t
   as a change, which destroys the signal.
 - The PowerShell reading of both (`ps-tokens.ps1`). The maintained tree-sitter grammar is not a
   usable backend here and adding it as a fallback would be worse than its absence: it would make the
-  probe report a layer as present that returns UNPROVABLE on every real file. The numbers are in the
-  table above; do not re-litigate this without new ones.
+  probe report a layer as present that returns UNPROVABLE on every real file.
 - Cross-language commented-out-code detection (`commented-out-code.py`): reparse the comment body
   with the file's own grammar and require structure prose cannot produce.
 - The comment-drift column in `rank-comment-targets.py`: comment lines older than the code under
   them, from `git blame` author-time, bounded to the top rows because blame is per-file and slow.
 - A comment census with byte-level token accounting and a baseline delta (`comment-census.py`).
-- Comment-versus-code contradiction detection in free prose. Nothing packaged exists; the
-  structured slice is covered per language by the C# compiler's CS1572/CS1573, Ruff's `DOC` rules
-  (preview) and `eslint-plugin-jsdoc`, and only where a repository already runs them.
-
-Prose quality of kept comments has one candidate, [Vale](https://vale.sh/), which lints comments
-in the languages its [Code format page](https://docs.vale.sh/formats/code) lists. That list named
-neither Bash nor YAML as of 2026-11-15 (recheck it before making Vale more than optional), so it is
-named here as an optional lane, never a dependency.
+- Comment-versus-code contradiction detection in free prose. Nothing packaged exists.

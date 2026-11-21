@@ -31,7 +31,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 
 ## Canonical roles
 
-Four labels are **canonical roles**: skill and action prose speaks the role name, and
+Five labels are **canonical roles**: skill and action prose speaks the role name, and
 the repo-actual label string resolves from the tracker binding (the `tracker` mapping of
 `<home>/work-items.yaml`), key `config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
 apply, so existing repos need zero migration.
@@ -42,6 +42,7 @@ apply, so existing repos need zero migration.
 | `human-gated` | `needs-human` | Needs human judgment (design decision, UX review, manual QA); excluded by `list-frontier --autonomous` |
 | `recurring-maintenance` | `recurring` | A scheduled maintenance item reconciled against `.github/recurring-schedule.json` |
 | `owner-decision` | `needs-owner-decision` | Parked on an owner's decision; the decision label `/work-items:morning-brief` lists and `/plugin-quality:audit` files an unresearched change under, and a hold label by default |
+| `session-owned` | `session-owned` | A local Claude Code session owns the work and does it itself; the lanes skip it and `list-frontier --autonomous` excludes it. Ownership only: no owner decision is pending (that is `human-gated`), and it says nothing about whether a person drives a run |
 
 Binding shape (every entry optional; unlisted roles keep their defaults):
 
@@ -52,7 +53,8 @@ Binding shape (every entry optional; unlisted roles keep their defaults):
       "autonomous-eligible": "agent-ready",
       "human-gated": "needs-human",
       "recurring-maintenance": "recurring",
-      "owner-decision": "needs-owner-decision"
+      "owner-decision": "needs-owner-decision",
+      "session-owned": "session-owned"
     }
   }
 }
@@ -66,9 +68,11 @@ entries that keep their default, so a conforming binding must not produce a stan
 lane pass. A present malformed, empty, or non-string entry is a configuration error, not permission to
 fall back silently. Two constraints on remapping:
 
-- **`human-gated` is shared with the seam.** `list-frontier --autonomous` excludes items by that
-  label. The shipped seam resolves it from `config.role_labels`; a consumer-local adapter must
-  resolve the same key, or the frontier filter and the skill will disagree.
+- **`human-gated` and `session-owned` are shared with the seam.** `list-frontier --autonomous`
+  excludes items by either label. The shipped seam resolves both from `config.role_labels`; a
+  consumer-local adapter must resolve the same keys, or the frontier filter and the skill will
+  disagree. The lanes' skip step (`.github/actions/check-born-triaged` in the marketplace
+  repository) reads `session-owned` from the same key.
 - **The remapped label must exist** in the consuming repo (or route through its label-as-code
   owner), the same never-create-ad-hoc rule as every other label.
 

@@ -80,6 +80,8 @@ So `.claude/mutation-testing-arid.local.md` is a **draft** file. Describing it a
 the config" is wrong in exactly the direction that matters. The config's later layers do take
 effect, and this record's do not.
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
+
 ## Obligations this skill must meet
 
 1. **Resolve layers per the cascade**: anchor at the repo root, read every layer that exists, merge

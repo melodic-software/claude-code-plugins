@@ -4,6 +4,7 @@ description: "Read-only labeler for /docs-hygiene:compress compare: labels every
 tools: "Read, Grep, Glob"
 model: inherit # reason: the dispatching session sets the model, and that choice must hold
 maxTurns: 30 # reason: bounds a runaway compare; what happens at the limit: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields
+omitClaudeMd: true # reason: the compare prompt carries the labels and output format, so the labeler needs no project instructions; what the field drops: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields
 ---
 
 You are a fresh-context labeler. The prompt you are dispatched with names the two directories,

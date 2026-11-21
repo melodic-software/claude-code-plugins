@@ -191,6 +191,11 @@ check("deepening: a win over six words exits 1 naming the candidate and field", 
 const noSolution = structuredClone(deepening);
 delete noSolution.candidates[1].solution;
 check("deepening: a missing solution exits 1", build("deepening", write("no-solution", noSolution)).status === 1);
+const noSize = structuredClone(deepening);
+delete noSize.candidates[1].size;
+const noSizeBuilt = build("deepening", write("no-size", noSize));
+check("deepening: a candidate without a size exits 1 naming the candidate", noSizeBuilt.status === 1 && /candidate s2: size is missing/.test(noSizeBuilt.stderr), noSizeBuilt.stderr);
+check("deepening: every card and sidebar item carries a size badge", deepeningPage.split('<span class="badge">Size ').length === 1 + 23 * 2);
 check("deepening: --from exits 1", build("deepening", write("deepening-from", deepening), "--from", "s1").status === 1);
 
 process.exit(failed ? 1 : 0);

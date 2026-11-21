@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-11-21
+
+### Changed
+
+- **`/tdd:principles` routing table, sources and test-design page carry no ecosystem-specific examples.** The routing table drops the `DateTime.Now` keyword, and the web-sourced reference list no longer names property, approval and snapshot tools' docs. `test-design.md` loses its Java and C# listings, its xUnit.net parameterized-test API guidance (`[Theory]`, `[InlineData]`, `[MemberData]`, `[Fact]`) and the Fluent Assertions library recommendation; its Fluent Assertions section is renamed "Readable Assertions" and keeps only the subject-action-object principle. Where a listing was the only place a rule appeared (evident expected values, failing an exception test that returns normally, Khorikov's naming refinements), the rule is now stated in prose. The rules the page teaches are unchanged ([#17763](https://github.com/melodic-software/claude-code-plugins/issues/17763)).
+
 ## [0.6.3] - 2026-11-21
 
 ### Changed
