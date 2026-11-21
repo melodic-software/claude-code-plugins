@@ -37,6 +37,21 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const QUOTE = /^ {0,3}>/;
 const REPO = /^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/;
 
+export const EVAL_GATED_LABEL = "eval-gated";
+export const OPEN_PULL_PAGES = 20;
+export const OPEN_PULLS_QUERY = `query($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: OPEN, first: 50, after: $cursor, orderBy: { field: CREATED_AT, direction: ASC }) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        labels(first: 100) { nodes { name } }
+        closingIssuesReferences(first: 10) { nodes { number repository { nameWithOwner } labels(first: 100) { nodes { name } } } }
+      }
+    }
+  }
+}`;
+
 export const releasedMarker = (head, recordId) => `<!-- eval-hold-released head=${head} record=${recordId} -->`;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -121,12 +136,7 @@ export function decide({ pull, comments, reviews = [], events, humans }) {
   if (vetoing.length > 0) {
     return keep(`member-veto-${vetoing.join(",")}`);
   }
-  const records = recent
-    .filter((comment) => byHuman(comment, humans))
-    .map((comment) => ({ comment, heads: markers(comment.body, RECORD) }))
-    .filter(({ heads }) => heads.length === 1)
-    .sort((a, b) => String(a.comment.created_at).localeCompare(String(b.comment.created_at)));
-  const newest = records.at(-1);
+  const newest = newestRecord(recent, humans);
   if (newest === undefined) {
     return keep("no-record");
   }
@@ -145,6 +155,114 @@ export function mayRelease(comments, humans) {
     return "no-eval-hold";
   }
   return human.some((comment) => markers(comment.body, RECORD).length > 0) ? null : "no-record";
+}
+
+const newestRecord = (comments, humans) =>
+  comments
+    .filter((comment) => byHuman(comment, humans))
+    .map((comment) => ({ comment, heads: markers(comment.body, RECORD) }))
+    .filter(({ heads }) => heads.length === 1)
+    .sort((a, b) => String(a.comment.created_at).localeCompare(String(b.comment.created_at)))
+    .at(-1);
+
+const labelNames = (connection) => (Array.isArray(connection?.nodes) ? connection.nodes.map((node) => node?.name) : []);
+
+/**
+ * The first issue in `repo` that `pull` (an OPEN_PULLS_QUERY node) closes and
+ * that carries EVAL_GATED_LABEL, as its number, or null.
+ */
+export function evalGatedIssue(pull, repo) {
+  const own = (issue) => String(issue?.repository?.nameWithOwner).toLowerCase() === String(repo).toLowerCase();
+  const nodes = Array.isArray(pull?.closingIssuesReferences?.nodes) ? pull.closingIssuesReferences.nodes : [];
+  const issue = nodes.find((node) => own(node) && Number.isSafeInteger(node.number) && labelNames(node.labels).includes(EVAL_GATED_LABEL));
+  return issue === undefined ? null : issue.number;
+}
+
+/**
+ * Whether to hold one open pull request that closes an eval-gated issue:
+ * { hold: true } or { hold: false, reason }. `pull` is GET pulls/{n};
+ * `comments` the issue comments, every page; `humans` the listed humans' ids.
+ * One held for eval before, by a listed human or the lanes App, is left to
+ * the release and to whoever took the label off since.
+ */
+export function holdDecision({ pull, comments, humans }) {
+  const keep = (reason) => ({ hold: false, reason });
+  if (pull?.state !== "open" || pull.merged_at) {
+    return keep("not-open");
+  }
+  if ((pull.labels ?? []).some((label) => label?.name === LABEL)) {
+    return keep("labeled");
+  }
+  const all = comments ?? [];
+  if (all.some((comment) => (byHuman(comment, humans) || byLanesApp(comment)) && markers(comment.body, HOLD).includes(EVAL_REASON))) {
+    return keep("held-before");
+  }
+  const newest = newestRecord(all, humans);
+  if (newest !== undefined && newest.heads[0] === pull.head?.sha) {
+    return keep("record-at-head");
+  }
+  return { hold: true };
+}
+
+export const evalHoldComment = (issueNumber) =>
+  `Held for the before-and-after eval that #${issueNumber} needs: this pull request closes #${issueNumber}, which carries \`${EVAL_GATED_LABEL}\`. The pr-merge release step lifts this hold when a listed human posts an eval-pair record for the current head.\n\n<!-- pr-hold reason=${EVAL_REASON} -->`;
+
+async function evalGatedPulls(github, repo) {
+  const [owner, name] = repo.split("/");
+  const gated = [];
+  let cursor = null;
+  for (let page = 0; page < OPEN_PULL_PAGES; page += 1) {
+    const answer = await github("POST", "/graphql", { query: OPEN_PULLS_QUERY, variables: { owner, name, cursor } });
+    const connection = answer?.data?.repository?.pullRequests;
+    if (!Array.isArray(connection?.nodes)) {
+      throw new Error("the open pull requests did not read");
+    }
+    for (const node of connection.nodes) {
+      const issue = evalGatedIssue(node, repo);
+      if (issue !== null && Number.isSafeInteger(node.number) && !labelNames(node.labels).includes(LABEL)) {
+        gated.push({ number: node.number, issue });
+      }
+    }
+    if (!connection.pageInfo?.hasNextPage) {
+      return gated;
+    }
+    cursor = connection.pageInfo.endCursor;
+  }
+  throw new Error(`the open pull requests run past ${OPEN_PULL_PAGES} pages`);
+}
+
+async function holdEvalGated(github, repo, humans) {
+  const counts = { gated: 0, added: 0, kept: 0, failed: 0 };
+  let gated;
+  try {
+    gated = await evalGatedPulls(github, repo);
+  } catch (error) {
+    counts.failed += 1;
+    console.log(`::error title=release-eval-hold::${escapeCommand(error?.message ?? error)}`);
+    return counts;
+  }
+  counts.gated = gated.length;
+  for (const { number, issue } of gated) {
+    try {
+      const base = `/repos/${repo}/issues/${number}`;
+      const comments = await paginate(github, `${base}/comments`);
+      const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
+      const result = holdDecision({ pull, comments, humans });
+      if (!result.hold) {
+        console.log(`release-eval-hold: #${number} not held: ${result.reason}`);
+        counts.kept += 1;
+        continue;
+      }
+      await github("POST", `${base}/labels`, { labels: [LABEL] }, {}, { resendOnce: true });
+      await github("POST", `${base}/comments`, { body: evalHoldComment(issue) }, {}, { resendOnce: true });
+      counts.added += 1;
+      console.log(`release-eval-hold: #${number} held for eval: it closes eval-gated #${issue}`);
+    } catch (error) {
+      counts.failed += 1;
+      console.log(`::error title=release-eval-hold::#${number}: ${escapeCommand(error?.message ?? error)}`);
+    }
+  }
+  return counts;
 }
 
 // The comments first; the rest only for a pull request that may release.
@@ -186,6 +304,8 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
     const bot = env.LANES_BOT_LOGIN || LANES_APP_LOGIN;
     const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    const holds = await holdEvalGated(github, repo, humans);
+    summary(`release-eval-hold: eval-gated=${holds.gated} holds-added=${holds.added} not-held=${holds.kept} failed=${holds.failed}`);
     const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}&sort=created&direction=asc`)).filter(
       (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
     );
@@ -240,7 +360,7 @@ export async function main({ env = process.env, github, now = Date.now } = {}) {
     if (env.GITHUB_OUTPUT) {
       appendFileSync(env.GITHUB_OUTPUT, `released=${released.join(" ")}\n`);
     }
-    return counts.failed === 0 ? 0 : 1;
+    return counts.failed + holds.failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=release-eval-hold::${escapeCommand(error?.message ?? error)}`);
     return 1;
