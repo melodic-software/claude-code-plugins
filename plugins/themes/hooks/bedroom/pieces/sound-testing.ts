@@ -19,8 +19,11 @@ export const NIGHT = { time: 'night', weather: 'clear', hall: false, signal: fal
 
 /** A command the fake mixer ran: its seq, its words, and when it reached it. */
 export type Ran = { seq: number; words: string[]; at: number }
-/** A fake of the Windows mixer behind the engine: it answers each command line written to its file as the script does. */
-export type FakeMixer = { ran: Ran[]; outbox: string[]; wake?: () => void; ended: boolean; endedAt?: number; last: number; exitCode?: number; mute?: boolean }
+/**
+ * A fake of the Windows mixer behind the engine: it answers each command line written to its file as the script does,
+ * `voices` with the words in `voices` (none when unset).
+ */
+export type FakeMixer = { ran: Ran[]; outbox: string[]; wake?: () => void; ended: boolean; endedAt?: number; last: number; exitCode?: number; mute?: boolean; voices?: string }
 const READY = 'ready C:\\Temp\\claude-bedroom-sound-1\\commands.txt\n'
 export const COMMANDS = '/mnt/c/Temp/claude-bedroom-sound-1/commands.txt'
 
@@ -33,6 +36,7 @@ export function runFile(m: FakeMixer, text: string, at: number): void {
     .filter(words => /^\d+$/.test(words[0] ?? '') && Number(words[0]) > m.last)
   for (const words of [...todo.filter(w => w[1] === 'shot'), ...todo.filter(w => w[1] !== 'shot')]) {
     m.ran.push({ seq: Number(words[0]), words: words.slice(1), at })
+    if (words[1] === 'voices') m.outbox.push(`voices ${words[0]}${m.voices === undefined ? '' : ` ${m.voices}`}\n`)
     m.outbox.push(`ok ${words[0]}\n`, ...(words[1] === 'shot' ? [`sounding ${words[0]}\n`] : []))
   }
   m.last = Math.max(m.last, ...todo.map(words => Number(words[0])))

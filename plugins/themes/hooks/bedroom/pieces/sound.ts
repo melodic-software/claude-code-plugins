@@ -9,7 +9,7 @@ import { ACCEPT, BUILT, HURRY, WITHOUT, WORLD } from '../core/signals.gen.js'
 import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
 import { KINDS, OBJECTS, PURR, SILENCE, chosen, chosenName, lengthOf, namesOf, shotsOf, type Kind } from './sound-bank.js'
-import { PING_MS, QUIET_MS, fileOf, linesOf, mixerScript, powershellArgv, type MixerCommand } from './sound-mixer.js'
+import { PING_MS, QUIET_MS, fileOf, linesOf, mixerScript, powershellArgv, type MixerCommand, type MixerVoice } from './sound-mixer.js'
 import { rowStarts, sunTimes } from './time.js'
 import { roll } from './weather.js'
 
@@ -158,7 +158,22 @@ const stopPlay = (play: Play): void => {
  * The mixer's side of the mod: the commands not yet answered, the command file once it is named, its child's end, its
  * pid, when it last wrote anything (it writes a dot every BEAT_MS), and whether it has answered a command.
  */
-type Mixer = { seq: number; pending: { seq: number; command: MixerCommand }[]; path?: string; writing: Promise<void>; kill?: () => void; heard: number; pid?: number; heardAt: number; answered: boolean }
+type Mixer = {
+  seq: number
+  pending: { seq: number; command: MixerCommand }[]
+  path?: string
+  writing: Promise<void>
+  kill?: () => void
+  heard: number
+  pid?: number
+  heardAt: number
+  answered: boolean
+  asked?: { seq: number; answer: (voices: MixerVoice[]) => void }
+}
+/** The last file a mixer's player could not open, kept across mixers for /bedroom sound. */
+let lastFailed: { name: string; text: string; at: number } | undefined
+/** How long /bedroom sound waits for the mixer to report its voices. */
+export const VOICES_WAIT_MS = 800
 /** A mixer silent this long, its exit unseen (a reload can lose it, an app closed can kill it), is taken for gone. */
 export const SILENT_MS = 10_000
 type Out = { player: Player; isDone: boolean; mixer?: Mixer; bedPlay?: Play; shots: Set<Play> }
@@ -246,6 +261,13 @@ async function runMixer($: EngineInterface, o: Out, m: Mixer): Promise<void> {
         flush($)
       } else if (line.kind === 'error') {
         said = line.text
+      } else if (line.kind === 'failed') {
+        lastFailed = { name: line.name, text: line.text, at: await $.clock.now() }
+        ctxOf($).note(`sound: the mixer could not open ${line.name}: ${line.text}`)
+        flush($)
+      } else if (line.kind === 'voices' && m.asked?.seq === line.seq) {
+        m.asked.answer(line.voices)
+        m.asked = undefined
       }
     }
   }
@@ -926,7 +948,38 @@ async function setPick(ctx: Ctx, kind: string | undefined, name: string | undefi
   return `${known} plays ${picked}`
 }
 
-const WHAT = 'the television, the room\'s things, cicadas from mid-afternoon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
+/** The voices the running mixer reports, waited for VOICES_WAIT_MS; undefined when it does not answer in time. */
+function askVoices($: EngineInterface, o: Out, m: Mixer): Promise<MixerVoice[] | undefined> {
+  return new Promise(resolve => {
+    const timer = $.clock.after(VOICES_WAIT_MS, () => {
+      if (m.asked?.answer === answer) m.asked = undefined
+      resolve(undefined)
+    })
+    const answer = (voices: MixerVoice[]): void => {
+      timer.cancel()
+      resolve(voices)
+    }
+    mixerSend($, o, { verb: 'voices' })
+    m.asked = { seq: m.seq, answer }
+  })
+}
+
+const voiceWords = (v: MixerVoice): string =>
+  `${v.name} volume ${v.volume.toFixed(4)} at ${Math.round(v.atMs)} ms, length ${v.lengthKnown ? 'known' : 'unknown'}${v.drop ? ', ending' : ''}`
+
+/** The end of /bedroom sound: the mixer's own report of its voices, how long since it last wrote, and the last file it could not open. */
+async function mixerWords($: EngineInterface): Promise<string> {
+  const now = await $.clock.now()
+  const failed = lastFailed === undefined ? '' : ` last open failure: ${lastFailed.name} ${Math.round((now - lastFailed.at) / 1000)} s ago: ${lastFailed.text}.`
+  const o = out
+  if (o?.mixer === undefined || o.isDone) return failed
+  const m = o.mixer
+  const voices = await askVoices($, o, m)
+  const said = voices === undefined ? 'no answer' : voices.length === 0 ? 'none' : voices.map(voiceWords).join('; ')
+  return ` mixer last heard ${Math.max(0, Math.round((await $.clock.now()) - m.heardAt))} ms ago; its voices: ${said}.${failed}`
+}
+
+const WHAT ='the television, the room\'s things, cicadas from mid-afternoon through dusk and crickets and katydids from evening until dawn in dry weather, rain, a downpour and a storm'
 
 /**
  * /bedroom sound on|off|test|volume N|pick KIND NAME|objects on|off. test plays only the silent file, and looks without
@@ -996,7 +1049,7 @@ export async function engineCommand($: EngineInterface, ctx: Ctx, word: string, 
               ? 'no player is running yet; it starts within a second'
               : undefined
     const state = !ctx.setting('sound') ? 'off' : silent === undefined ? 'on' : `on but nothing plays: ${silent}`
-    return `sound is ${state}, volume ${volumeOf(ctx.saved)}, objects ${objectsOn(ctx.saved) ? 'on' : 'off'}. bank: ${bankWords(ctx.saved)}. player: ${player}${out?.mixer?.pid === undefined ? '' : ` (powershell.exe process ${out.mixer.pid})`}${failure === undefined ? '' : `, stopped: ${failure}`}. last one-shot sent: ${last}. Say on, off, test, volume N, pick KIND NAME or objects on|off`
+    return `sound is ${state}, volume ${volumeOf(ctx.saved)}, objects ${objectsOn(ctx.saved) ? 'on' : 'off'}. bank: ${bankWords(ctx.saved)}. player: ${player}${out?.mixer?.pid === undefined ? '' : ` (powershell.exe process ${out.mixer.pid})`}${failure === undefined ? '' : `, stopped: ${failure}`}. last one-shot sent: ${last}. Say on, off, test, volume N, pick KIND NAME or objects on|off${await mixerWords($).then(words => (words === '' ? '' : `.${words}`))}`
   } catch (error) {
     return `sound could not answer: ${error instanceof Error ? error.message : String(error)}`
   }

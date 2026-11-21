@@ -116,6 +116,22 @@ test("the mixer's command file, its answers and its script", () => {
   expect(script).toContain(`if($parent -gt 0 -and $now-$looked -ge ${PARENT_MS}){$looked=$now;try{[void][Diagnostics.Process]::GetProcessById($parent)}catch{Stop $now}}`)
   expect(script).toContain("Say ('pid '+$PID)")
   expect(linesOf('pid 4242\n').lines).toEqual([{ kind: 'pid', pid: 4242 }])
+  expect(wordsOf({ verb: 'voices' })).toBe('voices')
+  expect(linesOf('.voices 9 cicadas/chorus.wav,0.4900,1234,1,0 rain/roof-rain.wav,0.0000,0,0,1\nvoices 10\nfailed rain/roof-rain.wav Cannot open the file.\n').lines).toEqual([
+    {
+      kind: 'voices',
+      seq: 9,
+      voices: [
+        { name: 'cicadas/chorus.wav', volume: 0.49, atMs: 1234, lengthKnown: true, drop: false },
+        { name: 'rain/roof-rain.wav', volume: 0, atMs: 0, lengthKnown: false, drop: true },
+      ],
+    },
+    { kind: 'voices', seq: 10, voices: [] },
+    { kind: 'failed', name: 'rain/roof-rain.wav', text: 'Cannot open the file.' },
+  ])
+  expect(script).toContain("$p.add_MediaFailed({param($s,$e)[Console]::Out.Write('failed '+$n+' '+")
+  expect(script).toContain("'voices'{[Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke(")
+  expect(script).toContain("+[int]$v.p.NaturalDuration.HasTimeSpan+','+[int]$v.drop};Say $t}")
   expect(script).toContain(`if($now-$beat -ge ${BEAT_MS})`)
   expect(script).toContain('Remove-Item -LiteralPath $dir')
   expect(script).toContain(`if($key -ne $stamp -or $now -ge $reread){$reread=$now+${STEADY_MS};`)
