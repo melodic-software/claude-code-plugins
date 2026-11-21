@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: rethink-or-accept-asked
     type: regex
-    pattern: '❓\s*[*_]{0,2}Q1:[^\n]*(?:\brethink\b[^\n]*\bor\b|\bor\b[^\n]*\brethink\b)'
+    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\bwrapper\b)[^\n]*(?:\brethink\b[^\n]*\bor\b|\bor\b[^\n]*\brethink\b)'
     flags: i
     arm: both
   - name: no-plan-write

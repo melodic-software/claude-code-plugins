@@ -11,6 +11,8 @@
     {"answer": "❓ Q1: **What problem does the retry wrapper solve, and why do you want it solved now?**", "why": "open what-problem question, no rethink-or-accept choice"},
     {"answer": "❓ Q1: **Which quality bar is this for: prototype, internal tool, or production?**\n\n❓ Q2: **What problem is the retry wrapper meant to solve, and why now?**", "why": "first question is the quality bar, and no question offers rethink or accept"},
     {"answer": "❓ Q1: **Which quality bar is this for?**\n\n❓ Q2: **Rethink the approach, or accept the retry wrapper?**", "why": "the rethink-or-accept question is not the first question"},
-    {"answer": "❓ Q1: **Should we rethink the approach?**", "why": "rethink alone, no second choice offered"}
+    {"answer": "❓ Q1: **Should we rethink the approach?**", "why": "rethink alone, no second choice offered"},
+    {"answer": "❓ Q1: **Should we rethink the retry count or the backoff interval first?**", "why": "wrapper parameters, not whether the wrapper is the right approach"},
+    {"answer": "❓ Q1: **Rethink the approach, or keep going?**", "why": "the prescribed retry wrapper is never named as a choice"}
   ]
 }
