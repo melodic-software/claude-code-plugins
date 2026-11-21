@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-11-21
+
+### Added
+
+- The notes host page's Copy menu has Copy chosen design: it copies the text the mockup's own copy-out terminator gives, which a mockup builds in `window.uiFeedbackCopyOut`. Framed by the host page, the mockup's data bar, marked `data-harness-chrome`, hides, and the bar's Sample data menu presses its controls; opened alone from `file://` the page keeps its own bar.
+
 ## [0.45.1] - 2026-11-21
 
 ### Fixed

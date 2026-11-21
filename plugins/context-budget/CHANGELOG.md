@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.5] - 2026-11-21
+
+### Fixed
+
+- The audit skill's write-posture note says the guardrails `settings-write-ask` checkpoint
+  denies a settings edit in a session nobody can answer, instead of claiming it always asks.
+
 ## [2.1.4] - 2026-11-21
 
 ### Changed
