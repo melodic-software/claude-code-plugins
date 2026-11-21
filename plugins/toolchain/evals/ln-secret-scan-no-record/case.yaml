@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ln-secret-scan-no-record
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-secret-scan
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*|(?:command\s+-v|which|type|hash)\s+(?:-\S+\s+)*\\?["'']?)gitleaks\b'
+    arm: both
+  - name: secret-scan-reported
+    type: regex
+    pattern: '(?:secret[- ]scan|gitleaks)[^\n]{0,120}?(?:\b(?:pass|FAIL)\b|skip\W{0,4}\(\s*tool missing:\s*[`*]{0,2}gitleaks)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:lint` in a repository with no cross-cutting record, a .gitleaks.toml at the root, every other ecosystem disabled, and one changed text file. It meets the security floor: the secret scan runs (gitleaks is invoked, or probed and reported as `skip (tool missing: gitleaks)`), and the reply reports its result. A reply that drops the secret scan, or reports it as unresolved because no record names it, does not meet it.'
