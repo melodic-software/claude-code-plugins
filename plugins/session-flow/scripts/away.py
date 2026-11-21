@@ -62,6 +62,7 @@ except ImportError:
 
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
+import dialect  # noqa: E402
 import plugin_paths  # noqa: E402
 from away_launch import launch_warnings  # noqa: E402
 
@@ -864,7 +865,20 @@ def write_blocks(state: Mapping, blocks: Mapping[str, list[str]]) -> None:
     text = report.read_text(encoding="utf-8") if report.exists() else skeleton(state)
     for name, lines in blocks.items():
         text = replace_block(text, name, render_block(name, lines))
-    write_atomic(report, text)
+    write_atomic(report, american_sections(text, report.parent))
+
+
+def american_sections(text: str, cwd: Path) -> str:
+    """The report with its authored sections in American spelling; the header and the
+    script-owned blocks, which hold the person's scope, commands and paths, stay as written."""
+    split = text.find("\n## ")
+    if split < 0:
+        return text
+    head, rest = text[:split], text[split:]
+    pieces = re.split(r"(<!-- away:\w+:begin -->.*?<!-- away:\w+:end -->)", rest, flags=re.S)
+    for index in range(0, len(pieces), 2):
+        pieces[index] = dialect.americanize(pieces[index], cwd)[0]
+    return head + "".join(pieces)
 
 
 def cmd_refresh(args: argparse.Namespace, paths: Paths) -> int:

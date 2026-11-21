@@ -83,6 +83,8 @@ names the parked item), and keep working. Other merges follow the repository's o
   end and `end` scans the files, so run no `refresh` while the person is away, and never edit
   between the blocks' markers. Re-read the report before editing it, since the hook may have
   rewritten it.
+- Write the report in American English, quoting the person's words as given; each hook rewrite
+  corrects the spelling outside quotes, code and the script's blocks when `typos` is on PATH.
 - Before stopping, run `away.py check`; fix each failing criterion it names.
 - Waiting on me holds only what you can still run yourself, with what it waits on.
 

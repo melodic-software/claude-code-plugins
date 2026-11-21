@@ -240,7 +240,7 @@ run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/sc
 call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
 holding the values for the `<!-- FILL: … -->` slots, sized to the `budget:` line `new` prints,
 apply them with one `save_point.py fill <file> --slots <json>`, and paste the rails it prints
-after a PASS or WARN verdict. Edit is the repair path after a FAIL line, never the fill. The screen and the file's `## Resume prompt`
+after a PASS or WARN verdict. Edit is the repair path after a FAIL line, never the fill. Write every slot in American English, quoting the owner's words as given; `fill` and `amend` correct the spelling of non-verbatim slots when `typos` is on PATH. The screen and the file's `## Resume prompt`
 section are the same bytes by construction. Two refusals route elsewhere and are stated, never
 worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
 (`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
