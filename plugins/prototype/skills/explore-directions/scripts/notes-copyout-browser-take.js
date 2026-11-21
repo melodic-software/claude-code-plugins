@@ -43,6 +43,17 @@ async page => {
     ok("a copy-out holding markup copies nothing and says why", (await block()) === B && /nothing was copied/.test(await status()), [await block(), await status()]);
     ok("and makes no element and runs no handler", (await page.$$("#panel img")).length === 0 && await page.evaluate(() => window.__xss) === undefined);
 
+    for (const why of ["throws", "returns no string", "is gone"]) {
+      await frame.evaluate((w) => {
+        window.uiFeedbackCopyOut = w === "throws" ? () => { throw new Error("broken copy-out"); } : w === "returns no string" ? () => 42 : undefined;
+      }, why);
+      await page.click("#copy-button");
+      await page.click("#copy-chosen");
+      await page.waitForFunction(() => /gave nothing/.test(document.getElementById("status").textContent), null, { timeout: 5000 }).catch(() => {});
+      ok(`when the page's copy-out function ${why}, nothing is copied and the status says it gave nothing`, (await block()) === B && /gave nothing.*console/.test(await status()), [await block(), await status()]);
+      await page.evaluate(() => { document.getElementById("status").textContent = ""; });
+    }
+
     await frame.evaluate(() => window.parent.postMessage({ type: "chosen", text: "unasked" }, "*"));
     await page.waitForTimeout(300);
     ok("a chosen-design message the host page did not ask for copies nothing", (await block()) === B, await block());

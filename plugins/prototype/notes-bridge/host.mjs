@@ -542,6 +542,7 @@ function copyChosen(m) {
   wantChosen = false;
   if ($("panel").hidden) setPanel(true);
   selectTab(tabs[0], false);
+  if (typeof m.text !== "string") return say("The mockup's copy-out function gave nothing, so nothing was copied; see the mockup's console.");
   const text = chosenFrom(m);
   if (text === null) return say("The mockup's chosen design is not plain text of at most 8000 characters, so nothing was copied.");
   $("block").value = text;
