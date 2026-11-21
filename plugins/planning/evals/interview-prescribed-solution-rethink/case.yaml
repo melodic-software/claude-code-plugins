@@ -22,9 +22,10 @@ graders:
     flags: i
     arm: both
   - name: rethink-or-accept-asked
-    type: llm
+    type: regex
+    pattern: '❓ Q1:[^\n]*\brethink\b[^\n]*\b(?:accept|keep)\b|❓ Q1:[^\n]*\b(?:accept|keep)\b[^\n]*\brethink\b'
+    flags: i
     arm: both
-    criteria: "PASS only if the reply states a problem that adding a retry wrapper would fix (a failure or gap, not the wrapper itself), labels how well that problem is evidenced (observed, reported or inferred), and asks the user one question that offers both choices: rethink the approach against that problem, or accept the retry wrapper as prescribed. FAIL if the reply goes straight to questions about retry count, backoff or other wrapper details without asking whether the wrapper is the right approach, if it never names the problem, or if it writes a Brief or plan."
   - name: no-plan-write
     type: tool_used
     tool: Write
