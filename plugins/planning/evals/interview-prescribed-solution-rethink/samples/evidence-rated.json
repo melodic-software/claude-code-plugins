@@ -5,7 +5,8 @@
     {"answer": "Nothing in the repo shows lost deliveries, so this problem is inferred, not observed.", "why": "rating after the word problem"},
     {"answer": "Gap: deliveries lost on brief endpoint failures (reported: support says so, no log).", "why": "parenthesized rating with a note"},
     {"answer": "Nothing in the logs records a lost delivery, so the problem is *inferred* from the code.", "why": "markdown emphasis around the rating word"},
-    {"answer": "**Evidence:** _reported_ by support, no log found.", "why": "emphasis around both the label and the rating word"}
+    {"answer": "**Evidence:** _reported_ by support, no log found.", "why": "emphasis around both the label and the rating word"},
+    {"answer": "The problem as I read it, rated `inferred` (my reading of the code, no log or incident behind it): webhook deliveries are lost to transient failures.", "why": "backticked rating word after rated"}
   ],
   "fail": [
     {"answer": "", "why": "empty reply"},

@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.11.6] - 2026-11-21
+
+### Changed
+
+- Shared `proto-pin.js` synced where this plugin carries it ([#17949](https://github.com/melodic-software/claude-code-plugins/issues/17949)); no other change to this plugin.
+
+## [5.11.5] - 2026-11-21
+
+### Fixed
+
+- A request phrased as a solution with no stated problem ("add a retry wrapper") now opens the interview with the problem worked back out, its evidence rating, and one rethink-or-accept question, per `problem-framing.md` "Prescribed solution", instead of an open question asking what problem it solves. The open what-problem question stays for a request that names neither a problem nor a solution.
+
 ## [5.11.4] - 2026-11-21
 
 ### Changed

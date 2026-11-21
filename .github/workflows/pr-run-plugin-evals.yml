@@ -1,4 +1,10 @@
 name: PR Run Plugin Evals
+# release-eval-hold.mjs reads a compare run's pull request and head from this
+# name, since the runs API returns no dispatch inputs
+# (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
+  && format('eval-compare pr={0} head={1}', inputs.pr, inputs.head-sha) || '' }}
 
 # Runs `claude plugin eval` on a fresh GitHub-hosted runner, two ways:
 #
@@ -120,6 +126,32 @@ on:
         required: false
         type: boolean
         default: true
+      mode:
+        description: >-
+          suite runs the target's suite as above. compare runs the target's
+          deterministic cases that case or tag selects (one is required) on pull request pr's
+          merge base and on head-sha, each as plugin text on this branch's
+          harness, on the API key only, and posts the eval-pair record on a
+          PASS; runs, allow-tools and the inputs after them do not apply.
+        required: false
+        type: choice
+        options: [suite, compare]
+        default: suite
+      pr:
+        description: Compare mode only, the pull request number.
+        required: false
+        type: string
+        default: ""
+      head-sha:
+        description: Compare mode only, the pull request head to measure; a head that moves stops the run before any record.
+        required: false
+        type: string
+        default: ""
+      cost-cap-usd:
+        description: Compare mode only, required, the per-run cost ceiling in whole US dollars, 1 to 12.
+        required: false
+        type: string
+        default: ""
   # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
   # completion runs this file from main, never the PR's copy
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
@@ -154,7 +186,7 @@ jobs:
   check-key-credit:
     name: Check Key Credit
     if: >-
-      (github.event_name == 'workflow_dispatch'
+      (github.event_name == 'workflow_dispatch' && inputs.mode != 'compare'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
       || (github.event_name == 'workflow_run'
       && github.event.workflow_run.event == 'pull_request'
@@ -2124,6 +2156,385 @@ jobs:
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # Compare mode (owner decision Q136,
+  # https://github.com/melodic-software/claude-code-plugins/issues/17854): the
+  # pull request's merge base and head reach the eval only as plugin text,
+  # patched onto this branch by compare-arms.sh from git objects; no script,
+  # hook, workflow or manifest of either runs. Each arm runs on the API key
+  # alone. The record job is the only one that writes: it holds issues: write,
+  # checks out only this branch, and posts nothing unless every job before it
+  # passed and the head has not moved. A run whose jobs all skipped (a dispatch
+  # on a tag, which compare-prepare's ref gate skips) still concludes success,
+  # so release-eval-hold.mjs trusts the record only by reading this run back
+  # and finding its Compare Record job (that name, RECORD_JOB there) succeeded.
+  compare-prepare:
+    name: Compare Prepare
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      base-sha: ${{ github.sha }}
+      plugin: ${{ steps.inputs.outputs.plugin }}
+      merge-base: ${{ steps.arms.outputs.merge-base }}
+      before-artifact-id: ${{ steps.before.outputs.artifact-id }}
+      before-sha256: ${{ steps.arms.outputs.before-sha256 }}
+      after-artifact-id: ${{ steps.after.outputs.artifact-id }}
+      after-sha256: ${{ steps.arms.outputs.after-sha256 }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Stop when the kill switch is on
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      - name: Check the dispatcher is a trusted human
+        env:
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          ACTOR_ID: ${{ github.actor_id }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "::error::rerun-refused: a re-run of this workflow is not supported; dispatch it again"
+            exit 1
+          fi
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ "$ACTOR_ID" = "$APP_SENDER_ID" ]; then
+            echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$ACTOR_ID" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+            ' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the dispatcher is not a listed human"
+            exit 1
+          fi
+
+      - name: Check the compare inputs
+        id: inputs
+        env:
+          PR: ${{ inputs.pr }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          TARGET: ${{ inputs.target }}
+          COST_CAP: ${{ inputs.cost-cap-usd }}
+          CASE: ${{ inputs.case }}
+          TAGS: ${{ inputs.tag }}
+        run: |
+          [[ $PR =~ ^[1-9][0-9]{0,9}$ ]] || { echo "::error::pr must be a pull request number"; exit 1; }
+          [[ $HEAD_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::head-sha must be a full 40-character SHA"; exit 1; }
+          target=${TARGET%/}
+          [[ $target =~ ^plugins/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "::error::target must be a plugin directory, plugins/<name>"; exit 1; }
+          if ! [[ $COST_CAP =~ ^[1-9][0-9]*$ ]] || ((COST_CAP > 12)); then
+            echo "::error::cost-cap-usd is required in compare mode, a whole number of US dollars from 1 to 12; nothing ran"
+            exit 1
+          fi
+          read -ra tags <<<"$TAGS"
+          if [ -z "$CASE" ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::compare mode runs the registered cases: set case or tag, so the whole suite never runs twice"
+            exit 1
+          fi
+          for value in "${tags[@]}" "$CASE"; do
+            case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
+          done
+          echo "plugin=${target#plugins/}" >>"$GITHUB_OUTPUT"
+
+      - name: Check the pull request head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: bash .base/.github/scripts/plugin-eval/compare-head.sh
+
+      - name: Fetch the pull request's commits as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.head-sha }}
+          path: .head
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build the arm patches
+        id: arms
+        env:
+          REPO: .head
+          MAIN_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          PLUGIN: ${{ steps.inputs.outputs.plugin }}
+          OUT: ${{ runner.temp }}/arms
+        run: bash .base/.github/scripts/plugin-eval/compare-arms.sh
+
+      - name: Scan the before patch for credentials
+        id: scan-before
+        if: steps.arms.outputs.before-sha256 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/arms/before/edit.patch
+
+      - name: Scan the after patch for credentials
+        id: scan-after
+        if: steps.arms.outputs.after-sha256 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/arms/after/edit.patch
+
+      - name: Stop on a patch the scan did not clear
+        if: >-
+          (steps.arms.outputs.before-sha256 != '' && steps.scan-before.outputs.clean != 'true')
+          || (steps.arms.outputs.after-sha256 != '' && steps.scan-after.outputs.clean != 'true')
+        run: |
+          echo "::error::the credential scan did not clear the arm patches; no arm runs"
+          exit 1
+
+      - name: Upload the before patch
+        id: before
+        if: (steps.arms.outputs.before-sha256 != '') && steps.scan-before.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-compare-${{ github.run_id }}-before
+          path: ${{ runner.temp }}/arms/before/edit.patch
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload the after patch
+        id: after
+        if: (steps.arms.outputs.after-sha256 != '') && steps.scan-after.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-compare-${{ github.run_id }}-after
+          path: ${{ runner.temp }}/arms/after/edit.patch
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  compare-before:
+    name: Compare Before
+    needs: compare-prepare
+    if: >-
+      needs.compare-prepare.result == 'success'
+      && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
+    cache-mode: read
+    permissions:
+      contents: read
+      actions: read # the pass's check-key-credit job lists this repository's key markers
+    uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
+    with:
+      plugin: ${{ needs.compare-prepare.outputs.plugin }}
+      tags: ${{ inputs.tag }}
+      case: ${{ inputs.case }}
+      pass: compare-before
+      base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
+      edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
+      edit-sha256: ${{ needs.compare-prepare.outputs.before-sha256 }}
+      max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      lane: eval-compare
+    secrets:
+      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+
+  compare-after:
+    name: Compare After
+    needs: compare-prepare
+    if: >-
+      needs.compare-prepare.result == 'success'
+      && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
+    cache-mode: read
+    permissions:
+      contents: read
+      actions: read # the pass's check-key-credit job lists this repository's key markers
+    uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
+    with:
+      plugin: ${{ needs.compare-prepare.outputs.plugin }}
+      tags: ${{ inputs.tag }}
+      case: ${{ inputs.case }}
+      pass: compare-after
+      base-sha: ${{ needs.compare-prepare.outputs.base-sha }}
+      edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
+      edit-sha256: ${{ needs.compare-prepare.outputs.after-sha256 }}
+      max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      lane: eval-compare
+    secrets:
+      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+
+  compare-verdict:
+    name: Compare Verdict
+    needs: [compare-prepare, compare-before, compare-after]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      body: ${{ steps.verdict.outputs.body }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.compare-prepare.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Stop on an arm that uploaded no result
+        env:
+          BEFORE_ID: ${{ needs.compare-before.outputs.artifact-id }}
+          AFTER_ID: ${{ needs.compare-after.outputs.artifact-id }}
+        run: |
+          if [ -z "$BEFORE_ID" ] || [ -z "$AFTER_ID" ]; then
+            echo "::error::an arm uploaded no result (its credential stopped or was empty); no record is posted"
+            exit 1
+          fi
+
+      - name: Download the before arm
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.compare-before.outputs.artifact-id }}
+          path: ${{ runner.temp }}/before
+
+      - name: Download the after arm
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.compare-after.outputs.artifact-id }}
+          path: ${{ runner.temp }}/after
+
+      - name: Judge the compare
+        id: verdict
+        env:
+          BEFORE: ${{ runner.temp }}/before
+          AFTER: ${{ runner.temp }}/after
+          BEFORE_MANIFEST: ${{ needs.compare-before.outputs.manifest-sha256 }}
+          AFTER_MANIFEST: ${{ needs.compare-after.outputs.manifest-sha256 }}
+          BASE: ${{ needs.compare-prepare.outputs.merge-base }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for side in BEFORE AFTER; do
+            dir=${!side}
+            want_var=${side}_MANIFEST
+            sum=$(sha256sum <"$dir/manifest.sha256")
+            if [ "${sum%% *}" != "${!want_var}" ] || ! (cd "$dir" && sha256sum --quiet -c manifest.sha256); then
+              echo "::error::the ${side,,} arm's files do not match the manifest its pass recorded"
+              exit 1
+            fi
+          done
+          status=0
+          node .base/.github/scripts/plugin-eval/compare-verdict.mjs --before "$BEFORE" --after "$AFTER" --base "$BASE" --head "$HEAD_SHA" \
+            --run-id "$GITHUB_RUN_ID" --run-url "$RUN_URL" --out "$RUNNER_TEMP/record.md" || status=$?
+          cat "$RUNNER_TEMP/record.md" >>"$GITHUB_STEP_SUMMARY" || true
+          delimiter=$(openssl rand -hex 16)
+          { echo "body<<$delimiter"; cat "$RUNNER_TEMP/record.md"; echo "$delimiter"; } >>"$GITHUB_OUTPUT"
+          exit "$status"
+
+  compare-record:
+    name: Compare Record
+    needs: [compare-prepare, compare-verdict]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.compare-prepare.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Stop when the kill switch is on
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      - name: Check the pull request head has not moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: bash .base/.github/scripts/plugin-eval/compare-head.sh
+
+      - name: Post the record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          BODY: ${{ needs.compare-verdict.outputs.body }}
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "::error::rerun-refused: a re-run of failed jobs re-samples an arm, so it posts no record; dispatch again"
+            exit 1
+          fi
+          printf '%s' "$BODY" >"$RUNNER_TEMP/record.md"
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh github-token
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F "body=@$RUNNER_TEMP/record.md" --jq .html_url
 
       - name: Log the API budget at the end
         if: always()

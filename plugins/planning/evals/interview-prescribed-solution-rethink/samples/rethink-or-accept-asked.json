@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {"answer": "❓ Q1: **Rethink the approach against the inferred problem, or accept the retry wrapper as asked?**", "why": "first question offers rethink, then accept"},
+    {"answer": "❓ Q1: **Rethink the approach against the problem, or accept the retry wrapper as named?**", "why": "rethink before accept, different wording"},
+    {"answer": "❓ Q1: **Do we keep the retry wrapper as prescribed, or rethink the approach against the problem it fixes?**", "why": "keep before rethink"},
+    {"answer": "❓ **Q1: Rethink the approach against the problem, or accept the retry wrapper?**", "why": "bold opens before Q1"},
+    {"answer": "❓ Q1: **Is the retry wrapper the right fix, or should we rethink the approach against the problem?**", "why": "the wrapper as the fix or a rethink: both choices, no accept word"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "❓ Q1: **What problem does the retry wrapper solve, and why do you want it solved now?**", "why": "open what-problem question, no rethink-or-accept choice"},
+    {"answer": "❓ Q1: **Which quality bar is this for: prototype, internal tool, or production?**\n\n❓ Q2: **What problem is the retry wrapper meant to solve, and why now?**", "why": "first question is the quality bar, and no question offers rethink or accept"},
+    {"answer": "❓ Q1: **Which quality bar is this for?**\n\n❓ Q2: **Rethink the approach, or accept the retry wrapper?**", "why": "the rethink-or-accept question is not the first question"},
+    {"answer": "❓ Q1: **Should we rethink the approach?**", "why": "rethink alone, no second choice offered"},
+    {"answer": "❓ Q1: **Should we rethink the retry count or the backoff interval first?**", "why": "wrapper parameters, not whether the wrapper is the right approach"},
+    {"answer": "❓ Q1: **Rethink the approach, or keep going?**", "why": "the prescribed retry wrapper is never named as a choice"},
+    {"answer": "❓ Q1: **Should we rethink the wrapper's retry count or its backoff?**", "why": "names the wrapper but asks about its parameters, not whether to keep it"},
+    {"answer": "❓ Q1: **Should we rethink the backoff, or keep the wrapper's retry count at 3?**", "why": "a keep word beside the wrapper, but the choice is its retry count, not the wrapper"}
+  ]
+}

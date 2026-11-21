@@ -2330,3 +2330,45 @@ def test_hook_blocked_runs_are_counted_per_arm_apart_from_non_delivery(
     assert (
         "after.claude-code: 6 kept, 0 excluded, 0 non-delivery, 1 hook-blocked" in out
     )
+
+
+def _hook_margin_report(tmp_path, capsys, blocked_cases, *extra):
+    whole = {"re-a": 100, "re-b": 200, "re-c": 300}
+    after = _nondelivery_rows("after", {}, whole)
+    text = f"reader: hook blocked: [{CD_PREFIX_HOOK!r}]"
+    for i, row in enumerate(after):
+        if row["case"] in blocked_cases and row["index"] == 0:
+            after[i] = {**row, "nondelivery": text, "hook_blocked": text}
+    rows = _nondelivery_rows("before", {}, whole) + after
+    graded = _graded_file(tmp_path / "out" / "graded.jsonl", rows)
+    return _report(
+        tmp_path,
+        capsys,
+        [graded],
+        "--baseline",
+        "before.claude-code",
+        "--evals-dir",
+        str(_evals(tmp_path, PAIR_SPECS)),
+        "--nondelivery-margin",
+        "0.10",
+        *extra,
+    )
+
+
+def test_hook_blocked_rise_past_the_hook_margin_fails_apart_from_non_delivery(
+    tmp_path, capsys
+):
+    code, out = _hook_margin_report(
+        tmp_path / "1", capsys, {"re-a", "re-b", "re-c"}, "--hook-margin", "0.10"
+    )
+    assert code == 1
+    assert "hook-blocked rise: after.claude-code's rate interval reaches +0.500" in out
+    assert "non-delivery rise" not in out
+    code, out = _hook_margin_report(
+        tmp_path / "2", capsys, {"re-a"}, "--hook-margin", "0.60"
+    )
+    assert code == 0, out
+    assert "hook-blocked rate change +0.17" in out and "hook-blocked rise" not in out
+    code, out = _hook_margin_report(tmp_path / "3", capsys, {"re-a", "re-b", "re-c"})
+    assert code == 0, out
+    assert "hook-margin: none given, so no hook-blocked check ran" in out

@@ -122,8 +122,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # CHANGELOG_PARITY_ROOT checks another tree with this copy's code: the
 # Dependabot bump runs main's scripts against the pull request's checkout.
-# Failing that, CHECK_DATA_ROOT names the tree to check, as it does for the rest
-# of the family (the pre-push hook runs a merge-base copy against the branch).
 cd "${CHANGELOG_PARITY_ROOT:-${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
@@ -310,6 +308,13 @@ changelog_versions() {
     grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?'
 }
 
+changelog_versions_batch() {
+  local batch_mode="$1"
+  shift
+  (($# > 0)) || return 0
+  awk -v mode="$batch_mode" -f "$SCRIPT_DIR/lib/changelog-versions-batch.awk" "$@"
+}
+
 # Version headings present at the fork point but absent from $3, the head body. Uses
 # changelog_versions on both sides so plugin, convention, and two-component
 # heading forms share one reader. Reads the base blob with command substitution
@@ -379,50 +384,31 @@ repeated_added_bodies() {
 
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md docs/contracts/*/CHANGELOG.md)
-  declare -A seen_version
+  existing_changelogs=()
+  for changelog in ${changelogs[@]+"${changelogs[@]}"}; do
+    [[ -f "$changelog" ]] && existing_changelogs+=("$changelog")
+  done
   misordered=0
   duplicated=0
-  checked=0
-  for changelog in ${changelogs[@]+"${changelogs[@]}"}; do
-    [[ -f "$changelog" ]] || continue
-    checked=$((checked + 1))
-    mapfile -t versions < <(changelog_versions "$changelog")
-    ((${#versions[@]} > 1)) || continue
-
-    # Probed in-shell so a clean changelog spawns nothing here; the sort
-    # pipeline runs only on a hit, where it fixes the order the message lists.
-    dupes=""
-    seen_version=()
-    for v in "${versions[@]}"; do
-      if [[ -n "${seen_version[$v]:-}" ]]; then
-        dupes="$(printf '%s\n' ${versions[@]+"${versions[@]}"} | sort | uniq -d)"
-        break
-      fi
-      seen_version["$v"]=1
-    done
-    if [[ -n "$dupes" ]]; then
-      echo "DUPLICATE CHANGELOG VERSION: $changelog lists $(printf '%s' "$dupes" | tr '\n' ' ') more than once. Two branches almost certainly staged the same version; renumber one." >&2
-      duplicated=$((duplicated + 1))
-    fi
-
-    # Compare on a zero-padded key rather than `sort -V`, which this repo's
-    # shell-portability lint bans (it is a GNU extension). Padding each field to
-    # a fixed width makes a plain lexical `>` numerically correct, so 10.0.0
-    # still outranks 9.0.0.
-    prev=""
-    prev_key=""
-    key=""
-    for v in ${versions[@]+"${versions[@]}"}; do
-      version_sort_key key "$v"
-      if [[ -n "$prev_key" && "$key" > "$prev_key" ]]; then
-        echo "MISORDERED CHANGELOG: $changelog is not newest-first — $v (below $prev). A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
+  checked=${#existing_changelogs[@]}
+  if ((checked > 0)); then
+    while IFS=$'\t' read -r kind changelog a b; do
+      b="${b%$'\r'}"
+      a="${a%$'\r'}"
+      case "$kind" in
+      DUP)
+        dupes="$(printf '%s\n' "$a" | tr ' ' '\n' | sort -u | tr '\n' ' ')"
+        echo "DUPLICATE CHANGELOG VERSION: $changelog lists ${dupes}more than once. Two branches almost certainly staged the same version; renumber one." >&2
+        duplicated=$((duplicated + 1))
+        ;;
+      ORD)
+        echo "MISORDERED CHANGELOG: $changelog is not newest-first — $a (below $b). A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
         misordered=$((misordered + 1))
-        break
-      fi
-      prev="$v"
-      prev_key="$key"
-    done
-  done
+        ;;
+      *) ;;
+      esac
+    done < <(changelog_versions_batch order "${existing_changelogs[@]}")
+  fi
 
   if ((misordered > 0 || duplicated > 0)); then
     echo "Changelogs must read newest-first with no repeated version. Renumber against what is on the DEFAULT BRANCH, not against the base the branch was cut from." >&2
@@ -435,10 +421,33 @@ fi
 if [[ "$mode" == "--check" ]]; then
   missing=0
   ahead=0
+  declare -A manifest_ver=()
+  if jq_out="$(jq -r '[input_filename, (.version // "")] | @tsv' "${manifests[@]}" 2>/dev/null)"; then
+    while IFS=$'\t' read -r _mf _mv; do
+      _mv="${_mv%$'\r'}"
+      [[ -n "$_mf" ]] && manifest_ver["$_mf"]="$_mv"
+    done <<<"$jq_out"
+  else
+    for manifest in ${manifests[@]+"${manifests[@]}"}; do
+      manifest_ver["$manifest"]="$(version_of "$manifest")"
+    done
+  fi
+  check_changelogs=()
+  for manifest in ${manifests[@]+"${manifests[@]}"}; do
+    plugin_dir="${manifest%/.claude-plugin/plugin.json}"
+    [[ -n "${manifest_ver[$manifest]:-}" && -f "$plugin_dir/CHANGELOG.md" ]] && check_changelogs+=("$plugin_dir/CHANGELOG.md")
+  done
+  declare -A newest_ver=()
+  if ((${#check_changelogs[@]} > 0)); then
+    while IFS=$'\t' read -r _cf _cv; do
+      _cv="${_cv%$'\r'}"
+      [[ -n "$_cf" && -z "${newest_ver[$_cf]:-}" ]] && newest_ver["$_cf"]="$_cv"
+    done < <(changelog_versions_batch first "${check_changelogs[@]}")
+  fi
   for manifest in ${manifests[@]+"${manifests[@]}"}; do
     plugin_dir="${manifest%/.claude-plugin/plugin.json}"
     name="${plugin_dir##*/}"
-    version="$(version_of "$manifest")"
+    version="${manifest_ver[$manifest]:-}"
     [[ -n "$version" ]] || continue
     if [[ -f "$plugin_dir/CHANGELOG.md" ]]; then
       # Validated for EVERY plugin that keeps a changelog, not only one with a
@@ -451,8 +460,7 @@ if [[ "$mode" == "--check" ]]; then
       # NEWEST is compared — an older heading naming a version the manifest never
       # took is invisible from the tree alone, but it can only get there by first
       # being the newest, which this catches in the change set that writes it.
-      mapfile -t headings < <(changelog_versions "$plugin_dir/CHANGELOG.md")
-      newest="${headings[0]:-}"
+      newest="${newest_ver["$plugin_dir/CHANGELOG.md"]:-}"
       if [[ -n "$newest" ]]; then
         newest_key=""
         version_key=""

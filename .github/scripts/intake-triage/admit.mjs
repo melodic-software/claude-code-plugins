@@ -778,7 +778,7 @@ export const taskItems = (body, taskList) => {
 export function unrunnableCriteria(body, taskList, webHosts, rules = issueUnrunnableRules()) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
   const evals = rules.filter(([kind]) => kind === EVAL_RULE);
-  const paid = { test: (text) => BILLED.test(text) && (EVAL_PATTERN.test(text) || evals.some(([, row]) => row.test(text))) };
+  const paid = { test: (text) => BILLED.test(text) && (EVAL_PATTERN.test(text) || evals.some(([, row]) => (row.held ?? row.test)(text))) };
   const kinds = [[PAID_EVAL, paid], ...UNRUNNABLE, ...rules];
   const items = taskItems(body, taskList).map(({ text }) => plainText(text));
   const found = [];
@@ -823,7 +823,9 @@ export function unrunnableRulesOf(path) {
     }
     const match = pattern("match");
     const unless = row.unless === null ? null : pattern("unless");
-    return [row.kind, { test: (text) => match.test(text) && !unless?.test(text) }];
+    const excluded = row.excluded === undefined ? null : pattern("excluded");
+    const held = (text) => match.test(text) && !unless?.test(text);
+    return [row.kind, { test: (text) => held(text) && !excluded?.test(text), held }];
   });
 }
 

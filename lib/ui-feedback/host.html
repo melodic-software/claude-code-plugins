@@ -14,7 +14,8 @@
   on this page, out of that block, until it is sent; it is kept in this tab's sessionStorage under the
   run's token, never on the server, so a reload of the same run lists it again. The run's sent notes come
   back from /api/notes, the token in the request's header, each kept only as note.schema.json admits
-  it. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
+  it. A region note, a draft or sent, can be moved or resized from the editor or its row; a sent one's
+  new anchor, rect and elements go to /api/note/change, which tells the session that note changed. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
   note's view and keeps the box drawn; the frame gets keys, a path and a box, never note text. The Controls tab renders the framed page's
   controls manifest, kept only when controls.schema.json admits it, through the registry in
   controls.js, beside the data controls and content sets the page marks, each kept only as
@@ -73,7 +74,7 @@
     <p id="picked" class="where"></p>
     <label for="text">Your note</label>
     <textarea id="text"></textarea>
-    <p><button type="button" id="send">Send</button> <button type="button" id="save">Save draft</button> <button type="button" id="cancel">Cancel</button></p>
+    <p><button type="button" id="send">Send</button> <button type="button" id="save">Save draft</button> <button type="button" id="reshape" hidden>Move or resize</button> <button type="button" id="cancel">Cancel</button></p>
   </div>
   <h2 id="notes-title" tabindex="-1">Notes</h2>
   <p id="changes" class="state" aria-live="polite"></p>
@@ -111,6 +112,8 @@
   const say = (t) => { $("status").textContent = t; };
   let schema = null, cschema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
   let editing = null, opener = null, ids = 0, sending = false;
+  // What a region pick moves or resizes: "draft", the composer's note, or a listed note's entry; null for a new note.
+  let reshaping = null;
   // This page load's notes: {id, note, where, seq, draft}; seq is null until the session has it, and
   // a draft is one the person has not sent yet.
   const mine = [];
@@ -188,17 +191,18 @@
     if (focus) tab.focus();
   }
 
-  /** Turn pick mode on for one kind ("element", "region" or "move"), or off. */
-  function setPick(kind) {
+  /** Turn pick mode on for one kind ("element", "region" or "move"), or off; a region starts at `rect` when given. */
+  function setPick(kind, rect = null) {
     picking = kind && live() ? kind : null;
+    reshaping = null;
     // The frame drops its selected box when a pick starts; the list follows.
     if (picking && chosen) unchoose(false);
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
     if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
-    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems, hold: true });
+    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.$defs.elements.maxItems, hold: true, ...(rect ? { rect } : {}) });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
-      : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
+      : picking === "region" ? "Drag a box over the mockup (near its top or bottom edge to scroll), drag the box to move it or its edges to resize it, or use the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
       : picking === "move" ? "Click the element to move, then the element it should go to; Shift+click picks a point instead. Esc cancels."
       : "");
   }
@@ -237,7 +241,7 @@
       for (const k of ["prefix", "suffix"]) if (m.quote[k] !== undefined) anchor.textQuote[k] = m.quote[k];
     }
     if (kind === "region") {
-      note.elements = (Array.isArray(m.elements) ? m.elements : []).map(anchorFrom).filter(Boolean).slice(0, P.elements.maxItems);
+      note.elements = (Array.isArray(m.elements) ? m.elements : []).map(anchorFrom).filter(Boolean).slice(0, schema.$defs.elements.maxItems);
     }
     if (kind === "move") {
       const to = m.to && typeof m.to === "object" ? m.to : {};
@@ -334,11 +338,13 @@
     if ($("panel").hidden) setPanel(true);
     selectTab(tabs[0], false);
     $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked", move: "Arrow" }[note.kind]}: ${where(note)}`;
+    $("reshape").hidden = note.kind !== "region";
     composer.hidden = false;
     text.value = entry ? entry.note.text : "";
     text.focus();
   }
   function closeComposer() {
+    if (reshaping === "draft") setPick(null);
     if (draft?.kind === "move") toFrame({ type: "clear-arrow" });
     toFrame({ type: "release" });
     draft = editing = null;
@@ -433,6 +439,59 @@
     render();
     $("notes-title").focus();
     say("Draft deleted.");
+  }
+
+  /** Move or resize a region: the composer's draft ("draft") or a listed note's, in region mode from its box, once
+   *  the frame shows the note's own view. */
+  function reshape(target) {
+    const m = target === "draft" ? { note: draft } : target;
+    toFrame({ type: "select", target: noteTarget(m) });
+    setPick("region", m.note.rect || null);
+    if (!picking) return;
+    reshaping = target;
+    say("Drag the box to move it, or its edges and corners to resize it; or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc keeps it where it was.");
+  }
+  /** A reshaped region's anchor, rect and elements replace the note's; a sent note's change goes to the session. */
+  async function reshaped(note) {
+    const target = reshaping;
+    setPick(null);
+    if (!note) { say("That region cannot carry a note: the element around it is outside the note contract. It stays where it was."); return; }
+    const moved = { anchor: note.anchor, rect: note.rect, elements: note.elements };
+    if (target === "draft") {
+      draft = { ...draft, ...moved };
+      $("picked").textContent = `Marked: ${where(draft)}`;
+      text.focus();
+      say("The region moved. Write your note, then send it.");
+      return;
+    }
+    toFrame({ type: "release" });
+    if (target.seq !== null && (await deliverChange(target.seq, moved)) !== "sent") return;
+    target.note = { ...target.note, ...moved };
+    target.where = where(target.note);
+    render();
+    document.querySelector(`[data-key="reshape-${target.id}"]`)?.focus();
+    say(target.seq !== null ? `Note ${target.seq}'s region moved; Claude is told.` : "The region moved.");
+  }
+  /** Post a sent region note's new anchor, rect and elements; "sent" once the session's log has the change. */
+  async function deliverChange(seq, moved) {
+    if (sending) return "busy";
+    sending = true;
+    let r, body;
+    try {
+      r = await fetch("/api/note/change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Notes-Token": token },
+        body: JSON.stringify({ change: seq, ...moved }),
+      });
+      body = await r.json();
+    } catch {
+      say(`Not moved: no session is answering, so note ${seq} keeps its region.`);
+      return "offline";
+    } finally {
+      sending = false;
+    }
+    if (!r.ok) { say(`Not moved: ${body.error || r.status}.`); return "refused"; }
+    return "sent";
   }
 
   /** Show or hide the panel; the dock button stays, and gets the focus back when the panel closes. */
@@ -541,23 +600,28 @@
       }
       return li;
     };
+    const reshapes = (m) => (m?.note.kind === "region" ? [button("Move or resize", `reshape-${m.id}`, () => reshape(m))] : []);
     const drafts = mine.filter((m) => m.draft);
     draftsKept?.save(drafts.map((m) => m.note));
-    const pin =(m) => ({ n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    const pin =(m) => ({
+      n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 },
+      ...(m.note.variant && { variant: m.note.variant.key }), ...(m.note.state && { state: m.note.state.key }),
+    });
     toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(pin) });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
         const m = ours.get(seq);
         const st = byseq.get(seq) || {};
-        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "", statusOf(st), st.reply, [], m);
+        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "", statusOf(st), st.reply, reshapes(m), m);
       }),
       ...mine.filter((m) => m.seq === null).map((m) => m.draft
         ? item(`${numberOf(m)} · ${m.where}`, m.note.text, "draft", null, [
           button("Edit", `edit-${m.id}`, () => openComposer(m.note, control(`edit-${m.id}`), m)),
           button("Delete", `delete-${m.id}`, () => remove(m)),
           button("Send", `send-${m.id}`, () => sendDrafts([m])),
+          ...reshapes(m),
         ], m)
-        : item(m.where, m.note.text, "not sent: use Copy all notes", null, [], m)),
+        : item(m.where, m.note.text, "not sent: use Copy all notes", null, reshapes(m), m)),
     );
     $("sendall").hidden = !drafts.length;
     if (focused) document.querySelector(`[data-key="${focused}"]`)?.focus();
@@ -599,7 +663,8 @@
       else { toFrame({ type: "release" }); say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent."); }
     } else if (m.type === "region" && picking === "region") {
       const note = noteFrom(m, "region");
-      if (note) openComposer(note, () => buttons.region);
+      if (reshaping) reshaped(note);
+      else if (note) openComposer(note, () => buttons.region);
       else { toFrame({ type: "release" }); say("That region cannot carry a note: the element around it is outside the note contract."); }
     } else if (m.type === "move" && picking === "move") {
       const note = noteFrom(m, "move");
@@ -622,6 +687,7 @@
   $("quote").addEventListener("click", askText);
   $("send").addEventListener("click", send);
   $("save").addEventListener("click", save);
+  $("reshape").addEventListener("click", () => reshape("draft"));
   $("sendall").addEventListener("click", () => sendDrafts(mine.filter((m) => m.draft)));
   $("dock").addEventListener("click", () => setPanel($("panel").hidden));
   $("markers").addEventListener("click", () => setMarkers(!markersShown));
@@ -657,7 +723,7 @@
     return true;
   }
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { if (draft) closeComposer(); else setPick(null); return; }
+    if (e.key === "Escape") { if (draft && !reshaping) closeComposer(); else setPick(null); return; }
     if (e.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (picking === "region" && (ARROWS[e.key] || e.key === "Enter")) {

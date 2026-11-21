@@ -63,7 +63,8 @@ that call, and the hook above sends it through the same channels, headed
   probed: toasts Claude Code raises itself, and a live interactive or `-p` session.
 - **Needs** Claude Code 2.1.295 or later with mods on, the first release with
   `$.ui.notify` ([changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21295));
-  mods themselves load from 2.1.287. The settings hook runs on any version.
+  mods themselves load from 2.1.287. The settings hook runs on any version
+  except 2.0.15 through 2.1.75, which refuse a manifest that declares `engines`.
 - **Pointer**: the `ui.toast` hook and `$.ui.notify` are in
   [Mods API](https://code.claude.com/docs/en/plugins/mods/api.md#show-something-without-starting-a-turn),
   and the `plugin_notification` title rule is in

@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
-# Stop hook: surface hook launch/exec failures that Claude Code records only as
-# `hook_non_blocking_error` transcript attachments and shows to nobody (#2577).
+# Stop hook: surface hook launch/exec failures that Claude Code records as
+# `hook_non_blocking_error` transcript attachments, once per session per failing
+# hook registration, with a diagnosis and remedy for each failure class (#2577).
+# Claude Code shows a non-blocking error as a `<hook name> hook error` notice in
+# the transcript on events such as PreToolUse, and the notice can cut stderr short
+# (https://code.claude.com/docs/en/hooks#exit-code-output). Claude Code 2.1.327
+# fixed failing hooks showing nothing for SubagentStop in background agents,
+# SessionEnd at /clear and /resume, and CwdChanged and FileChanged in fullscreen
+# (https://code.claude.com/docs/en/changelog). The hooks page does not list the
+# notice per event, so this hook still reports what no notice shows: a failure,
+# a launch failure included, on an event that shows no notice; an exec-failure
+# signature in the stderr past the notice's cut; and the failure's class and
+# its remedy.
 #
-# A hook that fails to LAUNCH is a non-blocking error: the tool call proceeds as
-# if the hook had approved it, and the only durable trace is an attachment
-# record in the session transcript that no human reads. The #1416 incident
+# A hook that fails to LAUNCH is a non-blocking error: the tool call goes ahead
+# unless the hook sets `onFailure: "block"`
+# (https://code.claude.com/docs/en/hooks#exit-code-output), and the durable
+# trace is an attachment record in the session transcript. The #1416 incident
 # proved the class (a PreToolUse destructive guard dead for 140 recorded
 # launches), and it also proved that an in-plugin detector is not shelter:
 # disk-hygiene's own Stop-event `guard_launch_monitor.py` shared the guard's
