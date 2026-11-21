@@ -185,8 +185,9 @@ concurrency:
 # 632 package-seconds from scripts/suite-seconds.txt; as one job, three
 # whole-tree main runs of 2026-11-20 took 557, 674 and 675 s, the last two
 # cancelled at its 11-minute timeout), 5;
-# test-selection unmeasured, sized at its job (about 600 s at the suite cap,
-# https://github.com/melodic-software/claude-code-plugins/issues/17522), 10;
+# test-selection unmeasured as a job, about 470 s for a changed suite near the
+# slowest (its job comment;
+# https://github.com/melodic-software/claude-code-plugins/issues/17522), 13;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
 # The four jobs with a 3-minute budget (mark-lanes, select-tests,
 # check-plugins, check-catalog) carry a 9-minute timeout; check-plugins adds
@@ -4141,10 +4142,12 @@ jobs:
   # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
   #
   # BUDGET. Unmeasured as a job: about 60 s of setup, as a test leg's base
-  # install, plus the trace, 37 s for three suites measured locally, most of it
-  # the per-file selector calls. A changed suite at the 480 s suite cap
-  # (scripts/suite-budget-exceptions.txt) runs first and ends inside the
-  # 540 s `--budget`, so a work budget of 10 minutes and a timeout of 16.
+  # install, plus the trace. Measured locally: three small suites 37 s;
+  # cant-fail-scan.test.sh (200 s in scripts/suite-seconds.txt, near the
+  # slowest there) 286 s under strace, then 432 files checked against the
+  # selector, 404 s in all. Suites start in the first 3/5 of `--budget` and
+  # files are checked until it ends, so `--budget 720` holds that run with
+  # room, for a work budget of 13 minutes and a timeout of 19.
   # `--strict` fails a suite the budget left untraced or a file left unchecked
   # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
   test-selection:
@@ -4152,7 +4155,7 @@ jobs:
     needs: [select-tests]
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_selection == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 16
+    timeout-minutes: 19
     permissions:
       contents: read
     env:
@@ -4213,7 +4216,7 @@ jobs:
             exit 1
           fi
           rc=0
-          scripts/selection-audit.sh trace --strict --jobs 4 --budget 540 \
+          scripts/selection-audit.sh trace --strict --jobs 4 --budget 720 \
             --out "$RUNNER_TEMP/selection-audit" "${suites[@]}" || rc=$?
           case "$rc" in
           0) ;;

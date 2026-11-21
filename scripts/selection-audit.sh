@@ -22,9 +22,9 @@
 #   scripts/selection-audit.sh changed --base REF
 #       Print the suites the diff REF...HEAD adds or changes, one per line, for
 #       pr-require-checks.yml's test-selection job to trace: its *.test.sh,
-#       test_*.py and *.test.mjs files, less the suites the default corpus
-#       leaves out. A *.test.mjs with a sibling *.test.sh is printed as that
-#       wrapper, which is how CI runs it
+#       test_*.py and *.test.mjs files, less the eval-fixture test_*.py files
+#       and the two suites that run strace. A *.test.mjs with a sibling
+#       *.test.sh is printed as that wrapper, which is how CI runs it
 #       (https://github.com/melodic-software/claude-code-plugins/issues/17522).
 #
 #   scripts/selection-audit.sh replay --suite S --good SHA --bad SHA
