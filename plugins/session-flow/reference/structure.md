@@ -7,10 +7,12 @@ and destination resolution live in the sibling `save-point.md` engine doc).
 Reader is a session with no prior context. It will act on this file. Be specific. A vague handoff
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
-**Shape 3.** A handoff written by this procedure carries `handoff_shape: 3` in its frontmatter:
-a hot file plus one archive file per hop ([Shape 3](#shape-3-hot-file-and-per-hop-archive)).
-Shape-2 files (one self-contained file per hop, [Body sections (shape 2)](#body-sections-shape-2))
-still validate and read unchanged, and a shape-2 chain's next hop writes shape 3. Every
+**Shape 4.** A handoff written by this procedure is the shape `new` writes by default,
+`handoff_shape: 4`: a hot file plus one archive file per hop
+([Shape 3](#shape-3-hot-file-and-per-hop-archive), with the order and moves of
+[Shape 4](#shape-4)). Shape-2 and shape-3 files
+([Body sections (shape 2)](#body-sections-shape-2)) still validate and read unchanged, and a
+shape-2 or shape-3 chain's next hop writes shape 4. Every
 deterministic field is written by the engine script
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `fill` replaces its
 slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
@@ -22,6 +24,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
 ## Contents
 
 - [Shape 3: hot file and per-hop archive](#shape-3-hot-file-and-per-hop-archive)
+  - [Shape 4](#shape-4)
 - [Body sections (shape 2)](#body-sections-shape-2)
   - [Cumulative sections and provenance tags](#cumulative-sections-and-provenance-tags)
   - [Original goal](#original-goal)
@@ -43,7 +46,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [Resume prompt](#resume-prompt)
 - [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
 - [Full-path write procedure](#full-path-write-procedure)
-  - [Frontmatter shape 3](#frontmatter-shape-3)
+  - [Frontmatter shape 4](#frontmatter-shape-4)
   - [Frontmatter shape 2](#frontmatter-shape-2)
   - [Chain continuity, same task only](#chain-continuity-same-task-only)
   - [Legacy predecessors and unfinished skeletons](#legacy-predecessors-and-unfinished-skeletons)
@@ -62,115 +65,70 @@ emit, only `save_point.py amend` changes the tip hop's pair: it appends each rep
 each retired entry to the hop file under `## Amended …` and the retire headings, and never edits
 what is there. An earlier hop's file is never edited.
 
-Sections, in the one order `validate` checks:
-
-| Order | Section | Holds |
-|---|---|---|
-| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below; an amendment leaves only as a retire listing |
-| 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; one retire pointer per hop file and retire heading, carried forward |
-| 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT`; copied off disk each hop, except lines 3 or more hops old, which `new` folds out behind one `- Folded:` pointer line |
-| 4 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>`, which `new --purpose` writes |
-| 5 | Completion criteria | observable goal-states with met/unmet marks |
-| 6 | Remaining actions, in order | every action still to take |
-| 7 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks; copied off disk each hop |
-| 8 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …` |
-| 9 | Observations | session-wide observations, summarized; detail stays in the archive or the transcript |
-| 10 | Pending commands | every command waiting on the user, verbatim |
-| 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
-| 12 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on, a security or design decision tagged and carrying `buys:`, `surface:` and `cost:`; copied off disk each hop |
-| 13 | Suggested skills | which skills to invoke for the remaining work, as in shape 2; the purpose argument selects them |
-| 14 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
-| 15 | Prior sessions | the last rows of the table, the newest describing the predecessor |
-| 16 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
-| 17 | Resume prompt | the rails block, as in shape 2; always last |
-
-A shape-3 file written before `Suggested skills` joined this list still validates, with a warning;
-the next hop's skeleton adds the section.
+The sections and their order are the file's `ShapeSpec` in
+`${CLAUDE_PLUGIN_ROOT}/scripts/handoff_chain.py`. `new` writes them in that order, each slot's
+instruction says what the section holds, and `validate` fails any other order. The carry
+mechanics are the script's too: `new` copies the goal, rules, preferences, questions, decisions
+and direction trail off disk, folds old trail lines behind a pointer, and names each id floor in
+its slot; `retire` writes the listing and its pointer; `validate` fails a carried entry that
+changed or left any other way, and names the fix.
 
 What the writer owns, since no script can judge it:
 
 - **Rules are current, not historical.** A changed rule is rewritten in place under its id, its
-  new text verbatim; a retired rule is deleted from the hot file and listed in this hop's file
-  under `## Retired rules` as `- [R<n>] <why it no longer binds>`, which `validate` requires. The
-  predecessor's text of both is already in this hop's file. A rule never leaves to meet the size
-  cap. A new rule takes the next unused id, which the skeleton's slot names. Ids are never reused.
+  new text verbatim; one that no longer binds leaves through `retire`. A rule never leaves to meet
+  the size cap.
 - **A preference leaves once its instruction file holds it.** A rule that binds beyond this
   chain's goal stays under Standing preferences, marked pending promotion, until the instruction
-  file it belongs in carries it; then the hot file keeps only the pointer under Review before you
-  continue, and this hop's file lists it under `## Retired rules` as `- [R<n>] promoted to
-  <instruction file>`. Auto memory is not a destination; an edit to the user's own instruction files goes
-  through the owner.
+  file it belongs in carries it; then it leaves through `retire` with the reason `promoted to
+  <instruction file>`, and the hot file keeps only the pointer under Review before you continue.
+  Auto memory is not a destination; an edit to the user's own instruction files goes through the
+  owner.
 - **No live GitHub fact.** Issue, PR, check and review state goes stale between hops. The hot
   file lists the re-read command instead, taken from the source-control plugin's surface (for a
   pull request, `/source-control:pull-request` names its status read); `validate` warns on a
   state claim it recognizes.
-- **Over the size cap, move written content out.** `validate` names the cap and three sizes: the
-  core (Original goal, Direction changes, Resumption brief, Current rules, Standing preferences),
-  which never moves to meet the cap (only `new` folds old trail lines out of it); the carried part `new` writes (its frontmatter keys, Prior sessions, Resume
-  prompt); and everything else, the written part. Shorten written sections, appending what they
-  drop to this hop's file. When the core plus the carried part alone is over the cap, the file
-  emits marked UNVALIDATED instead: never shorten the core or cut written sections for it. Past
-  the Read page cap (25,000 tokens' worth, held as `READ_CAP_BYTES` in `save_point.py`; the
-  upstream pointer is in the Size bullet below) `validate` fails whatever the core holds.
-
+- **Never shorten what binds to meet the size cap.** Fitting is `fill`'s on shape 4. When binding
+  content alone is over the cap, the answer is a relevance call, never a cut.
 - **Keep by relevance; retire with a reason.** Relevance is the writer's call. An amendment,
   direction-change line, question or decision that is superseded, answered or done may leave the
   hot file; every amendment that still binds stays. An amendment unit with any clause still
   binding stays whole, or that clause is first written as a rule `[R<n>]` and the unit retired
   `codified in [R<n>]`; a unit is never split. Retire through the `retire` list of `fill` (before
-  emit) or `amend` (after), never by deleting lines: each item is `{"ref": …, "reason": …}`, the
-  ref `[R<n>]`, `[Q<n>]`, `[D<n>]`, `[h<k>]#<i>` (the i-th line tagged `[h<k>]`) or `amendment#<i>`
-  (the i-th amendment unit in Original goal). The script copies the entry into this hop's file
-  under its heading, the entry verbatim, then `Retired: <reason>`:
+  emit) or `amend` (after), never by deleting lines; each slot's instruction names the ref form for
+  its section.
+- **A carried entry keeps its text or says why not.** Rewrite one in place only when its
+  substance changed, ending it `Rewritten h<N>: <why>` for this hop `N`; never shorten one to save
+  bytes.
 
-  | Hot-file section | Retire heading in the hop file |
-  |---|---|
-  | Original goal (amendment units) | `## Retired goal amendments` |
-  | Direction changes | `## Retired direction changes` |
-  | Open questions | `## Retired open questions` |
-  | Decisions in force | `## Retired decisions` |
-
-  `## Retired rules` also takes this listing, or its one-line form above. For every retire
-  heading but `## Retired rules`, Review before you continue carries a pointer line naming the hop
-  file and heading, `- Retired entries: <hop file> § <heading>`; the script writes it, and later
-  hops carry it forward like trail lines. `validate` fails an entry that is in neither the hot
-  file nor a retire listing with a reason.
-- **Questions and decisions carry ids.** `[Q<n>]` and `[D<n>]` work like rule ids: a carried
-  entry keeps its id, a new one takes the next unused id from the `next_question_id` /
-  `next_decision_id` floor the skeleton's slot names, and ids are never reused. The first hop that
-  adopts them seeds each floor above the highest `Q<n>` / `D<n>` in the predecessor's text. Once
-  the predecessor carries a floor, an entry without an id fails `validate`.
-- **Questions and decisions are carried, not retyped.** When the predecessor carries a floor and
-  holds entries in the section, `new` copies Open questions and Decisions in force off disk, as
-  it does rules, and offers an `open-questions-new` / `decisions-new` slot for new entries. A
-  carried entry keeps its text, or is rewritten in place under its id with
-  `Rewritten h<N>: <why>` at its end, `N` being this hop, while its prior text stays in this
-  hop's file; otherwise it leaves through `retire`. `validate` fails a carried entry whose text
-  changed any other way, so a decision shortened to meet the size cap fails instead of passing on
-  its id alone. A mark naming an earlier hop does not count for this hop's change.
-- **A security or design decision carries its rationale.** Tag it right after its id and end it
-  with three fields: `- [D<n>] [security] <decision> (<reason>) buys: <what it gains>; surface:
-  <the surface exposed today, or none>; cost: <measured cost so far, or none yet>` (`[design]`
-  for a design decision; fields may sit on indented continuation lines). `validate` fails a
-  tagged entry missing any field, naming the fix (`add buys:/surface:/cost: to D<n>`); an
-  untagged entry needs none, so older chains still validate. Tagging a carried decision, or
-  updating its `cost:`, is a change to its text and ends `Rewritten h<N>: <why>`. A resumed
+- **A security or design decision carries its rationale.** Tag it after its id and end it with
+  `buys:`, `surface:` and `cost:`, in the form the decisions slot gives; `validate` fails a tagged
+  entry missing a field, naming the fix, and an untagged entry needs none. Tagging a carried
+  decision or updating its `cost:` changes its text, so it ends `Rewritten h<N>: <why>`. A resumed
   session reads the three fields before building on the decision (`/session-flow:reanchor`).
-- **Old trail lines fold out.** At `new`, a carried Direction changes line whose newest tagged hop
-  is 3 or more hops back (`DIRECTION_HOPS_KEPT` in `save_point.py`) leaves the hot file, so the
-  hot file keeps the lines of the last 3 hops, this one included. One `- Folded:` line at the top
-  of the section points at the newest hop file holding folded lines; each folded line is already
-  verbatim under `## Direction changes` in the hop file of the hop that folded it. An untagged
-  line never folds. `validate` accepts a folded line only while that pointer line is present,
-  and fails a hop that drops the predecessor's pointer line.
 
-**From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
+**From shape 2.** The first hop file of a shape-2 chain, written by its first shape-4 hop (or a
+shape-3 hop written earlier), reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file
 verbatim, and `new` replaces the `Opening ask: see <root>` pointer with the root's own verbatim
 ask. The writer then states the rules still in force under Current rules, with ids, reading the
 predecessor's Constraints in the hop file, and writes the direction trail so far. Hop numbers
 count from the chain root, shape-1 and shape-2 hops included; hop files start at that first
-shape-3 hop (`archive_from`).
+hop-file hop (`archive_from`).
+
+### Shape 4
+
+A shape-4 file (`handoff_shape: 4`) has the same frontmatter, hop files and id rules as shape 3,
+with its sections in another order: binding sections stay whole in the hot file, and movable ones
+may move to this hop's file (the shape-4 `ShapeSpec` marks which). Bare `new` writes shape 4, the
+default, and continues a shape-4 chain as shape 4. Its stderr
+`budget:` line gives the bytes left for the written slots and each size-classed slot's budget:
+write the slots to it. `fill` does the rest (fit, moves with pointers, the slot-size refusal) and
+prints the verdict and the rails.
+
+- **A history pointer** in Review before you continue uses the form of `fill`'s move pointer,
+  `archive/<chain-stem>/h<k>-<session8>.md#<heading>`, naming an exact hop file and section;
+  `validate` fails one whose file or heading is not on disk.
 
 ## Body sections (shape 2)
 
@@ -656,12 +614,14 @@ to, never authored:
 | 2026-09-01T10:00:00Z | <UUID> | /home/<user>/.claude/projects/<slug>/<UUID>.jsonl | did: … · left: … | 20260901T100000Z-handoff-<topic>.md |
 ```
 
-`new` copies the predecessor's rows unchanged and appends the predecessor's own row: its `date`,
+`new` copies the predecessor's rows unchanged (on shapes 3 and 4 only the newest, so that with the
+new row the table holds at most `PRIOR_ROWS_KEPT` rows, per `save_point.py`; older rows stay in the
+hop files) and appends the predecessor's own row: its `date`,
 `session_id`, and `transcript` from its frontmatter, its `## This session` line as `did/left`, its
 filename. A shape-1 predecessor has no `This session` line, so its cell reads
 `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)`. Hop 1 writes the
 literal line `None (first hop).` instead of a table. The validator checks that the predecessor's
-rows are a prefix of this file's and that exactly one row was added.
+rows (its newest ones, on shapes 3 and 4) come first, verbatim, and that exactly one row was added.
 
 This table plus the frontmatter `chain:` is how a fresh session sees the whole chain from one
 file: high-resolution for the last session (the sections above), one pointer-backed line per
@@ -695,14 +655,41 @@ written to disk (shape-1 files are never rewritten).
 Consumers cite this section list rather than restating it. A copy of the list in another file
 drifts silently.
 
+**Readers go through the script.** A section is read by name with
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`, which
+follows a move to the hop file, and a chain is walked with `save_point.py chain <file> --json`:
+every hot file the walk reaches (a missing or unreadable one is a link with that status, not an
+error), and every hop's date, session id, Direction changes, This session and Observations, read
+from the next hop's file when a hot file is gone. Neither reads by position, so shapes 2, 3 and 4
+read alike, and both exit 3 on a shape newer than the script knows. What each reader uses:
+
+| Skill | Reads |
+|---|---|
+| retro | `parse_transcript.py --chain-from`'s `handoff_journey`; without it, `chain --json`; any other section through `read` |
+| orient | `chain --json` for the timeline; `read` for Prior sessions and each section the briefing uses |
+| find-handoff | `emit` for Resume prompt; `read` for any section the operator asks about |
+| reanchor | `chain --json` for the links; `validate` per shape-3 or shape-4 link; `read` for Original goal on a shape-1 or shape-2 link or when `validate` cannot run, and for each section holding a premise |
+| continue-in-background | `validate` before launch; `read` for Environment to re-establish and Remaining actions, in order |
+
+**A broken link.** When `new --previous` finds its predecessor missing or unreadable, it writes
+the handoff anyway, names the file as `previous_handoff` with `previous_status: missing` or
+`unreadable`, and gives Prior sessions one row naming it; `validate` warns and skips the checks
+against it.
+
+**UNVERIFIED names its settle.** In a file stamped `checks: 3` or higher, every `UNVERIFIED` mark
+in a section the session wrote ends its line with `(settle: <command or URL>)`, the command or
+source that settles it; `validate` fails one that does not. Prior sessions and Resume prompt are
+exempt.
+
 ## Full-path write procedure
 
 Write the file into the handoff location (`save-point.md` "Where save-points live"). The
-procedure is: resolve the memory root, run the existing guards, run `new`, write the slots JSON,
-run `fill`, run `validate`, then `emit`. Every step that needs no judgment is the script's; the
-model supplies only the values for the `<!-- FILL: … -->` slots, and `fill` applies all of them in
-one write, so an interrupt mid-batch cannot leave a partly filled skeleton. The Edit tool is the
-repair path after a failed `validate`, not a step of the procedure.
+procedure, for the shape `new` writes by default, shape 4, is: resolve the memory root, run the
+existing guards, run `new`, write the slots JSON to the `budget:` line `new` printed, and run
+`fill`, which validates the file and prints the verdict and the rails. Every step that needs no judgment is the
+script's; the model supplies only the values for the `<!-- FILL: … -->` slots, and `fill` applies
+all of them in one write, so an interrupt mid-batch cannot leave a partly filled skeleton. The
+Edit tool is the repair path after a FAIL line, not a step of the procedure.
 
 ```bash
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
@@ -765,7 +752,8 @@ done
 # 5. Skeleton. Exactly one of --previous / --no-previous (see "Chain continuity").
 #    `new` reads CLAUDE_CODE_SESSION_ID itself and prints the file's absolute
 #    forward-slash path: reuse THAT string for every later step (fill, validate,
-#    emit, the directive); never recompute the path in bash. When the invocation
+#    emit, the directive); never recompute the path in bash. On stderr it prints
+#    the `budget:` line the slot values are written to. When the invocation
 #    carried purpose text, add --purpose "$PURPOSE" (save-point.md, "The purpose
 #    argument tailors emphasis only").
 SAVE_POINT="${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py"
@@ -777,7 +765,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 # 6. Slot values, then one fill. Read the slot names out of $FILE itself: the set
 #    is branch-dependent (goal, intent, vision, opening-ask and the bare rules
 #    and preferences slots only on a first hop; goal-new and the <section>-new
-#    slots only after a shape-3 predecessor),
+#    slots only after a shape-3 or shape-4 predecessor),
 #    so a remembered template hits fill's unknown-key refusal. Write ONE JSON
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
@@ -788,10 +776,10 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem
 #    Write $SLOTS with the Write tool, then apply every slot in a single write:
 "$PY" -X utf8 "$SAVE_POINT" fill "$FILE" --slots "$SLOTS"
-# 7. Validate; exit 0 gates the rails (save-point.md "Emit the copy/paste resume prompt").
-"$PY" -X utf8 "$SAVE_POINT" validate "$FILE"
-# 8. Print the stored resume prompt; paste its output on screen verbatim.
-"$PY" -X utf8 "$SAVE_POINT" emit "$FILE"
+#    A refusal names what to change; change it and re-run the same fill.
+# 7. fill printed the verdict, then the rails. PASS or WARN: paste those rails
+#    verbatim. FAIL: fix what its lines name with the Edit tool, then re-run
+#    validate and paste emit's output (save-point.md "Full path only").
 ```
 
 `new` exits 0 and prints the path it wrote; 1 when it refuses (memory root at or above the repo
@@ -823,35 +811,78 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
   and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
   for the data-dir layout and which processes receive the variable.
 
-`fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
-file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
-naming no slot in the file, a slot name occurring twice in the file, a value that itself carries a
-`FILL` slot marker, no slot in the file at all, or a closing `next` value whose line above is not
-exactly `Next:`. It exits 2 on usage, on a target that is missing, unreadable, or not a handoff
-file (no `type: handoff` frontmatter, the same guard `validate` and `emit` apply), and on a slots
-file that is missing, unreadable, not valid JSON, not a JSON object, or holds a value that is not a
-string or not encodable as UTF-8. Every refusal names the offending slot or key and leaves the
-target byte-identical, so a corrected JSON re-runs cleanly; nothing is half-applied. The write
-itself goes to a temporary file in the target's own directory and is then replaced into place, so
-an interrupted write cannot leave a truncated handoff.
+Every `fill` refusal names the slot or key and leaves the target byte-identical, so the fix is the
+JSON and a re-run of the same `fill`, never a hand-edit; nothing is half-applied.
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 17 headings in order) and
-its hop file holding the predecessor's sections other than Original goal and Resume prompt,
-copied with the Read and Write tools, never retyped; otherwise a shape-2 file (the 17 headings in
-order). Both end in the `## Resume prompt` section in the engine doc's full-path form. Mark the checklist box `validate: SKIPPED (no interpreter)`, and
-still emit the rails from the file's `## Resume prompt` section. Never a shape-1 file, never a
-silent skip. This path is unchanged by `fill`: with no interpreter there is no `fill` either, so
-the hand-written file needs no slots JSON.
+after a shape-3 or shape-4 predecessor, a shape-4 hot file (the frontmatter below with
+`handoff_shape: 4` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
+in the table below, in order) and its hop file holding the predecessor's sections other than
+Original goal and Resume prompt, copied with the Read and Write tools, never retyped; otherwise a
+shape-2 file (the 17 headings of [Body sections (shape 2)](#body-sections-shape-2), in order).
+Both end in the `## Resume prompt` section in the engine doc's full-path form. Nothing moves on
+this path: every section stays in the hot file. Mark the checklist box
+`validate: SKIPPED (no interpreter)`, and still emit the rails from the file's `## Resume prompt`
+section. Never a shape-1 file, never a silent skip. This path is unchanged by `fill`: with no
+interpreter there is no `fill` either, so the hand-written file needs no slots JSON.
 
-### Frontmatter shape 3
+| # | Section | Holds |
+|---|---|---|
+| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below; an amendment leaves only as a retire listing |
+| 2 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>` |
+| 3 | Remaining actions, in order | every action still to take |
+| 4 | Completion criteria | observable goal-states with met/unmet marks |
+| 5 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks; copied off disk each hop; an answered one leaves only as a retire listing |
+| 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …`; copied off disk each hop, a changed one rewritten in place under its id; a retired one leaves only as a retire listing |
+| 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)`; copied off disk each hop; a promoted one leaves only as a retire listing |
+| 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on; copied off disk each hop; a settled one leaves only as a retire listing |
+| 9 | Pending commands | every command waiting on the user, verbatim |
+| 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
+| 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
+| 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per hop file and retire heading this hop used |
+| 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT`; copied off disk each hop with the predecessor's `- Folded:` line kept verbatim; a superseded line leaves only as a retire listing |
+| 14 | Observations | session-wide observations, summarized |
+| 15 | Suggested skills | which skills to invoke for the remaining work |
+| 16 | Prior sessions | the predecessor's newest rows, then one row describing the predecessor, the table holding at most `PRIOR_ROWS_KEPT` rows (`save_point.py`) |
+| 17 | Resume prompt | the rails block; always last |
+
+Without a script, the hand-writer owns the carry that `new`, `fill` and `retire` own otherwise:
+
+- **Copy, never retype.** Every entry, `- Retired entries:` line and `- Folded:` line the
+  predecessor's hot file holds is copied with the Read and Write tools. Fold nothing by hand: a
+  Direction changes line stays until a later `new` folds it.
+- **Retire by moving, with a reason.** An entry that no longer binds (an answered question, a
+  settled decision, a retired rule or promoted preference, a superseded amendment unit or trail
+  line) leaves the hot file only by moving into this hop's file under its retire heading: the
+  entry verbatim, then a line `Retired: <reason>`. The `retire` list's `[h<k>]#<i>` ref names the
+  i-th line tagged `[h<k>]`; by hand, move that line itself. An entry never leaves to meet the
+  size cap.
+
+  | Hot-file section | Retire heading in the hop file |
+  |---|---|
+  | Original goal (amendment units) | `## Retired goal amendments` |
+  | Direction changes | `## Retired direction changes` |
+  | Open questions | `## Retired open questions` |
+  | Current rules, Standing preferences | `## Retired rules` |
+  | Decisions in force | `## Retired decisions` |
+
+- **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
+  add `- Retired entries: <hop file> § <heading>` to Review before you continue, and keep every
+  such line the predecessor holds: a dropped one leaves earlier retirements unreachable, and no
+  check runs without an interpreter to catch it.
+- **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id` and
+  `next_decision_id` from the predecessor's frontmatter, then raise each past every id this hop
+  added. Never lower one, even when the highest id was retired: the next hop would offer that id
+  again.
+
+### Frontmatter shape 4
 
 ```yaml
 ---
 type: handoff
-handoff_shape: 3
-checks: 2                                 # rule-set version the file was written under
+handoff_shape: 4
+checks: <CHECKS in save_point.py>         # rule-set version the file was written under
 date: <ISO-8601 UTC>
 topic: <kebab>
 session_id: <UUID>
@@ -860,8 +891,10 @@ previous_handoff: <prior-filename>.md     # CONDITIONAL — omit at the first ho
 chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
-archive_from: <M>                         # first shape-3 hop; hop files exist from M on
+archive_from: <M>                         # first hop-file hop (shape 3 or 4); hop files exist from M on
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
+next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
+next_decision_id: <K>                     # first [D<n>] id this hop may assign; never lowered
 repo: <the Handoff origin: line's first slot>
 ---
 ```
@@ -936,17 +969,14 @@ absent field.
 
 **Carrying the goal forward: read it off disk, never out of memory.** With `--previous`, `new`
 opens that file and reproduces its `Original goal` verbatim quote and every recorded amendment
-into this handoff unchanged; after a shape-3 predecessor it also carries the current rules,
-standing preferences, direction trail and last `## Prior sessions` rows, and writes the rest of
-the predecessor into this hop's file (a `--shape 2` successor carries the five cumulative sections
-and every row instead).
+into this handoff unchanged, with the rest of the carry ([Shape 3](#shape-3-hot-file-and-per-hop-archive)).
 Rebuilding the goal from the conversation is how the drift starts: the conversation is what
 already lost it, and each rebuild is individually plausible, which is why the loss is invisible
 until many hops later. The prior file is on disk and one read away. A writer that did not open it
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
 `TaskList` call in a session that has the task tools: the check is that the read happened, not that the result looks right. The
 validator checks the copy: whatever the predecessor held must survive in the hot file or this
-hop's file (shape 3), or in the successor in place or under `Superseded:` (shape 2); its FAIL
+hop's file (shapes 3 and 4), or in the successor in place or under `Superseded:` (shape 2); its FAIL
 lines name what went missing.
 
 ### Legacy predecessors and unfinished skeletons
@@ -962,14 +992,8 @@ placeholder-shaped (settle the goal with the user, then fill it); the `Opening a
 `UNVERIFIED (shape-1 predecessor; brief: …)` cell.
 
 **A predecessor that fails validation** (or a hand-written Python-absent file) is still
-copied forward: in a shape-2 successor every carried entry is prefixed
-`UNVERIFIED (predecessor failed validation):`, whatever the predecessor failed on. For a successor
-stamped `checks: 2`, `validate` downgrades the predecessor-derived checks (chain prefix, Prior
-sessions prefix, carried entries) to WARN only on an order or malformed FAIL in the predecessor,
-naming that failure, so one bad hop never blocks every later hop. A predecessor that failed only
-on size, its transcript or its archive leaves the successor's carry checks at FAIL, so a dropped
-rule never passes. A successor without the stamp downgrades on any predecessor FAIL. The predecessor is never rewritten. Validation looks one level back only, except that a shape-3 file walks its shape-3
-predecessors' frontmatter to find their hop files.
+copied forward and never rewritten; `validate` says which of its checks against the predecessor
+it downgrades to WARN, and why.
 
 **Unfinished skeletons stay on disk and are never a save-point.** A `new` run that was never
 filled (compaction mid-write, a fix loop that ended `UNVALIDATED`) leaves a `type: handoff` file

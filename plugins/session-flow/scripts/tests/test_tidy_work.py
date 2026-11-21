@@ -1051,9 +1051,6 @@ def test_a_kept_handoff_that_names_no_issue_keeps_what_it_names(env):
 
 
 # --- shape-3 archives: handoffs/archive/<chain-root-stem>/ ---------------------------
-#
-# PLAN.md Phase 4: an archive directory is kept while any hot file of its chain is
-# kept, and removed with the last one.
 
 ROOT3 = "20260101T100000Z-handoff-three.md"
 HOP3_2 = "20260102T100000Z-handoff-three.md"
@@ -1091,8 +1088,7 @@ def test_an_archive_is_kept_while_a_hot_file_of_its_chain_is_kept(env):
     items = report(env, *links(env[0], STATE))
     assert items[archive.name]["kind"] == "archive"
     assert items[archive.name]["keep"]
-    # The root stays too: the kept successor names it (`chain_root:`).
-    kept = f"a kept handoff of its chain: {ROOT3}, {HOP3_2}"
+    kept = f"a kept handoff of its chain: {HOP3_2}"
     assert items[archive.name]["reasons"] == [kept]
     assert "archive" not in items
     assert "h1-00000000.md" not in items
@@ -1101,15 +1097,18 @@ def test_an_archive_is_kept_while_a_hot_file_of_its_chain_is_kept(env):
     assert archive.is_dir()
 
 
-def test_an_archive_leaves_with_the_last_hot_file_of_its_chain(env):
+def test_a_finished_chain_keeps_its_newest_hot_file_and_its_archive(env):
+    """The shrink removes older hot files only."""
     archive = three_chain(env)
     _, _, repo = env
     items = report(env, *links(env[0], STATE))
-    assert not items[archive.name]["keep"], items[archive.name]
+    assert items[archive.name]["keep"], items[archive.name]
     result = clean(env, "--apply")
     assert result.returncode == 0, result.stderr
-    assert not archive.exists()
-    assert not (repo / ".work" / "handoffs" / HOP3_2).exists()
+    assert archive.is_dir()
+    for hop in ("h1-00000000.md", "h2-00000000.md"):
+        assert (archive / hop).is_file(), hop
+    assert (repo / ".work" / "handoffs" / HOP3_2).exists()
     assert not (repo / ".work" / "handoffs" / ROOT3).exists()
 
 
@@ -1139,12 +1138,16 @@ def test_a_shape2_hot_file_of_the_chain_counts_by_its_chain_root(env):
 def test_an_archive_stays_when_a_hot_file_of_its_chain_is_refused(env):
     archive = three_chain(env)
     _, _, repo = env
-    subprocess.run(["git", "-C", str(repo), "add", "-f", f".work/handoffs/{HOP3_2}"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "-f", f".work/handoffs/{ROOT3}"], check=True
+    )
     result = clean(env, "--apply")
     assert result.returncode == 1, result.stdout
-    assert (repo / ".work" / "handoffs" / HOP3_2).exists()
+    assert (repo / ".work" / "handoffs" / ROOT3).exists()
     assert archive.is_dir()
-    assert f"refused: {archive.as_posix()}" in result.stdout, result.stdout
+    assert (
+        f"refused: {(repo / '.work' / 'handoffs' / ROOT3).as_posix()}" in result.stdout
+    )
 
 
 def test_a_stray_file_in_the_archive_dir_is_unknown_and_kept(env):

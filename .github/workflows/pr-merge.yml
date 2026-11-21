@@ -307,6 +307,8 @@ jobs:
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           # Where the check writes the lane floor's anchor, uploaded below.
           BABYSIT_POSTMERGE_ANCHOR: ${{ runner.temp }}/post-merge-anchor/anchor.json
+          BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/demotion-recoveries.json
+          BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED: 'true'
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -315,9 +317,10 @@ jobs:
           code='' code_sha=''
           mkdir -p "$RUNNER_TEMP/post-merge-anchor"
           # The completed attempts the last check read, which the check
-          # answers with no read (babysit_postmerge.py ATTEMPTS_ENV); kept
-          # below whether or not the check runs.
+          # answers with no read (babysit_postmerge.py ATTEMPTS_ENV), and the
+          # recoveries it proved; both kept below whether or not the check runs.
           [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$RUNNER_TEMP/post-merge-attempts.json"
+          [ ! -f "$last/demotion-recoveries.json" ] || cp "$last/demotion-recoveries.json" "$RUNNER_TEMP/demotion-recoveries.json"
           # An idle tick: the last run's report, from a check that passed
           # (exit 0 or 5), stands while the lane room's reuse rule keeps it
           # and nothing else the check reads has moved (settle --idle-tick).
@@ -387,6 +390,7 @@ jobs:
           [ -z "$code_sha" ] || echo "$code_sha" >"$kept/post-merge-code-sha"
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
           [ ! -f "$RUNNER_TEMP/post-merge-attempts.json" ] || cp "$RUNNER_TEMP/post-merge-attempts.json" "$kept/attempts.json"
+          [ ! -f "$RUNNER_TEMP/demotion-recoveries.json" ] || cp "$RUNNER_TEMP/demotion-recoveries.json" "$kept/demotion-recoveries.json"
           # A rate-limit stop fails the job red once the outputs are written.
           [ "$code" != 75 ] || exit 1
 

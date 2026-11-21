@@ -20,7 +20,6 @@
       "scripts/purge.sh": "#!/usr/bin/env bash\necho \"purge: $* -> 18,204 objects invalidated\"\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "image-cdn",
       "lane": "image-cdn",
       "hops": 12,

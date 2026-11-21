@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.4] - 2026-11-21
+
+### Fixed
+
+- **`/corrections:codify` runs the action you named when the action word ends in punctuation.** A dictated `taste.`, `rules,` or `note:` now selects that action once a trailing `.`, `,`, `:`, `;`, `!` or `?` is stripped, for every action, and the flags after it (`note`'s `--applied`, `reviews`' `--pr` and `--repo`, `issues`' `--label` and `--limit`, `count-checks`' `--since`, `--until` and `--bucket`) are still read. A quoted description that starts with an action word still runs the default action. Two new eval cases cover `rules.` and `note. --applied` ([#17031](https://github.com/melodic-software/claude-code-plugins/issues/17031)).
+
 ## [1.8.3] - 2026-11-20
 
 ### Added

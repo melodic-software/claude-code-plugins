@@ -1,7 +1,8 @@
-# Tools by ecosystem, and what to do without one
+# The tools the audit drives, and what to do without one
 
-Which mutation tool exists for which stack, what each one calls things, and the honest answer for
-languages nobody has built a tool for.
+What each tool the audit has a shipped adapter for supports, what each one calls things, and the
+honest answer for languages nobody has built a tool for. Which tool a repository uses is the
+repository's own choice; this page picks none.
 
 Sources: [StrykerJS configuration](https://stryker-mutator.io/docs/stryker-js/configuration/),
 [StrykerJS incremental](https://stryker-mutator.io/docs/stryker-js/incremental/),
@@ -11,18 +12,18 @@ Sources: [StrykerJS configuration](https://stryker-mutator.io/docs/stryker-js/co
 [Infection CLI](https://infection.github.io/guide/command-line-options.html),
 [mutmut](https://mutmut.readthedocs.io/). Fetched 2026-08-15. Recheck when any listed tool
 publishes a release note touching its diff-scoping switch or its in-place / out-of-tree write
-behavior, when a new mutation tool appears for a listed ecosystem, or at the next fleet audit.
+behavior, when a new mutation tool gains a shipped adapter, or at the next fleet audit.
 
 ## Established tools
 
-| Ecosystem | Tool | Diff-scoping flag | Write-regime setting | Covered-code metric name |
-|---|---|---|---|---|
-| JavaScript / TypeScript | StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace`: `false` → out-of-tree; `true` → in-tree whole-file | Mutation score based on covered code |
-| C# / .NET | Stryker.NET | `--since[:<target>]` | none, fixed out-of-tree | Mutation score based on covered code |
-| Scala | Stryker4s | none | none, fixed out-of-tree | Mutation score based on covered code |
-| Java / JVM | PIT (pitest) | incremental analysis | none, mutants held in memory, never written to disk (out-of-tree) | **Test strength** |
-| PHP | Infection | `--git-diff-lines` (with `--git-diff-base` / `--git-diff-filter`) | none, fixed out-of-tree | **Covered Code MSI** |
-| Python | mutmut | changed-file selection | ≤2.x in-tree per-mutant; ≥3.0.0 out-of-tree, so the version is the regime | mutation score |
+| Tool | Diff-scoping flag | Write-regime setting | Covered-code metric name |
+|---|---|---|---|
+| StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace`: `false` → out-of-tree; `true` → in-tree whole-file | Mutation score based on covered code |
+| Stryker.NET | `--since[:<target>]` | none, fixed out-of-tree | Mutation score based on covered code |
+| Stryker4s | none | none, fixed out-of-tree | Mutation score based on covered code |
+| PIT (pitest) | incremental analysis | none, mutants held in memory, never written to disk (out-of-tree) | **Test strength** |
+| Infection | `--git-diff-lines` (with `--git-diff-base` / `--git-diff-filter`) | none, fixed out-of-tree | **Covered Code MSI** |
+| mutmut | changed-file selection | ≤2.x in-tree per-mutant; ≥3.0.0 out-of-tree, so the version is the regime | mutation score |
 
 Names differ; the metric is the same one, the covered-code score [metrics.md](metrics.md) defines.
 
@@ -55,21 +56,6 @@ collapsed across tools:
   3.x uses an out-of-tree `mutants/` / temp copy). The installed major version *is* the regime;
   ≤2.x is the refuse-without-observability case Phase 0 names.
 
-## Selecting a tool
-
-Read the consuming project before choosing:
-
-1. **Detect the ecosystem** from what exists: `package.json`, `*.csproj` / `*.sln`,
-   `pom.xml` / `build.gradle`, `composer.json`, `pyproject.toml` / `setup.cfg`.
-2. **Confirm the test runner is one the tool supports.** This is the usual blocker: a mutation tool
-   drives the test runner, so an unsupported or heavily customized runner setup fails before any
-   mutant runs.
-3. **Confirm the suite is green and non-flaky first.** A red suite kills every mutant and reports a
-   perfect score. A flaky suite kills mutants at random. Neither result means anything.
-4. **Confirm the suite is fast enough per covered file.** Mutation cost is dominated by repeated
-   suite execution. If the tool cannot select a subset of tests per mutant, the run scales with the
-   whole suite and diff-scoping is the only thing keeping it affordable.
-
 ## Configuration that matters more than the rest
 
 Whatever the tool, three settings carry most of the value:
@@ -88,8 +74,8 @@ incentive.
 
 ## When no tool exists for the language
 
-Shell, Terraform, SQL, and plenty of others have no mutation tooling. The technique still applies by
-hand or by agent, but the honesty bar rises because nothing is checking the harness.
+Many languages have no mutation tooling. The technique still applies by hand or by agent, but the
+honesty bar rises because nothing is checking the harness.
 
 A defensible manual pass needs all five:
 
@@ -105,9 +91,3 @@ A defensible manual pass needs all five:
 5. **A cited verdict for anything called unkillable.** An equivalence claim asserted from inspection
    is where this technique manufactures false confidence. Cite the measurement: the two runs and
    what was identical about them.
-
-That last point is not theoretical. The marketplace repository's `lib/hook-utils.test.sh` carries a worked
-example: a block deleted from `hook-utils.sh`, a baseline and mutant run measured and reported, the
-survivor diagnosed, the test redesigned around a non-temporal observable so it would go red, and the
-one delivery shape under which the mutant is genuinely undetectable documented with the measurement
-that established it. Read the figures there, where they are maintained. That is the bar.

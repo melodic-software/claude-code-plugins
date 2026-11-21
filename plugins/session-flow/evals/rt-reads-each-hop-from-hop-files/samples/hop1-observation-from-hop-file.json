@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Hop 1 (2026-10-14): found why hyphenated words miss. Observed: the tokenizer splits on hyphens, so e-mail was indexed as e and mail.",
+      "why": "states the hop-1 observation"
+    },
+    {
+      "answer": "- h1: e-mail went into the index as two terms, which is why the search missed it.",
+      "why": "two terms"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Hop 1 found why hyphenated words miss; hop 2 fixed the tokenizer; hop 3 rebuilt the index.",
+      "why": "the hot files' did lines only, no observation"
+    },
+    {
+      "answer": "I could not find hop 1's handoff file; only the newest one is on disk.",
+      "why": "missed the hop files"
+    }
+  ]
+}

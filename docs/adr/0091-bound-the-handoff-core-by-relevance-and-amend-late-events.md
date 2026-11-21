@@ -1,6 +1,9 @@
 # Bound the handoff core by relevance and amend late events
 
-- Status: accepted
+- Status: accepted; Decision 1 is superseded in part by
+  [ADR 0115](0115-write-handoff-shape-4-with-binding-sections-first-and-a-tool-owned-byte-budget.md)
+  (the tool, not the writer, fits the hot file by moving movable sections; binding content over
+  the cap reports OVER-CAP)
 - Date: 2026-11-07
 - Supersedes: decision 6 of
   [ADR 0084](0084-ship-handoff-shape-3-on-measured-size-and-leave-accuracy-to-the-resume-eval.md)

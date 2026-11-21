@@ -11,7 +11,11 @@
   is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
   screen through textContent. When the server stops answering, the notes written here stay on this
   page and Copy all notes makes one prototype-notes block for the session to import. A draft stays
-  on this page, out of that block, until it is sent. The Controls tab renders the framed page's
+  on this page, out of that block, until it is sent; it is kept in this tab's sessionStorage under the
+  run's token, never on the server, so a reload of the same run lists it again. The run's sent notes come
+  back from /api/notes, the token in the request's header, each kept only as note.schema.json admits
+  it. Hovering a row draws its note's box in the frame, and clicking a row or its marker restores the
+  note's view and keeps the box drawn; the frame gets keys, a path and a box, never note text. The Controls tab renders the framed page's
   controls manifest, kept only when controls.schema.json admits it, through the registry in
   controls.js, beside the data controls and content sets the page marks, each kept only as
   note.schema.json admits a data step or a content set; it sends the frame values and presses,
@@ -33,6 +37,8 @@
   textarea { font: inherit; inline-size: 100%; box-sizing: border-box; min-block-size: 6em; }
   ol { margin: 0; padding-inline-start: 1.4em; display: grid; gap: 8px; }
   .where, .state { font-size: 0.9em; opacity: 0.75; }
+  #notes li[tabindex] { cursor: pointer; border-radius: 4px; }
+  #notes li[aria-current="true"] { outline: 2px solid rgb(13 148 136); outline-offset: 3px; }
   .reply { margin: 2px 0 0; padding-inline-start: 8px; border-inline-start: 3px solid rgb(13 148 136); }
   #panel, [role="tabpanel"] { display: flex; flex-direction: column; gap: 10px; }
   [role="tablist"] { display: flex; gap: 4px; }
@@ -61,7 +67,7 @@
   <p id="session" class="state"></p>
   <button type="button" id="pick" aria-pressed="false" disabled>Pick an element (P)</button>
   <button type="button" id="region" aria-pressed="false" disabled>Mark a region (R)</button>
-  <button type="button" id="move" aria-pressed="false" disabled>Draw a move arrow (M)</button>
+  <button type="button" id="move" aria-pressed="false" disabled>Draw a move arrow (A)</button>
   <button type="button" id="quote" disabled>Note on selected text (T)</button>
   <div id="composer" hidden>
     <p id="picked" class="where"></p>
@@ -93,7 +99,7 @@
 </aside>
 <script src="/controls.js"></script>
 <script type="module">
-  import { problems, use } from "/note-model.mjs";
+  import { draftStore, problems, use } from "/note-model.mjs";
   import { awaitReady, frameTarget, fromFrame, READY_MS } from "/frame-channel.mjs";
 
   const $ = (id) => document.getElementById(id);
@@ -110,6 +116,8 @@
   const mine = [];
   const shown = new Map(); // seq -> the status last shown, so only a change is announced
   let last = { listening: "idle", notes: [] };
+  // The row whose note's box stays drawn on the mockup, until a click elsewhere or another row.
+  let chosen = null;
 
   const fits = (value, node) => value !== undefined && problems(value, schema, node).length === 0;
   const toFrame = (m) => { if (target && ready && loads < 2) frame.contentWindow.postMessage(m, target); };
@@ -183,6 +191,8 @@
   /** Turn pick mode on for one kind ("element", "region" or "move"), or off. */
   function setPick(kind) {
     picking = kind && live() ? kind : null;
+    // The frame drops its selected box when a pick starts; the list follows.
+    if (picking && chosen) unchoose(false);
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
     if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
@@ -248,12 +258,70 @@
       const to = n.to.anchor ? nameOf(n.to.anchor) : `the point ${Math.round(n.to.point.x)}%, ${Math.round(n.to.point.y)}%`;
       parts.push(`move ${nameOf(a)} to ${to}`);
     } else if (n.kind === "text") {
-      const q = [...a.textQuote.exact];
+      const q = [...(a.textQuote?.exact ?? "")];
       parts.push(`text “${q.slice(0, 60).join("")}${q.length > 60 ? "…" : ""}”`);
     } else if (n.kind === "region") {
-      parts.push(`region at ${Math.round(n.rect?.x ?? 0)}%, ${Math.round(n.rect?.y ?? 0)}% over ${n.elements.length} element(s)`);
+      parts.push(`region at ${Math.round(n.rect?.x ?? 0)}%, ${Math.round(n.rect?.y ?? 0)}% over ${n.elements?.length ?? 0} element(s)`);
     } else parts.push(nameOf(a));
     return parts.join(" · ");
+  }
+
+  /** A row's number, as its marker shows it: the seq once sent, D1, D2... for drafts, null for a note no marker shows. */
+  const numberOf = (m) => m.seq ?? (m.draft ? `D${mine.filter((x) => x.draft).indexOf(m) + 1}` : null);
+  /** What the frame needs to find a note's box and restore its view: contract keys, a path and a box, never its text. */
+  function noteTarget(m) {
+    const n = m.note, t = { n: numberOf(m), kind: n.kind, cssPath: n.anchor.cssPath };
+    if (n.rect) t.rect = { x: n.rect.x, y: n.rect.y, w: n.rect.w, h: n.rect.h };
+    if (n.variant) t.variant = n.variant.key;
+    if (n.state) t.state = n.state.key;
+    if (n.content) t.content = n.content;
+    return t;
+  }
+  /** Select a row: the frame restores the note's view, scrolls to it and keeps its box drawn. */
+  function choose(m) {
+    if (picking) setPick(null);
+    chosen = m;
+    toFrame({ type: "select", target: noteTarget(m) });
+    markChosen();
+  }
+  function unchoose(tellFrame) {
+    if (!chosen) return;
+    chosen = null;
+    if (tellFrame) toFrame({ type: "select", target: null });
+    markChosen();
+  }
+  /** The rows stay in place: a click still bubbling from a row must find it in the list. */
+  function markChosen() {
+    for (const li of $("notes").children) {
+      if (chosen && li.dataset.key === `row-${chosen.id}`) li.setAttribute("aria-current", "true");
+      else li.removeAttribute("aria-current");
+    }
+  }
+
+  /** The run's sent notes from the bridge, so a reload lists them again. A note the contract refuses is left out. */
+  async function loadHistory() {
+    try {
+      const r = await fetch("/api/notes", { headers: { "X-Notes-Token": token } });
+      if (!r.ok) throw new Error(`the notes read answered ${r.status}`);
+      const { notes } = await r.json();
+      for (const e of Array.isArray(notes) ? notes : []) {
+        if (!e || typeof e !== "object") continue;
+        const { seq, at: _at, ...note } = e;
+        if (!Number.isInteger(seq) || problems(note, schema).length || mine.some((m) => m.seq === seq)) continue;
+        mine.push({ id: ++ids, note, where: where(note), seq, draft: false });
+      }
+    } catch (err) {
+      console.warn("ui-feedback: the run's earlier notes were not listed", err);
+    }
+  }
+
+  /** This tab's drafts for this run, kept in sessionStorage under the run's token so a reload lists them again. */
+  let draftsKept = null;
+  function restoreDrafts() {
+    let tab;
+    try { tab = sessionStorage; } catch (err) { console.warn("ui-feedback: no tab storage, so drafts last this load only", err); return; }
+    draftsKept = draftStore(tab, token, schema);
+    for (const note of draftsKept.load()) mine.push({ id: ++ids, note, where: where(note), seq: null, draft: true });
   }
 
   /** Open the editor on a new note (`entry` null) or on a draft; `from` gives back the control
@@ -360,6 +428,7 @@
   function remove(entry) {
     if (sending) return;
     if (editing === entry) closeComposer();
+    if (chosen === entry) unchoose(true);
     mine.splice(mine.indexOf(entry), 1);
     render();
     $("notes-title").focus();
@@ -385,7 +454,7 @@
     markersShown = on;
     try { sessionStorage.setItem(MARKERS, on ? "0" : "1"); } catch { /* no storage: the choice lasts this load only */ }
     $("markers").textContent = on ? "Hide markers (M)" : "Show markers (M)";
-    toFrame({ type: "markers", on });
+    toFrame({ type: "markers", on, clicks: true });
   }
   setMarkers(markersShown);
 
@@ -433,8 +502,23 @@
       b.addEventListener("click", run);
       return b;
     };
-    const item = (head, words, status, reply, actions = []) => {
+    const item = (head, words, status, reply, actions = [], entry = null) => {
       const li = document.createElement("li");
+      if (entry) {
+        // Hover or focus shows the note's box on the mockup; a click or Enter selects the row.
+        li.tabIndex = 0;
+        li.dataset.key = `row-${entry.id}`;
+        if (chosen === entry) li.setAttribute("aria-current", "true");
+        const peek = (on) => () => toFrame({ type: "show", target: on ? noteTarget(entry) : null });
+        li.addEventListener("mouseenter", peek(true));
+        li.addEventListener("mouseleave", peek(false));
+        li.addEventListener("focus", peek(true));
+        li.addEventListener("blur", peek(false));
+        li.addEventListener("click", (e) => { if (!e.target.closest("button")) choose(entry); });
+        li.addEventListener("keydown", (e) => {
+          if (e.target === li && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); choose(entry); }
+        });
+      }
       const h = document.createElement("div");
       h.className = "where";
       h.textContent = head;
@@ -458,24 +542,22 @@
       return li;
     };
     const drafts = mine.filter((m) => m.draft);
-    const pin = (m, n) => ({ n, selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
-    toFrame({ type: "pins", pins: [
-      ...mine.filter((m) => m.seq !== null).map((m) => pin(m, m.seq)),
-      ...drafts.map((m, i) => pin(m, `D${i + 1}`)),
-    ] });
+    draftsKept?.save(drafts.map((m) => m.note));
+    const pin =(m) => ({ n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(pin) });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
         const m = ours.get(seq);
         const st = byseq.get(seq) || {};
-        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "", statusOf(st), st.reply);
+        return item(m ? `#${seq} · ${m.where}` : `#${seq} (sent earlier)`, m ? m.note.text : "", statusOf(st), st.reply, [], m);
       }),
       ...mine.filter((m) => m.seq === null).map((m) => m.draft
-        ? item(m.where, m.note.text, "draft", null, [
+        ? item(`${numberOf(m)} · ${m.where}`, m.note.text, "draft", null, [
           button("Edit", `edit-${m.id}`, () => openComposer(m.note, control(`edit-${m.id}`), m)),
           button("Delete", `delete-${m.id}`, () => remove(m)),
           button("Send", `send-${m.id}`, () => sendDrafts([m])),
-        ])
-        : item(m.where, m.note.text, "not sent: use Copy all notes")),
+        ], m)
+        : item(m.where, m.note.text, "not sent: use Copy all notes", null, [], m)),
     );
     $("sendall").hidden = !drafts.length;
     if (focused) document.querySelector(`[data-key="${focused}"]`)?.focus();
@@ -492,8 +574,21 @@
       for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
       takeControls(m);
       setMarkers(markersShown);
-      say("Pick an element (P), mark a region (R), draw a move arrow (M), or select text in the mockup and press Note on selected text (T).");
+      render(); // the run's earlier notes, listed before the frame was ready, get their markers
+      say("Pick an element (P), mark a region (R), draw a move arrow (A), or select text in the mockup and press Note on selected text (T).");
     } else if (m.type === "escape") setPick(null);
+    else if (m.type === "marker") {
+      // The frame names a marker's number; only a row of this list with that number is selected.
+      const entry = mine.find((x) => (x.seq !== null || x.draft) && numberOf(x) === m.n);
+      if (!entry) return;
+      if ($("panel").hidden) setPanel(true);
+      selectTab(tabs[0], false);
+      choose(entry);
+      const row = document.querySelector(`[data-key="row-${entry.id}"]`);
+      row?.scrollIntoView({ block: "nearest" });
+      row?.focus();
+    } else if (m.type === "unselected") unchoose(false);
+    else if (m.type === "shown" && m.found === false && chosen) say("That note's place is not on the mockup now, so no box is drawn.");
     else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
     else if (m.type === "want-text") askText();
     else if (m.type === "pinned" && picking === "element") {
@@ -531,6 +626,10 @@
   $("cancel").addEventListener("click", closeComposer);
   $("copy").addEventListener("click", copyAll);
   $("copy-config").addEventListener("click", copyConfig);
+  // A click anywhere on this page but a row ends the selection.
+  document.addEventListener("click", (e) => { if (chosen && !(e.target instanceof Element && e.target.closest("#notes li"))) unchoose(true); });
+  // The list outlives its rows, which render() replaces without a mouseleave.
+  $("notes").addEventListener("mouseleave", () => toFrame({ type: "show", target: null }));
   $("reset-controls").addEventListener("click", resetControls);
   for (const t of tabs) {
     t.addEventListener("click", () => selectTab(t));
@@ -561,7 +660,7 @@
     if (!ready) return;
     if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
     else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
-    else if (key === "m") { e.preventDefault(); setPick(picking === "move" ? null : "move"); }
+    else if (key === "a") { e.preventDefault(); setPick(picking === "move" ? null : "move"); }
     else if (key === "t") { e.preventDefault(); askText(); }
   });
 
@@ -577,6 +676,9 @@
     cschema = cs;
     use(s, cs);
     token = t.token;
+    await loadHistory();
+    restoreDrafts();
+    render();
     frame.addEventListener("load", () => {
       loads += 1;
       if (loads > 1) {

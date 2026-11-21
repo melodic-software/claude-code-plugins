@@ -21,7 +21,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
 | Bundled skills | 30 | 24 | route 19, suggest 9, wrap 2 | complementary 25, defer 5 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
-| Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
+| Plugin-backed built-ins | 5 | 3 | route 5 | complementary 4, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
 | Built-in tools | 7 | 7 | route 7 | complementary 7 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
@@ -1075,6 +1075,24 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - hand-seeded pair (canonical-pairs.json); not discovered by detect at the default threshold
 - **Observation:** extraction: extracted from binary v2.1.287 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `cc-plugin-agents-md` read in the builtin_plugins lane) (2026-10-01)
 - **Recheck trigger:** an extraction stops reporting `cc-plugin-agents-md` in the builtin_plugins lane, reads its `tengu_agents_md_mod` gate default as false, or the plugin gains a skill or command; or the memory page changes which sessions read AGENTS.md directly (verified 2026-10-01)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `cc-plugin-easel` → `visualization:visualize`
+
+- **Verdict:** `complementary`: Partial overlap, kept. The built-in `cc-plugin-easel` mod gives Claude a chart tool and draws charts under time-series MCP results; visualization:visualize picks a visual form and medium for any conversation content (mermaid, tables, hand-authored SVG/CSS charts, ASCII, rich pages), of which a quantity chart is one form. The mod covers only that chart form and only where it loads: it needs a claude.ai subscription, Claude Code v2.1.321 or later (v2.1.326 on Team and Enterprise) and macOS or Linux outside WSL, and its automatic charts can be turned off in /config, so it is not routable everywhere. Route: where the mod resolves, a request for a chart of quantities can go to its chart tool; every other form stays with this skill. Ruled 2026-11-21 by owner direction ('go w/ recommendations' to option (a), keep the skill and record easel as a partial overlap; melodic-software/architecture#148).
+- **Integration:** `route`
+- **Native surface:** `cc-plugin-easel` (plugin-backed built-in; markers: gated)
+- **Our component:** `visualization:visualize` (skill)
+- **Evidence:**
+  - `cc-plugin-easel` present in the extraction as plugin-backed-builtin (the `builtin_plugins` lane), aliases: easel
+  - markers: gated; gate flag `tengu_joyful_otter`, default false; load conditional; default_enabled true (absent-default); declares userConfig; hooks module on session.start, session.attach, prompt.section, tool.call, ui.render; no skills, agents or commands
+  - native description: Draws charts in the transcript: a chart tool for Claude, and automatic charts for MCP results that are metrics over time
+  - docs: https://code.claude.com/docs/en/plugins/mods/overview.md, sections 'Mods built into Claude Code' and 'Check the charts mod requirements', read 2026-11-21 (HTTP 200, sha256 5a4b5ffd892271c8): requirements are a claude.ai subscription, v2.1.321 or later (v2.1.326 for Team and Enterprise), macOS or Linux outside WSL; turn off in /plugin, or only the automatic charts via Auto charts in /config
+  - our description: Decide the best visual form and medium for what is in the conversation right now, then render it (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page)
+  - changelog item 2.1.330-002, handed off by the v2.1.330 changelog apply run (melodic-software/claude-code-plugins#17713, #17830)
+- **Observation:** extraction: extracted from binary v2.1.330 on 2026-11-21 (the /harness-ops:inventory --binary-only extraction of the installed native build; `cc-plugin-easel` read in the builtin_plugins lane; that lane reported components of cc-plugin-hipaa-default and claude-platform as floors, not easel's) (2026-11-21)
+- **Recheck trigger:** an extraction stops reporting `cc-plugin-easel` in the builtin_plugins lane, reads its `tengu_joyful_otter` gate default as true or drops the gate, or the mod gains a skill or command; or the mods overview page changes the charts mod's requirements or what it draws (verified 2026-11-21)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

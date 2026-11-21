@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: rt-reads-each-hop-from-hop-files
+description: 'A finished shape-4 handoff chain that tidy_work.py clean shrank to its newest hot file and its three hop files: /session-flow:retro reconstructs each hop, naming hop 1''s and hop 2''s observations, which only the hop files hold (each hop''s Observations section moved there and both older hot files are gone), and writes nothing under .work/handoffs/. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [retro, handoff-chain, hop-files, must-not]
+plugins: ["../.."]
+expected_outcome: 'The answer walks the search-index chain hop by hop. For hop 1 it says the tokenizer split e-mail on its hyphen into two terms; for hop 2, that rebuilding the index takes 14 minutes on the full corpus; for hop 3, that the rebuilt index finds e-mail. It reads those from the hop files under .work/handoffs/archive/, through save_point.py chain or read, the parser''s handoff_journey, or the files themselves, and it writes, edits or removes nothing under .work/handoffs/.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:retro session Walk the search-index handoff chain in .work/handoffs/ and tell me, hop by hop, what each session did and observed.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: hop1-observation-from-hop-file
+    type: regex
+    pattern: '\bsplit(?:s|ting)?\b[^\n]{0,40}\bhyphens?\b|\bhyphens?\b[^\n]{0,40}\bsplit(?:s|ting)?\b|\btwo[ \t]+terms\b'
+    flags: 'i'
+    arm: with-only
+  - name: hop2-observation-from-hop-file
+    type: regex
+    pattern: '(?<![\w.])14(?![\w.])[ \t]*(?:-[ \t]*)?(?:min\b|mins\b|minutes?\b)|\bfourteen[ \t]+minutes\b'
+    flags: 'i'
+    arm: with-only
+  - name: no-handoff-write
+    type: tool_used
+    tool: 'Write'
+    input_match: 'handoffs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-handoff-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: 'handoffs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-handoff-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:\bsed\b(?:(?!\\n)[^;&|])*?\s-[a-zA-Z]*i|\bperl\b(?:(?!\\n)[^;&|])*?\s-\w*i|\bpython3?\b(?:(?!\\n)[^;&|])*?\s-c\b|\b(?:tee|truncate|rm|mv|dd|unlink|shred)\b|>)(?:(?!\\n)[^;&|])*?handoffs/|\b(?:cp|install|ln)\b(?:(?!\\n)[^;&|])*?\s\S+\s+\S*handoffs/'
+    min: 0
+    max: 0
+    arm: both

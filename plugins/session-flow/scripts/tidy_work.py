@@ -18,7 +18,8 @@ A relative `--memory-dir` resolves against the repository top level. Kinds come
 from the memory-root layout:
 
     handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`
-                   sidecar as part of the same item. `handoffs/` is its place;
+                   sidecar and `.<file>.over-budget` marker as part of the same
+                   item. `handoffs/` is its place;
                    one in the root or in `running-retros/` is a misplaced handoff
     archive        a shape-3 chain's `handoffs/archive/<chain-root-stem>/`
                    directory of hop files. It is kept while any handoff of its
@@ -27,6 +28,10 @@ from the memory-root layout:
                    last of them, and stays when one of them is refused
     running-retro  a `<TS>-running-retro-<topic>.md` file, in `running-retros/`
                    or misplaced the same way
+    orphan-marker  an over-budget marker whose handoff is not beside it. It
+                   holds only slot names, so it leaves once nothing keeps it in
+                   flight; an orphan `.slots.json` can hold the only copy of its
+                   text and is unknown
     slice          `<slug>/` holding an `INDEX.md`
     checklist      `<slug>/` holding a `workflow-checklist.md` and no `INDEX.md`
     scratch        any other entry whose name carries exactly one issue or PR
@@ -49,6 +54,11 @@ An item is in flight, and so kept, when any of these holds:
       (shape-3 `chain_root`, shape-2 first `chain:` entry) and the files they
       name as root, `chain:` entry or `previous_handoff`; no link is looked up
       for them, and `clean` prints one `kept open chain:` line per such chain
+    - it is the newest hot file of a finished shape-3 or shape-4 chain: such a
+      chain shrinks to that file and its hop files (the archive stays with
+      it); a shape-2 chain is never shrunk and leaves by the rules here
+    - it is a shape-2 hot file of a finished chain that shrinks: no hop file
+      holds a shape-2 hop's sections
     - a slice's `INDEX.md` status, or a child slice's, is anything but `done`
       (missing and unrecognized values count as not done)
     - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
@@ -66,7 +76,8 @@ any root outside a work tree, it has no repository and counts as unknown.
 
 An item that names no issue or PR is kept however old it is: `clean` removes an
 item only when it names at least one issue or PR and every one is closed or
-merged. A handoff or running retro is attributed by the references in its text,
+merged. An archive and an orphan marker are the exceptions: each leaves by its
+own rule above. A handoff or running retro is attributed by the references in its text,
 a scratch item by its name. A slice or checklist has no attribution source, so
 `report` marks it and `clean` never removes it.
 Issue and PR state comes from `gh api` (one listing of the open ones per
@@ -132,6 +143,22 @@ CHECKLIST = "workflow-checklist.md"
 SLICE_INDEX = "INDEX.md"
 RETRO_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-running-retro-[^/\\]+\.md$")
 SLOTS_RE = re.compile(r"^(\d{8}T\d{6}Z-handoff-[^/\\]+)\.slots\.json$")
+OVER_BUDGET_RE = re.compile(r"^\.(\d{8}T\d{6}Z-handoff-[^/\\]+\.md)\.over-budget$")
+
+
+def _sidecars(path: Path) -> list[Path]:
+    """The files `save_point.py` writes beside a handoff: its slots file and
+    the over-budget marker `fill` leaves."""
+    return [
+        p
+        for p in (
+            path.with_suffix(".slots.json"),
+            path.with_name(f".{path.name}.over-budget"),
+        )
+        if _plain_file(p)
+    ]
+
+
 # Concern dirs other skills write and read back; their entries are never removed.
 CONCERN_DIRS = (
     "reviews",
@@ -172,6 +199,8 @@ class Item:
     closed: bool = False
     chain_names: frozenset[str] = frozenset()
     open_chain: tuple[str, str] | None = None
+    shape: int | None = None
+    shrinks: bool = False
 
     @property
     def paths(self) -> list[Path]:
@@ -183,7 +212,7 @@ class Item:
 
     @property
     def keep(self) -> bool:
-        if self.kind == "archive":
+        if self.kind in ("archive", "orphan-marker"):
             return self.in_flight
         return self.kind in ("unknown", "concern") or self.in_flight or not self.links
 
@@ -266,19 +295,21 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     return ("scratch" if _name_refs(path.name) else "unknown"), None
 
 
-def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str]]:
-    """A handoff's chain root (shape 3's `chain_root`, shape 2's first `chain:`
-    entry, else none: shape 1 belongs to no chain), whether its Resume prompt
-    `Next:` line closes the chain, and the handoff names it links to."""
+def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str], int | None]:
+    """A handoff's chain root (shape 3 and 4's `chain_root`, shape 2's first
+    `chain:` entry, else none: shape 1 belongs to no chain), whether its Resume
+    prompt `Next:` line closes the chain, the handoff names it links to, and its
+    shape."""
     try:
         doc = save_point.parse_doc(path)
     except (OSError, UnicodeDecodeError):
-        return "", False, frozenset()
+        return "", False, frozenset(), None
     root = doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
     span = save_point._next_span(doc)
     closed = span is not None and doc.lines[span[0]] == save_point.NEXT_CLOSED
     names = {root, doc.frontmatter.get("previous_handoff", ""), *doc.chain}
-    return root, closed, frozenset(n for n in names if n)
+    shape = doc.shape if isinstance(doc.shape, int) else None
+    return root, closed, frozenset(n for n in names if n), shape
 
 
 def _unfinished_stage(slice_dir: Path) -> bool:
@@ -344,11 +375,7 @@ def inventory(root: Path, label: str) -> list[Item]:
         return items
 
     def add(path: Path, kind: str, link_file: Path | None, chain: str = "") -> None:
-        extras: list[Path] = []
-        if kind == "handoff" and _plain_file(
-            sidecar := path.with_suffix(".slots.json")
-        ):
-            extras.append(sidecar)
+        extras = _sidecars(path) if kind == "handoff" else []
         try:
             stats = [_tree_stats(p) for p in (path, *extras)]
         except OSError:
@@ -356,9 +383,9 @@ def inventory(root: Path, label: str) -> list[Item]:
         links = _refs_of(link_file) if link_file else []
         if kind == "scratch":
             links = _name_refs(path.name)
-        closed, names = False, frozenset[str]()
+        closed, names, shape = False, frozenset[str](), None
         if kind == "handoff":
-            chain, closed, names = _chain_facts(path)
+            chain, closed, names, shape = _chain_facts(path)
         items.append(
             Item(
                 path,
@@ -371,6 +398,7 @@ def inventory(root: Path, label: str) -> list[Item]:
                 chain=chain,
                 closed=closed,
                 chain_names=names,
+                shape=shape,
             )
         )
 
@@ -379,6 +407,18 @@ def inventory(root: Path, label: str) -> list[Item]:
         if (slots := SLOTS_RE.match(path.name)) and _plain_file(
             path.with_name(f"{slots[1]}.md")
         ):
+            return
+        if (marker := OVER_BUDGET_RE.match(path.name)) and _plain_file(
+            path.with_name(marker[1])
+        ):
+            return
+        if (
+            marker
+            and parent_kind != "concern"
+            and _plain_file(path)
+            and not os.path.lexists(path.with_name(marker[1]))
+        ):
+            add(path, "orphan-marker", None)
             return
         kind, link_file = _classify(path, parent_kind)
         add(path, kind, link_file)
@@ -394,8 +434,10 @@ def inventory(root: Path, label: str) -> list[Item]:
                 "running-retros": "running-retro",
             }.get(entry.name, "concern")
             for child in sorted(entry.iterdir()):
-                if entry.name == "handoffs" and child.name == save_point.ARCHIVE_DIR and (
-                    child.is_dir() and not child.is_symlink()
+                if (
+                    entry.name == "handoffs"
+                    and child.name == save_point.ARCHIVE_DIR
+                    and (child.is_dir() and not child.is_symlink())
                 ):
                     for chain in sorted(child.iterdir()):
                         if chain.is_dir() and not chain.is_symlink():
@@ -472,6 +514,27 @@ def _mentions(text: str, name: str, is_dir: bool) -> bool:
     return re.search(rf"(?<![\w.-]){re.escape(name)}/", text) is not None
 
 
+def keep_finished(members: list[Item], tip: Item, root: str) -> None:
+    """A finished shape-3 or shape-4 chain shrinks without losing what retro
+    reads: its newest hot file stays, and with it the chain's hop files, which
+    hold every older hot file's sections; its older hot files are then judged
+    without the newest one's references to them. No hop file holds a shape-2
+    hop's sections, so a shape-2 chain never shrinks and a mixed chain keeps
+    its shape-2 hot files."""
+    if tip.shape not in save_point.HOP_FILE_SHAPES:
+        return
+    tip.reasons.append(
+        f"newest hot file of finished chain {root}: a shrink keeps it and every hop file"
+    )
+    for item in members:
+        if item.shape in save_point.HOP_FILE_SHAPES:
+            item.shrinks = True
+        else:
+            item.reasons.append(
+                f"shape-2 hop of finished chain {root}: no hop file holds its sections"
+            )
+
+
 def mark_open_chains(items: list[Item]) -> None:
     """Keep every handoff of a chain whose newest hot file (by its `<TS>` name)
     does not close it, whatever its age or PR state. A chain's handoffs are those
@@ -485,6 +548,7 @@ def mark_open_chains(items: list[Item]) -> None:
     for (label, root), members in chains.items():
         tip = max(members, key=lambda i: i.path.name)
         if tip.closed:
+            keep_finished(members, tip, root)
             continue
         names = {root}.union(*(m.chain_names for m in members))
         for item in handoffs:
@@ -507,7 +571,7 @@ def mark_in_flight(
     now: float,
     roots: dict[str, Path],
 ) -> None:
-    kept_handoffs: list[tuple[float, str]] = []  # (mtime, text) of handoffs kept
+    kept_handoffs: list[tuple[float, str, tuple[str, str]]] = []
     mark_open_chains(items)
 
     def judge(item: Item) -> None:
@@ -516,9 +580,12 @@ def mark_in_flight(
         if now - item.mtime < days * 86400:
             item.reasons.append(f"modified within {days:g} days")
         is_dir = item.path.is_dir()
+        own = (item.root, item.chain) if item.shrinks else None
         if any(
-            mtime > item.mtime and _mentions(text, item.path.name, is_dir)
-            for mtime, text in kept_handoffs
+            mtime > item.mtime
+            and chain != own
+            and _mentions(text, item.path.name, is_dir)
+            for mtime, text, chain in kept_handoffs
         ):
             item.reasons.append("named by a later handoff")
         if not item.reasons and _holds_git(item.path):
@@ -539,7 +606,11 @@ def mark_in_flight(
         if item.keep:
             try:
                 kept_handoffs.append(
-                    (item.mtime, item.path.read_text(encoding="utf-8"))
+                    (
+                        item.mtime,
+                        item.path.read_text(encoding="utf-8"),
+                        (item.root, item.chain),
+                    )
                 )
             except (OSError, UnicodeDecodeError):
                 pass
@@ -549,7 +620,8 @@ def mark_in_flight(
     for item in items:
         if item.kind == "archive":
             chain = [
-                i for i in items
+                i
+                for i in items
                 if i.kind == "handoff" and i.root == item.root and i.chain == item.chain
             ]
             kept = [i.path.name for i in chain if i.keep]
@@ -639,6 +711,8 @@ def _verdict(item: Item) -> str:
         verdict = "keep: unknown kind"
     elif item.reasons:
         verdict = "keep: " + "; ".join(item.reasons)
+    elif item.kind == "orphan-marker":
+        verdict = "stale: its handoff is gone"
     else:
         verdict = "stale" if item.links else "keep: names no issue or PR"
     return verdict + _attribution(item)
@@ -821,7 +895,7 @@ def plan_moves(root: Path) -> list[tuple[Path, Path]]:
         for dirname, name_re in layout:
             if name_re.match(src.name) and src.parent != root / dirname:
                 moves.append((src, root / dirname / src.name))
-                if _plain_file(sidecar := src.with_suffix(".slots.json")):
+                for sidecar in _sidecars(src):
                     moves.append((sidecar, root / dirname / sidecar.name))
     return moves
 

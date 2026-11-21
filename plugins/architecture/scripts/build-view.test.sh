@@ -36,7 +36,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" "$chrome" <<'NODE'
-import { copyFileSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -176,6 +176,22 @@ check("an output path that is a symlink is replaced, not followed", (() => {
   const built = build("flow", good);
   return built.status === 0 && readFileSync(target, "utf8") === "untouched" && !lstatSync(link).isSymbolicLink();
 })());
+
+const deepening = JSON.parse(readFileSync(`${dir}/testdata/deepening-candidates.json`, "utf8"));
+const deepeningBuilt = build("deepening", write("deepening", deepening));
+check("deepening: the 23-candidate record builds to a page named after the record", deepeningBuilt.status === 0 && deepeningBuilt.stdout.trim().endsWith("deepening.html"), deepeningBuilt.stderr);
+const laterBuilt = build("deepening", write("deepening-report-20261121T082841Z", deepening));
+check("deepening: a second record's page does not replace the first", laterBuilt.status === 0 && laterBuilt.stdout.trim().endsWith("deepening-report-20261121T082841Z.html") && existsSync(deepeningBuilt.stdout.trim()), laterBuilt.stderr);
+const deepeningPage = readFileSync(deepeningBuilt.stdout.trim(), "utf8");
+check("deepening: every card has a solution, wins and a diagram", ["solution", "wins", "diagram"].every((part) => deepeningPage.split(`data-part="${part}"`).length === 24));
+const longWin = structuredClone(deepening);
+longWin.candidates[0].wins[0] = "locality: one two three four five six seven";
+const longWinBuilt = build("deepening", write("long-win", longWin));
+check("deepening: a win over six words exits 1 naming the candidate and field", longWinBuilt.status === 1 && /candidate s1: wins\[0\]/.test(longWinBuilt.stderr), longWinBuilt.stderr);
+const noSolution = structuredClone(deepening);
+delete noSolution.candidates[1].solution;
+check("deepening: a missing solution exits 1", build("deepening", write("no-solution", noSolution)).status === 1);
+check("deepening: --from exits 1", build("deepening", write("deepening-from", deepening), "--from", "s1").status === 1);
 
 process.exit(failed ? 1 : 0);
 NODE

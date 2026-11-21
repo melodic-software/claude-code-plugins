@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: 'codify-trailing-period-runs-the-rules-action'
+plugins: ["../.."]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ledger-reconciled'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'rules-ledger\.mjs'
+    min: 1
+    arm: 'with-only'
+  - name: 'writes-only-under-work-codify'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*\.work/codify/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'rules-action-not-default'
+    type: 'llm'
+    focus: 'trace'
+    arm: 'with-only'
+    criteria: 'The invocation was /corrections:codify rules. AGENTS.md, whose first word is rules with a trailing period. PASS only if the run treats it as the rules action: it reads the rules in AGENTS.md and gives each of the two (run the tests with npm test; name functions so a reader understands them) an outcome in a rules ledger. FAIL if the run takes the default action instead, counting occurrences of a mistake described as "rules. AGENTS.md" or asking what mistake to codify, or says the trailing period stops the word from matching an action.'

@@ -37,9 +37,12 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 | `count-checks [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week\|month]` | Read-only: counts the checks merged changes record with a `Codifies:` line, per period and cumulative, from default-branch git history only; blocking first, advisory in its own column, a column per rung | [actions/count-checks.md](actions/count-checks.md) |
 
-An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `rules`, `reviews`, `issues`,
-`preferences`, `taste`, `note`, `group` or `count-checks`, unquoted. Anything else, including a quoted description that starts with one of those words,
-is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
+An action runs only when the first word of `$ARGUMENTS` is unquoted and equals `findings`, `rules`,
+`reviews`, `issues`, `preferences`, `taste`, `note`, `group` or `count-checks` once any trailing `.`,
+`,`, `:`, `;`, `!` or `?` is stripped from it, so `taste.` runs `taste` and `rules,` runs `rules`.
+Anything else, including a quoted description that starts with one of those words, is the default
+action. The flags below are read right after the action word whether or not it carried trailing
+punctuation, with the same value patterns. The action word, and `note`'s unquoted `--applied` right after it, are the
 only tokens read as a choice, with `reviews`' unquoted `--pr <n>` and `--repo <owner/repo>` right
 after it, whose values must match `^[1-9][0-9]*$` and `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$` or the
 action stops before running anything. `issues`' unquoted `--label <name>` and `--limit <n>` are

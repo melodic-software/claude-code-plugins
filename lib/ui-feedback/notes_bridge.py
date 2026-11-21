@@ -22,7 +22,8 @@ wrote. `/` serves host.html, the checked-in host page. It fetches the page at `/
 the mockup policy (PAGE_CSP) put first and the pin helper (proto-pin.js) appended, and frames it
 through `srcdoc` with sandbox="allow-scripts" and never allow-same-origin, so the page has an
 opaque origin, no storage, and no network. The host page alone holds the token and posts each
-note to `POST /api/note`, which takes one note that note.schema.json accepts. Notes go into `actions.json`, the view app's event log, and the
+note to `POST /api/note`, which takes one note that note.schema.json accepts, and reads the
+run's sent notes back from `GET /api/notes` with the same token after a reload. Notes go into `actions.json`, the view app's event log, and the
 session's replies into `replies.json`, so this app reuses the view app's hub, token route, expiry and
 apply (lib/session-bridge/README.md, "The view app"). Nothing here acts on a note: the watcher
 prints it under session_bridge.DATA_NOTE and the session decides (docs/contracts/ui-feedback).
@@ -324,6 +325,17 @@ class NotesHandler(view.ViewHandler):
             return self.send(200, body + f"{PIN_HELPER}\n".encode(), "text/plain")
         if url.path == "/api/token":
             return super().route_get(url, query)
+        if url.path == "/api/notes":
+            if not self.token_ok():
+                return self.send(403, {"error": "token required"})
+            try:
+                events = self.hub.read_log().get("events", [])
+            except (OSError, ValueError) as e:
+                return self.send(
+                    503, {"error": f"cannot read the notes: {type(e).__name__}"}
+                )
+            notes = [{k: v for k, v in e.items() if k != "deliveredAt"} for e in events]
+            return self.send(200, {"notes": notes})
         return self.send(404, {"error": "not found"})
 
     def route_post(self, path, msg):

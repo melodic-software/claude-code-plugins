@@ -195,8 +195,12 @@ levels.
 ## Consumers
 
 - **`/prototype:explore-directions`, HTML mockup.** Adopts first.
+- **`/prototype:explore-directions`, real-stack route.** Its notes harness copies `proto-pin.js`,
+  `harness-fence.mjs` and `dev-origin.mjs` from the plugin's copies into the app for the run.
+  Every harness file and every line it adds to the app carry `data-prototype-harness`, and step 5
+  removes them.
 - **`/planning:interview` shared page.** Takes its copy of `proto-pin.js` from here.
-- **Later adopters.** The explore-directions real-stack route, the `/prototype:pressure-test` HTML
+- **Later adopters.** The `/prototype:pressure-test` HTML
   demo, `/prototype:build-generator` (controls only), `/visualization:visualize`'s UI-mockup row,
   and `/pixel-art:scene` (region notes).
 - **Builder pages never adopt.** The interactive validator profile admits one hash-pinned runtime

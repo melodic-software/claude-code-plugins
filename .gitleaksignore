@@ -10,7 +10,7 @@ plugins/evals/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-sho
 plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21
 plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99
 plugins/harness-ops/evals/ai-never-reads-secrets-no-delete/scaffold.sh:generic-api-key:7
-plugins/session-flow/evals/fh-confirms-before-resume/scaffold.sh:generic-api-key:39
+plugins/session-flow/evals/fh-confirms-before-resume/fixtures/handoffs/20261012T153000Z-handoff-billing-retry.md:generic-api-key:69
 plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:14
 plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:18
 plugins/planning/shared/tests/fixtures/state-written-08ff888.json:generic-api-key:1
@@ -24,3 +24,4 @@ plugins/planning/shared/tests/fixtures/state-written-b5ed34f.json:generic-api-ke
 plugins/planning/shared/tests/fixtures/state-written-e27acc5.json:generic-api-key:1
 plugins/planning/shared/tests/fixtures/state-written-f6f1318.json:generic-api-key:1
 plugins/gaming/evals/dl-cyberpunk-preset/prompt.md:generic-api-key:28
+ea0f9aa58e9c81135545a9f1ca10f793c54f4205:plugins/session-flow/evals/fh-confirms-before-resume/scaffold.sh:generic-api-key:39

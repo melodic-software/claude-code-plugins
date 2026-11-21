@@ -69,6 +69,11 @@ Output:
             "all_subagents": [{"id", "type", "description", "session_id"}, ...],
             "all_models": [...], "all_branches": [...],
           },
+          "handoff_journey": [  # --chain-from only: each hop, newest first, its
+            {"hop": N, "session_id": "<UUID>", "date": "<ISO>", "source": "<file read>",
+             "sections": {"Direction changes": [...], "This session": [...],
+                          "Observations": [...]}},
+          ],                    # sections read from hop files when a hot file is gone
         }
 
 Exit codes:
@@ -94,6 +99,7 @@ _PLUGIN_SCRIPTS = str(Path(__file__).resolve().parent)
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
+import handoff_chain  # noqa: E402  (beside this script)
 import transcript_reader  # noqa: E402  (beside this script)
 
 
@@ -487,9 +493,14 @@ def _emit_and_exit(
 
 
 def _emit_multi_and_exit(
-    session_ids: list[str], base_path: Path, topic: str | None = None
+    session_ids: list[str],
+    base_path: Path,
+    topic: str | None = None,
+    journey: list[dict[str, Any]] | None = None,
 ) -> NoReturn:
     output = build_multi_session_output(session_ids, base_path, topic)
+    if journey is not None:
+        output["handoff_journey"] = journey
     print(json.dumps(output, indent=2))
     sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
 
@@ -587,93 +598,35 @@ def parse_one_session(session_id: str, base_path: Path) -> dict[str, Any]:
     }
 
 
-def _frontmatter_value(line: str) -> str:
-    """Extract a scalar frontmatter value: text after the first colon, with any
-    trailing inline YAML comment (` # ...`) and surrounding quotes stripped."""
-    value = line.split(":", 1)[1].strip()
-    value = value.split(" #", 1)[0].strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        value = value[1:-1]
-    return value
-
-
 def extract_chain_from_handoff(
     handoff_file: Path, base_path: Path, limit: int = 1000
 ) -> list[str]:
-    """Walk handoff journal-entry chain backwards via previous_handoff
-    frontmatter fields. Returns ordered list of session-ids (current handoff's session_id
-    first, then prior). NOTE: callers separately prepend the current $CLAUDE_CODE_SESSION_ID
-    if they want it; this function only walks the chain starting from the given file.
+    """The session ids on `handoff_file`'s chain, newest first, through
+    `handoff_chain.journey`: the hot files the walk reaches, plus every hop whose
+    hot file is gone but whose hop file remains. Callers prepend the current
+    $CLAUDE_CODE_SESSION_ID themselves if they want it. A pointer cycle or a
+    chain past `limit` ends the walk with a stderr warning rather than
+    truncating silently."""
+    walk = handoff_chain.journey(handoff_file, limit=limit)
+    if walk.stop is not None:
+        print(f"warning: handoff chain {walk.stop}; stopping walk", file=sys.stderr)
+    return walk.session_ids
 
-    Forward-only convention: older entries lacking session_id break the walk cleanly.
-    Pointer cycles are detected via visited files and break the walk; `limit` is a
-    runaway safety bound far above any real chain — hitting it emits a stderr warning
-    rather than truncating silently."""
-    sids: list[str] = []
-    seen: set[str] = set()
-    visited_files: set[Path] = set()
-    cursor: Path | None = handoff_file
-    depth = 0
 
-    while cursor and cursor.is_file():
-        resolved = cursor.resolve()
-        if resolved in visited_files:
-            print(
-                f"warning: handoff chain pointer cycle at {cursor}; stopping walk",
-                file=sys.stderr,
-            )
-            break
-        visited_files.add(resolved)
-        if depth >= limit:
-            print(
-                f"warning: handoff chain longer than {limit} entries; "
-                "older sessions truncated",
-                file=sys.stderr,
-            )
-            break
-
-        sid = None
-        prev_handoff_rel = None
-        try:
-            with cursor.open(encoding="utf-8", errors="replace") as f:
-                # Read only the frontmatter (first --- block).
-                in_fm = False
-                for line in f:
-                    line = line.rstrip("\n")
-                    if line == "---":
-                        if not in_fm:
-                            in_fm = True
-                            continue
-                        break
-                    if not in_fm:
-                        continue
-                    if line.startswith("session_id:"):
-                        sid = _frontmatter_value(line)
-                    elif line.startswith("previous_handoff:"):
-                        prev_handoff_rel = _frontmatter_value(line)
-        except OSError:
-            break
-
-        if sid and sid != "unknown" and sid not in seen:
-            sids.append(sid)
-            seen.add(sid)
-
-        if not prev_handoff_rel:
-            break
-        # Resolve the pointer relative to the handoff file's own directory
-        # (flat layout: a sibling filename); fall back to the directory's
-        # parent for layouts whose pointers keep a subdir prefix
-        # (e.g. journal/<file>); finally fall back to the basename in the file's
-        # own directory, for repo-relative handoffs/-prefixed pointers.
-        candidate = cursor.parent / prev_handoff_rel
-        if not candidate.is_file():
-            candidate = cursor.parent.parent / prev_handoff_rel
-        if not candidate.is_file():
-            candidate = cursor.parent / Path(prev_handoff_rel).name
-        cursor = candidate
-        depth += 1
-
-    return sids
+def handoff_journey(handoff_file: Path) -> list[dict[str, Any]]:
+    """Each hop of the chain, newest first: hop number, session id, the file its
+    sections came from, and its Direction changes, This session and
+    Observations, a section moved to a hop file read from there."""
+    return [
+        {
+            "hop": hop.hop,
+            "session_id": hop.session_id,
+            "date": hop.date,
+            "source": hop.source.as_posix(),
+            "sections": hop.sections,
+        }
+        for hop in handoff_chain.journey(handoff_file).hops
+    ]
 
 
 UUID_RE = re.compile(r'"uuid"\s*:\s*"([^"]+)"')
@@ -1007,7 +960,12 @@ def main() -> None:
             all_sids.append(ns.current_session)
         all_sids.extend(chain_sids)
         m = HANDOFF_TOPIC_RE.search(ns.chain_from.name)
-        _emit_multi_and_exit(all_sids, ns.base, m.group(1) if m else None)
+        _emit_multi_and_exit(
+            all_sids,
+            ns.base,
+            m.group(1) if m else None,
+            handoff_journey(ns.chain_from),
+        )
 
     # Multi-session: --sessions
     if ns.sessions:

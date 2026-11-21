@@ -25,32 +25,7 @@ chmod +x scripts/backfill.sh
 git add migrations scripts
 git commit -q -m "feat(lease): leases table migration and backfill script"
 
-mkdir -p .work/handoffs
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mkdir -p .work
 printf 'batch 40/120\nbatch 41/120\n' >.work/backfill.log
-cat >.work/handoffs/20261009T173000Z-handoff-lease-table.md <<'EOF'
-# Handoff: lease table
-
-## Original goal
-
-"Replace the cron lock with a lease table so two schedulers never run the same job."
-
-## Where it stands
-
-- Branch feat/lease-table: migration 0007_leases.sql and scripts/backfill.sh committed.
-- The renewal loop in src/lease.ts is not started.
-
-## Decisions
-
-- Lease TTL is 90 seconds, renewed every 30 seconds. Chosen over 300 seconds because failover
-  must finish inside two minutes.
-- Keep the cron lock as a fallback until the renewal loop ships.
-
-## In flight
-
-- A background shell was running `bash scripts/backfill.sh`, logging to .work/backfill.log. Its
-  last line was "batch 41/120" when this session ended.
-
-## Next
-
-- Write the renewal loop in src/lease.ts.
-EOF
+cp -R "$here/fixtures/handoffs" .work/handoffs
