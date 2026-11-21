@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { join, sep } from "node:path";
+import { basename, join, sep, win32 } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
 import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
-import { conventionHome, loadConfig, pluginRoot } from "./config.mjs";
+import { binaryNames, conventionHome, loadConfig, pluginRoot } from "./config.mjs";
 import { jobFolder, listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "./jobs.mjs";
 import { classify } from "./outcome.mjs";
 import { killTree, pidStartTime, query, shellUnsafe, start } from "./process.mjs";
@@ -56,7 +56,7 @@ function context(opts) {
   const cwd = opts.cwd ?? process.cwd();
   const dataDir = opts.dataDir ?? env.CLAUDE_PLUGIN_DATA ?? installedDataDir(pluginRoot);
   if (!dataDir) throw refuse("CLAUDE_PLUGIN_DATA is not set and this copy is not an installed plugin, so there is nowhere to keep job files");
-  return { cwd, env, dataDir, now: opts.now ?? Date.now, key: repoKey(cwd), binary: opts.binary };
+  return { cwd, env, dataDir, now: opts.now ?? Date.now, key: repoKey(cwd), binary: opts.binary, warn: opts.warn ?? ((line) => process.stderr.write(line)) };
 }
 
 function setup(opts) {
@@ -71,7 +71,7 @@ function setup(opts) {
   const bound = conventionHome(projectRoot);
   const config = loadConfig({ projectRoot, home: bound.home, userConfig: opts.userConfig });
   if (bound.problem) config.errors.push(`convention home: ${bound.problem}; reading ${bound.home}`);
-  return { ctx, record, config, settings: config.values[record.product] ?? {}, notices: config.errors.map((e) => `config: ${e}`) };
+  return { ctx, record, config, settings: config.values[record.product] ?? {}, notices: config.errors.map((e) => `config: ${e}`), announced: [] };
 }
 
 function modeFor(record, settings, use, requested, notices) {
@@ -100,6 +100,7 @@ function buildArgs(record, binary, p) {
 /** Throws unless every value that reaches argv is safe for the way the binary is started. */
 function guardValues(record, binary, values, promptInArgv) {
   const fix = `set ${record.product}.binary_path in <home>/external-agents.local.yaml to the real executable`;
+  if (binary.shell && shellUnsafe(binary.path)) throw refuse(`${JSON.stringify(binary.path)} cannot be started safely through cmd.exe; ${fix}`);
   for (const [name, value] of Object.entries(values)) {
     if (value === undefined || value === null) continue;
     if (value.startsWith("-")) throw refuse(`${name} ${JSON.stringify(value)} starts with "-" and would be read as an option`);
@@ -126,6 +127,11 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   }
   let binary = ctx.binary;
   if (!binary) {
+    const chosen = settings.binary_path;
+    const fileName = chosen && (process.platform === "win32" ? win32.basename(chosen).toLowerCase() : basename(chosen));
+    if (chosen && !binaryNames(record.binary.name).includes(fileName)) {
+      throw refuse(`${product}.binary_path ${JSON.stringify(chosen)} is not named ${record.binary.name}, so it is not run`);
+    }
     const found = resolveBinary(record, { binaryPath: settings.binary_path, env: ctx.env });
     if (!found.path) {
       const message = unavailableMessage(record, found).replace(`${product}: unavailable: `, "");
@@ -139,7 +145,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   const promptInArgv = record.prompt.form.includes("{prompt}");
   guardValues(record, binary, { model, profile: settings.profile, effort: settings.effort, base: plan.base, thread: plan.thread }, promptInArgv && plan.prompt !== null);
 
-  if (record.login_status && query(binary, record.login_status.args, { env: ctx.env }).code !== 0) {
+  if (record.login_status && query(binary, record.login_status.args, { env: ctx.env, cwd: ctx.cwd }).code !== 0) {
     trip(ctx, record, config, "not-logged-in", "not logged in");
     throw new Stop("unavailable", `not logged in. Log in with ${record.binary.name}, then run: external-agents update ${product}`);
   }
@@ -167,7 +173,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
     if (bad !== undefined) throw refuse(`${JSON.stringify(bad)} cannot be passed safely to ${binary.path}, which runs through cmd.exe; set ${product}.binary_path in <home>/external-agents.local.yaml to the real executable`);
   }
 
-  const version = query(binary, record.version.args, { env: ctx.env });
+  const version = query(binary, record.version.args, { env: ctx.env, cwd: ctx.cwd });
   const timeoutSeconds = settings.timeout_seconds ?? 1800;
   const job = {
     id, product, use: plan.use, mode: plan.mode, argv: [binary.path, ...(binary.args ?? []), ...args],
@@ -234,25 +240,28 @@ const within = (parts) => (parts.length ? ` (${parts.join("; ")})` : "");
 const runLine = (job) => `${job.product}: ${job.status}${within([job.reason, ...details(job)].filter(Boolean))}`;
 const exitFor = (status) => (status === "ok" ? EXIT.ok : status === "blocked-by-mode" ? EXIT.blocked : EXIT.failed);
 const body = (message) => (message === "" || message.endsWith("\n") ? message : `${message}\n`);
-const errLines = (job) => [`job: ${job.id}`, ...job.notices.map((n) => `notice: ${n}`)].map((l) => `${l}\n`).join("");
+const noticeLines = (notices, announced = []) => notices.filter((n) => !announced.includes(n)).map((n) => `notice: ${n}\n`).join("");
+const errLines = (job, state) => `job: ${job.id}\n${noticeLines(job.notices, state?.announced)}`;
 
-function stopped(name, error, review) {
+function stopped(name, error, review, state) {
   const product = name ?? "external-agents";
   if (!(error instanceof Stop)) throw error;
+  const stderr = state ? noticeLines(state.notices, state.announced) : "";
   if (review) {
     const word = error.kind === "refused" ? "failed" : "skipped";
-    return { code: error.kind === "refused" ? EXIT.usage : EXIT.unavailable, stdout: `${product}: ${word} (${error.message})\n`, stderr: "" };
+    return { code: error.kind === "refused" ? EXIT.usage : EXIT.unavailable, stdout: `${product}: ${word} (${error.message})\n`, stderr };
   }
   const line = error.kind === "skipped" ? `${product}: skipped (${error.message})` : `${product}: ${error.kind}: ${error.message}`;
-  return { code: error.kind === "refused" ? EXIT.usage : EXIT.unavailable, stdout: `${line}\n`, stderr: "" };
+  return { code: error.kind === "refused" ? EXIT.usage : EXIT.unavailable, stdout: `${line}\n`, stderr };
 }
 
 export async function run(opts) {
+  let state = null;
   try {
     if (!USES.includes(opts.use)) throw refuse(`--use takes ${USES.join(" or ")}`);
     if (opts.mode !== undefined && !MODES.includes(opts.mode)) throw refuse(`--mode takes ${MODES.join(" or ")}`);
     if (!opts.prompt?.trim()) throw refuse("no prompt was given");
-    const state = setup(opts);
+    state = setup(opts);
     const { ctx, record } = state;
     let thread = null;
     if (opts.resume !== undefined || opts.last) {
@@ -264,16 +273,17 @@ export async function run(opts) {
     }
     const mode = modeFor(record, state.settings, opts.use, opts.mode, state.notices);
     const { job, message } = await launch(state, { use: opts.use, mode, command: thread ? "resume" : "run", model: opts.model, prompt: opts.prompt, thread });
-    return { code: exitFor(job.status), stdout: `${runLine(job)}\n${body(message)}`, stderr: errLines(job), job };
+    return { code: exitFor(job.status), stdout: `${runLine(job)}\n${body(message)}`, stderr: errLines(job, state), job };
   } catch (error) {
-    return stopped(opts.product, error, false);
+    return stopped(opts.product, error, false, state);
   }
 }
 
 export async function review(opts) {
+  let state = null;
   try {
     if (!opts.base) throw refuse("--base is required");
-    const state = setup(opts);
+    state = setup(opts);
     const { ctx, record } = state;
     if (!record.review) throw refuse(`${record.product} has no review form`);
     if (opts.base.startsWith("-")) throw refuse(`base ${JSON.stringify(opts.base)} starts with "-"`);
@@ -281,7 +291,11 @@ export async function review(opts) {
     const changed = (git(ctx.cwd, ["diff", "--name-only", "--end-of-options", `${opts.base}...HEAD`]) ?? "").split("\n");
     for (const prefix of record.review.config_paths ?? []) {
       const hits = changed.filter((path) => path.startsWith(prefix)).length;
-      if (hits) state.notices.push(`the reviewed change touches ${prefix} (${plural(hits, "file")}): ${record.product} configuration there, MCP servers included, runs outside the read-only sandbox`);
+      if (!hits) continue;
+      const notice = `the reviewed change touches ${prefix} (${plural(hits, "file")}): ${record.product} configuration there, MCP servers included, runs outside the read-only sandbox`;
+      state.notices.push(notice);
+      state.announced.push(notice);
+      ctx.warn(`notice: ${notice}\n`);
     }
     const native = record.review.kind === "native";
     const brief = opts.brief?.trim() ? opts.brief : null;
@@ -293,9 +307,9 @@ export async function review(opts) {
     });
     const ran = (job.status === "ok" || (job.status === "blocked-by-mode" && !job.reason)) && message.trim() !== "";
     const line = ran ? `${job.product}: ran${within(details(job))}` : `${job.product}: failed${within([job.status === "failed" ? null : job.status, job.reason, ...details(job)].filter(Boolean))}`;
-    return { code: ran ? EXIT.ok : EXIT.failed, stdout: `${line}\n${ran ? body(message) : ""}`, stderr: errLines(job), job };
+    return { code: ran ? EXIT.ok : EXIT.failed, stdout: `${line}\n${ran ? body(message) : ""}`, stderr: errLines(job, state), job };
   } catch (error) {
-    return stopped(opts.product, error, true);
+    return stopped(opts.product, error, true, state);
   }
 }
 

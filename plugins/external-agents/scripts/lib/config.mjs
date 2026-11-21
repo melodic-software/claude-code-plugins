@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, join, posix, win32 } from "node:path";
+import { dirname, isAbsolute, join, posix, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolve } from "../../lib/config-cascade.mjs";
 
@@ -16,6 +16,13 @@ export function conventionHome(projectRoot) {
   return { home: "docs/conventions", problem: done.status === HELPER_FAIL ? done.stderr.trim() : null };
 }
 
+const isTracked = (root, file) =>
+  spawnSync("git", ["-C", root, "ls-files", "--error-unmatch", "--", file], { stdio: "ignore", windowsHide: true }).status === 0;
+
+/** The file names a binary_path may end in: the CLI's own name, with an executable extension on Windows. */
+export const binaryNames = (name, platform = process.platform) =>
+  platform === "win32" ? [".exe", ".cmd", ".bat"].map((ext) => `${name}${ext}`) : [name];
+
 export function loadConfig({ projectRoot, home = "docs/conventions", userConfig } = {}) {
   const result = resolve({
     plugin: "external-agents",
@@ -30,9 +37,11 @@ export function loadConfig({ projectRoot, home = "docs/conventions", userConfig 
     const path = settings?.binary_path;
     if (path === undefined) continue;
     const key = `${product}.binary_path`;
-    const why = result.provenance[key] === "team"
+    const why = result.provenance[key] !== "local"
       ? "is set only in the personal layer, never a committed team file, since it picks the executable that runs"
-      : !(posix.isAbsolute(path) || win32.isAbsolute(path)) && "must be an absolute path";
+      : isTracked(projectRoot, join(isAbsolute(home) ? home : join(projectRoot, home), "external-agents.local.yaml"))
+        ? "comes from a personal file tracked by git, so a branch could choose the executable that runs"
+        : !(posix.isAbsolute(path) || win32.isAbsolute(path)) && "must be an absolute path";
     if (!why) continue;
     errors.push(`${result.provenance[key]}: ${key} ${why}; ignored`);
     delete settings.binary_path;

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { resolveBinary } from "../scripts/lib/binary.mjs";
 import { readBreaker } from "../scripts/lib/breaker.mjs";
 import { listJobs, readJob, repoKey, writeJob } from "../scripts/lib/jobs.mjs";
 import { classify } from "../scripts/lib/outcome.mjs";
@@ -46,7 +47,7 @@ function world(scenario = {}, { local, team } = {}) {
   const set = (next) => writeFileSync(join(root, "scenario.json"), JSON.stringify({ record: calls, ...next }));
   set(scenario);
   return {
-    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
+    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
     cwd,
     dataDir,
     set,
@@ -321,8 +322,12 @@ describe("review", () => {
   test("a change that touches .codex/ is flagged", async () => {
     const w = world({ stdout: clean, final: "No findings." });
     gitRepo(w.cwd, { ".codex/config.toml": "[mcp_servers.x]\n" });
-    const got = await review({ ...w.opts, base: "main" });
-    assert.match(got.stderr, /notice: the reviewed change touches \.codex\/ \(1 file\)/);
+    const order = [];
+    const got = await review({ ...w.opts, base: "main", warn: (line) => order.push([line, w.calls().length]) });
+    assert.equal(order.length, 1);
+    assert.match(order[0][0], /^notice: the reviewed change touches \.codex\/ \(1 file\)/);
+    assert.equal(order[0][1], 0, "the warning is written before the CLI is started");
+    assert.ok(w.calls().length > 0);
     assert.equal(got.job.notices.length, 1);
   });
 
@@ -615,6 +620,78 @@ describe("timeout, cancel and status", () => {
     assert.equal(result({ ...w.opts, jobId: job.id }).stdout, "codex: ok\nthe answer\n");
     assert.equal(result({ ...w.opts, jobId: "nope" }).code, 2);
     assert.equal(result({ ...w.opts, jobId: "../x" }).code, 2);
+  });
+});
+
+describe("which executable runs", () => {
+  const windows = process.platform === "win32";
+  function setting(w, name) {
+    const dir = join(w.cwd, "..", "tools");
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, windows ? `${name}.cmd` : name);
+    const fake = join(fixtures, "fake-codex.mjs");
+    writeFileSync(path, windows ? `@"${process.execPath}" "${fake}" %*\r\n` : `#!/bin/sh\nexec "${process.execPath}" "${fake}" "$@"\n`);
+    chmodSync(path, 0o755);
+    return { path, yaml: `schema: 1\ncodex:\n  binary_path: "${path.replace(/\\/g, "/")}"\n` };
+  }
+  function lookupOnly(w) {
+    const empty = join(w.cwd, "..", "empty");
+    mkdirSync(empty, { recursive: true });
+    return { ...w.opts, binary: undefined, env: { ...w.opts.env, PATH: empty, Path: empty, LOCALAPPDATA: empty, APPDATA: empty } };
+  }
+  const localFile = "docs/conventions/external-agents.local.yaml";
+
+  test("a binary_path in an untracked personal file is the executable that runs", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const chosen = setting(w, "codex");
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    writeFileSync(join(w.cwd, localFile), chosen.yaml);
+    const got = await run({ ...lookupOnly(w), use: "task", prompt: "fix it" });
+    assert.equal(got.job?.status, "ok", got.stdout + got.stderr);
+    assert.equal(got.job.argv[0], chosen.path.replace(/\\/g, "/"));
+  });
+
+  test("a binary_path in a committed .local.yaml is ignored with a notice", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const chosen = setting(w, "codex");
+    gitRepo(w.cwd, { [localFile]: chosen.yaml });
+    const got = await run({ ...lookupOnly(w), use: "task", prompt: "fix it" });
+    assert.equal(got.code, 4, got.stdout + got.stderr);
+    assert.match(got.stdout, /^codex: unavailable: codex not found/);
+    assert.match(got.stderr, /notice: config: local: codex\.binary_path .*tracked.*ignored/);
+    assert.equal(w.calls().length, 0);
+  });
+
+  test("a binary_path whose file is not named for the CLI is refused", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const chosen = setting(w, "sh");
+    writeFileSync(join(w.cwd, localFile), chosen.yaml);
+    const got = await run({ ...lookupOnly(w), use: "task", prompt: "fix it" });
+    assert.equal(got.code, 2, got.stdout + got.stderr);
+    assert.match(got.stdout, /^codex: refused: codex\.binary_path .* is not named codex/);
+    assert.equal(w.calls().length, 0);
+  });
+
+  test("a cmd.exe-run binary whose own path is unsafe is refused before anything is started", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const got = await run({ ...w.opts, binary: { path: "C:\\tools&more\\codex.cmd", args: [], shell: true }, use: "task", prompt: "fix it" });
+    assert.equal(got.code, 2);
+    assert.match(got.stdout, /^codex: refused: .*tools&more.*codex\.binary_path/);
+    assert.equal(readBreaker(w.dataDir, "codex"), null);
+  });
+
+  test("a relative PATH entry is never searched", () => {
+    const local = mkdtempSync(join(here, ".tmp-path-"));
+    try {
+      writeFileSync(join(local, windows ? "demo.exe" : "demo"), "");
+      const entry = relative(process.cwd(), local) || ".";
+      const record = { product: "demo", binary: { name: "demo" } };
+      const env = { PATH: entry, PATHEXT: ".EXE" };
+      assert.equal(resolveBinary(record, { env }).path, isAbsolute(entry) ? join(local, windows ? "demo.exe" : "demo") : null);
+      assert.equal(resolveBinary(record, { env: { PATH: local, PATHEXT: ".EXE" } }).path, join(local, windows ? "demo.exe" : "demo"));
+    } finally {
+      rmSync(local, { recursive: true, force: true });
+    }
   });
 });
 
