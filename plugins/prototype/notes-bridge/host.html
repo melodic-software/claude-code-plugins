@@ -183,7 +183,7 @@ edit the canonical source, then rerun the script. -->
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
     if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
-    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
+    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems, hold: true });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
       : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
       : "");
@@ -256,6 +256,7 @@ edit the canonical source, then rerun the script. -->
     text.focus();
   }
   function closeComposer() {
+    toFrame({ type: "release" });
     draft = editing = null;
     composer.hidden = true;
     (opener?.() || buttons.element).focus();
