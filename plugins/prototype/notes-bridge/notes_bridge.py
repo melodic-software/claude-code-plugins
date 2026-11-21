@@ -78,7 +78,9 @@ PAGE_CSP = (
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
     "img-src data:; font-src data:; base-uri 'none'; form-action 'none'"
 )
-SANDBOX = b' sandbox="allow-scripts"'
+# Anchored on the frame's tag, so the attribute quoted in host.html's header comment never matches.
+FRAME = b'<iframe id="page"'
+SANDBOX = FRAME + b' sandbox="allow-scripts"'
 PAGE_CSP_META = (
     f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'.encode()
 )
@@ -241,8 +243,8 @@ class NotesHub(view.ViewHub):
         if not self.dev_origin:
             return raw, HOST_CSP
         if raw.count(SANDBOX) != 1:
-            raise RuntimeError(f"host.html must hold{SANDBOX.decode()} exactly once")
-        mark = f' data-dev-origin="{html.escape(self.dev_origin)}"'.encode()
+            raise RuntimeError(f"host.html must hold {SANDBOX.decode()} exactly once")
+        mark = FRAME + f' data-dev-origin="{html.escape(self.dev_origin)}"'.encode()
         return raw.replace(SANDBOX, mark), f"{HOST_CSP}; frame-src {self.dev_origin}"
 
     def read_state(self):
