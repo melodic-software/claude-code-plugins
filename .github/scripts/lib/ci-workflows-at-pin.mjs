@@ -10,11 +10,14 @@ const CACHE = join(tmpdir(), "ci-workflows-at-pin");
 const ATTEMPTS = 3;
 const PIN = /^[0-9a-f]{40}$/;
 
+const LOCAL = new Set(execFileSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).split("\n").filter(Boolean));
+const ENV = { ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !LOCAL.has(name))), GIT_TERMINAL_PROMPT: "0" };
+
 const git = (dir, ...args) =>
   execFileSync("git", ["-C", dir, ...args], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    env: ENV,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
