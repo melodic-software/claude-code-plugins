@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.5] - 2026-11-21
+
+### Changed
+
+- **`/docs-hygiene:extract-ssot` ships no bundled markdown lint command.** Its execution checklist now runs the consuming repository's own markdown linter instead of `npx markdownlint-cli2`. The skill also drops the Roslyn and ts-morph refactor tools, the bash, Python, MSBuild and JSON dedup examples, the `&dotnet-build-defaults` anchor example and an unsourced GitHub Copilot truncation limit. The rules around them are unchanged ([#17774](https://github.com/melodic-software/claude-code-plugins/issues/17774)).
+
+- **Four docs-hygiene skills and the plugin contract drop tool and harness examples.** `/docs-hygiene:write-for-humans` no longer names Vale, markdownlint or textlint as example prose linters. `/docs-hygiene:audit-encapsulation` drops the TypeScript, .NET and Python visibility examples. `/docs-hygiene:audit-progressive-disclosure`'s pointer-quality criteria drop the `fetch.py` execute-versus-read example. `/docs-hygiene:write-for-agents` drops its table of instruction files for other agent harnesses and the vendor links under it. The plugin contract no longer names `markdownlint-cli2`. The rules around them are unchanged; each consumer's own tools apply instead ([#17777](https://github.com/melodic-software/claude-code-plugins/issues/17777)).
+
 ## [4.2.4] - 2026-11-19
 
 ### Changed
