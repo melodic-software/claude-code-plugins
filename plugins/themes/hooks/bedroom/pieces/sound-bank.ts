@@ -7,7 +7,14 @@ import type { Saved } from '../core/saved.js'
  * repeat a file itself is started again after that long.
  */
 export const BANK = {
-  cicadas: { default: 'chorus', entries: { chorus: { bed: 'cicadas/chorus.wav' }, river: { bed: 'cicadas/river.wav' } } },
+  cicadas: {
+    default: 'auto',
+    entries: {
+      auto: { bed: 'cicadas/chorus.wav', swell: 'cicadas/river.wav' },
+      chorus: { bed: 'cicadas/chorus.wav', swell: undefined },
+      river: { bed: 'cicadas/river.wav', swell: undefined },
+    },
+  },
   night: {
     default: 'auto',
     entries: {

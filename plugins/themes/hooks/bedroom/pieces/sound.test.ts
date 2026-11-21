@@ -43,6 +43,7 @@ import {
   HANDOVER_MS,
   RETRY_MS,
   SILENT_MS,
+  SWELL,
   hooks,
   commandLineOf,
   engineCommand,
@@ -446,7 +447,7 @@ const onWindows = (s: Stand): void => {
 /** Turns sound off and lets every play end, so the next test starts with nothing playing. */
 async function quiet(s: Stand): Promise<void> {
   await engineCommand(s.$, await s.ctx(), 'sound', ['off'])
-  for (const words of [['volume', '70'], ['pick', 'cicadas', 'chorus'], ['pick', 'rain', 'roof'], ['pick', 'thunder', 'storm'], ['objects', 'on']]) await engineCommand(s.$, await s.ctx(), 'sound', words)
+  for (const words of [['volume', '70'], ['pick', 'cicadas', 'auto'], ['pick', 'night', 'auto'], ['pick', 'rain', 'roof'], ['pick', 'thunder', 'storm'], ['objects', 'on']]) await engineCommand(s.$, await s.ctx(), 'sound', words)
   await s.advance(120_000)
 }
 
@@ -465,7 +466,7 @@ test('nothing reaches the engine while sound is off', async () => {
     await s.advance(60_000)
   }
   expect(s.calls).toEqual([])
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is off, volume 70, objects on\. bank: cicadas chorus, night auto, rain roof, thunder storm, tv tube\. player: not looked for yet/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', [])).toMatch(/^sound is off, volume 70, objects on\. bank: cicadas auto, night auto, rain roof, thunder storm, tv tube\. player: not looked for yet/)
   expect(s.calls).toEqual([])
 })
 
@@ -796,7 +797,8 @@ test('S6: a strike asked for with /bedroom weather strike brings its thunder onc
 
 test('S1: each kind has named entries with a default, picked by name or number and saved; 0.3\'s picks carry over', async () => {
   if (!BUILT.includes('sound')) return
-  expect(namesOf('cicadas')).toEqual(['chorus', 'river'])
+  expect(namesOf('cicadas')).toEqual(['auto', 'chorus', 'river'])
+  expect(namesOf('night')).toEqual(['auto', 'katydids', 'crickets'])
   expect(namesOf('rain')).toEqual(['roof'])
   expect(namesOf('thunder')).toEqual(['storm', 'distant'])
   expect(namesOf('tv')).toEqual(['tube'])
@@ -815,13 +817,15 @@ test('S1: each kind has named entries with a default, picked by name or number a
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'river'])).toBe('cicadas plays river')
   expect(ranBy(s).filter(line => line.startsWith('bed ')).at(-1)).toBe(`bed ${BANK.cicadas.entries.river.bed} 0.4900 ${PICK_FADE_MS}`)
   expect((await s.ctx()).saved.bank).toEqual({ cicadas: 'river' })
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', '1'])).toBe('cicadas plays chorus')
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', '2'])).toBe('cicadas plays chorus')
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'auto'])).toBe('cicadas plays auto')
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'auto'])).toBe('night plays auto')
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'thunder', 'distant'])).toBe('thunder plays distant')
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'crickets'])).toBe('night plays crickets')
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'night', 'katydids'])).toBe('night plays katydids')
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'crickets', 'crickets'])).toMatch(/^say a kind and one of its sounds/)
   expect(ranBy(s)).toContain(`load ${BANK.thunder.entries.distant.far[0]}`)
-  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'wind', 'x'])).toMatch(/^say a kind and one of its sounds, as in \/bedroom sound pick cicadas river\. cicadas: chorus or river; night: auto or katydids or crickets; rain: roof; thunder: storm or distant; tv: tube\. Now:/)
+  expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'wind', 'x'])).toMatch(/^say a kind and one of its sounds, as in \/bedroom sound pick cicadas river\. cicadas: auto or chorus or river; night: auto or katydids or crickets; rain: roof; thunder: storm or distant; tv: tube\. Now:/)
   expect(await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'rain', 'tin'])).toMatch(/^say a kind/)
   await quiet(s)
 })
@@ -1196,5 +1200,92 @@ test('an hour set by command moves the beds over the picture\'s hurried ease; ba
   expect(cicadas![0]! > 0 && cicadas![0]! < g).toBe(true)
   expect(insects![0]! > 0 && insects![0]! < g * EVENING_LEVEL).toBe(true)
   expect([cicadas![1], cicadas![2], insects![1], insects![2]]).toEqual([HURRIED_MS, 0, HURRIED_MS, Number((g * EVENING_LEVEL).toFixed(4))])
+  await quiet(s)
+})
+
+const RIVER = BANK.cicadas.entries.river.bed
+/** The swells the mixer was sent: when each rose, its peak, and when it was told to fall. */
+function swellsOf(s: Stand): { at: number; peak: number; fallAt?: number; fallMs?: number }[] {
+  const out: { at: number; peak: number; fallAt?: number; fallMs?: number }[] = []
+  for (const r of s.mixers.flatMap(m => m.ran)) {
+    if (r.words[0] !== 'to' || r.words[1] !== RIVER) continue
+    if (Number(r.words[2]) > 0) out.push({ at: r.at, peak: Number(r.words[2]) })
+    else if (out.at(-1) !== undefined && out.at(-1)!.fallAt === undefined) Object.assign(out.at(-1)!, { fallAt: r.at, fallMs: Number(r.words[3]) })
+  }
+  return out
+}
+
+test('under cicadas auto a nearer cicada swells over the chorus now and then at dusk: 3 to 8 minutes apart, 25 to 45 s long, at 0.6 of the chorus', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand(intoRow(0, 5))
+  onWindows(s)
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await (await s.ctx()).save({ time: 'dusk' })
+  shaderAt(s, sky)
+  await s.advance(10_000)
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.settle()
+  const started = s.now()
+  const g = gainOf(70)
+  await s.advance(60 * 60_000)
+  const swells = swellsOf(s)
+  expect(swells.length).toBeGreaterThanOrEqual(6)
+  expect(swells.length).toBeLessThanOrEqual(16)
+  expect(swells[0]!.at - started).toBeGreaterThanOrEqual(SWELL.gapMin * 60_000)
+  for (const [i, one] of swells.entries()) {
+    expect(Math.abs(one.peak - g * SWELL.peak)).toBeLessThan(0.0001)
+    if (one.fallAt === undefined) continue
+    const length = one.fallAt + one.fallMs! - one.at
+    expect(length >= SWELL.minMs && length <= SWELL.maxMs + 1).toBe(true)
+    const next = swells[i + 1]
+    if (next === undefined) continue
+    expect(next.at - (one.fallAt + one.fallMs!)).toBeGreaterThanOrEqual(SWELL.gapMin * 60_000 - SWELL.maxMs)
+    expect(next.at - one.at).toBeLessThanOrEqual(SWELL.gapMax * 60_000 + SWELL.maxMs + 2 * WATCH_MS)
+  }
+  expect(new Set(swells.slice(1).map((one, i) => Math.round((one.at - swells[i]!.at) / 60_000))).size).toBeGreaterThan(1)
+  await (await s.ctx()).save({ time: undefined })
+  await quiet(s)
+})
+
+test('no swell with the chorus held, at noon, in the evening, or while thunder ducks the bed; rain fades one in progress with the bed', async () => {
+  if (!BUILT.includes('sound')) return
+  const s = await stand(intoRow(0, 5))
+  onWindows(s)
+  Object.assign(sky, { sun: 0, weather: 0 })
+  await (await s.ctx()).save({ time: 'dusk' })
+  shaderAt(s, sky)
+  await s.advance(10_000)
+  const moveTo = async (fields: { sun?: number; weather?: number }): Promise<void> => {
+    Object.assign(sky, fields)
+    rebuild({ ...sky, work: 0, zone: 0, hall: 0 }, s.now())
+    await s.advance(PICTURE_LAG_MS + WATCH_MS + 10)
+  }
+  await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'chorus'])
+  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
+  await s.advance(20 * 60_000)
+  expect(swellsOf(s)).toEqual([])
+  await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'auto'])
+  for (const sun of [6, 1]) {
+    await moveTo({ sun })
+    await s.advance(20 * 60_000)
+    expect([sun, swellsOf(s)]).toEqual([sun, []])
+  }
+  await moveTo({ sun: 0 })
+  for (let i = 0; i < 40 && swellsOf(s).length === 0; i++) await s.advance(30_000)
+  expect(swellsOf(s).length).toBe(1)
+  await thunderFor(s.$, { at: s.now() - 1000, delayS: 1 })
+  await s.advance(WATCH_MS)
+  expect(swellsOf(s)[0]!.fallMs).toBe(DUCK_FADE_MS.down)
+  for (let i = 0; i < 40 && swellsOf(s).length === 1; i++) await s.advance(30_000)
+  expect(swellsOf(s).length).toBe(2)
+  const rainAt = s.now()
+  await moveTo({ weather: 2 })
+  const ran = s.mixers.flatMap(m => m.ran)
+  const bedAt = ran.find(r => r.at >= rainAt && r.words[0] === 'bed')!
+  expect(bedAt.words[1]).toBe(BANK.rain.entries.roof.rain)
+  expect(swellsOf(s)[1]!.fallAt).toBe(bedAt.at)
+  await s.advance(60_000)
+  expect(s.mixers.flatMap(m => m.ran).filter(r => r.at > bedAt.at && r.words[0] === 'to' && r.words[1] === RIVER)).toEqual([])
+  await (await s.ctx()).save({ time: undefined })
   await quiet(s)
 })
