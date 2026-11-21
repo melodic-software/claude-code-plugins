@@ -31,7 +31,10 @@ prints it under session_bridge.DATA_NOTE and the session decides (docs/contracts
 
 With --dev-origin, the host page frames a real-stack route on the app's dev server instead: the
 origin must be exactly what `new URL(input).origin` makes of it (dev-origin.mjs, run with node),
-the frame has no sandbox attribute, and the host page's policy adds frame-src for that origin.
+its host one the bridge answers on (localhost or 127.0.0.1), the frame has no sandbox attribute,
+and the host page's policy adds frame-src for that origin. ensure-running then prints the bridge
+origin on the dev origin's host, the source the dev server's frame-ancestors names
+(harness-fence.mjs), so the origin check, the frame URL and that source share one host spelling.
 """
 
 import argparse
@@ -49,6 +52,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import session_bridge as bridge
 import view_bridge as view
@@ -66,6 +70,7 @@ SCHEMAS = {
 SCHEMA = SCHEMAS["note.schema.json"]
 MAX_NOTES = SCHEMA["x-maxNotesPerRun"]
 PAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.html")
+BRIDGE_HOSTS = ("127.0.0.1", "localhost")
 # The host page's own policy; connect-src 'self' is its fetches. A srcdoc document inherits it, so
 # /api/page puts PAGE_CSP first in the framed page: every policy applies, and PAGE_CSP grants no
 # network and no 'self' script, whatever the page's own markup says (SKILL.md's mockup policy).
@@ -459,6 +464,12 @@ def other_page(s, page, dev_origin=None):
     return None
 
 
+def bridge_origin(port, dev_origin=None):
+    """The origin the person opens: on the dev origin's host when one is given, else 127.0.0.1."""
+    host = urlsplit(dev_origin).hostname if dev_origin else BRIDGE_HOSTS[0]
+    return f"http://{host}:{int(port)}"
+
+
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
@@ -494,7 +505,7 @@ def cmd_ensure_running(d, a):
                 f"{why} (data dir {d})"
                 + (f"\nserver stderr (last lines):\n{tail}" if tail else "")
             )
-    origin = f"http://127.0.0.1:{int(s['port'])}"
+    origin = bridge_origin(s["port"], a.dev_origin)
     print(
         json.dumps(
             {
@@ -550,7 +561,13 @@ def dev_origin(value):
         raise argparse.ArgumentTypeError(f"could not check the origin: {e}") from None
     if done.returncode != 0:
         raise argparse.ArgumentTypeError(done.stderr.strip() or "refused")
-    return done.stdout.strip()
+    origin = done.stdout.strip()
+    if urlsplit(origin).hostname not in BRIDGE_HOSTS:
+        raise argparse.ArgumentTypeError(
+            f"{origin} is not on a host the bridge answers on; run the dev server on "
+            f"{' or '.join(BRIDGE_HOSTS)}, so the frame and the bridge share one host spelling"
+        )
+    return origin
 
 
 def main(argv=None):

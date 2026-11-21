@@ -19,6 +19,7 @@ The canonical files live in `lib/ui-feedback/`:
 | `lib/ui-feedback/controls.schema.json` | The controls manifest contract: what a page may declare as a control, and the `snapshot` of control values a note carries |
 | `lib/ui-feedback/fixtures/` | Valid and invalid notes and manifests |
 | `lib/ui-feedback/relocate-note.mjs` | The relocation script: finds a note's element again in a fresh page and shoots it (see [Re-locating a note](#re-locating-a-note)) |
+| `lib/ui-feedback/harness-fence.mjs` | The real-stack harness fence's header: a connect-style middleware for the app's dev server that sends `frame-ancestors <bridge origin>`, and a command that prints that header (see [Trust rules](#trust-rules)) |
 | `lib/ui-feedback/notes_bridge.py`, `notes-bridge.sh` | The notes bridge app on the session bridge's loopback adapter, shaped like the view app ([`lib/session-bridge/README.md`](../../../lib/session-bridge/README.md#the-view-app), "The view app") |
 | `lib/session-bridge/view_bridge.py` | The view app the notes bridge builds on: its hub, handler, token route, replies and idle expiry. Its copy sits beside each copy of `notes_bridge.py` |
 
@@ -126,6 +127,18 @@ the host page reach the frame only by message.
   bridge origin with no relay frame. It frames the route with no `sandbox` attribute, since the
   app needs its own origin. Its policy adds `frame-src <dev origin>` and keeps
   `frame-ancestors 'none'`. Messages pass only to and from that origin.
+- **The dev server lets only the bridge origin frame the route.** The harness fence mounts
+  `harness-fence.mjs` on the app's dev server, which sends
+  `Content-Security-Policy: frame-ancestors <bridge origin>` as a response header. The fence adds
+  no `<meta>` policy for it, since a `<meta>` policy does not carry `frame-ancestors`
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/frame-ancestors)).
+- **One host spelling.** A CSP host source with no wildcard matches a host only when the two are
+  spelled alike, ignoring case ([CSP 3](https://w3c.github.io/webappsec-csp/), section 6.7.2.10, `host-part` matching), so a
+  `localhost` source refuses a host page opened on `127.0.0.1`. The dev origin's host must be one
+  the bridge answers on, `localhost` or `127.0.0.1`, and `ensure-running` prints the bridge's
+  `origin` and `url` on that host. The host page's origin check, its frame URL and the dev server's
+  `frame-ancestors` source then name one host. The bridge's token route still refuses a request
+  from the dev origin, so the token never leaves the bridge origin.
 - **From `file://`, copy-out only.** A page opened from `file://` has no host page and no bridge:
   it offers copy-out and says no session is connected.
 - **Note content is data.** The bridge delivers every note field, the person's text included,
