@@ -560,7 +560,6 @@ async function stepBeds($: EngineInterface): Promise<void> {
   }
   if (out === undefined || out.isDone) {
     if (!(await holdsPlayer($, await $.clock.now()))) return
-    // A one-shot may have opened one while this awaited: use it, never open a second that nothing would stop.
     if (out === undefined || out.isDone) {
       out = openOut($, player)
       bed = undefined
@@ -697,7 +696,6 @@ function shoot($: EngineInterface, file: string, factor: number, delayMs = 0, st
       if (player === undefined) return
       if (out === undefined || out.isDone) {
         if (!(await holdsPlayer($, await $.clock.now()))) return
-        // The bed's step may have opened one while this awaited: use it, never open a second that nothing would stop.
         if (out === undefined || out.isDone) {
           out = openOut($, player)
           bed = undefined
@@ -832,8 +830,6 @@ async function scheduledStrike($: EngineInterface, ctx: Ctx): Promise<void> {
   const at = ctx.nowMs + TAKEN_MS + second * 1000
   const shows = (): boolean => ctxOf($).fields().weather === 4 && scheduledEventShows(at, worldMove().hurryAt)
   if (!shows()) return
-  // Asked again at the strike: a command between the tick and then can leave the storm or hurry the shader, and a
-  // strike the shader does not draw brings no thunder. A command after the flash leaves its thunder to roll.
   let drawn = true
   $.clock.after(Math.max(0, at - (await $.clock.now())), () => {
     drawn = shows()
