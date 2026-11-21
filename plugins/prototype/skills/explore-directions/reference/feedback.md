@@ -24,7 +24,8 @@ machine could read it and post notes.
    mockup in a sandbox across the full window, with one command bar at the bottom: its arrows step
    the variants, so the page's own switcher pill hides there while its keys work as on `file://`,
    and Pick (or P) then a click pins a note to that element without pressing it. The bar's Sample
-   data menu presses the data controls the page marks. A variant script that uses
+   data menu presses the data controls the page marks, and the page's own data bar hides there;
+   its Copy menu's Copy chosen design copies the copy-out terminator's text. A variant script that uses
    `localStorage` or `sessionStorage` fails in the sandbox; the mockup keeps state in memory.
 3. Run the `watch` command as a background Bash task. It exits 0 with one JSON line when notes
    arrive; read that line from the task's output. With no watcher running, `notes-bridge.sh --dir

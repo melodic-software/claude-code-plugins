@@ -169,7 +169,10 @@ page with synthetic data and an in-page switcher. Assemble one per task:
 3. **A copy-out terminator**, a small control that lifts the winning-variant key, notes and the
    proposed test ids back out as text you can paste into your durable answer. It lists the test
    ids per variant, read from the page's `data-testid` attributes rather than typed out, so the
-   list matches the markup.
+   list matches the markup. Build the text in one inline function, `window.uiFeedbackCopyOut`,
+   that returns it as a string, and have the terminator call it. The notes host page's Copy
+   chosen design calls the same function through its frame helper, so both give the same text.
+   Keep the text plain (no tags) and at most 8000 characters, or the host page copies nothing.
 
 Constraints:
 
