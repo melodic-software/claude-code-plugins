@@ -324,8 +324,8 @@ each later alert run retries, with no label; and a red-main record gets `needs-h
 check got no fix issue because it was over the cap or outside the name charset, which no retry can
 file. This convention adds no second escalation channel; the telemetry comment (§4)
 is the report surface, never the sole path when human action is required. The escalation record
-write and the out-of-band notification seam below are notification depth on the one filed
-escalation, the fan-out posture the runner design
+write and the out-of-band notification section below are further ways to notify about the one
+filed escalation, the fan-out posture the runner design
 ([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names, never a
 second channel: the tracker item remains the single escalation of record.
 
@@ -593,7 +593,7 @@ escalation the tracker item already holds:
  "summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}
 ```
 
-`kind` mirrors the marker comment's `kind` token. The write is signal, not storage: no lane reads
+`kind` mirrors the marker comment's `kind` token. The write is a signal. No lane reads
 the record back, and the tracker item stays the escalation of record.
 
 **Ignoring the record directory is the lane's own preflight, not a consumer obligation.** Because
@@ -1649,7 +1649,7 @@ of its plan or PR body, naming the mechanism that answers it:
 | How does a person do what the agent does? | The manual way in beside each agent way in: a dispatch input, a label or a skill a person can run on the same item |
 | What does it look like drawn? | A diagram with one lane per place a step runs (person, tracker, runner, git host, orchestrator, token broker), each step in the lane where it happens, not where it was decided, and the person's way in drawn |
 
-A question the design cannot answer is a gap to close before the build, not after.
+A question the plan or PR body cannot answer is a gap to close before the build starts.
 
 ## Versioning
 
