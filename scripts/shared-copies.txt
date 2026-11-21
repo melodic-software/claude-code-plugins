@@ -123,6 +123,7 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/prototype/refe
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/toolchain/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/corrections/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/mutation-testing/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/code-tidying/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
