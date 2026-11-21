@@ -776,11 +776,14 @@ class Kind(Enum):
     RESULT_ERROR = "result-error"
     ZERO_TURNS = "zero-turns"
     DENIED = "denied"
+    HOOK_BLOCKED = "hook-blocked"
     NO_HANDOFF = "no-handoff"
     NO_VERDICT = "no-verdict"
 
 
-_RUN_BEHAVIOR = frozenset({Kind.RESULT_ERROR, Kind.ZERO_TURNS, Kind.DENIED})
+_RUN_BEHAVIOR = frozenset(
+    {Kind.RESULT_ERROR, Kind.ZERO_TURNS, Kind.DENIED, Kind.HOOK_BLOCKED}
+)
 BEHAVIOR_KINDS: dict[Source, frozenset[Kind]] = {
     Source.WRITER: _RUN_BEHAVIOR | {Kind.NO_HANDOFF},
     Source.READER: _RUN_BEHAVIOR,
@@ -836,6 +839,8 @@ def mark_excluded(graded: dict, excluded: Exclusion, case: dict, arm: str) -> No
         graded["error"] = excluded.text
         return
     graded["nondelivery"] = excluded.text
+    if excluded.kind is Kind.HOOK_BLOCKED:
+        graded["hook_blocked"] = excluded.text
     graded["probes"] = {
         probe["id"]: False
         for probe in case["probes"]
@@ -903,11 +908,57 @@ def exclusion_reason(
             and result.get("local_command") is None
         ):
             return Kind.ZERO_TURNS, "0 turns"
-        denied = [d.get("tool_name") for d in result.get("permission_denials") or []]
-        extra = [name for name in denied if name not in allowed_denials]
-        if extra:
-            return Kind.DENIED, f"denied tool calls: {extra}"
+        denials = [
+            d
+            for d in result.get("permission_denials") or []
+            if d.get("tool_name") not in allowed_denials
+        ]
+        blocks = hook_blocks(events)
+        if denials and all(d.get("tool_use_id") in blocks for d in denials):
+            hooks = sorted({blocks[d["tool_use_id"]] for d in denials})
+            return Kind.HOOK_BLOCKED, f"hook blocked: {hooks}"
+        if denials:
+            return (
+                Kind.DENIED,
+                f"denied tool calls: {[d.get('tool_name') for d in denials]}",
+            )
     return None
+
+
+HOOK_BLOCK_RE = re.compile(
+    r"^PreToolUse:(?P<tool>\w+) hook error: \[.*?\]: (?P<reason>[^\n]*)"
+    r".*?This hook comes from the (?P<plugin>\S+) plugin\.",
+    re.S,
+)
+
+
+def _result_text(content) -> str:
+    if isinstance(content, list):
+        return "".join(
+            str(part.get("text") or "") for part in content if isinstance(part, dict)
+        )
+    return str(content or "")
+
+
+def hook_blocks(events: list[dict]) -> dict[str, str]:
+    """Tool use id to hook for each tool call a plugin's PreToolUse hook refused. Claude
+    Code's refusal names the plugin and event, and its bracket lists every guard the
+    hook ran, so the hook is named by plugin, event and the refusal's first line."""
+    found = {}
+    for event in events:
+        if event.get("type") != "user":
+            continue
+        for block in (event.get("message") or {}).get("content") or []:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_result"
+                and block.get("is_error")
+                and (m := HOOK_BLOCK_RE.match(_result_text(block.get("content"))))
+            ):
+                found[block.get("tool_use_id")] = (
+                    f"{m['plugin']} PreToolUse:{m['tool']}: {m['reason'][:80]}"
+                )
+    return found
 
 
 def write_fixture(path: Path, content: str) -> None:
@@ -1345,7 +1396,7 @@ def read_stage(
             cfg, run, prompt, arm=arm, resume=resume, extra=extra
         )
         if excluded := exclusion(Source.READER, code, out, err, events):
-            return {"excluded": excluded}
+            return {"excluded": excluded, "events": events}
         main = {
             "events": events,
             "tokens": reader_tokens(events),
@@ -1586,6 +1637,9 @@ def run_once(
                 graded["reader_tokens"] = main["tokens"]
                 graded["reader_m1"] = main["tokens"]["m1"]
                 graded["reader_whole_m1"] = main["whole_m1"]
+            reader_events = main["events"] if main else read.get("events") or []
+            if blocks := hook_blocks(reader_events):
+                graded["hook_blocks"] = list(blocks.values())
             if read.get("excluded"):
                 mark_excluded(graded, read["excluded"], case, arm)
                 continue
@@ -1930,6 +1984,19 @@ def row_score(row: dict, probes: frozenset[str] | None = None) -> float | None:
     return _mean(map(bool, graded))
 
 
+def other_nondelivery(row: dict) -> bool:
+    """A run that did not deliver for a reason other than a hook refusal, which
+    `report` counts on its own line (#17874)."""
+    return bool(row.get("nondelivery")) and not row.get("hook_blocked")
+
+
+def hook_counts(rows) -> str:
+    rows = list(rows)
+    blocked = sum(bool(r.get("hook_blocked")) for r in rows)
+    fired = sum(bool(r.get("hook_blocks")) for r in rows)
+    return f"{blocked} hook-blocked, a hook refused a call in {_count(fired, 'run')}"
+
+
 def row_reader_m1(row: dict) -> int | None:
     """Reader tokens to the first state change; older rows hold them in `reader_tokens`."""
     if row.get("reader_m1") is not None:
@@ -1955,7 +2022,7 @@ class Cell:
     def nondelivery_rate(self) -> float | None:
         if not self.runs:
             return None
-        return sum(bool(r.get("nondelivery")) for r in self.runs) / len(self.runs)
+        return sum(map(other_nondelivery, self.runs)) / len(self.runs)
 
     def reader_m1(self) -> float | None:
         return _mean(v for v in map(row_reader_m1, self.runs) if v is not None)
@@ -2096,21 +2163,31 @@ def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
         else:
             scored[name] = (b, o)
     deltas = [o - b for b, o in scored.values()]
-    lines.say(f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)")
+    lines.say(
+        f"pair {pair}: accuracy change {_paired(deltas, -1.0, 1.0)[0]} (delivered runs)"
+    )
     rates = [
         o_cells[n].nondelivery_rate() - b_cells[n].nondelivery_rate()
         for n in names
         if b_cells[n].runs and o_cells[n].runs
     ]
     counts = [
-        sum(bool(r.get("nondelivery")) for n in names for r in cells[n].runs)
+        sum(other_nondelivery(r) for n in names for r in cells[n].runs)
         for cells in (b_cells, o_cells)
     ]
     text, upper = _paired(rates, -1.0, 1.0)
     lines.say(
         f"pair {pair}: non-delivery {counts[1]} vs {counts[0]} runs; rate change {text}"
     )
-    if args.nondelivery_margin is not None and upper is not None and upper > args.nondelivery_margin + 1e-9:
+    lines.say(
+        f"pair {pair}: hooks {o_label} {hook_counts(r for n in names for r in o_cells[n].runs)};"
+        f" {b_label} {hook_counts(r for n in names for r in b_cells[n].runs)}"
+    )
+    if (
+        args.nondelivery_margin is not None
+        and upper is not None
+        and upper > args.nondelivery_margin + 1e-9
+    ):
         lines.say(
             f"non-delivery rise: {o_label}'s rate interval reaches {upper:+.3f}, above the margin {args.nondelivery_margin:.2f}",
             fail=True,
@@ -2218,10 +2295,11 @@ def cmd_report(args) -> int:
         write_report(kept, out / f"{label}.json", label.replace(".", "-"))
         means = {n: c.accuracy() for n, c in mine.items() if c.accuracy() is not None}
         passing = sum(m >= threshold for m in means.values())
-        undelivered = sum(bool(r.get("nondelivery")) for r in kept)
+        undelivered = sum(map(other_nondelivery, kept))
         accuracy = _mean(means.values())
         lines.say(
-            f"{label}: {len(kept)} kept, {group.excluded} excluded, {undelivered} non-delivery;"
+            f"{label}: {len(kept)} kept, {group.excluded} excluded, {undelivered} non-delivery,"
+            f" {hook_counts(kept)};"
             f" accuracy {'n/a' if accuracy is None else f'{accuracy:.2f}'} over {_count(len(means), 'case')};"
             f" reader m1 {_tokens(_mean(v for c in mine.values() if (v := c.reader_m1()) is not None))};"
             f" whole-run m1 {_tokens(_mean(v for c in mine.values() if (v := c.whole_m1()) is not None))};"
@@ -2240,8 +2318,14 @@ def cmd_report(args) -> int:
     if args.baseline:
         for value, check in (
             (args.threshold, "threshold: none given, so no pass-to-fail check ran"),
-            (args.nondelivery_margin, "nondelivery-margin: none given, so no non-delivery check ran"),
-            (args.token_margin, "token-margin: none given, so no whole-run token check ran"),
+            (
+                args.nondelivery_margin,
+                "nondelivery-margin: none given, so no non-delivery check ran",
+            ),
+            (
+                args.token_margin,
+                "token-margin: none given, so no whole-run token check ran",
+            ),
         ):
             if value is None:
                 lines.say(check)
