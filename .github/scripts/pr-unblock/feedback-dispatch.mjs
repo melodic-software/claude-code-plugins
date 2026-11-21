@@ -186,7 +186,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { countRequests, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
@@ -1482,7 +1482,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
   }
 }`;
 
-export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: rawFetch = rateLimitLatch.guard(globalThis.fetch), attemptTimeoutMs }) {
+export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: rawFetch = rateLimitLatch.guard(globalThis.fetch, { floorGraceMs: DISPATCH_FLOOR_GRACE_MS }), attemptTimeoutMs }) {
   // Each request's rate-limit reading goes to the job-end api-calls notice.
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");

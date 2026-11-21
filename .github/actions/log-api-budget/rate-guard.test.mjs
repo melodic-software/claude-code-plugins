@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, DISPATCH_FLOOR_GRACE_MS, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -519,6 +519,24 @@ test("above the stop floor nothing stops: 101 of 5000 left sends on with no erro
   assert.equal(gh.sent.length, 2);
   assert.equal(failed(), 0);
   assert.deepEqual(lines.filter((line) => line.startsWith("::error::") || line.startsWith("::notice::")), []);
+});
+
+test("with floorGraceMs, the stop floor stops only a reset further away than the grace; a remaining of 0 still stops", async () => {
+  const hour = 60 * 60 * 1000;
+  for (const [remaining, floorGraceMs, sends] of [
+    [50, hour + 1000, 2],
+    [50, hour - 1000, 1],
+    [50, DISPATCH_FLOOR_GRACE_MS, 1],
+    [0, hour + 1000, 1],
+  ]) {
+    const gh = fakeGitHub([nearZero(remaining), [200]]);
+    const { latch } = latchFor();
+    const fetch = latch.guard(gh.fetch, { floorGraceMs });
+    await fetch(URL_A);
+    await fetch(URL_B).catch((error) => assert.ok(error instanceof RateLimitStop));
+    assert.equal(gh.sent.length, sends, `remaining ${remaining}, grace ${floorGraceMs} ms`);
+  }
+  assert.equal(DISPATCH_FLOOR_GRACE_MS, 10 * 60 * 1000);
 });
 
 test("a holding latch stops at the stop floor with a notice and fails nothing", async () => {

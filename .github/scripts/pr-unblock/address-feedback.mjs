@@ -1770,8 +1770,10 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
-export const guardedFetch = async (fetchImpl = globalThis.fetch, latch) =>
-  (latch ?? (await import("../../actions/log-api-budget/rate-guard.mjs")).rateLimitLatch).guard(fetchImpl);
+export const guardedFetch = async (fetchImpl = globalThis.fetch, latch) => {
+  const guard = await import("../../actions/log-api-budget/rate-guard.mjs");
+  return (latch ?? guard.rateLimitLatch).guard(fetchImpl, { floorGraceMs: guard.DISPATCH_FLOOR_GRACE_MS });
+};
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
