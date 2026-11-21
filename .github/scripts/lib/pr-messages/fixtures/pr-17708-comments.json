@@ -1,1 +1,106 @@
-{"data":{"repository":{"pullRequest":{"comments":{"nodes":[{"author":{"__typename":"Bot","login":"github-actions"},"body":"\u003c!-- claude-lane-reviewed-head lane=claude-security-review sha=bd481d27e70ce2d696c989cc91ea045a63b81eda --\u003e\n\u003c!-- claude-lane-reviewed-base ref=main merge-base=0eb4f88776b211a873690d4bf7655e0cc0c50259 caller=.github/workflows/pr-review-security-hosted.yml --\u003e\n**claude-security-review** reviewed `bd481d27e70ce2d696c989cc91ea045a63b81eda`: read 1 of 1 changed file(s); 0 finding(s), 0 as inline comments.\n\n## Security review: PR #17708, incremental since `84a730ff`\n\nI found no security issues in this push.\n\n**What I reviewed.** I read the whole incremental diff. It touches one file, `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which is on the trusted-path list. The only change deletes a four-line comment above `CONFIG_HISTORY_LIMIT` and `CONFIG_HISTORY_PAGES` ([L6367-L6368](https://github.com/melodic-software/claude-code-plugins/blob/bd481d27e70ce2d696c989cc91ea045a63b81eda/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py#L6367-L6368)).\n\n**Why it is safe.** Both constants keep their values (100 and 50), and no code changed. The post-merge floor's paged history read still behaves as the previous review found: it fails closed on an unreadable page, an empty history, or a run longer than 50 full pages. The change does not touch a merge hold or a standing instruction; it removes only an explanatory code comment.\n\n**Prior findings.** The earlier review of this pull request had 0 findings, so there was nothing to re-post. This review was blocking only, because the lane already reviewed an earlier head.\n\nThe PR context had no embedded directives.\n\ncritical-findings: 0","createdAt":"2026-11-20T23:04:37Z","editor":{"__typename":"Bot","login":"github-actions"},"fullDatabaseId":"7052774649","isMinimized":false,"lastEditedAt":"2026-11-20T23:27:59Z"},{"author":{"__typename":"Bot","login":"github-actions"},"body":"\u003c!-- claude-lane-reviewed-head lane=claude-review sha=bd481d27e70ce2d696c989cc91ea045a63b81eda --\u003e\n\u003c!-- claude-lane-reviewed-base ref=main merge-base=0eb4f88776b211a873690d4bf7655e0cc0c50259 caller=.github/workflows/pr-review-hosted.yml --\u003e\n**claude-review** reviewed `bd481d27e70ce2d696c989cc91ea045a63b81eda`: read 1 of 1 changed file(s); 0 finding(s), 0 as inline comments.\n\n**No findings.** This was an incremental review covering 1 of 1 files changed since `84a730ff2e9cbeee4674b2b301f39cc5d0e3498f`. This lane already reviewed an earlier head, so the review was blocking only.\n\nThe only change since the last review is in `babysit_merge_policy.py`, just above `CONFIG_HISTORY_LIMIT = 100` and `CONFIG_HISTORY_PAGES = 50`. It deletes a four-line comment that explained what those constants mean: the page size and the page cap for the commits-API fallback. The commit is titled \"Fix failing CI checks\", so the deletion probably answers a comment-hygiene check. No code changes, the paging in `_api_history` and `enabled_since` behaves as before, and the earlier review's conclusions on closing issue #17706 still hold. The constants now carry no comment of their own. That is an advisory point, not a blocking one, so it is not posted.\n\nNo plugin manifest changed in this push. The wrapper wrote no `loosened_check_*` lines. I used `fail` with no consumer entries and did not check the citation requirement. The change loosens no check.\n\nThe author says the tests were not run in the lane, so they are left to CI. I ran nothing either.\n\nVerifier dropped 0 of 0 candidates.","createdAt":"2026-11-20T23:05:42Z","editor":{"__typename":"Bot","login":"github-actions"},"fullDatabaseId":"7052792339","isMinimized":false,"lastEditedAt":"2026-11-20T23:28:04Z"},{"author":{"__typename":"Bot","login":"melodic-automation-lanes"},"body":"\u003c!-- babysit-merge-risk --\u003e\nUnattended merge: native auto-merge leaves this pull request unarmed at head `84a730ff2e9cbeee4674b2b301f39cc5d0e3498f`. No person needs to act: a lane clears this reason, and the next scheduled run judges it again.\n\n```text\npr-merge's gate refuses its verifier verdict (verify:missing)\n```\n\u003c!-- pr-merge-unarmed-since head=84a730ff2e9cbeee4674b2b301f39cc5d0e3498f at=2026-11-20T23:19:26.404Z --\u003e","createdAt":"2026-11-20T23:19:26Z","editor":null,"fullDatabaseId":"7053020266","isMinimized":false,"lastEditedAt":null},{"author":{"__typename":"Bot","login":"github-actions"},"body":"\u003c!-- lane-run-report activity=pr-unblock/fix-ci run=44835219344 rung=0 leg=handoff --\u003e\n## Lane run report\n\n| Field | Value |\n| --- | --- |\n| Activity | pr-unblock/fix-ci |\n| Model rung | 0 |\n| Leg | handoff |\n| Run job | success |\n| Activity step | success |\n| Commits pushed | none (read lane) |\n| Run | [44835219344](https://github.com/melodic-software/claude-code-plugins/actions/runs/44835219344) |\n\n### Failed GitHub API calls\n\n| Method | Path | Status |\n| --- | --- | --- |\n| GET | /repos/{repo}/git/ref/tags/\u0026#42; | 404 |\n","createdAt":"2026-11-20T23:23:00Z","editor":null,"fullDatabaseId":"7053080575","isMinimized":false,"lastEditedAt":null},{"author":{"__typename":"Bot","login":"github-actions"},"body":"\u003c!-- lane-run-report activity=pr-unblock/apply-patch run=44835219344 rung=0 leg=base --\u003e\n## Lane run report\n\n| Field | Value |\n| --- | --- |\n| Activity | pr-unblock/apply-patch |\n| Model rung | 0 |\n| Leg | base |\n| Run job | success |\n| Activity step | success |\n| Commits pushed | bd481d27e70ce2d696c989cc91ea045a63b81eda |\n| Run | [44835219344](https://github.com/melodic-software/claude-code-plugins/actions/runs/44835219344) |\n\n### Failed GitHub API calls\n\n| Method | Path | Status |\n| --- | --- | --- |\n| GET | /repos/{repo}/git/ref/tags/\u0026#42; | 404 |\n","createdAt":"2026-11-20T23:25:06Z","editor":null,"fullDatabaseId":"7053116099","isMinimized":false,"lastEditedAt":null},{"author":{"__typename":"Bot","login":"melodic-automation-lanes"},"body":"\u003c!-- babysit-merge-pin sha=bd481d27e70ce2d696c989cc91ea045a63b81eda rung=C2 --\u003e\nThe unattended merge path is about to arm native auto-merge at head `bd481d27e70ce2d696c989cc91ea045a63b81eda`, the head its arming checks judged. The arm fails if the head moves first.","createdAt":"2026-11-20T23:38:26Z","editor":null,"fullDatabaseId":"7053328956","isMinimized":false,"lastEditedAt":null},{"author":{"__typename":"Bot","login":"melodic-automation-lanes"},"body":"\u003c!-- merge-risk-line head=bd481d27e70ce2d696c989cc91ea045a63b81eda lane=work-resolve-issue run=44831520072 --\u003e\nMerge-Risk: max=HIGH demote=true head=bd481d27e70ce2d696c989cc91ea045a63b81eda rubric=10.4.3 rater=claude-opus-5-5 checker=claude-opus-5-5","createdAt":"2026-11-20T23:38:28Z","editor":null,"fullDatabaseId":"7053329507","isMinimized":false,"lastEditedAt":null}],"pageInfo":{"endCursor":"Y3Vyc29yOnYyOpHPAAAAAaRpRGM=","hasNextPage":false}}}}}}
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "comments": {
+          "nodes": [
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "github-actions"
+              },
+              "body": "<!-- claude-lane-reviewed-head lane=claude-security-review sha=bd481d27e70ce2d696c989cc91ea045a63b81eda -->\n<!-- claude-lane-reviewed-base ref=main merge-base=0eb4f88776b211a873690d4bf7655e0cc0c50259 caller=.github/workflows/pr-review-security-hosted.yml -->\n**claude-security-review** reviewed `bd481d27e70ce2d696c989cc91ea045a63b81eda`: read 1 of 1 changed file(s); 0 finding(s), 0 as inline comments.\n\n## Security review: PR #17708, incremental since `84a730ff`\n\nI found no security issues in this push.\n\n**What I reviewed.** I read the whole incremental diff. It touches one file, `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which is on the trusted-path list. The only change deletes a four-line comment above `CONFIG_HISTORY_LIMIT` and `CONFIG_HISTORY_PAGES` ([L6367-L6368](https://github.com/melodic-software/claude-code-plugins/blob/bd481d27e70ce2d696c989cc91ea045a63b81eda/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py#L6367-L6368)).\n\n**Why it is safe.** Both constants keep their values (100 and 50), and no code changed. The post-merge floor's paged history read still behaves as the previous review found: it fails closed on an unreadable page, an empty history, or a run longer than 50 full pages. The change does not touch a merge hold or a standing instruction; it removes only an explanatory code comment.\n\n**Prior findings.** The earlier review of this pull request had 0 findings, so there was nothing to re-post. This review was blocking only, because the lane already reviewed an earlier head.\n\nThe PR context had no embedded directives.\n\ncritical-findings: 0",
+              "createdAt": "2026-11-20T23:04:37Z",
+              "editor": {
+                "__typename": "Bot",
+                "login": "github-actions"
+              },
+              "fullDatabaseId": "7052774649",
+              "isMinimized": false,
+              "lastEditedAt": "2026-11-20T23:27:59Z"
+            },
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "github-actions"
+              },
+              "body": "<!-- claude-lane-reviewed-head lane=claude-review sha=bd481d27e70ce2d696c989cc91ea045a63b81eda -->\n<!-- claude-lane-reviewed-base ref=main merge-base=0eb4f88776b211a873690d4bf7655e0cc0c50259 caller=.github/workflows/pr-review-hosted.yml -->\n**claude-review** reviewed `bd481d27e70ce2d696c989cc91ea045a63b81eda`: read 1 of 1 changed file(s); 0 finding(s), 0 as inline comments.\n\n**No findings.** This was an incremental review covering 1 of 1 files changed since `84a730ff2e9cbeee4674b2b301f39cc5d0e3498f`. This lane already reviewed an earlier head, so the review was blocking only.\n\nThe only change since the last review is in `babysit_merge_policy.py`, just above `CONFIG_HISTORY_LIMIT = 100` and `CONFIG_HISTORY_PAGES = 50`. It deletes a four-line comment that explained what those constants mean: the page size and the page cap for the commits-API fallback. The commit is titled \"Fix failing CI checks\", so the deletion probably answers a comment-hygiene check. No code changes, the paging in `_api_history` and `enabled_since` behaves as before, and the earlier review's conclusions on closing issue #17706 still hold. The constants now carry no comment of their own. That is an advisory point, not a blocking one, so it is not posted.\n\nNo plugin manifest changed in this push. The wrapper wrote no `loosened_check_*` lines. I used `fail` with no consumer entries and did not check the citation requirement. The change loosens no check.\n\nThe author says the tests were not run in the lane, so they are left to CI. I ran nothing either.\n\nVerifier dropped 0 of 0 candidates.",
+              "createdAt": "2026-11-20T23:05:42Z",
+              "editor": {
+                "__typename": "Bot",
+                "login": "github-actions"
+              },
+              "fullDatabaseId": "7052792339",
+              "isMinimized": false,
+              "lastEditedAt": "2026-11-20T23:28:04Z"
+            },
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "melodic-automation-lanes"
+              },
+              "body": "<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `84a730ff2e9cbeee4674b2b301f39cc5d0e3498f`. No person needs to act: a lane clears this reason, and the next scheduled run judges it again.\n\n```text\npr-merge's gate refuses its verifier verdict (verify:missing)\n```\n<!-- pr-merge-unarmed-since head=84a730ff2e9cbeee4674b2b301f39cc5d0e3498f at=2026-11-20T23:19:26.404Z -->",
+              "createdAt": "2026-11-20T23:19:26Z",
+              "editor": null,
+              "fullDatabaseId": "7053020266",
+              "isMinimized": false,
+              "lastEditedAt": null
+            },
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "github-actions"
+              },
+              "body": "<!-- lane-run-report activity=pr-unblock/fix-ci run=44835219344 rung=0 leg=handoff -->\n## Lane run report\n\n| Field | Value |\n| --- | --- |\n| Activity | pr-unblock/fix-ci |\n| Model rung | 0 |\n| Leg | handoff |\n| Run job | success |\n| Activity step | success |\n| Commits pushed | none (read lane) |\n| Run | [44835219344](https://github.com/melodic-software/claude-code-plugins/actions/runs/44835219344) |\n\n### Failed GitHub API calls\n\n| Method | Path | Status |\n| --- | --- | --- |\n| GET | /repos/{repo}/git/ref/tags/&#42; | 404 |\n",
+              "createdAt": "2026-11-20T23:23:00Z",
+              "editor": null,
+              "fullDatabaseId": "7053080575",
+              "isMinimized": false,
+              "lastEditedAt": null
+            },
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "github-actions"
+              },
+              "body": "<!-- lane-run-report activity=pr-unblock/apply-patch run=44835219344 rung=0 leg=base -->\n## Lane run report\n\n| Field | Value |\n| --- | --- |\n| Activity | pr-unblock/apply-patch |\n| Model rung | 0 |\n| Leg | base |\n| Run job | success |\n| Activity step | success |\n| Commits pushed | bd481d27e70ce2d696c989cc91ea045a63b81eda |\n| Run | [44835219344](https://github.com/melodic-software/claude-code-plugins/actions/runs/44835219344) |\n\n### Failed GitHub API calls\n\n| Method | Path | Status |\n| --- | --- | --- |\n| GET | /repos/{repo}/git/ref/tags/&#42; | 404 |\n",
+              "createdAt": "2026-11-20T23:25:06Z",
+              "editor": null,
+              "fullDatabaseId": "7053116099",
+              "isMinimized": false,
+              "lastEditedAt": null
+            },
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "melodic-automation-lanes"
+              },
+              "body": "<!-- babysit-merge-pin sha=bd481d27e70ce2d696c989cc91ea045a63b81eda rung=C2 -->\nThe unattended merge path is about to arm native auto-merge at head `bd481d27e70ce2d696c989cc91ea045a63b81eda`, the head its arming checks judged. The arm fails if the head moves first.",
+              "createdAt": "2026-11-20T23:38:26Z",
+              "editor": null,
+              "fullDatabaseId": "7053328956",
+              "isMinimized": false,
+              "lastEditedAt": null
+            },
+            {
+              "author": {
+                "__typename": "Bot",
+                "login": "melodic-automation-lanes"
+              },
+              "body": "<!-- merge-risk-line head=bd481d27e70ce2d696c989cc91ea045a63b81eda lane=work-resolve-issue run=44831520072 -->\nMerge-Risk: max=HIGH demote=true head=bd481d27e70ce2d696c989cc91ea045a63b81eda rubric=10.4.3 rater=claude-opus-5-5 checker=claude-opus-5-5",
+              "createdAt": "2026-11-20T23:38:28Z",
+              "editor": null,
+              "fullDatabaseId": "7053329507",
+              "isMinimized": false,
+              "lastEditedAt": null
+            }
+          ],
+          "pageInfo": {
+            "endCursor": "Y3Vyc29yOnYyOpHPAAAAAaRpRGM=",
+            "hasNextPage": false
+          }
+        }
+      }
+    }
+  }
+}
