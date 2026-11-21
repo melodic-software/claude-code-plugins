@@ -876,13 +876,16 @@ accepts a second attempt after and the gate reruns (`GATE_RERUN_CLASSES` in
 `failure-class=rate-limit` line, that lane's publish-review
 `failure-class=publish-failed` line on GitHub's API rate limit, or that lane's publish-review
 `failure-class=install-failed` line (the runner isolation or the Claude Code CLI install failed
-before the review ran); for a rate limit, its job finished at least five hours ago, while an
-install failure is rerun at once; and the run is on its first attempt. Five hours is the plan's
-session-limit window, so that window has reset whenever it started. A weekly limit outlasts it, and
-the rerun then fails again and stays failed, because an attempt above one is never rerun: at most
-one gate rerun per check per head. An install failure, often a slow package mirror, has no window to
-wait out. Any other failure class is never rerun, even beside one the gate reruns, and a check-only
-run never reruns. The rerun only restarts the
+before the review ran); for a `rate-limit`, its job finished at least five hours ago; for a
+`publish-rate-limit`, at least one hour ago; an install failure is rerun at once; and the run is on
+its first attempt. Five hours is the plan's session-limit window, so that window has reset whenever
+it started. A weekly limit outlasts it, and the rerun then fails again and stays failed, because an
+attempt above one is never rerun: at most one gate rerun per check per head. For a `publish-rate-limit`, the gate waits one hour
+after the job finished, not the plan window (our decision; read the installation pool's reset under
+[Primary rate limit for GitHub App installations](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations)).
+A check carrying several of these classes waits the longest delay among them. An install failure,
+often a slow package mirror, has no window to wait out. Any other failure class is never rerun, even
+beside one the gate reruns, and a check-only run never reruns. The rerun only restarts the
 review; the PR still merges only once the check reports SUCCESS. The review evidence also binds a
 second attempt after the lane's own `<lane>: failure-class=auth:` failure line (a rejected
 credential, which left no verdict), but the gate never starts that rerun: a person or session reruns
