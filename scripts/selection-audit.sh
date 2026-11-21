@@ -2,7 +2,7 @@
 # Audit the test selector (scripts/affected-tests.sh) against what the suites
 # actually do. Two questions, one subcommand each:
 #
-#   scripts/selection-audit.sh trace [--shard I/N] [--jobs N] [--budget S] [--out DIR] [SUITE...]
+#   scripts/selection-audit.sh trace [--shard I/N] [--jobs N] [--budget S] [--strict] [--out DIR] [SUITE...]
 #       Run each suite under strace, collect the tracked files it opened, then
 #       ask the selector, one synthetic single-file diff per file, whether a
 #       change to that file selects the suite. Every (suite, file) pair the
@@ -11,8 +11,21 @@
 #       Default corpus: every tracked *.test.sh, and every test_*.py outside
 #       /evals/fixtures/, which holds data no lane runs, but the two suites
 #       that run strace themselves; --shard keeps suites I, I+N, I+2N, ...
-#       of the sorted list. Each suite gets 600 s under strace, and the
-#       slowest start first.
+#       of the sorted list. A *.test.mjs suite named on the command line runs
+#       under `node --test` from the root; the default corpus leaves Node
+#       suites out. Each suite gets 600 s under strace, and the slowest start
+#       first. The report names every suite the budget left untraced and
+#       counts the files left unchecked; --strict exits 1 on either, since a
+#       suite or file nobody checked is not clean
+#       (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+#
+#   scripts/selection-audit.sh changed --base REF
+#       Print the suites the diff REF...HEAD adds or changes, one per line, for
+#       pr-require-checks.yml's test-selection job to trace: its *.test.sh,
+#       test_*.py and *.test.mjs files, less the suites the default corpus
+#       leaves out. A *.test.mjs with a sibling *.test.sh is printed as that
+#       wrapper, which is how CI runs it
+#       (https://github.com/melodic-software/claude-code-plugins/issues/17522).
 #
 #   scripts/selection-audit.sh replay --suite S --good SHA --bad SHA
 #       For each first-parent commit in GOOD..BAD, run that commit's own
@@ -56,8 +69,8 @@
 # red-replay) under --out, and appends report.md to $GITHUB_STEP_SUMMARY when
 # set. Never opens or edits an issue.
 #
-# Exit: 0 no gap and no miss; 1 gaps or misses reported; 2 usage or a tool
-# missing.
+# Exit: 0 no gap and no miss; 1 gaps or misses reported, or under --strict a
+#         suite left untraced or a file left unchecked; 2 usage or a tool missing.
 set -uo pipefail
 # In a job, each gh call keeps its rate-limit reading for the job-end
 # api-budget notice (.github/actions/log-api-budget).
@@ -131,6 +144,30 @@ fallback_corpus() {
 
 # --- trace -----------------------------------------------------------------
 
+traceable() {
+  grep -E '(\.test\.(sh|mjs)|(^|/)test_[^/]*\.py)$' | grep -vE '/evals/fixtures/(.*/)?test_[^/]*\.py$' |
+    grep -vxF -e scripts/selection-audit.test.sh -e scripts/hook-census.test.sh
+}
+
+cmd_changed() {
+  local base="" f
+  while (($#)); do
+    case "$1" in
+    --base) base="${2:-}" && shift 2 ;;
+    *) die "unknown changed option: $1" ;;
+    esac
+  done
+  [[ -n "$base" ]] || die "changed needs --base REF"
+  local diff
+  diff="$(git diff --name-only --diff-filter=d "$base...HEAD")" || die "cannot diff $base...HEAD"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    [[ "$f" == *.test.mjs && -f "${f%.test.mjs}.test.sh" ]] && f="${f%.test.mjs}.test.sh"
+    echo "$f"
+  done <<<"$diff" | traceable | sort -u
+  return 0
+}
+
 # trace_one <out> <index:suite>: run one suite under strace and write its read
 # set. Called by xargs from cmd_trace; records "not traced" past the budget.
 trace_one() {
@@ -174,10 +211,11 @@ select_one() {
 }
 
 cmd_trace() {
-  local shard="0/1" jobs=3 budget=0 out="" i n
+  local shard="0/1" jobs=3 budget=0 out="" strict=0 i n
   local -a suites=()
   while (($#)); do
     case "$1" in
+    --strict) strict=1 && shift ;;
     --shard) shard="${2:-}" && shift 2 ;;
     --jobs) jobs="${2:-}" && shift 2 ;;
     --budget) budget="${2:-}" && shift 2 ;;
@@ -200,11 +238,7 @@ cmd_trace() {
   git ls-files >"$out/tracked"
   fallback_corpus >"$out/fallback" || die "cannot derive the suites pr-require-checks.yml's UNMAPPED fallback runs"
   if ((${#suites[@]} == 0)); then
-    # A Python eval fixture is data no lane runs (scripts/plan-test-lanes.sh);
-    # a *.test.sh there would still run in the bash lane, so it stays traced.
-    # These suites run strace themselves, which fails under the audit's own strace.
-    mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" | grep -vE '/evals/fixtures/(.*/)?test_[^/]*\.py$' |
-      grep -vxF -e scripts/selection-audit.test.sh -e scripts/hook-census.test.sh | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
+    mapfile -t suites < <(traceable <"$out/tracked" | grep -v '\.test\.mjs$' | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
   # Slowest first by scripts/suite-seconds.txt, so a long suite starts while the
@@ -291,6 +325,12 @@ cmd_trace() {
       "($failed exited non-zero; their reads still count), $not_traced not traced (budget)."
     echo "$(wc -l <"$out/files") distinct tracked file(s) read; $unchecked not checked against the selector (budget spent or selector error)."
     echo
+    if ((not_traced > 0)); then
+      echo "**Not traced, so not checked** (the budget ran out before they started):"
+      echo
+      awk -F'\t' '$2 == "not-traced" { printf "- `%s`\n", $1 }' "$out/suites.tsv"
+      echo
+    fi
     if ((gaps == 0)); then
       echo "No gap: every file a traced suite read selects that suite."
     else
@@ -305,7 +345,7 @@ cmd_trace() {
   } >"$out/report.md"
   publish "$out/report.md"
   echo "Artifacts: $out (report.md, gaps.tsv, suites.tsv, reads/, logs/)" >&2
-  ((gaps == 0))
+  ((gaps == 0)) && ((strict == 0 || not_traced + unchecked == 0))
 }
 
 # --- replay ----------------------------------------------------------------
@@ -487,7 +527,7 @@ cmd_red_replay() {
 }
 
 case "${1:-}" in
-trace | replay | red-replay)
+trace | changed | replay | red-replay)
   if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || ! cd "$ROOT"; then
     die "not inside a git work tree"
   fi
