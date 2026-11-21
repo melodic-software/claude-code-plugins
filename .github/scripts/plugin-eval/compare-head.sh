@@ -10,10 +10,15 @@
 set -euo pipefail
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 [[ $PR =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::PR and HEAD_SHA must be a number and a full SHA"; exit 1; }
-read -r state repo base head < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '[.state, .head.repo.full_name, .base.ref, .head.sha] | @tsv') || {
+set +e
+fields=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '[.state, .head.repo.full_name, .base.ref, .head.sha] | @tsv')
+status=$?
+set -e
+if [[ $status -ne 0 || -z $fields ]]; then
   echo "::error::pull request #$PR did not read"
   exit 1
-}
+fi
+read -r state repo base head <<<"$fields"
 if [[ $state != open || $repo != "$GITHUB_REPOSITORY" || $base != "$DEFAULT_BRANCH" ]]; then
   echo "::error::pull request #$PR is not an open pull request from this repository into $DEFAULT_BRANCH"
   exit 1
