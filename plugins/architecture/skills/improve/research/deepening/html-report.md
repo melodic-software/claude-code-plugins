@@ -30,6 +30,7 @@ One JSON object. Every listed field is required unless marked optional, every te
 | `top` | the `id` of the top recommendation |
 | `top_why` | one sentence saying why it comes first |
 | `candidates` | one object per candidate, below |
+| `kept` | optional: one `{title, reason, files}` per finding whose conclusion is to leave the code as it is (deepening.md, Phase 2); `reason` is one sentence |
 
 Each candidate:
 
@@ -40,7 +41,7 @@ Each candidate:
 | `recommendation` | `Strong`, `Worth exploring` or `Speculative` |
 | `category` | `in-process`, `local-substitutable`, `ports-and-adapters` or `mock` |
 | `problem` | the artifact's `problem`, one sentence |
-| `solution` | the artifact's `solution`, one sentence naming a change; a candidate that proposes none was dropped in Phase 2 |
+| `solution` | the artifact's `solution`, one sentence naming a change; a finding that proposes none goes in `kept` instead |
 | `wins` | the artifact's `wins`, one entry per gain (see Wins) |
 | `verified` | `reproduced`, `corrected: <one clause>` (no semicolon: the builder refuses one) or `unverified` |
 | `files` | one entry per path, written in full |
@@ -54,6 +55,7 @@ Each candidate:
 2. **Top recommendation**: the candidate's short id and title linked to its card, `top_why`, and a "Built on it" list the builder derives from `depends_on`: each candidate that depends on it, directly or through another. `top_why` gives the reason and leaves the names to that list.
 3. **Index**: every candidate as a row with its short id (the `id` in capitals, such as `S1`) and title linked to its card with its problem under it, its badge, its Verified word, the candidate it depends on (linked) and its solution. Below 600 px wide each row stacks into a block, so the index never scrolls sideways.
 4. **Cards** in one band per badge, `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every count, with no cap, pagination or collapse: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
+5. **Looked at, no change**, when `kept` holds any: each finding's title, reason and files, with no badge, outside the index and the bands; the header's candidate line links to it with its count.
 
 ## Header
 

@@ -51,7 +51,7 @@ Verification can be a second cheap read-only subagent pass or inline reproductio
 
 ## Phase 2: Present candidates as HTML report
 
-**A candidate proposes a change.** One whose solution is to leave the code as it is, such as keeping deliberate copies under an existing drift check, is not a candidate: drop it before re-badging, so it reaches neither the report nor the candidate artifact.
+**A candidate proposes a change.** A finding whose conclusion is to leave the code as it is, such as keeping deliberate copies under an existing drift check, is not a candidate: before re-badging, move it to the record's `kept` list and the artifact's `## Looked at, no change` section, each with its title, one sentence of reason and its files. It carries no badge, appears in neither the index nor the bands, and is never the top recommendation; the page lists it last, so a reader, and a later scan reading the artifact, sees the code was already looked at.
 
 **Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result. Scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`. **Promotion closes the same gate:** if re-badging lifts a candidate the scan rated below `strong` up to `Strong`, apply the Phase 1.5 reproduction to its `shallow-signal` *before* it carries the badge, or, when the level skipped Phase 1.5, label it `unverified`. A `Strong` claim reaches the report reproduced or labeled `unverified`, no matter which way the badge was reached, so the Phase 1.5 guarantee holds across both the original strong set and any promotions.
 
@@ -94,6 +94,14 @@ Domain nouns come from the project's glossary; architecture nouns come from [../
 - agreed-shape: <optional; omitted until Phase 3. Filled when the user picks and the shape is grilled: interface entry points, what the seam hides, tests that survive. A candidate that goes to implementation without the interview loop carries `skipped: <reason>` here, for example `skipped: direct-to-implementation`, so the entry says which path it took>
 - graft-record: <optional; omitted unless the agreed shape is a hybrid from a Design-It-Twice fan-out. Then: what was taken from which design, and what was considered and left behind with its reason. The left-behind half is the higher-value half. It is what stops a later explorer re-proposing a shape this exploration already weighed and dropped. A hybrid recorded as a winner alone loses that permanently>
 - rejected-reason: <only if status is rejected and the reason would help a future explorer>
+```
+
+After the candidates, when any finding was kept as it is, add one section:
+
+```markdown
+## Looked at, no change
+
+- <title>: <one sentence: why the code stays as it is> (files: <comma-separated paths>)
 ```
 
 End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n>` (the Phase 1.5 counts), then `top-recommendation: <candidate title>`.

@@ -219,6 +219,20 @@ test("each CDN script carries crossorigin and the SRI hash of its pinned file, a
   assert.ok(!validateDeepeningPage(page.replace(/ integrity="[^"]*"/, "")).ok);
 });
 
+test("a finding kept as it is gets its own section after the bands, never a card, an index row or a badge", () => {
+  const kept = [{ title: "Leave the export copies alone", reason: "Each copy has one reader and a drift check.", files: ["billing/a.md", "billing/b.md"] }];
+  const page = renderDeepening(parseDeepening({ ...record(), kept }));
+  assert.match(page, /<a href="#kept">looked at, no change: 1<\/a>/);
+  assert.match(page, /<\/section>\n<section id="kept">\n<h2>Looked at, no change<\/h2>/);
+  assert.match(page, /<div class="kept-item"><h3>Leave the export copies alone<\/h3><p>Each copy has one reader and a drift check.<\/p><ul class="files"><li>billing\/a.md<\/li><li>billing\/b.md<\/li><\/ul><\/div>/);
+  assert.equal(page.split("<article class=\"card\"").length - 1, record().candidates.length);
+  assert.ok(!page.slice(page.indexOf('<section id="index">'), page.indexOf('<section id="candidates">')).includes("Leave the export copies alone"));
+  assert.ok(validateDeepeningPage(page).ok);
+  assert.doesNotMatch(renderDeepening(parseDeepening(record())), /id="kept"/);
+  assert.throws(() => parseDeepening({ ...record(), kept: [{ ...kept[0], reason: " " }] }), /kept\[0\]\.reason/);
+  assert.throws(() => parseDeepening({ ...record(), kept: [{ ...kept[0], badge: "Strong" }] }), /unknown key badge/);
+});
+
 test("the top recommendation lists every candidate built on it, directly or through another", () => {
   const top = candidate();
   const direct = candidate({ id: "tax-rounding", title: "Move rounding into TaxCalculator", depends_on: "invoice-export" });

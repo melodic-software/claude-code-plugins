@@ -161,7 +161,7 @@ function candidateOf(value, at) {
 
 /** The record, read strictly: every part present and non-empty, no unknown key, every reference resolved. */
 export function parseDeepening(record) {
-  keys(record, "record", ["schema_version", "repo", "scope", "commit", "date", "verification", "counts", "top", "top_why", "candidates"]);
+  keys(record, "record", ["schema_version", "repo", "scope", "commit", "date", "verification", "counts", "top", "top_why", "candidates"], ["kept"]);
   if (record.schema_version !== 1) fail("record", "schema_version must be 1");
   if (!DATE.test(record.date)) fail("record: date", "must be YYYY-MM-DD");
   if (typeof record.commit !== "string" || !COMMIT.test(record.commit)) fail("record: commit", "must be the scanned commit's SHA, 7 to 40 lowercase hex digits");
@@ -185,6 +185,10 @@ export function parseDeepening(record) {
     top: record.top,
     topWhy: text(record.top_why, "record: top_why"),
     candidates,
+    kept: record.kept === undefined ? [] : list(record.kept, "record: kept", (item, at) => {
+      keys(item, at, ["title", "reason", "files"]);
+      return { title: text(item.title, `${at}.title`), reason: text(item.reason, `${at}.reason`), files: list(item.files, `${at}.files`, text) };
+    }, { min: 0 }),
   };
 }
 
@@ -232,6 +236,8 @@ const REPORT_STYLE = `
   .key summary { cursor: pointer; font-weight: 600; margin-top: .5rem; }
   .built-on { margin: 0; padding-left: 1.2rem; list-style: disc; }
   .back { margin: 0; font-size: .85rem; }
+  .kept-item { border-left: 4px solid var(--muted); padding: .25rem 0 .25rem .9rem; margin: 0 0 1.25rem; display: grid; gap: .35rem; }
+  .kept-item p, .kept-item ul { margin: 0; }
   .legend { margin: .75rem 0 0; padding-left: 1.2rem; list-style: disc; font-size: .92rem; }
   .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0 0 2.5rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .top { border-width: 3px; }
@@ -406,7 +412,7 @@ ${CHROME_BAR}
 <header>
 <h1>Deepening review: ${esc(report.repo)}</h1>
 <p>${esc(report.date)} · scope: ${esc(report.scope)} · commit <span class="mono">${esc(report.commit)}</span></p>
-${report.counts.length ? `<p>Evidence: ${esc(report.counts.join(" · "))}</p>\n` : ""}<p>Candidates: ${report.candidates.length} (${esc(tally)})</p>
+${report.counts.length ? `<p>Evidence: ${esc(report.counts.join(" · "))}</p>\n` : ""}<p>Candidates: ${report.candidates.length} (${esc(tally)})${report.kept.length ? ` · <a href="#kept">looked at, no change: ${report.kept.length}</a>` : ""}</p>
 <p>Verification: ${esc(report.verification)}: ${esc(LEVEL_MEANING[report.level])}.</p>
 <details class="key"><summary>Key: what the badges, tags, terms and diagram styles mean</summary>
 <ul class="legend">
@@ -430,7 +436,12 @@ ${index}
 <section id="candidates">
 ${bands.join("\n")}
 </section>
-</main>
+${report.kept.length ? `<section id="kept">
+<h2>Looked at, no change</h2>
+<p>The scan checked these and concluded the code should stay as it is. They are not candidates.</p>
+${report.kept.map((item) => `<div class="kept-item"><h3>${esc(item.title)}</h3><p>${esc(item.reason)}</p><ul class="files">${item.files.map((file) => `<li>${esc(file)}</li>`).join("")}</ul></div>`).join("\n")}
+</section>
+` : ""}</main>
 ${SCRIPTS[2]}
 </body>
 </html>
