@@ -50,6 +50,10 @@ START_EPOCH=${EPOCHREALTIME:-0}
 # already lost on Git Bash pipes).
 INPUT=$(cg::read_payload) || INPUT=""
 
+# Claude Code sets agent_id when a subagent compacts, and that leaves the main
+# session's context whole: https://code.claude.com/docs/en/changelog#2-1-323
+[[ "$INPUT" =~ \"agent_id\"[[:space:]]*:[[:space:]]*\"[^\"] ]] && exit 0
+
 SESSION=""
 if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
   SESSION="${BASH_REMATCH[1]}"
