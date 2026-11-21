@@ -317,6 +317,7 @@ lib/session-bridge/view_bridge.py plugins/prototype/notes-bridge/view_bridge.py
 lib/ui-feedback/notes_bridge.py plugins/prototype/notes-bridge/notes_bridge.py
 lib/ui-feedback/notes-bridge.sh plugins/prototype/notes-bridge/notes-bridge.sh
 lib/ui-feedback/host.html plugins/prototype/notes-bridge/host.html
+lib/ui-feedback/host.mjs plugins/prototype/notes-bridge/host.mjs
 lib/ui-feedback/proto-pin.js plugins/prototype/notes-bridge/proto-pin.js
 lib/ui-feedback/note-model.mjs plugins/prototype/notes-bridge/note-model.mjs
 lib/ui-feedback/frame-channel.mjs plugins/prototype/notes-bridge/frame-channel.mjs

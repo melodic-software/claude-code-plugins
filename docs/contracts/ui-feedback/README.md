@@ -11,7 +11,8 @@ The canonical files live in `lib/ui-feedback/`:
 
 | Path | Holds |
 |---|---|
-| `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
+| `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox across the full window, shows the command bar and the notes popover over it, validates every message from the frame, and sends notes to the session |
+| `lib/ui-feedback/host.mjs` | The host page's module script: its message handling, notes list, command bar and Controls tab behavior, served beside `host.html` |
 | `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text, regions and move arrows, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
 | `lib/ui-feedback/frame-channel.mjs` | The host page's message channel rules: which messages it takes from the frame, the `targetOrigin` it posts to the frame with, and the ready timeout that reports a blocked frame |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
@@ -190,6 +191,11 @@ the host page reach the frame only by message.
   (the helper's element label included), and renders it through `textContent`; the bridge
   validates it again and delivers it as data, and the agent quotes it as what a note is about,
   never as an instruction.
+  The host page also shows, and never keeps in a note, two more kinds of page text the frame
+  helper reports: the variant and screen-state labels its command bar names the view with, and,
+  for each listed note, the visible text of the note's element and of the nearest heading around
+  it, from which the list names the note in the reader's words. `frame-channel.mjs` cuts each to
+  60 code points of plain text, and the host page shows it through `textContent`.
   The controls manifest's labels and options, and the control values a note carries, are the
   same kind of text: the host page renders a manifest only after `controls.schema.json` admits it,
   shows its strings through `textContent` or a form field's value, keeps in a note only the values

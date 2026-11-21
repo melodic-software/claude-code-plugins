@@ -10,7 +10,7 @@ async page => {
     const status = await page.textContent("#controls-status");
     ok("the tab says why it refused the manifest", status.includes("__WANT__"), status);
     ok("no manifest control is rendered", await page.locator("#controls-list .uifc-row input:not([type=checkbox]), #controls-list select").count() === 0);
-    ok("the data controls stay", await page.getByRole("button", { name: "seed 10" }).count() === 1);
+    ok("the data controls stay, in the Sample data menu", await page.locator("#data-list button", { hasText: "seed 10" }).count() === 1);
     await page.goto("__FILE__");
     const alone = page.locator('aside[aria-label="Controls"]');
     await alone.waitFor({ timeout: 3000 }).catch(() => {});
