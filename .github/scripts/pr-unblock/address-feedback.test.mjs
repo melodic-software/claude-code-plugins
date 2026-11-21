@@ -2895,8 +2895,8 @@ const roundsAnswer = (commits, { more = false } = {}) => ({
       pullRequest: {
         commits: {
           pageInfo: { hasNextPage: more },
-          nodes: commits.map(({ oid, runs = [], suitesMore = false, runsMore = false }) => ({
-            commit: { oid, checkSuites: { pageInfo: { hasNextPage: suitesMore }, nodes: [{ checkRuns: { pageInfo: { hasNextPage: runsMore }, nodes: runs } }] } },
+          nodes: commits.map(({ oid, runs = [], suitesMore = false, runsMore = false, repeats = 1 }) => ({
+            commit: { oid, checkSuites: { pageInfo: { hasNextPage: suitesMore }, nodes: Array.from({ length: repeats }, () => ({ checkRuns: { pageInfo: { hasNextPage: runsMore }, nodes: runs } })) } },
           })),
         },
       },
@@ -2914,17 +2914,17 @@ const roundsApi = (answer, rest = {}) => {
 };
 const restRuns = (sha) => `https://api/repos/o/r/commits/${sha}/check-runs?check_name=pr-unblock%20%2F%20address-feedback&filter=all&per_page=100`;
 
-test("listModelRounds reads every commit's model runs in one GraphQL query, in listCheckRuns' shape", async () => {
+test("listModelRounds reads every commit's model runs in one GraphQL query, in listCheckRuns' shape, once each when a suite repeats", async () => {
   const { urls, api } = roundsApi(
     roundsAnswer([
-      { oid: "a".repeat(40), runs: [{ name: "pr-unblock / address-feedback", conclusion: "SUCCESS", completedAt: "2026-11-21T15:19:12Z" }, { name: "pr-unblock / address-feedback", conclusion: null, completedAt: null }] },
+      { oid: "a".repeat(40), runs: [{ databaseId: 1, name: "pr-unblock / address-feedback", conclusion: "SUCCESS", completedAt: "2026-11-21T15:19:12Z" }, { databaseId: 2, name: "pr-unblock / address-feedback", conclusion: null, completedAt: null }], repeats: 2 },
       { oid: "b".repeat(40) },
     ]),
   );
   assert.deepEqual(await api.listModelRounds(17939, "pr-unblock / address-feedback"), [
     [
-      { name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success", completed_at: "2026-11-21T15:19:12Z" },
-      { name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: null, completed_at: null },
+      { id: 1, name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success", completed_at: "2026-11-21T15:19:12Z" },
+      { id: 2, name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: null, completed_at: null },
     ],
     [],
   ]);

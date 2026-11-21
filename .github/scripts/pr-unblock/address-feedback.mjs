@@ -1750,9 +1750,9 @@ const ROUNDS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $check: 
         nodes {
           commit {
             oid
-            checkSuites(first: 3, filterBy: { appId: ${GITHUB_ACTIONS_APP_ID} }) {
+            checkSuites(first: 5, filterBy: { appId: ${GITHUB_ACTIONS_APP_ID}, checkName: $check }) {
               pageInfo { hasNextPage }
-              nodes { checkRuns(first: 10, filterBy: { checkName: $check, checkType: ALL }) { pageInfo { hasNextPage } nodes { name conclusion completedAt } } }
+              nodes { checkRuns(first: 10, filterBy: { checkName: $check, checkType: ALL }) { pageInfo { hasNextPage } nodes { databaseId name conclusion completedAt } } }
             }
           }
         }
@@ -1881,9 +1881,13 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         runs.push(
           suites.pageInfo.hasNextPage || suites.nodes.some((suite) => suite.checkRuns.pageInfo.hasNextPage)
             ? await checkRunsNamed(commit.oid, check)
-            : suites.nodes.flatMap((suite) =>
-                suite.checkRuns.nodes.map((run) => ({ name: run.name, app: { slug: "github-actions" }, conclusion: String(run.conclusion ?? "").toLowerCase() || null, completed_at: run.completedAt })),
-              ),
+            : [...new Map(suites.nodes.flatMap((suite) => suite.checkRuns.nodes).map((run) => [run.databaseId, run])).values()].map((run) => ({
+                id: run.databaseId,
+                name: run.name,
+                app: { slug: "github-actions" },
+                conclusion: String(run.conclusion ?? "").toLowerCase() || null,
+                completed_at: run.completedAt,
+              })),
         );
       }
       return runs;
