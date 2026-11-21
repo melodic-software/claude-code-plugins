@@ -6,7 +6,7 @@ import { handleClick } from './core/clicks.js'
 import { minuteOfHalfDay, readNow, startMinuteChain } from './core/clock.js'
 import { describe, runCommand } from './core/commands.js'
 import { ctxOf, usePieces } from './core/context.js'
-import { SCENE, colorProblems, draw, markStarted, setLook } from './core/render.js'
+import { SCENE, colorProblems, draw, holdShader, isThemeOn, markCovered, markStarted, setLook } from './core/render.js'
 import { load } from './core/saved.js'
 import { useOptions } from './core/settings.js'
 import { failed, flush, note } from './core/telemetry.js'
@@ -27,7 +27,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'bedroom',
       description:
-        'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), time, weather, signal, hall, shader, sound, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), sync, stats, calibrate, reset, on, off',
+        'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), time, date, weather, signal, hall, shader, sound, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), sync, stats, calibrate, reset, on, off',
     })
     await load($)
     await readNow($)
@@ -57,6 +57,31 @@ export const register: Register = (on, options) => {
     await ask($, 'the session starting')
     return next(e)
   })
+
+  on('theme.clear', async ($, e, next) => {
+    const cleared = await next(e)
+    if (next.origin.plugin === $.plugin.name || !isThemeOn()) return cleared
+    note(`${next.origin.plugin} cleared the theme while the room is on: setting the room again`)
+    try {
+      await setLook($, ctxOf($))
+      holdShader($, 'the room set again')
+      await ask($, 'the room set again')
+    } catch (error) {
+      note(`setting the room again failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    flush($)
+    return cleared
+  }).catch(($, e, next) => next(e))
+
+  on('theme.set', async ($, e, next) => {
+    const set = await next(e)
+    if (next.origin.plugin === $.plugin.name || !isThemeOn()) return set
+    note(`${next.origin.plugin} set its theme over the room: the room is covered until /bedroom on`)
+    markCovered(next.origin.plugin)
+    void refreshCard($).catch(() => undefined)
+    flush($)
+    return set
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.plugin !== $.plugin.name || e.props.scene !== SCENE || e.surface !== 'desktop') return next(e)

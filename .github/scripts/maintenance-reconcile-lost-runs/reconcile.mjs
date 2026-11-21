@@ -151,7 +151,12 @@
 //   API rate limit (`rateHeld`), named by ci-status's RATE_HELD_NOTE, goes the
 //   same way, once RATE_RESET_GRACE_MS past the latest reset its refusals
 //   name; the merge gate binds that attempt 2 (babysit_review_evidence
-//   `_rate_held`).
+//   `_rate_held`). A first attempt the defer gate stopped (its gate job's
+//   DEFER_NOTE, cause=defer with the window's reset) waits until
+//   RATE_RESET_GRACE_MS past that reset, so the first pass after it, a few
+//   minutes past the reset when the hourly tick follows it, re-runs it. Those
+//   re-runs take the DEFER_MAX band, not the places below; their attempt 2
+//   never defers.
 // Other lost lane runs (a review lane run lost any other way, refine) are listed
 // in the summary for a person: a review re-run would trade one review for
 // another, and refine's lanes token broker refuses a re-run
@@ -228,7 +233,8 @@
 //   SETTLED_PATH         plan reads the last pass's settled runs and job reads, then writes
 //                        this pass's there for the upload; unset carries nothing
 //   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
-//   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
+//   GITHUB_OUTPUT        plan writes record-1 to record-15 there (empty when unused;
+//                        https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/maintenance-reconcile-lost-runs.yml)
 //   GITHUB_STEP_SUMMARY  the outcome is listed there when set
 //   GITHUB_API_URL
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
@@ -420,6 +426,12 @@ export const FAULT_HELD_HOURS = 6;
 // for the next pass, so a pass after a long outage adds a bounded load.
 export const FAULT_HELD_READS = 100;
 export const MAX_IN_FLIGHT = 3;
+// Re-runs of reviews the defer gate stopped, per pass, beside MAX_IN_FLIGHT:
+// the 24 h to 2026-11-21T20:49Z would have deferred at most 9 review runs in
+// one token window, so 12 leaves room for one more head, both lanes
+// (https://github.com/melodic-software/claude-code-plugins/issues/17460).
+export const DEFER_MAX = 12;
+export const RECORD_SLOTS = MAX_IN_FLIGHT + DEFER_MAX;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
 // does not fit is a failure, never a partial read.
@@ -1050,6 +1062,15 @@ export const rateHeld = async (jobs, notesOf) => {
   return undefined;
 };
 export const RATE_RESET_GRACE_MS = 60_000;
+// The hosted callers' stop notice when the gate deferred the review, with the
+// window's reset in epoch seconds (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
+export const DEFER_NOTE = /\bcause=defer reset=([0-9]{9,12})\b/;
+const DEFERRED = "success (deferred)";
+export const deferReset = async (jobs, notesOf) => {
+  const gate = jobs.find((job) => GATE_JOBS.has(job?.name) && Number.isSafeInteger(job.id) && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
+  const resets = gate ? (await notesOf(gate)).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map(Number) : [];
+  return resets.length > 0 ? Math.max(...resets) : undefined;
+};
 
 /**
  * Why the run's first attempt must not be re-run, with whether that hold is
@@ -1499,8 +1520,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           }
           const jobs = await readJobs(r);
           const stopped = reviewStopped(jobs);
+          const notesOf = (job) => job.annotations ?? call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+          const defer = stopped ? await deferReset(jobs, notesOf) : undefined;
+          if (beforeReset(defer === undefined ? undefined : defer * 1000, now)) {
+            waitReset(`#${pull.number}: review run ${r.id} (${r.path})`, defer * 1000, "was deferred on the GITHUB_TOKEN budget");
+            continue;
+          }
           if (!stopped) {
-            const reset = await rateHeld(jobs, (job) => job.annotations ?? call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`));
+            const reset = await rateHeld(jobs, notesOf);
             if (reset === undefined) {
               continue;
             }
@@ -1511,10 +1538,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           }
           const hold = await gateHold();
           if (hold) {
-            say(`#${pull.number}: review run ${r.id} (${r.path}) ${stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
+            say(`#${pull.number}: review run ${r.id} (${r.path}) ${defer !== undefined ? "was deferred on the GITHUB_TOKEN budget" : stopped ? "was stopped by a kill switch" : "held on a GitHub API rate limit"}; waiting, ${hold}`);
             continue;
           }
-          const conclusion = stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
+          const conclusion = defer !== undefined ? DEFERRED : stopped ? "success (kill switch stop)" : "success (rate-limit hold)";
           items.push({ kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion, attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, 2, pull.head.sha) });
         }
         return items;
@@ -1966,7 +1993,26 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         : places(set) > room
           ? `only ${room} of ${MAX_IN_FLIGHT} re-run places left`
           : "";
-  const place = (what, set) => {
+  let deferRoom = DEFER_MAX;
+  const takeDeferred = (what, set) => {
+    const reviews = set.filter(isReview);
+    if (reviews.length === 0 || !reviews.every((item) => item.conclusion === DEFERRED)) {
+      return set;
+    }
+    if (reviews.length > deferRoom) {
+      deferred += 1;
+      say(`${what}: its deferred reviews wait, only ${deferRoom} of ${DEFER_MAX} recovery places left this pass`);
+    } else {
+      items.push(...reviews);
+      deferRoom -= reviews.length;
+    }
+    return set.filter((item) => !isReview(item));
+  };
+  const place = (what, whole) => {
+    const set = takeDeferred(what, whole);
+    if (set.length === 0) {
+      return;
+    }
     const core = set.filter((item) => !isReview(item));
     const split = short(set) === NO_UPLOAD && places(set) <= room && core.length > 0 && core.length < set.length && short(core) === "";
     if (split) {
@@ -2062,7 +2108,7 @@ async function act({ repo, call, say, since, sleep, items }) {
           : item.kind === "too-old"
             ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: the pull request is past ${TOO_OLD_DAYS} days and its head has no verdict`
             : item.kind === "review"
-            ? `${where}: re-ran review run ${item.id} (${item.path}), which ${item.conclusion === "success (rate-limit hold)" ? "held on a GitHub API rate limit" : "a kill switch stopped"}; its completion re-runs ci-status`
+            ? `${where}: re-ran review run ${item.id} (${item.path}), which ${item.conclusion === "success (rate-limit hold)" ? "held on a GitHub API rate limit" : item.conclusion === DEFERRED ? "the defer gate stopped until the GITHUB_TOKEN window reset" : "a kill switch stopped"}; its completion re-runs ci-status`
             : item.kind === "fault-held"
             ? `${where}: re-ran run ${item.id} (${item.path}), which ${item.path === RATER ? "the lanes kill switch stopped before it rated" : "held on a GitHub fault"}`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
@@ -2083,10 +2129,10 @@ async function act({ repo, call, say, since, sleep, items }) {
 // The plan's record-N outputs, each a record name or empty.
 function recordOutputs(items) {
   const names = items.filter(recorded).map((item) => item.record);
-  if (names.length > MAX_IN_FLIGHT || !names.every(isRecordName)) {
+  if (names.length > RECORD_SLOTS || !names.every(isRecordName)) {
     throw new Error("the plan's record names are malformed");
   }
-  return Object.fromEntries(Array.from({ length: MAX_IN_FLIGHT }, (_, i) => [`record-${i + 1}`, names[i] ?? ""]));
+  return Object.fromEntries(Array.from({ length: RECORD_SLOTS }, (_, i) => [`record-${i + 1}`, names[i] ?? ""]));
 }
 
 export async function main({ env = process.env, github, fetchStatus: readStatus = fetchStatus, sleep = delay, now = Date.now(), download } = {}) {

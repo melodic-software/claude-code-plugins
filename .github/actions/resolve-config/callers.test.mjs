@@ -172,7 +172,7 @@ for (const [file, job, lane, laneSwitch] of [
   test(`${file}: the review runs only when the check-kill-switch job says proceed`, () => {
     const review = jobs[job];
     const gate = jobs["check-kill-switch"];
-    assertKillSwitchJob(gate);
+    assertKillSwitchJob(gate, { defers: true });
     for (const proceed of ["true", "false", ""]) {
       const context = {
         "github.event.pull_request.draft": false,
@@ -272,7 +272,7 @@ function importClosure(entry) {
 // The check-kill-switch job reads the action from the default branch with a
 // read-only token and passes it the org and repository switches; a gate
 // that starts new work also passes budget "true".
-function assertKillSwitchJob(gate, { starts = false } = {}) {
+function assertKillSwitchJob(gate, { starts = false, defers = false } = {}) {
   assert.deepEqual(gate.permissions, { contents: "read" });
   const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
   assertMainTip(gate.steps, checkout);
@@ -285,6 +285,7 @@ function assertKillSwitchJob(gate, { starts = false } = {}) {
     value: "${{ vars.CLAUDE_LANES_DISABLED }}",
     "repo-value": "${{ vars.CLAUDE_LANES_REPO_DISABLED }}",
     ...(starts && { budget: "true" }),
+    ...(defers && { defer: "true", "defer-job": "review", "resolved-config": "${{ runner.temp }}/defer-config.json" }),
   });
 }
 
@@ -5077,6 +5078,16 @@ function transcriptRecord(t, runOutputs) {
   return { status: result.status, log: result.stdout + result.stderr, outputs, record: outputs.file ? readFileSync(outputs.file) : null };
 }
 
+const fixedIncompressibleBytes = (n) => {
+  const out = Buffer.alloc(n);
+  let block = Buffer.alloc(32);
+  for (let at = 0; at < n; at += 32) {
+    block = createHash("sha256").update(block).digest();
+    block.copy(out, at, 0, Math.min(32, n - at));
+  }
+  return out;
+};
+
 const openTranscript = (record, jobId) =>
   JSON.parse(gunzipSync(openRecord(parsePrivateKey(TRANSCRIPT_KEY.privateText), [TRANSCRIPT_KEY.keyId], "transcript.json.gz", record, CARRY_RUN_ID, jobId)).toString("utf8"));
 
@@ -5102,8 +5113,7 @@ test("pr-run-activity-read.yml: the transcript job uploads the run job's leg tra
 });
 
 test("pr-run-activity-read.yml: a transcript over its gzipped cap, or with a credential shape, is carried as a marker naming why, never cut", async (t) => {
-  const { randomBytes } = await import("node:crypto");
-  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(300000).toString("base64") } }]);
+  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: fixedIncompressibleBytes(300000).toString("base64") } }]);
   const over = carryTranscript(t, big);
   assert.match(over.log, /^::warning::too-large: the leg's transcript is [0-9]+ gzipped bytes, over its 286720-byte cap/m);
   const [marker, ...rest] = openTranscript(transcriptRecord(t, over.runOutputs).record, "resolve-issue");
@@ -5138,7 +5148,6 @@ test("pr-run-activity-read.yml: a gzipped transcript at its cap seals within the
 });
 
 test("pr-run-activity-read.yml: the transcript takes only the job-output room the carry leaves, counting two bytes a character, so the carry never overflows GitHub's 1 MB per job", async (t) => {
-  const { randomBytes } = await import("node:crypto");
   const steps = runSteps();
   assert.deepEqual(["seal", "transcript-seal"].map((id) => Number(steps.find((s) => s.id === id).with["max-chunks"])), [5, 4]);
   const outputs = workflow("pr-run-activity-read.yml").jobs.run.outputs;
@@ -5147,8 +5156,8 @@ test("pr-run-activity-read.yml: the transcript takes only the job-output room th
   assert.equal(steps.find((s) => s.id === "transcript-carry").env.CARRY_SEALED_LENGTH, "${{ steps.seal.outputs.sealed-length }}");
   assert.match(steps.find((s) => s.id === "api-failures").run, /head -c 65536 /);
   const utf16Bytes = (carry, transcript) => 2 * (carry + transcript + 65600 + 8192);
-  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(300000).toString("base64") } }]);
-  const mid = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: randomBytes(100000).toString("base64") } }]);
+  const big = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: fixedIncompressibleBytes(300000).toString("base64") } }]);
+  const mid = JSON.stringify([...LEG_MESSAGES, { type: "user", message: { content: fixedIncompressibleBytes(100000).toString("base64") } }]);
   const small = JSON.stringify(LEG_MESSAGES);
   for (const [carry, execution, expect] of [
     [0, big, { reason: "too-large", cap: TRANSCRIPT_CAP }],

@@ -4,6 +4,18 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.7.0] - 2026-11-21
+
+The principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **Anti-pattern 1:** quotes the permission-modes page's current eight-class drop list (re-fetched
+  2026-11-21), which adds a wrapper followed only by a wildcard, shell rules that start with a
+  wildcard, and some wildcarded paths. It cites changelog 2.1.327 for the widened package-runner
+  class (path and version forms), which the page does not state yet, and adds a table of which
+  classes the P1 detectors cover.
+- **Known gap:** the leading-wildcard wrapper candidate is now rejected, since auto mode drops rules
+  that start with a wildcard.
+
 ## [1.6.5] - 2026-11-18
 
 Wording only; the principle, the three anti-patterns, and the correct pattern are unchanged.

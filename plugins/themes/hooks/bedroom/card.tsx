@@ -2,12 +2,15 @@ import { atom, read, update } from 'claude-code'
 import type { ElementTable, EngineInterface } from 'claude-code'
 
 import type { BedroomCard } from '../../types'
-import { TITLE_CAPS, TITLE_KEYS, describe, extraMsOf, runCommand, type TitleKey } from './core/commands.js'
+import { TITLE_CAPS, describe, extraMsOf, runCommand, type TitleKey } from './core/commands.js'
 import { ctxOf } from './core/context.js'
 import { SWITCHES, type Switch } from './core/piece.js'
-import { isThemeOn } from './core/render.js'
+import { coveringPlugin, isThemeOn } from './core/render.js'
 import { volumeOf } from './core/saved.js'
 import { WEATHERS } from './core/settings.js'
+import { hallLightOn } from './pieces/hallway.js'
+import { bedName } from './pieces/sound.js'
+import { chosenName, namesOf, type Kind } from './pieces/sound-bank.js'
 import { DEFAULT_STATE } from './scene/lib.ts'
 
 /** The settings card's rows are named this, then a count: a new row for each `/bedroom`, so the card stands at the transcript's end. */
@@ -27,6 +30,16 @@ const LOOK: readonly Stepped[] = ['dim', 'glass', 'blur']
 const TOGGLES = ['signal', 'hall'] as const
 /** The time row's order: from the earliest morning light to the latest evening. The phases' own order (PHASES) is the shader's. */
 export const TIME_ORDER = ['predawn', 'dawn', 'morning', 'noon', 'golden', 'dusk', 'evening', 'night'] as const
+/** The title fields, two to a row so each is wide enough for its longest title and its set button. */
+export const TITLE_ROWS: readonly (readonly TitleKey[])[] = [
+  ['console', 'tape'],
+  ['pennant', 'pennant-top'],
+]
+/** The sound bank's pickers, a kind's entries together, and the room's things' switch on the last row. */
+export const BANK_ROWS: readonly (readonly Kind[])[] = [
+  ['cicadas', 'night', 'rain'],
+  ['thunder', 'tv'],
+]
 
 /**
  * How long a switch's button on the card stays inactive after a press, turning off and turning on, in ms: the half
@@ -43,6 +56,17 @@ export const CHANGE_MS: Record<Switch, readonly [number, number]> = {
   lamp: [900, 1000],
   lava: [1100, 1100],
 }
+/**
+ * The buttons after the switches that run one of the shader's events now, each through its command: someone passing
+ * the door, the hall light behind the door, a lightning strike. One draws dim while its command would only say why not
+ * (the hallway off, the weather not a storm); a press then shows that answer. `door` is the hall light's switch, so it
+ * carries a check while the light is on, as the time and weather rows mark the one in force; `pass` and `bolt` run once.
+ */
+export const EVENT_BUTTONS = [
+  { key: 'event-pass', label: 'pass', words: 'hall pass' },
+  { key: 'event-door', label: 'door', words: 'hall light' },
+  { key: 'event-bolt', label: 'bolt', words: 'weather strike' },
+] as const
 /** The switches changing after a press on the card, each with the timer that ends it: their buttons draw dim, and a press on one does nothing. */
 const changing = new Map<Switch, { cancel: () => void }>()
 
@@ -90,9 +114,9 @@ async function step($: EngineInterface, name: Stepped, way: 1 | -1): Promise<voi
   }
 }
 
-/** Shows or hides the four title fields, the card's last row. */
-async function toggleTitles($: EngineInterface): Promise<void> {
-  await update($, card, was => ({ ...was, titles: was.titles !== true, seen: (was.seen ?? 0) + 1 }))
+/** Shows or hides the four title fields or the sound bank, each on the two rows the time and the weather leave; one at a time. */
+async function togglePanel($: EngineInterface, panel: 'titles' | 'sounds'): Promise<void> {
+  await update($, card, was => ({ ...was, titles: panel === 'titles' && was.titles !== true, sounds: panel === 'sounds' && was.sounds !== true, seen: (was.seen ?? 0) + 1 }))
 }
 
 /** Runs a press on the card that changes these switches, their buttons inactive until each has changed. */
@@ -148,11 +172,12 @@ export async function shownIn($: EngineInterface, id: string | undefined, isBand
 type CardElements = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'Input'>
 
 /**
- * The settings card, at most seven rows, each kept to the conversation's width (about 1,100 px in the app) so none wraps
- * and nothing is cut off at about 390 px of height: the title with the theme, reset, calibrate, titles and Close; the
- * switches, with room left for three more buttons; the time of day from the earliest light to the latest; the weather;
- * dim, glass and blur with the signal and the hallway; sound with its volume and the last press's answer on one line;
- * and the four title fields on one row while titles is on. The desktop draws a button's `label`, not its children, so
+ * The settings card, six rows whatever is open, each kept to the conversation's width (about 1,100 px in the app) so
+ * none wraps and nothing is cut off at about 390 px of height: the title with the theme, reset, calibrate, titles and
+ * Close; the switches, then pass, door and bolt (EVENT_BUTTONS); the time of day from the earliest light to the latest and
+ * the weather, two rows that show the four title fields two to a row while titles is on, or the sound bank's pickers
+ * while sounds is on; dim, glass and blur with the signal and the hallway; sound with its volume, the bed playing, the
+ * sounds button and the last press's answer on one line. The desktop draws a button's `label`, not its children, so
  * each label carries the state it changes, and the chosen time and weather carry a check. Every press runs the command
  * with the words it takes; the card reads the settings afresh at each draw, so it shows a change made by a click in the
  * room or a typed command too. Shader off is a typed command for diagnosis, not a button.
@@ -160,9 +185,11 @@ type CardElements = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'I
 export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: CardElements, now: BedroomCard) {
   const ctx = ctxOf($)
   const saved = ctx.saved
-  const themeLabel = isThemeOn() ? 'theme: on' : 'theme: off'
+  const themeLabel = coveringPlugin() !== undefined ? 'theme: covered' : isThemeOn() ? 'theme: on' : 'theme: off'
   const titlesLabel = now.titles === true ? 'titles: hide' : 'titles: show'
   const soundLabel = `sound: ${ctx.setting('sound') ? 'on' : 'off'}`
+  const soundsLabel = now.sounds === true ? 'sounds: hide' : 'sounds: show'
+  const objectsLabel = `objects: ${saved.objects === false ? 'off' : 'on'}`
   const time = ctx.setting('time')
   const weather = ctx.setting('weather')
   const choice = (row: 'time' | 'weather', word: string, chosen: string) => {
@@ -191,7 +218,7 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
       <Box key="head" flexDirection="row" flexWrap="wrap" justifyContent="space-between" alignItems="center" columnGap="sm" rowGap="xs">
         <Text bold>Bedroom settings</Text>
         <Box flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
-          <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn() ? 'off' : 'on')}>
+          <Button key="theme" label={themeLabel} onPress={() => press($, isThemeOn() && coveringPlugin() === undefined ? 'off' : 'on')}>
             {themeLabel}
           </Button>
           <Button
@@ -210,7 +237,7 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
           <Button key="calibrate" label="calibrate" onPress={() => press($, 'calibrate')}>
             calibrate
           </Button>
-          <Button key="titles" label={titlesLabel} onPress={() => toggleTitles($)}>
+          <Button key="titles" label={titlesLabel} onPress={() => togglePanel($, 'titles')}>
             {titlesLabel}
           </Button>
           <Button key="close" label="Close" role="dismiss" onPress={() => closeCard($)}>
@@ -234,15 +261,70 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
             </Button>
           )
         })}
+        {EVENT_BUTTONS.map(({ key, label, words }) => {
+          const shown = key === 'event-door' && hallLightOn(ctx.nowMs) ? `${label} ✓` : label
+          return (
+            <Button key={key} label={shown} dimColor={words === 'weather strike' ? weather !== 'storm' : !ctx.setting('hall')} onPress={() => press($, words)}>
+              {shown}
+            </Button>
+          )
+        })}
       </Box>
-      <Box key="time" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap="xs" rowGap="xs">
-        <Text>time</Text>
-        {['auto', ...TIME_ORDER].map(word => choice('time', word, time))}
-      </Box>
-      <Box key="weather" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap="xs" rowGap="xs">
-        <Text>weather</Text>
-        {['auto', ...WEATHERS].map(word => choice('weather', word, weather))}
-      </Box>
+      {now.titles === true
+        ? TITLE_ROWS.map((keys, row) => (
+            <Box key={`title-row-${row + 1}`} flexDirection="row" columnGap="sm">
+              {keys.map(key => (
+                <Box key={`field-${key}`} flexGrow={1} flexShrink={1} width="50%">
+                  <Input
+                    key={`title-${key}`}
+                    label={key}
+                    placeholder={`up to ${TITLE_CAPS[key]}`}
+                    value={drafts[key] ?? saved.titles[key] ?? ''}
+                    submitLabel="set"
+                    onInput={text => {
+                      drafts[key] = text
+                    }}
+                    onSubmit={text => void press($, `title ${key} ${text}`)}
+                  />
+                </Box>
+              ))}
+            </Box>
+          ))
+        : now.sounds === true
+          ? BANK_ROWS.map((kinds, row) => (
+              <Box key={`bank-row-${row + 1}`} flexDirection="row" flexWrap="wrap" alignItems="center" columnGap="lg" rowGap="xs">
+                {kinds.map(kind => (
+                  <Box key={`bank-${kind}`} flexDirection="row" alignItems="center" columnGap="xs">
+                    <Text>{kind}</Text>
+                    {namesOf(kind).map(name => {
+                      const label = name === chosenName(saved, kind) ? `${name} ✓` : name
+                      return (
+                        <Button key={`pick-${kind}-${name}`} label={label} onPress={() => press($, `sound pick ${kind} ${name}`)}>
+                          {label}
+                        </Button>
+                      )
+                    })}
+                  </Box>
+                ))}
+                {row === BANK_ROWS.length - 1
+                  ? [
+                      <Button key="toggle-objects" label={objectsLabel} onPress={() => press($, `sound objects ${saved.objects === false ? 'on' : 'off'}`)}>
+                        {objectsLabel}
+                      </Button>,
+                    ]
+                  : []}
+              </Box>
+            ))
+          : [
+              <Box key="time" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap="xs" rowGap="xs">
+                <Text>time</Text>
+                {['auto', ...TIME_ORDER].map(word => choice('time', word, time))}
+              </Box>,
+              <Box key="weather" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap="xs" rowGap="xs">
+                <Text>weather</Text>
+                {['auto', ...WEATHERS].map(word => choice('weather', word, weather))}
+              </Box>,
+            ]}
       <Box key="look" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap="lg" rowGap="xs">
         {LOOK.map(stepper)}
         <Box key="toggles" flexDirection="row" flexWrap="wrap" columnGap="xs" rowGap="xs">
@@ -264,32 +346,15 @@ export function settingsCard($: EngineInterface, { Box, Text, Button, Input }: C
             {soundLabel}
           </Button>
           {stepper('volume')}
+          <Text key="bed">{`bed: ${ctx.setting('sound') ? bedName() : 'off'}`}</Text>
+          <Button key="sounds" label={soundsLabel} onPress={() => togglePanel($, 'sounds')}>
+            {soundsLabel}
+          </Button>
         </Box>
         <Box key="said-box" flexGrow={1} flexShrink={1}>
           {now.said === undefined ? [] : [<Text key="said" dimColor maxLines={1}>{now.said}</Text>]}
         </Box>
       </Box>
-      {now.titles === true
-        ? [
-            <Box key="title-fields" flexDirection="row" columnGap="sm">
-              {TITLE_KEYS.map(key => (
-                <Box key={`field-${key}`} flexGrow={1} flexShrink={1} width="25%">
-                  <Input
-                    key={`title-${key}`}
-                    label={key}
-                    placeholder={`up to ${TITLE_CAPS[key]}`}
-                    value={drafts[key] ?? saved.titles[key] ?? ''}
-                    submitLabel="set"
-                    onInput={text => {
-                      drafts[key] = text
-                    }}
-                    onSubmit={text => void press($, `title ${key} ${text}`)}
-                  />
-                </Box>
-              ))}
-            </Box>,
-          ]
-        : []}
     </Box>
   )
 }

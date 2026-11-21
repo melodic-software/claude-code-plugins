@@ -89,3 +89,46 @@ export function draftStore(storage, run, schema, key = "ui-feedback-drafts") {
     },
   };
 }
+
+/** What an element is, in a reader's words, by its role attribute first and its tag second. */
+const ROLES = {
+  button: "Button", link: "Link", img: "Image", table: "Table", grid: "Table", row: "Table row", cell: "Table cell",
+  list: "List", listitem: "List item", navigation: "Navigation", dialog: "Dialog", tab: "Tab", heading: "Heading",
+  region: "Section", checkbox: "Checkbox", textbox: "Field", menu: "Menu",
+};
+const TAGS = {
+  img: "Image", picture: "Image", svg: "Graphic", canvas: "Graphic", figure: "Figure", table: "Table", tr: "Table row",
+  td: "Table cell", th: "Table header", ul: "List", ol: "List", li: "List item", button: "Button", a: "Link",
+  input: "Field", textarea: "Field", select: "Menu", form: "Form", nav: "Navigation", header: "Header", footer: "Footer",
+  section: "Section", article: "Card", aside: "Side panel", main: "Main area", p: "Paragraph", label: "Label",
+  h1: "Heading", h2: "Heading", h3: "Heading", h4: "Heading", h5: "Heading", h6: "Heading",
+};
+/** Visible text longer than this names an element by what it is instead. */
+const OWN_MAX = 40;
+const QUOTE_MAX = 60;
+
+const what = (a) => ROLES[a?.role] || TAGS[a?.tag] || "Element";
+const clean = (s) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "");
+function cut(s, max) {
+  const cps = [...s];
+  return cps.length > max ? `${cps.slice(0, max).join("")}…` : s;
+}
+function named(anchor, text, card) {
+  const own = clean(text), heading = clean(card);
+  const first = own && [...own].length <= OWN_MAX ? own : what(anchor);
+  return heading && heading !== first ? `${first}, ${heading}` : first;
+}
+
+/**
+ * A note's name in the reader's words: its element's visible text (or, when that is long or missing, what the element is)
+ * and the heading of the card around it, as the framed page reported them in `parts`
+ * ({text, card, toText, toCard}); null `parts` names the element by what it is. The test id and path stay in the note.
+ */
+export function readerName(note, parts) {
+  const p = parts || {};
+  if (note.kind === "text") return `Text: “${cut(clean(note.anchor.textQuote?.exact), QUOTE_MAX)}”`;
+  const self = named(note.anchor, p.text, p.card);
+  if (note.kind === "region") return `Region over ${self}`;
+  if (note.kind === "move") return `Move ${self} to ${note.to?.anchor ? named(note.to.anchor, p.toText, p.toCard) : "a point on the page"}`;
+  return self;
+}

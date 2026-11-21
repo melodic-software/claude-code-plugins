@@ -32,7 +32,7 @@ async page => {
     };
 
     await sendNote(inFrame.locator(ROW).nth(0), "Bolder parcel ids.", 1);
-    await inFrame.locator('nav.vs [aria-label="Next variant"]').click();
+    await page.click("#vnext");
     await frame.waitForFunction(() => !document.querySelector('[data-variant="B"]').hidden, null, { timeout: 5000 });
     await sendNote(inFrame.locator(CARD).nth(0), `${XSS}Cards need dates first.`, 2);
     await page.click("#pick");
@@ -48,9 +48,9 @@ async page => {
     await page.waitForFunction(() => document.querySelectorAll("#notes li").length === 3, null, { timeout: 5000 }).catch(() => {});
     const listed = await rows.allTextContents();
     ok("after a reload both sent notes are listed, oldest first, numbered as their markers",
-      listed.length === 3 && listed[0].startsWith("#1") && listed[0].includes("Bolder parcel ids.") && listed[1].startsWith("#2"), JSON.stringify(listed));
+      listed.length === 3 && listed[0].startsWith("1") && listed[0].includes("Bolder parcel ids.") && listed[1].startsWith("2"), JSON.stringify(listed));
     ok("the unsent draft is listed again as draft D1 with its text",
-      listed[2]?.startsWith("D1") && listed[2].includes(`${XSS}A draft left unsent.`) && (await rows.nth(2).locator(".state").textContent()) === "draft", listed[2]);
+      listed[2]?.startsWith("D1") && listed[2].includes(`${XSS}A draft left unsent.`) && (await rows.nth(2).locator(".state").textContent()) === "Draft, not sent", listed[2]);
     ok("a note's markup is listed as text and makes no element",
       listed[1]?.includes(`${XSS}Cards need dates first.`) && (await page.$$("#notes img")).length === 0 && (await page.evaluate(() => window.__xss)) === undefined);
     const markers = () => frame.evaluate(() => [...(document.querySelector("[data-ui-feedback-layer]")?.children ?? [])].filter((e) => e.textContent).map((e) => e.textContent).join());
@@ -62,7 +62,7 @@ async page => {
     await until(() => box("hover", ROW), (b) => b.drawn);
     let b = await box("hover", ROW);
     ok("hovering row 1 draws note 1's box on the row it was taken on", b.drawn && b.on, JSON.stringify(b));
-    await page.hover("h1");
+    await page.hover("#view-sep");
     await until(() => box("hover", ROW), (b) => !b.drawn);
     ok("moving off the row clears its box", !(await box("hover", ROW)).drawn);
 
@@ -74,7 +74,7 @@ async page => {
     b = await box("selected", CARD);
     ok("clicking row 2 draws note 2's box on its card", b.drawn && b.on, JSON.stringify(b));
     ok("row 2 shows as selected", (await rows.nth(1).getAttribute("aria-current")) === "true");
-    await page.hover("h1");
+    await page.hover("#view-sep");
     ok("the clicked note's box stays drawn after the pointer leaves its row", (await box("selected", CARD)).drawn);
 
     await inFrame.locator(CARD).nth(2).click();
@@ -84,11 +84,11 @@ async page => {
 
     await rows.nth(1).click();
     await until(() => box("selected", CARD), (b) => b.drawn);
-    await page.click("h1");
+    await page.click("#view-sep");
     await until(() => box("selected", CARD), (b) => !b.drawn);
     ok("a click elsewhere on the host page clears it too", !(await box("selected", CARD)).drawn && (await rows.nth(1).getAttribute("aria-current")) === null);
 
-    await inFrame.locator('nav.vs [aria-label="Previous variant"]').click();
+    await page.click("#vprev");
     await until(markers, (m) => m === "1");
     const at = await frame.evaluate(() => {
       const m = [...document.querySelector("[data-ui-feedback-layer]").children].find((e) => e.textContent === "1").getBoundingClientRect();

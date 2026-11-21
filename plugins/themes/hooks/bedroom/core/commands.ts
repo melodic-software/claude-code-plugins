@@ -7,7 +7,7 @@ import { calibrateNext } from './clicks.js'
 import { readNow } from './clock.js'
 import { builtPieces, ctxOf } from './context.js'
 import { NOT_BUILT, SWITCHES, type Ctx, type Switch } from './piece.js'
-import { clearLook, holdShader, isShaderRunning, noteAsked, setLook } from './render.js'
+import { clearLook, coveringPlugin, holdShader, isShaderRunning, noteAsked, setLook } from './render.js'
 import { defaults } from './saved.js'
 import { OVERRIDES, accepts, type Override } from './settings.js'
 import { switched } from './switched.js'
@@ -35,7 +35,7 @@ export function withTitle(titles: Titles, key: TitleKey, text: string): Titles {
 }
 
 /** The words the pieces own. */
-const PIECE_WORDS = ['time', 'weather', 'signal', 'hall', 'sound']
+const PIECE_WORDS = ['time', 'date', 'weather', 'signal', 'hall', 'sound']
 const WORDS = `The switches are ${SWITCHES.join(', ')}; also status, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), shader, instant, sync, stats, calibrate, reset, on, off, ${PIECE_WORDS.join(', ')}, and <setting> default`
 
 /** The status line: what is on and off, the posters and the dim. */
@@ -69,14 +69,22 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
   const rest = words.slice(2).join(' ')
   note(`/bedroom ${word}`)
 
-  if (word === '' || word === 'status') return describe(ctx)
+  if (word === '' || word === 'status') {
+    const covering = coveringPlugin()
+    return covering === undefined ? describe(ctx) : `the room is covered by the ${covering} theme; /bedroom on puts it back. ${describe(ctx)}`
+  }
   if (word === 'off') {
     const cleared = await clearLook($)
     return cleared.isDrawn ? 'the theme is cleared' : 'cleared'
   }
   if (word === 'on') {
+    const wasCovered = coveringPlugin() !== undefined
     const set = await setLook($, ctx)
-    return set.isDrawn ? 'the room is on' : `not drawn: ${set.reason}`
+    if (!set.isDrawn) return `not drawn: ${set.reason}`
+    if (!wasCovered) return 'the room is on'
+    holdShader($, 'the room set again')
+    await ask($, 'the room set again')
+    return 'the room is back'
   }
   if ((OVERRIDES as readonly string[]).includes(word) && value === 'default') {
     await ctx.save({ [word]: undefined })
@@ -132,7 +140,7 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
   if (word === 'reset') {
     const keep = { aspect: ctx.saved.aspect, titles: ctx.saved.titles }
     for (const key of SWITCHES) extra[key] = 0
-    await ctx.save({ ...defaults(), ...keep, time: undefined, weather: undefined, sound: undefined, signal: undefined, hall: undefined, shader: undefined })
+    await ctx.save({ ...defaults(), ...keep, time: undefined, date: undefined, weather: undefined, lightning: undefined, sound: undefined, signal: undefined, hall: undefined, shader: undefined })
     await setLook($, ctx)
     noteAsked()
     await sync($, '/bedroom reset')
@@ -158,22 +166,23 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
     if (value !== '' && value !== 'on' && value !== 'off') return `say on or off, as in /bedroom ${word} off; with neither, it flips`
     const belief = ctx.saved.state[key]
     const isOn = value === '' ? !belief : value === 'on'
+    const already = `the ${key} is already ${isOn ? 'on' : 'off'}`
+    const synced = `${already}. If the room shows it otherwise, /bedroom sync draws every switch from what is saved`
     if (!isShaderRunning()) {
-      if (belief === isOn) return `the ${key} is already ${isOn ? 'on' : 'off'}`
+      if (belief === isOn) return already
       extra[key] = 0
       await ctx.save({ state: { ...ctx.saved.state, [key]: isOn } })
       noteAsked()
       await ask($, `/bedroom ${key}`)
     } else if ((DIRECTION as readonly string[]).includes(key)) {
       const order = commandSwitch(key as Direction, isOn ? 1 : 0, belief)
-      if (order === 'already') {
-        return `the ${key} is already ${isOn ? 'on' : 'off'}. If the room shows it otherwise, /bedroom sync draws every switch from what is saved`
-      }
+      if (order === 'already') return synced
       extra[key] = order === 'turned' ? SECOND_STEP_MS : 0
       await ctx.save({ state: { ...ctx.saved.state, [key]: isOn } })
       noteAsked()
       await ask($, `/bedroom ${key}`)
     } else {
+      if (belief === isOn) return synced
       await ctx.save({ state: { ...ctx.saved.state, [key]: isOn } })
       noteAsked()
       extra[key] = (await commandScreen($, key as 'tape' | 'console', isOn ? 1 : 0, `/bedroom ${key}`)) + ACCEPT.screen * 1000

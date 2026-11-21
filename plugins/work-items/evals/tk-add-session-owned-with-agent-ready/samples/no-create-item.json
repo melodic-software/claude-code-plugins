@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The run stops at step 1: --session-owned and --agent-ready make opposite ownership claims, so nothing is searched or created.",
+      "why": "stops, names both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "create-item --title 'Rename the export flag to --format' --labels 'category:general,type: task,agent-ready'",
+      "why": "created the item"
+    },
+    {
+      "answer": "The run stops before anything is created.",
+      "why": "names neither flag"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

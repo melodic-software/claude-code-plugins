@@ -39,6 +39,28 @@ assert_eq "package-manager runner is a drop class" "yes" "$(matches 'Bash(npx *)
 assert_eq "script-glob interpreter is a drop class" "yes" "$(matches 'Bash(*.py:*)')"
 assert_eq "narrow rule carries over" "no" "$(matches 'Bash(npm test)')"
 assert_eq "bare-name command rule carries over" "no" "$(matches 'Bash(node-gyp:*)')"
+assert_eq "path-prefixed runner is a drop class" "yes" "$(matches 'Bash(/usr/bin/npm run:*)')"
+assert_eq "narrow path-prefixed runner carries over" "no" "$(matches 'Bash(/usr/bin/npm test)')"
+assert_eq "version-suffixed runner is a drop class" "yes" "$(matches 'Bash(pnpm@9 dlx *)')"
+assert_eq "narrow version-suffixed runner carries over" "no" "$(matches 'Bash(pnpm@9 install)')"
+assert_eq "a hyphenated path-prefixed command is not a runner" "no" \
+  "$(matches 'Bash(node_modules/.bin/npm-check:*)')"
+assert_eq "wrapper followed only by a wildcard is a drop class" "yes" "$(matches 'Bash(timeout *)')"
+assert_eq "wrapper with a fixed command carries over" "no" "$(matches 'Bash(timeout 30 git status)')"
+assert_eq "a wrapper-led wildcard after an argument is not the wrapper class" "no" \
+  "$(grep -qE "$CCPERM_P1_WRAPPER_ERE" <<<'Bash(timeout 30 *)' && echo yes || echo no)"
+assert_eq "leading-wildcard shell rule is a drop class" "yes" "$(matches 'Bash(* --version)')"
+assert_eq "a mid-command wildcard carries over" "no" "$(matches 'Bash(git log *)')"
+assert_eq "\$HOME-led wildcard path is a drop class" "yes" "$(matches "Bash(\$HOME/bin/*)")"
+assert_eq "exact \$HOME path carries over" "no" "$(matches "Bash(\$HOME/bin/deploy.sh)")"
+assert_eq "a longer variable name is not \$HOME" "no" "$(matches "Bash(\$HOMEBREW_PREFIX/bin/x *)")"
+assert_eq "Windows backslash program with a wildcard is a drop class" "yes" \
+  "$(matches 'PowerShell(C:\tools\x.exe *)')"
+assert_eq "exact Windows backslash program carries over" "no" "$(matches 'PowerShell(C:\tools\x.exe -v)')"
+assert_eq "a .\\ script path with a wildcard carries over" "no" \
+  "$(matches 'PowerShell(.\tools\x.ps1 *)')"
+assert_eq "a YAML-escaped quoted bundled path is not a Windows path" "no" \
+  "$(matches "Bash(\\\"\${CLAUDE_SKILL_DIR}/x.sh\\\":*)")"
 
 # The token grammar keeps a tool name inside another rule's payload from
 # surfacing as its own token — the property whole-tool detection depends on.

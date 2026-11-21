@@ -1,5 +1,32 @@
 # Changelog for the PR pipeline convention
 
+## [11.4.1] - 2026-11-21
+
+### Changed
+
+- pr-unblock's address-feedback select counts a PR's earlier model rounds from one GraphQL query instead of one check-runs listing per commit, so the read no longer grows with the PR's commit count. A commit whose check suites or runs run past a page, or a PR past 100 commits, is still read over REST, so no round is missed.
+
+## [11.4.0] - 2026-11-21
+
+### Added
+
+- The lanes skip an issue a local Claude Code session owns. `check-born-triaged`'s routing labels (`routingLabels`, `routingLabel`) now include the work-items binding's session-owned role label (`tracker.config.role_labels["session-owned"]`, default `session-owned`) beside the container label and the wayfind prefix, so intake triage, the hourly triage sweep, intake re-entry, the WIP cap, the issue lane's admission (`check-blockers.mjs`) and the unblock sweep (`label-unblocked.mjs`) leave such an issue alone. A non-string value is a config error that keeps the defaults with a warning. The skip notices now read "a container, wayfind or session-owned label, so the skill or session that filed it routes it".
+
+## [11.3.1] - 2026-11-21
+
+### Changed
+
+- `merge.skip-unchanged` is off (`max-minutes: 0`). Measured over 172 pr-merge runs, the skip filter spent about 2,230 calls to skip 12 of 637 candidates and saved about 521. enable-auto-merge's skip kept nothing in 56 runs. With it off, every candidate is gated and neither path reads its key.
+
+- The `max-turns` key's description says what one turn counts: one model output plus the tool calls it makes, with one more for the final text-only reply, which is smaller than the docs glossary's conversation turn.
+
+## [11.3.0] - 2026-11-21
+
+### Added
+
+- `pr-run-plugin-evals.yml` has a compare mode (owner decision Q136, [#17854](https://github.com/melodic-software/claude-code-plugins/issues/17854)). A listed human dispatches it on the default branch with a pull request, its head SHA, a plugin, a case or tag filter and a required per-run cost cap. `compare-arms.sh` builds two patches against the default branch from git objects only: the plugin's changed skills/ and agents/ text from the merge base (before) or the head (after), and the changed eval cases from the head on both, once `select-plugins.mjs` lets every changed path through; a change to any other plugin path but tests/ refuses the compare, so a record never vouches for text no run read. No script, hook, workflow or manifest of the pull request runs. Each arm runs as a `maintenance-measure-skill-edit-pass.yml` pass on the maintenance API key alone, with no subscription token. `compare-verdict.mjs` applies the desk kit's no-loss rules (a mean score drop of 0.15, a grader 2 runs worse, both arms VALID). On a PASS, a job holding only `issues: write` checks the head again and posts the record with `<!-- eval-pair-run id=<run id> -->`; a head that moved posts nothing.
+- `release-eval-hold.mjs` counts that record only when the cited run reads back as a completed, successful first-attempt `workflow_dispatch` of `pr-run-plugin-evals.yml` on the default branch, whose commit the compare API shows on that branch and whose run name is `eval-compare pr=<this PR> head=<the record's head>`, and whose jobs list shows its `Compare Record` job completed with success, so a run whose jobs all skipped vouches for nothing. It reads the run with the merge job's own token (`RUNS_TOKEN`). A listed human's record counts as before.
+
 ## [11.2.9] - 2026-11-21
 
 ### Fixed

@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.3] - 2026-11-21
+
+### Changed
+
+- `settings-write-ask` now returns `deny` instead of `ask` when nobody can answer a prompt:
+  `CLAUDE_CODE_SESSION_ATTENDED` is not `1` (as in `claude -p` and `claude --bg`), or
+  `GUARDRAILS_SESSION_UNWATCHED` is `1`. This is the same test the blocking guards use, so an
+  unattended lane never waits on this hook's prompt.
+
 ## [3.12.2] - 2026-11-21
 
 ### Changed

@@ -48,10 +48,12 @@ export async function sendDispatch(api, log, { workflow, base, node, inputs, lab
 // version 5 a resolve-conflicts head a select job's stop left under an older
 // base, and version 6 a resolve-conflicts, sync-shared-copies or
 // review-dependency head a head-lag stop left (limit-stop.mjs
-// lagStopsRelease). A fix-ci
+// lagStopsRelease), and version 7 an address-feedback or fix-ci head
+// pr-verify's FAIL cap held, which a superseded FAIL now clears
+// (https://github.com/melodic-software/claude-code-plugins/issues/17646). A fix-ci
 // head recorded at its per-head cap needs no new version: a record with no
 // fix-ci entry reads the same either way; nor do fix-docs runs, read as none.
-export const RECORD_VERSION = 6;
+export const RECORD_VERSION = 7;
 // The fix-docs runs kept per head, newest last: the reader drops the settled
 // runs that do not count, so more than this many is a tampered entry.
 const MAX_DOCS_RUNS = 20;

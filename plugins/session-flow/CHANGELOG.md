@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [9.20.1] - 2026-11-21
+
+### Changed
+
+- `workflow`: the continuation router's compact edge points at the docs on what survives compaction before the focus is written, and at the CLAUDE.md "Compact Instructions" section for a standing focus.
+
+## [9.20.0] - 2026-11-21
+
+### Changed
+
+- The continuation router (`skills/workflow/context/continuation.md`) now recommends `/compact <focus>` only within one phase, activity or task, and a handoff then `/clear` at a phase or task boundary next in sequence: the interview into design, one plan phase into the next, a finished spec or plan into execution, whatever the context zone. The "Between human stages" zone rule is removed. ADR 0116 records the decision.
+
 ## [9.19.0] - 2026-11-21
 
 ### Added

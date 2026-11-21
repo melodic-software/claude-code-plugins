@@ -281,7 +281,7 @@ class TestOneHostSpelling(NotesCase):
         return source
 
     def test_the_origin_check_the_frame_url_and_frame_ancestors_share_one_host(self):
-        host = (HERE / "host.html").read_text(encoding="utf-8")
+        host = (HERE / "host.mjs").read_text(encoding="utf-8")
         self.assertIn("if (!fromFrame(e, frame.contentWindow, devOrigin)", host)
         self.assertIn(
             "const target = frameTarget(devOrigin, frame.dataset.mockupTarget || null);",
@@ -382,7 +382,7 @@ class TestGuards(NotesCase):
         self.assertIn("unknown field", body["error"])
 
     def test_an_oversize_note_is_a_400_and_an_oversize_body_a_413(self):
-        limit = nb.SCHEMA["properties"]["text"]["maxLength"]
+        limit = nb.SCHEMA["$defs"]["text"]["maxLength"]
         self.assertEqual(self.note({**NOTE, "text": "a" * (limit + 1)})[0], 400)
         self.assertEqual(self.note({**NOTE, "text": "a" * limit})[0], 200)
         big = json.dumps(
@@ -716,7 +716,7 @@ class TestImport(unittest.TestCase):
         )
 
     def test_an_oversize_note_refuses_the_whole_block(self):
-        limit = nb.SCHEMA["properties"]["text"]["maxLength"]
+        limit = nb.SCHEMA["$defs"]["text"]["maxLength"]
         self.assert_refused(
             block([NOTE, {**NOTE, "text": "a" * (limit + 1)}]), "longer than"
         )
@@ -784,9 +784,11 @@ class TestLoop(unittest.TestCase):
             "notes_bridge.py",
             "notes-bridge.sh",
             "host.html",
+            "host.mjs",
             "proto-pin.js",
             "note-model.mjs",
             "frame-channel.mjs",
+            "bar-edges.mjs",
             "note.schema.json",
             "controls.schema.json",
             "controls.js",

@@ -96,7 +96,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
-import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -139,9 +139,8 @@ const laneComment = (comments, startedAt) => {
 // The lanes App's own refinement comment: posted by its account id, marker first.
 export const isRefinement = (comment, appId) => byApp(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
-// Whether the lanes App already refined `body`.
-const refinedBody = (comments, appId, body) => comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body));
-
+const refinedBody = (comments, appId, body, splitRecorded = false) =>
+  comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body) && (!splitRecorded || carriesSplit(comment.body)));
 const flagsOf = (laneBody, verdict) => {
   const found = String(laneBody ?? "")
     .split("\n")
@@ -662,11 +661,11 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (lane === null) {
     return no("no single intake lane comment from this run");
   }
-  if (refinedBody(comments, appId, issue.body)) {
-    return no("the lanes App already refined this body");
-  }
   const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane.body, verdict });
   const split = thin ? null : splitOf({ body: issue.body, laneBody: lane.body, verdict, labels, admission: admissionComment(comments, appId), ...splitConfig() });
+  if (refinedBody(comments, appId, issue.body, split !== null)) {
+    return no("the lanes App already refined this body");
+  }
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
@@ -939,7 +938,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("changed while the model ran", true);
   }
   const comments = await paginate(github, `${base}/comments`);
-  if (refinedBody(comments, appId, issue.body)) {
+  if (refinedBody(comments, appId, issue.body, output.split.length > 0)) {
     return skip("is already refined");
   }
   if (output.split.length > 0) {

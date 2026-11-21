@@ -17,6 +17,10 @@ bundled defaults apply. Keys, values, layer paths and the fan-out guard are
 defined in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 
+This plugin still reads `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` until it
+migrates ([#17998](https://github.com/melodic-software/claude-code-plugins/issues/17998)); then the
+files move where [config locations](../../reference/config-locations.md) says.
+
 No argument means `check`. It installs nothing; the resolver needs only Bash,
 awk and git.
 
