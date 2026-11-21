@@ -961,6 +961,13 @@ def hook_blocks(events: list[dict]) -> dict[str, str]:
     return found
 
 
+def read_hook_blocks(read: dict) -> list[str]:
+    """The hooks that refused any call in a reader's main turn or its follow-up."""
+    main = read.get("main")
+    events = main["events"] if main else read.get("events") or []
+    return list(hook_blocks(events + (read.get("followup_events") or [])).values())
+
+
 def write_fixture(path: Path, content: str) -> None:
     """Write a seeded file; one that starts with a shebang is made executable, so a
     recipe that runs it directly works as it would in a real checkout."""
@@ -1406,7 +1413,7 @@ def read_stage(
             cfg, run, followup, arm=arm, resume=session_of(events), extra=extra
         )
     if excluded := exclusion(Source.FOLLOW_UP, code, out, err, follow_events):
-        return {"excluded": excluded, "main": main}
+        return {"excluded": excluded, "main": main, "followup_events": follow_events}
     return {
         "main": main,
         "followup_events": follow_events,
@@ -1637,9 +1644,8 @@ def run_once(
                 graded["reader_tokens"] = main["tokens"]
                 graded["reader_m1"] = main["tokens"]["m1"]
                 graded["reader_whole_m1"] = main["whole_m1"]
-            reader_events = main["events"] if main else read.get("events") or []
-            if blocks := hook_blocks(reader_events):
-                graded["hook_blocks"] = list(blocks.values())
+            if blocks := read_hook_blocks(read):
+                graded["hook_blocks"] = blocks
             if read.get("excluded"):
                 mark_excluded(graded, read["excluded"], case, arm)
                 continue

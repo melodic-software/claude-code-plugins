@@ -2270,6 +2270,19 @@ def test_a_reader_refused_by_block_cd_prefix_is_hook_blocked_under_the_hooks_nam
     assert resume_eval.exclusion(S.READER, 0, "", "", _refused()) is None
 
 
+def test_hook_refusals_count_from_the_main_turn_and_the_follow_up():
+    refused, clean = _refused(), _result()
+    hook = resume_eval.read_hook_blocks
+    assert hook({"main": {"events": clean}, "followup_events": refused})[0].startswith(
+        CD_PREFIX_HOOK
+    )
+    assert hook({"excluded": None, "events": refused})[0].startswith(CD_PREFIX_HOOK)
+    assert hook({"main": {"events": refused}, "followup_events": refused}) == hook(
+        {"main": {"events": refused}}
+    )
+    assert hook({"main": {"events": clean}, "followup_events": clean}) == []
+
+
 def test_hook_blocked_runs_are_counted_per_arm_apart_from_non_delivery(
     tmp_path, capsys
 ):
