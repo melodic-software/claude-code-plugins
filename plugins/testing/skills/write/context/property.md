@@ -97,25 +97,18 @@ practical (complete); a sound, mostly complete generator beats an elaborate one.
    the code is documented never to receive, a rule that was misread). Re-read the stated intent
    before changing code or the property. Never weaken the property just to make it pass.
 2. **Pin the shrunk counterexample.** Once a bug is confirmed, check the minimal failing input in
-   as an explicit example on the property (Hypothesis `@example`, fast-check `examples`), so the
-   regression runs on every run before generation. A seed, a path or the tool's example database
-   is a replay handle for reproducing the failure now, not the durable regression (shown for
-   Hypothesis, at the pointer below, and QuickCheck; unchecked for the others, so treat this as
-   guidance).
+   as an explicit example on the property, so the regression runs on every run before
+   generation. A seed, a path or the tool's example database is a replay handle for reproducing
+   the failure now, not the durable regression (not checked for every property library, so treat
+   this as guidance).
 3. **Then fix**, and keep the explicit example after the fix.
-
-Mechanics live in each tool's docs: Hypothesis
-[`@example`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example),
-[`example.xfail()`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example.xfail)
-and [prefer `@example` over the database](https://hypothesis.readthedocs.io/en/latest/tutorial/replaying-failures.html#prefer-example-over-the-database-for-correctness);
-fast-check [run against custom values](https://fast-check.dev/docs/configuration/user-definable-values/#run-against-custom-values).
 
 ## Show the property can fail
 
 A property that has never failed is unproven. Before relying on one, run
 `/mutation-testing:audit --exercised <test-path>` (when the `mutation-testing` plugin is enabled)
 and confirm the property kills mutants in the code it covers, or add a known-bad input the property
-must reject as an expected-fail example (Hypothesis `@example(...).xfail()`). A property that
+must reject as an expected-fail example. A property that
 kills no mutant and trips on no bad input is a weak oracle; tighten it or replace it with
 examples.
 

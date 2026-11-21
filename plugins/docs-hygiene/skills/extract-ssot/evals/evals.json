@@ -43,11 +43,11 @@
       "id": 4,
       "name": "code-cluster-out-of-scope",
       "prompt": "The same magic string literal is repeated in four .cs source files. Use extract-ssot to DRY it up.",
-      "expected_output": "Flags the cluster but declines to apply its markdown citation contract to code: repeated code literals are extracted with language-idiomatic tooling (a constants file / shared module, IDE-rename / Roslyn), where compiler and lint catch missed call sites. The skill's HOW is markdown-specific.",
+      "expected_output": "Flags the cluster but declines to apply its markdown citation contract to code: repeated code literals are extracted with language-idiomatic tooling (a constants file / shared module, a language-aware rename refactor), where compiler and lint catch missed call sites. The skill's HOW is markdown-specific.",
       "files": [],
       "expectations": [
         "Output identifies the .cs cluster as code, out of scope for the skill's markdown citation contract",
-        "Output refers the caller to language-idiomatic extraction (constants/shared module, IDE rename / Roslyn)",
+        "Output refers the caller to language-idiomatic extraction (constants/shared module, language-aware rename refactor)",
         "Output does NOT apply a markdown 'cite by heading' contract to the code duplication"
       ]
     },

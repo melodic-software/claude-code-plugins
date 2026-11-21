@@ -3,6 +3,19 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.1] - 2026-11-21
+
+### Changed
+
+- **`/testing:diagnose` and `/testing:plan` no longer ship ecosystem-specific examples.** Diagnose drops its .NET test-runner gotcha, the WebApplicationFactory, `--nologo` and `.Result`/`.Wait()` wording from its failure table, the xUnit, pytest and vitest filter flags, the pytest-randomly and `go test -shuffle` seed flags, and the illustrative `dotnet test` block in the regression step. Plan drops WebApplicationFactory, Testcontainers, Docker Compose, EF and Blazor from its file-type table and the .NET/xUnit name pattern from its plan template. The filter and seed flags now come from the test runner's own docs, and the regression command from `/toolchain:check` ([#17741](https://github.com/melodic-software/claude-code-plugins/issues/17741)).
+
+- **`/testing:run-e2e`'s non-UI playbook no longer picks a tool for your runtime.** The per-surface table drops its named tools (WebApplicationFactory, Aspire AppHost, bats, pytest via uv, PSScriptAnalyzer, Pester, `script -q`) and points to the project's own conventions. The Python and PowerShell rows merge into one row for infrastructure code and scripts in a language other than shell. The MCP stdio handshake recipe drops its per-runtime spawn table and its harness list: it now runs the built server directly, never through a package-manager script or a run command that builds, since either writes its own lines to stdout before the server's response ([#17744](https://github.com/melodic-software/claude-code-plugins/issues/17744)).
+
+- `write` and `cleanup` drop single-tool examples and links from rules that apply to every
+  ecosystem. `write`'s property guidance no longer names Hypothesis or fast-check mechanics, and
+  its characterization sources keep only Feathers and Seemann. `cleanup` drops a C# `using` note
+  and a .NET anecdote.
+
 ## [5.10.0] - 2026-11-21
 
 ### Changed

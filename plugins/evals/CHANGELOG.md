@@ -1,5 +1,37 @@
 # Changelog: evals
 
+## [0.22.0] - 2026-11-21
+
+### Added
+
+- **Preflight lists stale run roots.** A new `stale_run_roots` field lists run roots under
+  `$HOME/.ev` older than 3 days, with a count of the `claude-eval-*` sandboxes inside them. Like
+  the rest of preflight it only reports and removes nothing. `reference/sandboxes.md` now holds
+  the run-root removal loop: it acts only on a real directory directly under `$HOME/.ev` that holds
+  `claude-eval-*` sandboxes, and it opens `sealed/` the same way as the loop that removes a read's
+  sandboxes.
+
+### Changed
+
+- **Eval runs on Linux and WSL2 clean up their own temp directory.** `/evals:plugin-eval` now
+  requires `$HOME/.ev` as the eval temp root and gives each run its own `TMPDIR`,
+  `$HOME/.ev/<short-run-id>`, made with `mktemp -d`. The 24-character bound applies to that
+  per-run path. A new closing step removes the run's directory when the run ends, whether or not a
+  read happened, unless the user asks to keep it. Before, each session picked its own directory
+  under `$HOME` and nothing removed it, so hundreds of them, holding sealed sandboxes, built up.
+  ([#17061](https://github.com/melodic-software/claude-code-plugins/issues/17061))
+
+## [0.21.0] - 2026-11-21
+
+### Added
+
+- **A denied call no grader reads no longer drops its run.** `/evals:plugin-eval` states the
+  counted-denial rule: when a result's only failing check is permission denials that no grader of
+  the case reads, its runs stay in the score and each such call is listed in the record the result
+  is reported in. Leaving those runs out kept only runs that happened not to make the refused call,
+  so the counted runs were not typical of the skill's use.
+  ([#17019](https://github.com/melodic-software/claude-code-plugins/issues/17019))
+
 ## [0.20.4] - 2026-11-19
 
 ### Changed

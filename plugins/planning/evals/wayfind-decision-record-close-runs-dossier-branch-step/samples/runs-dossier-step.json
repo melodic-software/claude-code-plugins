@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Before the closing comment: /work-items:track dossier-branches #800. Closing comment: decisions ... Dossier branch dossier/800-session-token-storage: report from the dossier-branch step.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closing comment posted; the dossier branch stays until the destination's container closes.",
+      "why": "breaks the rule"
+    }
+  ]
+}

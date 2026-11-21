@@ -7,7 +7,7 @@
   ],
   "fail": [
     {
-      "answer": "Create interview item 'Formly data sharing' covering fields, agreement and a BAA.",
+      "answer": "Create interview item 'Formly data sharing' covering fields and agreement.",
       "why": "never says the resolution feeds the PRD"
     }
   ]

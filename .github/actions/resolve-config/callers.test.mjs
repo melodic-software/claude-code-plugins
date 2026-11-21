@@ -1042,6 +1042,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["address-feedback-not-run"];
   const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "", resolveOnly = "") => ({
+    "vars.CLAUDE_API_KEYS_DISABLED": "",
     "inputs.activity": activity,
     "needs.address-feedback-select.outputs.proceed": proceed,
     "needs.address-feedback-select.outputs.resolve-only": resolveOnly,
@@ -1179,6 +1180,7 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   // fix-ci-context.mjs writes proceed "true" or "false"; a kill-switch stop
   // skips its step and leaves every output empty.
   const context = (proceed, escalation, headSha, activity = "fix-ci", skip = "") => ({
+    "vars.CLAUDE_API_KEYS_DISABLED": "",
     "inputs.activity": activity,
     "needs.fix-ci-context.outputs.proceed": proceed,
     "needs.fix-ci-context.outputs.escalation-reason": escalation,
@@ -6690,6 +6692,7 @@ test("pr-unblock.yml: review-dependency is reported neutral when the select job 
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["review-dependency-not-run"];
   const context = (proceed, headSha, skip = "", activity = "review-dependency") => ({
+    "vars.CLAUDE_API_KEYS_DISABLED": "",
     "inputs.activity": activity,
     "needs.review-dependency-select.outputs.proceed": proceed,
     "needs.review-dependency-select.outputs.head-sha": headSha,
@@ -7393,7 +7396,7 @@ test("pr-unblock.yml: apply-conflict-patch runs on a clean merge, or on a confli
   }
   // A forged run job output cannot make a clean merge take a patch: the
   // select job's merge-state is clean only when no model call ran.
-  assert.equal(evaluate(jobs["resolve-conflicts"].if, { "needs.resolve-conflicts-select.outputs.proceed": "false" }), false);
+  assert.equal(evaluate(jobs["resolve-conflicts"].if, { "needs.resolve-conflicts-select.outputs.proceed": "false", "vars.CLAUDE_API_KEYS_DISABLED": "" }), false);
 });
 
 // A refused scan hands no patch state on, so apply-conflict-patch skips; the
@@ -8622,8 +8625,10 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(starts(""), false, "a failed read starts no second call");
   assert.equal(starts("true", { "needs.check-admission.outputs.proceed": "false" }), false, "an unadmitted label");
   assert.equal(starts("true", { "needs.pick-slot.outputs.capped": "true" }), false, "at the WIP cap");
-  const fallbackOf = (result) => evaluate(sub.with.fallback, { "needs.resolve-issue.result": result });
+  const fallbackOf = (result, keyOff = "false") => evaluate(sub.with.fallback, { "needs.resolve-issue.result": result, "needs.pick-slot.outputs.key-off": keyOff });
   for (const result of ["success", "failure"]) assert.equal(fallbackOf(result), "handoff", `after a resolve-issue ${result}`);
+  assert.equal(fallbackOf("skipped"), "credit-stop", "a key the credit gate held off");
+  assert.equal(fallbackOf("skipped", "true"), "no-key", "a key the API-key switch held off");
   assert.equal(sub.with["fallback-ready"], "${{ needs.resolve-issue-handoff.outputs.fallback-ready }}");
   const { "key-credit-job": keyCreditJob, ...firstSame } = jobs["resolve-issue"].with;
   assert.equal(keyCreditJob, "resolve-issue", "the first call names its own key job");
@@ -8729,8 +8734,12 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
   assert.equal(pick.permissions.actions, "read");
   // Only a read that succeeded skips the key: one that set skip-key and then failed runs it.
   for (const [outcome, set, skips] of [["success", "true", "true"], ["success", "false", "false"], ["failure", "true", ""], ["failure", "", ""], ["skipped", "", ""]]) {
-    assert.equal(evaluate(pick.outputs["skip-key"], { "steps.credit.outcome": outcome, "steps.credit.outputs.skip-key": set }), skips, `${outcome} with skip-key ${JSON.stringify(set)}`);
+    assert.equal(evaluate(pick.outputs["skip-key"], { "steps.credit.outcome": outcome, "steps.credit.outputs.skip-key": set, "vars.CLAUDE_API_KEYS_DISABLED": "" }), skips, `${outcome} with skip-key ${JSON.stringify(set)}`);
   }
+  for (const [outcome, skips] of [["success", "true"], ["failure", "true"], ["skipped", ""]]) {
+    assert.equal(evaluate(pick.outputs["skip-key"], { "steps.credit.outcome": outcome, "steps.credit.outputs.skip-key": "", "vars.CLAUDE_API_KEYS_DISABLED": "true" }), skips, `keys off, credit ${outcome}`);
+  }
+  assert.equal(pick.outputs["key-off"], "${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}");
   for (const [capped, reads] of [["false", true], ["true", false], ["", false]]) {
     assert.equal(evaluate(credit.if, { "steps.wip.outputs.capped": capped }), reads, `reads at capped ${JSON.stringify(capped)}`);
   }
@@ -8745,8 +8754,8 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
   // with its fallback input, and the handoff read's state.
   // `pick` is pick-slot's result: a job with no status function in its if
   // runs only when every job it needs succeeded.
-  const runOf = ({ gate, innerSkip = "", handsOff = false, pick = "success" }) => {
-    const ctx = { ...AGENT_READY_FIELD, "needs.check-admission.outputs.proceed": "true", "needs.pick-slot.result": pick, "needs.pick-slot.outputs.capped": "false", "needs.pick-slot.outputs.skip-key": gate };
+  const runOf = ({ gate, innerSkip = "", handsOff = false, pick = "success", keyOff = "false" }) => {
+    const ctx = { ...AGENT_READY_FIELD, "needs.check-admission.outputs.proceed": "true", "needs.pick-slot.result": pick, "needs.pick-slot.outputs.capped": "false", "needs.pick-slot.outputs.skip-key": gate, "needs.pick-slot.outputs.key-off": keyOff };
     const calls = [];
     const keyRuns = pick === "success" && evaluate(caller["resolve-issue"].if, ctx);
     ctx["needs.resolve-issue.result"] = keyRuns ? "success" : "skipped";
@@ -8773,6 +8782,7 @@ test("work-resolve-issue.yml: a key the key-credit gate holds off starts no reso
     };
   };
   assert.deepEqual(runOf({ gate: "true" }), { calls: ["resolve-issue-subscription:credit-stop"], rechecks: 1, records: 1, handoffRuns: true, reads: false }, "a key held off");
+  assert.deepEqual(runOf({ gate: "true", keyOff: "true" }), { calls: ["resolve-issue-subscription:no-key"], rechecks: 1, records: 0, handoffRuns: true, reads: false }, "a key the API-key switch held off");
   // A pick-slot that set skip-key and then failed (a later step, or its
   // timeout) picked no slot: no call may start on an empty slot group.
   for (const pick of ["failure", "cancelled"]) {
@@ -8822,8 +8832,9 @@ test("pr-run-activity-read.yml: only work-resolve-issue.yml's subscription call 
         assert.equal(job.with?.["issue-number"], undefined, `${file} ${id} is a PR-mode call`);
       }
       if (file === "work-resolve-issue.yml" && id === "resolve-issue-subscription") {
-        assert.equal(evaluate(fallback, { "needs.resolve-issue.result": "skipped" }), "credit-stop");
-        for (const result of ["success", "failure", "cancelled"]) assert.equal(evaluate(fallback, { "needs.resolve-issue.result": result }), "handoff", result);
+        assert.equal(evaluate(fallback, { "needs.resolve-issue.result": "skipped", "needs.pick-slot.outputs.key-off": "false" }), "credit-stop");
+        assert.equal(evaluate(fallback, { "needs.resolve-issue.result": "skipped", "needs.pick-slot.outputs.key-off": "true" }), "no-key");
+        for (const result of ["success", "failure", "cancelled"]) assert.equal(evaluate(fallback, { "needs.resolve-issue.result": result, "needs.pick-slot.outputs.key-off": "true" }), "handoff", result);
       } else {
         assert.ok([undefined, "handoff", "fallback"].includes(fallback), `${file} ${id} passes fallback ${JSON.stringify(fallback)}`);
       }
@@ -8969,7 +8980,7 @@ test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from t
 // staging for run-claude-cli, and a fallback only as handoff, credit-stop
 // (the subscription call work-resolve-issue's own key-credit gate made first)
 // or fallback.
-test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and only handoff, credit-stop or fallback as its fallback", () => {
+test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and only handoff, credit-stop, no-key or fallback as its fallback", () => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const launch = steps.find((s) => s.id === "launch");
   assert.equal(evaluate(launch.if, { "steps.config.outcome": "success", "steps.config.outputs.kind": "skill" }), true, "issue and PR mode alike");
@@ -8999,7 +9010,8 @@ test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and 
   assert.equal(status("handoff"), 0);
   assert.equal(status("fallback"), 0, "the third call");
   assert.equal(status("credit-stop"), 0, "a subscription call the caller's key-credit gate made first");
-  for (const fallback of ["no-key", "other"]) assert.equal(status(fallback), 1, fallback);
+  assert.equal(status("no-key"), 0, "a subscription call the API-key switch made first");
+  assert.equal(status("other"), 1, "other");
 });
 
 // --- npm's fetch bound: one file, read by every hosted-runner npm ci ---

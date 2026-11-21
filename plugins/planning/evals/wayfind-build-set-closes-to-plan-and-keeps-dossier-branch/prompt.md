@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
-expected_outcome: "The closing comment states every decision in full and names the dossier branch. The map closes to /planning:plan, with the decisions as its task description, then /work-items:decompose from that plan, not straight to decompose, since the decisions do not yet read as slices. The dossier branch is kept until the destination's container closes, not deleted at map close."
+expected_outcome: "The closing comment states every decision in full and names the dossier branch. The map closes to /planning:plan, with the decisions as its task description, then /work-items:decompose from that plan, not straight to decompose, since the decisions do not yet read as slices. The task description carries a 'Source map: #600' line. The dossier branch is kept at map close, for /work-items:decompose to handle when it publishes from the plan."
 ---
 
 /planning:wayfind work 'Map: module extraction' (#600). Destination: a set of build items for the first module extraction. Every item is closed, the frontier and Not-yet-specified are empty, and the map has a dossier branch, dossier/600-module-extraction. The decisions are architectural choices, not yet a list of slices. Close the map and hand it on.

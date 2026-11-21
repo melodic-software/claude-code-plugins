@@ -49,6 +49,7 @@
 <iframe id="page" sandbox="allow-scripts" title="The mockup"></iframe>
 <aside aria-label="Notes">
   <button type="button" id="dock" aria-expanded="true" aria-controls="panel">Hide notes (N)</button>
+  <button type="button" id="markers">Hide markers (M)</button>
   <div id="panel">
   <div role="tablist" aria-label="Dock">
     <button type="button" role="tab" id="tab-notes" aria-controls="notes-panel" aria-selected="true">Notes</button>
@@ -181,7 +182,7 @@
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
     if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
-    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
+    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems, hold: true });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
       : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
       : "");
@@ -254,6 +255,7 @@
     text.focus();
   }
   function closeComposer() {
+    toFrame({ type: "release" });
     draft = editing = null;
     composer.hidden = true;
     (opener?.() || buttons.element).focus();
@@ -358,6 +360,18 @@
     else $("dock").focus();
   }
 
+  // Whether the frame draws the note markers. It is kept for this tab's run, so a reload keeps it; it never touches a pick.
+  const MARKERS = "ui-feedback-markers-hidden";
+  let markersShown = true;
+  try { markersShown = sessionStorage.getItem(MARKERS) !== "1"; } catch { /* no storage: markers start shown */ }
+  function setMarkers(on) {
+    markersShown = on;
+    try { sessionStorage.setItem(MARKERS, on ? "0" : "1"); } catch { /* no storage: the choice lasts this load only */ }
+    $("markers").textContent = on ? "Hide markers (M)" : "Show markers (M)";
+    toFrame({ type: "markers", on });
+  }
+  setMarkers(markersShown);
+
   /** One prototype-notes block holding every note written on this page; a backtick is escaped, so no
    *  note can end the fence. The session imports it with notes-bridge.sh import. */
   function copyAll() {
@@ -427,6 +441,11 @@
       return li;
     };
     const drafts = mine.filter((m) => m.draft);
+    const pin = (m, n) => ({ n, selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    toFrame({ type: "pins", pins: [
+      ...mine.filter((m) => m.seq !== null).map((m) => pin(m, m.seq)),
+      ...drafts.map((m, i) => pin(m, `D${i + 1}`)),
+    ] });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
         const m = ours.get(seq);
@@ -455,6 +474,7 @@
       ready = true;
       for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
       takeControls(m);
+      setMarkers(markersShown);
       say("Pick an element (P), mark a region (R), or select text in the mockup and press Note on selected text (T).");
     } else if (m.type === "escape") setPick(null);
     else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
@@ -462,16 +482,16 @@
     else if (m.type === "pinned" && picking === "element") {
       const note = noteFrom(m, "element");
       if (note) openComposer(note, () => buttons.element);
-      else say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent.");
+      else { toFrame({ type: "release" }); say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent."); }
     } else if (m.type === "region" && picking === "region") {
       const note = noteFrom(m, "region");
       if (note) openComposer(note, () => buttons.region);
-      else say("That region cannot carry a note: the element around it is outside the note contract.");
+      else { toFrame({ type: "release" }); say("That region cannot carry a note: the element around it is outside the note contract."); }
     } else if (m.type === "selected" && wantText) {
       wantText = false;
       const note = m.none ? null : noteFrom(m, "text");
       if (note) openComposer(note, () => $("quote"));
-      else say("Select some text in the mockup first, then press Note on selected text (T).");
+      else { toFrame({ type: "release" }); say("Select some text in the mockup first, then press Note on selected text (T)."); }
     }
   });
 
@@ -482,6 +502,7 @@
   $("save").addEventListener("click", save);
   $("sendall").addEventListener("click", () => sendDrafts(mine.filter((m) => m.draft)));
   $("dock").addEventListener("click", () => setPanel($("panel").hidden));
+  $("markers").addEventListener("click", () => setMarkers(!markersShown));
   $("cancel").addEventListener("click", closeComposer);
   $("copy").addEventListener("click", copyAll);
   $("copy-config").addEventListener("click", copyConfig);
@@ -511,6 +532,7 @@
     }
     const key = e.key.toLowerCase();
     if (key === "n") { e.preventDefault(); return setPanel($("panel").hidden); }
+    if (key === "m") { e.preventDefault(); return setMarkers(!markersShown); }
     if (!ready) return;
     if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
     else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }

@@ -171,7 +171,7 @@ N=2 bucket with that bucket's permitted remedies. A NO form is still discarded a
 | (c2) Full-paragraph reword of same canonical truth (no verbatim ≥8 word phrase shared) | YES, a semantic cluster; gate via stability+reader-burden test | 4 skills each restate the same session-hygiene rule in their own wording |
 | (d) Correct citation to existing SSOT (`per X.md "Y"`) | NO, the desired state | Citation is the architecture |
 | (e) Shared framing + per-instance unique data | BORDERLINE, so extract framing if stability+reader-burden test passes | 5 agents share an intro paragraph; only the examples differ |
-| (f) Language-native dedup (bash `source`, Python `import`, MSBuild `<Import>`, JSON `$ref`) | NO, already extracted | 34 hooks `source hook-utils.sh` is the dedup |
+| (f) Language-native dedup (shared library, helper module, build-tool import, config include or anchor) | NO, already extracted | 34 hooks loading one shared helper library is the dedup |
 | (g) Per-instance unique scope-specific list (exclusion lists, allowed-file lists, etc.) | NO, content unique even when section-header shared | Per-prompt exclusion lists are scope-specific |
 | (h) Domain-specific application of shared rule | NO, context-specific | Each skill applies a testing default in its own framing |
 | (i) Semantic-paraphrase cluster, where 2+ instances assert same canonical truth in different wording; no shared verbatim ≥8 word phrase but reader could not tell which is canonical | YES, roster iff stability or reader-burden test passes | A commit-policy framing restated across the instruction file + 3 skills + 2 prompts in different words |
@@ -213,7 +213,7 @@ For each candidate, capture (not optional). Use one of two evidence shapes depen
 
 5. **Citation state**: for each match, is the surrounding context "inline reproduction" or "citation to existing SSOT"? Count separately. For semantic shape: a paragraph that both restates and cites is form (d), so count it as already-cited.
 6. **SSOT existence check**: does a canonical file already exist? If yes, what % of call sites cite it? If 100% cite → REFUSE-already-cites-canonical. This check is also the N=1 bucket's admission gate: a single site is rostered only when a canonical home exists that it recaps instead of cites; with no existing home, a lone paragraph is not duplication and is dropped.
-7. **Language-native check**: is the cluster a shared library, helper module, build-tool import, JSON $ref? If yes → out-of-scope.
+7. **Language-native check**: is the cluster a shared library, helper module, build-tool import, or config include or anchor? If yes → out-of-scope.
 
 A candidate without the appropriate evidence shape fields populated is refused automatically.
 

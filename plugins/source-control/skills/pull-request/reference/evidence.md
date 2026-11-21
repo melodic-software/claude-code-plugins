@@ -10,13 +10,9 @@ It posts only after the verifier passed for the PR's current head and only when 
 comment body finds nothing. Every refusal below posts nothing and names its reason in the report.
 
 Text and logs are the record; a capture shows what the text states and never stands in for it. A
-reader who opens no image, or a comment whose media did not upload, still has every result. For
-regulated teams this matches the preference for system logs and audit trails over screenshots in
-FDA's guidance "Computer Software Assurance for Production and Quality Management System Software",
-section (6) "Establishing the Appropriate Record"; the guidance is an analogy for such teams here,
-not a requirement this step meets.
+reader who opens no image, or a comment whose media did not upload, still has every result.
 
-Screenshots and recordings of a regulated product show synthetic data only, never real records.
+Screenshots and recordings show synthetic data only, never real records.
 Step 5 reads each attached capture's text with OCR and leak-scans it, but OCR misses text on
 screens, so that scan is a backstop behind this rule and never shows a capture holds no real record.
 
@@ -107,10 +103,7 @@ the PR body or the rows lands in the comment, so step 5 scans it with the rest o
      run did not pass, with `resolution not recorded`, or `none found in this run` when every one
      passed. In every table cell and column header, this block's and the capture table's alike,
      escape a `|` as `\|` and turn each line break into `<br>`. A missing value never stops the
-     step. The three
-     fields follow the record elements a regulated team keeps for an assurance activity (who ran
-     it, when, the issues it found and their resolution) in the FDA guidance's section (6) linked
-     above;
+     step;
    - **Layout.** The change is small when it has at most two sections (acceptance criteria, else
      entry point lines), its captures to attach, Before and After counted together, number at
      least one and at most `evidence_inline_max_captures` (default 4: one Before and one After for

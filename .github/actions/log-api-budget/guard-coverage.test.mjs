@@ -57,7 +57,6 @@ const UNGUARDED = {
   ".github/scripts/pr-unblock/dependency-classify.mjs": { reason: "package registries, not the API", found: [CALL] },
   ".github/scripts/maintenance-reconcile-lost-runs/component-status.mjs": { reason: "the status pages, not the API", found: [CALL] },
   ".github/scripts/maintenance-monitor-signals/monitor.mjs": { reason: "githubstatus.com reads; its API calls go through lib/github-rest.mjs", found: [CALL] },
-  ".github/scripts/lib/ci-workflows-at-pin.mjs": { reason: "raw.githubusercontent.com reads from tests; no API call", found: [CALL] },
   ".github/actions/check-kill-switch/check-kill-switch.mjs": {
     reason: "reads only /rate_limit, which no pool counts (https://docs.github.com/en/rest/rate-limit/rate-limit), to decide the start gate",
     found: ["fetchImpl defaults to the global fetch", "fetchImpl defaults to the global fetch"],

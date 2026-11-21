@@ -37,7 +37,7 @@
     "evidence_record_fields": {
       "type": "boolean",
       "default": false,
-      "description": "When true, the /source-control:pull-request evidence comment carries a record block: who ran the verification, when, and the issues it found with their resolution, the record a regulated team keeps for an assurance activity. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to false."
+      "description": "When true, the /source-control:pull-request evidence comment carries a record block: who ran the verification, when, and the issues it found with their resolution. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to false."
     },
     "evidence_ocr_mpdecimate_hi": {
       "type": "integer",

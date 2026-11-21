@@ -24,6 +24,8 @@
   const MAX_DEPTH = 32;
   const NUDGE = 10; // pixels an arrow key moves or resizes a region
   let mode = false, kind = "element", pins = [], layer = null, hover = null, region = null, drag = null, maxElements = 0;
+  let holding = false, held = null, markers = true;
+  const hold = h => { if (holding) { held = h; draw(); } };
   const log = []; // the data controls pressed and content sets shown since the page loaded, in order
 
   /** The reference box notes are measured in: the whole scrollable page. */
@@ -233,12 +235,16 @@
   function draw() {
     const l = ensureLayer();
     l.replaceChildren();
-    for (const p of pins) { const at = placeOf(p); l.append(badge(p.n, at.x, at.y, p.active)); }
+    if (markers) for (const p of pins) { const at = placeOf(p); l.append(badge(p.n, at.x, at.y, p.active)); }
     if (hover && mode && kind === "element") {
       l.append(outline(hover.getBoundingClientRect(), { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }));
     }
     if (region && mode && kind === "region") {
       l.append(outline({ left: region.x, top: region.y, width: region.w, height: region.h }, { outline: "2px dashed #f59e0b", background: "rgb(245 158 11 / 0.12)" }));
+    }
+    if (held && !mode) {
+      const b = held.el ? held.el.getBoundingClientRect() : { left: held.left - scrollX, top: held.top - scrollY, width: held.width, height: held.height };
+      l.append(outline(b, { outline: "2px solid #f59e0b", outlineOffset: "1px", background: "rgb(245 158 11 / 0.12)" }));
     }
   }
 
@@ -257,6 +263,7 @@
     const marked = crossing(document.querySelectorAll("[data-testid]"));
     const crossed = marked.length ? marked : crossing(holder.children);
     post({ type: "region", rect: pct(b), anchor: anchorOf(holder), elements: crossed.slice(0, maxElements).map(anchorOf), snapshot: snapshot(holder) });
+    hold({ left: b.left + scrollX, top: b.top + scrollY, width: b.width, height: b.height });
   }
   function nudge(dx, dy, grow) {
     if (!region) return;
@@ -276,14 +283,15 @@
     hover = pathOf(e.target).el;
     draw();
   };
-  const stop = e => { if (mode) { e.preventDefault(); e.stopImmediatePropagation(); } };
+  const stop = e => { if (mode || held) { e.preventDefault(); e.stopImmediatePropagation(); } };
   function pick(e) {
-    if (!mode) return;
+    if (!mode) { stop(e); return; }
     stop(e);
     if (kind !== "element" || skip(e.target)) return;
     const { path, el } = pathOf(e.target);
     if (!path) return;
     post({ type: "pinned", selector: path, rect: rectOf(el), label: label(el), anchor: anchorOf(el), snapshot: snapshot(el) });
+    hold({ el });
   }
   addEventListener("pointermove", over, true);
   addEventListener("click", pick, true);
@@ -294,6 +302,7 @@
   for (const t of ["pointerdown", "mousedown", "mouseup", "submit", "auxclick", "dblclick"]) addEventListener(t, stop, true);
   addEventListener("keydown", e => {
     if (e.key === "Escape") { post({ type: "escape" }); return; }
+    if (held && !mode) { stop(e); return; }
     if (mode && kind === "region") {
       // Region keys stay here: the arrows never reach the page's own keys (the switcher's state steps).
       const a = ARROWS[e.key];
@@ -323,6 +332,7 @@
     const m = e.data;
     if (m.type === "mode") {
       mode = !!m.on;
+      holding = m.hold === true;
       kind = m.kind === "region" ? "region" : "element";
       maxElements = Number.isInteger(m.max) && m.max > 0 ? m.max : 0;
       hover = null;
@@ -340,9 +350,15 @@
       if (el && el.nodeType !== 1) el = el.parentElement;
       const quote = el && !skip(el) && Number.isInteger(lim.exact) && Number.isInteger(lim.context) ? quoteOf(range, viewOf(el).scope, lim) : null;
       if (!quote) post({ type: "selected", none: true });
-      else post({ type: "selected", rect: pct(range.getBoundingClientRect()), anchor: anchorOf(el), quote, snapshot: snapshot(el) });
+      else {
+        const r = range.getBoundingClientRect();
+        post({ type: "selected", rect: pct(r), anchor: anchorOf(el), quote, snapshot: snapshot(el) });
+        hold({ left: r.left + scrollX, top: r.top + scrollY, width: r.width, height: r.height });
+      }
     }
+    else if (m.type === "release") { held = null; draw(); }
     else if (m.type === "pins" && Array.isArray(m.pins)) { pins = m.pins.slice(0, 500); draw(); }
+    else if (m.type === "markers") { markers = m.on !== false; draw(); }
     else if (m.type === "set") setControls(m.values);
     else if (m.type === "press" && !mode) replay([m.step]);
     else if (m.type === "focus") {

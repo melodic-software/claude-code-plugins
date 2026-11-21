@@ -148,5 +148,5 @@ point.
   and hand those decisions to the destination's skill in a source form it accepts
   (`/planning:prd`, `/planning:plan` then `/work-items:decompose` (or
   `/work-items:decompose #<map-number>` when the decisions already read as slices),
-  `/work-items:work`, or a decision record or general summary; SKILL.md work step 8). The dossier
-  branch is deleted when the destination's container closes, not at map close.
+  `/work-items:work`, or a decision record or general summary; SKILL.md work step 8). That step
+  also says when the dossier branch is deleted or reported for each destination.

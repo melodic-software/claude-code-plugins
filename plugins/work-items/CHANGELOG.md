@@ -3,6 +3,38 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.12.0] - 2026-11-21
+
+### Added
+
+- **`/work-items:track dossier-branches <item-id>` deletes or reports one item's remote dossier branch.** It runs the dossier-branch step, now kept in one shared reference file that the container close also cites. Attended, the step shows the commits the default branch cannot reach and deletes only what the user confirms; unattended, it deletes nothing and lists the branch as due. More than one matching branch, or a branch that is the head of an open pull request, is only reported ([#17037](https://github.com/melodic-software/claude-code-plugins/issues/17037)).
+
+### Changed
+
+- **`/work-items:decompose` reads a `Source map: #<n>` line.** It accepts the line only when the named item carries the wayfind map label, and then treats the map as the source item: the container, or each item when there is no container, gets the map as its parent. When decompose publishes from a map with no container, it runs the dossier-branch step for the map's branch at the end of publish, since no close ritual will run for it ([#17037](https://github.com/melodic-software/claude-code-plugins/issues/17037)).
+
+## [15.11.0] - 2026-11-21
+
+### Added
+
+- `/work-items:ship run` takes a non-container parent: an item with no spec-container label that
+  has open sub-items, such as the source item decompose attaches items to when its container offer
+  is declined. The run works the parent's ready children as per-item PRs and says so in the item
+  list it shows for approval, without writing a shape line onto the parent. Once every child is
+  closed, an open parent closes through "Decomposed parent close" and a closed one needs nothing.
+  `status` stays container-only. A new eval case, `sh-run-non-container-parent-per-item`, covers a
+  run over such a parent with two ready children.
+
+### Changed
+
+- Repaired two links in the work skill's candidate-discovery context that pointed at an unresolvable `<plugin-root>` placeholder target.
+
+## [15.10.2] - 2026-11-21
+
+### Changed
+
+- Shared `lane-binding.mjs` synced where this plugin carries it: a lane run still going now throws a typed `LaneRunPending`; no other change to this plugin.
+
 ## [15.10.1] - 2026-11-20
 
 ### Changed

@@ -27,13 +27,13 @@ When a project lane at `.claude/tidy-lanes/docs-prose.md` includes a `## Merge s
 
 ## Watch-for patterns
 
-- **P-1, Dead-link removal**: internal cross-references to files/sections that no longer exist. `markdownlint-cli2` catches some; broken relative `(./x.md)` paths often slip through. Grep for relative markdown links and walk the matches
+- **P-1, Dead-link removal**: internal cross-references to files/sections that no longer exist. Broken relative `(./x.md)` paths are the common case. Grep for relative markdown links and walk the matches
 - **P-2, Stale cross-reference repair**: references to merged-but-renamed files
 - **P-3, Redundant-paragraph dedup**: when two docs explain the same concept, the canonical explanation should live in one place; the other should reference it. Beck #13 (One Pile) for prose
 - **P-4, Reading order in prose**: within a single doc, sections should flow from "what is it" → "how to use it" → "when not to use it" → "advanced". When the order is inverted without cause, fix it
 - **P-5, Explaining comments**: for code-shaped prose (CLI commands, configuration snippets), an inline `# explains the next line` comment often beats a separate paragraph above the snippet
 - **P-6, Delete redundant prose**: boilerplate like "This document explains..." at the top of a doc whose title already explains it
-- **Markdown style consistency**: heading hierarchy skipping levels, inconsistent list markers, trailing whitespace, hard tabs (markdownlint catches these)
+- **Markdown style consistency**: heading hierarchy skipping levels, inconsistent list markers, trailing whitespace, hard tabs
 
 ## Lane-specific extra exclusions
 
@@ -48,9 +48,7 @@ Beyond the global HARD/SOFT lists:
 
 ## Verification commands
 
-```bash
-npx markdownlint-cli2 <changed .md files>    # use the project's own markdownlint config when present
-```
+The consuming project's own markdown lint command for the changed files, read from its ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`), its project instructions, or its CI config. When none names one, report the lint check as unresolved and skip it; the lane ships no command to run in its place.
 
 Plus relative-link integrity on changed files: for each `](<relative>.md)` reference, confirm the target exists.
 

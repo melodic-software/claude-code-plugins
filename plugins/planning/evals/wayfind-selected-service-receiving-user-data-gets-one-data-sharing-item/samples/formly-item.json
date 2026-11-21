@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Create interview item 'Formly data sharing': which patient fields cross to Formly, under what agreement, and whether a BAA is needed before build.",
+      "answer": "Create interview item 'Formly data sharing': which patient fields cross to Formly and under what agreement.",
       "why": "one data-sharing interview item for Formly"
     }
   ],

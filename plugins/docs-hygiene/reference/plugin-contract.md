@@ -30,10 +30,10 @@ tracked markdown a repository maintains.
 1. **Not a prose-style engine.** `write-for-humans` resolves the consuming
    project's own style guide first and falls back to a named public set. It
    must never accumulate house rules.
-2. **Not a linter.** Structural markdown lint belongs to `markdownlint-cli2`.
+2. **Not a linter.** Structural markdown lint belongs to a markdown linter.
    Every skill here makes a judgment a linter cannot. `compress` is the only
-   skill that gates its entry point on that binary; `extract-ssot` names it as
-   one option for a ship-gate lint step. The README Requirements section
+   skill that gates its entry point on a linter binary; `extract-ssot` names
+   one as an option for a ship-gate lint step. The README Requirements section
    states that split.
 3. **Not a code-comment tool.** `code-tidying:remove-comments audit` owns
    non-markdown files, even where the residue shapes are identical.
@@ -55,7 +55,7 @@ The four file-name skills (`setup`, `audit-file-names`, `realign-file-names`,
 `generate-file-name-gate`) live in the `docs-naming` plugin, tracked in
 [#5348](https://github.com/melodic-software/claude-code-plugins/issues/5348),
 so the Enforcement concern has no skill here. This plugin keeps a check-only
-`setup` for its `markdownlint-cli2` prerequisite. The shared audit router is
+`setup` for its one external prerequisite. The shared audit router is
 not built: the sibling pointers in each audit description and the `repo-sweep`
 catalog route between the audits.
 
