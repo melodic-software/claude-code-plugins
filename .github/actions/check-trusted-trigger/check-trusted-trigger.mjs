@@ -237,11 +237,12 @@ export function retryServerErrors(
     attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
     latch = rateLimitLatch,
     resendLimited = false,
+    floorGraceMs = 0,
   } = {},
 ) {
   // Every attempt, a retry included, goes through the rate guard's latch,
   // which waits out a short stop with this client's sleep.
-  fetchImpl = latch.guard(fetchImpl, { sleep });
+  fetchImpl = latch.guard(fetchImpl, { sleep, floorGraceMs });
   let spent = 0;
   return async function send(url, init = {}) {
     const method = init.method ?? "GET";
