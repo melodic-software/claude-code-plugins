@@ -8,7 +8,7 @@
   "required": ["schema"],
   "properties": {
     "schema": {
-      "description": "The layer format version. The resolver skips a layer that declares any other value.",
+      "description": "The layer format version. Any other value is reported and ignored; the layer's other keys still apply.",
       "type": "integer",
       "enum": [1]
     },

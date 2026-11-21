@@ -47,7 +47,7 @@ Options:
           Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`.
           Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed
           as TOML. If it fails to parse as TOML, the raw string is used as a literal.
-          
+
           Examples: - `-c model="o3"` - `-c 'sandbox_permissions=["disk-full-read-access"]'` - `-c
           shell_environment_policy.inherit=all`
 
@@ -59,7 +59,7 @@ Options:
 
       --remote <ADDR>
           Connect the TUI to a remote app server endpoint.
-          
+
           Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.
 
       --remote-auth-token-env <ENV_VAR>
@@ -88,7 +88,7 @@ Options:
 
   -s, --sandbox <SANDBOX_MODE>
           Select the sandbox policy to use when executing model-generated shell commands
-          
+
           [possible values: read-only, workspace-write, danger-full-access]
 
       --approve-for-me
@@ -125,7 +125,7 @@ Options:
 
       --no-alt-screen
           Disable alternate screen mode
-          
+
           Runs the TUI in inline mode, preserving terminal scrollback history.
 
       --no-daemon

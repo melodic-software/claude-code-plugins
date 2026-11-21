@@ -976,6 +976,7 @@
       "name": "external-agents",
       "source": "./plugins/external-agents",
       "category": "workflow",
+      "defaultEnabled": false,
       "tags": [
         "codex",
         "external-agents",

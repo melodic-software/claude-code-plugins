@@ -353,11 +353,12 @@ esac
     const out = call(withStub, "ran", "--base main --model gpt-x --brief-file /tmp/b.md");
     assert.equal(out.status, "ran");
     assert.equal(out.findings, "argv: review codex --council --base main --model gpt-x --brief-file /tmp/b.md\nIMPORTANT | src/a.js:3 | off by one | fix the bound");
+    assert.deepEqual(out.notices, ["the reviewed change touches .codex/ (1 file)"]);
   });
 
   test("fanout's briefed second run passes its bundled brief and reads back through the same path", () => {
     const brief = join(HERE, "..", "..", "fanout", "context", "codex-adversarial-brief.md");
-    assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the parse contract's finding line");
+    assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the finding line the parser reads");
     const out = call(withStub, "ran", `--base origin/main --brief-file "${brief}"`);
     assert.equal(out.status, "ran");
     assert.equal(out.findings.split("\n")[0], `argv: review codex --council --base origin/main --brief-file ${brief}`);
@@ -371,16 +372,16 @@ esac
   });
 
   test("skipped and failed lines become the member's status, with no findings", () => {
-    assert.deepEqual(call(withStub, "skipped", "--base main"), { status: "skipped (codex is not logged in; run external-agents update codex)", note: null, findings: "" });
-    assert.deepEqual(call(withStub, "failed", "--base main"), { status: "failed (timed-out)", note: null, findings: "" });
+    assert.deepEqual(call(withStub, "skipped", "--base main"), { status: "skipped (codex is not logged in; run external-agents update codex)", note: null, notices: [], findings: "" });
+    assert.deepEqual(call(withStub, "failed", "--base main"), { status: "failed (timed-out)", note: null, notices: [], findings: "" });
   });
 
   test("a missing command is skipped as not enabled", () => {
-    assert.deepEqual(call(empty, "ran", "--base main"), { status: "skipped (external-agents not enabled)", note: null, findings: "" });
+    assert.deepEqual(call(empty, "ran", "--base main"), { status: "skipped (external-agents not enabled)", note: null, notices: [], findings: "" });
   });
 
   test("no status line is a failure naming the exit code", () => {
-    assert.deepEqual(call(withStub, "silent", "--base main"), { status: "failed (no status line; exit 1)", note: null, findings: "" });
+    assert.deepEqual(call(withStub, "silent", "--base main"), { status: "failed (no status line; exit 1)", note: null, notices: [], findings: "" });
   });
 
   test("a bare failed line, and another product's line, are read by the product given", () => {
@@ -390,10 +391,10 @@ esac
 
   test("the member verb reads the captured output file", () => {
     const f = join(TMP, "member-out.txt");
-    writeFileSync(f, "codex: ran\nNo findings.\n");
+    writeFileSync(f, "notice: a note\ncodex: ran\nNo findings.\njob: 20261121T000000Z-abc123\n");
     const out = spawnSync("node", [SCRIPT, "member", "--product", "codex", "--output", f, "--exit", "0"], { encoding: "utf8" });
     assert.equal(out.status, 0, out.stderr);
-    assert.deepEqual(JSON.parse(out.stdout), { status: "ran", note: null, findings: "No findings." });
+    assert.deepEqual(JSON.parse(out.stdout), { status: "ran", note: null, notices: ["a note"], findings: "No findings." });
     assert.equal(spawnSync("node", [SCRIPT, "member", "--product", "codex", "--output", f, "--exit", "x"], { encoding: "utf8" }).status, 2);
   });
 });

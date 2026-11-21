@@ -131,7 +131,6 @@ with nothing configured. `userConfig` carries a per-person value across repos, w
 structurally cannot, because a per-user setting cannot decide the location or content of a
 team-shared artifact. The team layer is the only layer teammates receive. The personal override is the only place
 a personal deviation can live without either editing the shared file or going uncommitted and lost.
-Dropping any one of them reintroduces a problem the other three cannot solve.
 
 ## Merge semantics
 
@@ -262,8 +261,8 @@ content *is*, never by the author's preference:
   and bound by the pointer region below. Its personal channel is the prose personal override
   `<home>/<concern>.local.md`, which replaces whole team sections by heading. A migrated plugin's
   setup `check` WARNs on any pre-existing personal override file at a retired path rather than silently
-  ignoring it. The personal override no longer has an effect there, and silence would let a personal
-  deviation look live.
+  ignoring it. The personal override no longer has an effect there, and silence would leave the
+  owner believing the override still applies.
 - **Structured data where YAML/JSON is the right tool** (`routing.yaml`,
   `binding.json`, `testing.yaml`) stays a keyed config file under the layers above. Its team
   layer is `<home>/<concern>.yaml`, validated by a JSON Schema

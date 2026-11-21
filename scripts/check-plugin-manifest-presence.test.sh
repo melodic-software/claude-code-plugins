@@ -218,7 +218,16 @@ if [[ $rc -eq 1 ]] && grep -q 'plugins/beta/bin' <<<"$out" && ! grep -q 'plugins
 else
   fail "beta bin/ should fail and external-agents should not be named (rc=$rc): $out"
 fi
-rm -rf "$TMP/plugins/beta/bin" "$TMP/plugins/external-agents"
+rm -rf "$TMP/plugins/beta/bin"
+printf 'x\n' >"$TMP/plugins/external-agents/bin/extra"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'plugins/external-agents/bin' <<<"$out"; then
+  ok "the exemption covers one file: anything else in external-agents' bin/ fails"
+else
+  fail "an extra file in external-agents bin/ should fail (rc=$rc): $out"
+fi
+rm -rf "$TMP/plugins/external-agents"
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
 # --- 7. Back to green after every fixture is restored/removed. -------------
