@@ -4,12 +4,13 @@
 // must match, a member that cannot run as written is skipped and never replaced).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { DEFAULTS, globToRegExp, resolveConfig, selectPanel } from "./council-plan.mjs";
+import { parse } from "../../../lib/yaml-subset.mjs";
+import { DEFAULTS, globToRegExp, memberResult, resolveConfig, selectPanel } from "./council-plan.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
@@ -320,6 +321,80 @@ describe("select", () => {
 
   test("claude effort defaults to high", () => {
     assert.equal(selectPanel({ ...base, config: configWith(two) }).members[0].effort, "high");
+  });
+});
+
+describe("script member through a stub external-agents on PATH, its lines from the command's review contract (external-agents README; runner.mjs review and stopped)", () => {
+  const RUN = parse(readFileSync(join(HERE, "..", "adapters", "codex.yaml"), "utf8")).run;
+  const STUB = `#!/bin/sh
+case "$STUB_CASE" in
+  ran) echo "notice: the reviewed change touches .codex/ (1 file)" >&2; echo "codex: ran"; echo "argv: $*"; echo "IMPORTANT | src/a.js:3 | off by one | fix the bound" ;;
+  ran-detail) echo "codex: ran (1 command blocked by read-only mode: touch x)"; echo "No findings." ;;
+  skipped) echo "codex: skipped (codex is not logged in; run external-agents update codex)"; exit 4 ;;
+  failed) echo "codex: failed (timed-out)"; exit 1 ;;
+  silent) echo "boom" >&2; exit 1 ;;
+esac
+`;
+  const withStub = join(TMP, "with-stub");
+  const empty = join(TMP, "no-command");
+  mkdirSync(withStub, { recursive: true });
+  mkdirSync(empty, { recursive: true });
+  writeFileSync(join(withStub, "external-agents"), STUB, { mode: 0o755 });
+  const call = (dir, stubCase, args) => {
+    const r = spawnSync("bash", ["-c", `cd "$STUB_DIR" && PATH="$PWD:/usr/bin:/bin" && ${RUN} ${args} 2>&1`], { encoding: "utf8", env: { ...process.env, STUB_DIR: dir, STUB_CASE: stubCase } });
+    return memberResult({ product: "codex", output: r.stdout, exit: r.status });
+  };
+
+  test("the adapter runs the bare external-agents review command", () => {
+    assert.equal(RUN, "external-agents review codex");
+  });
+
+  test("ran: the lines after the status line are the findings, with the council's flags passed on", () => {
+    const out = call(withStub, "ran", "--base main --model gpt-x --brief-file /tmp/b.md");
+    assert.equal(out.status, "ran");
+    assert.equal(out.findings, "argv: review codex --base main --model gpt-x --brief-file /tmp/b.md\nIMPORTANT | src/a.js:3 | off by one | fix the bound");
+  });
+
+  test("fanout's briefed second run passes its bundled brief and reads back through the same path", () => {
+    const brief = join(HERE, "..", "..", "fanout", "context", "codex-adversarial-brief.md");
+    assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the parse contract's finding line");
+    const out = call(withStub, "ran", `--base origin/main --brief-file "${brief}"`);
+    assert.equal(out.status, "ran");
+    assert.equal(out.findings.split("\n")[0], `argv: review codex --base origin/main --brief-file ${brief}`);
+  });
+
+  test("ran with details keeps them as a note", () => {
+    const out = call(withStub, "ran-detail", "--base main");
+    assert.equal(out.status, "ran");
+    assert.equal(out.note, "1 command blocked by read-only mode: touch x");
+    assert.equal(out.findings, "No findings.");
+  });
+
+  test("skipped and failed lines become the member's status, with no findings", () => {
+    assert.deepEqual(call(withStub, "skipped", "--base main"), { status: "skipped (codex is not logged in; run external-agents update codex)", note: null, findings: "" });
+    assert.deepEqual(call(withStub, "failed", "--base main"), { status: "failed (timed-out)", note: null, findings: "" });
+  });
+
+  test("a missing command is skipped as not enabled", () => {
+    assert.deepEqual(call(empty, "ran", "--base main"), { status: "skipped (external-agents not enabled)", note: null, findings: "" });
+  });
+
+  test("no status line is a failure naming the exit code", () => {
+    assert.deepEqual(call(withStub, "silent", "--base main"), { status: "failed (no status line; exit 1)", note: null, findings: "" });
+  });
+
+  test("a bare failed line, and another product's line, are read by the product given", () => {
+    assert.equal(memberResult({ product: "codex", output: "codex: failed\n", exit: 1 }).status, "failed (no reason given)");
+    assert.equal(memberResult({ product: "codex", output: "gemini: ran\nx\n", exit: 0 }).status, "failed (no status line; exit 0)");
+  });
+
+  test("the member verb reads the captured output file", () => {
+    const f = join(TMP, "member-out.txt");
+    writeFileSync(f, "codex: ran\nNo findings.\n");
+    const out = spawnSync("node", [SCRIPT, "member", "--product", "codex", "--output", f, "--exit", "0"], { encoding: "utf8" });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(JSON.parse(out.stdout), { status: "ran", note: null, findings: "No findings." });
+    assert.equal(spawnSync("node", [SCRIPT, "member", "--product", "codex", "--output", f, "--exit", "x"], { encoding: "utf8" }).status, 2);
   });
 });
 
