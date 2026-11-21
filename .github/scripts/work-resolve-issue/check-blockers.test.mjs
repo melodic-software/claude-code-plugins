@@ -438,7 +438,9 @@ test("a blocker someone other than the lanes App closed blocks even with an olde
 });
 
 // The read runner's in-slot re-check (RECHECK=true): a blocker added while
-// the run waited for its slot: https://github.com/melodic-software/claude-code-plugins/issues/18061
+// the run waited for its slot stops it as admission's blocker gate does; a
+// map or untrusted label added in that wait, or a list of closed blockers,
+// takes the full check (https://github.com/melodic-software/claude-code-plugins/issues/18061).
 describe("the in-slot re-check", () => {
   const RECHECK = { ...ENV, RECHECK: "true" };
   const RECHECK_RUN = { proceed: "true", untrusted: "false" };

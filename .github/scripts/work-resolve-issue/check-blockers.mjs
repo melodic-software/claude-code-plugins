@@ -44,7 +44,12 @@
 //
 // With RECHECK=true it is the read runner's in-slot re-check
 // (pr-run-activity-read.yml check-broker), after admission passed and the run
-// waited for its slot: https://github.com/melodic-software/claude-code-plugins/issues/18061
+// waited for its slot. It reads the issue first: a map or untrusted label on
+// it, added while the run waited, takes the full check, as admission does
+// (https://github.com/melodic-software/claude-code-plugins/issues/18061).
+// Otherwise one read of the blocked_by list decides when the list is empty
+// (proceed) or names an open blocker (blocked, as above). A list of closed
+// blockers alone takes the full check, since only it judges who closed them.
 //
 // Environment:
 //   GH_TOKEN             the job's GITHUB_TOKEN (issues: read)
