@@ -2,29 +2,11 @@ import { expect, test } from 'claude-code/testing'
 
 import { savedOf } from '../core/saved.js'
 import { PHASES } from '../core/settings.js'
-import { rebuild } from '../core/values.js'
 import { BUILT } from './index.js'
 import { BANK, chosenName } from './sound-bank.js'
 import { rowStarts, seasonOf } from './time.js'
-import {
-  DUCK_FADE_MS,
-  PICK_FADE_MS,
-  PICTURE_LAG_MS,
-  START_FADE_MS,
-  BUILD_FROM_MIN,
-  BUILD_LEVEL,
-  EVENING_LEVEL,
-  NIGHT_LEVEL,
-  PREDAWN_LEVEL,
-  bedOf,
-  levelOf,
-  WATCH_MS,
-  SWELL,
-  engineCommand,
-  gainOf,
-  thunderFor,
-} from './sound.js'
-import { sky, type Stand, stand, ranBy, onWindows, quiet, KATYDIDS, CRICKETS, intoRow, shaderAt } from './sound-testing.js'
+import { PICK_FADE_MS, START_FADE_MS, BUILD_FROM_MIN, BUILD_LEVEL, EVENING_LEVEL, NIGHT_LEVEL, PREDAWN_LEVEL, bedOf, levelOf, WATCH_MS, engineCommand, gainOf } from './sound.js'
+import { sky, stand, ranBy, onWindows, quiet, KATYDIDS, CRICKETS } from './sound-testing.js'
 
 test('the insects follow the hour when dry: cicadas from mid-afternoon through dusk, the night insects settling from evening until dawn, quiet at dawn, morning and a held noon; rain at every hour when wet', () => {
   if (!BUILT.includes('sound')) return
@@ -119,108 +101,5 @@ test('through the mixer the afternoon builds in one ease to the golden hour, re-
   const again = lines().filter(line => line.startsWith('level ')).at(-1)!.split(' ')
   expect(again.slice(0, 2)).toEqual(['level', g.toFixed(4)])
   expect(Number(again[2])).toBeLessThan(span - 40 * 60_000 - 10 * 60_000)
-  await quiet(s)
-})
-
-const RIVER = BANK.cicadas.entries.river.bed
-/** Gives the `auto` entry the river swell for one test, as an entry with a swell would have it, and takes it away again. */
-const auto = BANK.cicadas.entries.auto as { swell?: string }
-async function withSwell(run: () => Promise<void>): Promise<void> {
-  const was = auto.swell
-  auto.swell = RIVER
-  try {
-    await run()
-  } finally {
-    auto.swell = was
-  }
-}
-/** The swells the mixer was sent: when each rose, its peak, and when it was told to fall. */
-function swellsOf(s: Stand): { at: number; peak: number; fallAt?: number; fallMs?: number }[] {
-  const out: { at: number; peak: number; fallAt?: number; fallMs?: number }[] = []
-  for (const r of s.mixers.flatMap(m => m.ran)) {
-    if (r.words[0] !== 'to' || r.words[1] !== RIVER) continue
-    if (Number(r.words[2]) > 0) out.push({ at: r.at, peak: Number(r.words[2]) })
-    else if (out.at(-1) !== undefined && out.at(-1)!.fallAt === undefined) Object.assign(out.at(-1)!, { fallAt: r.at, fallMs: Number(r.words[3]) })
-  }
-  return out
-}
-
-test('under an entry with a swell a nearer cicada swells over the chorus now and then at dusk: 3 to 8 minutes apart, 25 to 45 s long, at 0.6 of the chorus', async () => {
-  if (!BUILT.includes('sound')) return
-  await withSwell(async () => {
-    const s = await stand(intoRow(0, 5))
-    onWindows(s)
-    Object.assign(sky, { sun: 0, weather: 0 })
-    await (await s.ctx()).save({ time: 'dusk' })
-    shaderAt(s, sky)
-    await s.advance(10_000)
-    await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
-    await s.settle()
-    const started = s.now()
-    const g = gainOf(70)
-    await s.advance(60 * 60_000)
-    const swells = swellsOf(s)
-    expect(swells.length).toBeGreaterThanOrEqual(6)
-    expect(swells.length).toBeLessThanOrEqual(16)
-    expect(swells[0]!.at - started).toBeGreaterThanOrEqual(SWELL.gapMin * 60_000)
-    for (const [i, one] of swells.entries()) {
-      expect(Math.abs(one.peak - g * SWELL.peak)).toBeLessThan(0.0001)
-      if (one.fallAt === undefined) continue
-      const length = one.fallAt + one.fallMs! - one.at
-      expect(length >= SWELL.minMs && length <= SWELL.maxMs + 1).toBe(true)
-      const next = swells[i + 1]
-      if (next === undefined) continue
-      expect(next.at - (one.fallAt + one.fallMs!)).toBeGreaterThanOrEqual(SWELL.gapMin * 60_000 - SWELL.maxMs)
-      expect(next.at - one.at).toBeLessThanOrEqual(SWELL.gapMax * 60_000 + SWELL.maxMs + 2 * WATCH_MS)
-    }
-    expect(new Set(swells.slice(1).map((one, i) => Math.round((one.at - swells[i]!.at) / 60_000))).size).toBeGreaterThan(1)
-    await (await s.ctx()).save({ time: undefined })
-    await quiet(s)
-  })
-})
-
-test('no swell under the default cicadas or the chorus held; with a swell, none at noon, in the evening, or while thunder ducks the bed; rain fades one in progress with the bed', async () => {
-  if (!BUILT.includes('sound')) return
-  const s = await stand(intoRow(0, 5))
-  onWindows(s)
-  Object.assign(sky, { sun: 0, weather: 0 })
-  await (await s.ctx()).save({ time: 'dusk' })
-  shaderAt(s, sky)
-  await s.advance(10_000)
-  const moveTo = async (fields: { sun?: number; weather?: number }): Promise<void> => {
-    Object.assign(sky, fields)
-    rebuild({ ...sky, work: 0, zone: 0, hall: 0 }, s.now())
-    await s.advance(PICTURE_LAG_MS + WATCH_MS + 10)
-  }
-  await engineCommand(s.$, await s.ctx(), 'sound', ['on'])
-  await s.advance(10 * 60_000)
-  await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'chorus'])
-  await s.advance(10 * 60_000)
-  expect(swellsOf(s)).toEqual([])
-  await engineCommand(s.$, await s.ctx(), 'sound', ['pick', 'cicadas', 'auto'])
-  await withSwell(async () => {
-    for (const sun of [6, 1]) {
-      await moveTo({ sun })
-      await s.advance(20 * 60_000)
-      expect([sun, swellsOf(s)]).toEqual([sun, []])
-    }
-    await moveTo({ sun: 0 })
-    for (let i = 0; i < 40 && swellsOf(s).length === 0; i++) await s.advance(30_000)
-    expect(swellsOf(s).length).toBe(1)
-    await thunderFor(s.$, { at: s.now() - 1000, delayS: 1 })
-    await s.advance(WATCH_MS)
-    expect(swellsOf(s)[0]!.fallMs).toBe(DUCK_FADE_MS.down)
-    for (let i = 0; i < 40 && swellsOf(s).length === 1; i++) await s.advance(30_000)
-    expect(swellsOf(s).length).toBe(2)
-    const rainAt = s.now()
-    await moveTo({ weather: 2 })
-    const ran = s.mixers.flatMap(m => m.ran)
-    const bedAt = ran.find(r => r.at >= rainAt && r.words[0] === 'bed')!
-    expect(bedAt.words[1]).toBe(BANK.rain.entries.roof.rain)
-    expect(swellsOf(s)[1]!.fallAt).toBe(bedAt.at)
-    await s.advance(60_000)
-    expect(s.mixers.flatMap(m => m.ran).filter(r => r.at > bedAt.at && r.words[0] === 'to' && r.words[1] === RIVER)).toEqual([])
-  })
-  await (await s.ctx()).save({ time: undefined })
   await quiet(s)
 })

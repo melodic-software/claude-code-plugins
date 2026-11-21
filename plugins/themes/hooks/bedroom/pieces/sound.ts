@@ -11,7 +11,6 @@ import { worldMove } from '../core/values.js'
 import { KINDS, OBJECTS, PURR, SILENCE, chosen, chosenName, lengthOf, namesOf, shotsOf, type Kind } from './sound-bank.js'
 import { PING_MS, QUIET_MS, fileOf, linesOf, mixerScript, powershellArgv, type MixerCommand, type MixerVoice } from './sound-mixer.js'
 import { rowStarts, sunTimes } from './time.js'
-import { roll } from './weather.js'
 
 /**
  * Sound, off by default (/bedroom sound): a bed (in dry weather cicadas from noon through dusk and the night insects from
@@ -534,8 +533,6 @@ let waitTimer: { at: number; cancel: () => void } | undefined
  */
 /** Ends what plays, fading out over OFF_FADE_MS. */
 function silence($: EngineInterface): void {
-  swell?.timer.cancel()
-  swell = undefined
   if (out !== undefined) endOut($, out, OFF_FADE_MS)
   out = undefined
   bed = undefined
@@ -543,13 +540,8 @@ function silence($: EngineInterface): void {
 
 export function follow($: EngineInterface): Promise<void> {
   if (ctxOf($).setting('sound')) watch($)
-  stepping = stepping.then(() => step($)).catch(error => fail($, `following the room failed: ${error instanceof Error ? error.message : String(error)}`))
+  stepping = stepping.then(() => stepBeds($)).catch(error => fail($, `following the room failed: ${error instanceof Error ? error.message : String(error)}`))
   return stepping
-}
-
-async function step($: EngineInterface): Promise<void> {
-  await stepBeds($)
-  await swellStep($)
 }
 
 async function stepBeds($: EngineInterface): Promise<void> {
@@ -775,7 +767,6 @@ function duck($: EngineInterface, ms: number): void {
   if (o?.mixer === undefined || o.isDone || bed === undefined) return
   const ducked = ducks > 0
   ducks += 1
-  endSwell($, DUCK_FADE_MS.down)
   if (!ducked) mixerSend($, o, { verb: 'level', gain: bed.gain * bed.level * DUCK, fadeMs: DUCK_FADE_MS.down })
   $.clock.after(ms, () => {
     ducks -= 1
@@ -784,62 +775,6 @@ function duck($: EngineInterface, ms: number): void {
 }
 /** How many rolls of thunder are sounding: the bed comes back only when the last one ends. */
 let ducks = 0
-
-/**
- * Under a cicadas entry with a swell, through the mixer, a nearer cicada now and then over the chorus: the swell loop rises over
- * SWELL.inMs, holds, and falls over SWELL.outMs, SWELL.minMs to SWELL.maxMs in all, at SWELL.peak of the chorus, after
- * a gap of SWELL.gapMin to SWELL.gapMax minutes hashed from the minute (the first one too, so never in the bed's first
- * minute). Only while the chorus plays at full level at the golden hour or dusk, the bed not ducked: anything else (the
- * bed changing, a change of volume, thunder) fades one out.
- */
-export const SWELL = { inMs: 5000, outMs: 8000, minMs: 25_000, maxMs: 45_000, peak: 0.6, gapMin: 3, gapMax: 8 } as const
-let swell: { file: string; gain: number; o: Out; timer: { cancel: () => void } } | undefined
-let nextSwellAt: number | undefined
-
-/** The gap before the next swell from `at`, in ms, and a swell's whole length, each a whole-number hash of the minute. */
-export function swellGapMs(at: number): number {
-  return (SWELL.gapMin + ((SWELL.gapMax - SWELL.gapMin) * roll(Math.floor(at / 60_000), 1, 13)) / 99) * 60_000
-}
-export function swellLengthMs(at: number): number {
-  return SWELL.minMs + ((SWELL.maxMs - SWELL.minMs) * roll(Math.floor(at / 60_000), 2, 13)) / 99
-}
-
-/** Fades a swell in progress out over fadeMs. */
-function endSwell($: EngineInterface, fadeMs: number): void {
-  if (swell === undefined) return
-  swell.timer.cancel()
-  if (out === swell.o && !swell.o.isDone) mixerSend($, swell.o, { verb: 'to', name: swell.file, gain: 0, fadeMs, then: 0, thenMs: 0 })
-  swell = undefined
-}
-
-/** After each step: starts a swell when one is due and allowed, and ends one that is no longer allowed. */
-async function swellStep($: EngineInterface): Promise<void> {
-  const entry = chosen(ctxOf($).saved, 'cicadas')
-  const now = await $.clock.now()
-  const o = out
-  const allowed =
-    o?.mixer !== undefined && !o.isDone && entry.swell !== undefined && bed !== undefined && bed.file === entry.bed && bed.level >= 1 &&
-    bed.sky.weather < 2 && (bed.sky.sun === GOLDEN || bed.sky.sun === DUSK) && bed.evening !== true && ducks === 0
-  if (!allowed || o === undefined || bed === undefined || entry.swell === undefined) {
-    endSwell($, Math.max(OFF_FADE_MS, (bed?.settledAt ?? now) - now))
-    nextSwellAt = undefined
-    return
-  }
-  if (swell !== undefined && swell.gain !== bed.gain) endSwell($, LEVEL_FADE_MS)
-  nextSwellAt ??= now + swellGapMs(now)
-  if (swell !== undefined || now < nextSwellAt) return
-  const length = swellLengthMs(now)
-  const peak = bed.gain * bed.level * SWELL.peak
-  const hold = length - SWELL.inMs - SWELL.outMs
-  mixerSend($, o, { verb: 'to', name: entry.swell, gain: peak, fadeMs: SWELL.inMs, then: peak, thenMs: hold })
-  const file = entry.swell
-  const timer = $.clock.after(SWELL.inMs + hold, () => {
-    if (swell?.file === file && out === o && !o.isDone) mixerSend($, o, { verb: 'to', name: file, gain: 0, fadeMs: SWELL.outMs, then: 0, thenMs: 0 })
-    swell = undefined
-  })
-  swell = { file, gain: bed.gain, o, timer }
-  nextSwellAt = now + length + swellGapMs(now + length)
-}
 
 /**
  * From the tick to the shader taking the minute it sends: the app starts easing a value about 510 ms after a redraw

@@ -10,9 +10,9 @@ export const BANK = {
   cicadas: {
     default: 'auto',
     entries: {
-      auto: { bed: 'cicadas/chorus.wav', swell: undefined },
-      chorus: { bed: 'cicadas/chorus.wav', swell: undefined },
-      river: { bed: 'cicadas/river.wav', swell: undefined },
+      auto: { bed: 'cicadas/chorus.wav' },
+      chorus: { bed: 'cicadas/chorus.wav' },
+      river: { bed: 'cicadas/river.wav' },
     },
   },
   night: {
