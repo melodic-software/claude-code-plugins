@@ -7,12 +7,13 @@
 //            the release on a hold path (no write token)
 //   push     checks each planned branch and recreates it through the Git Data
 //            API as one lanes App commit on the base (mutate-branch token)
-//   publish  opens one PR per pushed branch and files the release's handoffs
-//            as one issue (publish-artifact token)
+//   publish  opens one PR per pushed branch and files one issue per handoff
+//            row, plus a stopped plan's stop notice (publish-artifact token)
 // The plan and each branch's tree come from the apply-changelog job, so every field is
 // data: names are held to fixed shapes and each branch's net diff to its
 // plugin's paths, none of them a hold path. The bundle holds the scan job's
-// synthetic commits only.
+// synthetic commits only. The plan and how publish files it:
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -36,16 +37,17 @@ export const doneArtifact = (release) => `upstream-apply-changelog-done-${releas
 export const alreadyProcessed = (artifacts) => (artifacts?.total_count ?? 0) > 0;
 export const handoffMarker = (key) => `<!-- upstream-apply-changelog key=${key} -->`;
 export const releaseMarker = (release) => `<!-- upstream-apply-changelog release=${release} -->`;
-const ISSUE_BODY_MAX = 65536; // GitHub's issue body limit
-const TRUNCATED = "Handoff bodies are truncated proportionally to fit GitHub's 65536-character issue body limit.";
+export const SOURCE_LABEL = "source: upstream-apply-changelog";
 const KIND = /^[a-z][a-z-]{0,39}$/;
+const REASON_MAX = 500;
 // ci-mode.md: the two reasons a plan stops before deriving any row, and
 // hold-path, which the scan job sets when a planned branch changes one.
 const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed", "hold-path"]);
 // range-not-computed can pass on a later run (the changelog fetch failed, or
 // the page lags the tag), so it files nothing and leaves the release undone;
 // cap-exceeded and hold-path come from the release's fixed changelog text, so
-// its issue is filed and the release marked done.
+// its stop notice and rows are filed and the release marked done
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
 export const marksDone = (stop) => stop !== "range-not-computed";
 
 const STOP_WHY = {
@@ -53,9 +55,9 @@ const STOP_WHY = {
 };
 const stopLine = (release, stop) =>
   `The plan for Claude Code v${release} stopped (stop_reason \`${stop}\`): ${STOP_WHY[stop] ?? "no changelog row was derived and no branch was opened"}. ` +
-  "The release is marked done once this issue holds its handoffs, so later runs do not take it again.";
-const RELEASE_ISSUE_TYPE = "Task";
-const releaseTitle = (release, n) => `Claude Code v${release} changelog: ${n} handoff${n === 1 ? "" : "s"}`;
+  "Any handoff rows it has are filed one issue per row. This notice holds no row and no `source:` label, so intake leaves it for a person. " +
+  "The release is marked done once this notice and every row issue are filed, so later runs do not take it again.";
+const ISSUE_TYPE = "Task";
 const keysIn = (body) => [...body.matchAll(/<!-- upstream-apply-changelog key=(\S+) -->/g)].map((m) => m[1]);
 const DRIFT_LINE = "Drift key: ";
 const DRIFT_KEY = /^[A-Za-z0-9_.:@/-]{1,200}$/;
@@ -74,120 +76,155 @@ async function openDriftIssue(api, repo, driftKey) {
 async function withoutOpenDrift(api, repo, handoffs) {
   const open = new Map();
   const kept = [];
+  let skipped = 0;
   for (const h of handoffs) {
     const driftKey = driftKeyOf(h.body);
     if (driftKey && !open.has(driftKey)) open.set(driftKey, await openDriftIssue(api, repo, driftKey));
     const issue = driftKey && open.get(driftKey);
-    if (issue) console.log(`${h.key}: drift key ${driftKey} is already open in #${issue.number}; not filed again`);
-    else kept.push(h);
+    if (issue) {
+      skipped++;
+      console.log(`${h.key}: drift key ${driftKey} is already open in #${issue.number}; not filed again`);
+    } else kept.push(h);
   }
-  return kept;
+  return { kept, skipped };
 }
 
-// One checklist item per handoff, its body indented under it, within `budget`
-// characters: when the bodies do not fit, each is cut in proportion to its
-// length and a line says so.
-export function renderItems(handoffs, budget) {
-  const indent = (text) => text.replace(/^(?=.)/gm, "  ");
-  const item = (h, body) => {
-    const kind = KIND.test(h.kind ?? "") ? h.kind : "handoff";
-    return `- [ ] ${kind}: ${h.title}\n\n${body ? `${body}\n\n` : ""}  ${handoffMarker(h.key)}\n`;
-  };
-  const bodies = handoffs.map((h) => indent(h.body));
-  const full = handoffs.map((h, i) => item(h, bodies[i])).join("\n");
-  if (full.length <= budget) return full;
-  const fixed = handoffs.map((h) => item(h, "")).join("\n").length + TRUNCATED.length + 2;
-  const room = budget - fixed - handoffs.length * 2;
-  if (room < 0) throw new Error("the handoff checklist does not fit in one issue body");
-  const total = bodies.reduce((sum, b) => sum + b.length, 0);
-  const cut = bodies.map((b) => b.slice(0, Math.floor((b.length * room) / total)).trimEnd());
-  return `${TRUNCATED}\n\n${handoffs.map((h, i) => item(h, cut[i])).join("\n")}`;
+// A native-overlap verdict is never the lane's
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/audit-native-overlap/SKILL.md,
+// "Never auto-verdict"). Admission refuses a body line opening with `Hold:`
+// (admit.mjs BODY_HOLD), so a nomination has no agent-ready path.
+export const NOMINATION_HOLD =
+  "Hold: a replace nomination from the upstream-apply-changelog lane. A native-overlap verdict is written by a person, " +
+  "or a session acting on the owner's recorded direction (/harness-ops:audit-native-overlap, \"Never auto-verdict\"), " +
+  "so this issue has no agent-ready path. Run /harness-ops:audit-native-overlap on the owner surface to record a keep or replace verdict; removing this line lifts the hold.";
+const ROUTE = {
+  issue: "Route: an ordinary issue; intake and review decide any hold.",
+  nomination: "Route: a nomination for /harness-ops:audit-native-overlap, never lane work.",
+};
+const lensOf = (key) => key.split(":")[2];
+const kindOf = (h) => (KIND.test(h.kind ?? "") ? h.kind : "handoff");
+const oneLine = (text) => text.replace(/\s+/g, " ").trim();
+const reasonOf = (h) => (typeof h.reason === "string" && oneLine(h.reason) ? oneLine(h.reason).slice(0, REASON_MAX) : "none given");
+
+// The route per lens or kind:
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan
+export function routeOf(h) {
+  const lens = lensOf(h.key);
+  if (lens === "docs-lag" || h.kind === "docs-lag") return "log";
+  if (lens === "replace" || h.kind === "nomination") return "nomination";
+  return "issue";
 }
 
-// The new release issue's title and body, as publish posts them; a stopped
-// plan's issue opens with its stop_reason.
-export function releaseIssue(release, handoffs, stop = null) {
-  const head = `${releaseMarker(release)}\n\n${stop ? `${stopLine(release, stop)}\n\n` : ""}`;
-  return { title: releaseTitle(release, handoffs.length), type: RELEASE_ISSUE_TYPE, body: head + renderItems(handoffs, ISSUE_BODY_MAX - head.length) };
+export function rowIssue(h) {
+  const route = routeOf(h);
+  const head = [
+    handoffMarker(h.key),
+    "",
+    ...(route === "nomination" ? [NOMINATION_HOLD, ""] : []),
+    `Lens: \`${lensOf(h.key)}\``,
+    `Handoff reason (\`${kindOf(h)}\`): ${reasonOf(h)}`,
+    ROUTE[route],
+    "",
+  ];
+  return { title: h.title, type: ISSUE_TYPE, labels: [SOURCE_LABEL], body: `${head.join("\n")}\n${h.body}` };
 }
+
+const docsLagLine = (h) => `docs-lag, not filed (an upstream docs gap): \`${h.key}\` ${h.title}`;
+
+export const stopIssue = (release, stop) => ({
+  title: `Claude Code v${release} changelog: plan stopped (${stop})`,
+  type: ISSUE_TYPE,
+  body: `${releaseMarker(release)}\n\n${stopLine(release, stop)}\n`,
+});
 
 // Every string publish can post from the plan, as plain text for the scan
-// job: each pull request title and body, the new release issue, and the
-// handoff items untruncated, as an append or a comment posts them.
+// job: each pull request title and body, and the issue strings and summary
+// lines fileHandoffs can post
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
 export function publishText(plan, release) {
   const parts = plan.branches.flatMap((b) => [b.pr.title, b.pr.body]);
-  if (marksDone(plan.stop_reason) && (plan.handoffs.length || plan.stop_reason)) {
-    const issue = releaseIssue(release, plan.handoffs, plan.stop_reason);
-    parts.push(issue.title, issue.body, renderItems(plan.handoffs, Number.POSITIVE_INFINITY));
+  if (marksDone(plan.stop_reason)) {
+    if (plan.stop_reason) {
+      const notice = stopIssue(release, plan.stop_reason);
+      parts.push(notice.title, notice.body);
+    }
+    for (const h of plan.handoffs) {
+      if (routeOf(h) === "log") parts.push(docsLagLine(h));
+      else {
+        const issue = rowIssue(h);
+        parts.push(issue.title, issue.body);
+      }
+    }
   }
   return `${parts.join("\n\n")}\n`;
 }
 
-// Files a release's handoffs as one issue, found again by its release marker
-// in any state. Only an issue the lanes App opened counts, and only key
-// markers in its body and the App's comments: anyone can type a marker. An
-// open issue missing some keys gets them appended in one update, or in one
-// comment when the body would pass the limit; a closed one is left alone.
-// A stopped plan publish files (`stop` is a stop_reason marksDone accepts)
-// is marked done once this returns, so it files the issue even with no
-// handoffs, and a closed issue missing a key throws instead.
-export async function fileReleaseHandoffs({ repo, release, handoffs: planned, stop = null, api }) {
-  const handoffs = await withoutOpenDrift(api, repo, planned);
-  if (!handoffs.length && !stop) return planned.length ? "every handoff's drift key is already open; nothing filed" : "no handoffs; nothing filed";
-  const marker = releaseMarker(release);
-  const app = LANES_APP_LOGIN.replace(/\[bot\]$/, "");
-  const q = encodeURIComponent(`repo:${repo} is:issue author:app/${app} in:body "upstream-apply-changelog release=${release}"`);
-  const found = await api(`/search/issues?q=${q}&per_page=20`);
-  const issue = (found?.items ?? []).find(
-    (i) => i?.user?.login === LANES_APP_LOGIN && typeof i.body === "string" && i.body.includes(marker),
-  );
-  if (!issue) {
-    const filed = await api(`/repos/${repo}/issues`, { method: "POST", body: releaseIssue(release, handoffs, stop) });
-    // GitHub drops a type the token may not set without an error.
-    if (filed?.type?.name !== RELEASE_ISSUE_TYPE) {
-      console.log(`::warning::#${filed?.number} came back without Issue Type ${RELEASE_ISSUE_TYPE}`);
-    }
-    return `filed ${handoffs.length} handoffs as one issue`;
+const APP_AUTHOR = `author:app/${LANES_APP_LOGIN.replace(/\[bot\]$/, "")}`;
+const SEARCH_PAGES = 10;
+const ownOpen = (i) => i?.user?.login === LANES_APP_LOGIN && i.state === "open" && typeof i.body === "string";
+
+// Keys carry the release, so one search finds them all, an older per-release
+// checklist's included. The search API returns at most 1000 results
+// (https://docs.github.com/en/rest/search/search#about-search), so past that
+// it throws rather than file a key twice.
+async function openKeys(api, repo, release) {
+  const q = encodeURIComponent(`repo:${repo} is:issue is:open ${APP_AUTHOR} in:body "upstream-apply-changelog key=changelog:${release}..${release}"`);
+  const open = new Map();
+  for (let page = 1; page <= SEARCH_PAGES; page++) {
+    const items = (await api(`/search/issues?q=${q}&per_page=100&page=${page}`))?.items;
+    if (!Array.isArray(items)) throw new Error("the open-key search did not come back as a list");
+    for (const i of items.filter(ownOpen)) for (const k of keysIn(i.body)) if (!open.has(k)) open.set(k, i.number);
+    if (items.length < 100) return open;
   }
-  if (issue.state !== "open" && !stop) return `the release issue #${issue.number} is closed; nothing filed`;
-  const comments = await listComments(api, repo, issue.number);
-  const own = comments.filter((c) => c?.user?.login === LANES_APP_LOGIN && typeof c.body === "string");
-  const have = new Set([issue.body, ...own.map((c) => c.body)].flatMap(keysIn));
-  const missing = handoffs.filter((h) => !have.has(h.key));
-  if (!missing.length) return `the release issue #${issue.number} already holds every handoff`;
-  if (issue.state !== "open") {
-    throw new Error(`the release issue #${issue.number} is closed and lacks ${missing.length} handoffs; the stopped release is not marked done`);
-  }
-  const base = `${issue.body.trimEnd()}\n\n`;
-  const items = renderItems(missing, Number.POSITIVE_INFINITY);
-  if (base.length + items.length > ISSUE_BODY_MAX) {
-    // The body is full: the missing items go in one comment instead.
-    const head = `${marker}\n\n`;
-    const body = head + renderItems(missing, ISSUE_BODY_MAX - head.length);
-    await api(`/repos/${repo}/issues/${issue.number}/comments`, { method: "POST", body: { body } });
-    return `commented ${missing.length} handoffs on the full release issue #${issue.number}`;
-  }
-  await api(`/repos/${repo}/issues/${issue.number}`, {
-    method: "PATCH",
-    body: { title: releaseTitle(release, have.size + missing.length), body: base + items },
-  });
-  return `appended ${missing.length} handoffs to the release issue #${issue.number}`;
+  throw new Error(`more open issues hold this release's keys than ${SEARCH_PAGES} search pages return`);
 }
 
-const COMMENT_PAGES = 10;
+// GitHub drops a type or label the token may not set without an error
+// (https://docs.github.com/en/rest/issues/issues#create-an-issue).
+function checkFiled(filed, labeled) {
+  if (filed?.type?.name !== ISSUE_TYPE) console.log(`::warning::#${filed?.number} came back without Issue Type ${ISSUE_TYPE}`);
+  if (labeled && !(filed?.labels ?? []).some((l) => l?.name === SOURCE_LABEL)) console.log(`::warning::#${filed?.number} came back without the label ${SOURCE_LABEL}`);
+}
 
-// Every comment the release issue holds, read a full page at a time up to
-// COMMENT_PAGES pages; more than that, or an answer that is not a list,
-// throws so no key is filed twice.
-async function listComments(api, repo, number) {
-  const all = [];
-  for (let page = 1; page <= COMMENT_PAGES; page++) {
-    const batch = await api(`/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`);
-    if (!Array.isArray(batch)) throw new Error(`the comments on #${number} did not come back as a list`);
-    all.push(...batch);
-    if (batch.length < 100) return all;
+async function fileStopNotice(api, repo, release, stop) {
+  const marker = releaseMarker(release);
+  const q = encodeURIComponent(`repo:${repo} is:issue ${APP_AUTHOR} in:body "upstream-apply-changelog release=${release}"`);
+  const found = await api(`/search/issues?q=${q}&per_page=20`);
+  const issue = (found?.items ?? []).find((i) => i?.user?.login === LANES_APP_LOGIN && typeof i.body === "string" && i.body.includes(marker));
+  if (issue) return `the stop notice #${issue.number} is already filed`;
+  checkFiled(await api(`/repos/${repo}/issues`, { method: "POST", body: stopIssue(release, stop) }), false);
+  return `filed the stop notice (${stop})`;
+}
+
+const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// Any failed read or write throws, so the release is not marked done and the
+// next run, which skips what is open, finishes it
+// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
+export async function fileHandoffs({ repo, release, handoffs: planned, stop = null, api, summary = () => {} }) {
+  if (!planned.length && !stop) return "no handoffs; nothing filed";
+  const said = stop ? [await fileStopNotice(api, repo, release, stop)] : [];
+  const logged = planned.filter((h) => routeOf(h) === "log");
+  for (const h of logged) {
+    console.log(docsLagLine(h));
+    summary(docsLagLine(h));
   }
-  throw new Error(`#${number} has more comments than ${COMMENT_PAGES} pages hold`);
+  const { kept, skipped } = await withoutOpenDrift(api, repo, planned.filter((h) => routeOf(h) !== "log"));
+  const open = kept.length ? await openKeys(api, repo, release) : new Map();
+  let filed = 0;
+  for (const h of kept) {
+    if (open.has(h.key)) {
+      console.log(`${h.key}: already open in #${open.get(h.key)}; not filed again`);
+      continue;
+    }
+    checkFiled(await api(`/repos/${repo}/issues`, { method: "POST", body: rowIssue(h) }), true);
+    filed++;
+  }
+  said.push(`filed ${count(filed, "handoff issue")}`);
+  if (kept.length > filed) said.push(`${kept.length - filed} already open`);
+  if (skipped) said.push(`${count(skipped, "drift key")} already open`);
+  if (logged.length) said.push(`${count(logged.length, "docs-lag row")} logged`);
+  return said.join("; ");
 }
 
 function output(name, value) {
@@ -634,14 +671,13 @@ async function publish(env) {
     opened++;
   }
   console.log(`opened ${opened} pull requests`);
-  // A deterministic stop's release is marked done once its issue holds every
-  // handoff; a filing that fails throws, and the next run takes it again.
   if (!marksDone(plan.stop_reason)) {
     console.log(`::notice::the plan for Claude Code v${release} stopped (${plan.stop_reason}); nothing filed, and the next run takes it again`);
     output("done", "false");
     return;
   }
-  console.log(await fileReleaseHandoffs({ repo, release, handoffs: plan.handoffs, stop: plan.stop_reason, api }));
+  const summary = (line) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `- ${line}\n`);
+  console.log(await fileHandoffs({ repo, release, handoffs: plan.handoffs, stop: plan.stop_reason, api, summary }));
   output("done", "true");
 }
 

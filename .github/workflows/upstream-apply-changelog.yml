@@ -12,8 +12,12 @@ name: Upstream Apply Changelog
 #     commit on the base through the Git Data API, titled with the plan's pull
 #     request title, so GitHub authors and signs it as the lanes App;
 #   publish (publish-artifact: pull-requests and issues write, contents read)
-#     opens one pull request per pushed branch and files the release's
-#     handoffs as one issue.
+#     opens one pull request per pushed branch and files one issue per handoff
+#     row, each with its key marker and the `source: upstream-apply-changelog`
+#     label (a replace row as an audit-native-overlap nomination with a Hold:
+#     line; a docs-lag row only in the run summary), as
+#     https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan
+#     says.
 # The broker never grants contents and pull-requests write in one mint, nor
 # merge or actions, so no job here can merge.
 #
@@ -2285,12 +2289,13 @@ jobs:
 
   # publish-artifact: pull-requests and issues write, contents read. Opens a
   # pull request for each branch at the head push-branches left that has
-  # none, and files the release's handoffs as one issue, appending keys an
-  # open one lacks; then records the release done. A cap-exceeded or
-  # hold-path plan files its issue, naming its stop_reason, and is recorded
-  # done once that issue holds every handoff key; a range-not-computed plan
-  # files nothing and is not recorded done, so the next run takes the
-  # release again.
+  # none, and files one issue per handoff row, skipping a row whose key or
+  # Drift key line an open lanes App issue holds; then records the release
+  # done. A cap-exceeded or hold-path plan also files one stop notice naming
+  # its stop_reason, with no row and no label, and is recorded done once the
+  # notice and every row are filed; a range-not-computed plan files nothing
+  # and is not recorded done, so the next run takes the release again
+  # (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
   publish:
     name: Publish
     needs: [select-release, scan, push-branches]

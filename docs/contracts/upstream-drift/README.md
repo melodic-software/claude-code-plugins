@@ -595,10 +595,13 @@ puts `needs-human` on the drift issue, and the owner decides it there.
 `docs/upstream/claude-code.md` uses the `changelog through` marker, which
 `scripts/check-upstream-drift.sh` skips. Its trigger, a release newer than that marker, is detected
 by `.github/workflows/upstream-apply-changelog.yml`: every hour it takes the newest unread
-release not yet done, opens the pull requests that release calls for, and, when its plan has
-handoffs or a stop reason, files them as one issue from the lanes App. Intake triage reads that
-issue and does not admit it to the issue lane. A release with no handoffs and no stop reason files
-no issue.
+release not yet done, opens the pull requests that release calls for, and files each handoff row
+as its own issue from the lanes App, labeled `source: upstream-apply-changelog`, so intake triage
+and admission judge each row. A row whose key or `Drift key:` line is already on an open lanes App
+issue files nothing. A replace row is filed as a nomination for `/harness-ops:audit-native-overlap`
+with a `Hold:` line, so it has no issue-lane path; a docs-lag row, an upstream docs gap, is named
+in the run summary only. A plan with a stop reason also files one stop notice, with no row and no
+label, for a person. A release with no handoffs and no stop reason files no issue.
 
 ## Enforceability
 
