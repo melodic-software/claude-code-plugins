@@ -47,16 +47,13 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    |----------|-----------|------------------------------|
    | Pure logic, value objects, domain rules | Unit | project's unit-test project convention + framework |
    | HTTP endpoints, middleware, DI wiring | Integration | project's integration-test location + framework |
-   | Service orchestration, runtime composition | Integration (orchestrator) | project's orchestrator (Aspire, docker-compose, tilt) + framework |
+   | Service orchestration, runtime composition | Integration (orchestrator) | project's orchestrator + framework |
    | Layer dependencies, naming, conventions | Architecture | project's architecture-test project, when one exists |
    | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:run-e2e`) |
    | Parsers, serializers, pure transforms, collections and stateful classes | Property, beside examples | the project's property library; see [property.md](property.md) |
    | Behavior to keep through a replace, migrate or legacy refactor | Characterization, approval or differential (pins) | the project's approval or snapshot tooling; see [characterization.md](characterization.md) |
 
-3. **Write the failing test first** (Red), and run it to see it fail. On a bug fix, the first red runs against the existing code and fails on the wrong behavior, not on a missing symbol. The test name is the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. Illustrative forms (.NET/xUnit), with casing and separators adapted to the target ecosystem:
-   - Unit: `{Method}_Should{Behavior}_When{Condition}`
-   - Integration: `{Subject}_{Behavior}` or `{Subject}_{Behavior}_{Context}`
-   - Architecture: `{Subject}_Should{Constraint}`
+3. **Write the failing test first** (Red), and run it to see it fail. On a bug fix, the first red runs against the existing code and fails on the wrong behavior, not on a missing symbol. The test name is the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom.
 
 4. **Make it pass** (Green). Write the minimum code: don't design, abstract, or tidy, and don't optimize. Run the suite and see it green.
 
@@ -92,7 +89,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 - [ ] With `tdd_refactor_step: on`, the refactor ran after a green run, as its own step, and the cycle wrote its plain `Refactor checkpoint:` line
-- [ ] Hollow-out run, worked through: `const cart = { items: [a, b, c] }; totalCart(cart); expect(cart.items).toHaveLength(3);` asserts only on the `cart` literal, so it is green whatever `totalCart` does. Swap each function the test pulls from the module under test for one that gives back `undefined` (`None` in Python, `null` in C# or Java), run the test once, and expect red. When every assertion can be satisfied by the test's own fixtures or mocks without the subject running, point them at what the subject returns or changes (here, the total `totalCart` returns)
+- [ ] Hollow-out run: swap each function the test pulls from the module under test for one that gives back nothing, run the test once, and expect red. When every assertion can be satisfied by the test's own fixtures or mocks without the subject running, point them at what the subject returns or changes
 
 ## Four Pillars Assessment (Khorikov)
 
@@ -136,27 +133,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 
 ## Verify through the interface, not around it
 
-A managed database (one only your application touches) is real: reading the row back after the act step is legitimate state verification, as long as the test asserts the fields rather than that a row exists. What couples a test to the implementation is reading internal tables the public contract never exposes when a public read path exists. `testing:test-value` §3 owns the rule. Illustrative: .NET/xUnit; the principle is ecosystem-agnostic:
-
-```csharp
-// GOOD: state verification of a managed database, asserting the fields
-[Fact]
-public async Task CreateUser_StoresTheUser()
-{
-    var user = await _sut.CreateUser(new("Alice"));
-    var row = await _db.QuerySingleAsync<UserRow>("SELECT * FROM Users WHERE Id = @Id", new { user.Id });
-    Assert.Equal("Alice", row.Name);
-}
-
-// BAD: reads an internal index table the contract never exposes, while SearchUsers is the public read path
-[Fact]
-public async Task CreateUser_IndexesTheName()
-{
-    await _sut.CreateUser(new("Alice"));
-    var key = await _db.ExecuteScalarAsync<string>("SELECT NormalizedName FROM UserSearchIndex");
-    Assert.Equal("ALICE", key);
-}
-```
+A managed database (one only your application touches) is real: reading the row back after the act step is legitimate state verification, as long as the test asserts the fields rather than that a row exists. What couples a test to the implementation is reading internal tables the public contract never exposes when a public read path exists. `testing:test-value` §3 owns the rule.
 
 When no public read path exists and the stored state is not the contract, reaching around the interface is a design signal: the interface is missing an observable output.
 

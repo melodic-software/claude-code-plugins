@@ -10,7 +10,7 @@ Per-ecosystem naming and locations come from the consuming project's testing con
 
 | Test type | Convention source |
 |-----------|-------------------|
-| Unit tests | project's unit-test project naming (e.g. `{Project}.Tests` co-located, in .NET) |
+| Unit tests | project's unit-test project naming |
 | Integration tests (single project) | same convention as unit tests when scoped to one project |
 | Integration tests (cross-project) | project's integration-test location (often a central `tests/` root) |
 | Architecture tests | project's architecture-test project, when one exists |
@@ -44,12 +44,8 @@ All architecture rules for an ecosystem share one assembly-loading context. Scal
 
 Where a process-global singleton, expensive lifecycle, or framework-side limitation forces a specific fixture pattern, the consuming project's testing conventions name the affected projects and the required pattern. Consult them before writing or moving tests under any such project.
 
-## Nested test projects (.NET)
-
-Never place a test project as a child directory of another project, for any SDK-style project, not only a Web SDK app; why: [.NET project SDK overview § Default includes and excludes](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/overview#default-includes-and-excludes). App integration tests go under the project's integration-test location instead.
-
 ## Naming
 
-- Test class: the project's documented test-class naming; when undocumented, mirror the ecosystem's idiom (`{ClassUnderTest}Tests` illustrates the .NET convention)
-- Test project: the project's unit-test naming convention (e.g. `{Project}.Tests` for .NET co-located)
+- Test class: the project's documented test-class naming; when undocumented, mirror the ecosystem's idiom
+- Test project: the project's unit-test naming convention
 - Test file mirrors the structure of the code it tests
