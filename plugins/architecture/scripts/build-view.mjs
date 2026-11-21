@@ -123,7 +123,7 @@ try {
     throw err instanceof SyntaxError ? new RecordError("the record is not JSON") : err;
   }
   if (kind === "deepening" && flags["--from"]) throw new RecordError("--from does not apply to the deepening record");
-  if (!isObject(record) || record.schema_version !== 1) throw new RecordError("the record is not a schema_version 1 record");
+  if (kind !== "deepening" && (!isObject(record) || record.schema_version !== 1)) throw new RecordError("the record is not a schema_version 1 record");
   const page = kind === "deepening" ? deepeningPage(record) : buildView({
     profile: "interactive",
     template: readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
