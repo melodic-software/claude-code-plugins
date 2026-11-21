@@ -32,8 +32,8 @@
 # Lines inside fenced code blocks are ignored, in the ledger and the round; a
 # fence left open exits 2.
 #
-# Exit 0 = no bare code (a round with none passes)
-# Exit 1 = at least one bare code
+# Exit 0 = no bare code and no structure failure (a round with none passes)
+# Exit 1 = at least one bare code or structure failure
 # Exit 2 = usage error, a missing or unreadable file, or an unterminated fence
 #
 # Usage:
@@ -47,6 +47,21 @@ set -uo pipefail
 
 usage() {
   sed -n '/^# Bare-code gate/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+
+Two structure checks run beside the bare-code check:
+
+  answer line     each question block holds exactly one `My recommendation:`,
+                  `Withheld:`, `Discovery:` or (the product action)
+                  `Strong answer:` line
+  scope check     the lines before the first question hold a `Scope check:` line
+
+A label may follow a marker (any run of characters outside printable ASCII,
+such as an emoji) and sit in bold; round.py show reads labels the same way.
+Each failure prints `missing=<line>:<what>` (`recommendation` or
+`single-recommendation` at the question line, `scope-check` at line 1), and
+the closing line gains ` structure=<n>`.
+TXT
 }
 
 die() {
@@ -193,8 +208,22 @@ LC_ALL=C awk '
     add_code(question_id($0), 0)
     next
   }
+  function close_block() {
+    if (!block_line) return
+    if (block_answers != 1) {
+      missing++
+      printf "missing=%d:%s\n", block_line, (block_answers ? "single-recommendation" : "recommendation")
+    }
+  }
+  {
+    if (!block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?Scope check(\*\*|__)?:/) has_scope = 1
+    if (block_line && $0 ~ /^[^ -~]*[ \t]*(\*\*|__)?(My recommendation|Withheld|Discovery|Strong answer)(\*\*|__)?:/) block_answers++
+  }
   {
     if ((c = question_id($0)) != "") {
+      close_block()
+      block_line = FNR
+      block_answers = 0
       delete used
       # The Q<N> that opens a question line is the handle of that question,
       # named by the question itself whatever separator follows it.
@@ -204,8 +233,10 @@ LC_ALL=C awk '
   }
   END {
     if (in_fence) exit 4
-    printf "codes=%d bare=%d status=%s\n", n_codes, bare, (bare ? "fail" : "ok")
-    exit (bare ? 1 : 0)
+    close_block()
+    if (!has_scope) { missing++; print "missing=1:scope-check" }
+    printf "codes=%d bare=%d status=%s structure=%d\n", n_codes, bare, ((bare || missing) ? "fail" : "ok"), missing
+    exit ((bare || missing) ? 1 : 0)
   }
 ' ledger_file="$ledger" "$ledger" pass=1 "$round" pass=2 "$round"
 status=$?

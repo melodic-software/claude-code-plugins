@@ -69,6 +69,7 @@ run() {
 
 round named.md \
   'Round 2. The retry budget (question Q14, retry budget) is three tries.' \
+  'Scope check: 2 of 27 questions registered' \
   '' \
   '❓ Q15: **Should a failed retry page the on-call?**' \
   'Context: each lane (one parallel builder session) retries alone (`src/retry.ts:12`).' \
@@ -80,7 +81,8 @@ round named.md \
   '- (a) Page on every failure. Fast response, but noisy nights.' \
   '' \
   'Q16: Does question Q15, paging on failure, change the alert threshold?' \
-  'Context: the threshold rests on Q15, paging on failure.'
+  'Context: the threshold rests on Q15, paging on failure.' \
+  '➡️ My recommendation: no; the alert threshold stays as it is.'
 run "a round that names every code passes" 0 named.md 'bare=0 status=ok'
 
 round bare.md \
@@ -106,10 +108,12 @@ round own-ids.md \
 run "a question id from the round itself is checked" 1 own-ids.md '^bare=2:Q20$'
 
 round fenced.md \
+  'Scope check: 2 of 27 questions registered' \
   'Q15: Which layout?' \
   '```text' \
   'C1 C3 Q14 lane' \
-  '```'
+  '```' \
+  'Discovery: which layouts the readers already know.'
 run "a fenced block is ignored" 0 fenced.md 'status=ok'
 run "a fenced ledger row is not a code" 0 fenced.md '^codes=6 '
 
@@ -118,8 +122,10 @@ round words.md \
   'Context: the C10 rule and Q140 are not ledger ids, and planes are not lanes (one builder session each).'
 run "a plural term, named later, is still bare at first use" 1 words.md '^bare=1:lane$'
 round words2.md \
+  'Scope check: 2 of 27 questions registered' \
   'Q15: Should two builder sessions share a cache?' \
-  'Context: the C10 rule and Q140 are not ledger ids; planes and a laneway are not the term.'
+  'Context: the C10 rule and Q140 are not ledger ids; planes and a laneway are not the term.' \
+  'My recommendation: no; each session keeps its own cache.'
 run "a longer token or word is not a code" 0 words2.md 'status=ok'
 
 round open.md 'Q15: Which?' '```'
@@ -137,7 +143,7 @@ round connective.md 'Q15: Which store?' 'Context: this follows Q14, so the budge
 run "a comma and a connective do not name a code" 1 connective.md '^bare=2:Q14$'
 round words3.md 'Q15: Does Q14 hold?'
 run "a code inside the question line is bare" 1 words3.md '^bare=1:Q14$'
-round dot-heading.md 'Q15. Should a failed retry page the on-call?'
+round dot-heading.md 'Scope check: 2 of 27 questions registered' 'Q15. Should a failed retry page the on-call?' 'My recommendation: no.'
 run "a question opened with Q<N>. names its own id" 0 dot-heading.md 'bare=0 status=ok'
 round paren-heading.md '**Q15)** Should a failed retry page the on-call?' 'Q16) Does it follow Q15?'
 run "a question opened with Q<N>) names its own id" 1 paren-heading.md '^bare=2:Q15$'
@@ -164,13 +170,22 @@ if [[ "$got" -eq 1 ]] && grep -q '^bare=3:S1$' <<<"$out" && grep -q 'bare=1 stat
 else
   fail "a scenario opened with a bare S<N>: that is also a sweep id fails ($out)"
 fi
-run "with no sweep rows a scenario opened with a bare S<N>: passes" 0 walk-overlap.md 'bare=0 status=ok'
+round walk-overlap-round.md \
+  'Scope check: 2 of 27 questions registered' \
+  'Q17: What is a booking once it moves?' \
+  'Context:' \
+  'S1: Priya holds Tuesday 10:00 and pays 40.00; on Monday she moves it to Thursday.' \
+  'Checked against: S1' \
+  'My recommendation: the same booking, moved.'
+run "with no sweep rows a scenario opened with a bare S<N>: passes" 0 walk-overlap-round.md 'bare=0 status=ok'
 round walk.md \
+  'Scope check: 2 of 27 questions registered' \
   'Q17: What is a booking once it moves?' \
   'Context:' \
   'Q17.S1: Priya holds Tuesday 10:00 and pays 40.00; on Monday she moves it to Thursday.' \
   '(a) Same booking. (b) A new booking. Recommend (a): forces "reschedule".' \
-  '**Q17.S2:** Omar cancels on Wednesday. Recommend (b), Q17.S1 still stands: forces "cancel".'
+  '**Q17.S2:** Omar cancels on Wednesday. Recommend (b), Q17.S1 still stands: forces "cancel".' \
+  'My recommendation: a moved booking stays the same booking.'
 if out="$(bash "$SUT" --ledger "$TMP/sweep-ledger.md" "$TMP/walk.md" 2>&1)" &&
   grep -q 'codes=3 bare=0 status=ok' <<<"$out"; then
   pass "a scenario walk with question-qualified ids passes beside sweep rows"
@@ -219,8 +234,10 @@ else
   fail "a bare problem id fails ($out)"
 fi
 round problem-named.md \
+  'Scope check: 2 of 27 questions registered' \
   'Q2: Does the alert fix it?' \
-  'Context: this serves P1, staff cannot find the queue, and Q1 (the queue question).'
+  'Context: this serves P1, staff cannot find the queue, and Q1 (the queue question).' \
+  'Withheld: the alert trial has not reported yet.'
 if out="$(bash "$SUT" --ledger "$TMP/problem-ledger.md" "$TMP/problem-named.md" 2>&1)" &&
   grep -q 'bare=0 status=ok' <<<"$out"; then
   pass "a named problem id passes"
@@ -244,6 +261,57 @@ if out="$(bash "$SUT" --ledger "$TMP/fixture-ledger.md" "$fixture" 2>&1)" &&
 else
   fail "the shared round fixture names every code ($out)"
 fi
+if grep -q 'structure=0' <<<"$out"; then
+  pass "the shared round fixture passes the structure checks"
+else
+  fail "the shared round fixture passes the structure checks ($out)"
+fi
+awk '{ print } /^- No reader is named yet\.$/ {
+  print "- Basis: no reader survey exists yet."
+  print "- My recommendation: none until a reader is named."
+}' "$fixture" >"$TMP/fixture-bullets.md"
+out="$(bash "$SUT" --ledger "$TMP/fixture-ledger.md" "$TMP/fixture-bullets.md" 2>&1)"
+got=$?
+if [[ "$got" -eq 0 ]] && grep -q 'bare=0 status=ok structure=0' <<<"$out"; then
+  pass "a Context bullet that starts with a label word is not a label"
+else
+  fail "a Context bullet that starts with a label word is not a label (exit $got: $out)"
+fi
+
+round no-rec.md \
+  'Scope check: 2 of 27 questions registered' \
+  '' \
+  '❓ Q15: **Should a failed retry page the on-call?**' \
+  'Context: each retry runs alone.'
+run "a decision question with no recommendation fails" 1 no-rec.md '^missing=3:recommendation$'
+run "a missing recommendation fails the summary" 1 no-rec.md 'bare=0 status=fail structure=1'
+round discovery.md \
+  'Scope check: 2 of 27 questions registered' \
+  '' \
+  '❓ Q15: **Who reads the retry entries?**' \
+  'Context: no reader is named yet.' \
+  'Discovery: who reads them settles whether they need a dashboard.'
+run "a discovery question with a Discovery: line passes" 0 discovery.md 'bare=0 status=ok structure=0'
+round no-scope.md \
+  'Round 2. The retry budget is settled.' \
+  '' \
+  '❓ Q15: **Should a failed retry page the on-call?**' \
+  '➡️ **My recommendation:** no; a retry stays silent.'
+run "a header with no Scope check: line fails" 1 no-scope.md '^missing=1:scope-check$'
+run "a bold recommendation label after a marker counts" 1 no-scope.md 'structure=1$'
+round two-recs.md \
+  'Scope check: 2 of 27 questions registered' \
+  'Q15: Should a failed retry page the on-call?' \
+  'My recommendation: no.' \
+  'Withheld: the paging trial has not reported.'
+run "a question with two answer lines fails" 1 two-recs.md '^missing=2:single-recommendation$'
+round product.md \
+  'Scope check: 3 of 15 questions registered' \
+  '' \
+  'Q3: Who has this problem today, by name?' \
+  'Strong answer: one named person, their role, and the last time it cost them.' \
+  'Basis: reference/product-principles.md, principle 4 (a real person with the problem)'
+run "a product-action round with a Strong answer: line passes" 0 product.md 'bare=0 status=ok structure=0'
 
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2

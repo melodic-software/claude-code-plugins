@@ -2959,7 +2959,7 @@ ROUND_LABELS = (
     "Basis",
 )
 ROUND_LABEL = re.compile(
-    rf"^[^\x00-\x7f]*\s*(?:\*\*|__)?({'|'.join(ROUND_LABELS)})(?:\*\*|__)?:"
+    rf"^[^ -~]*[ \t]*(?:\*\*|__)?({'|'.join(ROUND_LABELS)})(?:\*\*|__)?:"
 )
 QUESTION_LINE = re.compile(r"^[^A-Za-z0-9]*(Q[0-9]+)(?:[:)]|\.(?![A-Za-z0-9]))")
 ROUND_FENCE = re.compile(r"^\s*(```|~~~)")

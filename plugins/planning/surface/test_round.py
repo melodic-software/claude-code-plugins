@@ -5953,6 +5953,24 @@ class TestRoundShow(unittest.TestCase):
             out = self.show("minimal", path)
             self.assertEqual(out, ("\r\n".join(MINIMAL) + "\r\n").encode("utf-8"))
 
+    def test_a_context_bullet_that_starts_with_a_label_word_is_not_a_label(self):
+        bullets = [
+            "- Basis: no reader survey exists yet.",
+            "- My recommendation: none until a reader is named.",
+        ]
+        anchor = "- No reader is named yet.\n"
+        with tempfile.TemporaryDirectory(prefix="iv-show-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            text = ROUND_FULL.read_text(encoding="utf-8")
+            path.write_bytes(
+                text.replace(anchor, anchor + "".join(b + "\n" for b in bullets)).encode(
+                    "utf-8"
+                )
+            )
+            out = self.show("standard", path).decode("utf-8").splitlines()
+        at = out.index("- No reader is named yet.")
+        self.assertEqual(out[at + 1 : at + 3], bullets)
+
     def test_an_unknown_level_is_refused(self):
         rc, out, err = run_bytes("show", "--level", "brief", str(ROUND_FULL))
         self.assertNotEqual(rc, 0)
