@@ -7,7 +7,8 @@
 # or its type prefix (WIP:, wip(scope):, feat: WIP ...), or a [WIP] or (WIP) tag
 # anywhere. A WIP mid-sentence, such as "the WIP cap", holds nothing. A body line
 # starting "Hold:" holds the merge only, so it does not hold the flip, nor does
-# a do-not-merge label whose only stated reason is an eval hold. It is
+# a do-not-merge label whose only stated reason is an eval hold
+# (https://github.com/melodic-software/claude-code-plugins/issues/17887). It is
 # superseded when an issue it closes is already closed. With --unattended (no
 # person drives the run: a lane, a loop, a dispatched worker), a body line
 # starting "Draft:" (any case, after optional spaces or a quote marker), such as
