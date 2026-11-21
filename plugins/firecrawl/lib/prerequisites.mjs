@@ -445,10 +445,11 @@ function findLocalBin(rels, cwd, platform, fs) {
 // file is resolved against the caller's directory first, where which() found it
 // (a relative PATH entry gives a relative match), since the probe runs from HERE.
 function run(file, args, env) {
-  const viaShell = process.platform === "win32" && /\.(bat|cmd)$/i.test(file);
-  const command = viaShell ? [path.resolve(file), ...args].map((a) => `"${a}"`).join(" ") : path.resolve(file);
-  const r = spawnSync(command, viaShell ? [] : args, {
-    shell: viaShell,
+  const viaCmd = process.platform === "win32" && /\.(bat|cmd)$/i.test(file);
+  const line = [path.resolve(file), ...args].map((a) => `"${a}"`).join(" ");
+  const [command, argv] = viaCmd ? [env?.ComSpec ?? process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${line}"`]] : [path.resolve(file), args];
+  const r = spawnSync(command, argv, {
+    windowsVerbatimArguments: viaCmd,
     cwd: HERE,
     encoding: "utf8",
     timeout: PROBE_TIMEOUT_MS,
