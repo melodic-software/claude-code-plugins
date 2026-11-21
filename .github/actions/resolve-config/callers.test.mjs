@@ -10836,7 +10836,11 @@ function missingLegs(catalog, launched) {
 // when an exempt lane lacks a leg its entry does not name, or runs a leg its
 // entry waives, so an entry never covers more than it says and goes once its
 // lane gains the leg.
-const LEG_EXEMPTIONS = {};
+const COMPARE_KEY_ONLY = "owner decision Q136 (#17854): compare mode runs PR plugin text beside the eval credential on the API key alone, so no subscription token reaches it; an exemption from the leg chain of (#13586)";
+const LEG_EXEMPTIONS = {
+  "pr-run-plugin-evals.yml maintenance compare-before": { legs: ["subscription", "fallback"], reason: COMPARE_KEY_ONLY },
+  "pr-run-plugin-evals.yml maintenance compare-after": { legs: ["subscription", "fallback"], reason: COMPARE_KEY_ONLY },
+};
 const EXEMPTION_ISSUE = /\(#13586\)$/;
 // A secret name's leg: the role's API key, its subscription token, or the
 // central fallback token.

@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "compare-arms.sh");
 const ROOT = mkdtempSync(join(tmpdir(), "compare-arms-"));
 after(() => rmSync(ROOT, { recursive: true, force: true }));

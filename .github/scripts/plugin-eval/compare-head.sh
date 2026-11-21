@@ -8,6 +8,7 @@
 #   1  it does not, or it did not read
 # shellcheck disable=SC2154 # the step env sets PR, HEAD_SHA and DEFAULT_BRANCH, and the runner GITHUB_REPOSITORY
 set -euo pipefail
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 [[ $PR =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::PR and HEAD_SHA must be a number and a full SHA"; exit 1; }
 read -r state repo base head < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '[.state, .head.repo.full_name, .base.ref, .head.sha] | @tsv') || {
   echo "::error::pull request #$PR did not read"

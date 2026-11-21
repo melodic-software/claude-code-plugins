@@ -701,7 +701,7 @@
     "eval-compare-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/maintenance-measure-skill-edit-pass.yml same run, called by pr-run-plugin-evals.yml compare mode"
+        ".github/workflows/maintenance-measure-skill-edit-pass.yml same run, called by pr-run-plugin-evals.yml compare mode (the arm patches)"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",
       "scan": "upload"

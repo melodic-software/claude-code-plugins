@@ -2193,6 +2193,8 @@ jobs:
       before-sha256: ${{ steps.arms.outputs.before-sha256 }}
       after-artifact-id: ${{ steps.after.outputs.artifact-id }}
       after-sha256: ${{ steps.arms.outputs.after-sha256 }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2301,41 +2303,62 @@ jobs:
           OUT: ${{ runner.temp }}/arms
         run: bash .base/.github/scripts/plugin-eval/compare-arms.sh
 
-      - name: Scan the patches for credentials
-        id: scan
+      - name: Scan the before patch for credentials
+        id: scan-before
+        if: steps.arms.outputs.before-sha256 != ''
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
-          path: ${{ runner.temp }}/arms/
+          path: ${{ runner.temp }}/arms/before/edit.patch
+
+      - name: Scan the after patch for credentials
+        id: scan-after
+        if: steps.arms.outputs.after-sha256 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/arms/after/edit.patch
 
       - name: Stop on a patch the scan did not clear
-        if: steps.scan.outputs.clean != 'true'
+        if: >-
+          (steps.arms.outputs.before-sha256 != '' && steps.scan-before.outputs.clean != 'true')
+          || (steps.arms.outputs.after-sha256 != '' && steps.scan-after.outputs.clean != 'true')
         run: |
           echo "::error::the credential scan did not clear the arm patches; no arm runs"
           exit 1
 
       - name: Upload the before patch
         id: before
-        if: steps.arms.outputs.before-sha256 != ''
+        if: (steps.arms.outputs.before-sha256 != '') && steps.scan-before.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: eval-compare-before-${{ github.run_id }}
+          name: eval-compare-${{ github.run_id }}-before
           path: ${{ runner.temp }}/arms/before/edit.patch
           retention-days: 1
           if-no-files-found: error
 
       - name: Upload the after patch
         id: after
-        if: steps.arms.outputs.after-sha256 != ''
+        if: (steps.arms.outputs.after-sha256 != '') && steps.scan-after.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: eval-compare-after-${{ github.run_id }}
+          name: eval-compare-${{ github.run_id }}-after
           path: ${{ runner.temp }}/arms/after/edit.patch
           retention-days: 1
           if-no-files-found: error
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   compare-before:
     name: Compare Before
     needs: compare-prepare
+    if: >-
+      needs.compare-prepare.result == 'success'
+      && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
       contents: read
@@ -2357,6 +2380,9 @@ jobs:
   compare-after:
     name: Compare After
     needs: compare-prepare
+    if: >-
+      needs.compare-prepare.result == 'success'
+      && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository)
     cache-mode: read
     permissions:
       contents: read
@@ -2456,6 +2482,8 @@ jobs:
       contents: read
       pull-requests: read
       issues: write
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2503,4 +2531,14 @@ jobs:
             exit 1
           fi
           printf '%s' "$BODY" >"$RUNNER_TEMP/record.md"
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          api_budget_wrap_gh github-token
           gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F "body=@$RUNNER_TEMP/record.md" --jq .html_url
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
