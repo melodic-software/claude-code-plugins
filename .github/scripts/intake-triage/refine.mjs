@@ -213,10 +213,8 @@ export function searchTerms(title) {
 
 const openMonitorIncident = (item) => item?.user?.id === ACTIONS_BOT_ID && !item.pull_request && item.state === "open" && readMarker(item.body) !== null;
 
-// Only items a listed human or the lanes App opened, and open incidents the
-// monitoring lane filed as github-actions[bot]: anyone can open an issue here,
-// and its title reaches the model.
 async function candidates(github, repository, issue, trusted) {
+  const titleMayReachModel = (item) => trusted(item.user?.id) || openMonitorIncident(item);
   const terms = searchTerms(issue.title);
   if (terms.length === 0) {
     return [];
@@ -226,7 +224,7 @@ async function candidates(github, repository, issue, trusted) {
     const q = encodeURIComponent(`repo:${repository} ${kind} ${terms.join(" OR ")}`);
     const answer = await github("GET", `/search/issues?q=${q}&per_page=${CANDIDATES}`);
     for (const item of answer?.items ?? []) {
-      if (item?.number !== issue.number && Number.isInteger(item?.number) && (trusted(item.user?.id) || openMonitorIncident(item)) && !found.some((seen) => seen.number === item.number)) {
+      if (item?.number !== issue.number && Number.isInteger(item?.number) && titleMayReachModel(item) && !found.some((seen) => seen.number === item.number)) {
         found.push({
           number: item.number,
           kind: item.pull_request ? "pull request" : "issue",
