@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 """Contract tests for save_point.py (new / fill / validate / emit).
 
 Runs the script as a subprocess to test the CLI interface, not internals,
