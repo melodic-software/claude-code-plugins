@@ -1,5 +1,16 @@
 # Changelog: evals
 
+## [0.21.0] - 2026-11-21
+
+### Added
+
+- **A denied call no grader reads no longer drops its run.** `/evals:plugin-eval` states the
+  counted-denial rule: when a result's only failing check is permission denials that no grader of
+  the case reads, its runs stay in the score and each such call is listed in the record the result
+  is reported in. Leaving those runs out kept only runs that happened not to make the refused call,
+  so the counted runs were not typical of the skill's use.
+  ([#17019](https://github.com/melodic-software/claude-code-plugins/issues/17019))
+
 ## [0.20.4] - 2026-11-19
 
 ### Changed

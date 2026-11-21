@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.10.2] - 2026-11-21
+
+### Changed
+
+- Shared `lane-binding.mjs` synced where this plugin carries it: a lane run still going now throws a typed `LaneRunPending`; no other change to this plugin.
+
 ## [15.10.1] - 2026-11-20
 
 ### Changed
