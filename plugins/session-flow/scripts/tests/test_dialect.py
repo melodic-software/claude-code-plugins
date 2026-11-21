@@ -69,9 +69,15 @@ def bare_path(tmp_path: Path) -> str:
 
 def test_an_authored_line_comes_back_american(stub_path, monkeypatch):
     monkeypatch.setenv("PATH", stub_path)
-    text, applied = dialect.americanize(f"─ We {UK_MODELED} the {UK_COLOR} — twice.")
-    assert text == "─ We modeled the color — twice."
+    text, applied = dialect.americanize(f"─ We {UK_MODELED} the owner's {UK_COLOR} — twice.")
+    assert text == "─ We modeled the owner's color — twice."
     assert applied == [(UK_MODELED, "modeled"), (UK_COLOR, "color")]
+
+
+def test_a_single_quoted_phrase_keeps_its_spelling(stub_path, monkeypatch):
+    monkeypatch.setenv("PATH", stub_path)
+    quoted = f"He said 'keep the {UK_COLOR}' and ‘the {UK_COLOR}’."
+    assert dialect.americanize(quoted) == (quoted, [])
 
 
 def test_quoted_code_blockquote_and_path_text_keeps_its_spelling(stub_path, monkeypatch):
@@ -110,12 +116,14 @@ def test_fill_writes_authored_slots_american_and_keeps_the_owner_words(tmp_path,
             "brief": f"We {UK_MODELED} the {UK_COLOR} pass on `main`; read Current rules first.",
             "trail": f'- [h1] start: the {UK_COLOR} pass (owner-directed, "keep the {UK_COLOR}").',
             "opening-ask": f"Fix the {UK_COLOR} of the banner please.",
+            "below-rail": f"Re-arm 1 of 1 — 1 lines:\n/loop 10m check the {UK_COLOR} of the build badge",
         },
     )
     assert filled.returncode == 0, err(filled) + out(filled)
     assert "We modeled the color pass on `main`" in body(path, "Resumption brief")
     assert f'- [h1] start: the color pass (owner-directed, "keep the {UK_COLOR}").' in body(path, "Direction changes")
     assert f"Fix the {UK_COLOR} of the banner please." in body(path, "Original goal")
+    assert f"/loop 10m check the {UK_COLOR} of the build badge" in body(path, "Resume prompt")
     assert f"NOTE: slot 'brief': '{UK_MODELED}' written as 'modeled' (American spelling)" in err(filled)
 
 

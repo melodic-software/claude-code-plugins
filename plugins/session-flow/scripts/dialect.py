@@ -23,7 +23,7 @@ TYPOS_TIMEOUT_SECONDS = 10
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 BLOCKQUOTE_RE = re.compile(r"^\s*>")
 QUOTED_RE = re.compile(
-    r"(?P<ticks>`+)[^\n]*?(?P=ticks)|\"[^\"\n]*\"|“[^”\n]*”|[^\s\"“”`]*[/\\][^\s\"“”`]*|\S+\.\w{1,6}\b"
+    r"(?P<ticks>`+)[^\n]*?(?P=ticks)|\"[^\"\n]*\"|“[^”\n]*”|(?<!\w)'[^'\n]*'(?!\w)|‘[^’\n]*’|[^\s\"“”`]*[/\\][^\s\"“”`]*|\S+\.\w{1,6}\b"
     r"|\w*_\w*|\w*[a-z][A-Z]\w*|(?<!\S)-\S+"
 )
 

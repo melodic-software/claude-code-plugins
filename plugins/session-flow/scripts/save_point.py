@@ -382,7 +382,7 @@ VERBATIM_SLOTS = frozenset(
     {
         "goal", "opening-ask", "intent", "vision", "amended", "goal-new",
         "commands", "rules", "rules-new", "preferences", "preferences-new",
-        "goal-first", "goal-after",
+        "goal-first", "goal-after", "below-rail",
     }
 )
 VERBATIM_SECTIONS = frozenset(
