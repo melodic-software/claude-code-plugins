@@ -56,11 +56,11 @@ Classify each changed file:
 | Domain entity / value object | Unit tests (behavior, invariants, state transitions) |
 | Command/query handler | Unit tests (logic) + integration tests (DI, pipeline) |
 | API endpoint | Integration tests (HTTP round-trip, status codes, response shape) |
-| Middleware / filter | Integration tests via the ecosystem's HTTP-test harness (e.g. WebApplicationFactory for .NET) |
-| Infrastructure (EF, external services, DB clients) | Integration tests with real infrastructure (Testcontainers / Docker Compose when available) |
+| Middleware / filter | Integration tests via the ecosystem's HTTP-test harness |
+| Infrastructure (external services, DB clients) | Integration tests with real infrastructure |
 | Configuration / DI registration | Integration tests (verify resolution, no runtime errors) |
 | Project file / build infrastructure changes | Architecture tests (when the project has an architecture-test project) |
-| UI components (Blazor, HTML, JS frameworks) | E2E testing via browser automation (see `/testing:run-e2e`) |
+| UI components | E2E testing via browser automation (see `/testing:run-e2e`) |
 | Analyzer / lint rules | Analyzer tests (verify diagnostic output) |
 | Parser, serializer, pure transform, collection or stateful class | Property tests beside examples (invariants from the spec, a model or metamorphic relation; see `/testing:write`) |
 | Replace, rewrite, migrate or port of existing behavior | Characterization or differential tests first (old output as a pin, intentional differences in a ledger; see `/testing:write`), then the usual rows for the new code |
@@ -82,21 +82,21 @@ Every planned test's entry names where its expected value comes from and cites
 included.
 
 Test names follow the project's documented pattern; when undocumented, mirror the ecosystem's
-idiom (the PascalCase placeholders are illustrative, .NET/xUnit):
+idiom:
 
 ```markdown
 ## Test Plan for [branch/PR description]
 
 ### Unit tests
-- [ ] `{Method}_Should{Behavior}_When{Condition}` — {why this matters}; expected value: {source}, per `testing:test-value`
+- [ ] `{test name}` — {why this matters}; expected value: {source}, per `testing:test-value`
 - [ ] ...
 
 ### Integration tests
-- [ ] `{Subject}_{Behavior}` — {what this validates}; expected value: {source}, per `testing:test-value`
+- [ ] `{test name}` — {what this validates}; expected value: {source}, per `testing:test-value`
 - [ ] ...
 
 ### Architecture tests
-- [ ] {Rule}_Should{Constraint} — {if project structure changed}
+- [ ] {rule the structure must keep} — {if project structure changed}
 
 ### Property tests (if parsers, serializers, transforms or stateful classes changed)
 - [ ] {Property stated from the spec} — {pattern: model, metamorphic, round trip}
