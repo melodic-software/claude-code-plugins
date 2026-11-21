@@ -245,14 +245,14 @@
     },
     {
       "id": 21,
-      "name": "boundary-explore-to-plan-stays-in-session",
-      "prompt": "/workflow continue — exploration of the auth module is done and the next stage is planning the change to it. The window is filling up.",
-      "expected_output": "Explore to plan is the same task, so it stays in one session; with the window filling, the route is `/compact <focus>` typed by the user, keeping the exploration findings.",
+      "name": "explore-detour-inside-plan-stays-in-session",
+      "prompt": "/workflow continue — I'm planning the change to the auth module; the exploration detour I took inside planning is done and planning continues. The window is filling up.",
+      "expected_output": "An explore detour inside the plan stage is the same task, so it stays in one session; with the window filling, the route is `/compact <focus>` typed by the user, keeping the exploration findings.",
       "files": [],
       "expectations": [
         "It keeps planning in the same session",
         "It recommends `/compact` with a focus that keeps the exploration findings",
-        "It does NOT recommend a handoff or `/clear` at this boundary"
+        "It does NOT recommend a handoff or `/clear` for this detour"
       ]
     },
     {

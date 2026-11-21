@@ -26,8 +26,7 @@ and response quality). The zone word reports room only. Context-usage's evidence
 for this session (`evidence_degraded` in the status tool), or other knowledge that the session was
 compacted, is a separate fact read beside it: earlier conversation survives only as a summary, so
 constraints stated only in conversation may be gone. The marker alone does not make a light zone
-degraded; it keys the human-stage handoff rule below, and decay in the answers since still counts
-as degraded. A release from before the zone words were renamed reports `smart`, `acceptable` and
+degraded, and decay in the answers since still counts as degraded. A release from before the zone words were renamed reports `smart`, `acceptable` and
 `dumb`; read them as `light`, `moderate` and `heavy`.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)
@@ -108,10 +107,7 @@ boundary.
    *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone
    says. The zero-cost exit for everything questions 1 and 2 didn't
    already claim; every other remaining mechanism spends setup cost or loss. In a degraded zone
-   only mechanical, low-judgment steps qualify as "simple enough". Within a still-healthy zone,
-   prefer continue when the next stage consumes this stage's reasoning verbatim, because a summary of the
-   reasoning is not the reasoning; this never overrides a degraded zone, where the questions
-   below choose the route.*
+   only mechanical, low-judgment steps qualify as "simple enough".*
 4. **Is this session's context disposable: the next work is unrelated and nothing from this
    session carries over to anything, in an attended session the next work item's durable artifacts (its ticket, spec, plan
    or decomposed item on disk) already hold everything it needs, or two corrections on the same
