@@ -7,16 +7,16 @@ Services written outside the primary language: MCP servers, sidecars, workers. T
 ## Scope
 
 ```text
-<services-root>/<service-a>/**       # e.g. a TypeScript MCP server
-<services-root>/<service-b>/**       # e.g. a Python worker
+<services-root>/<service-a>/**
+<services-root>/<service-b>/**
 ```
 
 ## Watch-for patterns
 
-- **Beck #2, Dead Code**: linters surface candidates (ruff F401/F841, biome unused-import)
+- **Beck #2, Dead Code**: linters surface candidates
 - **Beck #9, Explaining Constants**: inline port numbers, retry counts, endpoint paths
 - **Formatter drift**: `<formatter-check-command>` per ecosystem; tidy in passing
-- **Idiom modernization**: `<ecosystem-a-pattern>` (e.g. Promise chains → async/await), `<ecosystem-b-pattern>` (e.g. os.path → pathlib). Verify each ecosystem's version floor first
+- **Idiom modernization**: `<ecosystem-a-pattern>`, `<ecosystem-b-pattern>`. Verify each ecosystem's version floor first
 - **F-3, Rename**: internal symbols whose names drifted from behavior
 
 ## Lane-specific extra exclusions
@@ -31,8 +31,8 @@ Beyond the global HARD/SOFT lists:
 
 ```bash
 # One block per ecosystem in scope:
-<ecosystem-a-build-lint-test>        # e.g. npx @biomejs/biome check && npm test
-<ecosystem-b-build-lint-test>        # e.g. ruff check . && pytest
+<ecosystem-a-build-lint-test>
+<ecosystem-b-build-lint-test>
 ```
 
 ## Conventional Commits type
