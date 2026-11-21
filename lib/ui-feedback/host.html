@@ -441,9 +441,12 @@
     say("Draft deleted.");
   }
 
-  /** Move or resize a region: the composer's draft ("draft") or a listed note's, in region mode from its box. */
+  /** Move or resize a region: the composer's draft ("draft") or a listed note's, in region mode from its box, once
+   *  the frame shows the note's own view. */
   function reshape(target) {
-    setPick("region", (target === "draft" ? draft : target.note).rect || null);
+    const m = target === "draft" ? { note: draft } : target;
+    toFrame({ type: "select", target: noteTarget(m) });
+    setPick("region", m.note.rect || null);
     if (!picking) return;
     reshaping = target;
     say("Drag the box to move it, or its edges and corners to resize it; or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc keeps it where it was.");

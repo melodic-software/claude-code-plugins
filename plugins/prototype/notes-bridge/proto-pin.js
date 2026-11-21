@@ -361,14 +361,16 @@
     if ((g.t && g.r) || (g.b && g.l)) return "nesw-resize";
     return g.l || g.r ? "ew-resize" : "ns-resize";
   }
-  /** The region with the drag's pointer at page point `p`: a new box from the press, the grabbed box moved by
-   *  the pointer's travel, or the grabbed box with its grabbed edges at the pointer. */
-  function dragTo(p) {
-    const { from, grab, box: b } = drag;
+  /** The region with the drag's pointer at page point `at`, held inside the page as it was at the press: a new box
+   *  from the press, the grabbed box moved by the pointer's travel, or the grabbed box with its grabbed edges at the
+   *  pointer. */
+  function dragTo(at) {
+    const { from, grab, box: b, page } = drag;
+    const p = { x: Math.min(Math.max(at.x, 0), page.w), y: Math.min(Math.max(at.y, 0), page.h) };
     drag.moved = drag.moved || p.x !== from.x || p.y !== from.y;
     const span = (x1, y1, x2, y2) => ({ x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) });
     if (!grab) region = span(from.x, from.y, p.x, p.y);
-    else if (grab === "move") region = { ...b, x: Math.max(0, b.x + p.x - from.x), y: Math.max(0, b.y + p.y - from.y) };
+    else if (grab === "move") region = { ...b, x: Math.min(Math.max(0, b.x + p.x - from.x), page.w - b.w), y: Math.min(Math.max(0, b.y + p.y - from.y), page.h - b.h) };
     else region = span(grab.l ? p.x : b.x, grab.t ? p.y : b.y, grab.r ? p.x : b.x + b.w, grab.b ? p.y : b.y + b.h);
     draw();
   }
@@ -444,7 +446,7 @@
   addEventListener("pointerdown", e => {
     if (!mode || kind !== "region") return;
     const from = pageAt(e);
-    drag = { from, grab: grabAt(from), box: region, cx: e.clientX, cy: e.clientY, moved: false };
+    drag = { from, grab: grabAt(from), box: region, page: box(), cx: e.clientX, cy: e.clientY, moved: false };
     if (!drag.grab) region = { ...from, w: 0, h: 0 };
     if (e.isTrusted && root.setPointerCapture) root.setPointerCapture(e.pointerId);
     edgeScroll(drag);

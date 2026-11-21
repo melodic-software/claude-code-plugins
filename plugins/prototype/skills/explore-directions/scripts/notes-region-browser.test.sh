@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/prototype/notes-bridge/*
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -25,11 +25,25 @@ browser_setup ed-notes-region edr playwright-cli python3 curl
 </head>
 <body>
 <main>
+  <section data-variant="A" data-variant-label="Every candidate">
   <h1 data-testid="candidates-title">All candidates</h1>
   <ul>
 HTML
   for i in $(seq 1 40); do printf '    <li data-testid="candidate">Candidate %s</li>\n' "$i"; done
-  printf '%s\n' '  </ul>' '</main>' '</body>' '</html>'
+  cat <<'HTML'
+  </ul>
+  </section>
+  <section data-variant="B" data-variant-label="Shortlist" hidden><p data-testid="shortlist">Two candidates</p></section>
+</main>
+<script>
+  document.addEventListener("vs:show", (e) => {
+    const v = e.detail && e.detail.variant;
+    if (v) for (const s of document.querySelectorAll("[data-variant]")) s.hidden = s.dataset.variant !== v;
+  });
+</script>
+</body>
+</html>
+HTML
 } >"$d/explore-directions.html"
 
 browser_serve

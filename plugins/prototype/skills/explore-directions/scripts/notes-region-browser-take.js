@@ -13,6 +13,11 @@ async page => {
       const o = [...document.querySelectorAll("[data-ui-feedback-layer] > div")].find(e => e.style.outline.includes(l) && /245, 158, 11|f59e0b/.test(e.style.outline));
       return o ? { page: [o.style.left, o.style.top, o.style.width, o.style.height].map(parseFloat), scrollY } : null;
     }, line);
+    const editingBox = async () => {
+      await frame.waitForFunction(() => [...document.querySelectorAll("[data-ui-feedback-layer] > div")].some(e => e.style.outline.includes("dashed") && /245, 158, 11|f59e0b/.test(e.style.outline)), null, { timeout: 5000 });
+      await page.waitForTimeout(800);
+      return outline();
+    };
     const inside = (b) => fb.y + Math.max(60, Math.min(fb.height - 220, b.page[1] - b.scrollY + 30));
     const drag = async (x, y, dy) => {
       await page.mouse.move(x, y);
@@ -36,7 +41,7 @@ async page => {
 
     const held = await outline("solid");
     await page.click("#reshape");
-    const editing = await outline();
+    const editing = await editingBox();
     ok("the editor's Move or resize starts region mode at the draft's box", editing !== null && Math.abs(editing.page[1] - held.page[1]) < 1, JSON.stringify([held, editing]));
     await drag(fb.x + editing.page[0] + editing.page[2] / 2, inside(editing), 100);
     await status(/The region moved/);
@@ -47,9 +52,13 @@ async page => {
     await page.click("#send");
     await status(/Note 1 sent/);
 
+    const shown = () => frame.evaluate(() => [...document.querySelectorAll("[data-variant]")].filter(v => !v.hidden).map(v => v.dataset.variant).join());
+    await frame.evaluate(() => document.dispatchEvent(new CustomEvent("vs:show", { detail: { variant: "B" } })));
+    ok("the mockup shows variant B before Move or resize", await shown() === "B", await shown());
     await page.click('[data-key^="reshape-"]');
     ok("Move or resize turns region mode on", await page.getAttribute("#region", "aria-pressed") === "true");
-    const seeded = await outline();
+    const seeded = await editingBox();
+    ok("Move or resize brings back the note's variant A", await shown() === "A", await shown());
     ok("region mode starts at the sent note's box", seeded !== null, JSON.stringify(seeded));
     R.push("SEEDED " + JSON.stringify(seeded.page));
     await drag(fb.x + seeded.page[0] + seeded.page[2] / 2, inside(seeded), 150);
