@@ -151,6 +151,11 @@ boundary.
    is the default within a phase or activity, and it may repeat: a session already compacted
    compacts again when the window needs it. A related next task uses this stage's artifact or files
    and serves the same Original goal or work item, so the session's context is still its context.*
+   Pointer: before writing the focus in an attended session, read
+   [what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
+   so the focus names only what the summary would otherwise lose; for a standing focus every
+   compaction applies, a "Compact Instructions" section in CLAUDE.md, see
+   [when context fills up](https://code.claude.com/docs/en/how-claude-code-works#when-context-fills-up).
 
 **Between human stages, suggest a handoff only at context-usage zone `heavy` or on its compaction marker.** The human stages
 are the interview, PRD, design and plan (`context/steps.md`, stages 1, 4, 5 and 6, with the
