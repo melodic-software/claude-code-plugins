@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.5] - 2026-11-21
+
+### Fixed
+
+- The audit-performance reference and script comment spell unmodeled in American English.
+
 ## [10.5.4] - 2026-11-21
 
 ### Fixed

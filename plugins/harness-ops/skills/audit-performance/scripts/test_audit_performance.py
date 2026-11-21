@@ -643,7 +643,7 @@ class TestFanOutProjection(unittest.TestCase):
         self.assertEqual(markdown["distinct_commands"], 3)
         self.assertEqual(markdown["fire_always_unclassified"], 0)
 
-    def test_an_unmodelled_file_kind_fires_only_the_ungated_row(self):
+    def test_an_unmodeled_file_kind_fires_only_the_ungated_row(self):
         rows = self.rows(engine.project_fan_out(self.ENTRIES))
         self.assertEqual(rows[("PostToolUse", "Edit", "other")]["fires"], 1)
 

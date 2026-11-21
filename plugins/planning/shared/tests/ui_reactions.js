@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// Gather reaction chips in a real browser, against `share.sh ensure-running` with the fake cloudflared: at rest a
-// chip has no fill (the grey the owner saw was the browser's own button background, so the computed background
-// must be transparent, not the UA default) and a --line-input outline; hovered it takes --raise; chosen, the
-// --accent-soft fill inside a full --accent border with the count in --accent-text; focused, a 2px --accent outline
-// with an offset. aria-pressed carries the choice and the label never changes with it, in dark and light. One person
-// holds ❤️ and 💡 with 👍 or 👎, and 👎 takes 👍's place (triage row 45).
 //   node plugins/planning/shared/tests/ui_reactions.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from triage row 41 and research/presence-indicator/RESEARCH-reactions.md (the token each

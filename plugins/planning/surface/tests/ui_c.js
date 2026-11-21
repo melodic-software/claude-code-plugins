@@ -205,7 +205,6 @@ async page => {
     const e4 = await events();
     ok("AC16: r sends Reopen when a decision exists", e4.length === nBeforeReopen + 1 && e4[e4.length - 1].kind === "reopen" && e4[e4.length - 1].id === "Q1", e4[e4.length - 1].kind);
 
-    // AC20: archived X1 is greyed, out of the open counts and the meter
     s = await state();
     const baseOpen = s.questions.questions.filter(q => q.group === "base" && !q.archived && !(s.responses.responses[q.id] || {}).decision).length;
     const cnt = await page.textContent('.sec[data-key="g:base"] .cnt');
@@ -216,7 +215,7 @@ async page => {
     ok("#8086: one archived row shows the group's archived count", (await page.$$(rowSel)).length === 1 && (await page.textContent(rowSel)).trim() === baseArch + " archived" && await page.getAttribute(rowSel, "aria-expanded") === "false", await page.textContent(rowSel));
     ok("#8086: a group with no archived cards shows no row", await page.$('.sec[data-key="g:chain"] .archtoggle') === null);
     await page.click(rowSel); await page.waitForTimeout(150);
-    ok("#8086: clicking the row shows the archived cards, greyed", await page.getAttribute(rowSel, "aria-expanded") === "true" && await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived") && !!el.offsetParent));
+    ok("#8086: clicking the row shows the archived cards, grayed", await page.getAttribute(rowSel, "aria-expanded") === "true" && await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived") && !!el.offsetParent));
     await page.click(rowSel); await page.waitForTimeout(150);
     ok("#8086: a second click collapses the row again", await page.$('.rail-list .qbtn[data-q="X1"]') === null);
     await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(150);
@@ -233,13 +232,13 @@ async page => {
     ok("#8086: with the row open, j from the last live card goes to the archived card under the row", await sel() === "X1", "X2 -> " + await sel());
     await page.click(rowSel); await page.waitForTimeout(150);
     await page.click(rowSel); await page.waitForTimeout(150);
-    ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
+    ok("AC20: archived question grayed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
     ok("AC20: meter leaves the archived question out", new RegExp(" of " + live + " answered$").test(await page.textContent("#meterText")), await page.textContent("#meterText"));
     const archN = s.questions.questions.filter(q => q.archived).length;
     ok("#7758: the header shows the live and archived counts as visible text", archN > 0 && (await page.textContent("#qCounts")) === live + " live, " + archN + " archived", await page.textContent("#qCounts"));
     await page.click('.seg [data-view="tree"]'); await page.waitForTimeout(200);
-    ok("AC20: archived question greyed in Tree", await page.$eval('.rail-list .tree .qbtn[data-q="X1"]', el => el.classList.contains("archived")));
+    ok("AC20: archived question grayed in Tree", await page.$eval('.rail-list .tree .qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     ok("AC20: archived question clickable in Tree and names why", await sel() === "X1" && /Archived: The old path left the plan/.test(await page.textContent("#dscroll")), await sel());
     const banners = async () => page.$$eval("#dscroll .sup-banner", els => els.map(e => ({text: e.textContent, link: [...e.querySelectorAll("a, button")].map(a => a.textContent + "|" + (a.getAttribute("href") || a.dataset.ref || a.dataset.q || ""))})));

@@ -270,7 +270,7 @@ His worked case is the "SEEING SOMEONE ELSE" chorus, scanned across three
 figures (`image_rsrc347`, `348`, `349`):
 
 > "The first two phrases are each 3-stresses at best. There are certainly some
-> grey areas here"
+> gray areas here"
 
 > "The next two lines (as written) add up to one 7-stress phrase"
 
