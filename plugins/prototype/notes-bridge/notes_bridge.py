@@ -101,6 +101,7 @@ FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTAL
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
     "/frame-channel.mjs": ("frame-channel.mjs", "text/javascript"),
+    "/host.mjs": ("host.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
     "/controls.schema.json": ("controls.schema.json", "application/json"),
     "/controls.js": ("controls.js", "text/javascript"),

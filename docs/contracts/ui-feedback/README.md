@@ -12,6 +12,7 @@ The canonical files live in `lib/ui-feedback/`:
 | Path | Holds |
 |---|---|
 | `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox across the full window, shows the command bar and the notes popover over it, validates every message from the frame, and sends notes to the session |
+| `lib/ui-feedback/host.mjs` | The host page's module script: its message handling, notes list, command bar and Controls tab behavior, served beside `host.html` |
 | `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text, regions and move arrows, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
 | `lib/ui-feedback/frame-channel.mjs` | The host page's message channel rules: which messages it takes from the frame, the `targetOrigin` it posts to the frame with, and the ready timeout that reports a blocked frame |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |

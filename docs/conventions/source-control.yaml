@@ -33,8 +33,7 @@ sync_stale_base: true
 # pre_ready turns off /source-control:pull-request ready's local verify step: it ran the
 # affected suites on the updated head right before the flip starts CI, which runs the same
 # suites there and gates the merge through ci-status. On a shared host the local run took
-# 20-25 minutes and failed on load or a moving main (#10719, 2026-10-28). The pre-push hook
-# still runs check-affected on every push.
+# 20-25 minutes and failed on load or a moving main (https://github.com/melodic-software/claude-code-plugins/issues/10719).
 pre_ready:
   - step: verify
     enabled: false
