@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [11.5.0] - 2026-11-21
+
+### Added
+
+- Both hosted review callers' gates defer a first attempt (`defer: "true"`, `defer-job: review`) while the GITHUB_TOKEN window is projected to run short before the review ends, reading their horizon from the new `defer-run-minutes-review` (github-token default 11, the p90 of 418 hosted review runs) through `pr-pipeline.yaml`'s `limits.api` over `rate-limits.json`. Their stop notice now prints `cause=<cause> reset=<epoch>`. The lost-run reconciler reads that notice: it waits until a minute past the reset, then re-runs the deferred run once, recorded, in its own band of at most 12 re-runs a pass beside the 3 places other recovery takes; the reconciler workflow uploads up to 15 records a pass. The re-run's attempt 2 never defers ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+### Fixed
+
+- pr-verify's repeated-fail cap (`merge.max-verify-fails`, `verify:repeated-fail`) closes a pull request only when its current head itself has a FAIL that is not superseded (owner decision Q245, [#17646](https://github.com/melodic-software/claude-code-plugins/issues/17646)). FAILs at superseded heads no longer close it: a pass at the head goes on to the normal pass decision. pr-merge's `capped_close` and pr-unblock's `verify-cap.mjs` read the same reader, so both follow it; the README's Verifier verdict section, the schema and `pr-pipeline.yaml` say so. pr-unblock's address-feedback and fix-ci dispatchers no longer record a capped head as handled, so a head whose FAIL a later pass supersedes is dispatched again; the dispatch record's version is 7, so heads an earlier version recorded at the cap are read again.
+
 ## [11.4.1] - 2026-11-21
 
 ### Changed
