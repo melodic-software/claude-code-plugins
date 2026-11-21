@@ -1,6 +1,6 @@
 ---
 description: "The user says 'account' for a household that pays for several members, while the code and the glossary already use Account for one person's sign-in identity. Why hard: the easy failures are to adopt the bare word, or to point out the clash and ask the user what to call it instead of proposing a qualified name. The prompt starts past the intake round, so the qualified name is recommended in the first decision round, headed by a Scope check: line."
-tags: [interview, glossary, domain, scaffold]
+tags: [interview, glossary, domain, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

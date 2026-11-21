@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for checkable recommendations. Why hard: the prompt states enough facts that every recommendation can rest on something the user said, but 'Basis: judgment' with no reference and no condition that would change it is the easy default. The prompt starts past the intake round, so the first decision round carries the recommendations and its Scope check: header line."
-tags: [interview, recommendation, basis]
+tags: [interview, recommendation, basis, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

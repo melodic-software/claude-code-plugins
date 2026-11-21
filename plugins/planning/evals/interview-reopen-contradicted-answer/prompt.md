@@ -1,6 +1,6 @@
 ---
 description: "A fact reported after round 2 contradicts answered Q3, and Q5 depends on Q3. Why hard: the easy moves are to quietly change Q3's answer, to ask a fresh question under a new id, or to reopen Q3 and forget Q5; the skill reopens Q3 under its own number with round.sh reopen, keeps the old answer, and flags Q5 for recheck."
-tags: [interview, reopen, register, scaffold]
+tags: [interview, reopen, register, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

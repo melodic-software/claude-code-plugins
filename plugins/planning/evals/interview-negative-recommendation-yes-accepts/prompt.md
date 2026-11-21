@@ -1,6 +1,6 @@
 ---
 description: "Hard case. Why hard: the prompt floats a side idea (rewriting the whole admin page in React) whose natural recommendation is negative, so the question about it is easily worded 'Should we rewrite it?' with a recommended 'No', where a reply of 'yes' rejects the recommendation. Upstream mattpocock/skills#706. The prompt starts past the intake round, so the first decision round carries recommendations and its Scope check: header line."
-tags: [interview, question-wording, negative-recommendation]
+tags: [interview, question-wording, negative-recommendation, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

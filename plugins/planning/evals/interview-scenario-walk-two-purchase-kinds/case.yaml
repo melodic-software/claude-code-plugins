@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-scenario-walk-two-purchase-kinds
 description: "One product sold two ways (a one-off bag and a monthly subscription of the same bag) leaves 'order' and 'refund' unsettled, and the user calls it confusing and asks for scenarios. Why hard: the easy reply defines the terms in prose or asks 'what is an order?', where the walk puts numbered, concrete scenarios inside one question, each with its own recommendation and the term or rule it forces. The prompt starts past the intake round, so the walk comes in the first decision round, headed by a Scope check: line."
-tags: [interview, scenario-walk, domain-language, scaffold]
+tags: [interview, scenario-walk, domain-language, scaffold, no-network]
 expected_outcome: "Round 2, headed by a Scope check: line, holds a numbered question whose Context carries S1, S2, ... scenarios, each concrete (a named person, an amount, a day or date), stating what it tests and ending with its own recommendation and the term or rule that answer forces, and the user is told to answer per scenario (for example 'S2: a')."
 context:
   scaffold_script: scaffold.sh

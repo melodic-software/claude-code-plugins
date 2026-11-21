@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: brainstorm-spec-stage-no-candidates
 description: A spec-stage interview request that states its problem and a solution gets no candidate list and no reopened mechanism, because the idea-stage rule does not apply to it. Needs --allow-tools Write.
-tags: [interview, brainstorm, problem-framing, stated-problem, scaffold]
+tags: [interview, brainstorm, problem-framing, stated-problem, scaffold, no-network]
 expected_outcome: The reply lists no alternative approaches, asks no question that reopens streaming the export as the fix, does not run the brainstorm skill, and writes no PLAN.md; it may restate the problem and ask about the streaming change's details.
 context:
   scaffold_script: scaffold.sh

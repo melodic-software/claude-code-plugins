@@ -1,6 +1,6 @@
 ---
 description: "The opening request itself names unknowns in four separate areas. Why hard: no round has run yet, so the fog trigger cannot fire; the easy failures are to say nothing about wayfind until later rounds, or to treat the fog as a reason to switch to wayfind and skip the interview."
-tags: [interview, routing, wayfind, round-1]
+tags: [interview, routing, wayfind, round-1, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

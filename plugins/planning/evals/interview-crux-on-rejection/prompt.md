@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for the disagreement move. Why hard: the user rejects two recommendations, one technical (Postgres queue versus Kafka) and one personal (the command's name). Re-arguing both, or silently giving up on both, are the easy replies; the target is one crux question on the technical one and plain deference on the name."
-tags: [interview, disagreement, crux]
+tags: [interview, disagreement, crux, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

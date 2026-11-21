@@ -1,6 +1,6 @@
 ---
 description: "A round is due on a ledger whose register ends at Q7. Why hard: the model can see the last id and pick the next ones itself, which is how ids once jumped or were reused; the skill says ids come from round.sh next-id, in the order the round shows the questions."
-tags: [interview, numbering, register, scaffold]
+tags: [interview, numbering, register, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

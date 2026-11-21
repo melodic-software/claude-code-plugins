@@ -1,6 +1,6 @@
 ---
 description: "Engineering task with one external provider and nothing said about others, past the intake round: the interview asks the intent question (is a second variant known, a category, or speculative) with a recommendation in the first decision round, registers it in the ledger at ask-time, and heads the round with a Scope check: line"
-tags: [interview, intent, engineering-defaults]
+tags: [interview, intent, engineering-defaults, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

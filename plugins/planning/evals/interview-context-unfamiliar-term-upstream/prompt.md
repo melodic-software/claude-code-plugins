@@ -1,6 +1,6 @@
 ---
 description: "First interview round on absorbing an upstream triage tool's cluster step, which rests on a coined upstream term (dedupe fingerprint) and on what the vendored README says. Why hard: the agent has read both files, so a question that names the cluster step and the fingerprint without defining them, or a decision question that does not say what upstream does and what the repository has today, reads as complete to it while the user would have to ask before answering. The prompt states the quality bar and the round-1 answers, so the first decision round asks no bar question, which has no upstream gap to show, and carries a Scope check: header line."
-tags: [interview, context-block, scaffold]
+tags: [interview, context-block, scaffold, no-network]
 runs: 3
 max_turns: 20
 timeout_seconds: 900

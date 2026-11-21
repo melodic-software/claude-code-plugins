@@ -1,6 +1,6 @@
 ---
 description: "Stated throwaway prototype that reads one external store: the intent question is one line, and no quality requirement (performance, availability, security, scaling, monitoring) is asked; they are named as deferred"
-tags: [interview, intent, quality-bar, prototype, engineering-defaults]
+tags: [interview, intent, quality-bar, prototype, engineering-defaults, no-network]
 runs: 3
 max_turns: 20
 timeout_seconds: 600

@@ -1,6 +1,6 @@
 ---
 description: "The interview's outcome is a throwaway prototype that has to settle three unrelated doubts. Why hard: the easy path scopes one prototype that tries to answer everything, or asks only scoping questions, never asking what the prototype must prove or splitting it so the pieces can be built at once."
-tags: [interview, prototype, quality-bar]
+tags: [interview, prototype, quality-bar, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

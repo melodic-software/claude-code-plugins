@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-option-known-repetition-keeps
 description: An interview over an option to add an interface whose second consumer is a stated requirement with the same send shape recommends keeping the interface rather than calling it speculative
-tags: [interview, recommendation, known-repetition, scaffold]
+tags: [interview, recommendation, known-repetition, scaffold, no-network]
 expected_outcome: The first decision round, headed by a Scope check line, gives a recommendation on how to structure the senders keeps the Notifier interface (or an equivalent shared abstraction), citing the stated SMS requirement R2 in docs/requirements.md as the second consumer and the shared send(recipient, message) shape. It does not call the interface speculative generality or YAGNI and does not ask to wait for a third channel. No Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

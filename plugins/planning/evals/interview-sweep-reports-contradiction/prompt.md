@@ -1,6 +1,6 @@
 ---
 description: "Every register row is answered and the frontier is empty, but Q2 (only the finance role may export) and Q5 (a support agent exports the file for a customer) cannot both hold. With the per-round contradiction pass removed, the end sweep is the only check that finds it. Why hard: an empty frontier invites going straight to the Brief; the sweep must report the contradiction and the reply ask one question naming both rows."
-tags: [interview, assumption-sweep, contradiction, scaffold]
+tags: [interview, assumption-sweep, contradiction, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

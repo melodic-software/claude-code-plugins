@@ -1,6 +1,6 @@
 ---
 description: "wayfind evals.json case 21, run as a plugin-eval case for the before/after comparison (after-only)."
-tags: [wayfind, wayfind-charting, after-only]
+tags: [wayfind, wayfind-charting, after-only, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

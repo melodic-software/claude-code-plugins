@@ -1,6 +1,6 @@
 ---
 description: "A fully specified task whose acceptance criteria are all event-driven: while capturing them, the interview asks the one coverage prompt about a missing unwanted-behavior (IF/THEN) case and a missing state-driven (WHILE) case"
-tags: [interview, acceptance-criteria, coverage-prompt]
+tags: [interview, acceptance-criteria, coverage-prompt, no-network]
 runs: 3
 max_turns: 20
 timeout_seconds: 900
