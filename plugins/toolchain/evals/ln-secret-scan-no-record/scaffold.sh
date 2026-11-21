@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A .gitleaks.toml at the root and no cross-cutting record; every other ecosystem disabled. A text
-# file changed.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../fixtures/eval-repo.sh"
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
