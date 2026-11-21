@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.5.1] - 2026-11-21
+
+### Changed
+
+- **The audit reads `cp` and `mv` deny coverage by client version.** `reference/required-permissions.md` has the audit read the session's Claude Code version and the 2.1.321 release and permissions pages before reporting a deny as covering a `cp` or `mv`, and report any spelling or file they do not name as uncovered; the file a `cp` or `mv` reads stays unverified. The sandbox section has the audit check the client version against the 2.1.321 sandbox escape fixes before calling a sandbox a boundary ([#14843](https://github.com/melodic-software/claude-code-plugins/issues/14843)).
+
 ## [5.5.0] - 2026-11-21
 
 ### Added
