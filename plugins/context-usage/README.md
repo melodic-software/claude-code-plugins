@@ -359,8 +359,10 @@ you want a file to tune.
 ## Requirements
 
 The module needs a Claude Code build at or above the terminal version mods need (older builds are
-unsupported). `prerequisites.json` holds the floor as data, in `detect.version.min` of the entry
-with `"id": "claude"`, which the check skill compares against; the pointer below is where to re-derive it. Its snapshot writes and the PostCompact marker row need
+unsupported). `plugin.json` declares the floor as `engines["claude-code"]`, which only Claude Code
+2.1.323 and later read, so `prerequisites.json` holds the same floor in `detect.version.min` of the
+entry with `"id": "claude"`, which `scripts/check-mod-load.sh` compares against; the pointer below
+is where to re-derive it. Its snapshot writes and the PostCompact marker row need
 [Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: we never count on Claude
 Code's install to provide it. The marker and the zone resolver run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)). The zone resolver,

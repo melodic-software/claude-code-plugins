@@ -560,6 +560,13 @@ class TestNotes(NotesCase):
         self.assertEqual(event["to"]["anchor"], move["to"]["anchor"])
         self.assertEqual(event["to"]["point"], move["to"]["point"])
 
+    def test_every_fixture_change_is_judged_as_the_fixtures_say(self):
+        change = nb.SCHEMA["$defs"]["change"]
+        for case in FIXTURES["changes"]["valid"]:
+            self.assertEqual(nb.problems(case["change"], change, "change"), [], case["why"])
+        for case in FIXTURES["changes"]["invalid"]:
+            self.assertNotEqual(nb.problems(case["change"], change, "change"), [], case["why"])
+
     def test_the_page_name_is_a_plain_html_file_name(self):
         for bad in ("../x.html", "a/b.html", "x.txt", ".hidden.html"):
             with (
@@ -573,6 +580,78 @@ def block(notes):
     """A copy-out block shaped as host.html's Copy all notes makes it."""
     body = json.dumps({"notes": notes}, ensure_ascii=False).replace("`", "\\u0060")
     return f"```prototype-notes\n{body}\n```\n"
+
+
+REGION = next(
+    c["note"]
+    for c in FIXTURES["valid"]
+    if c["note"]["kind"] == "region" and c["note"].get("elements")
+)
+MOVED = {
+    "anchor": {"tag": "ul", "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"},
+    "rect": {"x": 5, "y": 20, "w": 40, "h": 70},
+    "elements": [
+        {
+            "testid": "candidate",
+            "testidIndex": 0,
+            "tag": "li",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)",
+        }
+    ],
+}
+
+
+class TestRegionChange(NotesCase):
+    """POST /api/note/change: a sent region note moved or resized on the host page."""
+
+    def change(self, msg):
+        return self.request("POST", "/api/note/change", msg)
+
+    def test_a_change_updates_the_note_in_place_and_is_logged_naming_it(self):
+        self.assertEqual(self.note(REGION)[1]["seq"], 1)
+        code, body = self.change({"change": 1, **MOVED})
+        self.assertEqual((code, body["seq"]), (200, 2))
+        first, second = self.hub.read_log()["events"]
+        self.assertEqual({k: first[k] for k in MOVED}, MOVED)
+        self.assertEqual((first["text"], first["kind"]), (REGION["text"], "region"))
+        self.assertEqual({k: second[k] for k in ("seq", "change", *MOVED)}, {"seq": 2, "change": 1, **MOVED})
+        self.assertNotIn("text", second)
+
+    def test_the_session_is_woken_with_the_change_naming_the_note(self):
+        self.note(REGION)
+        watch = {"X-Notes-Token": self.hub.watch_token}
+        code, body = self.request("GET", "/api/wait?after=0&timeout=5", headers=watch, token=False)
+        self.assertEqual([e["seq"] for e in body["events"]], [1])
+        self.change({"change": 1, **MOVED})
+        code, body = self.request("GET", "/api/wait?after=1&timeout=5", headers=watch, token=False)
+        self.assertEqual(code, 200)
+        self.assertEqual(body["note"], sb.DATA_NOTE)
+        self.assertEqual([(e["seq"], e["change"], e["rect"]) for e in body["events"]], [(2, 1, MOVED["rect"])])
+
+    def test_the_host_page_lists_one_row_for_a_changed_note(self):
+        self.note(REGION)
+        self.change({"change": 1, **MOVED})
+        state, _ = self.hub.read_state()
+        self.assertEqual([n["seq"] for n in state["notes"]], [1])
+
+    def test_a_change_is_refused_unless_it_names_a_sent_region_note(self):
+        self.note(REGION)
+        self.note(NOTE)
+        self.change({"change": 1, **MOVED})
+        for why, msg in (
+            ("no such note", {"change": 9, **MOVED}),
+            ("an element note", {"change": 2, **MOVED}),
+            ("a change, not a note", {"change": 3, **MOVED}),
+            ("a field the change does not carry", {"change": 1, **MOVED, "text": "x"}),
+            ("no rect", {"change": 1, "anchor": MOVED["anchor"], "elements": []}),
+        ):
+            self.assertEqual(self.change(msg)[0], 400, why)
+        self.assertEqual(len(self.hub.read_log()["events"]), 3)
+
+    def test_a_change_without_the_token_is_refused(self):
+        self.note(REGION)
+        code, _ = self.request("POST", "/api/note/change", {"change": 1, **MOVED}, token=False)
+        self.assertEqual(code, 403)
 
 
 class TestImport(unittest.TestCase):

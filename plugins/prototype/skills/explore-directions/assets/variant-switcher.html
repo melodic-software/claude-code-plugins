@@ -47,9 +47,15 @@
     z-index: 2147483647;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    inline-size: max-content;
+    max-inline-size: calc(100vw - 16px);
+    box-sizing: border-box;
+    white-space: nowrap;
     gap: 2px;
     padding: 4px;
-    border-radius: 999px;
+    border-radius: 18px;
     background: rgb(10 10 10 / 0.86);
     box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08) inset, 0 8px 24px rgb(0 0 0 / 0.24);
     font: 13px/1 system-ui, sans-serif;
@@ -98,6 +104,24 @@
   .vs-item[aria-current="true"], .vs-item[aria-pressed="true"] { color: #fff; }
   .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
   .vs-state { color: #fff; }
+  .vs-speed::after, .vs-replay::after {
+    content: attr(aria-label);
+    position: absolute;
+    inset-block-end: calc(100% + 10px);
+    inset-inline-end: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgb(10 10 10 / 0.92);
+    color: #fff;
+    font-size: 12px;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  .vs[data-position="top"] .vs-speed::after, .vs[data-position="top"] .vs-replay::after { inset-block-end: auto; inset-block-start: calc(100% + 10px); }
+  .vs-speed:focus-visible::after, .vs-replay:focus-visible::after { visibility: visible; }
+  @media (hover: hover) and (pointer: fine) {
+    .vs-speed:hover::after, .vs-replay:hover::after { visibility: visible; }
+  }
   [data-variant][hidden], [data-screen-state][hidden] { display: none !important; }
   :root:not([data-vs-content="worst"]) [data-content-set="worst"],
   :root[data-vs-content="worst"] [data-content-set="demo"] { display: none !important; }
@@ -145,7 +169,7 @@
 
     function place() {
       const el = items[current];
-      highlight.style.transform = `translateX(${el.offsetLeft}px) scaleX(${el.offsetWidth / 100})`;
+      highlight.style.transform = `translate(${el.offsetLeft}px, ${el.offsetTop - 4}px) scaleX(${el.offsetWidth / 100})`;
     }
 
     // Applies the speed to every running animation outside the switcher itself.
@@ -234,6 +258,8 @@
     contentButton.addEventListener("click", flipContent);
     speedButton.addEventListener("click", stepSpeed);
     window.addEventListener("resize", place);
+    const resized = new ResizeObserver(place);
+    nav.querySelectorAll(".vs-item").forEach((b) => resized.observe(b));
 
     document.addEventListener("keydown", (e) => {
       const t = e.target;
