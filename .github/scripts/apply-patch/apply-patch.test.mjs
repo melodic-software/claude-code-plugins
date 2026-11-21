@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
+import { buildTree, checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, MAX_TREE_ENTRIES_PER_REQUEST, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
@@ -246,6 +246,81 @@ test("a new executable bit the patch sets pushes with the mode it set", async (t
   assert.equal((await pushWith(fix, api)).outcome, "pushed");
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", "README.md"]).split(" ")[0], "100755");
+});
+
+function traceTrees(api) {
+  const trees = [];
+  const build = api.createTree;
+  api.createTree = async (base, entries) => {
+    const sha = await build(base, entries);
+    trees.push({ base, entries, sha });
+    return sha;
+  };
+  return trees;
+}
+
+const manyFiles = (repo) => {
+  rmSync(join(repo, "notes.md"));
+  mkdirSync(join(repo, "data"));
+  for (let i = 0; i <= MAX_TREE_ENTRIES_PER_REQUEST; i++) {
+    writeFileSync(join(repo, `data/f${i}.txt`), `${i}\n`);
+  }
+};
+
+test("buildTree chains each chunk on the previous tree, deletions first, and ends on the tree one request builds", async (t) => {
+  const fix = repoWithPatch(t, () => {});
+  const headTree = git(fix.repo, ["rev-parse", `${fix.head}^{tree}`]);
+  const blob = (text) => git(fix.repo, ["hash-object", "-w", "--stdin"], text);
+  const entries = [
+    { path: "a.txt", mode: "100644", type: "blob", sha: blob("a\n") },
+    { path: "README.md", mode: "100644", type: "blob", sha: null },
+    { path: "b/c.txt", mode: "100644", type: "blob", sha: blob("c\n") },
+    { path: "notes.md", mode: "100644", type: "blob", sha: null },
+    { path: "d.txt", mode: "100644", type: "blob", sha: blob("d\n") },
+  ];
+  const api = fakeApi(fix.repo, fix.head);
+  const whole = await api.createTree(headTree, entries);
+  const trees = traceTrees(api);
+  assert.equal(await buildTree(api, headTree, entries, 2), whole);
+  assert.deepEqual(trees.map(({ entries: chunk }) => chunk.map((item) => item.path)), [["README.md", "notes.md"], ["a.txt", "b/c.txt"], ["d.txt"]]);
+  assert.deepEqual(trees.map(({ base }) => base), [headTree, trees[0].sha, trees[1].sha]);
+});
+
+test("buildTree sends entries that fit one chunk in one request, in their order, and none for no entries", async (t) => {
+  const fix = repoWithPatch(t, () => {});
+  const headTree = git(fix.repo, ["rev-parse", `${fix.head}^{tree}`]);
+  const entries = [
+    { path: "a.txt", mode: "100644", type: "blob", sha: git(fix.repo, ["hash-object", "-w", "--stdin"], "a\n") },
+    { path: "README.md", mode: "100644", type: "blob", sha: null },
+  ];
+  const api = fakeApi(fix.repo, fix.head);
+  const trees = traceTrees(api);
+  await buildTree(api, headTree, entries, 2);
+  assert.deepEqual(trees.map(({ base, entries: chunk }) => [base, chunk]), [[headTree, entries]]);
+  assert.equal(await buildTree(api, headTree, []), headTree);
+  assert.equal(trees.length, 1);
+});
+
+test("a patch with more paths than one tree request holds builds the tree in chunks and pushes it", async (t) => {
+  const fix = repoWithPatch(t, manyFiles);
+  const api = fakeApi(fix.repo, fix.head);
+  const trees = traceTrees(api);
+  assert.equal((await pushWith(fix, api)).outcome, "pushed");
+  assert.equal(trees.length, 2);
+  assert.ok(trees.every(({ entries }) => entries.length <= MAX_TREE_ENTRIES_PER_REQUEST));
+  assert.deepEqual(trees[0].entries[0], { path: "notes.md", mode: "100644", type: "blob", sha: null });
+  assert.equal(trees[1].base, trees[0].sha);
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.tree, trees[1].sha);
+  assert.ok(api.calls.some((call) => call.updateRef));
+});
+
+test("a chunked tree build that ends on another tree throws and commits nothing", async (t) => {
+  const fix = repoWithPatch(t, manyFiles);
+  const api = fakeApi(fix.repo, fix.head, { tree: "f".repeat(40) });
+  await assert.rejects(pushWith(fix, api), /GitHub built tree f{40}, not the applied tree [0-9a-f]{40}; nothing is committed/);
+  assert.equal(api.calls.filter((call) => call === "createTree").length, 2);
+  assert.equal(api.calls.some((call) => call.createCommit || call.updateRef || call.createRef), false);
 });
 
 // A fix that makes two 100644 scripts executable and edits a test fixture,
@@ -1182,8 +1257,7 @@ test("a row with no requires list throws before any git or API work", async (t) 
   assert.deepEqual(api.calls, []);
 });
 
-// One blob per file plus seven calls, so the 300 cap bounds the writes.
-test("a fix-ci patch of 300 files pushes with 307 API calls, and one of 301 is refused with none", async (t) => {
+test("a fix-ci patch of 300 files pushes with 309 API calls, and one of 301 is refused with none", async (t) => {
   const files = (count) => (repo) => {
     mkdirSync(join(repo, "gen"));
     for (let i = 0; i < count; i += 1) {
@@ -1193,7 +1267,7 @@ test("a fix-ci patch of 300 files pushes with 307 API calls, and one of 301 is r
   const atCap = repoWithPatch(t, files(300));
   const api = fakeApi(atCap.repo, atCap.head);
   assert.equal((await pushWith(atCap, api, { row: row("ci-context") })).outcome, "pushed");
-  assert.equal(api.calls.length, 307);
+  assert.equal(api.calls.length, 309);
   const over = repoWithPatch(t, files(301));
   const refused = fakeApi(over.repo, over.head);
   assert.deepEqual(await pushWith(over, refused, { row: row("ci-context") }), { outcome: "escalate", escalationReason: "ci-fix-invalid" });
@@ -3437,7 +3511,7 @@ test("select under the merge-base row: a clean merge proceeds with no patch, an 
 // holds upload nothing, two files both sides changed that merged cleanly and
 // the one resolved conflict upload one blob each; the patch is the
 // resolution alone, so max-files counts one path.
-test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolution makes exactly 3 blobs, 1 tree, 1 commit and 1 ref update", async (t) => {
+test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolution makes exactly 3 blobs, 5 chained trees, 1 commit and 1 ref update", async (t) => {
   const many = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`gen/f${i}.txt`, `${i} from main\n`]));
   const fix = mergeFixture(t, {
     base: { "a.txt": "one\n", "two/x.txt": "1\n2\n3\n4\n5\n", "two/y.txt": "1\n2\n3\n4\n5\n" },
@@ -3447,7 +3521,7 @@ test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolutio
   });
   const api = fakeApi(fix.repo, fix.head);
   assert.equal((await mergePush(fix, api)).outcome, "pushed");
-  assert.deepEqual(callNames(api), ["getPull", "listLabels", "readBranch", "createBlob", "createBlob", "createBlob", "createTree", "createCommit", "updateRef", "readBranch"]);
+  assert.deepEqual(callNames(api), ["getPull", "listLabels", "readBranch", "createBlob", "createBlob", "createBlob", ...Array(5).fill("createTree"), "createCommit", "updateRef", "readBranch"]);
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
   assert.equal(git(fix.repo, ["rev-parse", `${createCommit.tree}:gen/f399.txt`]), git(fix.repo, ["rev-parse", `${fix.base}:gen/f399.txt`]));

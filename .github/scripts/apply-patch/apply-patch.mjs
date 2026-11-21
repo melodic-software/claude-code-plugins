@@ -88,6 +88,7 @@ export const MAX_PATCH_BYTES = 1024 * 1024;
 // together, are capped once leakedBlob has scanned them.
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
 export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
+export const MAX_TREE_ENTRIES_PER_REQUEST = 100;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
 export const DEPENDABOT_PATH = ".github/dependabot.yml";
 const SHA = /^[0-9a-f]{40}$/;
@@ -1184,7 +1185,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       }
     }
     const headTree = git(["rev-parse", `${headSha}^{tree}`]).toString("utf8").trim();
-    const built = treeEntries.length > 0 ? await api.createTree(headTree, treeEntries) : headTree;
+    const built = await buildTree(api, headTree, treeEntries);
     if (built !== tree) {
       throw new Error(`GitHub built tree ${built}, not the merge tree ${tree}; nothing is committed`);
     }
@@ -1414,7 +1415,7 @@ export async function push({
     treeEntries.push({ path: entry.path, mode: entry.newMode, type: "blob", sha });
   }
   const headTree = git(["rev-parse", `${headSha}^{tree}`]).toString("utf8").trim();
-  const built = await api.createTree(headTree, treeEntries);
+  const built = await buildTree(api, headTree, treeEntries);
   if (built !== tree) {
     throw new Error(`GitHub built tree ${built}, not the applied tree ${tree}; nothing is committed`);
   }
@@ -1424,6 +1425,15 @@ export async function push({
   }
   log(`pushed ${commit} (${entries.length} path(s)) onto ${headRef}`);
   return { outcome: "pushed", commit, branch: headRef };
+}
+
+export async function buildTree(api, baseTree, entries, max = MAX_TREE_ENTRIES_PER_REQUEST) {
+  const deletionsFirst = entries.length > max ? [...entries.filter((item) => item.sha === null), ...entries.filter((item) => item.sha !== null)] : entries;
+  let built = baseTree;
+  for (let start = 0; start < deletionsFirst.length; start += max) {
+    built = await api.createTree(built, deletionsFirst.slice(start, start + max));
+  }
+  return built;
 }
 
 // What GitHub answered a failed call, for its error: the JSON body's message
