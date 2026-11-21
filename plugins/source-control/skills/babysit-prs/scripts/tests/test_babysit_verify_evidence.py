@@ -1374,8 +1374,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_superseded_fail_at_the_head_at_the_cap_stays_capped(self) -> None:
-        # The cap never clears at its FAILed head (VERIFY_FINAL): the
-        # pr-unblock dispatchers record a capped head as handled.
         fake = self.relinked()
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
@@ -1571,8 +1569,6 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIs(read(merge_only).report()["supersededAtHead"], False)
 
     def test_the_cap_is_judged_before_a_superseded_fail_at_the_head(self) -> None:
-        # Under the cap the body fix lets the pass decide (above); at it the
-        # head stays capped, and the report names nothing superseded.
         fake = self.edited()
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),

@@ -4350,8 +4350,6 @@ class Reader:
         read_elsewhere: list[tuple[dict[Any, Any], set[str]]] = []
 
         def elsewhere() -> tuple[dict[Any, Any], set[str]]:
-            # Read once: the cap at a superseded FAIL at the head and the
-            # passes below both need it, and `_elsewhere` reads live issues.
             if not read_elsewhere:
                 read_elsewhere.append(
                     self._elsewhere(
@@ -4374,9 +4372,6 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
-        # The cap decides before supersession: a FAIL at the head at the cap
-        # stays capped there whatever supersedes it later (VERIFY_FINAL), as
-        # the pr-unblock dispatchers record a capped head as handled.
         head_superseded = head in failed and superseded(head)
         if head in failed and len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
