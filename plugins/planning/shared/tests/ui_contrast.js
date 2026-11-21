@@ -171,8 +171,8 @@ async function main() {
       await owner.evaluate(() => document.querySelector(".probe").remove());
       return r.out.filter(x => x.what.includes("Probe text"));
     };
-    const self = { black: await probe("#000", "#fff"), grey: await probe("#777", "#fff"), pass: await probe("#595959", "#fff") };
-    ok("self-check: #777 on white measures 4.48:1 (WebAIM) and fails 4.5:1", self.grey.length === 1 && Math.abs(self.grey[0].ratio - 4.48) < 0.01, JSON.stringify(self.grey));
+    const self = { black: await probe("#000", "#fff"), gray: await probe("#777", "#fff"), pass: await probe("#595959", "#fff") };
+    ok("self-check: #777 on white measures 4.48:1 (WebAIM) and fails 4.5:1", self.gray.length === 1 && Math.abs(self.gray[0].ratio - 4.48) < 0.01, JSON.stringify(self.gray));
     ok("self-check: black on white and #595959 on white pass", self.black.length === 0 && self.pass.length === 0, JSON.stringify(self));
 
     // ---------- per mode: the accent and person colors keep their AA ratios ----------

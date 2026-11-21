@@ -297,7 +297,7 @@ expect "aggregate with an empty needs block exits 2" 2 "empty needs: block" \
 write_workflow "$scratch/odd-key.yml" "  &anchor-not-a-job:
     runs-on: ubuntu-24.04
 " "$(needs_of alpha beta)"
-expect "unmodelled 2-space key exits 2" 2 "unrecognized key under jobs" \
+expect "unmodeled 2-space key exits 2" 2 "unrecognized key under jobs" \
   --check "$scratch/odd-key.yml" ci-status "$NONE"
 
 write_workflow "$scratch/missing-agg.yml" "" "$(needs_of alpha beta)"
@@ -372,7 +372,7 @@ expect "an expression-valued continue-on-error exits 2" 2 "is not a literal true
 write_step_workflow "$scratch/steps-odd-feed.yml" \
   "$(steps_of gate:shellcheck)" \
   "            shellcheck=\${{ steps.shellcheck.outcome == 'success' }}"
-expect "a feed row in an unmodelled shape exits 2" 2 "a shape this gate does not model" \
+expect "a feed row in an unmodeled shape exits 2" 2 "a shape this gate does not model" \
   --check "$scratch/steps-odd-feed.yml" ci-status "$NONE"
 
 write_step_workflow "$scratch/steps-two-in-a-row.yml" \
