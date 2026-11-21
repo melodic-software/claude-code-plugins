@@ -99,7 +99,7 @@ edit the canonical source, then rerun the script. -->
   const $ = (id) => document.getElementById(id);
   const frame = $("page"), composer = $("composer"), text = $("text");
   const devOrigin = frame.dataset.devOrigin || null;
-  const target = frameTarget(devOrigin);
+  const target = frameTarget(devOrigin, frame.dataset.mockupTarget || null);
   let heard = () => {};
   const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
@@ -112,7 +112,7 @@ edit the canonical source, then rerun the script. -->
   let last = { listening: "idle", notes: [] };
 
   const fits = (value, node) => value !== undefined && problems(value, schema, node).length === 0;
-  const toFrame = (m) => { if (ready && loads < 2) frame.contentWindow.postMessage(m, target); };
+  const toFrame = (m) => { if (target && ready && loads < 2) frame.contentWindow.postMessage(m, target); };
   const live = () => ready && loads < 2;
   const QUOTE = () => schema.$defs.anchor.properties.textQuote;
 

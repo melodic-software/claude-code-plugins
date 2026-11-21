@@ -130,7 +130,9 @@ the host page reach the frame only by message.
   `frame-ancestors 'none'`. Messages pass only to and from that origin: the host page takes a
   message only when `e.source` is the frame's window and `e.origin` is the dev origin, and every
   `postMessage` it sends to the frame names the dev origin as `targetOrigin`. Only the sandboxed
-  mockup's frame gets `"*"`, because its opaque origin matches no named target
+  mockup's frame gets `"*"`, because its opaque origin matches no named target, and the bridge
+  writes that target on the mockup route's frame tag alone (`data-mockup-target`), so the
+  real-stack host page and `frame-channel.mjs` hold no `"*"`
   ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage) states the same
   rule for `data:` URLs, which also have opaque origins).
 - **A blocked frame is found by a missing ready message.** Firefox fires neither a load nor an

@@ -9,9 +9,14 @@ export function fromFrame(e, frameWindow, origin) {
   return origin === null || e.origin === origin;
 }
 
-/** The targetOrigin of every host-to-frame postMessage: the dev origin, or for the sandboxed mockup, whose srcdoc document has an opaque origin, "*", the one target an opaque origin matches. */
-export function frameTarget(origin) {
-  return origin === null ? "*" : origin;
+/**
+ * The targetOrigin of every host-to-frame postMessage: the dev origin on a real-stack route, else
+ * `mockupTarget`, the target notes_bridge.py writes on the sandboxed mockup's frame tag alone (its
+ * srcdoc document has an opaque origin, which only the wildcard target matches). Null when neither
+ * is set, and then the host page posts nothing.
+ */
+export function frameTarget(origin, mockupTarget = null) {
+  return origin || mockupTarget || null;
 }
 
 /**
