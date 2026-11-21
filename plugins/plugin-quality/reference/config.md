@@ -81,7 +81,7 @@ Two keys live outside the topic doc, in `<home>/plugin-quality.yaml`, checked ag
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/plugin-quality:audit` runs its adversarial re-examination seam. `standard` keeps the `high`-effort gate; `strict` runs it at every effort; `light` and `off` skip it at every effort and label the findings `unverified`. A skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/plugin-quality:audit` runs its adversarial re-examination step. `standard` keeps the `high`-effort gate; `strict` runs it at every effort; `light` and `off` skip it at every effort and label the findings `unverified`. A skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
 
 ## Sink resolution ladder (step 6 of the audit)
 

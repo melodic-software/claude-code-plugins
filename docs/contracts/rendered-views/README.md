@@ -830,8 +830,8 @@ validation answer set). Fleet audits check those surfaces against this section.
 copies the state the user built out as text they can paste into the session or commit. For
 the author's version of this rule, see S2, section "Custom editing interfaces"
 ([source list](../../finding-your-unknowns.md#sources-and-citation-shape)). The doctrine
-recurs three times independently in the corpus; it is what keeps a throwaway editor inside
-the agent loop instead of becoming a dead end.
+recurs three times independently in the corpus; without the control, the state a user
+builds in a throwaway editor stays in the browser, so the session never sees it.
 
 **Who is bound.** Skills that emit interactive HTML artifacts cite this section.
 

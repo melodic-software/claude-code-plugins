@@ -1,4 +1,4 @@
-# Commit-convention enforcement seam
+# Commit-convention enforcement contract
 
 Owner doc for the machine-readable **enforcement** read of a consumer's commit-subject /
 PR-title convention. This concern is consumed by **more than one plugin**: `source-control`
@@ -17,12 +17,12 @@ Enforcement reads a key that file lacks from the folder-form file below. Draftin
 the folder-form file: the model resolves the YAML and the personal markdown layers in
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
 That document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
-compose a compliant subject/title. This seam owns the **enforcement** resolution: how a
+compose a compliant subject/title. This contract owns the **enforcement** resolution: how a
 zero-dependency hook decides whether an *already-formed* subject/title is allowed.
 
 The two reads are deliberately not identical:
 
-| | Drafting (config-resolution.md) | Enforcement (this seam) |
+| | Drafting (config-resolution.md) | Enforcement (this contract) |
 |---|---|---|
 | Reader | the model | a POSIX sh hook (`[[ =~ ]]` / `grep -E`) |
 | Layers read | user-global, team, local, per-key merge | **team-tracked**: `docs/conventions/source-control.yaml`, then the folder-form `docs/conventions/source-control/commit-convention.yml`; for `subject_pattern` only, and only where those set none, the git-ignored personal `docs/conventions/source-control.local.yaml`, never merged |
@@ -84,7 +84,7 @@ name the file to change.
 ## The folder-form convention file
 
 `docs/conventions/source-control/commit-convention.yml` is a flat-scalar YAML file, the
-tool-agnostic file any consumer (this seam's resolver, a commit-msg hook, CI, another agent) reads
+tool-agnostic file any consumer (the enforcement resolver, a commit-msg hook, CI, another agent) reads
 with one sed. It is the path the org standards sync writes. Enforcement reads it only for a key
 `docs/conventions/source-control.yaml` lacks.
 
@@ -117,7 +117,7 @@ Contract points:
 - **`dialect:`** (optional, default `posix-ere`) declares the regex dialect for non-enforcement
   consumers (a JS CI runner, a PCRE hook) so they know what they are reading instead of silently
   misreading it. Enforcement itself stays POSIX-ERE-only: a declared non-`posix-ere` dialect
-  disables this seam's enforcement with a diagnostic, exactly like a PCRE-ism in the pattern.
+  disables enforcement with a diagnostic, exactly like a PCRE-ism in the pattern.
 - **Fail closed.** A tracked file that is unreadable, carries a key with an empty value, or is a
   symlink or sits under a symlinked path segment whose physical target leaves the repository root
   (the target must be a regular file physically under the repo) disables enforcement with a
@@ -167,6 +167,6 @@ purposes without it.
   `scripts/shared-copies.txt`, the commit-msg entry installs both as assets, and a change to either
   canonical carries a guardrails release so consumers receive it.
 
-Naming coincidence recorded per the seam rules: the convention file is `docs/conventions/source-control.yaml`, named
+Naming coincidence recorded per the shared-concern naming rules: the convention file is `docs/conventions/source-control.yaml`, named
 after the concern (delivery workflow), not the plugin. The plugin-name collision is incidental; the
 file is not renamed.

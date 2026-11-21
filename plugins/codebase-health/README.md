@@ -104,7 +104,7 @@ verified non-issue. Nothing project-specific is baked into the plugin.
 
 One `userConfig` option, `medium`: your own default for the rendered-view offer (default `auto`),
 read by the shared medium resolver above. Audit targets flow through the tracked
-`.claude/codebase-health.md` config seam above (written by `/codebase-health:setup apply`). No
+`.claude/codebase-health.md` config file above (written by `/codebase-health:setup apply`). No
 hooks, no MCP servers, no bundled scripts beyond the shared `lib/` copies (medium resolver, prerequisites check, verification reader), no network
 calls of its own (Phase 2 may use whatever documentation-research tools your setup provides). State:
 the audit reads and writes only the consumer's own files under the scope you give it.
