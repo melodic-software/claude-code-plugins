@@ -31,7 +31,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/opt/plugins/cache/review/skills/setup/scripts/setup-apply.mjs\" --check"
+            "command": "node \"/opt/marketplace/plugins/review/skills/setup/scripts/setup-apply.mjs\" --check"
           }
         }
       ],
