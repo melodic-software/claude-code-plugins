@@ -31,7 +31,8 @@
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate, an
 #          out-of-order or a missing (gap) Q id that no `- gap | Q<a>-Q<b> | <why>`
-#          line declares, a malformed gap line, an unfenced `- Q<N> |` row
+#          line declares, a malformed gap line, a declared gap that covers a
+#          row or runs past the highest row, an unfenced `- Q<N> |` row
 #          outside the register section (any heading ends the section, a
 #          sub-heading inside it included), a named `--brief` that is
 #          missing, or a `--surface` that is missing, comes without `--brief`
@@ -793,7 +794,7 @@ track_id() {
 # the live branch below both test it, and they must agree: a shape skipped as
 # documentation has to be the same shape that would have been graded as data.
 row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
-gap_candidate_re='^[[:space:]]*-[[:space:]]+[Gg]ap([^A-Za-z0-9]|$)'
+gap_candidate_re='^[[:space:]]*-[[:space:]]+[Gg]ap[[:space:]]*\|'
 gap_line_re='^[[:space:]]*-[[:space:]]+[Gg]ap[[:space:]]*\|[[:space:]]*[Qq]([1-9][0-9]*)[[:space:]]*-[[:space:]]*[Qq]([1-9][0-9]*)[[:space:]]*\|[[:space:]]*[^[:space:]]'
 
 skipped_fenced_row=0
@@ -816,7 +817,7 @@ while IFS= read -r line; do
 
   if [[ "$line" =~ $gap_candidate_re ]]; then
     if [[ "$line" =~ $gap_line_re && "${BASH_REMATCH[1]}" -le "${BASH_REMATCH[2]}" ]]; then
-      declared_gaps="$declared_gaps${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"$'\n'
+      declared_gaps="$declared_gaps${BASH_REMATCH[1]} ${BASH_REMATCH[2]} $lineno"$'\n'
     else
       row_error "malformed gap line (expected '- gap | Q<a>-Q<b> | <why these ids have no row>'): $line"
     fi
@@ -942,7 +943,7 @@ undeclared_gap() {
 
 report_gap() {
   local lo="$1" hi="$2" a b
-  while read -r a b; do
+  while read -r a b _; do
     [[ -n "$a" && "$b" -ge "$lo" ]] || continue
     [[ "$a" -gt "$hi" ]] && break
     [[ "$a" -gt "$lo" ]] && undeclared_gap "$lo" $((a - 1))
@@ -962,6 +963,18 @@ for n in $(printf '%s\n' $ids_in_order | sort -n); do
   [[ "$n" -gt $((prev + 1)) ]] && report_gap $((prev + 1)) $((n - 1))
   prev="$n"
 done
+
+read -ra row_ids <<<"$ids_in_order"
+while read -r a b gap_line; do
+  [[ -n "$a" ]] || continue
+  [[ "$b" -gt "$max_id" ]] && row_errors="${row_errors}line $gap_line: declared gap Q$a-Q$b runs past the highest row Q$max_id"$'\n'
+  for n in ${row_ids[@]+"${row_ids[@]}"}; do
+    if [[ "$n" -ge "$a" && "$n" -le "$b" ]]; then
+      row_errors="${row_errors}line $gap_line: declared gap Q$a-Q$b covers the row Q$n"$'\n'
+      break
+    fi
+  done
+done <<<"$declared_gaps"
 
 if [[ -n "$row_errors" ]]; then
   # Exit 2 stays load-bearing for Step 3 and the --brief path; the verdict

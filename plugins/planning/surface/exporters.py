@@ -4,8 +4,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
   export_ledger  the interview ledger: a decision-tree checklist, then the open-question register in
                  the row shape scripts/check-open-questions.sh grades, then the deferred questions;
                  given a ledger's text it merges into that ledger's register (merged_register)
-                 and keeps each of its `- gap |` lines before the first row past its range
-  sync_ledger    a ledger's text with only its register rows replaced by the merged rows
+                 and keeps its well-formed `- gap |` lines, in range order, each right before
+                 the first row numbered past its range (after the last row when none is)
+  sync_ledger    a ledger's text with only its register rows and gap lines replaced by the
+                 merged rows and those gap lines, placed as export_ledger places them
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
                  numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
@@ -47,8 +49,9 @@ is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes b
 question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
 Register ids are never renumbered: a row the ledger merged into already holds keeps its number,
-a Q<N> id new to that ledger keeps N, and any other id takes the next number after the highest,
-in natural id order (letters, then number). A row whose number is not its own id leads its
+a Q<N> id new to that ledger keeps N unless a row has it or a declared gap covers it, and any
+other id takes the next number after the highest, in natural id order (letters, then number).
+With no ledger every Q<N> id keeps N. A row whose number is not its own id leads its
 resolution with `[<id>]`, which import_ledger reads back so a re-export numbers the same way.
 
 Every row export_ledger writes has one resolution grammar: named fields in this fixed order, each
@@ -131,7 +134,9 @@ SEED_NOTE = "Seeded from ledger"
 # The note an accept made by an accept-audit event exports with (schema/event.schema.json).
 PENDING_NOTE = "pending agent validation"
 ROW = re.compile(r"^\s*-\s+[Qq]([0-9]+)\s*\|(.*)$")
-GAP_LINE = re.compile(r"^\s*-\s+[Gg]ap\s*\|\s*[Qq][0-9]+\s*-\s*[Qq]([0-9]+)\s*\|")
+GAP_LINE = re.compile(
+    r"^\s*-\s+[Gg]ap\s*\|\s*[Qq]([1-9][0-9]*)\s*-\s*[Qq]([1-9][0-9]*)\s*\|\s*\S"
+)
 LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
 MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
@@ -643,23 +648,35 @@ def settle(q, responses, events, seed_rows):
     return status if status == "superseded-by-plan" else "open", fields, "", False
 
 
-def numbering(ids, held=None):
+def numbering(ids, held=None, gaps=()):
     """{id: register number}, never reusing or changing a number, so a record citing one still
-    names the same question: an id `held` ({id: number} of the ledger being written) keeps its
-    ledger number; a Q<N> id new to the ledger keeps N unless another row already has it; every
-    other id, in natural id order, takes the next number after the highest so far."""
+    names the same question. An id `held` ({id: number} of the ledger being written) keeps its
+    ledger number. A Q<N> id new to the ledger keeps N unless a ledger row has that number or
+    one of the ledger's declared `gaps` ((low, high) ranges) covers it. Every other id, in
+    natural id order, takes the next number after the highest held, kept or declared. With no
+    ledger every Q<N> id keeps N and the rest number after the highest of them."""
     held = held or {}
     pos = {i: held[i] for i in ids if i in held}
     taken = set(held.values())
     for i in ids:
-        if i not in pos and QN.match(i) and int(i[1:]) not in taken:
-            pos[i] = int(i[1:])
-            taken.add(pos[i])
-    top = max(taken, default=0)
+        n = int(i[1:]) if QN.match(i) else None
+        if i not in pos and n and n not in taken and not any(a <= n <= b for a, b in gaps):
+            pos[i] = n
+            taken.add(n)
+    top = max([*taken, *(b for _, b in gaps)], default=0)
     for i in sorted({i for i in ids if i not in pos}, key=natural):
         top += 1
         pos[i] = top
     return pos
+
+
+def page_numbering(doc, extra=(), text=None):
+    """numbering() of the page's question ids, its pending proposals and the ledger-only `extra`
+    ids, against the row numbers and declared gaps of the ledger `text`."""
+    ids = [q["id"] for q in doc.get("questions") or []]
+    ids += [*(doc.get("pendingProposals") or []), *extra]
+    gaps = [(a, b) for a, b, _, _ in gap_lines(text or "")]
+    return numbering(ids, ledger_numbers(text), gaps)
 
 
 def lead_of(qid, n):
@@ -667,12 +684,11 @@ def lead_of(qid, n):
     return "" if f"Q{n}" == qid else f"[{clean(qid)}] "
 
 
-def register(doc, resp, extra=(), numbers=None):
-    """One dict per question, in register order, with its Q<N> and settled status; `extra`
-    names ledger-only ids that share the numbering, and `numbers` is numbering's `held`."""
+def register(doc, resp, pos=None):
+    """One dict per question, in register order, with its Q<N> and settled status; `pos` is the
+    page_numbering() the caller already made, else the page's own."""
     qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
-    held = list(doc.get("pendingProposals") or [])
-    pos = numbering([q["id"] for q in qs] + held + list(extra), numbers)
+    pos = pos or page_numbering(doc)
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
     seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -768,8 +784,7 @@ def merged_register(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    numbers = ledger_numbers(text)
-    pos = numbering(sorted(page_ids) + doc["pendingProposals"] + extra, numbers)
+    pos = page_numbering(doc, extra, text)
     seeded = (doc.get("meta") or {}).get("seededFrom") or {}
     cells = seeded.get("roundCells") or {}
     responses = resp.get("responses") or {}
@@ -787,7 +802,7 @@ def merged_register(d, text=None):
         )
 
     rows = []
-    for r in register(doc, resp, extra, numbers):
+    for r in register(doc, resp, pos):
         q = r["q"]
         rnd, added = q.get("round") or 1, q.get("addedInRound")
         page = {
@@ -849,6 +864,19 @@ def merged_register(d, text=None):
     return doc, rows, notes
 
 
+def register_lines(rows, gaps):
+    """The register's lines: each row's, with each declared gap line (gap_lines' tuples) right
+    before the first row numbered past its range, in range order, and after the last row when
+    none is."""
+    gaps = sorted(gaps, key=lambda g: (g[1], g[2]))
+    out = []
+    for r in rows:
+        while gaps and gaps[0][1] < int(r["n"][1:]):
+            out.append(gaps.pop(0)[3])
+        out.append(row_line(r))
+    return out + [g[3] for g in gaps]
+
+
 def export_ledger(d, text=None):
     doc, rows, _ = merged_register(d, text)
     title = (doc.get("meta") or {}).get("title")
@@ -860,12 +888,7 @@ def export_ledger(d, text=None):
         mark = " " if r["status"] in UNSETTLED else "x"
         out.append(f"- [{mark}] {r['n']} {r['short']}: {r['status']}")
     out += ["", "## Open-question register", ""]
-    gaps = gap_lines(text or "")
-    for r in rows:
-        while gaps and gaps[0][0] < int(r["n"][1:]):
-            out.append(gaps.pop(0)[1])
-        out.append(row_line(r))
-    out += [line for _, line in gaps]
+    out += register_lines(rows, gap_lines(text or ""))
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
@@ -955,19 +978,21 @@ def check_ledger(text, where):
 
 
 def sync_ledger(d, text, where):
-    """(text, notes): the ledger's text with its live register rows, and nothing else, replaced
-    by merged_register's rows, written where the first row stood. A register with no rows yet gets
+    """(text, notes): the ledger's text with its live register rows and declared gap lines, and
+    nothing else, replaced by merged_register's rows and those gap lines placed as register_lines
+    places them, written where the first of them stood. A register with no rows yet gets
     them under its heading, with a blank line before any text that follows, which would otherwise
     read as part of the last row's list item."""
     lines = text.splitlines(keepends=True)
     heads, found = check_ledger(text, where)
     _, rows, notes = merged_register(d, text)
-    drop = {i for i, _ in found}
+    gaps = gap_lines(text)
+    drop = {i for i, _ in found} | {g[2] for g in gaps}
     at = min(drop) if drop else heads[0] + 1
     if not drop and at < len(lines) and not lines[at].strip():
         at += 1
     eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
-    new = [row_line(r) + eol for r in rows]
+    new = [line + eol for line in register_lines(rows, gaps)]
     if new and not drop and at < len(lines) and lines[at].strip():
         new.append(eol)
     keep = [line for i, line in enumerate(lines) if i not in drop]
@@ -1335,9 +1360,8 @@ def export_brief(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    numbers = ledger_numbers(text)
-    rows = register(doc, resp, extra, numbers)
-    pos = numbering(sorted(page_ids) + doc["pendingProposals"] + extra, numbers)
+    pos = page_numbering(doc, extra, text)
+    rows = register(doc, resp, pos)
     for i in extra:
         status, _, title, res = old[i]
         rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
@@ -1778,24 +1802,35 @@ def scan_register(lines, row=ROW):
     return heads, rows
 
 
+def parse_gap(line):
+    """(low, high) of a `- gap | Q<a>-Q<b> | <why>` line in the grammar check-open-questions.sh
+    accepts (no leading zero, a <= b, a reason), else None."""
+    m = GAP_LINE.match(line)
+    ends = (int(m.group(1)), int(m.group(2))) if m else None
+    return ends if ends and ends[0] <= ends[1] else None
+
+
 def gap_lines(text):
-    """[(highest id it declares, line)] of a ledger's `- gap |` lines, in file order."""
+    """[(low, high, line index, line)] of each well-formed `- gap |` line in a ledger's register
+    section outside fenced blocks, in file order."""
     lines = text.splitlines()
-    return [(int(m.group(1)), lines[i].strip()) for i, m in scan_register(lines, GAP_LINE)[1]]
+    found = [(parse_gap(lines[i]), i) for i, _ in scan_register(lines, GAP_LINE)[1]]
+    return [(*ends, i, lines[i].strip()) for ends, i in found if ends]
 
 
 def highest_id(text, d=None):
-    """The highest question number a ledger's register rows and `- gap |` lines hold, and with a
-    data dir every number its merged export writes and every pending proposal's Q<N>; 0 for
-    none."""
-    lines = text.splitlines()
-    nums = [int(m.group(1)) for _, m in scan_register(lines)[1]]
-    nums += [n for n, _ in gap_lines(text)]
+    """The highest question number a ledger holds: its register rows' Q<N>, each `[Q<N>]` lead
+    and each `- gap |` line's high end; with a data dir also every number its merged export
+    writes, every page question's own Q<N> and every pending proposal's. 0 for none."""
+    ids = []
+    for n, _, _, _, res, _ in parse_register(text):
+        ids += [f"Q{n}", row_id(n, res)]
+    nums = [b for _, b, _, _ in gap_lines(text)]
     if d is not None:
         doc, rows, _ = merged_register(d, text)
         nums += [int(r["n"][1:]) for r in rows]
-        nums += [int(i[1:]) for i in doc["pendingProposals"] if QN.match(i)]
-    return max(nums, default=0)
+        ids += [q["id"] for q in doc["questions"]] + doc["pendingProposals"]
+    return max(nums + [int(i[1:]) for i in ids if QN.match(i)], default=0)
 
 
 def parse_register(text):

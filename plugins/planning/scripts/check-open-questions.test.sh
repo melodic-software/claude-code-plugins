@@ -247,6 +247,32 @@ for bad_gap in '- gap | Q2 | no range' '- gap | Q3-Q2 | reversed' '- gap | Q2-Q2
   expect_exit "malformed gap line '$bad_gap' -> 2" 2 --ledger "$bad_gap_ledger"
   if [[ "$(stderr_of --ledger "$bad_gap_ledger")" == *"malformed gap line"* ]]; then pass "'$bad_gap' is named malformed"; else fail "'$bad_gap' is named malformed"; fi
 done
+covering_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap | Q2-Q3 | dropped before the page
+- Q3 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a declared gap covering a row -> 2" 2 --ledger "$covering_gap"
+if [[ "$(stderr_of --ledger "$covering_gap")" == *"line 10: declared gap Q2-Q3 covers the row Q3"* ]]; then pass "a gap covering a row is named with its line"; else fail "a gap covering a row is named with its line (stderr: '$(stderr_of --ledger "$covering_gap")')"; fi
+trailing_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 1 | What format? | markdown
+- gap | Q3-Q5 | ids a peer session holds
+EOF
+)"
+expect_exit "a declared gap past the highest row -> 2" 2 --ledger "$trailing_gap"
+if [[ "$(stderr_of --ledger "$trailing_gap")" == *"line 11: declared gap Q3-Q5 runs past the highest row Q2"* ]]; then pass "a gap past the highest row is named with its line"; else fail "a gap past the highest row is named with its line (stderr: '$(stderr_of --ledger "$trailing_gap")')"; fi
+prose_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap, see below
+- Q2 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a prose bullet starting with gap is not a gap line -> 0" 0 --ledger "$prose_gap"
 
 # 14b. A row that lost its first pipe must exit 2, not vanish. Skipping it
 #      silently would hide Q2 from the contiguity check and grade the register

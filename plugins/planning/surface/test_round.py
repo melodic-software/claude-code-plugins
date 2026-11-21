@@ -4434,6 +4434,26 @@ class TestNextId(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(out, "Q5\n")
 
+    def test_a_renumbered_row_lead_is_never_reused(self):
+        ledger = self.ledger(
+            "- Q1 | answered | round 1 | Seven? | [Q7] free-text: first\n"
+            "- Q2 | answered | round 1 | Jay? | [J1] free-text: second\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q8\n")
+
+    def test_a_pending_proposal_id_is_never_reused(self):
+        doc = base_doc()
+        doc["questions"].append(question("Q9", group="g2", round=1, proposed=True))
+        self.write_doc(doc)
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | One? |\n- Q2 | open | round 1 | Two? |\n"
+        )
+        rc, out, err = self.next_id("--ledger", ledger, "--dir", str(self.dir))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(out, "Q10\n")
+
     def test_a_file_with_no_register_heading_is_refused(self):
         path = self.tmp / "notes.md"
         path.write_bytes(b"# Notes\n\n- Q1 | open | round 1 | One? |\n")

@@ -344,6 +344,101 @@ class TestExportLedger(SessionCase):
         self.assertEqual(rc, 1, verdict)
         self.assertIn("registered=3 open=3", verdict)
 
+    GAPPED = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | open | round 1 | Question Q1? |\n"
+        "- gap | Q2-Q9 | the shared session's ids ran ahead\n"
+    )
+
+    def test_a_new_id_never_lands_in_a_declared_gap(self):
+        self.session([question("Q1"), question("J1")], [])
+        _, rows, _ = exporters.merged_register(self.dir, self.GAPPED)
+        self.assertEqual([(r["n"], r["id"]) for r in rows], [("Q1", "Q1"), ("Q10", "J1")])
+        self.assertTrue(rows[1]["resolution"].startswith("[J1]"), rows[1])
+        self.assertEqual(
+            exporters.numbering(["Q1", "J1"], {"Q1": 1}, [(2, 9)]), {"Q1": 1, "J1": 10}
+        )
+
+    def test_a_page_q_id_inside_a_declared_gap_is_numbered_after_it(self):
+        self.session([question("Q1"), question("Q5")], [])
+        _, rows, _ = exporters.merged_register(self.dir, self.GAPPED)
+        self.assertEqual([(r["n"], r["id"]) for r in rows], [("Q1", "Q1"), ("Q10", "Q5")])
+        self.assertTrue(rows[1]["resolution"].startswith("[Q5]"), rows[1])
+
+    def test_export_ledger_keeps_a_gap_line_past_the_last_row_and_the_gate_refuses_it(self):
+        self.session([question("Q1"), question("Q2")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question Q2? |\n"
+            "- gap | Q3-Q5 | ids a peer session holds\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        register = out.read_text(encoding="utf-8").split("## Open-question register")[1]
+        lines = [x for x in register.split("###")[0].splitlines() if x.startswith("- ")]
+        self.assertEqual(lines[-1], "- gap | Q3-Q5 | ids a peer session holds")
+        self.assertEqual([x.split(" | ")[0] for x in lines], ["- Q1", "- Q2", "- gap"])
+        rc, verdict = self.check("--ledger", out)
+        self.assertEqual(rc, 2, verdict)
+        self.assertIn("runs past the highest row Q2", verdict)
+
+    def test_sync_ledger_places_each_gap_line_by_its_range(self):
+        self.session([question("Q1"), question("Q5"), question("Q6")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- gap | Q2-Q4 | dropped before the page\n"
+            "- Q5 | open | round 1 | Question Q5? |\n\n"
+            "## Notes\n\nkept as written\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        rc, text = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, text)
+        synced = ledger.read_text(encoding="utf-8")
+        register = synced.split("## Open-question register")[1].split("## Notes")[0]
+        lines = [x for x in register.splitlines() if x.startswith("- ")]
+        self.assertEqual(
+            [x.split(" | ")[0] for x in lines], ["- Q1", "- gap", "- Q5", "- Q6"]
+        )
+        self.assertIn("- gap | Q2-Q4 | dropped before the page", lines)
+        self.assertTrue(synced.endswith("## Notes\n\nkept as written\n"), synced)
+        rc, verdict = self.check("--ledger", ledger)
+        self.assertEqual(rc, 1, verdict)
+
+    GATE_GAP_LINES = {
+        "- gap | Q2-Q4 | the shared session's ids ran ahead": (2, 4),
+        "- gap | Q2-Q3 | dropped before the page": (2, 3),
+        "- gap | Q2-Q2 | an example": (2, 2),
+        "- gap | Q2 | no range": None,
+        "- gap | Q3-Q2 | reversed": None,
+        "- gap | Q2-Q2 |": None,
+        "- gap | Q02-Q3 | a leading zero": None,
+    }
+
+    def test_the_gap_line_grammar_matches_the_gate(self):
+        for line, ends in self.GATE_GAP_LINES.items():
+            with self.subTest(line=line):
+                self.assertEqual(exporters.parse_gap(line), ends)
+                ledger = self.tmp / "gate-gap.md"
+                ledger.write_text(
+                    "# Interview ledger\n\n## Open-question register\n\n"
+                    "- Q1 | answered | round 1 | One? | yes\n"
+                    f"{line}\n"
+                    "- Q5 | answered | round 1 | Five? | yes\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                _, verdict = self.check("--ledger", ledger)
+                self.assertEqual("malformed gap line" in verdict, ends is None, verdict)
+        self.assertIsNone(exporters.parse_gap("- gap, see below"))
+
     def test_a_q_id_new_to_the_ledger_keeps_its_number(self):
         self.session([question("Q1"), question("Q2"), question("Q600")], [])
         _, rows, _ = exporters.merged_register(
