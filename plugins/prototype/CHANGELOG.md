@@ -3,6 +3,13 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-11-21
+
+### Fixed
+
+- The notes tool's command bar shows a chevron at each end that hides tools at phone width, light and dark; tapping it scrolls the bar, and Tab keeps each focused tool clear of the chevrons.
+- A note's marker follows its element when the mockup reflows, such as after the window narrows, instead of keeping the spot it was drawn at.
+
 ## [0.45.0] - 2026-11-21
 
 ### Changed

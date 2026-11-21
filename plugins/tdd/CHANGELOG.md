@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6] - 2026-11-21
+
+### Removed
+
+- **`/tdd:principles` property-based and characterization testing pages no longer state tool behavior.** `property-based-testing.md` drops its Shrinking section, the `@example(...).xfail()` note and the Sources entries for Hypothesis, fast-check, rapid, CsCheck, FsCheck, QuickCheck, the `/hypothesis` command and Kiro. Its intent-first claim now rests on Vikram et al. alone, and its fallback rule of thumb no longer says to pin the shrunk input as an explicit example. `characterization-testing.md` drops its Golden Master, Approval and Snapshot Tests section and the Sources entries for ApprovalTests, Verify, Jest and Scientist. The paper and author citations stay, and the routing table no longer lists shrinking or golden-master, approval and snapshot tests ([#17771](https://github.com/melodic-software/claude-code-plugins/issues/17771)).
+
 ## [0.6.5] - 2026-11-21
 
 ### Changed
