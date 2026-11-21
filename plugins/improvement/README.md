@@ -45,7 +45,7 @@ churn analysis or declare Tier 2 MCP telemetry sources, run `/improvement:setup`
 the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` personal override. The key contract lives in
 [reference/config.md](reference/config.md).
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
 
 ## Running it as a standing routine
 

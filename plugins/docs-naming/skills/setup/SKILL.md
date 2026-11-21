@@ -85,7 +85,7 @@ no cleanup, since neither file is read; the old-file rows name the next step. Th
 layer row reports it as WARN with the same remedy: rename it to
 `docs-naming.json` in the same directory.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
 ## `apply` (idempotent)
 

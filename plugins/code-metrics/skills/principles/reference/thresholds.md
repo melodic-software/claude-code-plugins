@@ -94,7 +94,7 @@ rest of the defaults intact. The full key list is [`reference/config.md`](../../
 that supplied any value a personal layer changed, so a number that differs from a teammate's is
 traceable to the layer that changed it rather than to the code.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../../reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
 
 Setting a reference to `null` is a legitimate choice and turns the count off while the measure keeps
 reporting. Setting one to a value you can defend for your codebase is a better choice than adopting

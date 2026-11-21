@@ -58,7 +58,7 @@ it>)`, and any notice. A `terminal` result drops the offer. The tracked team fil
 new home; a `terminal` or `file` value in one still keeps the view local when no other setting
 decides, and a publishing value there is ignored.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
 
 ## Configurable audit dimensions
 

@@ -28,7 +28,7 @@ with `*` must be single-quoted. `docs/conventions/testing.yaml` also holds `/tes
 `map_report_order`, `file_findings` and `file_findings_floor`, and `/testing:write`'s
 `tdd_refactor_step` and `first_test`, which the scan ignores.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
 The keys:
 

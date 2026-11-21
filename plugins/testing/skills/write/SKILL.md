@@ -59,7 +59,7 @@ and again in the final summary:
 Settings: tdd_refactor_step=on (default), first_test=user-flow (docs/conventions/testing.yaml)
 ```
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
 [context/write.md](context/write.md) says what each value changes: the Refactor step and its
 `Refactor checkpoint:` lines, and which test comes first.

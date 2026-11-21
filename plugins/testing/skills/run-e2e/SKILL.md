@@ -142,7 +142,7 @@ A legacy testing-format map (`.claude/skills/feature-map/SKILL.md`, or the direc
 not read. Warn that it is present and name `/app-control:map refresh <its path>`, which converts it;
 the run continues.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
 ### Entry points
 

@@ -17,7 +17,7 @@ resolved in this order over the bundled defaults (`scripts/config-defaults.json`
 | 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
 | 3 | personal override | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
 
 The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
 from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`

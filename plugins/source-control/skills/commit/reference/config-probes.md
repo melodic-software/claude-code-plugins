@@ -54,4 +54,4 @@ substitutes the root at all. This matches the root-resolution requirement
 already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
 anchors itself the same way.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; new config goes where [config locations](../../../reference/config-locations.md) says.
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
