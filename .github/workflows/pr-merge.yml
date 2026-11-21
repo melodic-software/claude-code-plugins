@@ -1557,6 +1557,7 @@ jobs:
           # The completed attempts kept beside dispatch-post-merge-runs's report,
           # which the fresh check answers with no read (ATTEMPTS_ENV).
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/post-merge-kept/demotion-recoveries.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -1793,6 +1794,7 @@ jobs:
           # earlier lane merges again.
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/post-merge-kept/demotion-recoveries.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
@@ -2810,12 +2812,14 @@ jobs:
           # The completed attempts the last check read, which the fresh check
           # answers with no read (babysit_postmerge.py ATTEMPTS_ENV).
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/demotion-recoveries.json
           # The arm step's run cache, so its room shares this step's answers.
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
           last=$RUNNER_TEMP/post-merge
+          [ ! -f "$last/demotion-recoveries.json" ] || cp "$last/demotion-recoveries.json" "$RUNNER_TEMP/demotion-recoveries.json"
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           kept=false fresh='' reason='' last_reason=''
           settle() {
@@ -2867,6 +2871,7 @@ jobs:
             # Beside the report, as a sweep's artifact holds them, for the
             # arm step's room.
             [ ! -f "$BABYSIT_POSTMERGE_ATTEMPTS" ] || cp "$BABYSIT_POSTMERGE_ATTEMPTS" "$last/attempts.json"
+            [ ! -f "$RUNNER_TEMP/demotion-recoveries.json" ] || cp "$RUNNER_TEMP/demotion-recoveries.json" "$last/demotion-recoveries.json"
             if [[ $fresh =~ ^[05]$ ]]; then
               settled=$(settle "$sha" --fresh) && kept=true
               echo "$settled"
@@ -2961,6 +2966,7 @@ jobs:
           # The completed attempts the report's check read, kept beside it,
           # which the room's check answers with no read (ATTEMPTS_ENV).
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge/attempts.json
+          BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/post-merge/demotion-recoveries.json
           # Name the two tokens' rate-limit readings for the reader's gh calls
           # (api-budget.bash): the lane token by default, the job token for
           # the Actions reads that carry it.
