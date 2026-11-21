@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // Expected values come from the requested behavior for answered issues: a
 // listed human's `**Decision recorded.**` first line on a
 // `needs-owner-decision` issue, or the author's or a listed human's reply

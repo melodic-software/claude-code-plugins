@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json docs/conventions/work-items.yaml
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

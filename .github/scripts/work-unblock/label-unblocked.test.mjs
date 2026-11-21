@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // Expected values come from the work-unblock lane's rules: when an issue
 // closes, each issue it blocked gets `agent-ready` only when every blocker is
 // closed as completed, it is open, and it carries no hold label; the label

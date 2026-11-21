@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
