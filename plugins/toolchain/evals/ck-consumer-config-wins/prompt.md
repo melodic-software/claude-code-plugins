@@ -1,5 +1,5 @@
 ---
-description: "Legacy check 3. The tracked .claude/ecosystems/dotnet.yaml is rung 1 and authoritative: its project-specific test-cmd runs (it logs `dotnet test` to .calls.log through tools/run.sh), and the bundled `dotnet test` / `dotnet build` never run. ran-consumer-test reads .calls.log, no-bundled-dotnet the Bash calls; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash."
+description: "Legacy check 3. The tracked .claude/ecosystems/dotnet.yaml is rung 1 and authoritative: its project-specific test-cmd runs (it logs `dotnet test` to .calls.log through tools/run.sh), and a plain `dotnet test` / `dotnet build` never runs. ran-consumer-test reads .calls.log, no-bundled-dotnet the Bash calls; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash."
 tags: [toolchain, check, resolution-ladder, scaffold, no-network]
 max_turns: 30
 timeout_seconds: 600

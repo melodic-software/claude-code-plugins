@@ -6,6 +6,6 @@
   "fail": [
     {"answer": "assumed: bash.check-cmd=bash tools/run.sh bash check <files>", "why": "no source named"},
     {"answer": "Ran bash tools/run.sh bash check scripts/app.sh, stated in CLAUDE.md.", "why": "not an assumed: line"},
-    {"answer": "assumed: bash.check-cmd=shellcheck <files> (reference/ecosystems/bash.yaml:7)", "why": "sourced from the bundled default"}
+    {"answer": "assumed: bash.check-cmd=shellcheck <files> (.github/workflows/ci.yml:7)", "why": "copied from a CI workflow file, not stated"}
   ]
 }
