@@ -430,6 +430,11 @@ edit the canonical source, then rerun the script. -->
       return li;
     };
     const drafts = mine.filter((m) => m.draft);
+    const pin = (m, n) => ({ n, selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    toFrame({ type: "pins", pins: [
+      ...mine.filter((m) => m.seq !== null).map((m) => pin(m, m.seq)),
+      ...drafts.map((m, i) => pin(m, `D${i + 1}`)),
+    ] });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
         const m = ours.get(seq);
