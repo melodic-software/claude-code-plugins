@@ -77,8 +77,8 @@ deliverable is not governed. These skills do not read the level: `/planning:audi
 `/performance:verify`, `/discipline:scrutinize-dont-coast`, `/review:quality-gate`,
 `/review:fanout`, `/planning:devils-advocate`, `/review:security-review` and
 `/planning:interview`. Each is itself the independent check when invoked, except
-`/planning:interview`, whose contradiction pass, assumption sweep and quote check produce the
-questions it exists to ask.
+`/planning:interview`, whose assumption sweep and quote check produce the questions it exists to
+ask.
 
 `/coupling:reduce` and the conventions lens of `/architecture:improve` do not read it either:
 reproducing a scan finding produces the finding they apply or propose for recording, so it runs on

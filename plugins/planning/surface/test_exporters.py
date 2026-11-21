@@ -253,7 +253,7 @@ class TestExportLedger(SessionCase):
         held = {**term, "rev": 5}
         self.assertIsNone(exporters.latest_decision({**q, "terminal": held}, {}))
 
-    def test_non_contiguous_ids_are_renumbered_with_the_original_id(self):
+    def test_non_contiguous_ids_are_never_renumbered(self):
         self.session(
             [question("J2"), question("J1"), question("Q7")],
             [
@@ -264,39 +264,242 @@ class TestExportLedger(SessionCase):
         )
         ledger = self.export("ledger")
         rows = register_rows(ledger)
-        self.assertEqual([r.split(" | ")[0] for r in rows], ["- Q1", "- Q2", "- Q3"])
-        self.assertIn("[J1]", rows[0])
-        self.assertIn("[J2]", rows[1])
-        self.assertIn("[Q7]", rows[2])
+        self.assertEqual([r.split(" | ")[0] for r in rows], ["- Q7", "- Q8", "- Q9"])
+        self.assertNotIn("[Q7]", rows[0])
+        self.assertIn("[J1]", rows[1])
+        self.assertIn("[J2]", rows[2])
+        self.assertIn("- gap | Q1-Q6 | never assigned\n", ledger.read_text(encoding="utf-8"))
         rc, out = self.check("--ledger", ledger)
         self.assertEqual(rc, 0, out)
 
-    def test_numbering_keeps_gapped_q_ids_only_for_a_gapped_ledger(self):
-        gapped = ["Q500", "Q1", "Q2", "Q501"]
+    def test_numbering_keeps_ledger_numbers_and_numbers_only_new_ids(self):
         self.assertEqual(
-            exporters.numbering(gapped, gaps=True),
-            ({"Q1": 1, "Q2": 2, "Q500": 500, "Q501": 501}, True),
+            exporters.numbering(["J1", "Q7"], {"Q7": 1, "J1": 2}), {"Q7": 1, "J1": 2}
         )
         self.assertEqual(
-            exporters.numbering(gapped),
-            ({"Q1": 1, "Q2": 2, "Q500": 3, "Q501": 4}, False),
+            exporters.numbering(["Q1", "Q2", "Q600"]),
+            {"Q1": 1, "Q2": 2, "Q600": 600},
         )
         self.assertEqual(
-            exporters.numbering(["Q2", "Q1", "Q3"]),
-            ({"Q1": 1, "Q2": 2, "Q3": 3}, True),
+            exporters.numbering(
+                ["Q1", "Q2", "Q3", "Q4", "J1"], {"Q1": 1, "Q2": 2, "Q3": 3}
+            ),
+            {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "J1": 5},
         )
         self.assertEqual(
-            exporters.numbering(["Q7", "J1"], gaps=True), ({"J1": 1, "Q7": 2}, False)
+            exporters.numbering(["J1", "Q3"], {"J1": 3}), {"J1": 3, "Q3": 4}
         )
 
-    def test_ledger_gapped_reads_the_register_row_numbers(self):
-        def ledger(*ns):
-            rows = "".join(f"- Q{n} | open | round 1 | Q{n}? |\n" for n in ns)
-            return "# Interview ledger\n\n## Open-question register\n\n" + rows
+    RENUMBERED = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Question Q7? | [Q7] free-text: first\n"
+        "- Q2 | answered | round 1 | Question J1? | [J1] free-text: second\n"
+    )
 
-        self.assertTrue(exporters.ledger_gapped(ledger(1, 5)))
-        self.assertFalse(exporters.ledger_gapped(ledger(1, 2)))
-        self.assertFalse(exporters.ledger_gapped(None))
+    def test_a_renumbered_ledger_exports_twice_with_the_numbers_it_holds(self):
+        self.session([question("J1"), question("Q7")], [])
+        text = self.RENUMBERED
+        for export in ("first", "second"):
+            _, rows, _ = exporters.merged_register(self.dir, text)
+            self.assertEqual(
+                [(r["n"], r["id"]) for r in rows],
+                [("Q1", "Q7"), ("Q2", "J1")],
+                f"{export} export",
+            )
+            self.assertTrue(rows[0]["resolution"].startswith("[Q7]"), rows[0])
+            self.assertTrue(rows[1]["resolution"].startswith("[J1]"), rows[1])
+            text = exporters.export_ledger(self.dir, text)
+
+    def test_export_ledger_keeps_each_hand_written_gap_line_in_place(self):
+        self.session([question("Q1"), question("Q5"), question("Q9")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- gap | Q2-Q4 | dropped before the page\n"
+            "- Q5 | open | round 1 | Question Q5? |\n"
+            "- gap | Q6-Q8 | the shared session's ids ran ahead\n"
+            "- Q9 | open | round 1 | Question Q9? |\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        register = out.read_text(encoding="utf-8").split("## Open-question register")[1]
+        lines = [x for x in register.splitlines() if x.startswith("- ")]
+        self.assertEqual(
+            [x.split(" | ")[:2] for x in lines[:5]],
+            [
+                ["- Q1", "open"],
+                ["- gap", "Q2-Q4"],
+                ["- Q5", "open"],
+                ["- gap", "Q6-Q8"],
+                ["- Q9", "open"],
+            ],
+        )
+        self.assertIn("- gap | Q6-Q8 | the shared session's ids ran ahead", lines)
+        rc, verdict = self.check("--ledger", out)
+        self.assertEqual(rc, 1, verdict)
+        self.assertIn("registered=3 open=3", verdict)
+
+    GAPPED = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | open | round 1 | Question Q1? |\n"
+        "- gap | Q2-Q9 | the shared session's ids ran ahead\n"
+    )
+
+    def test_a_new_id_never_lands_in_a_declared_gap(self):
+        self.session([question("Q1"), question("J1")], [])
+        _, rows, _ = exporters.merged_register(self.dir, self.GAPPED)
+        self.assertEqual([(r["n"], r["id"]) for r in rows], [("Q1", "Q1"), ("Q10", "J1")])
+        self.assertTrue(rows[1]["resolution"].startswith("[J1]"), rows[1])
+        self.assertEqual(
+            exporters.numbering(["Q1", "J1"], {"Q1": 1}, [(2, 9)]), {"Q1": 1, "J1": 10}
+        )
+
+    def test_a_page_q_id_inside_a_declared_gap_is_numbered_after_it(self):
+        self.session([question("Q1"), question("Q5")], [])
+        _, rows, _ = exporters.merged_register(self.dir, self.GAPPED)
+        self.assertEqual([(r["n"], r["id"]) for r in rows], [("Q1", "Q1"), ("Q10", "Q5")])
+        self.assertTrue(rows[1]["resolution"].startswith("[Q5]"), rows[1])
+
+    def test_export_ledger_keeps_a_gap_line_past_the_last_row_and_the_gate_accepts_it(self):
+        self.session([question("Q1"), question("Q2")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question Q2? |\n"
+            "- gap | Q3-Q5 | ids a peer session holds\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        register = out.read_text(encoding="utf-8").split("## Open-question register")[1]
+        lines = [x for x in register.split("###")[0].splitlines() if x.startswith("- ")]
+        self.assertEqual(lines[-1], "- gap | Q3-Q5 | ids a peer session holds")
+        self.assertEqual([x.split(" | ")[0] for x in lines], ["- Q1", "- Q2", "- gap"])
+        rc, verdict = self.check("--ledger", out)
+        self.assertEqual(rc, 1, verdict)
+        self.assertIn("registered=2 open=2", verdict)
+
+    def test_sync_ledger_places_each_gap_line_by_its_range(self):
+        self.session([question("Q1"), question("Q5"), question("Q6")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- gap | Q2-Q4 | dropped before the page\n"
+            "- Q5 | open | round 1 | Question Q5? |\n\n"
+            "## Notes\n\nkept as written\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        rc, text = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, text)
+        synced = ledger.read_text(encoding="utf-8")
+        register = synced.split("## Open-question register")[1].split("## Notes")[0]
+        lines = [x for x in register.splitlines() if x.startswith("- ")]
+        self.assertEqual(
+            [x.split(" | ")[0] for x in lines], ["- Q1", "- gap", "- Q5", "- Q6"]
+        )
+        self.assertIn("- gap | Q2-Q4 | dropped before the page", lines)
+        self.assertTrue(synced.endswith("## Notes\n\nkept as written\n"), synced)
+        rc, verdict = self.check("--ledger", ledger)
+        self.assertEqual(rc, 1, verdict)
+
+    MALFORMED_GAP = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | open | round 1 | Question Q1? |\n"
+        "- gap | Q2 | no range\n"
+        "- Q5 | open | round 1 | Question Q5? |\n"
+    )
+
+    def malformed_gap_ledger(self):
+        self.session([question("Q1"), question("Q5")], [])
+        ledger = self.tmp / "ledger.md"
+        ledger.write_bytes(self.MALFORMED_GAP.encode("utf-8"))
+        return ledger
+
+    def test_export_ledger_refuses_a_malformed_gap_line(self):
+        ledger = self.malformed_gap_ledger()
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertNotEqual(rc, 0, text)
+        self.assertIn("refused: malformed gap line '- gap | Q2 | no range'", text)
+        self.assertFalse(out.exists())
+
+    def test_sync_ledger_refuses_a_malformed_gap_line(self):
+        ledger = self.malformed_gap_ledger()
+        rc, text = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertNotEqual(rc, 0, text)
+        self.assertIn("refused: malformed gap line '- gap | Q2 | no range'", text)
+        self.assertEqual(ledger.read_bytes(), self.MALFORMED_GAP.encode("utf-8"))
+
+    GATE_GAP_LINES = {
+        "- gap | Q2-Q4 | the shared session's ids ran ahead": (2, 4),
+        "- gap | Q2-Q3 | dropped before the page": (2, 3),
+        "- gap | Q2-Q2 | an example": (2, 2),
+        "- gap | Q2 | no range": None,
+        "- gap | Q3-Q2 | reversed": None,
+        "- gap | Q2-Q2 |": None,
+        "- gap | Q02-Q3 | a leading zero": None,
+    }
+
+    def test_the_gap_line_grammar_matches_the_gate(self):
+        for line, ends in self.GATE_GAP_LINES.items():
+            with self.subTest(line=line):
+                self.assertEqual(exporters.parse_gap(line), ends)
+                ledger = self.tmp / "gate-gap.md"
+                ledger.write_text(
+                    "# Interview ledger\n\n## Open-question register\n\n"
+                    "- Q1 | answered | round 1 | One? | yes\n"
+                    f"{line}\n"
+                    "- Q5 | answered | round 1 | Five? | yes\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                _, verdict = self.check("--ledger", ledger)
+                self.assertEqual("malformed gap line" in verdict, ends is None, verdict)
+        self.assertIsNone(exporters.parse_gap("- gap, see below"))
+
+    def test_a_q_id_new_to_the_ledger_keeps_its_number(self):
+        self.session([question("Q1"), question("Q2"), question("Q600")], [])
+        _, rows, _ = exporters.merged_register(
+            self.dir,
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question Q2? |\n",
+        )
+        self.assertEqual([r["n"] for r in rows], ["Q1", "Q2", "Q600"])
+        self.assertFalse([r for r in rows if r["resolution"].startswith("[")])
+
+    def test_a_new_q_id_whose_number_the_ledger_holds_takes_the_next_number(self):
+        self.session([question("Q1"), question("J1"), question("Q2")], [])
+        _, rows, _ = exporters.merged_register(
+            self.dir,
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question J1? | [J1]\n",
+        )
+        self.assertEqual(
+            [(r["n"], r["id"]) for r in rows],
+            [("Q1", "Q1"), ("Q2", "J1"), ("Q3", "Q2")],
+        )
+        self.assertTrue(rows[2]["resolution"].startswith("[Q2]"), rows[2])
+
+    def test_numbering_keeps_every_q_id_and_numbers_others_after_the_highest(self):
+        self.assertEqual(
+            exporters.numbering(["Q500", "Q1", "Q2", "Q501"]),
+            {"Q1": 1, "Q2": 2, "Q500": 500, "Q501": 501},
+        )
+        self.assertEqual(
+            exporters.numbering(["Q2", "Q1", "Q3"]), {"Q1": 1, "Q2": 2, "Q3": 3}
+        )
+        self.assertEqual(exporters.numbering(["Q7", "J1"]), {"Q7": 7, "J1": 8})
 
     def test_gapped_q_ids_keep_their_number_with_no_lead(self):
         self.session(
@@ -830,7 +1033,7 @@ class TestBriefIds(SessionCase):
         self.assertNotIn("internal tool only", constraints)
         self.assertIn("- C2 (inherited):", constraints)
 
-    def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
+    def test_without_a_ledger_a_gap_keeps_every_id_with_no_lead(self):
         events, revs = confirmed(
             [
                 event(1, "Q1", "accept"),
@@ -842,12 +1045,20 @@ class TestBriefIds(SessionCase):
             [question("Q1"), question("Q3"), question("Q4")], events, restatements=revs
         )
         text = self.export("brief").read_text(encoding="utf-8")
-        self.assertIn("- Q2 [Q3]: Question Q3?, defer until later;", text)
-        self.assertIn("- Q3 [Q4] Short Q4: accepted:", text)
-        self.assertNotIn("[Q3] [Q3]", text)
-        rc, out = self.check(
-            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        self.assertIn("- Q3: Question Q3?, defer until later;", text)
+        self.assertIn("- Q4 Short Q4: accepted:", text)
+        self.assertNotIn("[Q3]", text)
+        self.assertNotIn("[Q4]", text)
+        ledger = self.export("ledger")
+        brief = self.export("brief")
+        self.assertIn("- gap | Q2-Q2 | never assigned\n", ledger.read_text(encoding="utf-8"))
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 0, out)
+        declared = ledger.read_text(encoding="utf-8").replace(
+            "\n- Q3 |", "\n- gap | Q2-Q2 | dropped before the page\n- Q3 |", 1
         )
+        ledger.write_text(declared, encoding="utf-8", newline="\n")
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
@@ -5010,6 +5221,333 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertNotEqual(rc, 0, out)
         self.assertIn("2 open-question register headings", out)
+
+
+class TestRegisterTags(SessionCase):
+    """The five register tags form a tail after the answer that import keeps and export writes
+    back unchanged, so a page session never drops one."""
+
+    ROWS = [
+        "- Q1 | answered | round 1 | Who writes? | free-text: staff; then contractors; "
+        "kind:: discovery; problem:: P1",
+        "- Q2 | answered | round 1 | Which store? | answer:: accepted: Postgres; "
+        "note:: per review; depends:: Q1",
+        "- Q3 | open | round 2 | Which cache? | depends:: Q2; reopened:: round 3",
+        "- Q4 | answered | round 2 | Which queue? | accepted: SQS; depends:: Q3; recheck:: Q3",
+        "- Q5 | answered | round 3 | Which dir? | answer:: free-text: C:\\\\; depends:: Q1",
+        "- Q6 | open | round 3 | Which log? | [J1] kind:: discovery; problem:: P1",
+    ]
+    LEDGER = (
+        "# Interview ledger\n\n## Problems\n\n"
+        "- P1 | Staff cannot find the queue | agreed\n\n"
+        "## Open-question register\n\n"
+        + "\n".join(ROWS)
+        + "\n\n### Deferred questions\n\n- none\n\n## Reopened answers\n\n"
+        "- Q3 | round 3 | was: accepted: Redis | fact: the host has no Redis (ops.md:12)\n"
+    )
+
+    NAMED = {
+        ROWS[0]: "- Q1 | answered | round 1 | Who writes? | answer:: free-text: staff\\; then "
+        "contractors; kind:: discovery; problem:: P1",
+        ROWS[3]: "- Q4 | answered | round 2 | Which queue? | answer:: accepted: SQS; "
+        "depends:: Q3; recheck:: Q3",
+    }
+
+    def exported(self, text):
+        for plain, named in self.NAMED.items():
+            text = text.replace(plain, named)
+        return text
+
+    def imported(self, text=None, name="fresh"):
+        ledger = self.tmp / f"{name}.md"
+        ledger.write_bytes((text or self.LEDGER).encode("utf-8"))
+        fresh = self.tmp / name
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        return ledger, fresh
+
+    def test_split_tags_peels_only_a_tail_of_whole_tags(self):
+        cases = {
+            "free-text: a; b; depends:: Q1, Q2": ("free-text: a; b", "depends:: Q1, Q2"),
+            "kind:: discovery": ("", "kind:: discovery"),
+            "[J1] reopened:: round 3": ("[J1]", "reopened:: round 3"),
+            "answer:: x\\\\; recheck:: Q4": ("answer:: x\\\\", "recheck:: Q4"),
+            "answer:: x\\; recheck:: Q4": ("answer:: x\\; recheck:: Q4", ""),
+            "free-text: kind:: other": ("free-text: kind:: other", ""),
+            "depends on Q1": ("depends on Q1", ""),
+        }
+        for res, want in cases.items():
+            with self.subTest(res=res):
+                self.assertEqual(exporters.split_tags(res), want)
+                self.assertEqual(exporters.join_tags(*want), res)
+        stale = exporters.drop_stale("accepted: x; depends:: Q1; stale:: C2")
+        self.assertEqual(exporters.split_tags(stale), ("accepted: x", "depends:: Q1"))
+
+    PARITY = [
+        "accepted: x; kind:: discovery",
+        "accepted: x; recheck:: Q1",
+        "recheck:: Q1",
+        "[J1] depends:: Q1, Q2",
+        "answer:: a\\; recheck:: Q1",
+        "answer:: a\\\\; recheck:: Q1; stale:: C1",
+        "accepted: x; problem:: P0",
+        "accepted: x; depends:: Q1,Q2",
+        "accepted: x; reopened:: round 2; recheck:: Q3",
+        "kind:: decision",
+        "problem:: P3; recheck:: Q2, Q4",
+    ]
+
+    def test_the_tag_grammar_matches_the_gate(self):
+        rows, rechecks, empty = [], 0, set()
+        for n, res in enumerate(self.PARITY, start=1):
+            rows.append(f"- Q{n} | answered | round 1 | Row {n}? | {res}")
+            body, tail = exporters.split_tags(exporters.drop_stale(res))
+            rechecks += "recheck" in exporters.parse_tags(tail, f"Q{n}", "the test")
+            if tail and not exporters.split_lead(body)[1]:
+                empty.add(f"Q{n}")
+        self.assertEqual((rechecks, empty), (5, {"Q3", "Q4", "Q11"}))
+        ledger = self.tmp / "parity.md"
+        ledger.write_bytes(
+            ("# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n").encode()
+        )
+        _, out = self.check("--ledger", ledger, "--procedure")
+        self.assertIn(f" recheck={rechecks} ", out)
+        named = set(re.findall(r"(Q\d+): answered row has an empty resolution", out))
+        self.assertEqual(named, empty)
+
+    def test_the_gate_settles_exactly_the_settled_statuses(self):
+        settled = set()
+        for status in (*exporters.SETTLED, *exporters.UNSETTLED, "discussing"):
+            ledger = self.tmp / f"status-{status}.md"
+            ledger.write_bytes(
+                (
+                    "# Interview ledger\n\n## Open-question register\n\n"
+                    f"- Q1 | {status} | round 1 | One? | an answer\n"
+                ).encode()
+            )
+            rc, out = self.check("--ledger", ledger)
+            self.assertIn(rc, (0, 1), out)
+            if rc == 0:
+                settled.add(status)
+        self.assertEqual(settled, set(exporters.SETTLED))
+
+    def test_the_gate_skips_the_entry_reopen_writes(self):
+        text = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | One? | three tries\n"
+        )
+        new, _ = exporters.reopen_row(text, "Q1", 3, "the lookup | found otherwise", "the test")
+        self.assertEqual(
+            exporters.reopened_entries(new),
+            [("Q1", 3, "three tries", "the lookup / found otherwise")],
+        )
+        ledger = self.tmp / "reopened.md"
+        ledger.write_bytes(new.encode())
+        rc, out = self.check("--ledger", ledger)
+        self.assertEqual(rc, 1, out)
+
+    def test_a_repeated_tag_is_refused_naming_its_row(self):
+        with self.assertRaises(SystemExit) as raised:
+            exporters.parse_tags("depends:: Q1; depends:: Q2", "Q7", "the ledger")
+        self.assertIn("Q7: tag 'depends::' repeated", str(raised.exception))
+
+    def test_import_keeps_each_tail_beside_the_answer(self):
+        _, fresh = self.imported()
+        doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        tags = doc["meta"]["seededFrom"]["tags"]
+        self.assertEqual(tags["Q1"], "kind:: discovery; problem:: P1")
+        self.assertEqual(tags["J1"], "kind:: discovery; problem:: P1")
+        self.assertEqual(tags["Q4"], "depends:: Q3; recheck:: Q3")
+        q1 = next(q for q in doc["questions"] if q["id"] == "Q1")
+        self.assertEqual(q1["terminal"]["text"], "staff; then contractors")
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+
+    def test_an_import_then_export_writes_every_tag_back_byte_for_byte(self):
+        _, fresh = self.imported()
+        rows = register_rows(self.export("ledger", d=fresh))
+        self.assertEqual(rows, [self.NAMED.get(r, r) for r in self.ROWS])
+        again, fresh = self.imported("\n".join(["## Open-question register", *rows]), "again")
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+
+    def test_an_import_then_sync_leaves_the_register_and_reopened_answers_byte_identical(self):
+        ledger, fresh = self.imported()
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        synced = self.exported(self.LEDGER)
+        self.assertEqual(ledger.read_bytes(), synced.encode("utf-8"))
+        ledger, fresh = self.imported(synced, "again")
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(ledger.read_bytes(), synced.encode("utf-8"))
+
+    def test_a_merge_keeps_the_ledgers_newer_tail(self):
+        ledger, fresh = self.imported(self.exported(self.LEDGER))
+        newer = self.exported(self.LEDGER).replace("; recheck:: Q3", "")
+        ledger.write_bytes(newer.encode("utf-8"))
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(ledger.read_bytes(), newer.encode("utf-8"))
+
+    def test_export_ledger_keeps_the_problems_and_reopened_answers_sections(self):
+        ledger, fresh = self.imported()
+        out = self.tmp / "exported.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out), d=fresh)
+        self.assertEqual(rc, 0, text)
+        exported = out.read_text(encoding="utf-8")
+        want = self.exported(self.LEDGER).split("## Problems")[1]
+        self.assertTrue(exported.endswith("## Problems" + want), exported)
+        self.assertEqual(exported.count("## Reopened answers"), 1)
+        again = self.tmp / "again.md"
+        rc, text = self.rp("export-ledger", "--ledger", str(out), "--out", str(again), d=fresh)
+        self.assertEqual(rc, 0, text)
+        self.assertEqual(again.read_bytes(), out.read_bytes())
+
+    def test_export_import_export_is_a_fixed_point(self):
+        _, fresh = self.imported()
+        first = self.export("ledger", d=fresh).read_bytes()
+        again = self.tmp / "again"
+        again.mkdir()
+        (again / "fresh.md").write_bytes(first)
+        second = again / "data"
+        second.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(again / "fresh.md"), d=second)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.export("ledger", d=second).read_bytes(), first)
+
+    def test_a_plain_answers_words_survive_the_named_form(self):
+        _, fresh = self.imported()
+        exported = self.export("ledger", d=fresh)
+        _, again = self.imported(exported.read_text(encoding="utf-8"), "again")
+        doc = json.loads((again / "questions.json").read_text(encoding="utf-8"))
+        q1 = next(q for q in doc["questions"] if q["id"] == "Q1")
+        self.assertEqual(q1["terminal"]["text"], "staff; then contractors")
+        q5 = next(q for q in doc["questions"] if q["id"] == "Q5")
+        self.assertEqual(q5["terminal"]["text"], "C:\\")
+
+    def test_supersede_and_restore_keep_the_tail_on_a_named_row(self):
+        text = "## Open-question register\n\n" + self.ROWS[1] + "\n"
+        superseded = exporters.supersede_row(text, "Q2", "SQLite", "the ledger")
+        self.assertTrue(superseded.endswith("; depends:: Q1\n"), superseded)
+        self.assertIn("| superseded-by-plan |", superseded)
+        restored = exporters.resolve_row(superseded, "Q2", "restore", None, "the ledger")
+        self.assertEqual(restored, text)
+
+    def test_the_brief_reads_a_ledger_only_row_without_its_tags(self):
+        self.session([question("Q1")], [event(1, "Q1", "accept")])
+        text = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | answered | round 1 | Which cache? | answer:: accepted: Redis; depends:: Q1\n"
+        )
+        brief = exporters.export_brief(self.dir, text)
+        self.assertIn("- Q2 Which cache?: accepted: Redis\n", brief)
+        self.assertNotIn("depends::", brief)
+
+    def test_a_recap_reads_the_answer_without_its_tags(self):
+        rows = [
+            {"n": "Q2", "status": "answered", "title": "Which store?",
+             "resolution": "answer:: accepted: Postgres; depends:: Q1"},
+            {"n": "Q3", "status": "answered", "title": "Which queue?",
+             "resolution": "accepted: SQS; recheck:: Q3"},
+        ]
+        self.assertEqual(exporters.recap_answer(rows[0]), "accepted: Postgres")
+        self.assertEqual(exporters.recap_answer(rows[1]), "accepted: SQS")
+
+
+class TestNeverAssigned(SessionCase):
+    """export-ledger and sync-ledger declare ids nothing ever held, and only those."""
+
+    HEAD = "# Interview ledger\n\n## Open-question register\n\n"
+
+    def ledger(self, rows, name="ledger.md"):
+        path = self.tmp / name
+        path.write_bytes((self.HEAD + rows + "\n## Notes\n\nkept\n").encode("utf-8"))
+        return path
+
+    def drop_question(self, qid):
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["questions"] = [q for q in doc["questions"] if q["id"] != qid]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+
+    def test_without_a_ledger_ids_the_page_never_held_are_declared(self):
+        self.session([question("Q1"), question("Q4"), question("Q600")], [])
+        lines = [
+            x for x in self.export("ledger").read_text(encoding="utf-8").splitlines()
+            if x.startswith("- Q") or x.startswith("- gap")
+        ]
+        self.assertEqual(
+            [x.split(" | ")[0] for x in lines if " | " in x],
+            ["- Q1", "- gap", "- Q4", "- gap", "- Q600"],
+        )
+        self.assertIn("- gap | Q2-Q3 | never assigned", lines)
+        self.assertIn("- gap | Q5-Q599 | never assigned", lines)
+
+    def test_a_second_export_and_a_second_sync_add_nothing(self):
+        self.session([question("Q1"), question("Q5")], [])
+        ledger = self.ledger("- Q1 | open | round 1 | Question Q1? |\n")
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        once = ledger.read_bytes()
+        self.assertIn(b"- Q1 | open | round 1 | Question Q1? |\n- gap | Q2-Q4 | never assigned\n", once)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(ledger.read_bytes(), once)
+        first = self.tmp / "first.md"
+        rc, out = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(first))
+        self.assertEqual(rc, 0, out)
+        second = self.tmp / "second.md"
+        rc, out = self.rp("export-ledger", "--ledger", str(first), "--out", str(second))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(second.read_bytes(), first.read_bytes())
+        self.assertEqual(first.read_text(encoding="utf-8").count("never assigned"), 1)
+
+    def test_a_row_the_ledger_held_and_the_page_dropped_is_not_declared(self):
+        self.session([question("Q1"), question("Q3")], [])
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | Question Q1? |\n- Q3 | open | round 1 | Question Q3? |\n"
+        )
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("never assigned", ledger.read_text(encoding="utf-8"))
+        rc, verdict = self.check("--ledger", ledger)
+        self.assertEqual(rc, 2, verdict)
+        self.assertIn("no row for Q2", verdict)
+
+    def test_a_question_the_page_once_recorded_is_never_declared(self):
+        self.session(
+            [question("Q1"), question("Q2"), question("Q3")],
+            [event(1, "Q2", "accept")],
+        )
+        self.drop_question("Q2")
+        ledger = self.export("ledger")
+        self.assertNotIn("never assigned", ledger.read_text(encoding="utf-8"))
+        rc, verdict = self.check("--ledger", ledger)
+        self.assertEqual(rc, 2, verdict)
+
+    def test_an_id_only_the_last_ledger_check_recorded_is_never_declared(self):
+        self.session([question("Q1"), question("Q2"), question("Q3")], [])
+        ledger = self.ledger(
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | answered | round 1 | Question Q2? | free-text: settled here\n"
+            "- Q3 | open | round 1 | Question Q3? |\n"
+        )
+        rc, out = self.rp("ledger-check", "--ledger", str(ledger))
+        self.assertEqual(rc, 6, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["meta"]["ledgerSync"]["rows"], ["Q2"])
+        self.drop_question("Q2")
+        self.assertNotIn("never assigned", self.export("ledger").read_text(encoding="utf-8"))
+
+    def test_a_question_lost_with_no_record_is_declared_the_limit(self):
+        self.session([question("Q1"), question("Q2"), question("Q3")], [])
+        self.drop_question("Q2")
+        self.assertIn(
+            "- gap | Q2-Q2 | never assigned\n",
+            self.export("ledger").read_text(encoding="utf-8"),
+        )
 
 
 class TestNoEmojiNoSkillNames(SessionCase):

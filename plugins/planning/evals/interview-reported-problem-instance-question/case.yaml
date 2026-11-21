@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-reported-problem-instance-question
 description: A stated problem whose only evidence is what support reported gets one instance question (last concrete instance, what it cost, who hit it), never a why chain and never a question reopening the named solution
-tags: [interview, problem-framing, reported-evidence, scaffold]
+tags: [interview, problem-framing, reported-evidence, scaffold, no-network]
 expected_outcome: The reply asks the user, in one question, for the last concrete time the CSV export was slow, what it cost or how long it took, and which customer hit it; it asks no chain of why questions, does not ask whether to keep or replace streaming, and no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

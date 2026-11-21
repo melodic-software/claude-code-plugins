@@ -30,7 +30,9 @@
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate, an
-#          out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
+#          out-of-order or a missing (gap) Q id that no `- gap | Q<a>-Q<b> | <why>`
+#          line declares, a malformed gap line, a declared gap that covers a
+#          row, an unfenced `- Q<N> |` row
 #          outside the register section (any heading ends the section, a
 #          sub-heading inside it included), a named `--brief` that is
 #          missing, or a `--surface` that is missing, comes without `--brief`
@@ -242,7 +244,9 @@ rows_outside() {
   awk -v lo="$1" -v hi="$2" "$fence_awk"'
     fence_line($0) { next }
     fenced { next }
+    /^#+[[:space:]]/ { reopened = (tolower($0) ~ /^#+[[:space:]]+reopened answers[[:space:]]*$/) }
     NR >= lo && NR <= hi { next }
+    reopened && /^[[:space:]]*-[[:space:]]+[Qq][1-9][0-9]*[[:space:]]*[|][[:space:]]*round[[:space:]]+[1-9][0-9]*[[:space:]]*[|][[:space:]]*was:.*[|][[:space:]]*fact:/ { next }
     /^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*[|]/ { print NR }
   ' "$3"
 }
@@ -744,7 +748,13 @@ fi
 registered=0
 open_count=0
 stale_count=0
-stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )stale:: C[0-9]+(, C[0-9]+)*$'
+recheck_count=0
+stale_list='stale:: C[0-9]+(, C[0-9]+)*'
+stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )'"$stale_list"'$'
+qlist='Q[1-9][0-9]*(, Q[1-9][0-9]*)*'
+tag_re='(kind:: discovery|problem:: P[1-9][0-9]*|depends:: '"$qlist"'|reopened:: round [1-9][0-9]*|recheck:: '"$qlist"')'
+recheck_tail_re='(^|\] |(^|[^\\])(\\\\)*; )('"$tag_re"'; )*recheck:: '"$qlist"'(; '"$tag_re"')*(; '"$stale_list"')?$'
+tags_only_re='^(\[[^]]*\][[:space:]]*)?'"$tag_re"'(; '"$tag_re"')*(; '"$stale_list"')?$'
 answered=0
 deferred=0
 withdrawn=0
@@ -753,6 +763,7 @@ superseded=0
 seen_ids=" "
 deferred_ids=""
 ids_in_order=""
+declared_gaps=""
 max_id=0
 rounds_seen=" "
 max_round=0
@@ -791,6 +802,8 @@ track_id() {
 # the live branch below both test it, and they must agree: a shape skipped as
 # documentation has to be the same shape that would have been graded as data.
 row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
+gap_candidate_re='^[[:space:]]*-[[:space:]]+[Gg]ap[[:space:]]*\|'
+gap_line_re='^[[:space:]]*-[[:space:]]+[Gg]ap[[:space:]]*\|[[:space:]]*[Qq]([1-9][0-9]*)[[:space:]]*-[[:space:]]*[Qq]([1-9][0-9]*)[[:space:]]*\|[[:space:]]*[^[:space:]]'
 
 skipped_fenced_row=0
 while IFS= read -r line; do
@@ -806,6 +819,15 @@ while IFS= read -r line; do
   if [[ "$marker" == "f" ]]; then
     if [[ "$line" =~ $row_candidate_re ]]; then
       skipped_fenced_row=1
+    fi
+    continue
+  fi
+
+  if [[ "$line" =~ $gap_candidate_re ]]; then
+    if [[ "$line" =~ $gap_line_re && "${BASH_REMATCH[1]}" -le "${BASH_REMATCH[2]}" ]]; then
+      declared_gaps="$declared_gaps${BASH_REMATCH[1]} ${BASH_REMATCH[2]} $lineno"$'\n'
+    else
+      row_error "malformed gap line (expected '- gap | Q<a>-Q<b> | <why these ids have no row>'): $line"
     fi
     continue
   fi
@@ -871,6 +893,8 @@ while IFS= read -r line; do
   trim_into "$resolution"
   resolution="$trimmed"
   [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
+  [[ "$resolution" =~ $recheck_tail_re ]] && recheck_count=$((recheck_count + 1))
+  [[ "$resolution" =~ $tags_only_re ]] && resolution=""
   if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
@@ -921,18 +945,45 @@ for lineno in $outside_lines; do
   row_error "question row outside the register section (any heading ends it, a sub-heading included); move the row into the register, above its next heading"
 done
 
+undeclared_gap() {
+  local gap="Q$1"
+  [[ "$2" -gt "$1" ]] && gap="$gap to Q$2"
+  row_errors="${row_errors}gap in question ids: no row for $gap; declare an intended gap with a '- gap | Q$1-Q$2 | <why>' line"$'\n'
+}
+
+report_gap() {
+  local lo="$1" hi="$2" a b
+  while read -r a b _; do
+    [[ -n "$a" && "$b" -ge "$lo" ]] || continue
+    [[ "$a" -gt "$hi" ]] && break
+    [[ "$a" -gt "$lo" ]] && undeclared_gap "$lo" $((a - 1))
+    lo=$((b + 1))
+    [[ "$lo" -gt "$hi" ]] && return
+  done <<<"$sorted_gaps"
+  undeclared_gap "$lo" "$hi"
+}
+
 # A gap is a number missing below the highest id; one sort over the whole set,
 # not a walk to the highest id, so a mistyped Q99999 costs nothing extra.
+sorted_gaps=""
+[[ -z "$declared_gaps" ]] || sorted_gaps="$(printf '%s' "$declared_gaps" | sort -n -k1,1)"
 prev=0
 # shellcheck disable=SC2086 # deliberate: one id per word
 for n in $(printf '%s\n' $ids_in_order | sort -n); do
-  if [[ "$n" -gt $((prev + 1)) ]]; then
-    gap="Q$((prev + 1))"
-    [[ "$n" -gt $((prev + 2)) ]] && gap="$gap to Q$((n - 1))"
-    row_errors="${row_errors}gap in question ids: no row for $gap"$'\n'
-  fi
+  [[ "$n" -gt $((prev + 1)) ]] && report_gap $((prev + 1)) $((n - 1))
   prev="$n"
 done
+
+read -ra row_ids <<<"$ids_in_order"
+while read -r a b gap_line; do
+  [[ -n "$a" ]] || continue
+  for n in ${row_ids[@]+"${row_ids[@]}"}; do
+    if [[ "$n" -ge "$a" && "$n" -le "$b" ]]; then
+      row_errors="${row_errors}line $gap_line: declared gap Q$a-Q$b covers the row Q$n"$'\n'
+      break
+    fi
+  done
+done <<<"$declared_gaps"
 
 if [[ -n "$row_errors" ]]; then
   # Exit 2 stays load-bearing for Step 3 and the --brief path; the verdict
@@ -1123,8 +1174,9 @@ fi
 
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 [[ "$stale_count" -gt 0 ]] && verdict="$verdict stale=$stale_count"
+[[ "$recheck_count" -gt 0 ]] && verdict="$verdict recheck=$recheck_count"
 
-if [[ $((open_count + superseded + stale_count)) -gt 0 ]]; then
+if [[ $((open_count + superseded + stale_count + recheck_count)) -gt 0 ]]; then
   echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi

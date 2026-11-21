@@ -31,6 +31,9 @@ Hand it:
 Withhold the rationale that sold each recommendation. The sweep checks what would be locked, not
 why it was recommended.
 
+Ask it for every finding, with no severity, confidence or blocking cut: it reports, and the
+disposition pass below filters.
+
 ## What it looks for
 
 - **Undecided details:** a decision the draft relies on that no register row covers.
@@ -80,8 +83,9 @@ Fields:
 
 ## Disposition
 
-You write the results, not the sub-agent, so register ids stay contiguous.
-`S<N>` never reaches the register.
+Disposition is the filter pass: you decide what each reported item becomes, and you write the
+results, not the sub-agent, each new row taking the next id from `round.sh next-id` (SKILL.md, the
+`Q<N>` numbering paragraph). `S<N>` never reaches the register.
 
 - **fact and tenant:** run the self-answer step first
   ([`self-answer.md`](../../../context/self-answer.md)), connected and connectable sources
@@ -100,16 +104,17 @@ You write the results, not the sub-agent, so register ids stay contiguous.
 - **decision:** never settled from facts, whatever the session believes was decided earlier, so
   a sweep's `decision` item always takes the next line. When a quoted prior owner ruling covers
   it, that row is written `answered` with `answered-from-decision:` (loop.md "Self-answer gate").
-- **decision, person, and an unanswered tenant or fact:** a register row at the next contiguous
-  `Q<N>`, written `open` and
+- **decision, person, and an unanswered tenant or fact:** a register row at the next id, written
+  `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a
   `tenant` item when the user is not the setting's owner, are `deferred` to the Brief's
   `### Deferred questions` with its arbiter tag.
-- **contradiction:** one row naming both sides, asked as a choice between them.
+- **contradiction:** one row naming both sides, asked as a choice between them; the question
+  names each side's row by id and plain name (`Q2 (who may export)`) and says why both cannot hold.
 - **hedged:** no new row. The rows go to the confirmation restate.
 - **coined-term:** a register row asking the user to accept or rename the term, with the closest
   existing name in the user's vocabulary as the recommendation, and naming the existing term it
-  overlaps. With no existing name close to it, ask it withheld, the term defined in one line (SKILL.md "Agree the terms before the first decision"). An
+  overlaps. With no existing name close to it, ask it withheld, the term defined in one line (SKILL.md "Agree a term where it first appears"). An
   accepted or renamed term is written to the glossary; a rename also replaces the term in the
   draft and in the resolutions of the rows that carry it, and the next sweep covers those rows.
 - **unstated-value:** a register row asking the user to confirm the literal value, whoever owns
@@ -144,26 +149,3 @@ The round that asks these rows is a **sweep round**. On the page, post it with
 answers` and shows each listed answer beside the question ([`surface.md`](surface.md) "A round").
 In the terminal lane, open the round with that label and quote each listed earlier answer under
 its question.
-
-## Pre-round contradiction pass
-
-Before every round after the first is asked inline or posted with `add-round`, check the draft
-round against what the user already answered, so a conflict is caught before the user sees it
-rather than at the next sweep.
-
-- **Dispatch:** a fresh-context (non-fork) sub-agent, as in "Dispatch" above. Hand it the draft
-  round (each question with its recommendation, `Checked against:` line and `Commits you to:`
-  parts) and every `answered` register row with its resolution, plus the `confirmed` constraint
-  rows. Withhold the rationale, as above.
-- **Scope:** only the **Contradictions** category of "What it looks for", read with the draft
-  round's recommendations standing in for answers: a recommendation that cannot hold beside an
-  `answered` row or a `confirmed` constraint. No other category runs here; the sweep still runs
-  once no open question remains on the frontier.
-- **Return:** one line per conflict in the "Item shape" above, category `contradiction`, with the
-  draft question and the earlier row as its dependencies; nothing when there is none.
-- **Disposition:** fix each in the draft before posting. A conflict with a `confirmed` constraint
-  is fixed by revising the recommendation so it holds, citing the constraint on its
-  `Checked against:` line. A conflict with an answered row is fixed the same way, or by replacing
-  the question with one that names both sides and lists that row's `Q<N>` in `reconciles` (only
-  question ids go there). A draft conflict never becomes a register row of its own; the revised
-  question takes its place.

@@ -1,6 +1,6 @@
 ---
 description: "An unattended lock run with nobody to answer: the interview skips the acceptance-criteria coverage prompt and states that unwanted-behavior and state-driven coverage went unexamined, instead of asking it or dropping it silently"
-tags: [interview, acceptance-criteria, coverage-prompt, unattended]
+tags: [interview, acceptance-criteria, coverage-prompt, unattended, no-network]
 runs: 3
 max_turns: 20
 timeout_seconds: 900

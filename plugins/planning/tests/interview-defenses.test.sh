@@ -532,7 +532,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "53ff69a1cc4af1af5f7df38a03b272977431a6e8374c52df8f9ca044e70e7ef6"
+  "913182d8f122427687e3daa10eb5a74f25cd0af1df918c68a094d162ac4bb128"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -587,7 +587,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "e44127457a9cf37557b903698e15949a28c723a1ed32049c53c5b1fa861c45bf"
+  "272e5524066f4072445dcf55f67574eb3ed49ceeee681fcbcc71f86d075df83f"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -644,7 +644,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "3fee6385252f2f476aef4e00797c9f416e7a7c7f89e3ea6ebdabad267177a640"
+  "68a8e1087285efdae51d408be2e5d551399de6c98cf1c4e8142a5d3633dd3317"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
@@ -676,7 +676,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "dde4506c0ec506447f50ebe6aea64cc35a2f917a6707d924a62bd7777910df77"
+  "fd049b8e15a5dcc646e5a69e778d17f60b3e3df17353d0f2d5d72d6919a7f0f7"
 
 # Case A's exemption expectation now names `lock`'s one problem question and its invocation
 # confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
@@ -714,7 +714,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "9ec05ae465fc8e693fde59be1e81d386cd350f63021787ecc29179fc23eff758"
+  "368743e50f46c68695014cc10793b89a1cf2c0b2e84258798579c4fbe0e5c36d"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -745,7 +745,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "101586e9916d476589a8519aa93cf89121ad517d46278a480aab737027563419"
+  "d1aedd09a3cc54f12763212381e7ef7b0731165303cf4b18ba6e1da2c9526533"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
@@ -756,7 +756,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "261ea805a3e429229840ef9c86bacdae791acedfa9aedbfb2d95c5e949273d84"
+  "6fbbb933036f9c1f2b060ec0e16099fa04bfb8082a8f429e396a462cd16856de"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -766,7 +766,6 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # the user's `confirm-understanding` event); that moves where the gate is shown, not whether
 # it runs, and the sweep still runs before it.
 # The re-grounding paragraph checks open recommendations on resume, before a queued round and on a new constraint; it adds a check and resolves no row.
-# The pre-round contradiction pass revises a draft recommendation or asks one question naming both sides before a round is shown; it resolves no row and qualifies neither STOP-on-gap nor the auto-guard.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
@@ -777,7 +776,7 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "91e71ea48b46fdefdb4fa77f32cd6d48b47245f04c0c1bbdcf4884427211fff4"
+  "4f1230d595f67a615b884320885dcc743dd42080822d3197a2f4a823ab7cb95d"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -808,7 +807,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "d91d5185a66e75854f16198128e991ce047bc6129c947a435078d12dca083df0"
+  "f458232e95be64764519502cbb91bf973ce0cef5f8d1e7dbf96b1e4f87eebb6f"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -830,8 +829,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "493b9e062228d39672b85ea3256e8a3c360fce9df183d08de9ea081666e20076"
-# The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
+  "713bf5f475597226013d471a5cc1a41a4579e256b844c69d8d5c9b28aea15a01"
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
@@ -847,7 +845,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "2054938d89851cd80602ba2d80aed3bd49722420cd836155c9ccdfe8e0f47e2a"
+  "19473131cf19c03e6f3f17d95c9012b143b505435d0d0eb8a21239774b4b6c0a"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -874,12 +872,12 @@ pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, he
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "d1141bf7988e5cca6c1f9566d2b61ee48d7d627d8ebe5fe1855799d6fb539b71"
+  "fcd7f1b010811f56cc798884acb234563423896cec52d507c8a6d2520686195f"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
   "### Step 5. Human confirmation" \
-  "58e23f0911f4ee7a3cc0ff33cf3ccadf7a539cc2b680e1dc7f1344fe0fb40240"
+  "bdbde2c21e6f1c7bc05b752b25541ce15d59f703ba6d83a936d64842e0c1fd44"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
@@ -898,7 +896,6 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 31 (ship-it-drops-questions-not-gates) moves the open rows to deferred as `USER-RESERVED` on the user's own ship-it, never answered with an invented answer, and keeps the confirmation gate, so it agrees with cases 15 and 16.
 # Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
 # Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
-# Case 36 (pre-round-contradiction-pass) has the draft fixed or asked as one question naming both sides before the round is shown and registers no row, so it agrees with cases 15 and 16.
 # Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
 # Case 38 (person-deferred-routes-to-document) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends the interview's document surface, so it agrees with cases 15 and 16.
 # Cases 46-50 move the document cases into this skill: each interviews only the send, writes the questions to a document under open register rows, and resolves none on the recipient's behalf; case 51 resolves a returned row only when its answer takes the recommendation, and reads back any other, which stays open until the user confirms it, so cases 15 and 16 hold.
@@ -911,7 +908,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "9f9747c65eb92352e3b940f53808bac632a4f2691a95dfd08ac74a152818d713"
+  "7bd78ae7a7bc7a32988b8a7b526a189373ac3fa961f79f7aa56c826a280d588b"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -938,17 +935,17 @@ pin_case_digest "sibling case 13 still requires named blockers instead of assump
 # it as a captured assumption" — and licensed exactly the silent capture, undetected.
 pin_case_digest "case 8 still asks decisions and only looks up facts" \
   "facts-looked-up-decisions-asked" \
-  "869a487d5f0abe19cdbe5693b90beabb55f56fbdacf6642bedad62494ce029f5"
+  "bedb9fd8e5923395d229e36cf50479530e58abcd8503a3ae989212162b789c45"
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
 # Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
   "out-of-band-return-supersedes-before-the-reply" \
-  "186a511bef86bbc7fe9679359c350c39111c3eab0c8761eb8f98196882f40b9f"
+  "a3e7ffd4412ccfb51465f0be3d871221a6c288d53131c8436ef6025bc30974bd"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
-  "5e38782253a410890320cddc3c5c44d71ab64666bb596bc954167f1447059bdd"
+  "1065f9d322d8ae3b5179ac13ec75e615044f42b7ada5455737d285048032a217"
 
 pin_file "case A fixture: the task context still plants the open decision" \
   "$FIXTURES/lock-stop-on-gap/task-context.md" \

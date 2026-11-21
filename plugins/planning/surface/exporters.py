@@ -4,7 +4,15 @@ Each exporter reads only questions.json and responses.json from a data dir and r
   export_ledger  the interview ledger: a decision-tree checklist, then the open-question register in
                  the row shape scripts/check-open-questions.sh grades, then the deferred questions;
                  given a ledger's text it merges into that ledger's register (merged_register)
-  sync_ledger    a ledger's text with only its register rows replaced by the merged rows
+                 and keeps its `- gap |` lines, in range order, each right before
+                 the first row numbered past its range (after the last row when none is);
+                 it refuses a gap line the gate would read as malformed, and writes
+                 `- gap | Q<a>-Q<b> | never assigned` for ids nothing held (never_assigned);
+                 it writes the ledger's `## Problems` above the register and its
+                 `## Reopened answers` last (carried_section)
+  sync_ledger    a ledger's text with only its register rows and gap lines replaced by the
+                 merged rows and those gap lines, placed as export_ledger places them; it
+                 refuses a malformed gap line and writes never-assigned lines as export_ledger does
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
                  numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
@@ -45,10 +53,16 @@ else 1; import warns, naming the row, when the leading form is missing, and keep
 is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes back while the
 question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
-Register ids: surface ids that are already Q1..Qn stay as they are, and so do gapped Q<N> ids
-when the ledger merged into already has a gap in its register; any other set is renumbered Q1..Qn
-in natural id order (letters, then number) and each row's resolution leads with `[<id>]`, which
-import_ledger reads back so a re-export numbers the same way.
+A resolution may end, before `stale::`, in a tail of register tags (TAG_NAMES: `kind:: discovery`,
+`problem:: P<n>`, `depends:: Q<a>[, ...]`, `reopened:: round <N>`, `recheck:: Q<a>[, ...]`),
+peeled from the right (split_tags) before any field is parsed. Import keeps each row's tail in
+meta.seededFrom.tags and export writes it back; a merge into a ledger keeps the ledger's tail.
+
+Register ids are never renumbered: a row the ledger merged into already holds keeps its number,
+a Q<N> id new to that ledger keeps N unless a row has it or a declared gap covers it, and any
+other id takes the next number after the highest, in natural id order (letters, then number).
+With no ledger every Q<N> id keeps N. A row whose number is not its own id leads its
+resolution with `[<id>]`, which import_ledger reads back so a re-export numbers the same way.
 
 Every row export_ledger writes has one resolution grammar: named fields in this fixed order, each
 present only when it has a value, each value escaped on its own (esc_field), joined with `; `:
@@ -130,6 +144,10 @@ SEED_NOTE = "Seeded from ledger"
 # The note an accept made by an accept-audit event exports with (schema/event.schema.json).
 PENDING_NOTE = "pending agent validation"
 ROW = re.compile(r"^\s*-\s+[Qq]([0-9]+)\s*\|(.*)$")
+GAP_LINE = re.compile(
+    r"^\s*-\s+[Gg]ap\s*\|\s*[Qq]([1-9][0-9]*)\s*-\s*[Qq]([1-9][0-9]*)\s*\|\s*\S"
+)
+GAP_CANDIDATE = re.compile(r"^\s*-\s+[Gg]ap\s*\|")
 LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
 MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
@@ -139,6 +157,7 @@ ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
+SETTLED = ("answered", "deferred", "withdrawn", "blocked")
 # The Brief's field labels, per context/problem-framing.md "Problem fields" and "Work size".
 PROBLEM_FIELDS = ("Gap", "Who / how many", "Frequency", "Trend", "Cost", "Evidence")
 WORK_SIZE_FIELDS = ("Appetite", "Size", "Uncertainty", "Split signals")
@@ -175,11 +194,57 @@ STALE_LIST = r"stale:: C[0-9]+(?:, C[0-9]+)*$"
 STALE_TAIL = re.compile(
     rf"(?:(?<=\] )|^){STALE_LIST}|((?:^|[^\\])(?:\\\\)*); {STALE_LIST}"
 )
+TAG_NAMES = ("kind", "problem", "depends", "reopened", "recheck")
+QLIST = r"Q[1-9][0-9]*(?:, Q[1-9][0-9]*)*"
+TAG = (
+    rf"(?:kind:: discovery|problem:: P[1-9][0-9]*|depends:: {QLIST}"
+    rf"|reopened:: round [1-9][0-9]*|recheck:: {QLIST})"
+)
+TAG_LIST = rf"{TAG}(?:; {TAG})*$"
+TAG_TAIL = re.compile(rf"^({TAG_LIST})|((?:^|[^\\])(?:\\\\)*); ({TAG_LIST})")
 
 
 def drop_stale(res):
     """A row's resolution without its derived stale mark."""
     return STALE_TAIL.sub(lambda m: m.group(1) or "", res).rstrip()
+
+
+def split_tags(res):
+    """(resolution, tag tail) of a stale-free register resolution, its `[<id>]` lead kept on the
+    resolution; the tail is "" when no tag ends it."""
+    lead, body = split_lead(res)
+    m = TAG_TAIL.search(body)
+    if not m:
+        return res, ""
+    if m.group(1) is not None:
+        return lead.rstrip(), m.group(1)
+    return lead + body[: m.start()] + m.group(2), m.group(3)
+
+
+def join_tags(res, tail):
+    """`res` with the tag tail `tail` after it, as split_tags reads it back."""
+    if not tail:
+        return res
+    lead, body = split_lead(res)
+    if body:
+        return f"{res}; {tail}"
+    return f"{lead.rstrip()} {tail}" if lead else tail
+
+
+def parse_tags(tail, row, where):
+    """{tag name: value} of the register row `row`'s tag tail; refuses a tag written twice."""
+    tags = {}
+    for part in split_fields(tail) if tail else ():
+        name, _, value = part.partition(":: ")
+        if name in tags:
+            refuse(f"{row}: tag {name + '::'!r} repeated", where)
+        tags[name] = value
+    return tags
+
+
+def format_tags(tags):
+    """The tag tail of {tag name: value}, in TAG_NAMES order, empty values left out."""
+    return "; ".join(f"{n}:: {tags[n]}" for n in TAG_NAMES if tags.get(n))
 
 
 def clean(s):
@@ -641,39 +706,69 @@ def settle(q, responses, events, seed_rows):
     return status if status == "superseded-by-plan" else "open", fields, "", False
 
 
-def numbering(ids, gaps=False):
-    """({id: register number}, kept): ids that are already Q1..Qn keep their number, and so do
-    gapped Q<N> ids when `gaps` (the ledger being written already has a gap), so a record citing
-    one still names the same question; any other set is numbered from 1 in natural id order."""
-    if all(QN.match(i) for i in ids):
-        nums = sorted(int(i[1:]) for i in ids)
-        if gaps or nums == list(range(1, len(ids) + 1)):
-            return {i: int(i[1:]) for i in ids}, True
-    return {i: n for n, i in enumerate(sorted(ids, key=natural), start=1)}, False
+def numbering(ids, held=None, gaps=()):
+    """{id: register number}, never reusing or changing a number, so a record citing one still
+    names the same question. An id `held` ({id: number} of the ledger being written) keeps its
+    ledger number. A Q<N> id new to the ledger keeps N unless a ledger row has that number or
+    one of the ledger's declared `gaps` ((low, high) ranges) covers it. Every other id, in
+    natural id order, takes the next number after the highest held, kept or declared. With no
+    ledger every Q<N> id keeps N and the rest number after the highest of them."""
+    held = held or {}
+    pos = {i: held[i] for i in ids if i in held}
+    taken = set(held.values())
+    for i in ids:
+        n = int(i[1:]) if QN.match(i) else None
+        if i not in pos and n and n not in taken and not any(a <= n <= b for a, b in gaps):
+            pos[i] = n
+            taken.add(n)
+    top = max([*taken, *(b for _, b in gaps)], default=0)
+    for i in sorted({i for i in ids if i not in pos}, key=natural):
+        top += 1
+        pos[i] = top
+    return pos
 
 
-def ledger_gapped(text):
-    """True when a ledger's register row numbers are not Q1..Qn."""
-    ns = sorted(row[0] for row in parse_register(text or ""))
-    return ns != list(range(1, len(ns) + 1))
+def page_numbering(doc, extra=(), text=None):
+    """numbering() of the page's question ids, its pending proposals and the ledger-only `extra`
+    ids, against the row numbers and declared gaps of the ledger `text`."""
+    ids = [q["id"] for q in doc.get("questions") or []]
+    ids += [*(doc.get("pendingProposals") or []), *extra]
+    return numbering(ids, ledger_numbers(text), accepted_gaps(text or ""))
 
 
-def register(doc, resp, extra=(), gaps=False):
-    """One dict per question, in register order, with its Q<N> and settled status; `extra`
-    names ledger-only ids that share the numbering, and `gaps` is numbering's."""
+def accepted_gaps(text):
+    """(low, high) of each gap line the gate accepts: one that covers no register row."""
+    nums = [n for n, *_ in parse_register(text)]
+    return [
+        (a, b)
+        for a, b, _, _ in gap_lines(text)
+        if not any(a <= n <= b for n in nums)
+    ]
+
+
+def lead_of(qid, n):
+    """The `[<id>] ` a register row leads with when its number is not its own id."""
+    return "" if f"Q{n}" == qid else f"[{clean(qid)}] "
+
+
+def register(doc, resp, pos=None, tails=None):
+    """One dict per question, in register order, with its Q<N> and settled status; `pos` is the
+    page_numbering() the caller already made, else the page's own. Each row carries its tag tail
+    from `tails` ({id: tail}), else the one its import kept."""
     qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
-    held = list(doc.get("pendingProposals") or [])
-    pos, kept = numbering([q["id"] for q in qs] + held + list(extra), gaps)
+    pos = pos or page_numbering(doc)
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
-    seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
+    seeded = (doc.get("meta") or {}).get("seededFrom") or {}
+    seed_rows = seeded.get("rows") or {}
+    tails = {**(seeded.get("tags") or {}), **(tails or {})}
     unchecked = unchecked_constraints(doc)
     rows = []
     for q in qs:
         status, fields, note, reserved = settle(q, responses, events, seed_rows)
         marked = marked_commits(q, events)
-        lead = "" if kept else f"[{clean(q['id'])}] "
-        res = encode(fields, marked)
+        lead = lead_of(q["id"], pos[q["id"]])
+        res = join_tags(encode(fields, marked), tails.get(q["id"]))
         if q["id"] in unchecked:
             stale = f"stale:: {', '.join(unchecked[q['id']])}"
             res = f"{res}; {stale}" if res else stale
@@ -727,9 +822,19 @@ def ledger_register(text):
     file order; the id is a row's `[<id>]` lead, else its Q<N>."""
     rows = {}
     for n, status, _, title, res, cell in parse_register(text):
-        lead = LEAD.match(res)
-        rows[lead.group(1) if lead else f"Q{n}"] = (status, cell, title, res)
+        rows[row_id(n, res)] = (status, cell, title, res)
     return rows
+
+
+def row_id(n, res):
+    """A register row's question id: its `[<id>]` lead, else its Q<N>."""
+    lead = LEAD.match(res)
+    return lead.group(1) if lead else f"Q{n}"
+
+
+def ledger_numbers(text):
+    """{question id: register number} of a ledger's rows; empty with no ledger."""
+    return {row_id(n, res): n for n, _, _, _, res, _ in parse_register(text or "")}
 
 
 COLUMNS = ("status", "round", "title", "resolution")
@@ -742,15 +847,16 @@ def merged_register(d, text=None):
     ledger's title and its round cell while that cell still names the page's round; and a row
     the ledger settled that the page shows otherwise, with no decision of the page's own since
     any import, keeps the ledger's status and resolution, a conflict (a page decision since
-    then is newer than the ledger row and is written over it). notes are (kind, line) pairs, one per difference between the ledger
+    then is newer than the ledger row and is written over it). A row the ledger holds keeps the
+    ledger's tag tail, so a tag the terminal lane wrote after an import survives the merge.
+    notes are (kind, line) pairs, one per difference between the ledger
     and the merge or the page: kind `change` (the merge rewrites the ledger), `conflict` or
     `kept` (the merge keeps the ledger's text the page lacks)."""
     doc, resp = read(d)
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    gaps = ledger_gapped(text)
-    pos, kept = numbering(sorted(page_ids) + doc["pendingProposals"] + extra, gaps)
+    pos = page_numbering(doc, extra, text)
     seeded = (doc.get("meta") or {}).get("seededFrom") or {}
     cells = seeded.get("roundCells") or {}
     responses = resp.get("responses") or {}
@@ -768,7 +874,8 @@ def merged_register(d, text=None):
         )
 
     rows = []
-    for r in register(doc, resp, extra, gaps):
+    tails = {i: split_tags(res)[1] for i, (_, _, _, res) in old.items()}
+    for r in register(doc, resp, pos, tails):
         q = r["q"]
         rnd, added = q.get("round") or 1, q.get("addedInRound")
         page = {
@@ -791,8 +898,6 @@ def merged_register(d, text=None):
         rows.append(row)
     for i in extra:
         status, cell, title, res = old[i]
-        if not kept and not LEAD.match(res):
-            res = f"[{clean(i)}] {res}".rstrip()
         rows.append(
             {
                 "n": f"Q{pos[i]}",
@@ -832,8 +937,64 @@ def merged_register(d, text=None):
     return doc, rows, notes
 
 
-def export_ledger(d, text=None):
+def register_lines(rows, gaps):
+    """The register's lines: each row's, with each declared gap line (gap_lines' tuples) right
+    before the first row numbered past its range, in range order, and after the last row when
+    none is."""
+    gaps = sorted(gaps, key=lambda g: (g[1], g[2]))
+    out = []
+    for r in rows:
+        while gaps and gaps[0][1] < int(r["n"][1:]):
+            out.append(gaps.pop(0)[3])
+        out.append(row_line(r))
+    return out + [g[3] for g in gaps]
+
+
+def page_held(d):
+    """Every Q<N> number the data dir has recorded: its questions and the ids they name, every
+    event, every round's restate lists, the import's rows and the last ledger check's rows."""
+    doc = load_json(Path(d) / "questions.json", {"questions": []})
+    resp = load_json(Path(d) / "responses.json", EMPTY_RESPONSES)
+    seeded = (doc.get("meta") or {}).get("seededFrom") or {}
+    ids = [e.get("id") for e in resp.get("events") or []]
+    for q in doc.get("questions") or []:
+        ids += [q.get("id"), q.get("supersedes"), q.get("followUpOf"), *(q.get("dependsOn") or [])]
+    for r in doc.get("rounds") or []:
+        restate = r.get("restate") or {}
+        ids += [*(restate.get("decided") or []), *(restate.get("open") or [])]
+    for key in ("rows", "roundCells", "tags"):
+        ids += list(seeded.get(key) or {})
+    ids += ((doc.get("meta") or {}).get("ledgerSync") or {}).get("rows") or []
+    return {int(i[1:]) for i in ids if isinstance(i, str) and QN.match(i)}
+
+
+def never_assigned(d, rows, gaps, text):
+    """`- gap | Q<a>-Q<b> | never assigned` lines for each run of numbers below the highest row
+    that no row, no gap line and nothing the data dir recorded (page_held) holds, and that is
+    above the highest number the ledger's current text holds (highest_id). A row dropped from
+    below that floor still fails the gate; a row the ledger once held above it, deleted before
+    this export with no record in the data dir, is declared."""
+    nums = {int(r["n"][1:]) for r in rows}
+    floor = highest_id(text) if text else 0
+    held = nums | page_held(d)
+    missing = [
+        n
+        for n in range(floor + 1, max(nums, default=0))
+        if n not in held and not any(a <= n <= b for a, b, _, _ in gaps)
+    ]
+    runs = []
+    for n in missing:
+        if runs and runs[-1][1] == n - 1:
+            runs[-1][1] = n
+        else:
+            runs.append([n, n])
+    return [(a, b, None, f"- gap | Q{a}-Q{b} | never assigned") for a, b in runs]
+
+
+def export_ledger(d, text=None, where="the ledger"):
+    gaps = gap_lines(text or "", where)
     doc, rows, _ = merged_register(d, text)
+    gaps += never_assigned(d, rows, gaps, text)
     title = (doc.get("meta") or {}).get("title")
     out = ["# Interview ledger", ""]
     if title:
@@ -842,12 +1003,30 @@ def export_ledger(d, text=None):
     for r in rows:
         mark = " " if r["status"] in UNSETTLED else "x"
         out.append(f"- [{mark}] {r['n']} {r['short']}: {r['status']}")
-    out += ["", "## Open-question register", ""]
-    out += [row_line(r) for r in rows]
+    out += ["", *carried_section(text, "problems"), "## Open-question register", ""]
+    out += register_lines(rows, gaps)
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
-    return "\n".join(out) + "\n"
+    reopened = carried_section(text, "reopened answers")
+    return "\n".join(out + ([""] + reopened[:-1] if reopened else [])) + "\n"
+
+
+def carried_section(text, name):
+    """The lines of the ledger section headed `name` (the first one outside fences), heading
+    through its last non-blank line, then one blank line; [] with no such section. export_ledger
+    writes the ledger's `## Problems` and `## Reopened answers` back with it, as sync-ledger
+    leaves them."""
+    lines = (text or "").splitlines()
+    heads = headings(lines)
+    own = [h for h, _, t in heads if t == name]
+    if not own:
+        return []
+    start, end = section_span(heads, own[0], len(lines))
+    body = lines[start:end]
+    while body and not body[-1].strip():
+        body.pop()
+    return [*body, ""]
 
 
 # Longest answer, in characters, a live question's recap line keeps before it is cut; the recap
@@ -864,12 +1043,12 @@ def recap_answer(r):
     read back through parse_named into readable(), else its resolution as the ledger wrote it."""
     if r.get("readable"):
         return r["readable"]
-    res = LEAD.sub(r"\2", r["resolution"], count=1)
+    body = split_tags(r["resolution"])[0]
     try:
-        named = parse_named(res, "the ledger")
+        named = parse_named(LEAD.sub(r"\2", body, count=1), "the ledger")
     except SystemExit:
         named = None
-    return readable(r["status"], *named) if named else clean(r["resolution"])
+    return readable(r["status"], *named) if named else clean(body)
 
 
 def recap_rows(d, text=None):
@@ -933,19 +1112,22 @@ def check_ledger(text, where):
 
 
 def sync_ledger(d, text, where):
-    """(text, notes): the ledger's text with its live register rows, and nothing else, replaced
-    by merged_register's rows, written where the first row stood. A register with no rows yet gets
+    """(text, notes): the ledger's text with its live register rows and declared gap lines, and
+    nothing else, replaced by merged_register's rows and those gap lines placed as register_lines
+    places them, written where the first of them stood. A register with no rows yet gets
     them under its heading, with a blank line before any text that follows, which would otherwise
     read as part of the last row's list item."""
     lines = text.splitlines(keepends=True)
     heads, found = check_ledger(text, where)
+    gaps = gap_lines(text, where)
     _, rows, notes = merged_register(d, text)
-    drop = {i for i, _ in found}
+    drop = {i for i, _ in found} | {g[2] for g in gaps}
     at = min(drop) if drop else heads[0] + 1
     if not drop and at < len(lines) and not lines[at].strip():
         at += 1
     eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
-    new = [row_line(r) + eol for r in rows]
+    gaps = gaps + never_assigned(d, rows, gaps, text)
+    new = [line + eol for line in register_lines(rows, gaps)]
     if new and not drop and at < len(lines) and lines[at].strip():
         new.append(eol)
     keep = [line for i, line in enumerate(lines) if i not in drop]
@@ -1197,7 +1379,7 @@ def ledger_constraints(text):
 def ledger_row(n, qid, status, title, res):
     """A brief row for a question only the ledger has, in the shape register() gives a page one."""
     lead = LEAD.match(res)
-    text = lead.group(2) if lead else res
+    text = split_tags(lead.group(2) if lead else res)[0]
     body = note = clean(text)
     try:
         named = parse_named(text, f"ledger row {n}")
@@ -1313,9 +1495,8 @@ def export_brief(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    gaps = ledger_gapped(text)
-    rows = register(doc, resp, extra, gaps)
-    pos, _ = numbering(sorted(page_ids) + doc["pendingProposals"] + extra, gaps)
+    pos = page_numbering(doc, extra, text)
+    rows = register(doc, resp, pos)
     for i in extra:
         status, _, title, res = old[i]
         rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
@@ -1326,7 +1507,7 @@ def export_brief(d, text=None):
         sections = dict(sections, decisions=ticked_recap(sections["decisions"], rows))
     count = {
         s: sum(1 for r in rows if r["status"] == s)
-        for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
+        for s in (*SETTLED, *UNSETTLED)
     }
     answered = [r for r in rows if r["status"] == "answered"]
     replaced = replacements(rows)
@@ -1735,9 +1916,9 @@ def round_drift(doc):
     ]
 
 
-def scan_register(lines):
+def scan_register(lines, row=ROW):
     """(heads, rows) over a ledger's lines outside fenced blocks: the index of every heading
-    naming the open-question register, and (index, row match) for each row under the first."""
+    naming the open-question register, and (index, `row` match) for each row under the first."""
     heads, rows, fenced, inside = [], [], False, False
     for i, line in enumerate(lines):
         if FENCE.match(line):
@@ -1750,10 +1931,50 @@ def scan_register(lines):
             if inside:
                 heads.append(i)
             continue
-        m = ROW.match(line) if inside and len(heads) == 1 else None
+        m = row.match(line) if inside and len(heads) == 1 else None
         if m:
             rows.append((i, m))
     return heads, rows
+
+
+def parse_gap(line):
+    """(low, high) of a `- gap | Q<a>-Q<b> | <why>` line in the grammar check-open-questions.sh
+    accepts (no leading zero, a <= b, a reason), else None."""
+    m = GAP_LINE.match(line)
+    ends = (int(m.group(1)), int(m.group(2))) if m else None
+    return ends if ends and ends[0] <= ends[1] else None
+
+
+def gap_lines(text, where=None):
+    """[(low, high, line index, line)] of each well-formed `- gap |` line in a ledger's register
+    section outside fenced blocks, in file order. With `where` (a writer's), a gap line the gate
+    would read as malformed is refused instead of skipped."""
+    lines = text.splitlines()
+    found = [(parse_gap(lines[i]), i) for i, _ in scan_register(lines, GAP_CANDIDATE)[1]]
+    for ends, i in found:
+        if where and not ends:
+            refuse(
+                f"malformed gap line {lines[i].strip()!r} (expected "
+                "'- gap | Q<a>-Q<b> | <why these ids have no row>')",
+                where,
+            )
+    return [(*ends, i, lines[i].strip()) for ends, i in found if ends]
+
+
+def highest_id(text, d=None):
+    """The highest question number a ledger holds: its register rows' Q<N>, each `[Q<N>]` lead
+    and the high end of each `- gap |` line the gate accepts (accepted_gaps: one past the last
+    row counts, one covering a row does not); with a data dir also every number its merged export
+    writes, every page question's own Q<N> and every pending proposal's. 0 for none."""
+    ids = []
+    for n, _, _, _, res, _ in parse_register(text):
+        ids += [f"Q{n}", row_id(n, res)]
+    nums = [b for _, b in accepted_gaps(text)]
+    if d is not None:
+        doc, rows, _ = merged_register(d, text)
+        nums += [int(r["n"][1:]) for r in rows]
+        ids += [q["id"] for q in doc["questions"]] + doc["pendingProposals"]
+    return max(nums + [int(i[1:]) for i in ids if QN.match(i)], default=0)
 
 
 def parse_register(text):
@@ -1798,26 +2019,38 @@ def locate_row(lines, qid, where):
 
 
 def edit_row(text, qid, where, change):
-    """`text` with one register row rewritten: change(status, resolution) returns the new
-    (status, resolution) from the row's stripped cells. Each cell keeps its own surrounding
-    whitespace and the line keeps its ending, so nothing else in the ledger moves. The status is
-    passed as written, so only the lowercase statuses the exporter writes match: restore could
-    not give back another case."""
+    """`text` with the register row `qid` rewritten by rewrite_row."""
     lines = text.splitlines(keepends=True)
-    bare = [x.rstrip("\r\n") for x in lines]
-    i, prefix, status_cell, res_cell = locate_row(bare, qid, where)
-    ending = lines[i][len(bare[i]) :]
-    cells = bare[i][len(prefix) :].split("|", 3)
-    new_status, new_res = change(status_cell.strip(), res_cell.strip())
+    i, prefix, _, _ = locate_row([x.rstrip("\r\n") for x in lines], qid, where)
+    rewrite_row(lines, i, len(prefix), change)
+    return "".join(lines)
+
+
+def rewrite_row(lines, i, start, change, retag=None):
+    """Rewrite the register row lines[i], whose status cell starts at `start`: change(status,
+    resolution) returns the new (status, resolution) from the row's stripped cells, its tag tail
+    peeled off. With retag, retag(tail) is the new tail and the row's `stale::` mark stays after
+    it; without, the tail stays and the stale mark is dropped, as supersede and resolve always
+    did. Each cell keeps its own surrounding whitespace and the line keeps its ending, so nothing
+    else in the ledger moves. The status is passed as written, so only the lowercase statuses
+    the exporter writes match: restore could not give back another case."""
+    bare = lines[i].rstrip("\r\n")
+    cells = bare[start:].split("|", 3)
+    whole = cells[3].strip()
+    fresh = drop_stale(whole)
+    res, tail = split_tags(fresh)
+    new_status, new_res = change(cells[0].strip(), res)
+    new_res = join_tags(new_res, retag(tail) if retag else tail)
+    if retag and fresh != whole:
+        new_res = join_tags(new_res, re.search(STALE_LIST, whole).group())
 
     def put(cell, value):
         core = cell.strip()
-        start = cell.index(core) if core else len(cell)
-        return cell[:start] + value + cell[start + len(core) :]
+        at = cell.index(core) if core else len(cell)
+        return cell[:at] + value + cell[at + len(core) :]
 
     cells[0], cells[3] = put(cells[0], new_status), put(cells[3], new_res)
-    lines[i] = prefix + "|".join(cells) + ending
-    return "".join(lines)
+    lines[i] = bare[:start] + "|".join(cells) + lines[i][len(bare) :]
 
 
 def split_lead(res):
@@ -1934,6 +2167,150 @@ def resolve_row(text, qid, how, note, where):
         return "answered", lead + encode(fields, marked)
 
     return edit_row(text, qid, where, change)
+
+
+def headings(lines):
+    """[(index, level, text lowercased, #s dropped)] of each heading outside fenced blocks."""
+    out, fenced = [], False
+    for i, line in enumerate(lines):
+        if FENCE.match(line):
+            fenced = not fenced
+        elif not fenced and re.match(r"^#+\s", line):
+            text = line.lstrip("#")
+            out.append((i, len(line) - len(text), text.strip().lower()))
+    return out
+
+
+def section_span(heads, start, total):
+    """(start, end) of the section headed at line `start`: up to the next heading at its level
+    or above (a sub-heading stays inside it), else the end of the file."""
+    level = next(lv for h, lv, _ in heads if h == start)
+    return start, next((h for h, lv, _ in heads if h > start and lv <= level), total)
+
+
+REOPENED_ENTRY = re.compile(
+    r"^- (Q[1-9][0-9]*) \| round ([1-9][0-9]*) \| was: (.*) \| fact: (.*)$"
+)
+
+
+def reopened_entry(qid, rnd, was, fact):
+    """One `## Reopened answers` entry, the line REOPENED_ENTRY reads back."""
+    return f"- {qid} | round {rnd} | was: {was} | fact: {fact}"
+
+
+def reopened_entries(text):
+    """[(Q<N>, round, was, fact)] of each entry under the ledger's `## Reopened answers`."""
+    bare = text.splitlines()
+    heads = headings(bare)
+    out = []
+    for h, _, title in heads:
+        if title == "reopened answers":
+            start, end = section_span(heads, h, len(bare))
+            for line in bare[start + 1 : end]:
+                m = REOPENED_ENTRY.match(line)
+                if m:
+                    out.append((m.group(1), int(m.group(2)), m.group(3), m.group(4)))
+    return out
+
+
+def add_reopened(lines, entry):
+    """Append `entry` to the ledger's `## Reopened answers` section. A ledger with none gets it
+    where the checklist template puts it: after the register's whole level-2 section, its
+    `### Deferred questions` included. `lines` keep their endings."""
+    eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    bare = [x.rstrip("\r\n") for x in lines]
+    heads = headings(bare)
+    own = [h for h, _, t in heads if t == "reopened answers"]
+    start, at = section_span(heads, own[0] if own else scan_register(bare)[0][0], len(lines))
+    last = max([i for i in range(start + 1, at) if lines[i].strip()], default=None)
+    new = [entry + eol]
+    if not own:
+        new = [eol, "## Reopened answers" + eol, eol, *new]
+    elif last is None:
+        last, new = start, [eol, *new]
+    elif not lines[last].lstrip().startswith("- "):
+        new = [eol, *new]
+    if not lines[last].endswith("\n"):
+        lines[last] += eol
+    if last + 1 == at and at < len(lines):
+        new.append(eol)
+    lines[last + 1 : last + 1] = new
+
+
+def reopen_row(text, qid, rnd, fact, where):
+    """(text, marked): the answered row `qid` set back to open with `reopened:: round <rnd>`, its
+    answer and `fact` added to `## Reopened answers` as `- Q<N> | round <rnd> | was: <answer> |
+    fact: <fact>`, and `recheck:: Q<N>` added to every row whose `depends::` reaches it at any
+    depth; marked is those rows' Q<N> in register order."""
+    fact = clean(fact)
+    if not fact:
+        raise SystemExit("refused: the fact (--fact-file) is empty")
+    lines = text.splitlines(keepends=True)
+    bare = [x.rstrip("\r\n") for x in lines]
+    i, prefix, _, _ = locate_row(bare, qid, where)
+    n = f"Q{int(ROW.match(bare[i]).group(1))}"
+    was = []
+
+    def change(status, res):
+        if status != "answered":
+            raise SystemExit(
+                f"refused: {qid} is {status or 'blank'}, and only an answered row can be "
+                f"reopened, in {where}"
+            )
+        lead, answer = split_lead(res)
+        was.append(answer)
+        return "open", lead.rstrip()
+
+    def reopened(tail):
+        return format_tags({**parse_tags(tail, n, where), "reopened": f"round {rnd}"})
+
+    rewrite_row(lines, i, len(prefix), change, reopened)
+    rows, dependents = scan_register(bare)[1], {}
+    for _, m in rows:
+        cells = m.group(2).split("|", 3)
+        row = f"Q{int(m.group(1))}"
+        tail = split_tags(drop_stale(cells[3]).strip())[1] if len(cells) == 4 else ""
+        for dep in (parse_tags(tail, row, where).get("depends") or "").split(", "):
+            dependents.setdefault(dep, set()).add(row)
+    marked, todo = set(), [n]
+    while todo:
+        for dep in dependents.get(todo.pop(), ()):
+            if dep != n and dep not in marked:
+                marked.add(dep)
+                todo.append(dep)
+
+    def recheck(row):
+        def add(tail):
+            tags = parse_tags(tail, row, where)
+            ids = [x for x in (tags.get("recheck") or "").split(", ") if x]
+            return format_tags({**tags, "recheck": ", ".join(ids + [n] * (n not in ids))})
+
+        return add
+
+    order = []
+    for j, m in rows:
+        row = f"Q{int(m.group(1))}"
+        if row in marked:
+            rewrite_row(lines, j, m.start(2), lambda s, r: (s, r), recheck(row))
+            order.append(row)
+    add_reopened(lines, reopened_entry(n, rnd, was[0], fact))
+    return "".join(lines), order
+
+
+def clear_recheck(text, qids, where):
+    """`text` with `recheck::` removed from each named row; refuses a row that carries none."""
+    lines = text.splitlines(keepends=True)
+    for qid in qids:
+        i, prefix, _, _ = locate_row([x.rstrip("\r\n") for x in lines], qid, where)
+
+        def cleared(tail, qid=qid):
+            tags = parse_tags(tail, qid, where)
+            if not tags.pop("recheck", None):
+                refuse(f"{qid} carries no recheck::", where)
+            return format_tags(tags)
+
+        rewrite_row(lines, i, len(prefix), lambda s, r: (s, r), cleared)
+    return "".join(lines)
 
 
 def seeded_decision(res):
@@ -2207,10 +2584,13 @@ def import_ledger(doc, text, ledger, at):
     rows = parse_register(text)
     if not rows:
         refuse("no open-question register rows", ledger)
-    seeded, seen, cells, added_in = {}, set(), {}, {}
+    seeded, seen, cells, added_in, tags = {}, set(), {}, {}, {}
     for n, status, rnd, title, res, cell in rows:
         lead = LEAD.match(res)
         qid, res = (lead.group(1), lead.group(2)) if lead else (f"Q{n}", res)
+        res, tail = split_tags(res)
+        if tail:
+            tags[qid] = tail
         if qid in seen:
             raise SystemExit(f"refused: duplicate question id in {ledger}: {qid}")
         seen.add(qid)
@@ -2225,7 +2605,7 @@ def import_ledger(doc, text, ledger, at):
         added = ADDED.search(cell)
         if added and int(added.group(1)) > rnd:
             added_in[qid] = int(added.group(1))
-        if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
+        if status not in (*UNSETTLED, *SETTLED):
             refuse(f"unknown status {status!r} for Q{n}", ledger)
         named = parse_named(res, ledger)
         if named:
@@ -2317,4 +2697,6 @@ def import_ledger(doc, text, ledger, at):
     meta["seededFrom"] = {"ledger": ledger, "at": at, "rows": seeded}
     if cells:
         meta["seededFrom"]["roundCells"] = cells
+    if tags:
+        meta["seededFrom"]["tags"] = tags
     return doc

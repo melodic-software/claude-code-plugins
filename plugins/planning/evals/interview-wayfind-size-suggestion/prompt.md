@@ -1,6 +1,6 @@
 ---
 description: "The question-count suggestion: the register has passed wayfind_suggest_questions at its default while every round closed more than it opened. Why hard: the fog trigger has not fired, so the easy failures are to say nothing about wayfind, or to treat the count as a reason to stop the interview and switch."
-tags: [interview, routing, scaffold]
+tags: [interview, routing, scaffold, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

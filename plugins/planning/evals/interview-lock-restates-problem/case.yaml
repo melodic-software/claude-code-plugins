@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-lock-restates-problem
 description: Under lock, a task that states its problem still gets a one-line problem restatement and one confirmation question before any Brief is written
-tags: [interview, problem-framing, lock, scaffold]
+tags: [interview, problem-framing, lock, scaffold, no-network]
 expected_outcome: The reply restates the problem (the nightly invoice export timing out for accounts with more than 10,000 invoices) in one line and asks the user to confirm it with a yes, and no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

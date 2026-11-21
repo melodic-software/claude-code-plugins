@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-prescribed-solution-rethink
 description: A request that prescribes a solution and states no problem gets its problem worked back out with an evidence rating and one rethink-or-accept question, and no Brief is written
-tags: [interview, problem-framing, prescribed-solution, scaffold]
+tags: [interview, problem-framing, prescribed-solution, scaffold, no-network]
 expected_outcome: The reply states the problem the retry wrapper would fix (for example, webhook deliveries lost on transient endpoint failures), rates its evidence observed, reported or inferred, and asks whether to rethink the approach against that problem or accept the retry wrapper; no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh

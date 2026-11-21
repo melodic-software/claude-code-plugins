@@ -1,6 +1,6 @@
 ---
 description: "Control. The prompt states the bar (a throwaway prototype), so round 1 must not ask it again and its depth should match a prototype. Row 38 of the Pocock sync."
-tags: [interview, quality-bar, row38]
+tags: [interview, quality-bar, row38, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

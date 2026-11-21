@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for the closing probe wording. Why hard: 'Anything else?' is the habitual close, and it invites a 'no'; 'Is there something else...?' left fewer concerns unmet in a primary-care trial (Heritage et al. 2007)."
-tags: [interview, closing-probe, wording]
+tags: [interview, closing-probe, wording, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

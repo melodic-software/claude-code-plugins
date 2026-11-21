@@ -114,6 +114,87 @@ EOF
 expect_exit "a mark after an escaped backslash still blocks -> 1" 1 --ledger "$stale_backslash"
 expect_stdout "open verdict counts the open row" "open=1" --ledger "$one_open"
 
+tagged="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | free-text: x; y; kind:: discovery; problem:: P1
+- Q2 | answered | round 1 | b | answer:: accepted: yes; depends:: Q1; reopened:: round 2
+- Q3 | answered | round 2 | c | [J1] accepted: yes; depends:: Q1, Q2; stale:: C1
+
+## Problems
+
+- P1 | staff cannot find the queue | agreed
+
+## Reopened answers
+
+- Q2 | round 2 | was: accepted: no | fact: ops.md:3 says yes
+EOF
+)"
+expect_exit "tags, Problems rows and Reopened answers rows -> 1 only for the stale row" 1 --ledger "$tagged"
+expect_stdout "tags are not counted as recheck" "superseded=0 brief=unchecked stale=1 status=open" --ledger "$tagged"
+reopened_row="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes
+
+## Reopened answers
+
+- Q1 | round 2 | was: accepted: no | fact: ops.md:3 says yes
+- Q2 | open | round 2 | b |
+EOF
+)"
+expect_exit "a register row under Reopened answers is still outside the register -> 2" 2 --ledger "$reopened_row"
+if [[ "$(stderr_of --ledger "$reopened_row")" == *"line 14: question row outside the register section"* &&
+  "$(stderr_of --ledger "$reopened_row")" != *"line 13:"* ]]; then
+  pass "only the entry-shaped line under Reopened answers is skipped"
+else
+  fail "only the entry-shaped line under Reopened answers is skipped (stderr: '$(stderr_of --ledger "$reopened_row")')"
+fi
+recheck_row="$(
+  mkledger <<'EOF'
+- Q1 | open | round 1 | a | reopened:: round 2
+- Q2 | answered | round 1 | b | accepted: yes; depends:: Q1; recheck:: Q1
+- Q3 | answered | round 1 | c | answer:: free-text: C:\\; recheck:: Q1; stale:: C2
+- Q4 | answered | round 1 | d | answer:: said\; recheck:: Q1
+EOF
+)"
+expect_stdout "recheck rows are counted beside stale" "stale=1 recheck=2 status=open" --ledger "$recheck_row"
+escaped_recheck="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | answer:: free-text: a\; b; recheck:: Q2
+- Q2 | answered | round 1 | b | accepted: yes; reopened:: round 2
+EOF
+)"
+expect_exit "an escaped separator before recheck:: still blocks -> 1" 1 --ledger "$escaped_recheck"
+expect_stdout "an escaped separator in the answer still lets recheck block" "open=0 deferred=0 blocked=0 withdrawn=0 answered=2 superseded=0 brief=unchecked recheck=1 status=open" --ledger "$escaped_recheck"
+rechecked="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes; reopened:: round 2
+- Q2 | answered | round 1 | b | accepted: yes; depends:: Q1; recheck:: Q1
+EOF
+)"
+expect_exit "a recheck row on an answered register blocks -> 1" 1 --ledger "$rechecked"
+cleared="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | accepted: yes; reopened:: round 2
+- Q2 | answered | round 1 | b | accepted: yes; depends:: Q1
+EOF
+)"
+expect_exit "once recheck:: is cleared the register is clean -> 0" 0 --ledger "$cleared"
+tags_only="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | depends:: Q2
+- Q2 | answered | round 1 | b | [J1] kind:: discovery
+- Q3 | answered | round 1 | c | yes; kind:: discovery
+EOF
+)"
+tags_only_err="$(stderr_of --ledger "$tags_only" --procedure)"
+if [[ "$tags_only_err" == *"Q1: answered row has an empty resolution"* &&
+  "$tags_only_err" == *"Q2: answered row has an empty resolution"* &&
+  "$tags_only_err" != *"Q3: answered"* ]]; then
+  pass "a resolution of tags alone is empty under --procedure"
+else
+  fail "a resolution of tags alone is empty under --procedure ($tags_only_err)"
+fi
+
 # 8. Mixed terminal statuses all count as resolved.
 mixed="$(
   mkledger <<'EOF'
@@ -212,6 +293,67 @@ gap="$(
 EOF
 )"
 expect_exit "gap in Q numbering -> 2" 2 --ledger "$gap"
+
+declared_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap | Q2-Q4 | the shared session's ids ran ahead
+- Q5 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a declared gap -> 0" 0 --ledger "$declared_gap"
+expect_stdout "a declared gap grades clean" "registered=2 " --ledger "$declared_gap"
+part_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap | Q2-Q3 | dropped before the page
+- Q6 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a gap declared only in part -> 2" 2 --ledger "$part_gap"
+part_err="$(stderr_of --ledger "$part_gap")"
+if [[ "$part_err" == *"no row for Q4 to Q5"* && "$part_err" == *"- gap | Q4-Q5 |"* && "$part_err" != *"no row for Q2"* ]]; then pass "only the undeclared part of a gap is reported"; else fail "only the undeclared part of a gap is reported (stderr: '$part_err')"; fi
+fenced_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+```text
+- gap | Q2-Q2 | an example
+```
+- Q3 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a fenced gap line declares nothing -> 2" 2 --ledger "$fenced_gap"
+for bad_gap in '- gap | Q2 | no range' '- gap | Q3-Q2 | reversed' '- gap | Q2-Q2 |'; do
+  bad_gap_ledger="$(printf -- '- Q1 | answered | round 1 | Who writes? | admin\n%s\n- Q3 | answered | round 1 | What format? | markdown\n' "$bad_gap" | mkledger)"
+  expect_exit "malformed gap line '$bad_gap' -> 2" 2 --ledger "$bad_gap_ledger"
+  if [[ "$(stderr_of --ledger "$bad_gap_ledger")" == *"malformed gap line"* ]]; then pass "'$bad_gap' is named malformed"; else fail "'$bad_gap' is named malformed"; fi
+done
+covering_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap | Q2-Q3 | dropped before the page
+- Q3 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a declared gap covering a row -> 2" 2 --ledger "$covering_gap"
+if [[ "$(stderr_of --ledger "$covering_gap")" == *"line 10: declared gap Q2-Q3 covers the row Q3"* ]]; then pass "a gap covering a row is named with its line"; else fail "a gap covering a row is named with its line (stderr: '$(stderr_of --ledger "$covering_gap")')"; fi
+trailing_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 1 | What format? | markdown
+- gap | Q3-Q5 | ids a peer session holds
+EOF
+)"
+expect_exit "a declared gap past the highest row reserves those ids -> 0" 0 --ledger "$trailing_gap"
+if [[ -z "$(stderr_of --ledger "$trailing_gap")" ]]; then pass "a gap past the highest row is not an error"; else fail "a gap past the highest row is not an error (stderr: '$(stderr_of --ledger "$trailing_gap")')"; fi
+prose_gap="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- gap, see below
+- Q2 | answered | round 1 | What format? | markdown
+EOF
+)"
+expect_exit "a prose bullet starting with gap is not a gap line -> 0" 0 --ledger "$prose_gap"
 
 # 14b. A row that lost its first pipe must exit 2, not vanish. Skipping it
 #      silently would hide Q2 from the contiguity check and grade the register
@@ -877,6 +1019,7 @@ expect_stdout "row errors keep the counts of the valid rows" "registered=2 open=
 #     messages, neither reported as the other.
 gap_err="$(stderr_of --ledger "$gap")"
 if [[ "$gap_err" == *"gap in question ids: no row for Q2"* && "$gap_err" != *"out of order"* ]]; then pass "a missing id reads as a gap"; else fail "a missing id reads as a gap (stderr: '$gap_err')"; fi
+if [[ "$gap_err" == *"- gap | Q2-Q2 | <why>"* ]]; then pass "an undeclared gap names the line that declares it"; else fail "an undeclared gap names the line that declares it (stderr: '$gap_err')"; fi
 swapped="$(
   mkledger <<'EOF'
 - Q2 | answered | round 1 | Format? | markdown

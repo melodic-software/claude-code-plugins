@@ -1,6 +1,6 @@
 ---
 description: "Unattended lock with a locked PRD.md in the topic's memory slice: the Brief's ### Problem carries the PRD's Problem (pickers walking back to the desk for a pick-list reprint), and the PRD's one assumption (handheld scanners have a browser) sits under ### Captured assumptions tagged (from PRD), never as a constraint-ledger row, and the Goal's Vision line carries the PRD's Vision (every floor task on the device in the picker's hand). Needs --allow-tools Write."
-tags: [interview, brief, prd, assumptions, problem, scaffold]
+tags: [interview, brief, prd, assumptions, problem, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
