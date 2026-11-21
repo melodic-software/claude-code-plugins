@@ -24,7 +24,7 @@
   const MAX_DEPTH = 32;
   const NUDGE = 10; // pixels an arrow key moves or resizes a region
   let mode = false, kind = "element", pins = [], layer = null, hover = null, region = null, drag = null, maxElements = 0;
-  let holding = false, held = null;
+  let holding = false, held = null, markers = true;
   const hold = h => { if (holding) { held = h; draw(); } };
   const log = []; // the data controls pressed and content sets shown since the page loaded, in order
 
@@ -235,7 +235,7 @@
   function draw() {
     const l = ensureLayer();
     l.replaceChildren();
-    for (const p of pins) { const at = placeOf(p); l.append(badge(p.n, at.x, at.y, p.active)); }
+    if (markers) for (const p of pins) { const at = placeOf(p); l.append(badge(p.n, at.x, at.y, p.active)); }
     if (hover && mode && kind === "element") {
       l.append(outline(hover.getBoundingClientRect(), { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }));
     }
@@ -358,6 +358,7 @@
     }
     else if (m.type === "release") { held = null; draw(); }
     else if (m.type === "pins" && Array.isArray(m.pins)) { pins = m.pins.slice(0, 500); draw(); }
+    else if (m.type === "markers") { markers = m.on !== false; draw(); }
     else if (m.type === "set") setControls(m.values);
     else if (m.type === "press" && !mode) replay([m.step]);
     else if (m.type === "focus") {
