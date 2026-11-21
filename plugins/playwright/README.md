@@ -145,7 +145,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `demo_ripple` | boolean | `true` | Draw a ring around each clicked element. |
 | `demo_captions` | boolean | `true` | Caption each step and its outcome. The plain style has none whatever this says. |
 | `demo_narration` | boolean | `false` | Add a voice-over through /speech:narrate when the speech plugin is installed. Off by default. |
-| `cli_update_hint` | string | *(none)* | Optional text shown when the daily check finds playwright-cli behind its latest release, such as how your machines update it. Empty shows only the version line. |
+| `cli_update_hint` | string | *(none)* | Optional text shown when the daily check finds this plugin's CLI behind its latest release, such as how your machines update it. Empty shows only the version line. |
 
 ### How to set these
 

@@ -22,8 +22,8 @@
   "userConfig": {
     "cli_update_hint": {
       "type": "string",
-      "title": "firecrawl update hint",
-      "description": "Optional text shown when the daily check finds firecrawl behind its latest release, such as how your machines update it. Empty shows only the version line.",
+      "title": "Update hint for the CLI",
+      "description": "Optional text shown when the daily check finds this plugin's CLI behind its latest release, such as how your machines update it. Empty shows only the version line.",
       "default": ""
     }
   }

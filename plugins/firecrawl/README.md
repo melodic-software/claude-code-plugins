@@ -69,7 +69,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `cli_update_hint` | string | *(none)* | Optional text shown when the daily check finds firecrawl behind its latest release, such as how your machines update it. Empty shows only the version line. |
+| `cli_update_hint` | string | *(none)* | Optional text shown when the daily check finds this plugin's CLI behind its latest release, such as how your machines update it. Empty shows only the version line. |
 
 ### How to set these
 
