@@ -72,3 +72,20 @@ export function problems(value, schema, node = schema, at = "note") {
 
 /** True when `value` is a note `schema` accepts. */
 export const valid = (value, schema) => problems(value, schema).length === 0;
+
+/** One run's drafts in a host tab's storage (sessionStorage): a single entry naming the run, so another run's
+ *  drafts read back as none. What the storage gives back is untrusted: a malformed entry reads as no drafts, and
+ *  only the drafts `schema` admits are kept. A storage that throws keeps nothing. */
+export function draftStore(storage, run, schema, key = "ui-feedback-drafts") {
+  return {
+    load() {
+      let saved;
+      try { saved = JSON.parse(storage.getItem(key)); } catch { return []; }
+      if (!isObject(saved) || saved.run !== run || !Array.isArray(saved.drafts)) return [];
+      return saved.drafts.filter((n) => isObject(n) && valid(n, schema)).slice(0, schema["x-maxNotesPerRun"]);
+    },
+    save(drafts) {
+      try { storage.setItem(key, JSON.stringify({ run, drafts })); } catch (err) { console.warn("ui-feedback: drafts not kept for a reload", err); }
+    },
+  };
+}

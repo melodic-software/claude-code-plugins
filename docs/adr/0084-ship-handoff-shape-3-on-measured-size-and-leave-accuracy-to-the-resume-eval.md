@@ -1,6 +1,8 @@
 # Ship handoff shape 3 on measured size and leave accuracy to the resume eval
 
-- Status: accepted; Decision 6 (the unbounded core) is superseded by
+- Status: accepted; Decision 3 (shape 3 is the written shape) is superseded by
+  [ADR 0115](0115-write-handoff-shape-4-with-binding-sections-first-and-a-tool-owned-byte-budget.md);
+  Decision 6 (the unbounded core) is superseded by
   [ADR 0091](0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md)
 - Date: 2026-10-24
 - Related: [#9238](https://github.com/melodic-software/claude-code-plugins/issues/9238) (the
