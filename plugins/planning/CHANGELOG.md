@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.11.2] - 2026-11-21
+
+### Changed
+
+- The shared page's `proto-pin.js` copy accepts the ui-feedback frame helper's new `show` and `select` messages, which draw a listed note's box, and lets a host turn on marker clicks. The shared page sends none of these, so its markers still take no click and its pages behave as before ([#17801](https://github.com/melodic-software/claude-code-plugins/issues/17801)).
+
+- The shared `reference/rendered-view.md` copy says `/architecture:improve deepening` now builds its report with `build-view.mjs deepening` instead of writing the HTML itself ([#17798](https://github.com/melodic-software/claude-code-plugins/issues/17798)).
+
 ## [5.11.1] - 2026-11-21
 
 ### Changed
