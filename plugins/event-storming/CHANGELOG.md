@@ -3,6 +3,14 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6] - 2026-11-21
+
+### Fixed
+
+- The simulation skill and its references, the quoted Brandolini passage included, spell the
+  persona zone GRAY and the word gray in American English. In-place correction to the released
+  0.6.13 entry about the zone's corrective prompt: it now spells the zone GRAY.
+
 ## [0.9.5] - 2026-11-20
 
 ### Fixed
