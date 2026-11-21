@@ -32,33 +32,51 @@ cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 registry="scripts/cross-plugin-source-registry.txt"
 
-# Filenames that are *expected* to differ per plugin by design -- excluded
-# from clustering entirely so they never produce noise.
-declare -A skip_basenames=(
-  [SKILL.md]=1 [plugin.json]=1 [README.md]=1 [CHANGELOG.md]=1
-  [evals.json]=1 [hooks.json]=1 [.gitignore]=1
-)
-
 # rel path within a plugin -> newline-delimited "plugin:fullpath" entries
-declare -A cluster_entries
+declare -A cluster_entries=()
 # rel path -> IDENTICAL | DIFFERS (only set for clusters with 2+ entries)
-declare -A cluster_status
+declare -A cluster_status=()
 
-# One find of plugins/, not one find exec per plugins/*/ directory.
-while IFS= read -r -d '' full; do
-  rest="${full#plugins/}"
-  [[ "$rest" != "$full" ]] || continue
-  plugin="${rest%%/*}"
-  rel="${rest#"$plugin"/}"
-  [[ "$rel" != "$rest" ]] || continue
-  [[ -z "${skip_basenames[${full##*/}]:-}" ]] || continue
-  # NEWLINE-delimited, not space-delimited (#3376). `find -print0` already
-  # hands us paths containing spaces intact; joining the accumulator on a
-  # space would throw that away again the moment load_cluster split it back
-  # apart, turning one entry into two bogus ones and feeding sha256sum a
-  # truncated path. A newline is the one separator no path here can contain.
+list_plugin_files() {
+  if [[ -e .git ]] && command -v git >/dev/null 2>&1; then
+    git -c core.quotepath=false ls-files --cached --others --exclude-standard -- plugins
+  else
+    find plugins -type f
+  fi
+}
+
+while IFS=$'\t' read -r rel plugin full; do
+  full="${full%$'\r'}"
+  [[ -n "$rel" && -f "$full" && ! -L "$full" ]] || continue
   cluster_entries["$rel"]+="${plugin}:${full}"$'\n'
-done < <(find plugins -type f -print0)
+done < <(list_plugin_files | LC_ALL=C awk '
+  BEGIN {
+    skip["SKILL.md"] = 1; skip["plugin.json"] = 1; skip["README.md"] = 1
+    skip["CHANGELOG.md"] = 1; skip["evals.json"] = 1; skip["hooks.json"] = 1
+    skip[".gitignore"] = 1
+  }
+  {
+    sub(/\r$/, "")
+    if (substr($0, 1, 8) != "plugins/") next
+    rest = substr($0, 9)
+    slash = index(rest, "/")
+    if (slash == 0) next
+    plugin = substr(rest, 1, slash - 1)
+    rel = substr(rest, slash + 1)
+    if (rel == "") next
+    # basename: after last /
+    base = rel
+    while ((p = index(base, "/")) > 0) base = substr(base, p + 1)
+    if (base in skip) next
+    cnt[rel]++
+    if (cnt[rel] == 1) {
+      first[rel] = rel "\t" plugin "\t" $0
+    } else {
+      if (cnt[rel] == 2) print first[rel]
+      print rel "\t" plugin "\t" $0
+    }
+  }
+')
 
 # load_cluster <rel> -> populate the globals `entries` ("plugin:fullpath" pairs)
 # and `plugins_list` (plugin names only). Globals rather than stdout: the callers
@@ -67,10 +85,13 @@ done < <(find plugins -type f -print0)
 # set -e suppression.
 load_cluster() {
   entries=()
-  local line
-  while IFS= read -r line; do
+  local rem="${cluster_entries[$1]}" line
+  while [[ -n "$rem" ]]; do
+    line="${rem%%$'\n'*}"
     [[ -n "$line" ]] && entries+=("$line")
-  done <<<"${cluster_entries[$1]}"
+    [[ "$line" != "$rem" ]] || break
+    rem="${rem#*$'\n'}"
+  done
   plugins_list=()
   local entry
   for entry in "${entries[@]}"; do
@@ -98,13 +119,15 @@ load_cluster() {
 
 declare -A file_hash
 hash_paths=()
-for rel in "${!cluster_entries[@]}"; do
-  load_cluster "$rel"
-  ((${#entries[@]} >= 2)) || continue
-  for entry in "${entries[@]}"; do
-    hash_paths+=("${entry#*:}")
+if ((${#cluster_entries[@]} > 0)); then
+  for rel in "${!cluster_entries[@]}"; do
+    load_cluster "$rel"
+    ((${#entries[@]} >= 2)) || continue
+    for entry in "${entries[@]}"; do
+      hash_paths+=("${entry#*:}")
+    done
   done
-done
+fi
 if ((${#hash_paths[@]} > 0)); then
   hash_out="$(mktemp)" || exit 2
   trap 'rm -f "$hash_out"' EXIT
@@ -117,30 +140,32 @@ if ((${#hash_paths[@]} > 0)); then
   done <"$hash_out"
 fi
 
-for rel in "${!cluster_entries[@]}"; do
-  load_cluster "$rel"
-  ((${#entries[@]} >= 2)) || continue
+if ((${#cluster_entries[@]} > 0)); then
+  for rel in "${!cluster_entries[@]}"; do
+    load_cluster "$rel"
+    ((${#entries[@]} >= 2)) || continue
 
-  first_hash=""
-  identical=1
-  for entry in "${entries[@]}"; do
-    h="${file_hash[${entry#*:}]:-}"
-    if [[ -z "$h" ]]; then
-      echo "check-cross-plugin-source-drift: no hash for ${entry#*:}" >&2
-      exit 2
-    fi
-    if [[ -z "$first_hash" ]]; then
-      first_hash="$h"
-    elif [[ "$h" != "$first_hash" ]]; then
-      identical=0
+    first_hash=""
+    identical=1
+    for entry in "${entries[@]}"; do
+      h="${file_hash[${entry#*:}]:-}"
+      if [[ -z "$h" ]]; then
+        echo "check-cross-plugin-source-drift: no hash for ${entry#*:}" >&2
+        exit 2
+      fi
+      if [[ -z "$first_hash" ]]; then
+        first_hash="$h"
+      elif [[ "$h" != "$first_hash" ]]; then
+        identical=0
+      fi
+    done
+    if ((identical)); then
+      cluster_status["$rel"]="IDENTICAL"
+    else
+      cluster_status["$rel"]="DIFFERS"
     fi
   done
-  if ((identical)); then
-    cluster_status["$rel"]="IDENTICAL"
-  else
-    cluster_status["$rel"]="DIFFERS"
-  fi
-done
+fi
 
 declare -A registered
 registry_entries=()

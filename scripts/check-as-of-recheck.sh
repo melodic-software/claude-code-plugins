@@ -108,7 +108,7 @@ if ((${#files[@]} > 0)); then
         if (!opens_with_trigger(t)) print pending
         pending = ""
       }
-      if (t ~ stamp && t !~ trig) pending = file "\t" start
+      if (index(t, "of") > 0 && t ~ /[0-9][0-9][0-9][0-9]-/ && t ~ stamp && t !~ trig) pending = file "\t" start
       buf = ""
     }
     function close_file() { flush(); if (pending != "") print pending; pending = ""; fence = 0 }

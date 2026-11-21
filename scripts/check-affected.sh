@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Run the diff-scoped lint checks CI runs, over what this branch changed, before
-# a push spends a CI round on them. One entrypoint, so a person, an agent and the
-# pre-push hook (.claude/hooks/check-affected-pre-push.sh) all run the same set.
-#
 #   scripts/check-affected.sh                 the lint checks
 #   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
 #   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
