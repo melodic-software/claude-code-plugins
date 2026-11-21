@@ -183,7 +183,7 @@ edit the canonical source, then rerun the script. -->
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
     if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
-    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
+    toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems, hold: true });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
       : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
       : "");
@@ -256,6 +256,7 @@ edit the canonical source, then rerun the script. -->
     text.focus();
   }
   function closeComposer() {
+    toFrame({ type: "release" });
     draft = editing = null;
     composer.hidden = true;
     (opener?.() || buttons.element).focus();
@@ -429,6 +430,11 @@ edit the canonical source, then rerun the script. -->
       return li;
     };
     const drafts = mine.filter((m) => m.draft);
+    const pin = (m, n) => ({ n, selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    toFrame({ type: "pins", pins: [
+      ...mine.filter((m) => m.seq !== null).map((m) => pin(m, m.seq)),
+      ...drafts.map((m, i) => pin(m, `D${i + 1}`)),
+    ] });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
         const m = ours.get(seq);
@@ -464,16 +470,16 @@ edit the canonical source, then rerun the script. -->
     else if (m.type === "pinned" && picking === "element") {
       const note = noteFrom(m, "element");
       if (note) openComposer(note, () => buttons.element);
-      else say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent.");
+      else { toFrame({ type: "release" }); say("That element cannot carry a note: its tag or path is outside the note contract. Pick its parent."); }
     } else if (m.type === "region" && picking === "region") {
       const note = noteFrom(m, "region");
       if (note) openComposer(note, () => buttons.region);
-      else say("That region cannot carry a note: the element around it is outside the note contract.");
+      else { toFrame({ type: "release" }); say("That region cannot carry a note: the element around it is outside the note contract."); }
     } else if (m.type === "selected" && wantText) {
       wantText = false;
       const note = m.none ? null : noteFrom(m, "text");
       if (note) openComposer(note, () => $("quote"));
-      else say("Select some text in the mockup first, then press Note on selected text (T).");
+      else { toFrame({ type: "release" }); say("Select some text in the mockup first, then press Note on selected text (T)."); }
     }
   });
 
