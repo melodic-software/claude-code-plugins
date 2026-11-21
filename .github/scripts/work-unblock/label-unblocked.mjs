@@ -1356,7 +1356,7 @@ function mapSkipper(routing) {
       const named = [...skipped].map(([number, label]) => `#${number} ('${escapeCommand(label)}')`);
       return named.length === 0
         ? null
-        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying a container or wayfind label, so the skill that filed it routes it: ${named.join(", ")}`;
+        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying a container, wayfind or session-owned label, so the skill or session that filed it routes it: ${named.join(", ")}`;
     },
   };
 }

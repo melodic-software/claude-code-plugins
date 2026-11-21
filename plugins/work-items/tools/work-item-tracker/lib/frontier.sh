@@ -42,7 +42,8 @@ wit_filter_frontier() {
   state_labels_json="${WIT_HOLD_STATE_LABELS_JSON:-$(jq -n -c '$ARGS.positional' --args "${WIT_HOLD_STATE_LABELS[@]}")}"
   hold_labels_json="$(jq -n -c --argjson held "$state_labels_json" '$ARGS.positional + $held' --args "$human_gated")"
   jq -c --arg auto "$autonomous" --arg human_gated "$human_gated" --arg container "$container" \
-    --arg wayfind "${WIT_WAYFIND_PREFIX:-$WIT_WAYFIND_LABEL_PREFIX}" --argjson floor "$floor_json" --argjson states "$states_json" \
+    --arg wayfind "${WIT_WAYFIND_PREFIX:-$WIT_WAYFIND_LABEL_PREFIX}" \
+    --arg session_owned "${WIT_SESSION_OWNED_LABEL:-$WIT_DEFAULT_SESSION_OWNED_LABEL}" --argjson floor "$floor_json" --argjson states "$states_json" \
     --argjson hold_labels "$hold_labels_json" '{
     schema_version: .schema_version,
     items: [
@@ -56,6 +57,7 @@ wit_filter_frontier() {
           and (any($labels[]?; type == "string" and startswith($wayfind)) | not)
           and (if $auto == "true"
                then (($labels | index($human_gated)) | not)
+                    and (($labels | index($session_owned)) | not)
                     and (($labels | any(. as $l | $floor | index($l))) | not)
                     and (((.status | type) == "string" and (.status as $s | $states | index($s))
                           and (($labels | any(. as $l | $hold_labels | index($l))) | not)) | not)

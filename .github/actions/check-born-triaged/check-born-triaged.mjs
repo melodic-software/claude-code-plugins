@@ -54,28 +54,34 @@ export function humanIds(list) {
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => label.name ?? "");
 
-export const ROUTING_DEFAULTS = Object.freeze({ container: "spec-container", prefix: "wayfind:" });
+export const ROUTING_DEFAULTS = Object.freeze({ container: "spec-container", prefix: "wayfind:", owned: "session-owned" });
 
 // The routing labels of a tracker binding (the `tracker` mapping of
 // work-items.yaml): `config.container_label` and `config.wayfind_label_prefix`,
 // each its default when absent or empty. A value of another type throws.
 export function routingLabels(tracker) {
   const config = tracker?.config ?? {};
-  const pick = (key, fallback) => {
-    const value = config[key];
+  const pick = (source, key, fallback, name = key) => {
+    const value = source?.[key];
     if (value === undefined || value === null || value === "") {
       return fallback;
     }
     if (typeof value !== "string") {
-      throw new Error(`tracker.config.${key} is not a string`);
+      throw new Error(`tracker.config.${name} is not a string`);
     }
     return value;
   };
-  return { container: pick("container_label", ROUTING_DEFAULTS.container), prefix: pick("wayfind_label_prefix", ROUTING_DEFAULTS.prefix) };
+  return {
+    container: pick(config, "container_label", ROUTING_DEFAULTS.container),
+    prefix: pick(config, "wayfind_label_prefix", ROUTING_DEFAULTS.prefix),
+    owned: pick(config.role_labels, "session-owned", ROUTING_DEFAULTS.owned, "role_labels.session-owned"),
+  };
 }
 
 export const routingLabel = (names, routing = ROUTING_DEFAULTS) =>
-  names.find((name) => name === routing.container || name.startsWith(routing.prefix)) ?? null;
+  names.find((name) => name === routing.container || name === (routing.owned ?? ROUTING_DEFAULTS.owned) || name.startsWith(routing.prefix)) ?? null;
+
+export const ROUTED_BY = "a container, wayfind or session-owned label, so the skill or session that filed it routes it";
 
 // Why `issue` is not born triaged, or null when it is. `trusted(id)` answers
 // whether its author's numeric id is a listed human's or the lanes App's;
@@ -170,7 +176,7 @@ export function readRouting(path, { who = "check-born-triaged", log = console.lo
     return routingLabels(JSON.parse(trackerBindingText(path)));
   } catch (error) {
     if (error.code !== "ENOENT") {
-      log(`::warning::${who}: cannot read the routing labels from ${path} (${error.message}); using '${ROUTING_DEFAULTS.container}' and '${ROUTING_DEFAULTS.prefix}'`);
+      log(`::warning::${who}: cannot read the routing labels from ${path} (${error.message}); using '${ROUTING_DEFAULTS.container}', '${ROUTING_DEFAULTS.prefix}' and '${ROUTING_DEFAULTS.owned}'`);
     }
     return ROUTING_DEFAULTS;
   }
@@ -213,7 +219,7 @@ async function main() {
   const rateLimited = latch.until(issueUrl) !== null ? "true" : "false";
   writeOutputs({ skip: result.skip, reason: result.reason, label: result.label ?? "", "human-ids": humanIds(list), "rate-limited": rateLimited });
   if (result.label) {
-    console.log(`::notice::intake skips #${ISSUE_NUMBER}: it carries '${result.label}', a container or wayfind label, so the skill that filed it routes it`);
+    console.log(`::notice::intake skips #${ISSUE_NUMBER}: it carries '${result.label}', ${ROUTED_BY}`);
   }
   console.log(`check-born-triaged: skip=${result.skip} reason=${result.reason} rate-limited=${rateLimited}`);
 }

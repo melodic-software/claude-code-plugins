@@ -376,7 +376,7 @@ export async function main({ env = process.env, github, log = console.log, statu
     const issue = await client("GET", base);
     const routed = routingLabel(labelNames(issue).filter(Boolean), routing ?? readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "intake-reenter", log }));
     if (routed) {
-      log(`intake-reenter: the issue carries '${routed}', a container or wayfind label, so the skill that filed it routes it; nothing changed`);
+      log(`intake-reenter: the issue carries '${routed}', a container, wayfind or session-owned label, so the skill or session that filed it routes it; nothing changed`);
       return 0;
     }
     if (field) {
