@@ -14,15 +14,16 @@ const USES = ["task", "investigate"];
 const MODES = ["read-only", "write"];
 const COMMANDS = ["run", "resume", "review"];
 const MAX_TIMER_MS = 2_147_483_647;
+const LISTED_FILES = 200;
 const PLAIN_VALUE = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
-class Stop extends Error {
+export class Stop extends Error {
   constructor(kind, reason) {
     super(reason);
     this.kind = kind;
   }
 }
-const refuse = (reason) => new Stop("refused", reason);
+export const refuse = (reason) => new Stop("refused", reason);
 
 const git = (cwd, args, options = {}) => {
   try {
@@ -39,9 +40,10 @@ const withoutQuotesCmdWouldStrip = (arg) => arg.replaceAll('"', "");
 const clip = (text) => (text.length > 160 ? `${text.slice(0, 157)}...` : text);
 
 /**
- * The plugin's data directory, worked out from where an installed copy sits, for a command run
- * through the Bash tool, which receives no CLAUDE_PLUGIN_DATA. The directory name follows
- * https://code.claude.com/docs/en/plugins-reference#environment-variables; null for any other layout.
+ * The plugin's data directory, worked out from where an installed copy sits. A command run through
+ * the Bash tool can carry another plugin's CLAUDE_PLUGIN_DATA, so the install path wins. The
+ * directory name follows https://code.claude.com/docs/en/plugins-reference#environment-variables;
+ * null for any other layout.
  */
 export function installedDataDir(root) {
   const parts = root.split(sep);
@@ -51,15 +53,31 @@ export function installedDataDir(root) {
   return join(parts.slice(0, cache).join(sep), "data", `${plugin}@${marketplace}`.replace(/[^A-Za-z0-9_-]/g, "-"));
 }
 
+/** The data directory: the caller's, then the install path's, then CLAUDE_PLUGIN_DATA only when it is named for this plugin. */
+export function dataDirFor({ dataDir, env, root = pluginRoot }) {
+  if (dataDir) return { dataDir, notice: null };
+  const given = env.CLAUDE_PLUGIN_DATA;
+  const own = given && /^external-agents-/.test(win32.basename(given));
+  const foreign = given && !own ? `CLAUDE_PLUGIN_DATA ${JSON.stringify(given)} belongs to another plugin, so it is not used` : null;
+  const installed = installedDataDir(root);
+  if (installed) return { dataDir: installed, notice: foreign };
+  if (own) return { dataDir: given, notice: null };
+  throw refuse(`${foreign ?? "CLAUDE_PLUGIN_DATA is not set"} and this copy is not an installed plugin, so there is nowhere to keep job files`);
+}
+
 function context(opts) {
   const env = opts.env ?? process.env;
   const cwd = opts.cwd ?? process.cwd();
-  const dataDir = opts.dataDir ?? env.CLAUDE_PLUGIN_DATA ?? installedDataDir(pluginRoot);
-  if (!dataDir) throw refuse("CLAUDE_PLUGIN_DATA is not set and this copy is not an installed plugin, so there is nowhere to keep job files");
-  return { cwd, env, dataDir, now: opts.now ?? Date.now, key: repoKey(cwd), binary: opts.binary, warn: opts.warn ?? ((line) => process.stderr.write(line)) };
+  const warn = opts.warn ?? ((line) => process.stderr.write(line));
+  const { dataDir, notice } = dataDirFor({ dataDir: opts.dataDir, env });
+  if (notice) warn(`notice: ${notice}\n`);
+  return {
+    cwd, env, dataDir, now: opts.now ?? Date.now, key: repoKey(cwd), binary: opts.binary, writeJob: opts.writeJob ?? writeJob,
+    fetch: opts.fetch ?? globalThis.fetch, warn,
+  };
 }
 
-function setup(opts) {
+export function setup(opts) {
   const ctx = context(opts);
   let record;
   try {
@@ -98,7 +116,7 @@ function buildArgs(record, binary, p) {
 }
 
 /** Throws unless every value that reaches argv is safe for the way the binary is started. */
-function guardValues(record, binary, values, promptInArgv) {
+export function guardValues(record, binary, values, promptInArgv) {
   const fix = `set ${record.product}.binary_path in <home>/external-agents.local.yaml to the real executable`;
   if (binary.shell && shellUnsafe(binary.path)) throw refuse(`${JSON.stringify(binary.path)} cannot be started safely through cmd.exe; ${fix}`);
   for (const [name, value] of Object.entries(values)) {
@@ -114,6 +132,18 @@ function guardValues(record, binary, values, promptInArgv) {
   }
 }
 
+/** The executable to start: `ctx.binary`, else the record's resolution with binary_path checked; `missing` holds what was tried. */
+export function pickBinary(ctx, record, settings) {
+  if (ctx.binary) return { binary: ctx.binary, missing: null };
+  const chosen = settings.binary_path;
+  const fileName = chosen && (process.platform === "win32" ? win32.basename(chosen).toLowerCase() : basename(chosen));
+  if (chosen && !binaryNames(record.binary.name).includes(fileName)) {
+    throw refuse(`${record.product}.binary_path ${JSON.stringify(chosen)} is not named ${record.binary.name}, so it is not run`);
+  }
+  const found = resolveBinary(record, { binaryPath: chosen, env: ctx.env });
+  return found.path ? { binary: { path: found.path, args: [], shell: found.shell }, missing: null } : { binary: null, missing: found };
+}
+
 function trip(ctx, record, config, failureClass, reason, resetAt = null) {
   openBreaker(ctx.dataDir, record.product, { failureClass, reason, now: ctx.now(), resetAt, cooldownHours: config.values.breaker?.cooldown_hours ?? 24 });
 }
@@ -125,20 +155,10 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   if (open) {
     throw new Stop("unavailable", `${open.reason}; not retried until ${open.next_trial_at}. To check sooner, run: external-agents update ${product}`);
   }
-  let binary = ctx.binary;
+  const { binary, missing } = pickBinary(ctx, record, settings);
   if (!binary) {
-    const chosen = settings.binary_path;
-    const fileName = chosen && (process.platform === "win32" ? win32.basename(chosen).toLowerCase() : basename(chosen));
-    if (chosen && !binaryNames(record.binary.name).includes(fileName)) {
-      throw refuse(`${product}.binary_path ${JSON.stringify(chosen)} is not named ${record.binary.name}, so it is not run`);
-    }
-    const found = resolveBinary(record, { binaryPath: settings.binary_path, env: ctx.env });
-    if (!found.path) {
-      const message = unavailableMessage(record, found).replace(`${product}: unavailable: `, "");
-      trip(ctx, record, config, "binary-missing", `${record.binary.name} not found`);
-      throw new Stop("unavailable", message);
-    }
-    binary = { path: found.path, args: [], shell: found.shell };
+    trip(ctx, record, config, "binary-missing", `${record.binary.name} not found`);
+    throw new Stop("unavailable", unavailableMessage(record, missing).replace(`${product}: unavailable: `, ""));
   }
 
   const model = plan.model ?? settings.model;
@@ -183,12 +203,14 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
     cli_version: version.code === 0 ? version.stdout.trim().split(/\r?\n/)[0] || null : null,
     cwd: ctx.cwd, started_at: new Date(ctx.now()).toISOString(), ended_at: null, exit_code: null, status: "running", reason: null,
     pid: null, pid_started_at: null, thread_id: plan.thread ?? null, final_message_path: paths.final, log_path: paths.log, stderr_path: paths.stderr, notices,
+    ...(plan.scope ? { review_scope: plan.scope } : {}),
   };
 
   const handles = [openSync(paths.log, "w"), openSync(paths.stderr, "w")];
   if (prompt !== null && !promptInArgv) handles.unshift(openSync(paths.prompt, "r"));
   const stdio = handles.length === 3 ? handles : ["ignore", ...handles];
   let timedOut = false;
+  let unrecorded = null;
   const exit = await new Promise((done) => {
     const child = start(binary, args, { cwd: ctx.cwd, env: ctx.env, stdio });
     let timer;
@@ -199,7 +221,13 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
     child.once("spawn", () => {
       job.pid = child.pid;
       job.pid_started_at = pidStartTime(child.pid);
-      writeJob(ctx.dataDir, ctx.key, job);
+      try {
+        ctx.writeJob(ctx.dataDir, ctx.key, job);
+      } catch (error) {
+        unrecorded = error;
+        killTree(child.pid);
+        return;
+      }
       timer = setTimeout(() => {
         timedOut = true;
         killTree(child.pid);
@@ -211,6 +239,10 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
     });
   });
   for (const handle of handles) closeSync(handle);
+  if (unrecorded) {
+    rmSync(folder, { recursive: true, force: true });
+    throw new Stop("failed", `could not write the job file (${unrecorded.message}); the CLI was stopped`);
+  }
 
   const stdout = read(paths.log);
   const outcome = exit.error
@@ -223,7 +255,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   Object.assign(job, fields, { thread_id: outcome.thread_id ?? job.thread_id, exit_code: exit.code, ended_at: new Date(ctx.now()).toISOString(), notices: [...notices, ...more] });
   if (cancelledByAnotherProcess) Object.assign(job, { status: "cancelled", reason: "cancelled by request" });
   else if (timedOut) Object.assign(job, { status: "timed-out", reason: `no result after ${timeoutSeconds} s` });
-  writeJob(ctx.dataDir, ctx.key, job);
+  ctx.writeJob(ctx.dataDir, ctx.key, job);
 
   if (job.status === "failed" && unavailable) trip(ctx, record, config, unavailable.class, clip(outcome.last_error ?? outcome.reason), unavailable.reset_at);
   else if (breakerOnTrial && ["ok", "blocked-by-mode", "failed"].includes(job.status) && readBreaker(ctx.dataDir, product)?.opened_at === breakerOnTrial.opened_at) closeBreaker(ctx.dataDir, product);
@@ -239,7 +271,7 @@ function details(job) {
   return parts;
 }
 
-const oneLine = (text) => String(text).replace(/\s+/g, " ").trim();
+export const oneLine = (text) => String(text).replace(/\s+/g, " ").trim();
 const within = (parts) => (parts.length ? ` (${parts.map(oneLine).join("; ")})` : "");
 const runLine = (job) => `${job.product}: ${job.status}${within([job.reason, ...details(job)].filter(Boolean))}`;
 const exitFor = (status) => (status === "ok" ? EXIT.ok : status === "blocked-by-mode" ? EXIT.blocked : EXIT.failed);
@@ -293,7 +325,10 @@ export async function review(opts) {
     if (!record.review) throw refuse(`${record.product} has no review form`);
     if (opts.base.startsWith("-")) throw refuse(`base ${JSON.stringify(opts.base)} starts with "-"`);
     if (git(ctx.cwd, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${opts.base}^{commit}`]) === null) throw refuse(`base ${JSON.stringify(opts.base)} is not a commit in ${ctx.cwd}`);
-    const changed = (git(ctx.cwd, ["diff", "--name-only", "--end-of-options", `${opts.base}...HEAD`]) ?? "").split("\n");
+    const mergeBase = git(ctx.cwd, ["merge-base", "--end-of-options", opts.base, "HEAD"])?.trim();
+    if (!mergeBase) throw refuse(`base ${JSON.stringify(opts.base)} shares no history with HEAD in ${ctx.cwd}`);
+    const changed = (git(ctx.cwd, ["diff", "--name-only", "--end-of-options", `${mergeBase}...HEAD`]) ?? "").split(/\r?\n/).filter(Boolean);
+    const scope = { base: opts.base, merge_base: mergeBase, changed_files: changed.length };
     for (const prefix of record.review.config_paths ?? []) {
       const hits = changed.filter((path) => path.startsWith(prefix)).length;
       if (!hits) continue;
@@ -305,13 +340,17 @@ export async function review(opts) {
     const native = record.review.kind === "native";
     const brief = opts.brief?.trim() ? opts.brief : null;
     const briefed = native && brief !== null && record.review.brief_args !== undefined;
-    const prompt = briefed ? [record.review.brief_preface?.replaceAll("{base}", () => opts.base), brief].filter(Boolean).join("\n\n") : brief;
+    const listed = [...changed.slice(0, LISTED_FILES).map((path) => `\n- ${path}`), ...(changed.length > LISTED_FILES ? [`\n- and ${changed.length - LISTED_FILES} more`] : [])].join("");
+    const tokens = { "{base}": opts.base, "{merge_base}": mergeBase, "{file_count}": String(changed.length), "{files}": listed };
+    const preface = record.review.brief_preface?.replace(/\{[a-z_]+\}/g, (token) => tokens[token] ?? token);
+    const prompt = briefed ? [preface, brief].filter(Boolean).join("\n\n") : brief;
     const { job, message } = await launch(state, {
       use: "review", mode: "read-only", command: native ? "review" : "run", model: opts.model, prompt, baseArgs: briefed ? record.review.brief_args : undefined,
-      base: native && !briefed ? opts.base : undefined, diffBase: native ? undefined : opts.base, thread: null,
+      base: native && !briefed ? opts.base : undefined, diffBase: native ? undefined : opts.base, thread: null, scope,
     });
     const ran = (job.status === "ok" || (job.status === "blocked-by-mode" && !job.reason)) && message.trim() !== "";
-    const line = ran ? `${job.product}: ran${within(details(job))}` : `${job.product}: failed${within([job.status === "failed" ? null : job.status, job.reason, ...details(job)].filter(Boolean))}`;
+    const reviewed = `reviewed ${plural(scope.changed_files, "changed file")} against ${mergeBase.slice(0, 8)}`;
+    const line = ran ? `${job.product}: ran${within([reviewed, ...details(job)])}` : `${job.product}: failed${within([job.status === "failed" ? null : job.status, job.reason, ...details(job)].filter(Boolean))}`;
     return { code: ran ? EXIT.ok : EXIT.failed, stdout: `${line}\n${ran ? body(message) : ""}`, stderr: errLines(job, state), job };
   } catch (error) {
     return stopped(opts.product, error, true, state);
@@ -355,8 +394,7 @@ const guarded = (fn) => (opts = {}) => {
   try {
     return fn(opts);
   } catch (error) {
-    if (!(error instanceof Stop)) throw error;
-    return { code: EXIT.usage, stdout: "", stderr: `external-agents: ${error.message}\n` };
+    return { code: error instanceof Stop ? EXIT.usage : EXIT.failed, stdout: "", stderr: `external-agents: ${oneLine(error?.message ?? error)}\n` };
   }
 };
 
