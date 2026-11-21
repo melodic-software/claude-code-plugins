@@ -281,10 +281,13 @@ fi
 # edit to your rules, and "dropped" alone reads as one.
 echo "DIFF-NOTE: dropped and suspended rules alike are RESTORED when the session leaves auto mode. Neither verdict changes any settings file; both describe what is in force while auto mode is active."
 
-# Auto mode is the starting mode in exactly one of the seven documented run
-# shapes. Printing this diff unconditionally hands a headless or Agent SDK run a
-# verdict for a transition it never makes.
-echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Auto mode is the built-in starting mode on Pro, Max, and Team plans in a terminal or the VS Code extension; sessions under 'claude -p' or the Agent SDK, on an Enterprise plan or a Console API key, on Bedrock / Google Cloud Agent Platform / Microsoft Foundry / Claude Platform on AWS / the apps gateway, with feature-flag fetching off, in a first session after an install or upgrade, or with disableAutoMode set to \"disable\", all start in Manual instead and never make this transition."
+# Not every run shape starts in auto mode (headless and Agent SDK runs with no
+# mode set do not), so printing this diff unconditionally hands those runs a
+# verdict for a transition they never make. The note states that precondition
+# and points at the live start-mode table instead of copying it, so an upstream
+# change to the table cannot make the note false.
+# Start-mode table: https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in
+echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Not every session does: a 'claude -p' or Agent SDK run with no permission mode set starts in Manual and never makes this transition. Which sessions start in auto mode depends on the Claude Code version, how it is run, the provider and model, and settings such as disableAutoMode; read the current conditions at https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in before acting on this diff."
 
 printf '%s' "$diff_lines"
 if [[ -n "$unread_scopes" ]]; then

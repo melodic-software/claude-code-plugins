@@ -148,9 +148,7 @@ untouched; the suspension is of the budget, not of the triage.
 
 A rewrite is an edit with a gate: the comment's replacement text is checked by
 `change-shape.py` like any deletion (COMMENT-ONLY, since only comment tokens changed), and the
-original wording is staged before the deletion is final. Prose quality of what remains can be
-linted by Vale where a repository runs it (tree-sitter-backed, about 25 languages, none of Bash or
-YAML); it is an optional lane, never a dependency.
+original wording is staged before the deletion is final.
 
 **Justification routing.** Rationale defaults to routing out of code, to a commit message, a PR
 description, or an ADR, with a terse in-code why as the legitimate remainder. A lengthy why-comment is
@@ -160,12 +158,12 @@ before the deletion is final. See [safety.md](safety.md).
 
 ## Doc comments
 
-- **Public-API doc comments are exempt entirely**: docstrings, C# XML docs, JSDoc/TSDoc on
-  exported surfaces. They feed documentation generators and IDE surfaces; deleting them is
-  quasi-behavioral. Never deleted, in any posture; `none` proposes deleting one that only restates
-  its signature.
+- **Public-API doc comments are exempt entirely**: the language's structured doc-comment form on
+  an exported or public surface ([safety.md](safety.md) sets what counts). They feed
+  documentation generators and IDE surfaces; deleting them is quasi-behavioral. Never deleted, in
+  any posture; `none` proposes deleting one that only restates its signature.
 - **Private/internal doc comments** get the same three-way triage as any comment, a deliberate
-  doctrine choice (the Martin pole for internal interfaces): a private method whose docstring
+  doctrine choice (the Martin pole for internal interfaces): a private method whose doc comment
   restates its name and parameters is class A/B; one carrying a real contract (constraints, units,
   side effects, surprising behavior) is class C.
 
