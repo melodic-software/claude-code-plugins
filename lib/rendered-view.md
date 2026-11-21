@@ -302,15 +302,17 @@ node and every edge, finding and cycle that names it. The page draws no diagram:
 
 ### The deepening report
 
-`/architecture:improve deepening` writes its HTML report itself, not through the builder, and only ever as a
-local file. Before writing it, resolve `medium` as step 3 does, passing the skill's `--medium` value as
+`/architecture:improve deepening` builds its report with
+`node "<plugin-root>/scripts/build-view.mjs" deepening --record <report record>`, a static page that loads
+two pinned CDN libraries and so sits outside the shared builder's validator profiles, and only ever as a
+local file. Before building it, resolve `medium` as step 3 does, passing the skill's `--medium` value as
 `--argument`, and print the resolver's lines. When the resolver exits 2 with its usage line, the
 `--medium` value names no medium: report it as unknown and resolve again without `--argument`. Then, by
 the JSON's `medium`:
 
-- `terminal`: write no report. The durable candidate artifact and the reply are the deliverable.
-- `file`: write the local report.
-- `artifact`: write the local report. This lane publishes nothing, so say that a publishing value was read
+- `terminal`: build no report. The durable candidate artifact and the reply are the deliverable.
+- `file`: build the local report.
+- `artifact`: build the local report. This lane publishes nothing, so say that a publishing value was read
   as `file`.
 
 ## Discovery: blindspot
