@@ -66,6 +66,12 @@
     if (s && variantKey && stateKey) s = [...s.querySelectorAll("[data-screen-state]")].find(e => e.dataset.screenState === stateKey) || null;
     return s;
   }
+  /** Whether the variant and screen state a note was made on are shown now; a note made outside every variant is. */
+  function inView(t) {
+    if (typeof t.variant !== "string") return true;
+    const s = scopeOf(t.variant, typeof t.state === "string" ? t.state : null);
+    return !!s && !s.closest("[hidden]");
+  }
   /** Where an element sits by structure: the variant and screen state around it, the content set shown, the nearest
    *  element at or above it with a test id (and which match it is inside that scope), its role attribute, its tag, and
    *  its path from the scope. */
@@ -286,10 +292,10 @@
     const l = ensureLayer();
     l.replaceChildren();
     badges = [];
-    if (markers) for (const p of pins) { const at = placeOf(p), b = badge(p.n, at.x, at.y, p.active); badges.push({ n: p.n, el: b }); l.append(b); }
+    if (markers) for (const p of pins.filter(inView)) { const at = placeOf(p), b = badge(p.n, at.x, at.y, p.active); badges.push({ n: p.n, el: b }); l.append(b); }
     for (const [t, which, style] of [[hovered, "hover", { outline: "2px dashed #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.08)" }],
       [selected, "selected", { outline: "3px solid #0d9488", outlineOffset: "1px", background: "rgb(13 148 136 / 0.12)" }]]) {
-      const b = t && !mode && noteBox(t);
+      const b = t && !mode && (which === "selected" || inView(t)) && noteBox(t);
       if (!b) continue;
       const o = outline(b, style);
       o.dataset.note = which;
@@ -491,11 +497,13 @@
   }).observe(root, { attributes: true, attributeFilter: ["data-vs-content"] });
   addEventListener("resize", draw);
   let drawQueued = false;
-  addEventListener("scroll", () => {
+  const queueDraw = () => {
     if (drawQueued) return;
     drawQueued = true;
     (window.requestAnimationFrame || (fn => fn()))(() => { drawQueued = false; draw(); });
-  }, { passive: true });
+  };
+  addEventListener("scroll", queueDraw, { passive: true });
+  new MutationObserver(() => { if (pins.length || hovered || selected) queueDraw(); }).observe(root, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
   if (window.ResizeObserver) new ResizeObserver(() => { if (pins.length || mode || arrow) draw(); }).observe(root);
 
   addEventListener("message", e => {

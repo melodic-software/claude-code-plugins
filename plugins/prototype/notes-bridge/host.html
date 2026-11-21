@@ -605,7 +605,10 @@ edit the canonical source, then rerun the script. -->
     const reshapes = (m) => (m?.note.kind === "region" ? [button("Move or resize", `reshape-${m.id}`, () => reshape(m))] : []);
     const drafts = mine.filter((m) => m.draft);
     draftsKept?.save(drafts.map((m) => m.note));
-    const pin =(m) => ({ n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 } });
+    const pin =(m) => ({
+      n: numberOf(m), selector: "", rect: { x: m.note.rect?.x ?? 0, y: m.note.rect?.y ?? 0 },
+      ...(m.note.variant && { variant: m.note.variant.key }), ...(m.note.state && { state: m.note.state.key }),
+    });
     toFrame({ type: "pins", pins: [...mine.filter((m) => m.seq !== null), ...drafts].map(pin) });
     $("notes").replaceChildren(
       ...seqs.map((seq) => {
