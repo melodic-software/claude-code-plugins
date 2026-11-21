@@ -92,6 +92,7 @@ DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype[^>]*>", re.IGNORECASE)
 FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTALL)
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
+    "/frame-channel.mjs": ("frame-channel.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
     "/controls.schema.json": ("controls.schema.json", "application/json"),
     "/controls.js": ("controls.js", "text/javascript"),

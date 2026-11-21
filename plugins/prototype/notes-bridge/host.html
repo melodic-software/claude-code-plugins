@@ -94,10 +94,13 @@ edit the canonical source, then rerun the script. -->
 <script src="/controls.js"></script>
 <script type="module">
   import { problems, use } from "/note-model.mjs";
+  import { awaitReady, frameTarget, fromFrame, READY_MS } from "/frame-channel.mjs";
 
   const $ = (id) => document.getElementById(id);
   const frame = $("page"), composer = $("composer"), text = $("text");
   const devOrigin = frame.dataset.devOrigin || null;
+  const target = frameTarget(devOrigin);
+  let heard = () => {};
   const buttons = { element: $("pick"), region: $("region") };
   const say = (t) => { $("status").textContent = t; };
   let schema = null, cschema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
@@ -109,7 +112,7 @@ edit the canonical source, then rerun the script. -->
   let last = { listening: "idle", notes: [] };
 
   const fits = (value, node) => value !== undefined && problems(value, schema, node).length === 0;
-  const toFrame = (m) => { if (ready && loads < 2) frame.contentWindow.postMessage(m, devOrigin || "*"); };
+  const toFrame = (m) => { if (ready && loads < 2) frame.contentWindow.postMessage(m, target); };
   const live = () => ready && loads < 2;
   const QUOTE = () => schema.$defs.anchor.properties.textQuote;
 
@@ -448,13 +451,13 @@ edit the canonical source, then rerun the script. -->
   }
 
   addEventListener("message", (e) => {
-    if (devOrigin && e.origin !== devOrigin) return;
-    if (e.source !== frame.contentWindow || loads > 1) return; // the frame's first document only
+    if (!fromFrame(e, frame.contentWindow, devOrigin) || loads > 1) return;
     const m = e.data;
     if (!m || typeof m !== "object") return;
     if (m.type === "ready") {
       if (ready) return;
       ready = true;
+      heard();
       for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
       takeControls(m);
       say("Pick an element (P), mark a region (R), or select text in the mockup and press Note on selected text (T).");
@@ -541,12 +544,17 @@ edit the canonical source, then rerun the script. -->
         $("controls-status").textContent = "The mockup loaded another page in its frame, so these controls no longer reach it. Reload to start again.";
       }
     });
+    const blocked = devOrigin
+      ? `The route has not said it is ready after ${READY_MS / 1000} seconds. Its dev server may refuse to be framed by this page (mount the harness fence), or the route does not load the notes helper.`
+      : `The mockup has not said it is ready after ${READY_MS / 1000} seconds. Reload to try again.`;
+    heard = awaitReady(() => { if (loads < 2) say(blocked); });
     if (devOrigin) frame.src = `${devOrigin}/`;
     else frame.srcdoc = await page.text();
     const events = new EventSource("/events");
     events.addEventListener("state", (e) => { last = JSON.parse(e.data); noSession = false; render(); });
     events.addEventListener("error", () => { noSession = true; render(); });
   } catch (err) {
+    heard();
     say(`No session is connected (${err.message || "the server is not answering"}). Use the mockup's own copy-out control instead.`);
   }
 </script>
