@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { PHASES, minutesOf } from '../core/settings.js'
 import { STORE_KEY, startRoom } from '../core/testing.js'
 import { BUILT } from './index.js'
-import { phaseOf, rowAt, rowStarts } from './time.js'
+import { phaseOf, rowAt, rowStarts, seasonOf, sunTimes } from './time.js'
 
 const hhmm = (minute: number): string => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
 
@@ -83,6 +83,51 @@ test('auto walks the day from midnight: each phase at its row start, by the worl
   ])
   expect(redrawn).toBe(false)
   await room.unmount()
+})
+
+/** The clock's daylight saving time on a date, in minutes, as seasonOf reads it. */
+const dstOn = (year: number, month: number, day: number): number =>
+  Math.max(new Date(year, 0, 1).getTimezoneOffset(), new Date(year, 6, 1).getTimezoneOffset()) - new Date(year, month, day, 12).getTimezoneOffset()
+
+test('auto sunrise and sunset follow the season at 40 degrees north: day lengths of the solstices and equinoxes, about noon on the clock', () => {
+  if (!BUILT.includes('time')) return
+  const southern = new Date(2026, 0, 1).getTimezoneOffset() < new Date(2026, 6, 1).getTimezoneOffset()
+  for (const [month, day, length] of [[5, 21, 15 * 60 + 1], [11, 21, 9 * 60 + 20], [2, 20, 12 * 60 + 9], [8, 22, 12 * 60 + 9]] as const) {
+    const { sunrise, sunset } = seasonOf(new Date(2026, month, day, 12).getTime())
+    const expected = !southern ? length : month === 5 ? 9 * 60 + 20 : month === 11 ? 15 * 60 + 1 : length
+    expect([month, Math.abs(sunset - sunrise - expected) <= 4]).toEqual([month, true])
+    expect([month, Math.abs((sunrise + sunset) / 2 - (12 * 60 + dstOn(2026, month, day))) <= 1]).toEqual([month, true])
+  }
+  if (!southern && dstOn(2026, 5, 21) === 60) {
+    const june = seasonOf(new Date(2026, 5, 21, 12).getTime())
+    expect(Math.abs(june.sunset - minutesOf('20:30'))).toBeLessThanOrEqual(5)
+    const november = seasonOf(new Date(2026, 10, 20, 12).getTime())
+    expect(Math.abs(november.sunset - minutesOf('16:45'))).toBeLessThanOrEqual(10)
+  }
+})
+
+for (const [name, month, day] of [['December', 11, 21], ['June', 5, 21]] as const) {
+  test(`auto walks a ${name} day by the season's sunrise and sunset`, { timeoutMs: 180000, options: { time: 'auto', weather: 'clear', hall: false, signal: false } }, async ($, on) => {
+    if (!BUILT.includes('time')) return
+    const start = new Date(2026, month, day, 0, 0, 30).getTime()
+    const { sunrise, sunset } = seasonOf(start)
+    const starts = rowStarts(sunrise, sunset)
+    const expected = [3, 4, 5, 6, 7, 0, 1, 2].map(row => [PHASES[row]!, hhmm(starts[row]!)] as [string, string])
+    const room = await startRoom($, on, { now: start })
+    const { changes } = await walkDay(room)
+    expect(changes).toEqual(expected)
+    expect(await room.run('time')).toMatch(/sunrise \d\d:\d\d \(the season\), sunset \d\d:\d\d \(the season\)/)
+    await room.unmount()
+  })
+}
+
+test('an HH:MM sunrise or sunset holds all year over the season', () => {
+  if (!BUILT.includes('time')) return
+  const december = new Date(2026, 11, 21, 12).getTime()
+  const ctx = (rise: string, set: string) => ({ nowMs: december, setting: (key: string) => (key === 'sunrise' ? rise : set) }) as unknown as Parameters<typeof sunTimes>[0]
+  expect(sunTimes(ctx('06:30', '20:30'))).toEqual([minutesOf('06:30'), minutesOf('20:30')])
+  expect(sunTimes(ctx('auto', '20:30'))).toEqual([seasonOf(december).sunrise, minutesOf('20:30')])
+  expect(seasonOf(december).sunset).toBeLessThan(minutesOf('18:00'))
 })
 
 /** 21:00 local on 2026-11-19 wherever the test runs: dusk under the default sunset 20:30, golden under 21:15. */

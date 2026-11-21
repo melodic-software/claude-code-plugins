@@ -19,14 +19,14 @@
     "sunrise": {
       "type": "string",
       "title": "Bedroom: sunrise",
-      "description": "Local time of sunrise, HH:MM from 04:00 to 09:00.",
-      "default": "06:30"
+      "description": "auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 04:00 to 09:00, held all year.",
+      "default": "auto"
     },
     "sunset": {
       "type": "string",
       "title": "Bedroom: sunset",
-      "description": "Local time of sunset, HH:MM from 16:00 to 22:00.",
-      "default": "20:30"
+      "description": "auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 16:00 to 22:00, held all year.",
+      "default": "auto"
     },
     "weather": {
       "type": "string",

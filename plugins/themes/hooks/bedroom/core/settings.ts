@@ -12,8 +12,8 @@ type Spec =
 /** The plugin's settings (`userConfig` in plugin.json), each with its range and default. */
 export const SETTINGS = {
   time: { kind: 'choice', options: ['auto', ...PHASES], default: 'auto' },
-  sunrise: { kind: 'time', from: '04:00', to: '09:00', default: '06:30' },
-  sunset: { kind: 'time', from: '16:00', to: '22:00', default: '20:30' },
+  sunrise: { kind: 'time', from: '04:00', to: '09:00', default: 'auto' },
+  sunset: { kind: 'time', from: '16:00', to: '22:00', default: 'auto' },
   weather: { kind: 'choice', options: ['auto', ...WEATHERS], default: 'auto' },
   lightning: { kind: 'choice', options: ['rare', 'normal', 'often'], default: 'normal' },
   sound: { kind: 'boolean', default: false },
@@ -39,7 +39,7 @@ function isValid(spec: Spec, value: unknown): boolean {
   if (spec.kind === 'boolean') return typeof value === 'boolean'
   if (typeof value !== 'string') return false
   if (spec.kind === 'choice') return spec.options.includes(value)
-  if (spec.kind === 'time') return /^\d\d:\d\d$/.test(value) && value >= spec.from && value <= spec.to && Number(value.slice(3)) < 60
+  if (spec.kind === 'time') return value === 'auto' || (/^\d\d:\d\d$/.test(value) && value >= spec.from && value <= spec.to && Number(value.slice(3)) < 60)
   return true
 }
 

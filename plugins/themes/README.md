@@ -42,7 +42,13 @@ bottom-left corner of the front of the dresser.
 
 - **Time of day.** By default the light follows your computer's clock: dusk from sunset, then
   evening, night, the gray before dawn, dawn, morning, midday and the golden hour. Sunrise and
-  sunset are the plugin's `sunrise` and `sunset` settings (6:30 and 20:30 unless you change them).
+  sunset follow the season: they are worked out from the date for 40 degrees north, about solar
+  noon at 12:00, and moved by your clock's daylight saving time, so a June sunset comes near 20:30
+  and a December one near 16:40 where the clock keeps daylight saving time. The room asks for no
+  location. Where the clock keeps southern daylight saving time (its January offset ahead of its
+  July one) the season is turned; a clock without daylight saving time is taken as northern. The
+  plugin's `sunrise` and `sunset` settings hold one time all year instead (`HH:MM`). A phase
+  changes at the minute it starts and the light eases into it over up to about 25 minutes.
   `/bedroom time noon` holds one phase all day; `/bedroom time auto` follows the clock again. The
   room starts at dusk and eases to the hour over about six seconds. The VCR always shows the real
   time. The view outside is the dusk view at every hour, lit for it: by day the trees, the far
@@ -203,8 +209,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `time` | string | `"auto"` | auto follows the clock; a phase holds that light all day. |
-| `sunrise` | string | `"06:30"` | Local time of sunrise, HH:MM from 04:00 to 09:00. |
-| `sunset` | string | `"20:30"` | Local time of sunset, HH:MM from 16:00 to 22:00. |
+| `sunrise` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 04:00 to 09:00, held all year. |
+| `sunset` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 16:00 to 22:00, held all year. |
 | `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
 | `lightning` | string | `"normal"` | rare: about one strike in three minutes; normal: about two a minute; often: about three a minute. |
 | `sound` | boolean | `false` | Cicadas, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
