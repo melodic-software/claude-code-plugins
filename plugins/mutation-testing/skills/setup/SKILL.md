@@ -64,10 +64,11 @@ contract, including id derivation and the four dispositions, is owned by the aud
 Report a PASS / FAIL / INFO table with one remediation line per FAIL. Modify nothing, and do **not**
 run a mutation analysis. That is `/mutation-testing:audit`.
 
-1. **Ecosystem detected**. Identify the stack from manifests that actually exist (`package.json`,
-   `*.csproj`/`*.sln`, `pom.xml`/`build.gradle`, `composer.json`, `pyproject.toml`). Report what was
-   found and which mutation tool it implies. No recognized ecosystem → INFO naming the manual path
-   in the `principles` skill's `tooling.md`, not FAIL.
+1. **Ecosystem and tool resolved**. The configured `tool` key (probe 6) is this choice's record;
+   read it first. With none, resolve the ecosystem and its mutation tool by steps 3, 4 and 7 of
+   [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md), asking and
+   recording nothing here. Report the tool and the file it came from. Nothing resolves → INFO
+   naming the manual path in the `principles` skill's `tooling.md`, not FAIL.
 2. **Tool present and runnable**. Invoke the tool's own version command. Absent → FAIL with the
    install line for this ecosystem. Present but erroring → FAIL quoting the error; a tool that
    installs but cannot start is the common case and is worth distinguishing. A configured `tool`
@@ -77,14 +78,13 @@ run a mutation analysis. That is `/mutation-testing:audit`.
 3. **Test runner supported**. Confirm the project's runner is one the tool drives. Report the
    detected runner and the tool's support status. Unsupported → FAIL; this blocks every later step,
    so report it before anything about scores. A supported runner also gets an INFO row naming what
-   it supports, decided as `apply` step 2 decides it: a name-filter-only runner (Maven `-Dtest`,
-   Gradle `--tests`) has no `audit --exercised` and no `/testing:cleanup` mutation gate, while the
-   diff, `--full` and `--paths` scopes still work.
+   it supports, decided as `apply` step 2 decides it: a name-filter-only runner has no
+   `audit --exercised` and no `/testing:cleanup` mutation gate, while the diff, `--full` and
+   `--paths` scopes still work.
 4. **Baseline suite is green**. Run the project's test command once, unmutated, and report the
    result. Red → FAIL. A red baseline kills every mutant and reports a perfect score, so no mutation
    result is meaningful until this passes. Record the wall-clock; it is the input to the timeout
-   setting and to whether diff-scoping is sufficient. For `dotnet test`, run it once per test
-   project, naming the project, never over a solution or a directory. With no configured
+   setting and to whether diff-scoping is sufficient. With no configured
    `test-command`, ask the user for the command, or propose one and wait for their confirmation,
    before running anything; an unattended run reports this probe as not run.
 5. **Known flakiness**. Ask, and check for a documented flaky-test list or retry configuration.
@@ -163,15 +163,18 @@ unambiguous; ask only where the answer is genuinely the user's.
 
 1. **Read the effective config first, across all layers**, and summarize it before proposing
    changes. Nothing is dropped without the user confirming.
-2. **Detect and propose the tool.** From the ecosystem, name the tool and the exact install command,
-   and ask before installing anything. Installing a dependency into the consumer's project is the
+2. **Resolve and propose the tool.** Resolve it by the steps in
+   [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md); the configured
+   `tool` key is its record, written in step 7. Name the tool and the install command its own
+   documentation gives for this repository, and ask before installing anything. With nothing
+   resolved, propose `tool: manual`. Installing a dependency into the consumer's project is the
    user's decision, not this skill's. Propose, never install unprompted. In the same message, before
    any later question, name the detected test runner and what it supports, so the user can stop
    here; read its kind from the audit skill's
    [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
    forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup`'s
-   mutation gate, which runs through it. A name-filter-only runner (Maven `-Dtest`, Gradle
-   `--tests`), or one whose kind that section leaves unknown, supports neither: `audit --exercised` refuses
+   mutation gate, which runs through it. A name-filter-only runner, or one whose kind that section
+   leaves unknown, supports neither: `audit --exercised` refuses
    unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always
    need a path-list `test-command`, so it can offer only its cannot-fail-only mode. The diff,
    `--full` and `--paths` scopes need no `test-command` and work for every runner the tool drives.
@@ -183,14 +186,13 @@ unambiguous; ask only where the answer is genuinely the user's.
 5. **Settle the timeout** from the measured baseline suite time in `check`, not from a guess.
 6. **Settle the mutate paths and the test command.** Propose source roots, excluding generated
    code, vendored directories, and test code itself. Mutating tests measures nothing. Then propose
-   `test-command` for the detected ecosystem when its runner takes test file paths, with `{tests}`
-   where the paths go: `python -m pytest {tests}`, `python -m unittest {tests}`,
-   `npx vitest run {tests}`, `npx jest --runTestsByPath {tests}`, `vendor/bin/phpunit {tests}`. The
-   audit fills `{tests}` with each path quoted as its own argument. When the detected runner is
-   `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test project, with
-   `{tests}` replaced by that project and a name filter for the test files' classes. Propose nothing
-   for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`); step 2 already said
-   what that costs. The runner kinds and the `dotnet test` form are in the
+   `test-command` when the repository's runner takes test file paths: the command the repository
+   already runs its tests with, resolved by the steps in
+   [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md), with `{tests}`
+   where the paths go. The audit fills `{tests}` with each path quoted as its own argument. When the
+   detected runner is `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test
+   project, with `{tests}` replaced by that project and a name filter for the test files' classes.
+   Propose nothing for a runner that only filters by name; step 2 already said what that costs. The runner kinds and the `dotnet test` form are in the
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** to `docs/conventions/mutation-testing.yaml`, the template's YAML block
    without its Markdown, following
