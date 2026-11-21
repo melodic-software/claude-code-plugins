@@ -1077,6 +1077,7 @@ fetch_status_pages() {
 # them, events its label events and its field events as label events.
 # STATUS_CAPPED is 1 when the read stopped at its page cap. 1 with LAST_ERR on a
 # failed read.
+# https://docs.github.com/en/graphql/reference/objects#subissuessummary
 STATUS_STATE=""
 STATUS_CAPPED=0
 STATUS_PARTIAL_NOTE="the Work status field needs GraphQL, which this session does not serve"

@@ -1646,6 +1646,7 @@ assert_contains "false zero: a REST check that fails is count unavailable too" \
   "needs-human              count unavailable"
 
 # --- A split parent with open sub-issues is not counted beside its children ---
+# https://github.com/melodic-software/claude-code-plugins/issues/17859
 PARENTS="$TMP/gql-parents"
 cp -r "$CAPS" "$PARENTS"
 cat >"$PARENTS/issue-list-label-needs-triage.json" <<'EOF'
@@ -1664,6 +1665,7 @@ assert_contains "parents: a parent whose sub-issues are all completed counts as 
   "$(section "$(MB_GH_FIXTURES="$PARENTS" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")" "== Queues")" \
   "$(printf '  %-24s %s' needs-triage 3)"
 # Over REST the summary is the snake_case sub_issues_summary field.
+# https://docs.github.com/en/rest/issues/issues#list-repository-issues
 REST_PARENTS="$TMP/rest-parents"
 cp -R "$REST" "$REST_PARENTS"
 cat >"$REST_PARENTS/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json" <<'EOF'
@@ -3130,6 +3132,7 @@ assert_contains "status: an issue held only on the field is a needs-human row of
 
 # A parent with open sub-issues is listed beside its children, not counted with them.
 # #405 (needs-triage label, no field value) becomes the parent of #408 and #409.
+# https://github.com/melodic-software/claude-code-plugins/issues/17859
 jq '{model, pages: [.pages[0] | .data.repository.issues.nodes |= ([.[] | select(.number == 405)][0] as $n
      | [$n + {subIssuesSummary: {total: 2, completed: 0}}, $n + {number: 408}, $n + {number: 409}])]}' \
   "$TMP/status.json" >"$TMP/status-parents.json"
