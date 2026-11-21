@@ -241,10 +241,11 @@ judge::drop() {
 #
 # The result is cached under derive/, keyed by the sha256 of the info, this
 # hook directory (so a plugin update re-derives), the file's current content
-# and each testing config file (docs/conventions/testing.yaml and .md, and the
-# .claude/testing.yaml layers): block identity is name and ordinal in the
-# current text, so the same inputs give the same keys and the scanner runs
-# again only when one of them changed. A scan that failed is never cached.
+# and each testing config file (docs/conventions/testing.yaml, .md and
+# .local.yaml, and the .claude/testing.yaml layers; the same list the
+# scanner's own pre-check in skills/audit/scripts/cant-fail-scan.sh tests):
+# block identity is name and ordinal in the current text, so the same inputs
+# give the same keys and the scanner runs again only when one of them changed. A scan that failed is never cached.
 judge::derive() {
   local file whole base_ok names lines tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
   local root cfg cfgs=() key="" h cache c=()
@@ -259,7 +260,8 @@ judge::derive() {
   fi
   judge::file_repo "$file"
   root="${FREPO:-${CLAUDE_PROJECT_DIR:-}}"
-  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.yaml" "$root/docs/conventions/testing.md" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
+  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.yaml" "$root/docs/conventions/testing.md" \
+    "$root/docs/conventions/testing.local.yaml" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
     [[ -f "$cfg" ]] && cfgs+=("$cfg")
   done
   # sha256sum prefixes a line with \ when the file name holds a backslash.
