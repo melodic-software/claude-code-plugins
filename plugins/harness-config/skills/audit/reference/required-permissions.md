@@ -40,7 +40,11 @@ category is reported, in either direction. Verified 2026-09-28 against
 [permissions](https://code.claude.com/docs/en/permissions),
 [sandboxing](https://code.claude.com/docs/en/sandboxing), and
 [settings reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories)
-(that anchor re-checked 2026-10-11).
+(that anchor re-checked 2026-10-11). Re-checked 2026-11-21 against
+[permissions: block file-tool reads and writes outside the working directories](https://code.claude.com/docs/en/permissions#block-file-tool-reads-and-writes-outside-the-working-directories)
+and [changelog 2.1.327](https://code.claude.com/docs/en/changelog#2-1-327), which has the block ask
+about more Bash commands in bypass and auto modes, deny some in auto mode, and refuse more Bash
+commands that name a Read- or Edit-denied path; nothing in this section needed changing.
 Recheck when a release note changes Read/Edit deny coverage, Bash redirect checks, sandbox
 shell-mode, or `permissions.blockReadsOutsideWorkingDirectories`.
 
@@ -84,7 +88,8 @@ and `~/.ssh/` unless they are listed.
 
 **`sandbox.enabled: true` alone is not a boundary. Check the escape surfaces before calling it one.**
 Upstream documents four, all open at their defaults, and each puts a subprocess back outside the OS
-boundary where it can read the denied path. A fifth path is not a setting: commands typed at the
+boundary where it can read the denied path. Three more rows in the table are paths, not settings:
+a PermissionRequest hook's rewrite, a mod, and `!` shell mode. Commands typed at the
 `!` shell-mode prompt run outside the sandbox even when strict mode
 (`allowUnsandboxedCommands: false`) is on, in an interactive session, from Claude Code 2.1.260.
 Two sessions are the exception: a background session, where strict mode covers shell-mode commands
@@ -99,16 +104,24 @@ sandbox.
 | --- | --- | --- |
 | `allowUnsandboxedCommands` | A command that fails under the sandbox may be retried with `dangerouslyDisableSandbox`, which runs it outside | set to `false` |
 | `failIfUnavailable` | A missing dependency or an unsupported platform leaves commands with no sandbox. From v2.1.328 the next sandboxed Bash command is refused with a message that the sandbox is off for the session ([changelog 2.1.328](https://code.claude.com/docs/en/changelog#2-1-328)); the sandboxing page still says commands run unsandboxed. Before v2.1.328, it warned and then ran commands unsandboxed | set to `true` |
-| `excludedCommands` | Anything listed runs outside the sandbox. Which scopes' entries still apply when the sandbox is admin-required is in the pointer below the table | kept narrow, and reviewed in every scope that still applies |
+| `excludedCommands` | A matching command runs outside the sandbox, but some calls stay sandboxed, such as a redirect to a file, a `cd` or a command substitution; the list is in [sandboxing: excludedCommands](https://code.claude.com/docs/en/sandboxing#run-commands-outside-the-sandbox-with-excludedcommands). An excluded command whose permission check relied on the sandbox can also stay in it, and from v2.1.327 Claude is told when that happens ([changelog 2.1.327](https://code.claude.com/docs/en/changelog#2-1-327)); the sandboxing page does not name this case yet. Which scopes' entries still apply when the sandbox is admin-required is in the pointer below the table | kept narrow, and reviewed in every scope that still applies |
+| PermissionRequest `updatedInput` | A [PermissionRequest hook](https://code.claude.com/docs/en/hooks#permissionrequest) that allows a call can rewrite its input. From v2.1.328 a shell command it rewrites into one `excludedCommands` matches runs outside the sandbox ([changelog 2.1.328](https://code.claude.com/docs/en/changelog#2-1-328)); the sandboxing page does not name this path yet | each PermissionRequest hook that returns `updatedInput` for Bash read against the `excludedCommands` list |
 | `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
 | `!` shell mode | Commands typed at the `!` prompt run outside the sandbox by design, even when `allowUnsandboxedCommands` is `false`. Interactive sessions only: a background session, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, still sandbox shell-mode commands. Before v2.1.260, strict mode sandboxed shell-mode commands in every session | not treated as closed by strict mode in an interactive session |
+| Claude-written mods | A [mod runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox). From v2.1.321 mods Claude writes turn on without asking in auto and bypass modes, even with managed `allowUnsandboxedCommands: false` or `allowManagedDomainsOnly`, and do not load in `dontAsk` mode ([changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321)) | not treated as closed by strict mode in any mode; which mods can run is `/harness-ops:audit-mod-posture`'s check |
+
+**Claim, basis, as of, recheck:** the `excludedCommands`, PermissionRequest and mod rows,
+[sandboxing](https://code.claude.com/docs/en/sandboxing), the
+[hooks reference](https://code.claude.com/docs/en/hooks#permissionrequest) and changelog 2.1.321,
+2.1.327 and 2.1.328, 2026-11-21, and the sandboxing page naming the permission-check case, the
+hook rewrite or Claude-written mods turning on unasked, or a release note changing any of them.
 
 Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
 the same defect as recommending the deny globs without their scope. Strict mode
 (`allowUnsandboxedCommands: false`) closes the unsandboxed retry for commands Claude runs. It does
-not close `!` shell mode in an interactive session. When strict mode may make the sandbox
-admin-required, audit the loosening settings only in the scopes it still reads, and do not report
-the repository's ignored entries as live.
+not close `!` shell mode in an interactive session, or a mod, whose code runs outside the sandbox
+in every mode. When strict mode may make the sandbox admin-required, audit the loosening settings
+only in the scopes it still reads, and do not report the repository's ignored entries as live.
 
 Before calling a sandbox a boundary, read the session's client version against the sandbox escape
 fixes in [changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321), the read-only
