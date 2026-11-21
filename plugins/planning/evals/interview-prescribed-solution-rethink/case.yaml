@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: evidence-rated
     type: regex
-    pattern: '(?<![a-z])(?:evidence|rating)(?![a-z])(?:[\W_]{0,6}|\s+(?:is|rated)\s+[*_]{0,2})(?:observed|reported|inferred)(?![a-z])|\([*_]{0,2}(?:observed|reported|inferred)(?![a-z])[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+[*_]{0,2}(?:observed|reported|inferred)(?![a-z])'
+    pattern: '(?<![a-z])(?:evidence|rating)(?![a-z])(?:[\W_]{0,6}|\s+(?:is|rated)\s+[*_`]{0,2})(?:observed|reported|inferred)(?![a-z])|\([*_`]{0,2}(?:observed|reported|inferred)(?![a-z])[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+[*_`]{0,2}(?:observed|reported|inferred)(?![a-z])'
     flags: i
     arm: both
   - name: rethink-or-accept-asked
