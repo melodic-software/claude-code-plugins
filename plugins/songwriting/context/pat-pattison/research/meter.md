@@ -282,7 +282,7 @@ leaves all three unstressed and gives the weight to "home," "house," and "dark."
 
 That asymmetry is Pat's, stated outright:
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991) -->
+<!-- ai-slop-ignore-start: quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991), American spelling -->
 > Although it may not be perfectly clear what the first three syllables are, it
 > is very clear what they are not. They are not the most important syllables in
 > the phrase — typical for words in gray areas. There would be no problem setting
