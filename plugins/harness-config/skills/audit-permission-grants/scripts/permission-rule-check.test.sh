@@ -301,6 +301,19 @@ OUT_PLUG_CFG=$(run_with_config_dir "$P6F2" "$H6F2/.claude" "$ISOLATED_HOME")
 assert_not_contains "plugins dir under CLAUDE_CONFIG_DIR: nested skill is not audited" "$OUT_PLUG_CFG" ".claude/skills/deep/SKILL.md"
 assert_contains "same tree outside the plugins dir: nested skill is audited" "$(run "$P6F2")" ".claude/skills/deep/SKILL.md"
 
+# --- Case 6f3: nested .claude/skills inside a plugin root stays audited ------
+# The scan cannot see whether that root was passed to --plugin-dir, the case
+# https://code.claude.com/docs/en/changelog#2-1-325 stopped loading.
+D6F3="$TEST_TMPDIR/plugin-dir-nested"
+mkdir -p "$D6F3/tools/.claude-plugin" "$D6F3/tools/skills/deploy" "$D6F3/tools/.claude/skills/inner"
+printf '{"name":"tools"}\n' >"$D6F3/tools/.claude-plugin/plugin.json"
+printf '%s' "$GRANT" >"$D6F3/tools/skills/deploy/SKILL.md"
+printf '%s' "$GRANT" >"$D6F3/tools/.claude/skills/inner/SKILL.md"
+OUT_PDIR=$(run "$D6F3")
+assert_contains "plugin root: nested .claude/skills is audited" "$OUT_PDIR" "tools/.claude/skills/inner/SKILL.md allowed-tools"
+assert_contains "plugin root: nothing is excluded" "$OUT_PDIR" "0 excluded as non-loadable"
+assert_eq "plugin root: both grants are audited" "2" "$(run "$D6F3" --count)"
+
 # --- Case 6g: every candidate excluded is a coverage warning, not a clean bill
 # A healthy user or project settings scope keeps the denominator above zero, so
 # NOTHING TO AUDIT never prints; the run must still not claim the clean bill.
@@ -1110,6 +1123,8 @@ jq -n '{permissions:{allow:["Bash(x.sh:*)"]}}' >"$D14_P3/plugins/foo/settings.js
 line_14p3="$(finding_for "$(run "$D14_P3")" "plugins/foo/settings.json" "[P3]")"
 assert_contains "P3 remedy routes the operative rule to the user-global settings file" \
   "$line_14p3" "must be added by the operator to ~/.claude/settings.json"
+assert_contains "P3 names agent as the only key that takes effect" \
+  "$line_14p3" "takes effect only for the deprecated agent key"
 assert_not_contains "P3 remedy does not tell the author to edit the inert file in place" \
   "$line_14p3" "CLAUDE_SKILL_DIR"
 
