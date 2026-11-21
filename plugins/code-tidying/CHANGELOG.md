@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.2] - 2026-11-21
+
+### Changed
+
+- **The vendored git-hook installer renders a format and lint pair as one piped lefthook group.** `lib/git-hooks/install.mjs` and the setup skill's `git-hook-decisions.md` now return a plugin's pre-commit `format` and `lint` entries as one `lefthook-config` decision, carrying `entries`, so lint runs after format even under `parallel: true`. This plugin's own entries render as before ([#16911](https://github.com/melodic-software/claude-code-plugins/issues/16911)).
+
 ## [0.55.1] - 2026-11-21
 
 ### Fixed
