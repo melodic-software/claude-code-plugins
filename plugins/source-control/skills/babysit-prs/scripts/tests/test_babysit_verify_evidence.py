@@ -1385,6 +1385,23 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIsNone(evidence.refusal)
         self.assertIs(evidence.report()["supersededAtHead"], True)
 
+    def test_fails_at_three_earlier_heads_cap_only_an_unsuperseded_head_fail(
+        self,
+    ) -> None:
+        def history() -> FakeGitHub:
+            fake = self.relinked()
+            for i, sha in enumerate((EARLIER, IN_PR, UNRELATED), start=3):
+                fake.artifacts.append(artifact(named(sha, "fail"), i))
+                fake.runs[i] = judged(i, OLDER_START)
+            return fake
+
+        evidence = read(history())
+        self.assertIsNone(evidence.refusal, "a superseded head FAIL is a clean head")
+        self.assertIs(evidence.report()["supersededAtHead"], True)
+        unanswered = history()
+        unanswered.relink = relink_answer()
+        self.assertEqual(read(unanswered).refusal, "verify:repeated-fail")
+
     def merge_only(self, *, superseded: bool) -> FakeGitHub:
         """The relinked FAIL and pass at EARLIER, and a head that only merged
         main since (the same change), with a pass of its own (run 3) that
