@@ -173,7 +173,9 @@ either a tool or this skill.
   existing worktree. The model invokes it; the person does not.
 - **`ExitWorktree` (built-in tool)**: leaves a worktree session and restores the original
   directory. `action: "keep"` leaves the worktree and its branch on disk; `action: "remove"`
-  deletes both, but the tool will not remove a worktree that was entered by `path`.
+  deletes both, but the tool will not remove a worktree that was entered by `path`. Since
+  2.1.330, neither `remove` nor the worktree exit dialog deletes a worktree that another running
+  Claude Code session is working in (changelog item 2.1.330-012).
 - **This skill (marketplace plugin).** Creates the worktree at an external root through the
   shared helper, then enters it with `EnterWorktree(path:)`; checks the session claim before
   entering an existing worktree; owns `status`, `cleanup`, and `audit`.

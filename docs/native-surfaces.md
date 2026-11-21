@@ -1256,7 +1256,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 
 ### `ExitWorktree` → `source-control:worktree`
 
-- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory: `action: "keep"` leaves the worktree and its branch on disk, `action: "remove"` deletes both but is refused for a worktree entered by `path`, which is how ours enters. Leaving a worktree goes to the tool with `action: "keep"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action.
+- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory: `action: "keep"` leaves the worktree and its branch on disk, `action: "remove"` deletes both but is refused for a worktree entered by `path`, which is how ours enters, and since 2.1.330 neither `remove` nor the worktree exit dialog deletes a worktree another running Claude Code session is working in. Leaving a worktree goes to the tool with `action: "keep"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action, and 2026-11-21 for changelog item 2.1.330-012.
 - **Integration:** `route`
 - **Native surface:** `ExitWorktree` (built-in tool; markers: none)
 - **Our component:** `source-control:worktree` (skill)
@@ -1267,8 +1267,9 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (tools reference, 2026-10-01): documented; not available to subagents that already run in their own working directory
   - our skill already names the tool: the `create` pre-flight says to use `ExitWorktree` to leave the current worktree first
   - tool schema in the 2.1.285 binary (string search 2026-10-01): `action` "keep" leaves the worktree and branch on disk, "remove" deletes both (isDestructive, user-facing name 'Cleaning up worktree') and needs `discard_changes` when work would be lost; the EnterWorktree prompt says ExitWorktree will not remove a worktree entered by `path`
+  - changelog item 2.1.330-012 (https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md, read 2026-11-21): 'Fixed `ExitWorktree` and the worktree exit dialog deleting a worktree that another running Claude Code session was working in'; the worktrees page's 'Clean up worktrees' section (read 2026-11-21) states the exit-dialog half, not the tool's; handed off by the v2.1.330 changelog apply run (melodic-software/claude-code-plugins#17713, #17829)
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /harness-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
-- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path`, or the tools reference stops documenting it (verified 2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path` or one another running Claude Code session is working in, or the tools reference stops documenting it or documents that other-session exception (verified 2026-10-01)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
