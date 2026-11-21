@@ -1724,6 +1724,92 @@ class AFixedBodyClearsABodyOnlyFailOnTheSameChange(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
+class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase):
+    """Pull request #18023's shape: a FAIL at an earlier head against issue
+    #17908's done-when item, the item amended by a trusted comment after the
+    FAIL's run, and a pass at a head of the same change whose run was
+    created after the comment. The pass judged the amended spec, so it
+    clears the FAIL (`_spec_amended`); an untrusted amendment or a pass
+    created before it keep `verify:earlier-fail`."""
+
+    STRANGER = {"__typename": "User", "login": "stranger", "databaseId": 999}
+
+    @staticmethod
+    def amended(
+        author: dict[str, Any] = HUMAN, at: str = RELINK_AT, recorded: bool = True
+    ) -> FakeGitHub:
+        """A FAIL at EARLIER (run 2, created OLDER_START) noting a file, a
+        pass at HEAD (run 1, created RUN_STARTED) of the same change, no PR
+        body edit or relink, and comment 9 on issue 7 by `author` created at
+        `at`, which the pass records as spec when `recorded`."""
+        fake = AFixedBodyClearsABodyOnlyFailOnTheSameChange.body_fail(
+            [NOTE_ON_A_FILE], relink_answer()
+        )
+        fake.closing_comments[7] = [
+            comment(9, HUMAN, at, createdAt=at) | {"author": author}
+        ]
+        spec = [{"id": 9, "updated_at": at}] if recorded else []
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**TRUSTED_ISSUE, "spec_comments": spec}]
+        )
+        return fake
+
+    def test_pr_18023s_fail_clears_after_a_trusted_spec_comment(self) -> None:
+        evidence = read(self.amended())
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_a_trusted_issue_body_edit_after_the_fail_clears_it(self) -> None:
+        fake = AFixedBodyClearsABodyOnlyFailOnTheSameChange.body_fail(
+            [NOTE_ON_A_FILE], relink_answer()
+        )
+        fake.closing_edited[7] = RELINK_AT
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[
+                {
+                    **TRUSTED_ISSUE,
+                    "last_edited_at": RELINK_AT,
+                    "editor_login": "maintainer",
+                    "editor_id": 100,
+                    "editor_type": "User",
+                }
+            ]
+        )
+        self.assertIsNone(read(fake).refusal)
+
+    def test_an_untrusted_comment_keeps_it(self) -> None:
+        for label, author in (
+            ("a stranger", self.STRANGER),
+            ("the lanes App", LANES_ACTOR),
+        ):
+            with self.subTest(label):
+                fake = self.amended(author, recorded=False)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_trusted_comment_an_outsider_edited_keeps_it(self) -> None:
+        fake = self.amended(recorded=False)
+        fake.closing_comments[7][0] |= {
+            "lastEditedAt": RELINK_AT,
+            "editor": self.STRANGER,
+        }
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_pass_created_before_the_amendment_keeps_it(self) -> None:
+        fake = self.amended(at=PASS_RUNNING)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_an_amendment_before_the_fail_keeps_it(self) -> None:
+        fake = self.amended(at="2026-10-13T00:00:00Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_pass_on_other_linked_issues_keeps_it(self) -> None:
+        fake = self.amended()
+        fake.records[named(EARLIER, "fail")]["linked_issues"] = [
+            {**TRUSTED_ISSUE, "number": 8}
+        ]
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
 class AFailAnsweredInTheBodyGivesWayAtAMergeOnlyHead(unittest.TestCase):
     """A counted FAIL at an earlier head of the same change, answered by a
     trusted body edit, gives way at a head that only merged main since once
