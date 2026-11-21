@@ -1,13 +1,17 @@
 {
   "pass": [
     {
-      "answer": "WARN personal-override: `.claude/multi-agent.local.yaml` is not gitignored. Add `.claude/**/*.local.*` to `.gitignore`."
+      "answer": "WARN personal-override: `docs/conventions/multi-agent.local.yaml` is not gitignored. Add `docs/conventions/**/*.local.*` to `.gitignore`."
     }
   ],
   "fail": [
     {
-      "answer": "WARN personal-override: `.claude/multi-agent.local.yaml` is not gitignored. Add `.claude/*.local.*` to `.gitignore`.",
+      "answer": "WARN personal-override: `docs/conventions/multi-agent.local.yaml` is not gitignored. Add `docs/conventions/*.local.*` to `.gitignore`.",
       "why": "flat rule, not the recursive one"
+    },
+    {
+      "answer": "WARN personal-override: `.claude/multi-agent.local.yaml` is not gitignored. Add `.claude/**/*.local.*` to `.gitignore`.",
+      "why": "the old personal override path's line"
     },
     {
       "answer": "WARN personal-override: not gitignored.",

@@ -3,12 +3,17 @@
 #
 # LAYERS, bottom to top, each overriding per key:
 #   bundled      reference/defaults.yaml
-#   user-global  <home>/.claude/multi-agent.yaml
-#   team         <home>/multi-agent.yaml (<home> is the convention home the
-#                repository binds, else docs/conventions)
-#   personal-override <root>/.claude/multi-agent.local.yaml
+#   user-config  the file the role_map_file userConfig option names (--user-file)
+#   team         <root>/<home>/multi-agent.yaml (<home> is the convention home
+#                the repository binds, else docs/conventions)
+#   personal-override <root>/<home>/multi-agent.local.yaml
+# Dual-read window: while no file above supplies the user-config or the
+# personal-override layer, its old file still does: ~/.claude/multi-agent.yaml
+# (the layer is then named user-global) or <root>/.claude/multi-agent.local.yaml.
+# Each old file found adds one note naming it, its new location and
+# /multi-agent:setup apply --migrate, whether it was read or not.
 # Team and personal-override apply only when lib/config-root.sh classifies <root> as
-# `repo`; a team or personal-override path that is the user-global file is read once.
+# `repo`; a team or personal-override path that is the user layer's file is read once.
 # A layer that does not parse, or declares a schema other than 1, is skipped
 # and named in `notes`. A key with a value outside its allowed set is rejected
 # and named; the layer below keeps the key. Keys and values: reference/config.md.
@@ -35,7 +40,10 @@
 #                                         as frontier
 #   --root <dir>      repository root (default: CLAUDE_PROJECT_DIR, else the
 #                     git toplevel)
-#   --home <dir>      directory holding .claude/multi-agent.yaml (default $HOME)
+#   --home <dir>      the user's home, holding the old .claude/multi-agent.yaml
+#                     (default $HOME)
+#   --user-file <f>   the file the role_map_file option names; empty or an
+#                     unsubstituted ${user_config.role_map_file} means unset
 #   --defaults <f>    bundled layer (tests)
 #
 # JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
@@ -95,16 +103,18 @@ WORKLOAD=""
 SESSION_MODEL=""
 ROOT=""
 USER_HOME_DIR="${HOME:-}"
+USER_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   pointers) MODE=pointers ;;
-  --workload | --session-model | --root | --home | --defaults)
+  --workload | --session-model | --root | --home | --user-file | --defaults)
     [[ $# -gt 1 ]] || die "$1 needs a value"
     case "$1" in
     --workload) WORKLOAD="$2" ;;
     --session-model) SESSION_MODEL="$2" ;;
     --root) ROOT="$2" ;;
     --home) USER_HOME_DIR="$2" ;;
+    --user-file) USER_FILE="$2" ;;
     *) DEFAULTS="$2" ;;
     esac
     shift
@@ -284,13 +294,39 @@ read_layer() {
 [[ -n "$ROOT" ]] || ROOT="$(config_root_resolve)"
 ROOT_CLASS="$(HOME="$USER_HOME_DIR" config_root_classify "$ROOT")"
 
+MIGRATE="/multi-agent:setup apply --migrate"
 USER_LAYER=""
-[[ -n "$USER_HOME_DIR" ]] && USER_LAYER="$USER_HOME_DIR/.claude/multi-agent.yaml"
-if [[ -n "$USER_LAYER" && -f "$USER_LAYER" ]]; then
-  read_layer user-global "$USER_LAYER"
-else
-  layer_state user-global "$USER_LAYER" absent
-fi
+
+dual_read() {
+  local label="$1" old_label="$2" new="$3" old="$4" where="$5" has_old=0
+  READ_FILE=""
+  [[ -n "$old" && -f "$old" ]] && ! config_root_paths_same "$old" "$USER_LAYER" && has_old=1
+  if [[ -n "$new" && -f "$new" ]]; then
+    if config_root_paths_same "$new" "$USER_LAYER"; then
+      layer_state "$label" "$new" absent
+    else
+      read_layer "$label" "$new"
+      READ_FILE="$new"
+    fi
+    if ((has_old)) && ! config_root_paths_same "$old" "$new"; then
+      NOTES+=("$old_label: $old is an old path and not read, since $new supplies the layer; $MIGRATE merges its keys into $new and deletes it")
+    fi
+  elif ((has_old)); then
+    read_layer "$old_label" "$old"
+    READ_FILE="$old"
+    NOTES+=("$old_label: $old is an old path, still read until it moves; $MIGRATE moves it to $where and deletes it")
+  else
+    layer_state "$label" "$new" absent
+  fi
+}
+
+[[ "$USER_FILE" == "\${user_config."* ]] && USER_FILE=""
+OLD_USER=""
+[[ -n "$USER_HOME_DIR" ]] && OLD_USER="$USER_HOME_DIR/.claude/multi-agent.yaml"
+user_where="the file the role_map_file option names (set it in /config)"
+[[ -n "$USER_FILE" ]] && user_where="$USER_FILE"
+dual_read user-config user-global "$USER_FILE" "$OLD_USER" "$user_where"
+USER_LAYER="$READ_FILE"
 
 # The convention home is the one the repository binds in AGENTS.md or CLAUDE.md
 # (lib/resolve-convention-home.sh); docs/conventions when it binds none.
@@ -299,21 +335,18 @@ if [[ -f "$SCRIPT_DIR/../lib/resolve-convention-home.sh" ]]; then
   home_out="$(bash "$SCRIPT_DIR/../lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && CONVENTION_HOME="$home_out"
 fi
 TEAM_CONCERN="$ROOT/$CONVENTION_HOME/multi-agent.yaml"
-PERSONAL_OVERRIDE="$ROOT/.claude/multi-agent.local.yaml"
+PERSONAL_OVERRIDE="$ROOT/$CONVENTION_HOME/multi-agent.local.yaml"
 if [[ "$ROOT_CLASS" != repo ]]; then
   layer_state team "$TEAM_CONCERN" "not-applicable ($ROOT_CLASS root)"
   layer_state personal-override "$PERSONAL_OVERRIDE" "not-applicable ($ROOT_CLASS root)"
 else
-  if [[ -f "$TEAM_CONCERN" ]]; then
+  if [[ -f "$TEAM_CONCERN" ]] && ! config_root_paths_same "$TEAM_CONCERN" "$USER_LAYER"; then
     read_layer team "$TEAM_CONCERN"
   else
     layer_state team "$TEAM_CONCERN" absent
   fi
-  if [[ -f "$PERSONAL_OVERRIDE" ]] && ! config_root_paths_same "$PERSONAL_OVERRIDE" "$USER_LAYER"; then
-    read_layer personal-override "$PERSONAL_OVERRIDE"
-  else
-    layer_state personal-override "$PERSONAL_OVERRIDE" absent
-  fi
+  dual_read personal-override personal-override "$PERSONAL_OVERRIDE" \
+    "$ROOT/.claude/multi-agent.local.yaml" "$PERSONAL_OVERRIDE"
 fi
 
 # A workload is declared when its last workloads.<w> value is true.

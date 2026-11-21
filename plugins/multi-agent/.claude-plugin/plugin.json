@@ -18,5 +18,12 @@
   ],
   "metadata": {
     "category": "workflow"
+  },
+  "userConfig": {
+    "role_map_file": {
+      "type": "file",
+      "title": "Role map file",
+      "description": "Path to your own role map file, the layer that applies in every repository, under the team file and your personal override. Same keys as the team file. Unset: no user layer. /multi-agent:setup apply --layer user writes it; apply --migrate moves an old ~/.claude/multi-agent.yaml into it."
+    }
   }
 }

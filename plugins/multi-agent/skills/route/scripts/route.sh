@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# route.sh <role|all> [workload] [session=<alias>]
+# route.sh <role|all> [workload] [session=<alias>] [--user-file <f>]
 # Translates the skill's arguments for scripts/resolve-roles.sh and runs it:
 # the first bare argument is the role, the second the workload.
 set -uo pipefail
@@ -17,7 +17,7 @@ for a in "$@"; do
   fi
   case "$a" in
   session=*) [[ -n "${a#session=}" ]] && pass+=(--session-model "${a#session=}") ;;
-  --workload | --session-model | --root | --home | --defaults) pass+=("$a") value=1 ;;
+  --workload | --session-model | --root | --home | --user-file | --defaults) pass+=("$a") value=1 ;;
   -*) pass+=("$a") ;;
   *) if ((++bare == 2)); then pass+=(--workload "$a"); else pass+=("$a"); fi ;;
   esac
