@@ -57,14 +57,14 @@ test('a click flips the saved switch, mapped with the stored window shape; with 
   expect(room.redraws).toEqual([1, 1, 1])
 })
 
-test('where two click rectangles overlap a click flips both switches, as the shader does', async () => {
+test('a click beside a neighbor flips only the thing under it', async () => {
   const aspect = 1.6
   const room = standIn({ state: { tv: true, tape: false, console: false, pc: true, light: false, lamp: false, lava: false, posters: 'plain' }, aspect })
   await load(room.$)
   await handleClick(room.$, inWindow(1340, 560, aspect))
   await handleClick(room.$, inWindow(1399, 500, aspect))
   await Promise.resolve()
-  expect((room.store.get(STORE_KEY) as Saved).state).toMatchObject({ console: true, tape: true, lava: true, light: true, tv: true, pc: true, lamp: false })
+  expect((room.store.get(STORE_KEY) as Saved).state).toMatchObject({ console: false, tape: true, lava: false, light: true, tv: true, pc: true, lamp: false })
 })
 
 test('a click at each window shape lands where toViewBox puts it', async () => {

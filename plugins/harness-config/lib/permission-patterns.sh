@@ -22,13 +22,20 @@
 # ("$CCPERM_…"): a double-quoted definition would collapse the escapes and
 # silently change what grep matches.
 
-# The rule classes upstream documents as dropped on entering auto mode: blanket
-# `Bash(*)`/`PowerShell(*)`, wildcarded interpreters, package-manager run
+# The rule classes upstream documents as dropped on entering auto mode, eight in
+# all (https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions,
+# read 2026-11-21): blanket `Bash(*)`/`PowerShell(*)`, wildcarded interpreters,
+# a process wrapper followed only by a wildcard (`Bash(timeout *)`), shell rules
+# that start with a wildcard (`Bash(* --version)`), some wildcarded paths
+# (`Bash($HOME/bin/*)`, `PowerShell(C:\tools\x.exe *)`), package-manager run
 # commands, all `Agent` allow rules, and all `Monitor` allow rules (added
 # upstream in v2.1.236, because Claude Code runs Monitor commands through the
-# shell). Narrow rules such as `Bash(npm test)` carry over and must never match.
+# shell). https://code.claude.com/docs/en/changelog 2.1.327 widens the
+# package-manager class to path and version forms (`/usr/bin/npm run:*`); the
+# page does not say so yet. Narrow
+# rules such as `Bash(npm test)` carry over and must never match.
 #
-# The bodies below cover the three SHELL shapes only. `Agent` and `Monitor` are
+# The bodies below cover the six SHELL shapes only. `Agent` and `Monitor` are
 # whole-tool classes with no command shape to match, so each consuming driver
 # tests them on the tool token; there is nothing here for them to share.
 #
@@ -37,6 +44,10 @@
 CCPERM_INTERP_BODY='python[0-9.]*|node|deno|bun|ruby|perl|php|bash|sh|zsh|pwsh|osascript|Rscript'
 CCPERM_RUNNER_BODY='npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run|uv run|npm|pnpm|yarn'
 CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
+# The wrappers Claude Code strips before matching a Bash rule, per
+# https://code.claude.com/docs/en/permissions#process-wrappers (read
+# 2026-11-21). They are Bash-only: that section strips them from Bash rules.
+CCPERM_WRAPPER_BODY='timeout|time|nice|nohup|stdbuf|command|builtin|noglob'
 
 # One ERE, case-sensitive on the tool name. Each alternative requires a wildcard
 # so an exact narrow rule (Bash(npm test)) never matches:
@@ -57,23 +68,43 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 #      listed separately. A fixed subcommand (Bash(npm test), Bash(npm run
 #      build)) carries no * and is not matched. The `([\"' :])` before the `\*`
 #      requires a separator, so `Bash(npmx *)` does not match the `npm` runner.
+#      The runner takes the interpreter's path prefix (Bash(/usr/bin/npm
+#      run:*)) and an `@<version>` suffix on its name (Bash(pnpm@9 dlx *)),
+#      the path and version forms of the 2.1.327 note above.
 #   4. a leading-glob command that resolves to a script (Bash(*.py:*))
+#   5. a process wrapper followed only by a wildcard (Bash(timeout *)). A
+#      wrapper with a fixed argument before the * (Bash(timeout 30 *)) is not
+#      "followed only by a wildcard" and is not matched.
+#   6. any shell rule whose command starts with a wildcard (Bash(* --version)).
+#      It subsumes 1 and 4, which stay separate so a driver can name them.
+#   7. the two wildcarded-path forms upstream names: a rule that starts with
+#      `$HOME` (Bash($HOME/bin/*)), and a program written as a Windows
+#      backslash path (PowerShell(C:\tools\x.exe *)) other than a `.\` path,
+#      which https://code.claude.com/docs/en/changelog 2.1.327 restored. The
+#      program must name something before its first backslash, so a
+#      frontmatter rule read raw with a YAML-escaped quote
+#      (Bash(\"${CLAUDE_SKILL_DIR}/x.sh\":*)) is not a path. The page says
+#      "some" wildcarded paths and names no others, so other path forms
+#      (Bash(/opt/tools/*), Bash(${HOME}/bin/*)) are left out.
 #
 # Each alternative captures the whole Tool(...) spec. The specifier may contain
 # one nesting level of literal parentheses (CCPERM_BALANCED_ERE, the same limit
 # as CCPERM_TOOL_TOKEN_ERE), so an inner `)` does not end the rule: a bare `[^)]*`
 # would cut a documented path such as `Edit(./Finance (2024)/**)` short.
 #
-# The four alternatives are also exposed individually so a driver that must NAME
+# The alternatives are also exposed individually so a driver that must NAME
 # the class a rule fell into (the entry diff's drop reason) tests them one at a
 # time instead of re-deriving the wrapping; the union stays the P1 detector's
 # single match target and is composed from them, never written twice.
 CCPERM_BALANCED_ERE='([^()]|\([^()]*\))*'
 CCPERM_P1_BLANKET_ERE="(Bash|PowerShell)\\(\\*\\)"
 CCPERM_P1_INTERP_ERE="(Bash|PowerShell)\\([\"' ]*([^()\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :]${CCPERM_BALANCED_ERE})?\\*${CCPERM_BALANCED_ERE}\\)"
-CCPERM_P1_RUNNER_ERE="(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :]${CCPERM_BALANCED_ERE})?([\"' :])\\*${CCPERM_BALANCED_ERE}\\)"
+CCPERM_P1_RUNNER_ERE="(Bash|PowerShell)\\([\"' ]*([^()\"' ]*[/\\\\])?(${CCPERM_RUNNER_BODY})(@[^()\"' :]*)?([\"' :]${CCPERM_BALANCED_ERE})?([\"' :])\\*${CCPERM_BALANCED_ERE}\\)"
 CCPERM_P1_SCRIPTGLOB_ERE="(Bash|PowerShell)\\([\"' ]*\\*${CCPERM_BALANCED_ERE}\\.(${CCPERM_SCRIPT_BODY})${CCPERM_BALANCED_ERE}\\)"
-CCPERM_P1_ERE="${CCPERM_P1_BLANKET_ERE}|${CCPERM_P1_INTERP_ERE}|${CCPERM_P1_RUNNER_ERE}|${CCPERM_P1_SCRIPTGLOB_ERE}"
+CCPERM_P1_WRAPPER_ERE="Bash\\([\"' ]*(${CCPERM_WRAPPER_BODY})[\"' :]+\\*[\"' ]*\\)"
+CCPERM_P1_LEADING_ERE="(Bash|PowerShell)\\([\"' ]*\\*${CCPERM_BALANCED_ERE}\\)"
+CCPERM_P1_PATH_ERE="(Bash|PowerShell)\\([\"' ]*(\\\$HOME([/\\\\\"' :]${CCPERM_BALANCED_ERE})?|([^()\"' .\\\\]|[^()\"' \\\\][^()\"' \\\\]+)\\\\${CCPERM_BALANCED_ERE})\\*${CCPERM_BALANCED_ERE}\\)"
+CCPERM_P1_ERE="${CCPERM_P1_BLANKET_ERE}|${CCPERM_P1_INTERP_ERE}|${CCPERM_P1_RUNNER_ERE}|${CCPERM_P1_SCRIPTGLOB_ERE}|${CCPERM_P1_WRAPPER_ERE}|${CCPERM_P1_LEADING_ERE}|${CCPERM_P1_PATH_ERE}"
 
 # Splits rule text into top-level `Tool` / `Tool(...)` tokens. The payload is
 # one token, so a tool name inside another rule's payload (Bash(echo Agent),

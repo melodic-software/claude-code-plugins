@@ -10,7 +10,9 @@ surface has learned all of them.
 
 This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history),
 and topic siblings such as [`consumer-gotchas.md`](consumer-gotchas.md) (concatenating consumer gotchas
-for participating skills, #3547).
+for participating skills, #3547). [`locations.md`](locations.md) is the one editable list of config
+file locations; each plugin that teaches one carries a generated copy at
+`reference/config-locations.md`.
 
 ## Boundary: this contract owns the axis, never the keys
 

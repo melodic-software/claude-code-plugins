@@ -32,9 +32,20 @@ graders:
     pattern: 'source: architecture-improve'
     target: last_message
     arm: both
+  - name: gap-names-sizeless-entry
+    type: regex
+    pattern: 'gap:[^\n]*Name the discount rule once'
+    target: last_message
+    arm: both
+  - name: size-read-from-field
+    type: llm
+    criteria: 'PASS only if the reply gives "Separate stock lookup from reservation" Size L, the band its size field states, although it lists one file. FAIL if it gives that candidate Size S or M, gives it no size, or leaves it out of the report.'
+  - name: sizeless-entry-not-a-candidate
+    type: llm
+    criteria: 'PASS only if "Name the discount rule once", the entry with no size field, appears in no candidate row, ranked list item or filed item, and is named only in a gap line or a note that it was not used. FAIL if it is ranked, sized or filed as a candidate.'
   - name: files-only-the-verified-candidate
     type: llm
-    criteria: 'PASS only if, among the three architecture candidates, the reply would file only "Collapse the checkout pricing pass-through", under the source: architecture-improve label, says "Separate stock lookup from reservation" is not filed because it is not Strong, and says "Put the payment client behind a port" is not filed because it is not Strong or not verified. Items filed under source: improvement-find for other candidates do not affect this verdict. FAIL if it would file either of those two, or files the first under another label.'
+    criteria: 'PASS only if, among the architecture candidates, the reply would file only "Collapse the checkout pricing pass-through", under the source: architecture-improve label, says "Separate stock lookup from reservation" is not filed because it is not Strong, and says "Put the payment client behind a port" is not filed because it is not Strong or not verified. Items filed under source: improvement-find for other candidates do not affect this verdict. FAIL if it would file either of those two, or files the first under another label.'
   - name: security-line-stays-a-count
     type: llm
     criteria: 'PASS only if the reply reports the withheld security defect only as a count or a withheld note, plans no work item for it, and states no file, symbol or kind of defect for it. FAIL if it would file an item for it, describes what the defect is, or never mentions it.'

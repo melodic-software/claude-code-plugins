@@ -100,11 +100,11 @@ export const DEFAULT_STATE: State = { tv: true, tape: false, console: false, pc:
 export const HITS: Record<string, readonly [number, number, number, number]> = {
   tv: [1125, 425, 166, 122],
   tape: [1125, 562, 166, 46],
-  console: [1298, 490, 46, 118],
+  console: [1298, 490, 38, 118],
   pc: [195, 500, 150, 145],
   light: [1398, 468, 34, 50],
   lamp: [498, 530, 58, 70],
-  spine: [1337, 533, 21, 69],
-  lava: [1358, 470, 42, 136],
+  spine: [1337, 533, 20, 69],
+  lava: [1358, 470, 39, 136],
   cat: [1135, 360, 155, 62],
 }

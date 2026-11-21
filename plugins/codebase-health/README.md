@@ -58,6 +58,8 @@ it>)`, and any notice. A `terminal` result drops the offer. The tracked team fil
 new home; a `terminal` or `file` value in one still keeps the view local when no other setting
 decides, and a publishing value there is ignored.
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+
 ## Configurable audit dimensions
 
 What the audit reads and how it verifies claims is **not baked in**. It comes from the consuming
@@ -102,7 +104,7 @@ verified non-issue. Nothing project-specific is baked into the plugin.
 
 One `userConfig` option, `medium`: your own default for the rendered-view offer (default `auto`),
 read by the shared medium resolver above. Audit targets flow through the tracked
-`.claude/codebase-health.md` config seam above (written by `/codebase-health:setup apply`). No
+`.claude/codebase-health.md` config file above (written by `/codebase-health:setup apply`). No
 hooks, no MCP servers, no bundled scripts beyond the shared `lib/` copies (medium resolver, prerequisites check, verification reader), no network
 calls of its own (Phase 2 may use whatever documentation-research tools your setup provides). State:
 the audit reads and writes only the consumer's own files under the scope you give it.

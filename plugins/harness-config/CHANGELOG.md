@@ -5,6 +5,24 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.6.1] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
+## [5.6.0] - 2026-11-21
+
+### Added
+
+- `audit-permission-state`: the permission-plane lint's new `C6-assignStar` warning flags a Bash allow rule with a `*` in a leading variable assignment, such as `Bash(PORT=* npm run dev)`. Claude Code v2.1.323 and later warn about this shape at startup; the lint finds it across every scope before a session starts.
+
+### Fixed
+
+- `audit-permission-state`'s entry-diff note no longer says Bedrock, Google Cloud Agent Platform, Microsoft Foundry and apps gateway sessions never enter auto mode, or that only Pro, Max and Team plans start in it. The note now states the precondition, names a run that never enters auto mode (`claude -p` or the Agent SDK with no permission mode set), and points to the start-mode table on the permission-modes page instead of copying it, so a later change to that table cannot make the note wrong.
+
+- The audit's sandbox escape-surface table now says some `excludedCommands` calls stay sandboxed. It adds a PermissionRequest hook that rewrites a command into an excluded one (2.1.328), and mods Claude writes that turn on without asking in auto and bypass modes (2.1.321). The outside-directory paragraph is re-checked against 2.1.327.
+
 ## [5.5.3] - 2026-11-21
 
 ### Changed

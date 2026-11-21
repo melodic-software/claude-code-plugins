@@ -50,6 +50,21 @@ export function namesFrom(m) {
   return out;
 }
 
+/** The most code points a chosen design keeps: two note texts (note.schema.json's text maxLength is 4000). */
+const CHOSEN_MAX = 8000;
+const MARKUP = /<[A-Za-z!/?]/;
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+
+/**
+ * The text of the frame's chosen-design reply (the mockup's copy-out terminator text), whole and as sent, or null when
+ * the message is not a `chosen` one, its text is not a non-empty string, runs past 8000 code points, or holds a tag,
+ * comment or processing instruction, or a control character other than tab and line breaks.
+ */
+export function chosenFrom(m) {
+  const t = m?.type === "chosen" && typeof m.text === "string" ? m.text : "";
+  return t.trim() && [...t].length <= CHOSEN_MAX && !MARKUP.test(t) && !CONTROL.test(t) ? t : null;
+}
+
 /**
  * Calls `onBlocked` unless the returned function is called first, within `ms`. On a frame a CSP
  * blocks, Firefox fires no load event and Chrome fires one

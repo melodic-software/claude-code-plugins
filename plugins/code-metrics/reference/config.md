@@ -1,6 +1,6 @@
 # The code-metrics configuration
 
-Every tunable value in this plugin resolves through one consumer surface. This document is its
+Every tunable value in this plugin resolves through one set of config layers. This document is their
 contract: the layers, the merge form, the YAML subset, and every key with its default and
 provenance. `/code-metrics:setup` writes the team layer; every audit skill reads the resolved
 document at run time and prints the layer that supplied any value a personal layer changed. The
@@ -16,6 +16,8 @@ resolved in this order over the bundled defaults (`scripts/config-defaults.json`
 | 1 | user-global | `~/.claude/code-metrics.yaml` | the operator, across repositories |
 | 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
 | 3 | personal override | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
+
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
 
 The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
 from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`

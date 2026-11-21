@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.12.0] - 2026-11-21
+
+### Changed
+
+- `/planning:interview` runs the pre-round contradiction pass only for a round whose recommendations cite an answered row or a confirmed constraint, and scopes each sweep after the first to the rows the last sweep's answers changed ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+- An assumption-sweep `decision` item below the interview's level, or one a quoted owner ruling already routed to design, is no longer asked: it becomes a `deferred` register row with `arbiter: /planning:design`. It still counts for the register gate, and the Brief's `### Deferred questions` still has to list it ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+- A round that only re-asks earlier rows takes no new round number, so the next round with a new row keeps the round numbers contiguous for `check-open-questions.sh --procedure` ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+
+- `upload-reader` sets `omitClaudeMd: true`: its prompt carries the path, the question and the return shape, so it starts without the CLAUDE.md files.
+
+### Fixed
+
+- `check-open-questions.sh --procedure` accepts the round field `round <r> (added in round <N>)` that the page export writes, reading it as round r the way `import-ledger` does. Any other text after `round <N>` still fails ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+
+## [5.11.8] - 2026-11-21
+
+### Changed
+
+- The shared prototype page's frame helper (`proto-pin.js`) draws its markers, outlines and arrows in one violet accent that follows the light or dark scheme, dashes a draft's marker, and answers the notes host page's new view, name and bar messages.
+
 ## [5.11.7] - 2026-11-21
 
 ### Changed

@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: tk-add-session-owned-with-agent-ready
+graders:
+  - name: 'no-create-item'
+    type: 'regex'
+    pattern: '^(?![\s\S]*create-item --)[\s\S]*agent-ready[\s\S]*$'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:track add does when given both --session-owned and --agent-ready. PASS only if it satisfies every point: (1) The action stops and no item is created; (2) It stops before any duplicate search or other read or write; (3) It names both --session-owned and --agent-ready as the conflicting pair; (4) It does not offer to apply one of the two labels anyway. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

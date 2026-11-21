@@ -146,7 +146,8 @@ Changing the time or the weather by command shows within a few seconds and eases
 ### The settings card
 
 `/bedroom` alone shows a card in the conversation, so you need not know the words. It is six rows
-whatever is open, so it fits without scrolling: the theme on or off, reset, calibrate, titles and
+whatever is open, so it fits without scrolling: the theme on, off or covered (another plugin's
+theme stands over the room; a press puts the room back), reset, calibrate, titles and
 Close; a button for each switch showing whether it is on, then `pass` (someone passes the door),
 `door` (the hall light's switch, checked while the light is on; the next press turns it off) and
 `bolt` (a lightning strike), each dim while its command would only say why not, the hallway off or
@@ -176,7 +177,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | Command | Does |
 |---|---|
 | `/bedroom` | Says what is on and off; in the desktop app, also shows the settings card |
-| `/bedroom status` | Says what is on and off |
+| `/bedroom status` | Says what is on and off, and whose theme covers the room, if another plugin's does |
 | `/bedroom <tv\|tape\|console\|pc\|light\|lamp\|lava> [on\|off]` | Switches one thing; with neither word it flips. A switch already in that state stays as it is |
 | `/bedroom time <auto\|dusk\|evening\|night\|predawn\|dawn\|morning\|noon\|golden\|HH:MM>` | Follows the clock, or holds a phase (`HH:MM` holds the phase of that hour); alone, says which |
 | `/bedroom date <auto\|MM-DD\|spring\|summer\|autumn\|winter>` | Follows the real date, or holds a day of the year for sunrise and sunset (the seasons hold 04-20, 07-15, 10-15, 01-15); alone, says which |
@@ -199,7 +200,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom stats` | Render counts and timings |
 | `/bedroom calibrate` | Fits clicks to your window's shape |
 | `/bedroom reset` | Every switch, dim, glass and blur back to its default, and time, weather, lightning, signal, hallway and sound back to the plugin's settings; titles, calibration, volume and the bank's choices stay |
-| `/bedroom on`, `/bedroom off` | Sets or clears the theme |
+| `/bedroom on`, `/bedroom off` | Sets or clears the theme; `on` also puts the room back over another plugin's theme |
 
 For diagnosis, `/bedroom shader off` (or `instant off`) shows the hand-drawn room alone for the rest
 of the session, with no fades, clock or lamp light, sending it again on every change; `/bedroom
