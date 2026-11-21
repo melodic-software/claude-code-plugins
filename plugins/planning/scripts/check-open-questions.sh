@@ -79,10 +79,6 @@
 #
 # --procedure is OPT-IN and adds checks a script can derive from the ledger, so
 # a caller that omits it keeps every verdict and exit code above unchanged:
-#   - round numbers in the register rows run contiguously from 1 (a `round`
-#     field that is not `round <N>` with N >= 1 counts as a defect, except
-#     `round <N> (added in round <M>)`, which the page export writes for a
-#     question asked after a later round was posted and which counts as round N)
 #   - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
 #     non-empty resolution (the fifth field)
 #   - with --brief, the Brief holds every section of the literal Brief template:
