@@ -5,7 +5,7 @@
 that has exactly one correction, returning the new text and the `(typo, correction)` pairs it
 applied. Text a file quotes rather than authors is masked first and never changed: fenced code
 blocks, inline code spans, `>` blockquote lines, double-quoted spans, tokens shaped like a path,
-URL or file name, and any span the caller's `keep` pattern matches. With no `typos` on PATH the
+URL, file name, flag or identifier (snake_case, camelCase), and any span the caller's `keep` pattern matches. With no `typos` on PATH the
 text comes back unchanged and nothing is printed; a `typos` that fails or times out leaves the text unchanged and writes one stderr line.
 Stdlib only; Python 3.10+.
 """
@@ -22,7 +22,10 @@ from pathlib import Path
 TYPOS_TIMEOUT_SECONDS = 10
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 BLOCKQUOTE_RE = re.compile(r"^\s*>")
-QUOTED_RE = re.compile(r"`[^`\n]*`|\"[^\"\n]*\"|“[^”\n]*”|[^\s\"“”`]*[/\\][^\s\"“”`]*|\S+\.\w{1,6}\b")
+QUOTED_RE = re.compile(
+    r"(?P<ticks>`+)[^\n]*?(?P=ticks)|\"[^\"\n]*\"|“[^”\n]*”|[^\s\"“”`]*[/\\][^\s\"“”`]*|\S+\.\w{1,6}\b"
+    r"|\w*_\w*|\w*[a-z][A-Z]\w*|(?<!\S)-\S+"
+)
 
 
 def _blank(match: re.Match[str]) -> str:

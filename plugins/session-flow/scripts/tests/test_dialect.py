@@ -78,9 +78,11 @@ def test_quoted_code_blockquote_and_path_text_keeps_its_spelling(stub_path, monk
     monkeypatch.setenv("PATH", stub_path)
     quoted = (
         f'The owner said "the {UK_COLOR} stays" and `{UK_COLOR}` is a key.\n'
+        f"Run ``echo `{UK_COLOR}` {UK_COLOR}`` as written.\n"
         f"> keep the {UK_COLOR}\n"
         f"```\n{UK_COLOR}\n```\n"
-        f"See docs/{UK_COLOR}.md and {UK_COLOR}.json."
+        f"See docs/{UK_COLOR}.md and {UK_COLOR}.json.\n"
+        f"Set {UK_COLOR}_map, set{UK_COLOR.capitalize()} and --{UK_COLOR}."
     )
     assert dialect.americanize(quoted) == (quoted, [])
 
