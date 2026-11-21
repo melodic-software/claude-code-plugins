@@ -51,6 +51,44 @@
         }
       }
     },
+    "antigravity": {
+      "description": "Settings for the Google Antigravity CLI (agy).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "description": "Model slug passed to the CLI, from `agy models`. Unset: the run is skipped with a notice naming this key." },
+        "effort": { "type": "string", "description": "Reasoning effort passed to the CLI. Unset: the CLI's own setting." },
+        "binary_path": { "type": "string", "description": "Absolute path to the CLI binary, tried before every other location." },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "default": 1800, "description": "Seconds before a run is stopped and recorded timed-out." },
+        "update_hint": { "type": "string", "description": "Text shown beside the daily check's line when the CLI is behind its latest release, such as how your machines update it." },
+        "uses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "task": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "mode": { "type": "string", "enum": ["read-only", "write"], "default": "write", "description": "Default and ceiling for task runs." } }
+            },
+            "investigate": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "mode": { "type": "string", "enum": ["read-only", "write"], "default": "read-only", "description": "Default and ceiling for investigate runs." } }
+            },
+            "review": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "mode": { "type": "string", "enum": ["read-only"], "default": "read-only", "description": "Reviews always run read-only." } }
+            }
+          }
+        },
+        "council": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean", "default": true, "description": "Whether review:council may run this CLI as a member." } }
+        }
+      }
+    },
     "breaker": {
       "type": "object",
       "additionalProperties": false,
