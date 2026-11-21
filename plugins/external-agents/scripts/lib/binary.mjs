@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { delimiter, join, win32 } from "node:path";
+import { delimiter, join, posix, win32 } from "node:path";
 
 const isFile = (path) => {
   try {
@@ -36,7 +36,8 @@ export function resolveBinary(record, { binaryPath, platform = process.platform,
     if (isFile(normalized)) return found(normalized, "candidate", tried);
   }
   const exts = windows ? (env.PATHEXT || ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
-  for (const dir of (env.PATH ?? env.Path ?? "").split(windows ? ";" : delimiter).filter(Boolean)) {
+  const isAbsoluteDir = (windows ? win32 : posix).isAbsolute;
+  for (const dir of (env.PATH ?? env.Path ?? "").split(windows ? ";" : delimiter).filter(isAbsoluteDir)) {
     for (const ext of exts) {
       const path = joinPath(dir, record.binary.name + ext.toLowerCase());
       if (isFile(path)) return found(path, "PATH", [...tried, `PATH (${record.binary.name})`]);

@@ -95,6 +95,8 @@ describe("provider record", () => {
     binary: { name: "demo" },
     version: { args: ["--version"] },
     unset_model: "skip-with-notice",
+    prompt: { form: "-p={prompt}" },
+    output: { kind: "json_envelope", status_field: "status", success_value: "SUCCESS", message_field: "response", thread_field: "conversation_id", error_field: "error" },
     modes: {
       "read-only": {
         enforcement: "approval-denial",

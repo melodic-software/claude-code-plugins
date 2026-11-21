@@ -10,9 +10,8 @@ none of its text or code is copied).
 
 ## Status
 
-In progress: config, provider records, binary lookup and the job store exist; the
-`external-agents` command still prints only its usage. Runs, the Codex skill and council's
-switch-over follow in later changes.
+In progress: `run`, `review`, `status`, `result` and `cancel` work; `update`, the Codex skill and
+council's switch-over follow in later changes.
 
 ## Surface
 
@@ -38,6 +37,15 @@ are in [`schemas/external-agents.schema.json`](schemas/external-agents.schema.js
 precedence are in the
 [config-cascade contract](../../docs/contracts/config-cascade/README.md). An unset model, effort or
 profile leaves the CLI's own configuration in charge.
+
+## Job files
+
+Job files, logs and the breaker state live in the plugin's data directory. The command reads
+`CLAUDE_PLUGIN_DATA` when it is set. A command run through the Bash tool does not receive that
+variable, so an installed copy works the directory out from its own install path, using the
+directory name the
+[plugin reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+documents. A copy that is not installed, such as a checkout, needs the variable set.
 
 ## Install
 

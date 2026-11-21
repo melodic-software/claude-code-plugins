@@ -42,6 +42,13 @@ export function writeJob(dataDir, key, job) {
   return file;
 }
 
+export function jobFolder(dataDir, key, id) {
+  checkId(id);
+  const dir = join(jobsDir(dataDir, key), id);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 export function readJob(dataDir, key, id) {
   checkId(id);
   try {
@@ -72,7 +79,7 @@ export function pruneJobs(dataDir, key, keep) {
   if (!old.length) return [];
   const files = readdirSync(dir);
   for (const job of old) {
-    for (const name of files.filter((f) => f.startsWith(`${job.id}.`))) rmSync(join(dir, name), { force: true });
+    for (const name of files.filter((f) => f === job.id || f.startsWith(`${job.id}.`))) rmSync(join(dir, name), { recursive: true, force: true });
   }
   return old.map((job) => job.id);
 }
