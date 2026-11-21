@@ -5,8 +5,8 @@
   sandbox="allow-scripts" and never allow-same-origin, so the page runs with an opaque origin and
   reaches nothing but this window, by postMessage. This page alone holds the token and the network.
   It trusts a message only from the frame's own window, takes the first ready only, and stops
-  listening when the frame loads a second document. A pick, a region or a text selection becomes a
-  note only through note.schema.json: each anchor field, box, quote, data log and viewport the
+  listening when the frame loads a second document. A pick, a region, a move arrow or a text selection
+  becomes a note only through note.schema.json: each anchor field, box, point, quote, data log and viewport the
   schema refuses is dropped, and the helper's label is never kept. The one page text a note keeps
   is a selection's quote (anchor.textQuote), cut to the schema's limits. Every string reaches the
   screen through textContent. When the server stops answering, the notes written here stay on this
@@ -60,6 +60,7 @@
   <p id="session" class="state"></p>
   <button type="button" id="pick" aria-pressed="false" disabled>Pick an element (P)</button>
   <button type="button" id="region" aria-pressed="false" disabled>Mark a region (R)</button>
+  <button type="button" id="move" aria-pressed="false" disabled>Draw a move arrow (M)</button>
   <button type="button" id="quote" disabled>Note on selected text (T)</button>
   <div id="composer" hidden>
     <p id="picked" class="where"></p>
@@ -96,7 +97,7 @@
   const $ = (id) => document.getElementById(id);
   const frame = $("page"), composer = $("composer"), text = $("text");
   const devOrigin = frame.dataset.devOrigin || null;
-  const buttons = { element: $("pick"), region: $("region") };
+  const buttons = { element: $("pick"), region: $("region"), move: $("move") };
   const say = (t) => { $("status").textContent = t; };
   let schema = null, cschema = null, token = null, ready = false, loads = 0, picking = null, wantText = false, draft = null, noSession = false;
   let editing = null, opener = null, ids = 0, sending = false;
@@ -175,7 +176,7 @@
     if (focus) tab.focus();
   }
 
-  /** Turn pick mode on for one kind ("element" or "region"), or off. */
+  /** Turn pick mode on for one kind ("element", "region" or "move"), or off. */
   function setPick(kind) {
     picking = kind && live() ? kind : null;
     // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
@@ -184,6 +185,7 @@
     toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."
       : picking === "region" ? "Drag a box over the mockup, or move it with the arrow keys (Shift+arrows resize) and press Enter. Esc cancels."
+      : picking === "move" ? "Click the element to move, then the element it should go to; Shift+click picks a point instead. Esc cancels."
       : "");
   }
   function askText() {
@@ -223,19 +225,30 @@
     if (kind === "region") {
       note.elements = (Array.isArray(m.elements) ? m.elements : []).map(anchorFrom).filter(Boolean).slice(0, P.elements.maxItems);
     }
+    if (kind === "move") {
+      const to = m.to && typeof m.to === "object" ? m.to : {};
+      if (!fits(to.point, P.to.properties.point)) return null;
+      note.to = { point: { x: to.point.x, y: to.point.y } };
+      const end = anchorFrom(to.anchor);
+      if (end) note.to.anchor = end;
+    }
     return problems({ ...note, text: "x" }, schema).length ? null : note;
   }
 
+  const nameOf = (a) => (a.testid ? `${a.testid} #${a.testidIndex + 1}` : `<${a.tag}>${a.cssPath ? ` at ${a.cssPath}` : ""}`);
   function where(n) {
     const a = n.anchor, parts = [];
     if (n.variant) parts.push(`variant ${n.variant.key}`);
     if (n.state) parts.push(`state ${n.state.key}`);
-    if (n.kind === "text") {
+    if (n.kind === "move") {
+      const to = n.to.anchor ? nameOf(n.to.anchor) : `the point ${Math.round(n.to.point.x)}%, ${Math.round(n.to.point.y)}%`;
+      parts.push(`move ${nameOf(a)} to ${to}`);
+    } else if (n.kind === "text") {
       const q = [...a.textQuote.exact];
       parts.push(`text “${q.slice(0, 60).join("")}${q.length > 60 ? "…" : ""}”`);
     } else if (n.kind === "region") {
       parts.push(`region at ${Math.round(n.rect?.x ?? 0)}%, ${Math.round(n.rect?.y ?? 0)}% over ${n.elements.length} element(s)`);
-    } else parts.push(a.testid ? `${a.testid} #${a.testidIndex + 1}` : `<${a.tag}>${a.cssPath ? ` at ${a.cssPath}` : ""}`);
+    } else parts.push(nameOf(a));
     return parts.join(" · ");
   }
 
@@ -248,12 +261,13 @@
     setPick(null);
     if ($("panel").hidden) setPanel(true);
     selectTab(tabs[0], false);
-    $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked" }[note.kind]}: ${where(note)}`;
+    $("picked").textContent = `${{ element: "Picked", text: "Selected", region: "Marked", move: "Arrow" }[note.kind]}: ${where(note)}`;
     composer.hidden = false;
     text.value = entry ? entry.note.text : "";
     text.focus();
   }
   function closeComposer() {
+    if (draft?.kind === "move") toFrame({ type: "clear-arrow" });
     draft = editing = null;
     composer.hidden = true;
     (opener?.() || buttons.element).focus();
@@ -455,7 +469,7 @@
       ready = true;
       for (const b of [...Object.values(buttons), $("quote")]) b.disabled = false;
       takeControls(m);
-      say("Pick an element (P), mark a region (R), or select text in the mockup and press Note on selected text (T).");
+      say("Pick an element (P), mark a region (R), draw a move arrow (M), or select text in the mockup and press Note on selected text (T).");
     } else if (m.type === "escape") setPick(null);
     else if (m.type === "content" && fits(m.name, schema.properties.content)) { content = m.name; renderControls(); }
     else if (m.type === "want-text") askText();
@@ -467,6 +481,13 @@
       const note = noteFrom(m, "region");
       if (note) openComposer(note, () => buttons.region);
       else say("That region cannot carry a note: the element around it is outside the note contract.");
+    } else if (m.type === "move" && picking === "move") {
+      const note = noteFrom(m, "move");
+      if (note) openComposer(note, () => buttons.move);
+      else {
+        toFrame({ type: "clear-arrow" });
+        say("That arrow cannot carry a note: the element to move is outside the note contract. Pick its parent.");
+      }
     } else if (m.type === "selected" && wantText) {
       wantText = false;
       const note = m.none ? null : noteFrom(m, "text");
@@ -477,6 +498,7 @@
 
   buttons.element.addEventListener("click", () => setPick(picking === "element" ? null : "element"));
   buttons.region.addEventListener("click", () => setPick(picking === "region" ? null : "region"));
+  buttons.move.addEventListener("click", () => setPick(picking === "move" ? null : "move"));
   $("quote").addEventListener("click", askText);
   $("send").addEventListener("click", send);
   $("save").addEventListener("click", save);
@@ -514,6 +536,7 @@
     if (!ready) return;
     if (key === "p") { e.preventDefault(); setPick(picking === "element" ? null : "element"); }
     else if (key === "r") { e.preventDefault(); setPick(picking === "region" ? null : "region"); }
+    else if (key === "m") { e.preventDefault(); setPick(picking === "move" ? null : "move"); }
     else if (key === "t") { e.preventDefault(); askText(); }
   });
 
