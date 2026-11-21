@@ -652,7 +652,7 @@ larger than the record; see the egress note below.
 
 The local channels (OS toast, terminal bell/OSC 9, in the `autonomy` plugin's `lane-notify.sh`)
 reach only an operator at the machine running the lane. The escalation record write gives a
-consuming repo a deterministic surface that reaches one who is not: a `PostToolUse` hook in the
+consuming repo a deterministic trigger that reaches an operator who is not: a `PostToolUse` hook in the
 consuming repo's own tracked `.claude/settings.json`, matched on the `Write` tool, filtered to the
 record directory, with a `type: "http"` handler that POSTs the hook event's JSON, whose
 `tool_input.content` carries the record, to the repo's chosen endpoint. Documented default shape:
