@@ -188,14 +188,16 @@ bash_needs${TAB}\${{ steps.plan.outputs.bash_needs }}
 python_legs${TAB}\${{ steps.plan.outputs.python_legs }}
 python_plan${TAB}\${{ steps.plan.outputs.python_plan }}
 python_needs${TAB}\${{ steps.plan.outputs.python_needs }}
-node_packages${TAB}\${{ steps.plan.outputs.node_packages }}
+node_legs${TAB}\${{ steps.plan.outputs.node_legs }}
+node_plan${TAB}\${{ steps.plan.outputs.node_plan }}
 playwright_cache_key${TAB}\${{ steps.playwright_key.outputs.key }}"
 # The data reads that are not env entries: each sharded test lane sizes its
 # matrix from its `<lane>_legs`. A leg reads its suites from the plan and fails
 # on none, so an unset value falls back to one leg that fails loud.
 MATRIX_READS="\
 leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.bash_legs || '[0]') }}
-leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.python_legs || '[0]') }}"
+leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.python_legs || '[0]') }}
+leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.node_legs || '[0]') }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).

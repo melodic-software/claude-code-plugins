@@ -135,7 +135,8 @@ legs of about 120 suite-seconds each and `test-python` one to four of about
 180, packed longest first from the measured seconds in
 `scripts/suite-seconds.txt`, and each leg installs only the optional toolchains
 (the animation wheels, the inventory's parser packages, the DuckDB CLI) its
-suites need. `test-node` runs the Node packages the change reaches. An
+suites need. `test-node` runs the Node packages the change reaches on one to
+eight legs of about 140 package-seconds each, packed the same way. An
 UNMAPPED code file adds the whole corpus of its language; unmapped data adds
 nothing, since no suite reads it, and is still counted. A Python pin runs every
 Python suite, a Node pin every Node package, and a change to
