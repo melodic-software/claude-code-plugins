@@ -44,6 +44,47 @@ test('/bedroom time takes auto, each phase, its other words and HH:MM, and nothi
   for (const word of ['', 'sunny', '24:00', '12:60', '1230', 'noon2']) expect(phaseOf(word, R, S)).toBeUndefined()
 })
 
+/**
+ * Walks a whole local day in `auto` a minute at a time from midnight, reading the Shader element after each minute's
+ * tick: the phase each time the sun field changes, at which local minute, and whether the room's drawing was sent again.
+ */
+async function walkDay(room: Awaited<ReturnType<typeof startRoom>>): Promise<{ changes: [string, string][]; redrawn: boolean }> {
+  const changes: [string, string][] = []
+  const source = await room.source()
+  let was = sunOf(await room.values())
+  for (let step = 0; step < 1440; step++) {
+    await room.clock.advance(60_000)
+    const sun = sunOf(await room.values())
+    if (sun !== was && sun !== undefined) {
+      const at = new Date(room.clock.now())
+      changes.push([PHASES[sun]!, hhmm(at.getHours() * 60 + at.getMinutes())])
+    }
+    was = sun
+  }
+  return { changes, redrawn: (await room.source()) !== source }
+}
+
+const MIDNIGHT = new Date(2026, 10, 20, 0, 0, 30).getTime()
+
+test('auto walks the day from midnight: each phase at its row start, by the world value alone, with no room sent again', { timeoutMs: 180000, options: { time: 'auto', weather: 'clear', hall: false, signal: false, sunrise: '06:30', sunset: '20:30' } }, async ($, on) => {
+  if (!BUILT.includes('time')) return
+  const room = await startRoom($, on, { now: MIDNIGHT })
+  expect(sunOf(await room.values())).toBe(PHASES.indexOf('night'))
+  const { changes, redrawn } = await walkDay(room)
+  expect(changes).toEqual([
+    ['predawn', '05:15'],
+    ['dawn', '06:10'],
+    ['morning', '07:10'],
+    ['noon', '11:00'],
+    ['golden', '19:00'],
+    ['dusk', '20:30'],
+    ['evening', '21:45'],
+    ['night', '23:00'],
+  ])
+  expect(redrawn).toBe(false)
+  await room.unmount()
+})
+
 /** 21:00 local on 2026-11-19 wherever the test runs: dusk under the default sunset 20:30, golden under 21:15. */
 const NINE_PM = new Date(2026, 10, 19, 21, 0, 0).getTime()
 const sunOf = (values: Record<string, number> | undefined): number | undefined => (values?.world === undefined ? undefined : values.world % 8)
