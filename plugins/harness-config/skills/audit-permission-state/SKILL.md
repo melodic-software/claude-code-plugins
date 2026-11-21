@@ -224,7 +224,7 @@ finding <severity> [<check>] <scope> <detail>
 lint summary findings=<n> checks_run=<n> status=<read|incomplete>
 ```
 
-Eleven checks: three `C2-*` dead-config gates, `C5-disableType`, and seven `C6-*` rules-that-cannot-match, including a malformed Tool(content) rule and an uncompilable Read/Edit path.
+Twelve checks: three `C2-*` dead-config gates, `C5-disableType`, and eight `C6-*` rule-shape checks, including a malformed Tool(content) rule, an uncompilable Read/Edit path, and a `*` in a Bash allow rule's leading variable assignment.
 `reference/criteria.md` maps each to the docs section it follows from and lists the legitimate rule
 shapes the checks are written not to flag.
 
