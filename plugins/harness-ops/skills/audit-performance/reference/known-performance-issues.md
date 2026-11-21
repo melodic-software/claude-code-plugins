@@ -214,7 +214,7 @@ directory prefix, multi-dot suffix, letter case or `Write` tool is not modeled, 
 extension is not known to fire", followed by
 the compile error when its matcher also fails to compile. Every other
 shape is listed there with the reason and counted as firing. That direction is deliberate: an
-unmodelled rule inflates the projection, which an operator can investigate, where the opposite
+unmodeled rule inflates the projection, which an operator can investigate, where the opposite
 would hide a spawn nobody goes looking for. The file kinds projected are a fixed baseline plus
 every extension a classified gate names, so a gate on a kind outside the baseline gets its own
 row and `other` means a file no gate names.

@@ -287,7 +287,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 ### Changed
 
-- The simulation's GREY-zone corrective prompt tells personas not to research or double-check
+- The simulation's GRAY-zone corrective prompt tells personas not to research or double-check
   their stale events, replacing a "think carefully" phrasing that steered reasoning depth.
 
 ## [0.6.12] - 2026-09-21

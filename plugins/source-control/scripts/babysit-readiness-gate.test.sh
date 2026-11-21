@@ -514,15 +514,15 @@ fi
 # classification row cannot offset it -> classified=0 < findings=1 -> BLOCKED.
 # Defensive (production paths always signal); Python-gated like the cases above.
 if ((HAVE_PY311)); then
-  F=$(mkjson unsignalled-provenance '[
-    {author:"codex[bot]", body:"[CRITICAL] unsignalled finding"},
+  F=$(mkjson unsignaled-provenance '[
+    {author:"codex[bot]", body:"[CRITICAL] unsignaled finding"},
     {type:"review", author:"me[bot]", body:"| 1 | x | VALID | y |"}
   ]')
   r=$(run_gate "$F")
-  assert_contains "#642 unsignalled finding -> classified=0" "$r" "findings=1 classified=0"
-  assert_contains "#642 unsignalled finding -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+  assert_contains "#642 unsignaled finding -> classified=0" "$r" "findings=1 classified=0"
+  assert_contains "#642 unsignaled finding -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
 else
-  pass "#642 unsignalled-provenance isolation skipped (no Python 3.11+)"
+  pass "#642 unsignaled-provenance isolation skipped (no Python 3.11+)"
 fi
 
 # --- Convergence: Python counter and bash degrade agree on thread-state-free input

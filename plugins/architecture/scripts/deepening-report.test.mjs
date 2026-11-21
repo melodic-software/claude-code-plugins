@@ -246,10 +246,10 @@ test("the legend names the drawing styles, badges and terms the page uses and no
   const terms = (data) => legendLines(parseDeepening(data)).map(([term]) => term);
   const leakOnly = terms(record());
   for (const term of ["Rust arrow, solid or dotted", "Dark, heavy-bordered box", "Strong", "in-process", "leverage", "locality", "reproduced"]) assert.ok(leakOnly.includes(term), term);
-  for (const term of ["Dotted grey arrow", "Solid grey arrow", "Worth exploring", "mock", "interface", "unverified"]) assert.ok(!leakOnly.includes(term), term);
+  for (const term of ["Dotted gray arrow", "Solid gray arrow", "Worth exploring", "mock", "interface", "unverified"]) assert.ok(!leakOnly.includes(term), term);
   const before = { pattern: "graph", nodes: [{ id: "a", label: "A" }, { id: "b", label: "B" }], edges: [{ from: "a", to: "b", dashed: true }] };
   const dotted = terms(record({}, [candidate({ category: "mock", diagram: { ...candidate().diagram, before } })]));
-  assert.ok(dotted.includes("Dotted grey arrow") && dotted.includes("mock") && !dotted.includes("Rust arrow, solid or dotted"));
+  assert.ok(dotted.includes("Dotted gray arrow") && dotted.includes("mock") && !dotted.includes("Rust arrow, solid or dotted"));
 });
 
 test("the 23-candidate fixture renders every card with a solution, wins and a diagram and no empty part", () => {

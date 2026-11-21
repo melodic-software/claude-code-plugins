@@ -11,7 +11,7 @@
   ],
   "sources": [
     { "url": "https://github.com/optiscaler/OptiScaler/wiki/Cyberpunk-2077", "asOf": "2026-09-23", "supports": "dxgi.dll is a working proxy filename (last tested 0.9.3)" },
-    { "url": "https://github.com/Dagherbou/OptiScaler_DLSSNR/issues/8", "asOf": "2026-09-23", "supports": "Owner: a d3d12 hook conflicts with Streamline and greys out Ray Reconstruction; use dxgi" },
+    { "url": "https://github.com/Dagherbou/OptiScaler_DLSSNR/issues/8", "asOf": "2026-09-23", "supports": "Owner: a d3d12 hook conflicts with Streamline and grays out Ray Reconstruction; use dxgi" },
     { "url": "https://github.com/Dagherbou/OptiScaler_DLSSNR/releases/tag/v0.2.0-dlssnr", "asOf": "2026-09-23", "supports": "The exposure scan cannot see this game's exposure" },
     { "url": "reference/tuning-guide.md", "asOf": "2026-09-20", "supports": "Live session, RTX 5090, driver 616.92, Dagherbou v0.2.0-patch1: DLSS Quality over Auto, Output Scaling marked incompatible" }
   ],

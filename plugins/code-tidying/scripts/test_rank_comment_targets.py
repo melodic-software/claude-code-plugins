@@ -295,7 +295,7 @@ class Ranking(unittest.TestCase):
         self.assertIn("pygments", p.stderr)
 
 
-class RankNormalisation(unittest.TestCase):  # identifier, not prose # spellchecker:disable-line
+class RankNormalization(unittest.TestCase):
     """Ties share one rank, so path spelling never moves a score."""
 
     @staticmethod
