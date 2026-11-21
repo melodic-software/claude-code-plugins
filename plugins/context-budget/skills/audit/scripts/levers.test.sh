@@ -154,12 +154,41 @@ else {
   if (/lean_prompt|claude-[a-z]+-\d|opus-\d|haiku|sonnet|\b2\.1\.\d/i.test(cond)) { // portability-ok: JS RegExp, not grep or sed
     problems.push("simple-system-prompt conditions restate the selector instead of pointing at the record");
   }
+  // #17836: =0 forces the full prompt; it is described but never emitted.
+  const blob = [lean.mechanism, ...(lean.caveats ?? [])].join("\n");
+  if (!/=0([^0-9]|$)/.test(blob)) problems.push("simple-system-prompt does not describe =0");
+  if (/=0/.test(String(lean.emittedConfig || ""))) problems.push("simple-system-prompt must not emit =0");
 }
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
 report_clean "$routeout" \
-  "include-git-instructions names the env route; simple-system-prompt points at the lean-prompt probe record"
+  "include-git-instructions names the env route; simple-system-prompt points at the lean-prompt probe record and describes =0 without emitting it"
+
+# #17836: the probe record keeps the unrecognized-name rule and the =0 setting,
+# and never brings back the legacy model-id fallback claim. The record lives
+# in the repository's docs/, absent from an installed plugin copy: skip there.
+RECORD="$SCRIPT_DIR/../../../../../docs/upstream/claude-code-lean-prompt-selector.md"
+if [[ -f "$RECORD" ]]; then
+  recordout="$(node -e '
+const text = require("fs").readFileSync(process.argv[1], "utf8").replace(/[ \t\r\n]+/g, " ");
+const problems = [];
+if (!text.includes("CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=0")) {
+  problems.push("lean-prompt probe record does not describe CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=0");
+}
+if (!/does not recognize.{0,80}shorter prompt/.test(text)) {
+  problems.push("lean-prompt probe record dropped the unrecognized-name rule (shorter prompt)");
+}
+if (/legacy|fall(s)?[ -]?back/i.test(text)) {
+  problems.push("lean-prompt probe record mentions a legacy model-id fallback");
+}
+console.log(problems.length ? problems.join("\n") : "CLEAN");
+' "$RECORD")"
+  report_clean "$recordout" \
+    "lean-prompt probe record describes =0 and the unrecognized-name rule, with no legacy fallback"
+else
+  ok "lean-prompt probe record not in this copy; record check skipped"
+fi
 
 outputout="$(node -e '
 const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));

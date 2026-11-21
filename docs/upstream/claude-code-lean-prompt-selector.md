@@ -1,7 +1,7 @@
 # Probed behavior: which models already default to the lean system prompt
 
-No docs page says which models Claude Code gives the lean system prompt by default. The
-context-budget `simple-system-prompt` lever needs that answer to explain a measured zero:
+The env-vars docs name the default only by model family; no docs page says per model id which
+models Claude Code gives the lean system prompt by default. The context-budget `simple-system-prompt` lever needs that answer to explain a measured zero:
 `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` changes nothing on a model that is already lean. This record
 is the probe the lever points at, in the probed-behavior form of the
 [upstream-drift convention](../contracts/upstream-drift/README.md#required-parts).
