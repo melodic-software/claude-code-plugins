@@ -37,5 +37,5 @@ same session, and it kept the interview, design and plan stages in one session u
   the first call at 97,999 tokens after, 98,090 before, about 92k of it startup.
 - The statistical compaction gates planned before this change were dropped for cost. It ships on the
   deterministic content check and the paired smoke shape 4 shipped on, the unit tripwire, and the
-  review lanes (owner, 2026-11-21: "just fucking stop the evals, get the shit pushed in and
-  merged"). The `wf-*` routing cases and the real-session check (AC9) return with the eval work.
+  review lanes (owner, 2026-11-21: eval runs stop until open issues and PRs reach zero, and
+  finished work ships through review). The `wf-*` routing cases and the real-session check (AC9) return with the eval work.
