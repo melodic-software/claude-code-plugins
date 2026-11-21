@@ -247,7 +247,7 @@ audit-tree)
   ;;
 collision)
   audit_tree
-  printf '# Beta\n\nBeta programme.\n' >docs/BETA.md
+  printf '# Beta\n\nBeta program.\n' >docs/BETA.md
   printf '# beta\n\nbeta notes.\n' >docs/beta.md
   ;;
 plan-pending)

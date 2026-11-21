@@ -12,8 +12,10 @@ export type BedroomCard = {
   seen?: number
   /** What the last press on the card answered. */
   said?: string
-  /** The four title fields show, as the card's last row. */
+  /** The four title fields show, on two rows in place of the time and the weather. */
   titles?: boolean
+  /** The sound bank's pickers show, on two rows in place of the time and the weather. */
+  sounds?: boolean
 }
 
 declare module 'claude-code' {
@@ -22,6 +24,8 @@ declare module 'claude-code' {
       'bedroom-card': Shaped<BedroomCard>
       /** The bedroom's minute chain: the time the newest copy of the module started it, so an older copy left running after a reload stops. */
       'bedroom-chain': number
+      /** Which copy of the module plays the bedroom's sound: the time it loaded, so an older copy left after a reload goes quiet. */
+      'bedroom-mixer': number
     }
   }
 }

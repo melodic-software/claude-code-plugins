@@ -165,7 +165,7 @@ worth more than the report they appeared in, and both are lost unless the loop b
 **Rejected findings and discovered misses are converted into golden cases.** The set lives at
 `skills/audit/evals/fixtures/golden/`, one directory per case, carrying `case.md`, `expected.json`
 and, where the case needs one, `source.md`. Each directory is named for what its case tests, which
-means the name states the case's answer; a case is relabelled, and its harness scaffolding
+means the name states the case's answer; a case is relabeled, and its harness scaffolding
 dropped, before any subagent reads it, per `reference/nomination.md` "Neutral labels
 (required)". A class stays report-only until the set carries it past `min_n_per_class` at or
 above the precision bar and the owner declares it in "Fix eligibility" above. `near-verbatim` is

@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.4] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
+## [5.10.3] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [5.10.2] - 2026-11-21
+
+### Fixed
+
+- The check-visual-parity skill spells rasterization in American English.
+
 ## [5.10.1] - 2026-11-21
 
 ### Changed

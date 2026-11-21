@@ -3,6 +3,18 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.6] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
+## [3.1.5] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [3.1.4] - 2026-11-19
 
 ### Changed

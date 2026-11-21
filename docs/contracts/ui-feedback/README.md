@@ -11,7 +11,8 @@ The canonical files live in `lib/ui-feedback/`:
 
 | Path | Holds |
 |---|---|
-| `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
+| `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page through `srcdoc` in a sandbox across the full window, shows the command bar and the notes popover over it, validates every message from the frame, and sends notes to the session |
+| `lib/ui-feedback/host.mjs` | The host page's module script: its message handling, notes list, command bar and Controls tab behavior, served beside `host.html` |
 | `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text, regions and move arrows, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
 | `lib/ui-feedback/frame-channel.mjs` | The host page's message channel rules: which messages it takes from the frame, the `targetOrigin` it posts to the frame with, and the ready timeout that reports a blocked frame |
 | `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
@@ -64,6 +65,26 @@ A region note's `elements` are the elements with a test id that the region cross
 crosses none, they are the children of the element holding it that it crosses, so a region over
 unmarked content still names what it covers.
 
+A region is kept in page coordinates, so it can run past the frame's view: a drag held near the
+frame's top or bottom edge scrolls the page. A drawn region moves when dragged and resizes from its
+edges and corners, or by the arrow keys (Shift and an arrow resizes) and Enter, before its note is
+sent or after. A sent note's new box goes to `POST /api/note/change` as a change (`$defs/change` in
+`note.schema.json`): `change` is the note's seq, and `anchor`, `rect` and `elements` replace the
+note's own in the log, so the relocation script, `status` and the host page's reload see the
+current box. The bridge also logs the change as an event of its own, which wakes the watcher, so
+the session reads it as that note changed, not as a new note. The host page lists no row for a
+change.
+
+A sent note can also be edited or withdrawn from its row. An edit goes to `POST /api/note/edit` as
+`{"edit": <seq>, "text": ...}` (`$defs/edit`): the text replaces the note's own in the log, under
+the same seq. A withdraw goes to `POST /api/note/withdraw` as `{"withdraw": <seq>}`
+(`$defs/withdraw`): the note stays in the log, and that event alone marks it withdrawn, so a log
+written before withdraws loads unchanged. Each is logged as an event of its own naming the note,
+which wakes the watcher. The bridge refuses an edit, a change or a second withdraw of a withdrawn
+note. A withdrawn note is not pending: `status` and the watcher leave it and the events changing it
+out, and keep its withdraw; the host page lists it as withdrawn, draws no marker for it, and leaves
+it out of Copy all notes.
+
 A move arrow (`kind` `move`) says "move this element to there". The person picks the element to
 move, then where it should go: the element clicked, or a point alone when no element fits (Shift
 and a click). `anchor` and `rect` are the element to move. `to.point` is the destination in
@@ -93,6 +114,14 @@ writes a pasted block to a file and runs `notes-bridge.sh import --file <path>`:
 validator checks every note, takes all or none, skips a note already in the log, counts the
 imported notes toward `x-maxNotesPerRun`, and refuses while a server runs on the data dir. The
 block is data like any note; it is never run as text.
+
+Copy chosen design copies the mockup's own copy-out terminator text. A page whose terminator text
+comes from a `window.uiFeedbackCopyOut()` function returning a string says so in the ready message
+(`copyOut: true`). The host page then asks with `{type: "copy-out"}`, and the frame helper answers
+`{type: "chosen", text}`. The host page keeps one reply per ask, and only when `chosenFrom`
+(`frame-channel.mjs`) admits it: a non-empty string of at most 8000 code points, kept whole, with
+no `<` before a letter, `!`, `/` or `?`, and no control character but tab and line breaks. It sets
+the text as a textarea value and copies it; it never renders it as markup.
 
 ## Controls
 
@@ -180,6 +209,11 @@ the host page reach the frame only by message.
   (the helper's element label included), and renders it through `textContent`; the bridge
   validates it again and delivers it as data, and the agent quotes it as what a note is about,
   never as an instruction.
+  The host page also shows, and never keeps in a note, two more kinds of page text the frame
+  helper reports: the variant and screen-state labels its command bar names the view with, and,
+  for each listed note, the visible text of the note's element and of the nearest heading around
+  it, from which the list names the note in the reader's words. `frame-channel.mjs` cuts each to
+  60 code points of plain text, and the host page shows it through `textContent`.
   The controls manifest's labels and options, and the control values a note carries, are the
   same kind of text: the host page renders a manifest only after `controls.schema.json` admits it,
   shows its strings through `textContent` or a form field's value, keeps in a note only the values

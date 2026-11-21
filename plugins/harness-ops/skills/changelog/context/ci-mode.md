@@ -149,10 +149,13 @@ always false: the marker moves in the ledger pull request once every row is in a
 `status` is `stopped` (no rows were derived; `stop_reason` is `cap-exceeded` or
 `range-not-computed`; the scan job alone sets `hold-path`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
 Handoff bodies carry item ids and the required sentence, never changelog text, matching the ledger
-rule in [decisions.md](decisions.md). The workflow groups a release's handoffs into one issue, a
-checklist item per handoff. A `cap-exceeded` or `hold-path` plan is the same on every run for its release, so the
-workflow files its issue even with no handoffs, opens the issue with a line naming the
-`stop_reason`, and marks the release done once that issue holds every handoff key; a filing that
-fails leaves the release for the next run. A `range-not-computed` plan can pass on a later run (the
+rule in [decisions.md](decisions.md); the workflow drops any other line (a native-drift body also keeps its `>` quote, `Drift key:` and `Filed by` lines). The workflow files one issue per handoff, opening with the
+key marker, its lens and its `kind` and `reason`, labeled `source: upstream-apply-changelog`; a
+handoff whose key or `Drift key:` line an open lanes App issue already holds is not filed again. A
+`nomination` (replace) row is filed with a `Hold:` line, since a native-overlap verdict is never
+lane work; a `docs-lag` row is named in the run summary and not filed. A `cap-exceeded` or
+`hold-path` plan is the same on every run for its release, so the workflow also files one stop
+notice naming the `stop_reason`, with no handoff and no label, and marks the release done once the
+notice and every handoff are filed; a filing that fails leaves the release for the next run. A `range-not-computed` plan can pass on a later run (the
 changelog fetch failed, or the page lags the tag), so the workflow files nothing and leaves the
 release for the next run. PR bodies follow the consuming repository's pull request template.

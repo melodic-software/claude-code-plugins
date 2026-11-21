@@ -3,6 +3,18 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.2] - 2026-11-21
+
+### Changed
+
+- `plugin.json` declares the mods floor as `engines["claude-code"]`, `">=2.1.287"`. Claude Code 2.1.323 and later read it and do not install, update or load the plugin outside that range; 2.1.76 through 2.1.322 ignore it, and 2.0.15 through 2.1.75 refuse to load a manifest that has it. `scripts/check-mod-load.sh` still checks the floor from `prerequisites.json`, because the builds below the floor do not read the field.
+
+## [4.2.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [4.2.0] - 2026-11-19
 
 ### Added

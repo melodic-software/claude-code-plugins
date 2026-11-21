@@ -3,6 +3,18 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.30] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [0.7.29] - 2026-11-21
+
+### Fixed
+
+- The `pico-8` palette names colors 5 and 6 `dark-gray` and `light-gray`, the spelling the PICO-8 manual uses.
+
 ## [0.7.28] - 2026-11-18
 
 ### Changed

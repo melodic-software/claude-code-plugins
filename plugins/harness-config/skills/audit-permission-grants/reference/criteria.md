@@ -87,6 +87,13 @@ the scan root that holds `.claude-plugin/plugin.json`, which covers an installed
 when that table moves `skills/`, `agents/` or `commands/` off the plugin root). Everything else is
 excluded and counted. Filtering to *installed* plugin versions needs an `installed_plugins.json`
 oracle this detector does not consult.
+A nested `.claude/skills/` inside a plugin root stays audited, though
+[2.1.325](https://code.claude.com/docs/en/changelog#2-1-325) stopped loading one inside a plugin
+passed to `--plugin-dir` from a session started above it. The tree does not record whether a root
+was passed to `--plugin-dir`; that is a launch flag. Without the flag, the same directory is an
+ordinary subdirectory whose nested skills do load, so the detector keeps auditing it. The cost is an
+over-report on a `--plugin-dir` root, which is the safe direction for an `error`-tier check. As of
+2026-11-21. Recheck trigger: the skills page section above names a `--plugin-dir` exception.
 An exclusion whose count is printed cannot suppress anything silently, which is the property that
 matters.
 
@@ -97,13 +104,16 @@ matters.
 **What**: An `allowed-tools` or `permissions.allow` entry in a class auto mode drops on entry, or a
 wider form of one. The detector flags blanket Bash and PowerShell rules, wildcarded interpreters,
 package-manager runner subcommands, bare package-manager wildcards (deliberately wider than the
-dropped package-manager class: same anti-pattern, same fix), script-glob commands, and `Agent`
-allow rules.
+dropped package-manager class: same anti-pattern, same fix) with their path and version forms
+([changelog 2.1.327](https://code.claude.com/docs/en/changelog)), script-glob commands, a process
+wrapper followed only by a wildcard, rules that start with a wildcard, wildcarded paths that start
+with `$HOME` or name a Windows backslash program (not a `.\` path), and `Agent` allow rules. The
+page's "some wildcarded paths" names only those two path forms, so the detector flags no others.
 
 - **Pointer**: when deciding which allow rules auto mode drops, fetch
   [permission modes: how auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
   live for the current list.
-- **As of**: 2026-11-03
+- **As of**: 2026-11-21
 - **Recheck trigger**: that section adds, removes or narrows a dropped class.
 
 This detector does not scan `Monitor` allow rules, and that division of labor is deliberate:
@@ -114,9 +124,10 @@ P1 result as evidence that a repo's Monitor grants are sound.
 (`Bash(git status)`, `Bash(git diff --stat)`, `Bash(babysit_merge.sh:*)`) is not flagged, matching
 the official "narrow rules carry over" behavior.
 
-**Why**: every P1 shape is interpreter/runner-led rather than the portable bare-name pattern, and the
-**broad forms**, blanket rules, package-manager runners, and interpreters with a wildcarded or
-globbed script target (e.g. `Bash(<interpreter> "*<script>":*)`), are the ones auto mode drops,
+**Why**: every P1 shape is interpreter-, runner- or wildcard-led rather than the portable bare-name
+pattern, and the **broad forms**, blanket rules, package-manager runners, interpreters with a
+wildcarded or globbed script target (e.g. `Bash(<interpreter> "*<script>":*)`), wrapper-only and
+leading wildcards, and the `$HOME` and Windows backslash wildcarded paths, are the ones auto mode drops,
 after which the grant does nothing and the action falls to the classifier. A grant that invokes one
 fixed script via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authoring
 anti-pattern even where the doc's dropped-category wording does not clearly reach it; the fix (a

@@ -148,14 +148,23 @@ let cueUntil = -Infinity
 /** A cue asked while world could not move yet; a later one replaces it. */
 let cueWaiting: number | undefined
 
-/** Sends a cue if world can move now, else keeps it waiting; the milliseconds until world can next move. */
+/**
+ * Sends a cue if world can move now, else keeps it waiting; the milliseconds until world can next move. The shader takes
+ * a cue again only once world has left the cue codes, so the same cue while its code still shows sends the atmosphere
+ * first and keeps the cue waiting.
+ */
 export function offerCue(id: number, now: number): number {
   const free = Math.max(cueUntil, worldAt + WORLD_GAP_MS)
-  if (now < free) {
-    cueWaiting = id
-    return free - now
-  }
+  cueWaiting = id
+  if (now < free) return free - now
   const atmosphere = worldWaiting ?? worldSent
+  if (worldSent === WORLD.top + id) {
+    worldSent = atmosphere
+    worldAt = now
+    worldWaiting = undefined
+    want('world', worldSent)
+    return WORLD_GAP_MS
+  }
   worldSent = WORLD.top + id
   worldAt = now
   cueUntil = now + CUE_HOLD_MS
@@ -163,6 +172,11 @@ export function offerCue(id: number, now: number): number {
   cueWaiting = undefined
   want('world', worldSent)
   return CUE_HOLD_MS
+}
+
+/** Whether a cue offered at `now` goes at once and puts nothing off: no cue holds the world or waits, and no world change waits. */
+export function cueFree(now: number): boolean {
+  return cueWaiting === undefined && worldWaiting === undefined && now >= Math.max(cueUntil, worldAt + WORLD_GAP_MS)
 }
 
 /** Sends world if 6 s have passed since the last send and no cue holds it, else keeps it waiting (a later one replaces it). */
@@ -299,14 +313,17 @@ export async function send($: EngineInterface, why: string, fields: Fields, opti
   await ask($, why)
 }
 
-/** Sends a cue, or keeps it waiting until world can move, and asks for a redraw; answers the milliseconds until it goes. */
+/**
+ * Sends a cue, or keeps it waiting until world can move, and asks for a redraw; answers the milliseconds until it goes.
+ * The same cue while its code still shows goes WORLD_GAP_MS after the atmosphere is sent back.
+ */
 export async function sendCue($: EngineInterface, id: number, why: string): Promise<number> {
-  const now = await readNow($)
-  const sentNow = now >= Math.max(cueUntil, worldAt + WORLD_GAP_MS)
-  const delay = offerCue(id, now)
+  const delay = offerCue(id, await readNow($))
+  const sentNow = cueWaiting === undefined
   if (!worldTimer) armWorld($, delay)
   await ask($, why)
-  return sentNow ? 0 : delay
+  if (sentNow) return 0
+  return worldSent === WORLD.top + id ? delay + WORLD_GAP_MS : delay
 }
 
 /** Offers the world that waits once its 6 s have passed; a shader start since the timer was armed moves them later. */
@@ -416,4 +433,12 @@ export async function commandScreen($: EngineInterface, name: 'tape' | 'console'
   if (delay !== undefined) armScreen($, now, delay)
   await ask($, why)
   return screenQueue.length < waitsBefore ? 0 : (delay ?? 0)
+}
+
+/**
+ * The last world code sent and when (-Infinity before the shader starts), when a hurry flip last went and whether one
+ * waits to go: what the sound reads to change its bed with the picture, not with the command.
+ */
+export function worldMove(): { code: number; at: number; hurryAt: number; hurryWaits: boolean } {
+  return { code: worldSent, at: worldAt, hurryAt, hurryWaits: screenQueue.some(change => change.field === 'hurry') }
 }

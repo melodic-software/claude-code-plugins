@@ -179,6 +179,27 @@ else
   fail "fallback: $FB_DATE date process(es) without %()T, want exactly 1 (shim not imported?)"
 fi
 
+run '{"session_id":"ssub","hook_event_name":"PostCompact","trigger":"auto","agent_id":"agent-abc123","agent_type":"Explore"}'
+RC=$?
+if [[ $RC -eq 0 && ! -e "$MARK/ssub.compacted" ]]; then
+  ok "subagent compaction (agent_id set) writes no main-session marker"
+else
+  fail "subagent compaction: rc=$RC marker=$([[ -e "$MARK/ssub.compacted" ]] && echo yes || echo no)"
+fi
+run '{"session_id":"smain","hook_event_name":"PostCompact","trigger":"auto","agent_type":"reviewer"}'
+RC=$?
+if [[ $RC -eq 0 && -f "$MARK/smain.compacted" ]]; then
+  ok "main-session compaction under --agent (agent_type, no agent_id) still writes the marker"
+else
+  fail "main-session compaction under --agent: rc=$RC"
+fi
+run '{"session_id":"ssum","hook_event_name":"PostCompact","trigger":"auto","compact_summary":"quoted \"agent_id\":\"agent-x\" text"}'
+if [[ -f "$MARK/ssum.compacted" ]]; then
+  ok "an escaped agent_id inside compact_summary does not suppress the marker"
+else
+  fail "escaped agent_id in compact_summary suppressed the marker"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

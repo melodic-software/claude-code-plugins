@@ -51,7 +51,7 @@ Verification can be a second cheap read-only subagent pass or inline reproductio
 
 ## Phase 2: Present candidates as HTML report
 
-**A candidate proposes a change.** A finding whose conclusion is to leave the code as it is, such as keeping deliberate copies under an existing drift check, is not a candidate: before re-badging, move it to the record's `kept` list and the artifact's `## Looked at, no change` section, each with its title, one sentence of reason and its files. It carries no badge, appears in neither the index nor the bands, and is never the top recommendation; the page lists it last, so a reader, and a later scan reading the artifact, sees the code was already looked at.
+**A candidate proposes a change.** A finding whose conclusion is to leave the code as it is, such as keeping deliberate copies under an existing drift check, is not a candidate: before re-badging, move it to the record's `kept` list and the artifact's `## Looked at, no change` section, each with its title, one sentence of reason and its files. It carries no badge, is never a card and is never the top recommendation; the page reaches it from the end of the candidate list, so a reader, and a later scan reading the artifact, sees the code was already looked at.
 
 **Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result. Scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`. **Promotion closes the same gate:** if re-badging lifts a candidate the scan rated below `strong` up to `Strong`, apply the Phase 1.5 reproduction to its `shallow-signal` *before* it carries the badge, or, when the level skipped Phase 1.5, label it `unverified`. A `Strong` claim reaches the report reproduced or labeled `unverified`, no matter which way the badge was reached, so the Phase 1.5 guarantee holds across both the original strong set and any promotions.
 
@@ -63,7 +63,7 @@ Verification can be a second cheap read-only subagent pass or inline reproductio
 
 **Resolve `medium` before writing the report.** The shared medium resolver decides, with this plugin's `medium` option as the skill's Arguments line states it and the `--medium` argument when given; print its report line and notices in the reply. Procedure, and what each resolved medium does to this report: [../../../reference/rendered-view.md](../../../reference/rendered-view.md) "The deepening report".
 
-The header carries the scope Phase 1 chose, the scanned commit (`git rev-parse HEAD`) and the evidence counts, each a number Phase 1.5 reproduced ("Header" in the report format). The page opens with the top recommendation, then an index of every candidate, then the cards in badge bands ("Page order"). Each card renders only from the record's fields, in this order: title and badges (recommendation, dependency category), problem, solution, before/after diagram, wins (at least one **leverage** or **locality**), the Verified line, files, and the candidate it depends on when it has one.
+The header carries the scope Phase 1 chose, the scanned commit (`git rev-parse HEAD`) and the evidence counts, each a number Phase 1.5 reproduced ("Header" in the report format). The page is a reader: a list of every candidate grouped by badge beside one card at a time, opening on the top recommendation with its reason ("Page order"). Each card renders only from the record's fields, in this order: title and badges (recommendation, dependency category, size with its basis), problem, solution, before/after diagram, wins (at least one **leverage** or **locality**), the Verified line, files, and the candidate it depends on when it has one.
 
 Two acceptance heuristics gate the badge:
 
@@ -83,6 +83,7 @@ Domain nouns come from the project's glossary; architecture nouns come from [../
 - files: <comma-separated paths>
 - dependency-category: in-process | local-substitutable | ports-and-adapters | mock
 - recommendation: Strong | Worth exploring | Speculative
+- size: S | M | L: <basis, at most twelve words; the bands are in the report format's "Size">
 - problem: <one sentence>
 - solution: <one sentence: what the deepened module would own and hide; names no entry point, since Phase 2 proposes no interfaces>
 - wins: <one or more `; `-separated gains, each `<vocabulary term>: <at most six words>`, at least one `leverage:` or `locality:`>

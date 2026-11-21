@@ -3,6 +3,18 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.5] - 2026-11-21
+
+### Changed
+
+- `reference/control-skill.md` names a dev-only role switch among the things a `not driven` entry point's reason can name as what would make it drivable.
+
+## [0.31.4] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.31.3] - 2026-11-18
 
 ### Removed

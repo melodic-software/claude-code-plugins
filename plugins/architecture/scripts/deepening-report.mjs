@@ -46,7 +46,13 @@ const LEVEL_MEANING = {
   light: "nothing was reproduced; claims stand as the scan reported them",
   off: "nothing was reproduced; claims stand as the scan reported them",
 };
+const SIZE_MEANING = {
+  "Size S": "one small PR, one module and its callers",
+  "Size M": "one PR that changes several modules or callers",
+  "Size L": "more than one PR; a staged migration",
+};
 const WIN_WORDS = 6;
+const BASIS_WORDS = 12;
 const ID = /^[a-z0-9-]{1,32}$/;
 const MERMAID_LABEL = /^[A-Za-z0-9 _./:-]+$/;
 const VERIFIED = /^(?:reproduced|unverified|corrected: [^;]*\S)$/;
@@ -89,6 +95,14 @@ function win(value, at) {
   if (!match || !TERMS.includes(match[1])) fail(at, `must be "<term>: <gain>" with a term from ${TERMS.join(", ")}`);
   if (match[2].trim().split(/\s+/).length > WIN_WORDS) fail(at, `the gain holds more than ${WIN_WORDS} words`);
   return { term: match[1], gain: match[2].trim() };
+}
+
+function size(value, at) {
+  const read = text(value, at);
+  const match = /^([SML]): (\S.*)$/.exec(read);
+  if (!match) fail(at, 'must be "S: <basis>", "M: <basis>" or "L: <basis>"');
+  if (match[2].trim().split(/\s+/).length > BASIS_WORDS) fail(at, `the basis holds more than ${BASIS_WORDS} words`);
+  return { band: match[1], basis: match[2].trim() };
 }
 
 function graph(value, at) {
@@ -137,7 +151,7 @@ function panel(value, at) {
 function candidateOf(value, at) {
   if (!isObject(value) || typeof value.id !== "string" || !ID.test(value.id)) fail(`${at}.id`, "must match [a-z0-9-]{1,32}");
   const name = `candidate ${value.id}`;
-  keys(value, name, ["id", "title", "recommendation", "category", "problem", "solution", "wins", "verified", "files", "diagram"], ["depends_on", "adr"]);
+  keys(value, name, ["id", "title", "recommendation", "category", "size", "problem", "solution", "wins", "verified", "files", "diagram"], ["depends_on", "adr"]);
   keys(value.diagram, `${name}: diagram`, ["before", "after"]);
   const verified = text(value.verified, `${name}: verified`);
   if (!VERIFIED.test(verified)) fail(`${name}: verified`, 'must be "reproduced", "unverified" or "corrected: <one clause, with no semicolon>"');
@@ -148,6 +162,7 @@ function candidateOf(value, at) {
     title: text(value.title, `${name}: title`),
     recommendation: oneOf(value.recommendation, `${name}: recommendation`, BANDS.map(([word]) => word)),
     category: oneOf(value.category, `${name}: category`, CATEGORIES),
+    size: size(value.size, `${name}: size`),
     problem: text(value.problem, `${name}: problem`),
     solution: text(value.solution, `${name}: solution`),
     wins,
@@ -162,7 +177,7 @@ function candidateOf(value, at) {
 /** The record, read strictly: every part present and non-empty, no unknown key, every reference resolved. */
 export function parseDeepening(record) {
   keys(record, "record", ["schema_version", "repo", "scope", "commit", "date", "verification", "counts", "top", "top_why", "candidates"], ["kept"]);
-  if (record.schema_version !== 1) fail("record", "schema_version must be 1");
+  if (record.schema_version !== 2) fail("record", "schema_version must be 2");
   if (!DATE.test(record.date)) fail("record: date", "must be YYYY-MM-DD");
   if (typeof record.commit !== "string" || !COMMIT.test(record.commit)) fail("record: commit", "must be the scanned commit's SHA, 7 to 40 lowercase hex digits");
   const verification = text(record.verification, "record: verification");
@@ -214,8 +229,81 @@ const CHROME_BAR = chromePart(/^(<div class="rv-bar">.*<\/div>)$/m, "theme toggl
 const CHROME_SCRIPT = chromePart(/<script>\n([\s\S]*?)<\/script>/, "toggle script");
 const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
     document.documentElement.classList.add("rv-mermaid");
-    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false, wrappingWidth: 260 } });
+    mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "strict", htmlLabels: false, flowchart: { htmlLabels: false, useMaxWidth: false, wrappingWidth: 260 } });
   }
+  (function () {
+    var cards = Array.prototype.slice.call(document.querySelectorAll("article.card"));
+    var main = document.getElementById("candidates");
+    if (!cards.length || !main) { return; }
+    var top = document.getElementById("top-recommendation");
+    var kept = document.getElementById("kept");
+    var panes = kept ? cards.concat([kept]) : cards;
+    var current = cards.filter(function (card) { return !card.hidden; })[0] || cards[0];
+    var topCard = current;
+    function show(id, how) {
+      var target = document.getElementById(id);
+      var at = panes.indexOf(target);
+      if (at < 0) { return false; }
+      panes.forEach(function (pane) { if (pane === target) { pane.removeAttribute("hidden"); } else { pane.setAttribute("hidden", "until-found"); } });
+      var pending = target.querySelectorAll("pre.mermaid:not([data-processed])");
+      if (window.mermaid && pending.length) { mermaid.run({ nodes: Array.prototype.slice.call(pending) }); }
+      top.hidden = target !== topCard;
+      document.querySelectorAll(".reader-item, .reader-kept").forEach(function (link) {
+        if (link.getAttribute("href") === "#" + id) { link.setAttribute("aria-current", "true"); } else { link.removeAttribute("aria-current"); }
+      });
+      document.querySelectorAll(".reader-pos").forEach(function (pos) {
+        pos.textContent = target === kept ? "Looked at, no change" : (at + 1) + " of " + cards.length;
+      });
+      document.querySelectorAll("[data-step]").forEach(function (button) {
+        var to = at + Number(button.getAttribute("data-step"));
+        button.disabled = to < 0 || to >= cards.length;
+      });
+      current = target;
+      var box = main.getBoundingClientRect();
+      if (how && (box.top < 0 || box.top > window.innerHeight)) { main.scrollIntoView({ block: "start" }); }
+      if (how === "link") { target.focus({ preventScroll: true }); }
+      return true;
+    }
+    var zoom = document.getElementById("zoom");
+    var opener = null;
+    function enlarge(figure) {
+      var button = figure.querySelector(".zoom-open");
+      zoom.querySelector(".zoom-body").replaceChildren(figure.querySelector(".v").cloneNode(true));
+      var title = button.getAttribute("aria-label").replace(/^Enlarge the /, "");
+      document.getElementById("zoom-title").textContent = title.charAt(0).toUpperCase() + title.slice(1);
+      opener = button;
+      zoom.showModal();
+    }
+    zoom.addEventListener("click", function (event) {
+      if (event.target === zoom || event.target.closest("[data-zoom-close]")) { zoom.close(); }
+    });
+    zoom.addEventListener("close", function () {
+      if (opener) { opener.focus(); }
+    });
+    document.addEventListener("click", function (event) {
+      if (!event.target.closest || zoom.contains(event.target)) { return; }
+      var link = event.target.closest('a[href^="#"]');
+      if (link) {
+        var href = link.getAttribute("href");
+        if (show(href.slice(1), "link")) { event.preventDefault(); history.pushState(null, "", href); }
+        return;
+      }
+      var step = event.target.closest("[data-step]");
+      if (step) {
+        var next = cards[panes.indexOf(current) + Number(step.getAttribute("data-step"))];
+        if (next && show(next.id, "step")) { history.pushState(null, "", "#" + next.id); }
+        return;
+      }
+      var figure = event.target.closest("[data-enlarge]");
+      if (figure) { enlarge(figure); }
+    });
+    document.addEventListener("beforematch", function (event) {
+      var pane = panes.filter(function (candidate) { return candidate.contains(event.target); })[0];
+      if (pane && show(pane.id, "")) { history.replaceState(null, "", "#" + pane.id); }
+    }, true);
+    window.addEventListener("popstate", function () { show(location.hash.slice(1) || topCard.id, ""); });
+    if (!show(location.hash.slice(1), "")) { show(topCard.id, ""); }
+  })();
 `;
 const SCRIPTS = [
   `<script src="${TAILWIND}" integrity="${TAILWIND_SRI}" crossorigin="anonymous"></script>`,
@@ -225,22 +313,45 @@ const SCRIPTS = [
 
 const REPORT_STYLE = `
   :root { --amber: #B45309; --muted: #6B6A64; }
-  body { max-width: 1040px; }
+  body { max-width: 1360px; }
+  [hidden]:not([hidden=until-found]) { display: none !important; }
   h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
   h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 .25rem; }
   header p { margin: .2rem 0; }
   header, .files { overflow-wrap: anywhere; }
-  td { overflow-wrap: break-word; }
   .cid { font-family: var(--mono); font-size: .85em; color: var(--muted); }
-  .row-problem { margin: .2rem 0 0; font-size: .85rem; color: var(--muted); }
   .key summary { cursor: pointer; font-weight: 600; margin-top: .5rem; }
   .built-on { margin: 0; padding-left: 1.2rem; list-style: disc; }
   .back { margin: 0; font-size: .85rem; }
   .kept-item { border-left: 4px solid var(--muted); padding: .25rem 0 .25rem .9rem; margin: 0 0 1.25rem; display: grid; gap: .35rem; }
   .kept-item p, .kept-item ul { margin: 0; }
   .legend { margin: .75rem 0 0; padding-left: 1.2rem; list-style: disc; font-size: .92rem; }
-  .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0 0 2.5rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
-  .top { border-width: 3px; }
+  .reader { display: grid; grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr); gap: 2rem; align-items: start; margin-top: 1.5rem; }
+  .reader-nav { position: sticky; top: .5rem; max-height: calc(100vh - 1rem); overflow-y: auto; padding-right: .25rem; }
+  .reader-nav h2 { margin-top: 0; }
+  .reader-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }
+  .reader-band { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-top: .8rem; }
+  .reader-item { display: grid; gap: .2rem; padding: .45rem .6rem; border: 1px solid transparent; border-radius: var(--radius-row); color: var(--fg); text-decoration: none; }
+  .reader-item:hover { border-color: var(--gray-300); }
+  .reader-item[aria-current=true] { background: var(--panel); border-color: var(--fg); }
+  .reader-title { font-weight: 600; font-size: .9rem; overflow-wrap: anywhere; }
+  .reader-meta { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .78rem; }
+  .reader-problem, .reader-solution { font-size: .8rem; }
+  .reader-solution { color: var(--muted); }
+  .reader-label { font-weight: 600; }
+  .top-chip { font-weight: 600; border: 1px solid var(--fg); border-radius: 999px; padding: 0 .45rem; }
+  .reader-kept { display: block; margin-top: 1rem; font-weight: 600; }
+  .reader-main { min-width: 0; }
+  .reader-main > :not([hidden]) { margin-bottom: 1rem; }
+  .reader-main > [hidden=until-found] { margin: 0; padding: 0; border: 0; }
+  .reader-step { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .reader-step button, .zoom-head button, .zoom-open { font: inherit; font-size: .9rem; padding: .35rem .8rem; border: 1px solid var(--muted); border-radius: 6px; background: transparent; color: var(--fg); cursor: pointer; }
+  .reader-step button:disabled { opacity: .45; cursor: default; }
+  .reader-pos { margin: 0; color: var(--muted); font-size: .9rem; white-space: nowrap; }
+  .card, .top { background: var(--panel); border: var(--border); border-radius: var(--radius-panel); padding: 1.25rem 1.5rem; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .top { border-width: 3px; gap: .5rem; }
+  .top h2, #kept h2 { margin: 0; }
+  .top p { margin: 0; }
   .part p, .part ul { margin: 0; }
   .part ul { padding-left: 1.2rem; list-style: disc; }
   .files { font-family: var(--mono); font-size: .85rem; list-style: none; padding-left: 0; }
@@ -249,12 +360,13 @@ const REPORT_STYLE = `
   .badge-strong { border-color: var(--olive); }
   .badge-explore { border-color: var(--amber); }
   .badge-speculative { border-color: var(--muted); }
+  .size-basis { color: var(--muted); }
   .tag { font-family: var(--mono); font-size: .85rem; border: 1px solid var(--muted); border-radius: 6px; padding: 0 .4rem; }
   .adr { border-left: 4px solid var(--amber); padding-left: .75rem; }
-  .panels { display: flex; flex-wrap: wrap; gap: 1rem; }
-  figure { margin: 0; flex: 1 1 18rem; min-width: 0; }
-  figure.graph { flex: 1 1 auto; }
-  figcaption { font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
+  .panels { display: flex; flex-direction: column; gap: 1rem; }
+  figure { margin: 0; min-width: 0; cursor: zoom-in; }
+  figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
+  .zoom-open { font-size: .8rem; padding: .1rem .5rem; cursor: zoom-in; }
   .paper { background: var(--white); color: var(--slate); border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; width: fit-content; max-width: 100%; box-sizing: border-box; }
   .paper svg { display: block; max-width: 100%; height: auto; }
   pre.mermaid { display: none; margin: 0; }
@@ -271,16 +383,26 @@ const REPORT_STYLE = `
   .nest { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem .5rem; font-size: .75rem; }
   .nest .nest { margin-top: .3rem; }
   .faded { opacity: .6; }
+  .zoom { width: min(96vw, 1600px); max-width: none; max-height: 92vh; margin: auto; padding: 0; border: var(--border); border-radius: var(--radius-panel); background: var(--panel); color: var(--fg); }
+  .zoom::backdrop { background: rgb(20 20 19 / .6); }
+  .zoom-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 1rem; border-bottom: var(--border); }
+  .zoom-head h2 { margin: 0; padding: 0; border: 0; font-size: 1rem; }
+  .zoom-body { padding: 1.25rem; overflow: auto; max-height: calc(92vh - 4rem); box-sizing: border-box; }
+  .zoom-body .paper { width: auto; }
+  .zoom-body svg { width: 100% !important; max-width: none !important; height: auto !important; max-height: calc(92vh - 9rem); }
+  .zoom-body .box, .zoom-body .nest { font-size: 1.15rem; }
+  @media (min-width: 901px) {
+    .back { display: none; }
+  }
+  @media (max-width: 900px) {
+    .reader { grid-template-columns: minmax(0, 1fr); }
+    .reader-nav { position: static; max-height: none; overflow: visible; order: 2; }
+    .zoom-body svg { width: auto !important; max-height: none; }
+  }
   @media (max-width: 600px) {
     .card, .top { padding: 1rem; }
     .paper { overflow-x: auto; }
     .paper svg { max-width: none; }
-    #index thead { display: none; }
-    #index tr { display: block; border-bottom: 1px solid var(--gray-300); padding: .5rem 0; }
-    #index td { display: block; border: 0; padding: .1rem 0; }
-    #index td:empty { display: none; }
-    #index td:nth-child(3)::before { content: "Verified: "; color: var(--muted); }
-    #index td:nth-child(4)::before { content: "Depends on: "; color: var(--muted); }
   }
 `;
 
@@ -320,21 +442,22 @@ function drawn(panelData) {
   }
 }
 
-function figure(side, panelData) {
+function figure(side, panelData, candidate) {
   const caption = panelData.caption === null ? side : `${side}: ${panelData.caption}`;
-  return `<figure${isMermaid(panelData) ? ' class="graph"' : ""}><figcaption>${esc(caption)}</figcaption>${drawn(panelData)}</figure>`;
+  const enlarge = `Enlarge the ${side.toLowerCase()} diagram: ${shortId(candidate.id)} ${candidate.title}`;
+  return `<figure data-enlarge${isMermaid(panelData) ? ' class="graph"' : ""}><figcaption><span>${esc(caption)}</span><button type="button" class="zoom-open" aria-label="${esc(enlarge)}">Enlarge</button></figcaption>${drawn(panelData)}</figure>`;
 }
 
-function card(candidate, titles) {
+function card(candidate, titles, isTop) {
   const [word, , badge] = bandOf(candidate.recommendation);
   const p = (value) => `<p class="v">${esc(value)}</p>`;
   return [
-    `<article class="card" id="${cardId(candidate.id)}">`,
+    `<article class="card" id="${cardId(candidate.id)}"${isTop ? "" : ' hidden="until-found"'} tabindex="-1">`,
     `<h3 class="v" data-part="title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</h3>`,
-    `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span></p>`,
+    `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span>${sizeBadge(candidate)}<span class="size-basis">${esc(candidate.size.basis)}</span>${isTop ? '<span class="top-chip">Top recommendation</span>' : ""}</p>`,
     part("problem", "Problem", p(candidate.problem)),
     part("solution", "Solution", p(candidate.solution)),
-    part("diagram", "Before and after", `<div class="panels">${figure("Before", candidate.diagram.before)}${figure("After", candidate.diagram.after)}</div>`),
+    part("diagram", "Before and after", `<div class="panels">${figure("Before", candidate.diagram.before, candidate)}${figure("After", candidate.diagram.after, candidate)}</div>`),
     part("wins", "Wins", `<ul class="v">${candidate.wins.map(({ term, gain }) => `<li><strong>${esc(term)}:</strong> ${esc(gain)}</li>`).join("")}</ul>`),
     part("verified", "Verified", p(candidate.verified)),
     part("files", "Files", `<ul class="v files">${candidate.files.map((file) => `<li>${esc(file)}</li>`).join("")}</ul>`),
@@ -346,6 +469,7 @@ function card(candidate, titles) {
 }
 
 const verifiedWord = (verified) => verified.split(":")[0];
+const sizeBadge = (candidate) => `<span class="badge">Size ${esc(candidate.size.band)}</span>`;
 const shortId = (id) => id.toUpperCase();
 
 /** One line per drawing style, badge and term the page uses, and none it does not. */
@@ -357,8 +481,8 @@ export function legendLines(report) {
   const drawing = [
     [panels.some((p) => (p.pattern === "graph" && p.nodes.some((node) => node.deep)) || (p.pattern === "stack" && p.layers.length === 1) || (p.pattern === "collapse" && p.module !== null)), "Dark, heavy-bordered box", "a deep module, a small interface over a lot of behavior"],
     [true, "Plain box", "any other module"],
-    [edges.some((edge) => !edge.dashed && !edge.leak), "Solid grey arrow", "one module calls or reads another"],
-    [edges.some((edge) => edge.dashed && !edge.leak), "Dotted grey arrow", "a pointer: one file refers the reader to another, with no call"],
+    [edges.some((edge) => !edge.dashed && !edge.leak), "Solid gray arrow", "one module calls or reads another"],
+    [edges.some((edge) => edge.dashed && !edge.leak), "Dotted gray arrow", "a pointer: one file refers the reader to another, with no call"],
     [edges.some((edge) => edge.leak), "Rust arrow, solid or dotted", "a leak, one module reaching past another's interface; its label says how"],
     [graphs.some((graphData) => graphData.edges.length === 0), "Boxes side by side", "the separate places that hold one thing"],
     [panels.some((p) => p.pattern === "stack" && p.layers.length > 1), "Stacked rows", "the places one rule, step or call runs through, one row each"],
@@ -369,6 +493,7 @@ export function legendLines(report) {
     ...drawing,
     ...used(report.candidates.map((candidate) => candidate.recommendation), BAND_MEANING),
     ...used(report.candidates.map((candidate) => candidate.category), CATEGORY_MEANING),
+    ...used(report.candidates.map((candidate) => `Size ${candidate.size.band}`), SIZE_MEANING),
     ...used(report.candidates.flatMap((candidate) => candidate.wins.map(({ term }) => term)), TERM_MEANING),
     ...used(report.candidates.map((candidate) => verifiedWord(candidate.verified)), VERIFIED_MEANING),
   ];
@@ -379,10 +504,13 @@ export function renderDeepening(report) {
   const titles = new Map(report.candidates.map((candidate) => [candidate.id, candidate.title]));
   const top = report.candidates.find((candidate) => candidate.id === report.top);
   const tally = BANDS.map(([word]) => `${report.candidates.filter((candidate) => candidate.recommendation === word).length} ${word}`).join(", ");
-  const bands = BANDS.map(([word, slug]) => {
-    const cards = report.candidates.filter((candidate) => candidate.recommendation === word);
-    return cards.length ? `<section class="band" id="band-${slug}">\n<h2>${esc(word)}</h2>\n${cards.map((candidate) => card(candidate, titles)).join("\n")}\n</section>` : "";
-  }).filter(Boolean);
+  const order = BANDS.flatMap(([word]) => report.candidates.filter((candidate) => candidate.recommendation === word).sort((a, b) => (b.id === top.id) - (a.id === top.id)));
+  const item = (candidate) => `<li><a class="reader-item" href="#${cardId(candidate.id)}"${candidate.id === top.id ? ' aria-current="true"' : ""}><span class="reader-title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</span><span class="reader-meta"><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span>${sizeBadge(candidate)}<span>Verified: ${esc(verifiedWord(candidate.verified))}</span><span>${candidate.files.length} ${candidate.files.length === 1 ? "file" : "files"}</span>${candidate.dependsOn === null ? "" : `<span>Depends on ${esc(shortId(candidate.dependsOn))}</span>`}${candidate.id === top.id ? '<span class="top-chip">Top recommendation</span>' : ""}</span><span class="reader-problem"><span class="reader-label">Problem:</span> ${esc(candidate.problem)}</span><span class="reader-solution"><span class="reader-label">Solution:</span> ${esc(candidate.solution)}</span></a></li>`;
+  const sidebar = BANDS.flatMap(([word]) => {
+    const cards = order.filter((candidate) => candidate.recommendation === word);
+    return cards.length ? [`<li class="reader-band">${esc(word)} · ${cards.length}</li>`, ...cards.map(item)] : [];
+  }).join("\n");
+  const step = (live) => `<div class="reader-step" role="group" aria-label="Step through the candidates"><button type="button" data-step="-1">Previous candidate</button><p class="reader-pos"${live ? ' aria-live="polite"' : ""}>${order.indexOf(top) + 1} of ${order.length}</p><button type="button" data-step="1">Next candidate</button></div>`;
   const link = (id) => `<a href="#${cardId(id)}">${esc(shortId(id))} ${esc(titles.get(id))}</a>`;
   const dependents = (id) => report.candidates.filter((candidate) => candidate.dependsOn === id);
   const builtOn = (id, seen = new Set([id])) => dependents(id).filter((candidate) => !seen.has(candidate.id)).flatMap((candidate) => {
@@ -390,9 +518,6 @@ export function renderDeepening(report) {
     return [`<li>${link(candidate.id)}${candidate.dependsOn === top.id ? "" : `, through ${esc(shortId(candidate.dependsOn))}`}</li>`, ...builtOn(candidate.id, seen)];
   });
   const topDependents = builtOn(top.id);
-  const index = report.candidates
-    .map((candidate) => `<tr><td>${link(candidate.id)}<p class="row-problem">${esc(candidate.problem)}</p></td><td><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span></td><td>${esc(verifiedWord(candidate.verified))}</td><td>${candidate.dependsOn === null ? "" : link(candidate.dependsOn)}</td><td>${esc(candidate.solution)}</td></tr>`)
-    .join("\n");
   const legend = legendLines(report).map(([term, meaning]) => `<li><strong>${esc(term)}:</strong> ${esc(meaning)}</li>`).join("\n");
   return `<!doctype html>
 <html lang="en">
@@ -420,28 +545,30 @@ ${legend}
 </ul>
 </details>
 </header>
-<section id="top-recommendation">
-<h2>Top recommendation</h2>
-<article class="top"><h3>${link(top.id)}</h3><p>${esc(report.topWhy)}</p>${topDependents.length ? `<div><h4>Built on it</h4><ul class="built-on">${topDependents.join("")}</ul></div>` : ""}</article>
+<div class="reader">
+<nav id="index" class="reader-nav" aria-labelledby="index-title">
+<h2 id="index-title">Every candidate</h2>
+<ul class="reader-list">
+${sidebar}
+</ul>
+${report.kept.length ? `<a class="reader-kept" href="#kept">Looked at, no change · ${report.kept.length}</a>\n` : ""}</nav>
+<div class="reader-main" id="candidates">
+${step(true)}
+<section id="top-recommendation" class="top">
+<h2>Top recommendation: ${esc(shortId(top.id))} ${esc(top.title)}</h2>
+<p>${esc(report.topWhy)}</p>${topDependents.length ? `<div><h4>Built on it</h4><ul class="built-on">${topDependents.join("")}</ul></div>` : ""}
 </section>
-<section id="index">
-<h2>Every candidate</h2>
-<table>
-<thead><tr><th>Candidate</th><th>Badge</th><th>Verified</th><th>Depends on</th><th>Solution</th></tr></thead>
-<tbody>
-${index}
-</tbody>
-</table>
-</section>
-<section id="candidates">
-${bands.join("\n")}
-</section>
-${report.kept.length ? `<section id="kept">
+${order.map((candidate) => card(candidate, titles, candidate.id === top.id)).join("\n")}
+${report.kept.length ? `<section id="kept" hidden="until-found" tabindex="-1">
 <h2>Looked at, no change</h2>
 <p>The scan checked these and concluded the code should stay as it is. They are not candidates.</p>
 ${report.kept.map((item) => `<div class="kept-item"><h3>${esc(item.title)}</h3><p>${esc(item.reason)}</p><ul class="files">${item.files.map((file) => `<li>${esc(file)}</li>`).join("")}</ul></div>`).join("\n")}
 </section>
-` : ""}</main>
+` : ""}${step(false)}
+</div>
+</div>
+</main>
+<dialog id="zoom" class="zoom" aria-labelledby="zoom-title"><div class="zoom-head"><h2 id="zoom-title">Diagram</h2><button type="button" data-zoom-close>Close</button></div><div class="zoom-body"></div></dialog>
 ${SCRIPTS[2]}
 </body>
 </html>
@@ -452,9 +579,21 @@ ${SCRIPTS[2]}
 const TAGS = new Set([
   "html", "head", "meta", "title", "style", "body", "main", "header", "section", "article", "nav",
   "h1", "h2", "h3", "h4", "p", "ul", "li", "a", "div", "span", "pre", "strong", "figure", "figcaption",
-  "table", "thead", "tbody", "tr", "th", "td", "button", "details", "summary",
+  "button", "details", "summary", "dialog",
 ]);
-const ATTRS = new Set(["lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "aria-label", "aria-pressed", "data-rv-theme", "data-part"]);
+const ATTRS = new Set([
+  "lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "hidden", "tabindex",
+  "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live", "data-rv-theme", "data-part", "data-step", "data-enlarge", "data-zoom-close",
+]);
+const READER_VALUES = {
+  hidden: ["until-found"],
+  tabindex: ["-1"],
+  "aria-current": ["true"],
+  "aria-live": ["polite"],
+  "data-step": ["-1", "1"],
+  "data-enlarge": [""],
+  "data-zoom-close": [""],
+};
 const ESCAPED_TEXT = /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;
 const TOKEN = /^[a-z0-9-]{1,40}$/;
 const MERMAID_TEXT = /^[A-Za-z0-9 _./:\-"\n[\]|>;,#]*$/;
@@ -489,6 +628,8 @@ export function validateDeepeningPage(html) {
       if (name === "href" && !(value.startsWith("#") && TOKEN.test(value.slice(1)))) failures.push("href");
       if ((name === "id" || name === "data-part") && !TOKEN.test(value)) failures.push(`opaque:${name}`);
       if (name === "http-equiv" && value !== "Content-Security-Policy") failures.push("http-equiv");
+      if (Object.hasOwn(READER_VALUES, name) && !READER_VALUES[name].includes(value)) failures.push(`value:${name}`);
+      if (name === "aria-labelledby" && !TOKEN.test(value)) failures.push(`opaque:${name}`);
     }
   }
   const textLeft = rest.replace(/<!doctype html>/i, "").replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");

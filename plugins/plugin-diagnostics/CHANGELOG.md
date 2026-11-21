@@ -3,6 +3,18 @@
 All notable changes to the `plugin-diagnostics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.11] - 2026-11-21
+
+### Changed
+
+- **The hook-failure audit's docs no longer say Claude Code shows hook failures to nobody.** The README and the hook's header now say that Claude Code shows a `<hook name> hook error` notice for a non-blocking error on events such as `PreToolUse`, and that Claude Code 2.1.327 fixed failing hooks showing nothing for `SubagentStop` in background agents, `SessionEnd` at `/clear` and `/resume`, and `CwdChanged` and `FileChanged` in fullscreen. They name what the audit still adds: failures on events that show no notice, exec-failure signatures past the notice's stderr cut, and each failure's class and remedy. Detection is unchanged ([#17903](https://github.com/melodic-software/claude-code-plugins/issues/17903)).
+
+## [0.1.10] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.1.9] - 2026-11-19
 
 ### Changed

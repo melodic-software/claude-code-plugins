@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.3] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
+## [0.22.2] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.22.1] - 2026-11-20
 
 ### Changed

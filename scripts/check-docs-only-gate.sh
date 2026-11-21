@@ -171,6 +171,7 @@ run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && gith
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
 run_shell${TAB}\${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
 run_check_tests${TAB}\${{ steps.base.outputs.ref == '' }}
+run_selection${TAB}\${{ steps.base.outputs.ref != '' && github.event.pull_request.draft != true && steps.suites.outputs.any != 'false' }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
 run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
@@ -190,6 +191,7 @@ python_plan${TAB}\${{ steps.plan.outputs.python_plan }}
 python_needs${TAB}\${{ steps.plan.outputs.python_needs }}
 node_legs${TAB}\${{ steps.plan.outputs.node_legs }}
 node_plan${TAB}\${{ steps.plan.outputs.node_plan }}
+selection_suites${TAB}\${{ steps.suites.outputs.list }}
 playwright_cache_key${TAB}\${{ steps.playwright_key.outputs.key }}"
 # The data reads that are not env entries: each sharded test lane sizes its
 # matrix from its `<lane>_legs`. A leg reads its suites from the plan and fails

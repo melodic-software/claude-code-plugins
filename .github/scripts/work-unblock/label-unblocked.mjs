@@ -378,14 +378,14 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { notBornTriaged, readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { notBornTriaged, readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorTrust, attendedHold, BODY_EDITED, blockerDone, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, humanPullsFor, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { parseReason, personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
@@ -1309,6 +1309,11 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         await (done.length > 0 ? parkDone({ github, repo, number, pulls: done, writer }) : admit({ github, repo, number, gate, deferred, appId, writer }));
       } else if (held || kept) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
+      } else if (stale.length > 0 && stale.every((item) => item.reason === BODY_EDITED)) {
+        const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
+        if (!(await sendToTriage({ github, repo, number, base: `/repos/${repo}/issues/${number}`, comments, decision: { retriage: [] }, reasons: reason, writer }))) {
+          console.log(`label-unblocked: #${number} sent back to intake: ${reason}`);
+        }
       } else if (stale.length > 0) {
         // As intake's admit: needs-decision when a person settles a reason, else status: confirmed.
         const code = lapsedReason(stale);
@@ -1356,7 +1361,7 @@ function mapSkipper(routing) {
       const named = [...skipped].map(([number, label]) => `#${number} ('${escapeCommand(label)}')`);
       return named.length === 0
         ? null
-        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying a container or wayfind label, so the skill that filed it routes it: ${named.join(", ")}`;
+        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying ${ROUTED_BY}: ${named.join(", ")}`;
     },
   };
 }

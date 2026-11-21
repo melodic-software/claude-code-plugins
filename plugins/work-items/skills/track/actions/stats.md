@@ -32,6 +32,7 @@ fi
 | (one row per `category:` label the repo defines) | |
 | **Total** | **X** |
 
+**Containers:** X open parents with open sub-issues, left out of the counts above (#N, #N)
 **Claimed:** X items (assigned: a tracker claim is an assignee + lease)
 **Unassigned:** X items (no assignee, available for pickup)
 **Recurring due:** X items past their `next_due` date (use `/work-items:track due` to see them)
@@ -39,5 +40,6 @@ fi
 
 ## Notes
 
-- The aggregation projections page to the `--limit` the adapter README sets for each count. When the repo holds more open items than that limit, the counts are approximate. Say so and point at `/work-items:track list` with filters for the full set.
+- The aggregation projections page to the `--limit` the adapter README sets for each count. When the repo holds more open items than that limit (the claimed projection's `read` reaches it), the counts are approximate. Say so and point at `/work-items:track list` with filters for the full set.
 - For the category breakdown, items with no `category:*` label are counted as "uncategorized."
+- Every count leaves out a parent with open sub-issues and lists it on the Containers line instead: a split copies the parent's done-when into its children, so the children carry its work. The adapter's projections apply the exclusion; a provider with no sub-items has no Containers line.

@@ -3,6 +3,68 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.12.2] - 2026-11-21
+
+### Changed
+
+- Shared `proto-pin.js` synced where this plugin carries it: the frame helper answers a host page's copy-out ask with the page's copy-out text; no other change to this plugin.
+
+## [5.12.1] - 2026-11-21
+
+### Changed
+
+- Shared `proto-pin.js` synced where this plugin carries it; a marker for a note that names a contract path now follows its element. No other change to this plugin.
+
+## [5.12.0] - 2026-11-21
+
+### Changed
+
+- `/planning:interview` runs the pre-round contradiction pass only for a round whose recommendations cite an answered row or a confirmed constraint, and scopes each sweep after the first to the rows the last sweep's answers changed ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+- An assumption-sweep `decision` item below the interview's level, or one a quoted owner ruling already routed to design, is no longer asked: it becomes a `deferred` register row with `arbiter: /planning:design`. It still counts for the register gate, and the Brief's `### Deferred questions` still has to list it ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+- A round that only re-asks earlier rows takes no new round number, so the next round with a new row keeps the round numbers contiguous for `check-open-questions.sh --procedure` ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+
+- `upload-reader` sets `omitClaudeMd: true`: its prompt carries the path, the question and the return shape, so it starts without the CLAUDE.md files.
+
+### Fixed
+
+- `check-open-questions.sh --procedure` accepts the round field `round <r> (added in round <N>)` that the page export writes, reading it as round r the way `import-ledger` does. Any other text after `round <N>` still fails ([#17736](https://github.com/melodic-software/claude-code-plugins/issues/17736)).
+
+## [5.11.8] - 2026-11-21
+
+### Changed
+
+- The shared prototype page's frame helper (`proto-pin.js`) draws its markers, outlines and arrows in one violet accent that follows the light or dark scheme, dashes a draft's marker, and answers the notes host page's new view, name and bar messages.
+
+## [5.11.7] - 2026-11-21
+
+### Changed
+
+- Shared `proto-pin.js` synced where this plugin carries it (region marking in the ui-feedback frame helper); the shared page sends no region pick, so its behavior is unchanged.
+
+## [5.11.6] - 2026-11-21
+
+### Changed
+
+- Shared `proto-pin.js` synced where this plugin carries it ([#17949](https://github.com/melodic-software/claude-code-plugins/issues/17949)); no other change to this plugin.
+
+## [5.11.5] - 2026-11-21
+
+### Fixed
+
+- A request phrased as a solution with no stated problem ("add a retry wrapper") now opens the interview with the problem worked back out, its evidence rating, and one rethink-or-accept question, per `problem-framing.md` "Prescribed solution", instead of an open question asking what problem it solves. The open what-problem question stays for a request that names neither a problem nor a solution.
+
+## [5.11.4] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [5.11.3] - 2026-11-21
+
+### Changed
+
+- The shared frame helper `shared/web/proto-pin.js` also posts a `key` message when the person presses P, R, A, M or N inside the framed page and the page does not handle the key. The planning page ignores the message; the prototype notes host uses it to run its shortcuts ([#17917](https://github.com/melodic-software/claude-code-plugins/issues/17917)).
+
 ## [5.11.2] - 2026-11-21
 
 ### Changed

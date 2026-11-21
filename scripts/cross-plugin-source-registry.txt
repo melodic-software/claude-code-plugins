@@ -520,6 +520,9 @@ lib/ui-feedback/notes-bridge.sh -> plugins/*/notes-bridge/notes-bridge.sh
 lib/ui-feedback/host.html -> plugins/*/notes-bridge/host.html
 
 # Dedicated check: scripts/sync-shared-copies.sh --check.
+lib/ui-feedback/host.mjs -> plugins/*/notes-bridge/host.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/proto-pin.js -> plugins/*/notes-bridge/proto-pin.js plugins/*/shared/web/proto-pin.js
 
 # Dedicated check: scripts/sync-shared-copies.sh --check.
@@ -864,3 +867,19 @@ scripts/media_encode.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/media-render/media_encode.py -> plugins/*/scripts/media_encode.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/cli-version-check.mjs.
+lib/cli-version-check.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/cli-version-check.mjs -> plugins/*/lib/cli-version-check.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/config-cascade/locations.md.
+reference/config-locations.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and the copies.
+docs/contracts/config-cascade/locations.md -> plugins/*/reference/config-locations.md

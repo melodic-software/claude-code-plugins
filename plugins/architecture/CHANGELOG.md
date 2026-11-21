@@ -3,6 +3,31 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.9.0] - 2026-11-21
+
+### Added
+
+- Every deepening candidate carries a required `size`: `S`, `M` or `L` with a basis of at most twelve words. The report shows it as a badge on each card, with its basis, and in each sidebar item, and the key defines each size the page uses. The report record moves to `schema_version` 2, and the builder refuses a candidate without a valid size, naming it.
+
+## [5.8.0] - 2026-11-21
+
+### Changed
+
+- The deepening report is a reader: a sidebar lists every candidate grouped by badge beside one card at a time, opening on the top recommendation with its reason, with previous and next buttons and the "Looked at, no change" findings at the end of the list. Before and after diagrams open enlarged on click.
+
+## [5.7.2] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+## [5.7.1] - 2026-11-21
+
+### Fixed
+
+- The deepening report's key names the solid and dotted gray arrows, and the HTML report guide
+  spells gray, in American English.
+
 ## [5.7.0] - 2026-11-21
 
 ### Added

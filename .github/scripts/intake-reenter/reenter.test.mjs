@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // Expected values come from the requested behavior for answered issues: a
 // listed human's `**Decision recorded.**` first line on a
 // `needs-owner-decision` issue, or the author's or a listed human's reply
@@ -1152,7 +1153,7 @@ test("an answer, a needs-human lift or a field release on a routing-labeled issu
       assert.equal(await runRouted(w, env, { log: (line) => lines.push(line) }), 0, routed);
       assert.deepEqual(w.writes, [], `${routed}: no label removal, status write, record or dispatch`);
     }
-    assert.deepEqual(lines, Array(3).fill(`intake-reenter: the issue carries '${routed}', a container or wayfind label, so the skill that filed it routes it; nothing changed`));
+    assert.deepEqual(lines, Array(3).fill(`intake-reenter: the issue carries '${routed}', a container, wayfind or session-owned label, so the skill or session that filed it routes it; nothing changed`));
   }
 });
 

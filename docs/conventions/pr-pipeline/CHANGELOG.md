@@ -1,5 +1,48 @@
 # Changelog for the PR pipeline convention
 
+## [11.5.0] - 2026-11-21
+
+### Added
+
+- Both hosted review callers' gates defer a first attempt (`defer: "true"`, `defer-job: review`) while the GITHUB_TOKEN window is projected to run short before the review ends, reading their horizon from the new `defer-run-minutes-review` (github-token default 11, the p90 of 418 hosted review runs) through `pr-pipeline.yaml`'s `limits.api` over `rate-limits.json`. Their stop notice now prints `cause=<cause> reset=<epoch>`. The lost-run reconciler reads that notice: it waits until a minute past the reset, then re-runs the deferred run once, recorded, in its own band of at most 12 re-runs a pass beside the 3 places other recovery takes; the reconciler workflow uploads up to 15 records a pass. The re-run's attempt 2 never defers ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+### Fixed
+
+- pr-verify's repeated-fail cap (`merge.max-verify-fails`, `verify:repeated-fail`) closes a pull request only when its current head itself has a FAIL that is not superseded (owner decision Q245, [#17646](https://github.com/melodic-software/claude-code-plugins/issues/17646)). FAILs at superseded heads no longer close it: a pass at the head goes on to the normal pass decision. pr-merge's `capped_close` and pr-unblock's `verify-cap.mjs` read the same reader, so both follow it; the README's Verifier verdict section, the schema and `pr-pipeline.yaml` say so. pr-unblock's address-feedback and fix-ci dispatchers no longer record a capped head as handled, so a head whose FAIL a later pass supersedes is dispatched again; the dispatch record's version is 7, so heads an earlier version recorded at the cap are read again.
+
+## [11.4.1] - 2026-11-21
+
+### Changed
+
+- pr-unblock's address-feedback select counts a PR's earlier model rounds from one GraphQL query instead of one check-runs listing per commit, so the read no longer grows with the PR's commit count. A commit whose check suites or runs run past a page, or a PR past 100 commits, is still read over REST, so no round is missed.
+
+## [11.4.0] - 2026-11-21
+
+### Added
+
+- The lanes skip an issue a local Claude Code session owns. `check-born-triaged`'s routing labels (`routingLabels`, `routingLabel`) now include the work-items binding's session-owned role label (`tracker.config.role_labels["session-owned"]`, default `session-owned`) beside the container label and the wayfind prefix, so intake triage, the hourly triage sweep, intake re-entry, the WIP cap, the issue lane's admission (`check-blockers.mjs`) and the unblock sweep (`label-unblocked.mjs`) leave such an issue alone. A non-string value is a config error that keeps the defaults with a warning. The skip notices now read "a container, wayfind or session-owned label, so the skill or session that filed it routes it".
+
+## [11.3.1] - 2026-11-21
+
+### Changed
+
+- `merge.skip-unchanged` is off (`max-minutes: 0`). Measured over 172 pr-merge runs, the skip filter spent about 2,230 calls to skip 12 of 637 candidates and saved about 521. enable-auto-merge's skip kept nothing in 56 runs. With it off, every candidate is gated and neither path reads its key.
+
+- The `max-turns` key's description says what one turn counts: one model output plus the tool calls it makes, with one more for the final text-only reply, which is smaller than the docs glossary's conversation turn.
+
+## [11.3.0] - 2026-11-21
+
+### Added
+
+- `pr-run-plugin-evals.yml` has a compare mode (owner decision Q136, [#17854](https://github.com/melodic-software/claude-code-plugins/issues/17854)). A listed human dispatches it on the default branch with a pull request, its head SHA, a plugin, a case or tag filter and a required per-run cost cap. `compare-arms.sh` builds two patches against the default branch from git objects only: the plugin's changed skills/ and agents/ text from the merge base (before) or the head (after), and the changed eval cases from the head on both, once `select-plugins.mjs` lets every changed path through; a change to any other plugin path but tests/ refuses the compare, so a record never vouches for text no run read. No script, hook, workflow or manifest of the pull request runs. Each arm runs as a `maintenance-measure-skill-edit-pass.yml` pass on the maintenance API key alone, with no subscription token. `compare-verdict.mjs` applies the desk kit's no-loss rules (a mean score drop of 0.15, a grader 2 runs worse, both arms VALID). On a PASS, a job holding only `issues: write` checks the head again and posts the record with `<!-- eval-pair-run id=<run id> -->`; a head that moved posts nothing.
+- `release-eval-hold.mjs` counts that record only when the cited run reads back as a completed, successful first-attempt `workflow_dispatch` of `pr-run-plugin-evals.yml` on the default branch, whose commit the compare API shows on that branch and whose run name is `eval-compare pr=<this PR> head=<the record's head>`, and whose jobs list shows its `Compare Record` job completed with success, so a run whose jobs all skipped vouches for nothing. It reads the run with the merge job's own token (`RUNS_TOKEN`). A listed human's record counts as before.
+
+## [11.2.9] - 2026-11-21
+
+### Fixed
+
+- The PR-pipeline dispatchers now honor their 10-minute stop-floor grace on the paths that run. `budgetedFetch` and `retryServerErrors` take `floorGraceMs` and hand it to the rate guard, and `feedback-dispatch.mjs` and `dispatch.mjs` pass `DISPATCH_FLOOR_GRACE_MS`. Before, the grace sat only on a default fetch both mains replaced, so a dispatcher failed at the floor with the reset minutes away.
+
 ## [11.2.8] - 2026-11-21
 
 ### Fixed

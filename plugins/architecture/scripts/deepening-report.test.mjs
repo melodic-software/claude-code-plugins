@@ -11,6 +11,7 @@ const candidate = (overrides = {}) => ({
   title: "Fold the invoice export steps into one module",
   recommendation: "Strong",
   category: "in-process",
+  size: "S: one export module and its three callers",
   problem: "Three call sites repeat the load, format, write sequence.",
   solution: "One export module owns loading, formatting and writing an invoice.",
   wins: ["leverage: three callers share one interface", "locality: a format fix touches one file"],
@@ -30,7 +31,7 @@ const candidate = (overrides = {}) => ({
   ...overrides,
 });
 const record = (overrides = {}, candidates = [candidate()]) => ({
-  schema_version: 1,
+  schema_version: 2,
   repo: "example/billing",
   scope: "billing/",
   commit: "0123456789abcdef0123456789abcdef01234567",
@@ -74,6 +75,37 @@ test("an empty solution, a missing problem and an unknown key each fail", () => 
   assert.match(failure(record({}, [noProblem])), /invoice-export: problem/);
   assert.match(failure(record({}, [candidate({ evidence: "x" })])), /invoice-export: unknown key evidence/);
   assert.match(failure(record({ phase15: "x" })), /unknown key phase15/);
+});
+
+test("size is required: S, M or L with a basis of at most twelve words, and a failure names the candidate", () => {
+  const { size, ...noSize } = candidate();
+  assert.match(failure(record({}, [noSize])), /candidate invoice-export: size is missing/);
+  for (const ok of ["S: one module and its callers", "M: one PR across four modules", "L: one two three four five six seven eight nine ten eleven twelve"]) {
+    assert.equal(failure(record({}, [candidate({ size: ok })])), null, ok);
+  }
+  for (const bad of ["XL: a staged migration", "M", "M:", "M: ", "m: one module", "L: one two three four five six seven eight nine ten eleven twelve thirteen"]) {
+    assert.match(failure(record({}, [candidate({ size: bad })])), /candidate invoice-export: size/, bad);
+  }
+});
+
+test("a schema_version 1 record, written before size existed, fails", () => {
+  assert.match(failure(record({ schema_version: 1 })), /schema_version must be 2/);
+});
+
+test("the card shows the size badge and its basis, and the sidebar item shows the size badge", () => {
+  const page = renderDeepening(parseDeepening(record({}, [candidate({ size: "M: one PR across four modules" })])));
+  assert.match(page, /<p class="badges" data-part="badges">[^\n]*<span class="badge">Size M<\/span>/);
+  assert.match(page, /one PR across four modules/);
+  const item = /<a class="reader-item"[^>]*>([\s\S]*?)<\/a>/.exec(page)[1];
+  assert.match(item, /<span class="badge">Size M<\/span>/);
+  assert.doesNotMatch(item, /one PR across four modules/);
+  assert.deepEqual(validateDeepeningPage(page), { ok: true, failures: [] });
+});
+
+test("the legend defines each size the page uses and no other", () => {
+  const lines = new Map(legendLines(parseDeepening(record({}, [candidate({ size: "L: a staged migration over three PRs" })]))));
+  assert.equal(lines.get("Size L"), "more than one PR; a staged migration");
+  assert.ok(!lines.has("Size S") && !lines.has("Size M"));
 });
 
 test("verified takes reproduced, unverified or corrected with one clause, nothing else", () => {
@@ -132,7 +164,7 @@ test("the page carries the pinned libraries, the policy, strict mermaid and the 
   assert.match(page, /securityLevel: "strict"/);
   assert.match(page, /htmlLabels: false/);
   const at = (needle) => page.indexOf(needle);
-  assert.ok(at('id="top-recommendation"') < at('id="index"') && at('id="index"') < at('id="band-strong"'));
+  assert.ok(at('id="index"') < at('id="top-recommendation"') && at('id="top-recommendation"') < at('<article class="card"'));
   const parts = ["title", "badges", "problem", "solution", "diagram", "wins", "verified", "files"].map((part) => at(`data-part="${part}"`));
   assert.deepEqual([...parts].sort((x, y) => x - y), parts);
   assert.deepEqual(validateDeepeningPage(page), { ok: true, failures: [] });
@@ -152,6 +184,24 @@ test("the validator refuses an added script, an event handler or a widened polic
   assert.equal(validateDeepeningPage(page.replace("<main>", '<main onclick="x">')).ok, false);
   assert.equal(validateDeepeningPage(page.replace("default-src &#x27;none&#x27;", "default-src *")).ok, false);
   assert.equal(validateDeepeningPage(page.replace('<pre class="mermaid">', '<pre class="mermaid">%%{init: {"securityLevel": "loose"}}%%\n')).ok, false);
+});
+
+test("the validator takes the reader's attributes only with the values the reader writes", () => {
+  const page = renderDeepening(parseDeepening(record({}, [candidate(), candidate({ id: "tax-rounding" })])));
+  assert.equal(validateDeepeningPage(page).ok, true);
+  for (const [from, to] of [
+    ['hidden="until-found"', 'hidden="x"'],
+    ['tabindex="-1"', 'tabindex="0"'],
+    ['aria-current="true"', 'aria-current="page"'],
+    ['aria-live="polite"', 'aria-live="assertive"'],
+    ['data-step="1"', 'data-step="2"'],
+    ["<figure data-enlarge", '<figure data-enlarge="x"'],
+    ["data-zoom-close>", 'data-zoom-close="x">'],
+    ['aria-labelledby="zoom-title"', 'aria-labelledby="a b"'],
+  ]) {
+    assert.ok(page.includes(from), from);
+    assert.equal(validateDeepeningPage(page.replace(from, to)).ok, false, to);
+  }
 });
 
 test("scope and commit are required, and the commit must be a hex SHA", () => {
@@ -201,14 +251,67 @@ test("a graph with edges goes to Mermaid beside its text fallback; one with no e
   assert.match(boxes, /<div class="drawn boxes v"><div class="box">one.md<\/div><div class="box">two.md<\/div><\/div>/);
 });
 
-test("the index row carries the Verified word and links the candidate it depends on", () => {
+const sidebar = (page) => page.slice(page.indexOf('<nav id="index"'), page.indexOf("</nav>", page.indexOf('<nav id="index"')));
+const sidebarTargets = (page) => [...sidebar(page).matchAll(/href="#([a-z0-9-]+)"/g)].map((match) => match[1]);
+const shownCards = (page) => [...page.matchAll(/<article class="card" id="([a-z0-9-]+)"( hidden="until-found")?/g)].filter((match) => !match[2]).map((match) => match[1]);
+
+test("the sidebar item carries the badge, the Verified word and the solution, and the card links the candidate it depends on", () => {
   const first = candidate({ verified: "corrected: two call sites, not five" });
   const second = candidate({ id: "tax-rounding", title: "Move rounding into TaxCalculator", depends_on: "invoice-export" });
   const page = renderDeepening(parseDeepening(record({}, [first, second])));
-  assert.match(page, /<thead><tr><th>Candidate<\/th><th>Badge<\/th><th>Verified<\/th><th>Depends on<\/th><th>Solution<\/th><\/tr><\/thead>/);
-  assert.match(page, /<td>corrected<\/td><td><\/td>/);
-  assert.match(page, /<td>reproduced<\/td><td><a href="#c-invoice-export">INVOICE-EXPORT Fold the invoice export steps into one module<\/a><\/td>/);
-  assert.match(page, /<p class="row-problem">[^<]+<\/p><\/td>/);
+  const item = /<a class="reader-item"[^>]*href="#c-invoice-export"[^>]*>([\s\S]*?)<\/a>/.exec(sidebar(page))[1];
+  assert.match(item, /INVOICE-EXPORT/);
+  assert.match(item, /Fold the invoice export steps into one module/);
+  assert.match(item, /<span class="badge badge-strong">Strong<\/span>/);
+  assert.match(item, /Verified: corrected/);
+  assert.match(item, /2 files/);
+  assert.match(item, /Problem:<\/span> Three call sites repeat the load, format, write sequence\./);
+  assert.match(item, /Solution:<\/span> One export module owns loading, formatting and writing an invoice\./);
+  assert.doesNotMatch(item, /Depends on/);
+  assert.match(/<a class="reader-item"[^>]*href="#c-tax-rounding"[^>]*>([\s\S]*?)<\/a>/.exec(sidebar(page))[1], /Depends on INVOICE-EXPORT/);
+  assert.match(page, /data-part="depends-on"><h4>Depends on<\/h4><p class="v"><a href="#c-invoice-export">Fold the invoice export steps into one module<\/a><\/p>/);
+});
+
+test("the sidebar lists every candidate under its badge, Strong first, with the top recommendation leading its badge", () => {
+  const ids = [
+    ["maybe", "Speculative"],
+    ["first-strong", "Strong"],
+    ["worth", "Worth exploring"],
+    ["top-pick", "Strong"],
+  ];
+  const page = renderDeepening(parseDeepening(record({ top: "top-pick" }, ids.map(([id, recommendation]) => candidate({ id, recommendation })))));
+  assert.deepEqual(sidebarTargets(page), ["c-top-pick", "c-first-strong", "c-worth", "c-maybe"]);
+  const groups = [...sidebar(page).matchAll(/<li class="reader-band">([^<]*)<\/li>/g)].map((match) => match[1]);
+  assert.deepEqual(groups, ["Strong · 2", "Worth exploring · 1", "Speculative · 1"]);
+  assert.match(sidebar(page), /href="#c-top-pick"[^>]*aria-current="true"/);
+});
+
+test("the page opens on the top recommendation with its reason and shows one card at a time", () => {
+  const page = renderDeepening(parseDeepening(fixture));
+  assert.equal(page.split('<article class="card"').length - 1, 23);
+  assert.deepEqual(shownCards(page), ["c-s1"]);
+  assert.match(page, /<section id="top-recommendation" class="top">\n<h2>Top recommendation: S1 [^<]+<\/h2>\n<p>Two parsers already read the same ledger differently/);
+  assert.match(page, /<article class="card" id="c-s1"[\s\S]*?<p class="badges" data-part="badges">[^\n]*<span class="top-chip">Top recommendation<\/span><\/p>/);
+  assert.equal(page.split('<span class="top-chip">').length - 1, 2);
+  assert.equal(sidebarTargets(page).filter((target) => target.startsWith("c-")).length, 23);
+  assert.equal(sidebarTargets(page)[0], "c-s1");
+});
+
+test("previous and next buttons step through the candidates", () => {
+  const page = renderDeepening(parseDeepening(fixture));
+  assert.match(page, /<button type="button" data-step="-1">Previous candidate<\/button>/);
+  assert.match(page, /<button type="button" data-step="1">Next candidate<\/button>/);
+  assert.match(page, /<p class="reader-pos" aria-live="polite">1 of 23<\/p>/);
+});
+
+test("before and after diagrams carry an enlarge button, and the page has one overlay with a Close button", () => {
+  const page = renderDeepening(parseDeepening(fixture));
+  assert.equal(page.split("<figure data-enlarge").length - 1, 46);
+  assert.equal(page.split('<button type="button" class="zoom-open"').length - 1, 46);
+  assert.match(page, /aria-label="Enlarge the before diagram: S1 /);
+  assert.equal(page.split("<dialog ").length - 1, 1);
+  assert.match(page, /<dialog id="zoom" class="zoom" aria-labelledby="zoom-title">[\s\S]*<button type="button" data-zoom-close>Close<\/button>/);
+  assert.ok(validateDeepeningPage(page).ok);
 });
 
 test("each CDN script carries crossorigin and the SRI hash of its pinned file, and a page without them fails validation", () => {
@@ -219,16 +322,18 @@ test("each CDN script carries crossorigin and the SRI hash of its pinned file, a
   assert.ok(!validateDeepeningPage(page.replace(/ integrity="[^"]*"/, "")).ok);
 });
 
-test("a finding kept as it is gets its own section after the bands, never a card, an index row or a badge", () => {
+test("a finding kept as it is gets its own section, reached from the sidebar, never a card, a sidebar item or a badge", () => {
   const kept = [{ title: "Leave the export copies alone", reason: "Each copy has one reader and a drift check.", files: ["billing/a.md", "billing/b.md"] }];
   const page = renderDeepening(parseDeepening({ ...record(), kept }));
   assert.match(page, /<a href="#kept">looked at, no change: 1<\/a>/);
-  assert.match(page, /<\/section>\n<section id="kept">\n<h2>Looked at, no change<\/h2>/);
+  assert.equal(sidebarTargets(page).at(-1), "kept");
+  assert.match(sidebar(page), /<a class="reader-kept" href="#kept">Looked at, no change · 1<\/a>/);
+  assert.match(page, /<section id="kept" hidden="until-found" tabindex="-1">\n<h2>Looked at, no change<\/h2>/);
   assert.match(page, /<div class="kept-item"><h3>Leave the export copies alone<\/h3><p>Each copy has one reader and a drift check.<\/p><ul class="files"><li>billing\/a.md<\/li><li>billing\/b.md<\/li><\/ul><\/div>/);
   assert.equal(page.split("<article class=\"card\"").length - 1, record().candidates.length);
-  assert.ok(!page.slice(page.indexOf('<section id="index">'), page.indexOf('<section id="candidates">')).includes("Leave the export copies alone"));
+  assert.ok(!sidebar(page).includes("Leave the export copies alone"));
   assert.ok(validateDeepeningPage(page).ok);
-  assert.doesNotMatch(renderDeepening(parseDeepening(record())), /id="kept"/);
+  assert.doesNotMatch(renderDeepening(parseDeepening(record())), /id="kept"|href="#kept"/);
   assert.throws(() => parseDeepening({ ...record(), kept: [{ ...kept[0], reason: " " }] }), /kept\[0\]\.reason/);
   assert.throws(() => parseDeepening({ ...record(), kept: [{ ...kept[0], badge: "Strong" }] }), /unknown key badge/);
 });
@@ -246,10 +351,10 @@ test("the legend names the drawing styles, badges and terms the page uses and no
   const terms = (data) => legendLines(parseDeepening(data)).map(([term]) => term);
   const leakOnly = terms(record());
   for (const term of ["Rust arrow, solid or dotted", "Dark, heavy-bordered box", "Strong", "in-process", "leverage", "locality", "reproduced"]) assert.ok(leakOnly.includes(term), term);
-  for (const term of ["Dotted grey arrow", "Solid grey arrow", "Worth exploring", "mock", "interface", "unverified"]) assert.ok(!leakOnly.includes(term), term);
+  for (const term of ["Dotted gray arrow", "Solid gray arrow", "Worth exploring", "mock", "interface", "unverified"]) assert.ok(!leakOnly.includes(term), term);
   const before = { pattern: "graph", nodes: [{ id: "a", label: "A" }, { id: "b", label: "B" }], edges: [{ from: "a", to: "b", dashed: true }] };
   const dotted = terms(record({}, [candidate({ category: "mock", diagram: { ...candidate().diagram, before } })]));
-  assert.ok(dotted.includes("Dotted grey arrow") && dotted.includes("mock") && !dotted.includes("Rust arrow, solid or dotted"));
+  assert.ok(dotted.includes("Dotted gray arrow") && dotted.includes("mock") && !dotted.includes("Rust arrow, solid or dotted"));
 });
 
 test("the 23-candidate fixture renders every card with a solution, wins and a diagram and no empty part", () => {

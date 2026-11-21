@@ -19,7 +19,7 @@ scripts/affected-tests.sh                 # list the suites covering your diff v
 scripts/affected-tests.sh --run           # ... and run them, sequentially
 scripts/affected-tests.sh --explain       # ... and say why each one was selected
 scripts/affected-tests.sh path/to/file.sh # explicit paths instead of a diff
-scripts/check-affected.sh [--tests]       # CI's diff-scoped lint checks (+ the suites); runs before every agent git push
+scripts/check-affected.sh [--tests]       # CI's diff-scoped lint checks (+ the suites), run on demand
 ```
 
 `--run` is a Linux gate. On a Windows Git Bash host a standing set of suites
@@ -60,7 +60,7 @@ surviving suite still names (a co-located test left behind, a suite that
 references the dead path) keeps selecting those suites, which are exactly what
 fails loudly if the deletion broke something.
 
-The runner is sequential: parallelising it measured sublinear (the suites are
+The runner is sequential: parallelizing it measured sublinear (the suites are
 spawn-bound), and several guardrails suites assert wall-clock ceilings that fail
 spuriously under concurrency. Selection is what shortens a run. CI still runs
 everything.

@@ -27,11 +27,11 @@ The Beck and Khorikov files are distilled from cover-to-cover reading of those b
 | Output/state/communication styles, functional architecture, functional core | [testing-styles-khorikov.md](reference/testing-styles-khorikov.md) |
 | Four types of code 2x2, Humble Object, CRM refactoring, CanExecute/Execute, domain events, preconditions | [testable-architecture-khorikov.md](reference/testable-architecture-khorikov.md) |
 | Integration tests, managed vs unmanaged deps, Test Pyramid, database testing, logging, interfaces, reads vs writes | [integration-testing-khorikov.md](reference/integration-testing-khorikov.md) |
-| Anti-patterns: private methods, exposing state, domain knowledge, code pollution, DateTime.Now, time | [anti-patterns-khorikov.md](reference/anti-patterns-khorikov.md) |
+| Anti-patterns: private methods, exposing state, domain knowledge, code pollution, time | [anti-patterns-khorikov.md](reference/anti-patterns-khorikov.md) |
 | Beck's Money example, Value Object, Expression metaphor, Factory Method | [money-example-beck.md](reference/money-example-beck.md) |
 | Beck's xUnit example, bootstrap, Template Method, Composite, Collecting Parameter | [xunit-example-beck.md](reference/xunit-example-beck.md) |
-| Property-based testing: properties as specification, shrinking, property patterns, properties beside example tests, agent-written properties | [property-based-testing.md](reference/property-based-testing.md) (web-sourced) |
-| Legacy code, characterization tests, code that cannot be put in a test harness yet, seam types, Strangler Fig, golden master, approval and snapshot tests, sabotage check, pins prove sameness not correctness | [characterization-testing.md](reference/characterization-testing.md) (web-sourced) |
+| Property-based testing: properties as specification, property patterns, properties beside example tests, agent-written properties | [property-based-testing.md](reference/property-based-testing.md) (web-sourced) |
+| Legacy code, characterization tests, code that cannot be put in a test harness yet, seam types, Strangler Fig, sabotage check, pins prove sameness not correctness | [characterization-testing.md](reference/characterization-testing.md) (web-sourced) |
 
 Load the most relevant file first. Load a second only if the first doesn't fully answer.
 
@@ -59,17 +59,17 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 
 ### Web-sourced references (not book readings)
 
-These two files were built from web pages, papers' abstract and HTML pages, and tool docs read on
-2026-10-06, not from reading a book. Each file lists its sources with read depth and a recheck
+These two files were built from web pages and papers' abstract and HTML pages read on 2026-10-06,
+not from reading a book. Each file lists its sources with read depth and a recheck
 trigger; this list is rechecked when either file's trigger fires.
 
-- [property-based-testing.md](reference/property-based-testing.md): Hypothesis, fast-check and
-  other property tools' docs; Maaz et al. (arXiv 2510.09907, NeurIPS 2025 workshop paper); Vikram
-  et al. (arXiv 2307.04346); PROBE (ACL 2026 Findings). No property-based testing book was read.
+- [property-based-testing.md](reference/property-based-testing.md): Maaz et al. (arXiv
+  2510.09907, NeurIPS 2025 workshop paper); Vikram et al. (arXiv 2307.04346); PROBE (ACL 2026
+  Findings). No property-based testing book was read.
 - [characterization-testing.md](reference/characterization-testing.md): Michael Feathers' 2016
   "Characterization Testing" page; of his book *Working Effectively with Legacy Code*, only the
   publisher's sample chapter 4 and preface; Mark Seemann's 2025 "Empirical characterization
-  testing" post; Martin Fowler's "Strangler Fig" page; ApprovalTests, Verify and Jest docs.
+  testing" post; Martin Fowler's "Strangler Fig" page.
 
 ## Naming convention
 

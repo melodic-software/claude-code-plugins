@@ -528,11 +528,13 @@ done
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
 # The added Later: header line names topics of rounds not yet ready; it takes no Q<N> and no register row, asks nothing and resolves nothing, so the in-round no-silent-resolve rule is untouched
 # the edit only adds that the terminology question never stands in for another question's inline definitions, in round 1 too; no sentence of the no-silent-resolve rule changed
+# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
+# merge of main (#17872 prescribed-solution Stance line) with this PR: against main the section differs only by "at most one contradiction pass"; the no-silent-resolve rule is byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "53ff69a1cc4af1af5f7df38a03b272977431a6e8374c52df8f9ca044e70e7ef6"
+  "d2b7b0900f9abf764b770f86a16881a887d6dca1d158022f6c5b0bf2c59df356"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -583,11 +585,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
 # Only the restated claim that a session cannot detect a non-interactive run was cut from the Unattended path (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the write-at-ask-time rule, both drift checks, every unattended ladder rung and the gate before locking are unchanged.
 # Merge of main: the section now holds both the branch row-shape guidance (#17279) and main cut of the undetectable-run claim (#16937); write-at-ask-time, the gate and the unattended ladder are unchanged
+# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "e44127457a9cf37557b903698e15949a28c723a1ed32049c53c5b1fa861c45bf"
+  "9707355761f65850d77cd0d8ef274a75749784ada6857bdcb11d0cb72eeb70f8"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -773,11 +776,12 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 # #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
+# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "91e71ea48b46fdefdb4fa77f32cd6d48b47245f04c0c1bbdcf4884427211fff4"
+  "152033aa1a8fb71a31b69b262982c0b5aa0b82744a0ef5228fec8e05945a64c7"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -845,9 +849,11 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
 # The edit drops only the example quote package.json:14 bullmq from the Disposition fact-and-tenant bullet and reflows that bullet to the file's wrap width (an ecosystem example cut under ADR 0101, R11 K7, https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md). The sweep's scope, item shape, the self-answer-first order, the file:line-or-URL quote requirement, the no-pipe rule, the quote check and every disposition are unchanged.
 # Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
+# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
+# Review fix for https://github.com/melodic-software/claude-code-plugins/issues/17736: the design deferral never applies while a confirmed constraint settles mechanism decisions in this interview; it narrows when a decision item is deferred, resolves no row, and the sweep's scope, item shape and other dispositions are unchanged
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "2054938d89851cd80602ba2d80aed3bd49722420cd836155c9ccdfe8e0f47e2a"
+  "b07bfe7ec5d290450afcb13ae97dbd51c310f95fe92b2f075878dee35bc74171"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.

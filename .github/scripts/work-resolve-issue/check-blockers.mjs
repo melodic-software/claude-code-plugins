@@ -44,10 +44,12 @@
 //
 // With RECHECK=true it is the read runner's in-slot re-check
 // (pr-run-activity-read.yml check-broker), after admission passed and the run
-// waited for its slot: one read of the blocked_by list decides when the list
-// is empty (proceed) or names an open blocker (blocked, as above). A list of
-// closed blockers alone takes the full check, since only it judges who
-// closed them.
+// waited for its slot. It reads the issue first: a map or untrusted label on
+// it, added while the run waited, takes the full check, as admission does
+// (https://github.com/melodic-software/claude-code-plugins/issues/18061).
+// Otherwise one read of the blocked_by list decides when the list is empty
+// (proceed) or names an open blocker (blocked, as above). A list of closed
+// blockers alone takes the full check, since only it judges who closed them.
 //
 // Environment:
 //   GH_TOKEN             the job's GITHUB_TOKEN (issues: read)
@@ -73,7 +75,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -114,22 +116,23 @@ export async function main({ env = process.env, github, log = console.log, write
     const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     const client = github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const base = `/repos/${repository}/issues/${number}`;
-    if (env.RECHECK === "true") {
+    const issue = await client("GET", base);
+    const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "check-blockers", log });
+    const labels = (issue?.labels ?? []).map((label) => String(label?.name ?? label));
+    const isApp = (actor) => actor?.id === appId;
+    if (env.RECHECK === "true" && !routingLabel(labels, routing) && !untrustedHold({ labels: issue?.labels, events: [], humans, isApp })) {
       const blockers = await blockersOf(client, base);
       pending = await stillBlocking(blockers, repository, async () => true, async () => true);
       rechecked = blockers.length === 0 || pending.length > 0;
       subs = [];
     }
     if (!rechecked) {
-      const issue = await client("GET", base);
-      const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "check-blockers", log });
       const trust = await authorTrust(client, repository, issue, humans, appId);
       outsider = trust === null;
       drift = trust === "drift";
       const events = outsider ? [] : await statusReader({ env, github: client, repository, log }).events(Number(number));
-      const isApp = (actor) => actor?.id === appId;
       held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
-      routed = outsider || held ? null : routingLabel((issue?.labels ?? []).map((label) => String(label?.name ?? label)), routing);
+      routed = outsider || held ? null : routingLabel(labels, routing);
       if (!outsider && !held && !routed) {
         // The same close admission counts (admit.mjs closedByTrusted), so a split
         // parent the lanes App closed does not hold an issue admission let through.
@@ -157,7 +160,7 @@ export async function main({ env = process.env, github, log = console.log, write
     return skip(`::notice title=untrusted provenance::the run is stopped: \`${UNTRUSTED}\` holds the issue (on it, or last removed by neither a listed human nor the lanes App), so a person decides it; work-unblock never re-fires this run`, { proceed: "false", untrusted: "true" });
   }
   if (routed) {
-    return skip(`::notice title=map issue::the run is skipped: the issue carries '${routed.replace(/[\r\n%]/g, " ")}', a container or wayfind label, so the skill that filed it routes it; work-unblock never re-fires it while the label stays`);
+    return skip(`::notice title=map issue::the run is skipped: the issue carries '${routed.replace(/[\r\n%]/g, " ")}', ${ROUTED_BY}; work-unblock never re-fires it while the label stays`);
   }
   if (pending.length > 0) {
     return skip(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a pull request merged here or an issue closed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);

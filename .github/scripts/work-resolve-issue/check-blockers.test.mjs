@@ -1,6 +1,8 @@
+// test-scope: .github/actions/resolve-config/package.json docs/conventions/work-items.yaml
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, describe, test } from "node:test";
 
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
@@ -16,7 +18,7 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 const TRUSTED = join(dir, "trusted-actors.json");
 writeFileSync(TRUSTED, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN.id, login: HUMAN.login }] }));
 // BASE_PATH: the checkout whose models.issue-status the field read takes.
-const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: new URL("../../..", import.meta.url).pathname };
+const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
 
 const issue = (number, state, { repo = "o/r", reason = state === "closed" ? "completed" : null, closer = HUMAN } = {}) => ({
   number,
@@ -436,26 +438,28 @@ test("a blocker someone other than the lanes App closed blocks even with an olde
 });
 
 // The read runner's in-slot re-check (RECHECK=true): a blocker added while
-// the run waited for its slot stops it as admission's blocker gate does, on
-// one blocked_by read; a list of closed blockers takes the full check.
+// the run waited for its slot stops it as admission's blocker gate does; a
+// map or untrusted label added in that wait, or a list of closed blockers,
+// takes the full check (https://github.com/melodic-software/claude-code-plugins/issues/18061).
 describe("the in-slot re-check", () => {
   const RECHECK = { ...ENV, RECHECK: "true" };
   const RECHECK_RUN = { proceed: "true", untrusted: "false" };
+  const TWO_READS = ["GET /repos/o/r/issues/42", "GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"];
 
-  test("no blocker proceeds on the one blocked_by read", async () => {
+  test("no blocker proceeds on the issue read and the one blocked_by read", async () => {
     const { code, calls, outputs } = await run([], { env: RECHECK });
     assert.equal(code, 0);
     assert.deepEqual(outputs, RECHECK_RUN);
-    assert.deepEqual(calls, ["GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"]);
+    assert.deepEqual(calls, TWO_READS);
   });
 
-  test("an open blocker added since admission stops the run as admission does, on the one read, with the same notice", async () => {
+  test("an open blocker added since admission stops the run as admission does, on the two reads, with the same notice", async () => {
     const admitted = await run([issue(7, "open")]);
     const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed")], { env: RECHECK });
     assert.equal(code, 0);
     assert.deepEqual(outputs, SKIP);
     assert.deepEqual(outputs, admitted.outputs);
-    assert.deepEqual(calls, ["GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"]);
+    assert.deepEqual(calls, TWO_READS);
     const notice = lines.find((line) => line.startsWith("::notice"));
     assert.match(notice, /^::notice title=blocked::/);
     assert.match(notice, /#7/);
@@ -465,7 +469,18 @@ describe("the in-slot re-check", () => {
     assert.deepEqual((await run([issue(8, "closed")], { env: RECHECK })).outputs, RUN);
     const stranger = await run([issue(7, "closed", { closer: STRANGER })], { env: RECHECK });
     assert.deepEqual(stranger.outputs, SKIP);
-    assert.ok(stranger.calls.includes("GET /repos/o/r/issues/42"), "the full check reads the issue");
+    assert.ok(stranger.calls.some((call) => call.startsWith("GET /repos/o/r/issues/42/events")), "the full check reads the events");
+  });
+
+  test("a session-owned label added while the run waited skips it as admission does, before any blocker read", async () => {
+    const { calls, lines, outputs } = await run([], { env: RECHECK, subject: { labels: ["agent-ready", "session-owned"] } });
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(!calls.some((call) => call.includes("/dependencies/")), calls.join("\n"));
+    assert.match(lines.find((line) => line.startsWith("::notice")), /^::notice title=map issue::the run is skipped: the issue carries 'session-owned'/);
+  });
+
+  test("an untrusted label added while the run waited stops it for good", async () => {
+    assert.deepEqual((await run([], { env: RECHECK, subject: { labels: ["agent-ready", UNTRUSTED] } })).outputs, FINAL);
   });
 
   test("a blocked_by read that fails stops the run with a warning, not for good", async () => {
@@ -486,18 +501,18 @@ describe("the in-slot re-check", () => {
 // `wayfind:` by default) that somehow carries agent-ready is the filing skill's to route:
 // the run is skipped with a notice, agent-ready stays, and no blocker is read.
 // The outside-author and untrusted-provenance stops keep their precedence.
-for (const label of ["spec-container", "wayfind: decision"]) {
+for (const label of ["spec-container", "wayfind: decision", "session-owned"]) {
   test(`a ${label} label skips the run with a notice naming it, before any blocker read`, async () => {
     const { code, calls, lines, outputs } = await run([], { subject: { labels: ["agent-ready", label] } });
     assert.equal(code, 0);
     assert.deepEqual(outputs, SKIP);
     assert.ok(!calls.some((call) => call.includes("/dependencies/") || call.includes("/sub_issues")), calls.join("\n"));
-    assert.equal(lines.find((line) => line.startsWith("::notice")), `::notice title=map issue::the run is skipped: the issue carries '${label}', a container or wayfind label, so the skill that filed it routes it; work-unblock never re-fires it while the label stays`);
+    assert.equal(lines.find((line) => line.startsWith("::notice")), `::notice title=map issue::the run is skipped: the issue carries '${label}', a container, wayfind or session-owned label, so the skill or session that filed it routes it; work-unblock never re-fires it while the label stays`);
   });
 }
 
 test("a routing label only at the start of a label counts, and without one the run proceeds", async () => {
-  assert.deepEqual((await run([], { subject: { labels: ["agent-ready", "not wayfind: x", "spec-container-old"] } })).outputs, RUN);
+  assert.deepEqual((await run([], { subject: { labels: ["agent-ready", "not wayfind: x", "spec-container-old", "session-owned-old"] } })).outputs, RUN);
 });
 
 test("an outside author or untrusted provenance still stops a map item for good", async () => {
@@ -511,5 +526,5 @@ test("the labels are read from the binding at BASE_PATH: an unreadable value the
   const binding = join(base, "docs/conventions/work-items.yaml");
   writeFileSync(binding, "tracker:\n  config:\n    container_label: 7\n");
   const { lines } = await run([], { env: { ...ENV, BASE_PATH: base }, subject: { labels: ["spec-container"] } });
-  assert.equal(lines.filter((line) => line === `::warning::check-blockers: cannot read the routing labels from ${binding} (tracker.config.container_label is not a string); using 'spec-container' and 'wayfind:'`).length, 1, lines.join("\n"));
+  assert.equal(lines.filter((line) => line === `::warning::check-blockers: cannot read the routing labels from ${binding} (tracker.config.container_label is not a string); using 'spec-container', 'wayfind:' and 'session-owned'`).length, 1, lines.join("\n"));
 });

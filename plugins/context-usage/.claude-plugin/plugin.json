@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "6.1.2",
+  "version": "6.1.5",
   "license": "MIT",
   "keywords": [
     "context-window",
@@ -16,6 +16,9 @@
     "hooks",
     "skill"
   ],
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "metadata": {
     "category": "claude-code"
   },

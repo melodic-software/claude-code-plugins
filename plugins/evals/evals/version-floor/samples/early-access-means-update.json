@@ -5,8 +5,8 @@
       "why": "P-canonical: says the early-access message means the binary is older than the 2.1.269 floor, the fix is to update, and no sign-up is needed."
     },
     {
-      "answer": "Your binary is simply too old. `plugin eval` needs Claude Code 2.1.269 or later, and builds below that answer with the early-access wording, which reads like a beta gate but isn't one. There's no programme to join or access to request; updating Claude Code is the whole fix.\n\nThe 'currently unavailable' message your teammate gets means something else: the command has been switched off on the server side. Nothing local changes that, not a setting, flag, env var, reinstall or fresh login. Updating and trying again later is all they can do.",
-      "why": "P-alt: same facts in other words: the early-access wording comes from a too-old binary, no programme to join or access to request, updating is the fix."
+      "answer": "Your binary is simply too old. `plugin eval` needs Claude Code 2.1.269 or later, and builds below that answer with the early-access wording, which reads like a beta gate but isn't one. There's no program to join or access to request; updating Claude Code is the whole fix.\n\nThe 'currently unavailable' message your teammate gets means something else: the command has been switched off on the server side. Nothing local changes that, not a setting, flag, env var, reinstall or fresh login. Updating and trying again later is all they can do.",
+      "why": "P-alt: same facts in other words: the early-access wording comes from a too-old binary, no program to join or access to request, updating is the fix."
     },
     {
       "answer": "You don't need to sign up or request access anywhere. The early-access message means your Claude Code binary is older than the version the command needs, 2.1.269, so the fix is to update Claude Code (`claude update`) and rerun.\n\nIf your install is managed by a package manager or by your company, update it through that channel instead; `claude update` may not apply there.\n\nFor your teammate, 'currently unavailable' means the command is switched off server-side. No local setting, flag, environment variable, reinstall or re-login brings it back, so there's nothing for either of you to flip.",
@@ -19,7 +19,7 @@
   ],
   "fail": [
     {
-      "answer": "Yes, early access means the command is gated behind a beta programme. Opt in from your Claude Code configuration:\n\n```bash\nclaude config set betaFeatures true\n```\n\nThen restart Claude Code and run `claude plugin eval ./plugins/notes` again. If it still says early access, your account probably hasn't been added yet; request access through your Anthropic account settings.\n\nYour teammate's 'currently unavailable' is a server-side switch: the command is turned off for now, and no local setting, flag or re-login restores it. They'll need to wait and try again later, ideally on the newest release.",
+      "answer": "Yes, early access means the command is gated behind a beta program. Opt in from your Claude Code configuration:\n\n```bash\nclaude config set betaFeatures true\n```\n\nThen restart Claude Code and run `claude plugin eval ./plugins/notes` again. If it still says early access, your account probably hasn't been added yet; request access through your Anthropic account settings.\n\nYour teammate's 'currently unavailable' is a server-side switch: the command is turned off for now, and no local setting, flag or re-login restores it. They'll need to wait and try again later, ideally on the newest release.",
       "why": "F-wrong: tells the user to enable a config setting and request access instead of updating, though it gets the teammate's server-side point right."
     },
     {

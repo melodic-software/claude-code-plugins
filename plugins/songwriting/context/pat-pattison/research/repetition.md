@@ -1220,7 +1220,7 @@ figure. The figures are `image_rsrc347` (the first two phrases), `image_rsrc348`
 (the last two), and `image_rsrc349` (the first two run together as one phrase):
 
 > The first two phrases are each 3-stresses at best. There are certainly some
-> grey areas here:
+> gray areas here:
 
 > The next two lines (as written) add up to one 7-stress phrase:
 

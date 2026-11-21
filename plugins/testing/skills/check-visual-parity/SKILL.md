@@ -92,6 +92,8 @@ The user-global `~/.claude/testing.yaml`, the personal override `.claude/testing
 (`source=personal-override`) and the plugin option can only lower the team value. The script reports a raise as ignored, and names an invalid
 layer and drops it. Quote a `reason` that holds a colon followed by a space.
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 A tolerance above 0 is used only with its recorded reason; never pass a higher `--tolerance` than
 this line gives. To keep a known baseline mismatch under tolerance, the team records a
 `pixel_tolerance` map with the pixel count and a reason in `docs/conventions/testing.yaml`; this
@@ -126,7 +128,7 @@ At each green checkpoint:
 1. Capture each state through the route that captured its baseline (read it from
    `baseline-routes.txt`). When that route is unavailable now, for example drive reports a
    capability gap or writes an empty PNG, do not fall through to another route: two renderers
-   differ in browser build, font rasterisation and scale factor, so the count would measure the
+   differ in browser build, font rasterization and scale factor, so the count would measure the
    renderer change. Stop that state with the gap report and name the route it needs. Capture the
    same states, on the same host with the same settings, into
    `<memory_dir>/<branch-slug>/visual-parity/after/<checkpoint>/`, and run `manifest` on that

@@ -1220,11 +1220,13 @@ limits:
   # decision Q109).
   refire-queue-per-slot: 2
   # Re-fires of runs the start gate stopped on a low GITHUB_TOKEN budget keep
-  # the unfinished runs at this many per slot, inside that room: a second run
-  # per slot often waited past the 20-minute window after the reset and the
-  # gate stopped it again (owner decision, 2026-11-19:
-  # https://github.com/melodic-software/architecture/blob/c3a36f0e86c268cd6a427abd344c69d76c03d654/docs/owner-decisions.md#L237).
-  refire-budget-per-slot: 1
+  # the unfinished runs at this many per slot, inside that room. One per slot
+  # (2026-11-19) kept a second run from waiting past the 20-minute window after
+  # the reset; two per slot (2026-11-21) drains a deferred backlog faster now
+  # that window peaks sit far under the limit, and the start gate still stops a
+  # run that starts late (owner decision:
+  # https://github.com/melodic-software/architecture/blob/d4804179a43b794c5d3b0958fceedf48d1e90e7c/docs/owner-decisions.md#L306).
+  refire-budget-per-slot: 2
   # A work-resolve-issue run still `queued` this many minutes after it was
   # created is not counted toward that room. The check-admission job runs on a
   # GitHub-hosted runner and the slot wait comes after it, so a healthy run
@@ -1277,7 +1279,7 @@ limits:
   # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
-  # github-token defer-project, defer-run-minutes and defer-run-minutes-pr-merge: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md
+  # github-token defer-project, defer-run-minutes, defer-run-minutes-pr-merge and defer-run-minutes-review: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md
   # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
   # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
   # window; SLOTS stays default while shadow is set. L steps up 1 after
@@ -1622,19 +1624,14 @@ merge:
   # (judgment), so a review still running at the head, which scores MED,
   # finishes first.
   risk-escalation-minutes: 60
-  # A candidate the last run refused on unchanged inputs is reported with that
-  # refusal instead of gated again (babysit_merge_skip.py, and for a lanes
-  # App pull request's lane refusal enable-auto-merge.mjs); it is gated again
-  # once its refusal is max-minutes old or has been skipped max-skips runs in
-  # a row. 3 skips at the 30-minute schedule span about 90 minutes, so on the
-  # schedule alone 60 ends the wait first; 60 caps it whatever else starts
-  # runs (judgment). 0 in either: no skips.
   skip-unchanged:
-    max-minutes: 60
+    max-minutes: 0
     max-skips: 3
   # pr-verify FAILs at this many distinct heads of one PR hold it, never to
-  # merge unattended, whatever a later pass says, so pushing until the
-  # verifier passes once does not merge it (owner decision 2026-10-21). The
+  # merge unattended (owner decision 2026-10-21), when one that is not
+  # superseded stands at its head; FAILs at earlier heads alone leave a pass
+  # at the head to decide (owner decision Q245,
+  # https://github.com/melodic-software/claude-code-plugins/issues/17646). The
   # pr-merge lane closes a lanes App one for a fresh attempt at its issue,
   # and address-feedback and fix-ci start no more rounds on it (owner
   # decision 2026-10-29).

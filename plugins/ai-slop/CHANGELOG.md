@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.20.2] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
+## [0.20.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.20.0] - 2026-11-19
 
 ### Added

@@ -3,6 +3,25 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.3] - 2026-11-21
+
+### Changed
+
+- **`/code-tidying:remove-comments` no longer falls back to a test runner it ships.** For a refactoring that needs tests, it now finds your test command through the plugin's new copy of the ecosystem resolution steps (`reference/ecosystem-resolution.md`). When no command resolves, the refactoring is proposed instead of applied. The `dotnet test`, `npm test`, `pytest`, `go test ./...` and `bats` fallback is gone ([#17761](https://github.com/melodic-software/claude-code-plugins/issues/17761)).
+- **The remove-comments references no longer name tools from one ecosystem.** The doc-comment exemption is now stated in your language's own terms: its structured doc-comment form, and its own rule for what is public. The per-language list in `reference/safety.md` and `reference/triage.md` (docstrings, C# XML docs, JSDoc/TSDoc, GoDoc, PowerShell help and the Python underscore rule) is gone. The dated tree-sitter and PowerShell measurement table, the CS1572/CS1573, Ruff `DOC` and `eslint-plugin-jsdoc` pointers, and the optional Vale lane are removed too ([#17761](https://github.com/melodic-software/claude-code-plugins/issues/17761)).
+
+## [0.56.2] - 2026-11-21
+
+### Changed
+
+- **The four `/code-tidying:tidy` lane templates no longer suggest one stack's tools.** The dependency-root, polyglot-services, apps and host-wiring templates drop their .NET, JavaScript, Python and Rust examples: the `.Tests` scope globs, the TypeScript and Python service examples, the `dotnet`, `npm`, `cargo`, biome, ruff and pytest command examples, the ruff and biome rule names, the Promise and `os.path` idiom examples, the `.razor` and `components` UI globs and the C#-flavored "extension method" wording. Each placeholder is still there for you to fill with your own repository's paths and commands ([#17760](https://github.com/melodic-software/claude-code-plugins/issues/17760)).
+
+## [0.56.1] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
 ## [0.56.0] - 2026-11-21
 
 ### Changed

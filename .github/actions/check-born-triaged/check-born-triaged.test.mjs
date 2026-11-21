@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -246,6 +247,15 @@ test("run skips a spec container on the default container label", async () => {
   assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "spec-container" });
 });
 
+test("run skips an issue a local session owns on the default session-owned label", async () => {
+  const owned = await once({ labels: ["session-owned", "agent-ready"] });
+  assert.deepEqual(owned.result, { skip: "true", reason: "routing-label", label: "session-owned" });
+  assert.equal(owned.calls, 1);
+  for (const labels of [["session-owned-old"], ["needs-human"], ["attended"]]) {
+    assert.deepEqual((await once({ body: "x", labels })).result, { skip: "false", reason: "no-marker" }, labels[0]);
+  }
+});
+
 test("run matches the wayfind prefix only at the start of a label", async () => {
   for (const labels of [["not-wayfind: x"], ["wayfinding"], ["spec-container-old"], ["work-map"]]) {
     assert.deepEqual((await once({ body: "x", labels })).result, { skip: "false", reason: "no-marker" }, labels[0]);
@@ -253,10 +263,11 @@ test("run matches the wayfind prefix only at the start of a label", async () => 
 });
 
 test("run uses the binding's remapped routing labels instead of the defaults", async () => {
-  const routing = { container: "decision-map", prefix: "route: " };
+  const routing = { container: "decision-map", prefix: "route: ", owned: "mine" };
   assert.deepEqual((await once({ body: "x", labels: ["decision-map"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "decision-map" });
   assert.deepEqual((await once({ body: "x", labels: ["route: design"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "route: design" });
-  for (const labels of [["spec-container"], ["wayfind: task"]]) {
+  assert.deepEqual((await once({ body: "x", labels: ["mine"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "mine" });
+  for (const labels of [["spec-container"], ["wayfind: task"], ["session-owned"]]) {
     assert.deepEqual((await once({ body: "x", labels }, { routing })).result, { skip: "false", reason: "no-marker" }, labels[0]);
   }
 });
@@ -270,12 +281,18 @@ test("run without the born-triaged rule skips only a routing label, in one read"
 });
 
 test("routingLabels reads the binding's keys and keeps each default when absent or empty", () => {
-  assert.deepEqual(routingLabels(null), { container: "spec-container", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), { container: "spec-container", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "" } }), { container: "spec-container", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { container_label: "epic", wayfind_label_prefix: "wf/" } }), { container: "epic", prefix: "wf/" });
+  const defaults = { container: "spec-container", prefix: "wayfind:", owned: "session-owned" };
+  assert.deepEqual(routingLabels(null), defaults);
+  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), defaults);
+  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "", role_labels: { "session-owned": "" } } }), defaults);
+  assert.deepEqual(routingLabels({ config: { role_labels: { "human-gated": "hold" } } }), defaults);
+  assert.deepEqual(
+    routingLabels({ config: { container_label: "epic", wayfind_label_prefix: "wf/", role_labels: { "session-owned": "mine" } } }),
+    { container: "epic", prefix: "wf/", owned: "mine" },
+  );
   assert.throws(() => routingLabels({ config: { container_label: ["a"] } }), /container_label is not a string/);
   assert.throws(() => routingLabels({ config: { wayfind_label_prefix: 3 } }), /wayfind_label_prefix is not a string/);
+  assert.throws(() => routingLabels({ config: { role_labels: { "session-owned": ["a"] } } }), /role_labels.session-owned is not a string/);
 });
 
 test("checkBornTriaged does not match an author with no id against a list entry with no id", () => {
@@ -405,6 +422,13 @@ test("CLI skips an issue on the binding's container label and names the label in
   assert.equal(status, 0);
   assert.deepEqual(outputs, { skip: "true", reason: "routing-label", label: "decision-map", "human-ids": "153232337", "rate-limited": "false" });
   assert.match(stdout, /^::notice::intake skips #7: it carries 'decision-map'/m);
+});
+
+test("CLI skips an issue on the binding's session-owned role label and names it in a notice", async () => {
+  const { status, outputs, stdout } = await runCliServed(issue({ body: "x", labels: ["mine"] }), "tracker:\n  config:\n    role_labels:\n      session-owned: mine\n");
+  assert.equal(status, 0);
+  assert.deepEqual(outputs, { skip: "true", reason: "routing-label", label: "mine", "human-ids": "153232337", "rate-limited": "false" });
+  assert.match(stdout, /^::notice::intake skips #7: it carries 'mine', a container, wayfind or session-owned label, so the skill or session that filed it routes it$/m);
 });
 
 test("CLI warns and keeps the default labels when the binding's value is malformed", async () => {

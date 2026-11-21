@@ -5,6 +5,7 @@ import { bedroomSvg } from '../scene.ts'
 import { minuteOfHalfDay, nowMs } from './clock.js'
 import { builtPieces } from './context.js'
 import type { Ctx, Piece } from './piece.js'
+import { noteShaderStart } from './schedule.js'
 import { countValueOnly, failedOnce, flush, note, stats } from './telemetry.js'
 import { REASK_MS, ask, lastCause, nextValues, startShader } from './values.js'
 
@@ -44,15 +45,27 @@ export function lookOf(ctx: Ctx): ThemeSetArgs {
 }
 
 let isThemeSet = false
+let coveredBy: string | undefined
 /** Whether the theme is set: the card's theme button shows it. A set stands for the session whether or not a surface draws it. */
 export function isThemeOn(): boolean {
   return isThemeSet
+}
+
+/** The plugin whose theme replaced the room's while the room was on, until the room is set or cleared again. */
+export function coveringPlugin(): string | undefined {
+  return isThemeSet ? coveredBy : undefined
+}
+
+/** Another plugin set its theme over the room's: the session has one theme, so the room no longer shows. */
+export function markCovered(plugin: string): void {
+  coveredBy = plugin
 }
 
 /** Sets the bedroom's look and notes that the theme is on. */
 export async function setLook($: EngineInterface, ctx: Ctx): Promise<Awaited<ReturnType<EngineInterface['theme']['set']>>> {
   const set = await $.theme.set(lookOf(ctx))
   isThemeSet = true
+  coveredBy = undefined
   return set
 }
 
@@ -60,6 +73,7 @@ export async function setLook($: EngineInterface, ctx: Ctx): Promise<Awaited<Ret
 export async function clearLook($: EngineInterface): Promise<Awaited<ReturnType<EngineInterface['theme']['clear']>>> {
   const cleared = await $.theme.clear()
   isThemeSet = false
+  coveredBy = undefined
   return cleared
 }
 
@@ -95,6 +109,7 @@ export function noteAsked(): void {
 export function holdShader($: EngineInterface, why: string): void {
   holdUntil = nowMs() + SETTLE_MS
   isShaderShown = false
+  noteShaderStart(holdUntil)
   note(`${why}: drawing the room alone for ${SETTLE_MS} ms`)
   holdTimer?.cancel()
   holdTimer = $.clock.after(SETTLE_MS, () => {
@@ -159,6 +174,7 @@ export function draw($: EngineInterface, ctx: Ctx): { source: string; values?: R
   if (!ctx.setting('shader')) {
     shaderSource = ''
     isShaderShown = false
+    noteShaderStart(undefined)
     const source = wholeRoom(ctx)
     counted(source, startedAt)
     note(`render ${stats.renders} after ${lastCause()}: shader off`)
@@ -184,6 +200,7 @@ export function draw($: EngineInterface, ctx: Ctx): { source: string; values?: R
   if (!isShaderShown) {
     isShaderShown = true
     startShader(ctx.saved.state, ctx.fields(), minuteOfHalfDay(now), now)
+    noteShaderStart(now)
     note('the shader starts, every value at its target')
   } else if (!isNewRoom) {
     countValueOnly(now)

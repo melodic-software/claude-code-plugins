@@ -127,6 +127,8 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
 - **personal override** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
 
+  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 Parse each present layer and report as malformed any entry missing **any** of its five required
 keys: `check`, `claim`, `sites`, `reason`, `date`. Checking only `reason` and `date` would pass an
 entry that `audit-pass` itself rejects, so readiness would report green on configuration that cannot

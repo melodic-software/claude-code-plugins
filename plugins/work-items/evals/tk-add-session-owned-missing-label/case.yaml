@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: tk-add-session-owned-missing-label
+graders:
+  - name: 'stops-on-missing-label'
+    type: 'regex'
+    pattern: '^(?![\s\S]*create-item --)[\s\S]*session-owned[\s\S]*$'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:track add --session-owned does when the repository live label set has no session-owned label. PASS only if it satisfies every point: (1) The action stops and no item is created; (2) It names session-owned as the missing label; (3) It does not file the item without the label, nor fall back to needs-triage or agent-ready; (4) It names who owns the label, or where the label must be defined, as the next step. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -9,7 +9,7 @@ The dependency root of your stack: the core/domain/shared libraries everything e
 ```text
 <libs-root>/<core-package>/**
 <libs-root>/<domain-package>/**
-<libs-root>/<core-package>.Tests/**       # include the tests beside the code they cover
+<libs-root>/<core-package-tests>/**       # include the tests beside the code they cover
 ```
 
 ## Watch-for patterns
@@ -34,9 +34,9 @@ Beyond the global HARD/SOFT lists:
 ## Verification commands
 
 ```bash
-<build-command>          # e.g. dotnet build / npm run build / cargo build
-<test-command>           # e.g. dotnet test / npm test / cargo test
-<lint-command>           # e.g. dotnet format --verify-no-changes / npx @biomejs/biome check
+<build-command>
+<test-command>
+<lint-command>
 ```
 
 ## Conventional Commits type

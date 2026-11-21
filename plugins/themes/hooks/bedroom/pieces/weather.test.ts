@@ -47,14 +47,31 @@ test('each /bedroom weather word sends its kind and stores it; a stored choice s
     expect((await room.values())?.world).toBe(world(WEATHERS.indexOf(word)))
   }
   const auto = WEATHERS[autoKind(local(EVENING))]
-  expect(await room.run('weather AUTO')).toBe(`the weather is auto, ${auto} now; it changes by itself every three hours, never to a storm`)
+  expect(await room.run('weather AUTO')).toBe(`the weather is auto: no real weather is connected, so it is random, ${auto} now; it changes by itself every three hours`)
   expect((room.store.get(STORE_KEY) as { weather?: string }).weather).toBe('auto')
   await room.clock.advance(6500)
   expect((await room.values())?.world).toBe(world(autoKind(local(EVENING))))
-  expect(await room.run('weather snow')).toMatch(/^say auto, clear, overcast, rain, downpour, storm, default or strike/)
+  expect(await room.run('weather random')).toBe(`the weather is random, ${auto} now; it changes by itself every three hours, never to a storm`)
+  expect((room.store.get(STORE_KEY) as { weather?: string }).weather).toBe('random')
+  await room.clock.advance(6500)
+  expect((await room.values())?.world).toBe(world(autoKind(local(EVENING))))
+  expect(await room.run('weather')).toMatch(/^the weather is random, /)
+  expect(await room.run('weather auto')).toMatch(/^the weather is auto: no real weather is connected/)
+  expect(await room.run('weather snow')).toMatch(/^say auto, random, clear, overcast, rain, downpour, storm, default, strike or lightning/)
   expect((room.store.get(STORE_KEY) as { weather?: string }).weather).toBe('auto')
   await room.run('weather storm')
   expect(await room.run('weather default')).toBe('weather follows its setting again (now auto)')
   expect((room.store.get(STORE_KEY) as { weather?: string }).weather).toBeUndefined()
+  await room.unmount()
+})
+
+test('a weather of auto saved by 0.3 loads as auto, and the random setting holds random', { timeoutMs: 30000, options: { ...QUIET, weather: 'random' } }, async ($, on) => {
+  if (!BUILT.includes('weather')) return
+  const room = await startRoom($, on, { saved: { weather: 'auto' } })
+  const world = (weather: number) => encodeWorld({ sun: 0, weather, work: 0, zone: 0, hall: 0 })
+  expect(await room.run('weather')).toMatch(/^the weather is auto: no real weather is connected, so it is random, /)
+  expect((await room.values())?.world).toBe(world(autoKind(local(EVENING))))
+  expect(await room.run('weather default')).toBe('weather follows its setting again (now random)')
+  expect(await room.run('weather')).toMatch(/^the weather is random, /)
   await room.unmount()
 })

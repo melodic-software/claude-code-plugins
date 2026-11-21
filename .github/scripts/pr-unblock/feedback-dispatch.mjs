@@ -747,8 +747,10 @@ export async function dispatchFeedback({
     }
   }
   // Last, as it costs a full verifier read, and on a pass-only dispatch too: a
-  // later pass clears no cap, and a push past it could never merge, so
-  // pr-merge closes the pull request for a fresh attempt. It closes only the
+  // pass clears the cap only by superseding the head's FAIL
+  // (https://github.com/melodic-software/claude-code-plugins/issues/17646),
+  // and a push past it could never merge, so pr-merge closes the pull request
+  // for a fresh attempt. It closes only the
   // lanes App's: an adopted owner's is never skipped. A pass-only round skips
   // only on a cap the reader found: it only resolves notes a pass superseded,
   // and nothing sends it again, so a cap that could not be read (#11354)
@@ -777,11 +779,6 @@ export async function dispatchFeedback({
     return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass inside the retry window reads it again`);
   }
   if (capped) {
-    // The cap never clears for the head: later runs skip it before any
-    // read. A sibling read that failed is read again next run.
-    if (capFinal(capped)) {
-      markHandled(record, settings.checkName, head);
-    }
     const warning = deadlineWarning(number, capped);
     if (warning) {
       log(warning);
@@ -1733,7 +1730,7 @@ export async function main(env, deps = {}) {
 }
 
 async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
-  const budget = api ? null : budgetedFetch({ log });
+  const budget = api ? null : budgetedFetch({ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   const reads =
     api ??

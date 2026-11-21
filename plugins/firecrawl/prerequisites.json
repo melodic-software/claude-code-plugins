@@ -31,7 +31,15 @@
       "detect": {
         "any": [
           "firecrawl"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+(?:\\.[0-9]+)+)",
+          "min": "0",
+          "latest": "npm:firecrawl-cli"
+        }
       },
       "degrade": "Without the firecrawl binary, /firecrawl:firecrawl cannot scrape, search or crawl; /firecrawl:setup installs it on request.",
       "install": {

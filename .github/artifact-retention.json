@@ -494,6 +494,14 @@
       "reason": "Manual inspection only; no workflow reads it after the run.",
       "scan": "none"
     },
+    "selection-trace-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/pr-require-checks.yml a pull request author reading a failed test-selection trace"
+      ],
+      "reason": "Manual inspection only; uploaded when the trace fails, and no workflow reads it after the run.",
+      "scan": "none"
+    },
     "branch-cleanup-candidates-*": {
       "retention-days": 1,
       "readers": [
@@ -698,10 +706,19 @@
       "reason": "Manual inspection only; no workflow reads it after the run. A person reads a dispatched eval's results soon after starting it, and 3 days covers a weekend.",
       "scan": "upload"
     },
+    "eval-compare-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-measure-skill-edit-pass.yml same run, called by pr-run-plugin-evals.yml compare mode (the arm patches)"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum.",
+      "scan": "upload"
+    },
     "eval-hill-climb-pass-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/maintenance-measure-skill-edit.yml same run"
+        ".github/workflows/maintenance-measure-skill-edit.yml same run",
+        ".github/workflows/pr-run-plugin-evals.yml compare mode, same run"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",
       "scan": "upload"

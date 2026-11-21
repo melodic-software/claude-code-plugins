@@ -8,20 +8,24 @@
 #       entering auto mode (blanket Bash(*)/PowerShell(*), wildcarded
 #       interpreters like Bash(python*), package-manager wildcards — runner
 #       subcommands (Bash(npx *)) and bare package managers (Bash(npm:*),
-#       Bash(npm *)) — script-glob interpreters like Bash(*.py:*), and Agent
-#       allow rules —
+#       Bash(npm *)), with their path and version forms — script-glob
+#       interpreters like Bash(*.py:*), a wrapper followed only by a wildcard
+#       (Bash(timeout *)), leading-wildcard rules (Bash(* --version)), the
+#       $HOME and Windows backslash wildcarded paths, and Agent allow rules —
 #       both bare Agent and Agent(...), which auto mode drops categorically).
 #       Narrow rules such as Bash(npm test) carry over and are NOT flagged.
-#       Monitor allow rules are a sixth documented drop class (upstream
+#       Monitor allow rules are another documented drop class (upstream
 #       v2.1.236) that this detector does not scan; audit-permission-state
 #       owns it — see reference/criteria.md, P1.
 #   P2  hardcoded absolute user/machine home paths inside a rule. Bash rules
 #       match the command string literally — no ~, $HOME, or env expansion — so
 #       an absolute path breaks on other machines/usernames and leaks a
 #       username into version control.
-#   P3  a plugin settings.json that declares a `permissions` block. A plugin's
-#       settings.json supports only the `agent` and `subagentStatusLine` keys,
-#       so a self-granted permission rule is silently ignored; the operative
+#   P3  a plugin settings.json that declares a `permissions` block. In a plugin's
+#       settings.json only the deprecated `agent` key takes effect; 2.1.323
+#       removed `subagentStatusLine`
+#       (https://code.claude.com/docs/en/changelog#2-1-323). A self-granted
+#       permission rule there is silently ignored; the operative
 #       allow-rule has to be added by the operator to ~/.claude/settings.json.
 #   P4  inert substitution tokens in a Bash allow rule. Two classes, because
 #       one of them is context-dependent:
@@ -474,7 +478,7 @@ scan_rule() {
   path_remedy="$(portable_path_remedy "$file")"
   remedy="$(inert_grant_remedy "$file")"
   while IFS= read -r m; do
-    [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
+    [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is a broad interpreter-, runner- or wildcard-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, wildcarded/globbed-target interpreters, wrapper-only and leading wildcards, and \$HOME or Windows backslash wildcarded paths) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(rule_matches "$text" "$CCPERM_P1_ERE")
   while IFS= read -r m; do
     # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
@@ -788,7 +792,8 @@ fi
 
 # --- Plugin self-grant scan (P3) ---------------------------------------------
 # A settings.json sitting at a plugin root (sibling .claude-plugin/plugin.json)
-# may only carry `agent` / `subagentStatusLine`; a `permissions` block is inert.
+# takes effect only for the deprecated `agent` key; a `permissions` block is
+# inert. https://code.claude.com/docs/en/changelog#2-1-323
 while IFS= read -r manifest; do
   plugin_manifests=$((plugin_manifests + 1))
   plugin_dir="$(dirname "$(dirname "$manifest")")"
@@ -801,7 +806,7 @@ while IFS= read -r manifest; do
   plugin_settings_parsed=$((plugin_settings_parsed + 1))
   if tr -d '\r' <"$settings" | jq -e 'has("permissions")' >/dev/null 2>&1; then
     rel="${settings#"$ROOT"/}"
-    emit warning P3 "$rel" "plugin settings.json declares 'permissions' — a plugin's settings.json supports only the agent and subagentStatusLine keys, so this grant is ignored. The operative allow-rule must be added by the operator to ~/.claude/settings.json."
+    emit warning P3 "$rel" "plugin settings.json declares 'permissions' — a plugin's settings.json takes effect only for the deprecated agent key (Claude Code 2.1.323 removed subagentStatusLine), so this grant is ignored. The operative allow-rule must be added by the operator to ~/.claude/settings.json."
   fi
 done < <(find "$ROOT" -type f -path '*/.claude-plugin/plugin.json' 2>>"$WALK_ERR" | sort -u)
 

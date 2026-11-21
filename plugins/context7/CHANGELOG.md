@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0] - 2026-11-21
+
+### Added
+
+- daily latest-release check for context7, firecrawl and playwright
+
 ## [1.0.16] - 2026-11-18
 
 ### Changed

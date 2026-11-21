@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
@@ -377,11 +378,16 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: before })), { verdict: "admit", reasons: [] });
     });
 
-    test("refuses a deferred issue whose body was edited after its deferral", () => {
+    test("sends a deferred issue whose body was edited after its deferral back to intake, to judge the current body", () => {
       const issue = deferredIssue();
       const editedAt = (at) => ({ ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: at }), comments: [] });
-      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "refuse", reasons: [EDITED] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "wait", reasons: [EDITED], pulls: [], retriage: [] });
       assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T08:00:00Z") })), { verdict: "admit", reasons: [] });
+      const held = decide(facts({ issue: deferredIssue("do-not-merge"), events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") }));
+      assert.equal(held.verdict, "refuse");
+      assert.equal(held.retriage, undefined);
+      const judged = decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z"), verdict: { ...VERDICT, writtenAt: "2026-10-20T11:00:00Z" } }));
+      assert.equal(judged.verdict, "admit");
     });
 
     test("a fresh verdict judges the security area and the body itself", () => {
@@ -3215,6 +3221,12 @@ describe("unrunnable-rules.json", () => {
   test("an item only the eval row flags that names a billing account is a paid eval, held for the owner", () => {
     const line = "Eval evidence of no loss, measured on Amazon Bedrock.";
     assert.equal(first(line), PAID_EVAL);
+    assert.equal(first("A before-and-after eval run on Amazon Bedrock is recorded; the full-suite eval run is not part of this work."), PAID_EVAL);
+    assert.equal(first("Before/after triggers are recorded on Bedrock; the eval run is out of scope."), PAID_EVAL);
+    assert.equal(first("A before-and-after eval-gated run on Bedrock is recorded; the eval run is not part of this work."), PAID_EVAL);
+    assert.equal(first("The eval run is out of scope, but show no loss on Amazon Bedrock."), PAID_EVAL);
+    assert.equal(first("The before-and-after eval run is not part of this work, but run the full benchmark on Amazon Bedrock."), PAID_EVAL);
+    assert.equal(first("The before-and-after eval run on Vertex is not part of this work; the PR is held by eval-gated."), PAID_EVAL, "an exclusion never clears a billed eval");
     const result = decide(facts({ issue: doneWhen(line) }));
     assert.equal(result.hold, true);
     assert.equal(result.hostRun, undefined);
@@ -3280,6 +3292,34 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
+  for (const line of [
+    "The before-and-after eval run is not part of this work; it lives in #17719 and the PR carries the eval-gated do-not-merge hold.",
+    "The before-and-after eval run is not part of this build; it is host-run child #17719 and the PR is held by eval-gated.",
+  ]) {
+    test(`passes an excluded eval run: ${line.slice(0, 60)}`, () => {
+      assert.equal(first(line), null, line);
+    });
+  }
+  for (const line of [
+    "A before-and-after eval run is recorded: the trailing-period case fails on the unchanged SKILL.md and passes on the changed one",
+    "A before-and-after eval run is recorded; the cache warm-up is not part of this work.",
+    "A before-and-after eval run is recorded on the changed SKILL.md; the full-suite eval run is not part of this work.",
+    "The full-suite eval run is not part of this work; a before-and-after eval of the changed skill is in the PR body.",
+    "A before-and-after trigger rate is recorded, and the eval run is not part of this work.",
+    "A before-and-after eval-suite run is recorded; the full eval run is not part of this work.",
+    "A before-and-after eval-gated run is recorded; the eval run is not part of this work.",
+    "An eval-gated run shows no loss; the eval run is out of scope.",
+    "The eval run is out of scope, but show no loss.",
+    "The eval run is not part of this work, so no loss is shown.",
+  ]) {
+    test(`flags an eval run beside an exclusion: ${line.slice(0, 60)}`, () => {
+      assert.equal(first(line), "eval", line);
+      const result = decide(facts({ issue: doneWhen(line) }));
+      assert.equal(result.hostRun, true, line);
+      assert.equal(result.hold, undefined, line);
+    });
+  }
+
   test("`unless` clears a row's match", () => {
     assert.equal(first("`claude plugin eval --validate` passes on the suite."), null);
     assert.equal(first("The README says Windows host support is fully implemented."), null);
@@ -3299,6 +3339,8 @@ describe("unrunnable-rules.json", () => {
       [JSON.stringify({ rules: [{ kind: "k", match: "x" }] }), /rules\[0\] `unless` must be a pattern/],
       [JSON.stringify({ rules: [{ kind: "k", match: "(", unless: null }] }), /Invalid regular expression/],
       [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: "[" }] }), /Invalid regular expression/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: null, excluded: "" }] }), /rules\[0\] `excluded` must be a pattern/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: null, excluded: "[" }] }), /Invalid regular expression/],
     ]) {
       writeFileSync(path, text);
       assert.throws(() => unrunnableRulesOf(path), why, text);

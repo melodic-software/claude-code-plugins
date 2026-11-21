@@ -8,6 +8,8 @@ scope:
     - "**/build/**"
     - "**/package-lock.json"
     - "**/CHANGELOG.md"
+    # Generated from lights.glsl by glsl2dsl.mjs, not edited by hand: see the first line of
+    # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/themes/hooks/bedroom/lights.ts
     - "plugins/themes/hooks/bedroom/lights.ts"
     - "scripts/shared-copies.txt"
   # The files this repository vendors into several plugins on purpose. An audit

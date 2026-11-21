@@ -259,9 +259,12 @@ older records first, and removes the directory.
 ## Requirements
 
 - A Claude Code build at or above the terminal version mods need, with mods on, for the module.
-  Below that floor, or with mods off, only the StopFailure hook runs. `prerequisites.json` holds
-  the floor as data, in `detect.version.min` of the entry with `"id": "claude"`, which the check
-  skill compares against; the pointer below is where to re-derive it.
+  Below that floor, or with mods off, only the StopFailure hook runs, except on 2.0.15 through
+  2.1.75, which refuse the manifest, so nothing runs there. `plugin.json` declares the
+  floor as `engines["claude-code"]`, which only Claude Code 2.1.323 and later read, so
+  `prerequisites.json` holds the same floor in `detect.version.min` of the entry with
+  `"id": "claude"`, which `scripts/check-mod-load.sh` compares against; the pointer below is where
+  to re-derive it.
 - [Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: the `StopFailure` hook
   launches through `node hooks/exec-bash.mjs`, and the module writes the file by running `node`,
   and we never count on Claude Code's install to provide it. Without it the hook records nothing

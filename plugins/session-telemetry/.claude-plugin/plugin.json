@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.1.9",
+  "version": "0.1.11",
   "license": "MIT",
   "keywords": [
     "claude-code",
@@ -15,6 +15,9 @@
     "skill-usage",
     "audit"
   ],
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "metadata": {
     "category": "claude-code"
   },

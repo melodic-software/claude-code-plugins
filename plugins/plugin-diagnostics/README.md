@@ -18,7 +18,7 @@ run `claude plugin install plugin-diagnostics@melodic-software`.
 
 | Hook | Event | Reports |
 |---|---|---|
-| `hook-failure-audit` | Stop | a hook that failed to launch or exited non-zero without Claude Code showing it, once per session per hook, as a `systemMessage` |
+| `hook-failure-audit` | Stop | a hook that failed to launch or exited with a code other than 0 or 2, with its failure class and remedy, once per session per failing hook registration, as a `systemMessage` |
 | node notice | SessionStart | that `node` is not on PATH, so hooks that launch through node do not run, once per session |
 | prerequisites notice | SessionStart | for each enabled plugin whose `prerequisites.json` declares `session_probe`, the tools its hooks need that are missing, as one notice |
 
@@ -29,11 +29,25 @@ through `lib/node-or-skip.sh`, so a machine without node gets the node notice an
 
 ### The hook-failure audit
 
-Its user-facing `systemMessage`
-warning fires regardless of sink wiring (only its envelope needs a sink),
-because its whole subject is failures nothing else surfaces: a hook that fails
-to launch is a non-blocking error, the guarded tool call proceeds as if
-approved, and the only durable trace is a transcript attachment no human reads.
+Its user-facing `systemMessage` warning fires regardless of sink wiring (only
+its envelope needs a sink). A hook that fails to launch is a
+[non-blocking error](https://code.claude.com/docs/en/hooks#exit-code-output):
+the guarded tool call goes ahead unless the hook sets `onFailure: "block"`.
+Claude Code shows a
+`<hook name> hook error` notice in the transcript on events such as
+`PreToolUse`, and the notice can cut stderr short. Claude Code 2.1.327 fixed
+failing hooks showing nothing for `SubagentStop` in background agents,
+`SessionEnd` at `/clear` and `/resume`, and `CwdChanged` and `FileChanged` in
+fullscreen ([changelog](https://code.claude.com/docs/en/changelog)). The hooks
+page does not list the notice per event, so the audit still reports what no
+notice shows:
+
+- a failure on an event that shows no notice, including a launch failure;
+- an exec-failure signature past the notice's cut, since the audit classifies
+  the full stderr;
+- the failure's class and its remedy, such as `/reload-plugins` for stale
+  config, which the notice does not give.
+
 It runs once per `Stop`, tails a bounded window of the session
 transcript for `hook_non_blocking_error` attachments (structural match on the
 attachment type, never substring), and warns once per session per distinct

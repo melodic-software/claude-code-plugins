@@ -19,6 +19,7 @@ cat > .work/architecture/improve/main/deepening-candidates-20261118T060000Z.md <
 - files: src/checkout.js, src/pricing.js
 - dependency-category: in-process
 - recommendation: Strong
+- size: S: two modules, one pricing call path
 - problem: Checkout forwards each pricing call without adding behavior.
 - deepening: Two modules wrap one pricing decision, so a reader opens both to follow it.
 - shallow-signal: src/checkout.js forwards its pricing arguments to src/pricing.js unmodified.
@@ -30,6 +31,7 @@ cat > .work/architecture/improve/main/deepening-candidates-20261118T060000Z.md <
 - files: src/inventory.js
 - dependency-category: in-process
 - recommendation: Worth exploring
+- size: S: one inventory module and its callers
 - problem: One module answers stock questions and changes stock.
 - deepening: Callers must know the order of two calls the module could hide.
 - shallow-signal: src/inventory.js exposes lookup and reserve as separate steps.
@@ -41,6 +43,7 @@ cat > .work/architecture/improve/main/deepening-candidates-20261118T060000Z.md <
 - files: src/checkout.js
 - dependency-category: ports-and-adapters
 - recommendation: Speculative
+- size: M: a new port, its adapter and checkout's call sites
 - problem: Checkout builds its payment client inline.
 - deepening: A port would have one adapter today.
 - shallow-signal: src/checkout.js constructs the client where it is used.

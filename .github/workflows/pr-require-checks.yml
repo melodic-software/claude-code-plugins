@@ -125,9 +125,11 @@ concurrency:
 #
 # JOB NAMES FOLLOW THE ORG NAMING LINT (melodic-software/standards
 # components/github-actions-conventions), which `lint-repo` runs. One marker,
-# `mark-lanes`; one resolver, `select-tests`; ten working jobs, `lint-repo`,
+# `mark-lanes`; one resolver, `select-tests`; eleven working jobs, `lint-repo`,
 # `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
-# `test-python`, `test-node`, `check-managed-files` and `check-tests`; and one
+# `test-python`, `test-node`, `test-selection`, `check-managed-files` and
+# `check-tests` (test-selection:
+# https://github.com/melodic-software/claude-code-plugins/issues/17522); and one
 # aggregate, job `ci-status`, whose check name `CI Status` is, like this
 # workflow's and this file's name, what the org ci-gate ruleset and its
 # verifiers read. No
@@ -183,6 +185,9 @@ concurrency:
 # 632 package-seconds from scripts/suite-seconds.txt; as one job, three
 # whole-tree main runs of 2026-11-20 took 557, 674 and 675 s, the last two
 # cancelled at its 11-minute timeout), 5;
+# test-selection unmeasured as a job, about 470 s for a changed suite near the
+# slowest (its job comment;
+# https://github.com/melodic-software/claude-code-plugins/issues/17522), 13;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
 # The four jobs with a 3-minute budget (mark-lanes, select-tests,
 # check-plugins, check-catalog) carry a 9-minute timeout; check-plugins adds
@@ -855,6 +860,7 @@ jobs:
       # input (scripts/docs-only-paths.txt).
       run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
       run_check_tests: ${{ steps.base.outputs.ref == '' }}
+      run_selection: ${{ steps.base.outputs.ref != '' && github.event.pull_request.draft != true && steps.suites.outputs.any != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -871,6 +877,7 @@ jobs:
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_legs: ${{ steps.plan.outputs.node_legs }}
       node_plan: ${{ steps.plan.outputs.node_plan }}
+      selection_suites: ${{ steps.suites.outputs.list }}
       # The one Playwright browser cache key test-bash and test-python restore
       # and save under. It is named here because workflow- and job-level env
       # allow neither runner nor hashFiles. It names the install arguments, so
@@ -1165,6 +1172,23 @@ jobs:
             echo "::warning::$unmapped changed file(s) map to no suite; the plan runs the whole corpus of each one's language."
             printf 'affected-tests fallback: %s unmapped file(s)\n' "$unmapped" >>"$GITHUB_STEP_SUMMARY"
           fi
+      # THE SUITES THE CHANGE ADDS OR CHANGES, for `test-selection` to trace
+      # (scripts/selection-audit.sh changed). A listing that fails fails this
+      # job, as the planner does, so no lane runs on a list nobody read
+      # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+      - name: List the suites the change adds or changes
+        id: suites
+        if: steps.base.outputs.ref != '' && github.event.pull_request.draft != true
+        env:
+          DIFF_BASE: ${{ steps.base.outputs.ref }}
+        run: |
+          if ! scripts/selection-audit.sh changed --base "$DIFF_BASE" >"$RUNNER_TEMP/changed-suites.txt"; then
+            echo "::error::scripts/selection-audit.sh changed failed; test-selection cannot know what to trace."
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/changed-suites.txt"
+          if [ -s "$RUNNER_TEMP/changed-suites.txt" ]; then echo "any=true"; else echo "any=false"; fi >>"$GITHUB_OUTPUT"
+          echo "list=$(jq -Rnc '[inputs]' <"$RUNNER_TEMP/changed-suites.txt")" >>"$GITHUB_OUTPUT"
       # A merge group's hold step emits this job's notices itself. Elsewhere
       # this step does, and on a pull request it names detect-changes, which
       # lists the files through actions/github-script, a client no counter sees.
@@ -4091,6 +4115,140 @@ jobs:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
 
+  # THE SUITES A CHANGE ADDS OR CHANGES, TRACED. Each runs under strace
+  # (scripts/selection-audit.sh trace), and a tracked file it read whose
+  # one-file diff would not select it is a gap: a later change to that file
+  # could break the suite while its pull request's lanes never start it. A gap
+  # fails this job, which names the suite and the file; the author declares the
+  # read (`# test-scope:` in the suite, scripts/affected-tests.sh R8). The
+  # daily audit (maintenance-audit-test-selection.yml) stays the backstop for
+  # reads that change through files no suite change touches
+  # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+  #
+  # It needs only `select-tests`, so it runs beside the test lanes, and skips
+  # on its `run_selection` row when the change adds or changes no suite, an
+  # ordered skip `ci-status` checks
+  # (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions).
+  #
+  # LIMITS. It installs the base toolchains every test leg installs (Node,
+  # Python with .github/requirements-ci.txt, the root npm packages, ShellCheck
+  # and shfmt), not the optional per-leg ones (the animation, demo-video and
+  # media-render wheels, Chromium, ffmpeg, DuckDB, lefthook, the inventory's
+  # parser packages). A suite that needs one skips or fails here and reads
+  # less, which can hide a gap but never invents one; so no *_REQUIRE_DEPS
+  # variable is set. A Node suite runs under `node --test` from the root, not
+  # its package's `npm test`. The hosted image carries strace; without it the
+  # job installs it or fails
+  # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+  #
+  # BUDGET. Unmeasured as a job: about 60 s of setup, as a test leg's base
+  # install, plus the trace. Measured locally: three small suites 37 s;
+  # cant-fail-scan.test.sh (200 s in scripts/suite-seconds.txt, near the
+  # slowest there) 286 s under strace, then 432 files checked against the
+  # selector, 404 s in all. Suites start in the first 3/5 of `--budget` and
+  # files are checked until it ends, so `--budget 720` holds that run with
+  # room, for a work budget of 13 minutes and a timeout of 19.
+  # `--strict` fails a suite the budget left untraced or a file left unchecked
+  # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+  test-selection:
+    name: Test Selection
+    needs: [select-tests]
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_selection == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    permissions:
+      contents: read
+    env:
+      SUITES: ${{ needs.select-tests.outputs.selection_suites }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: $/.github/actions/download-full-history
+        with:
+          filter: blob:none
+      - name: Set up Node
+        uses: $/.github/actions/setup-pinned-node
+        with:
+          node-version-file: .node-version
+      - name: Restore the npm cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Restore the pip cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
+      - name: Install and verify ShellCheck toolchain
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        with:
+          files: scripts/aggregate-hygiene-results.sh
+          rcfile: .shellcheckrc
+      - name: Install pinned shfmt
+        uses: $/.github/actions/setup-pinned-shfmt
+      - name: Install the base test toolchains
+        timeout-minutes: 5
+        run: |
+          npm ci
+          npm ci --prefix .github/standards/runner-policy
+          python -m pip install --user --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Make sure strace is present
+        timeout-minutes: 3
+        run: |
+          command -v strace >/dev/null || sudo apt-get install -y --no-install-recommends strace ||
+            { echo "::error::strace is missing and could not be installed; the selection trace cannot run."; exit 1; }
+          strace -V | head -n1
+      - name: Trace the changed suites
+        run: |
+          mapfile -t suites < <(jq -r '.[]' <<<"$SUITES")
+          if [ "${#suites[@]}" -eq 0 ]; then
+            echo "::error::select-tests gave this job no suites; it runs only to trace some."
+            exit 1
+          fi
+          rc=0
+          scripts/selection-audit.sh trace --strict --jobs 3 --budget 720 \
+            --out "$RUNNER_TEMP/selection-audit" "${suites[@]}" || rc=$?
+          case "$rc" in
+          0) ;;
+          1)
+            while IFS=$'\t' read -r suite file verdict; do
+              echo "::error file=$suite,title=Undeclared suite read::$suite reads $file, and a change to $file does not select it ($verdict). Declare the read in a test-scope line of the suite (scripts/affected-tests.sh R8)."
+            done <"$RUNNER_TEMP/selection-audit/gaps.tsv"
+            awk -F'\t' '$2 == "not-traced" { printf "::error file=%s,title=Suite not traced::%s was not traced inside the budget, so it is not checked.\n", $1, $1 }' \
+              "$RUNNER_TEMP/selection-audit/suites.tsv"
+            grep -q $'\tnot checked' "$RUNNER_TEMP/selection-audit/verdicts.tsv" &&
+              echo "::error::some files the suites read were not checked against the selector; see the job summary."
+            ;;
+          *) echo "::error::scripts/selection-audit.sh could not run the trace (exit $rc); see the log above." ;;
+          esac
+          exit "$rc"
+      - name: Upload the trace report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: selection-trace-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/selection-audit/*.md
+            ${{ runner.temp }}/selection-audit/*.tsv
+            ${{ runner.temp }}/selection-audit/logs/
+          retention-days: 7
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: $/.github/actions/log-api-budget
+        with:
+          tokens: github-token
+
   # A pull request that hand-edits a file the standards sync-manifest manages
   # fails. A standards-sync pull request (melodic-standards-sync[bot], head
   # `chore/standards-sync`, same repository) passes only when every commit is
@@ -4172,6 +4330,7 @@ jobs:
       - test-bash
       - test-python
       - test-node
+      - test-selection
       - check-managed-files
       - check-tests
     # Fail-closed through execution: !cancelled() (never a success-guard) so a

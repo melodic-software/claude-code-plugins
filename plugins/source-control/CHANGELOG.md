@@ -3,6 +3,58 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.8] - 2026-11-21
+
+### Fixed
+
+- `babysit_verify_evidence.py` refuses `verify:repeated-fail` only when a counted FAIL that is not superseded stands at the vetted head and FAILs sit at `merge.max-verify-fails` or more heads, that one included (owner decision Q245, [#17646](https://github.com/melodic-software/claude-code-plugins/issues/17646)). A head whose newest verdicts pass, or whose own FAIL is superseded, goes on to the `verify:earlier-fail` or pass decision, whatever FAILs sit at earlier heads or on other pull requests for its issues. Before, FAILs at superseded heads kept counting, so the pr-merge lane closed a pull request whose current head had passed. Counting across other pull requests, the capped-close floor, draft-judged exclusions and `verify:fail` at the head are unchanged.
+
+## [13.3.7] - 2026-11-21
+
+### Changed
+
+- Carries a generated copy of the config-cascade contract's config locations page at `reference/config-locations.md`, the one list of where plugin config lives.
+
+## [13.3.6] - 2026-11-21
+
+### Fixed
+
+- `worktree` says that since Claude Code 2.1.330, `ExitWorktree` with `action: "remove"` and the worktree exit dialog no longer delete a worktree another running Claude Code session is working in, where it named only the path-entered exception, and that since 2.1.327 `remove` asks before deleting a worktree that may hold unsaved work and is refused in don't-ask mode or with nobody to answer unless an allow rule, auto mode or bypass permissions mode allows it. Routing is unchanged: leave with `action: "keep"` and remove with `cleanup` ([#17829](https://github.com/melodic-software/claude-code-plugins/issues/17829)).
+
+## [13.3.5] - 2026-11-21
+
+### Fixed
+
+- `ready` flips a draft whose `do-not-merge` label holds only for eval evidence, and leaves the label on. The hold counts as eval-only when every `<!-- pr-hold reason=... -->` line posted since the label's newest labeled event reads `reason=eval`, and a human on the trusted-actors list or the lanes App posted it. Any other reason, no reason line, or a reason line older than the label still refuses the flip. Sessions no longer have to remove and re-add the label around the flip, a re-add that voided the eval reason line and left the pr-merge release step holding the PR ([#17887](https://github.com/melodic-software/claude-code-plugins/issues/17887)).
+
+## [13.3.4] - 2026-11-21
+
+### Fixed
+
+- `babysit-loop` and its evals say a `/loop` created on Claude Code 2.1.330 or later runs up to 30 days and an older one still ends at 7 days, where they said seven days for every loop. The restart-request handling on an expiry hit is unchanged ([#17833](https://github.com/melodic-software/claude-code-plugins/issues/17833)).
+
+## [13.3.3] - 2026-11-21
+
+### Changed
+
+- the shared prerequisites checker gains a latest-release mode
+
+### Fixed
+
+- `ready` no longer refuses on Windows when a pull request closes more than one issue: the hold check stripped no carriage return from the issue list, so every issue but the last failed to read.
+
+## [13.3.2] - 2026-11-21
+
+### Changed
+
+- The merge and enable-auto-merge jobs read the demotion recoveries the post-merge job kept, so their merge gate answers a cleared record without listing green full runs.
+
+## [13.3.1] - 2026-11-21
+
+### Changed
+
+- The post-merge check keeps each demotion record's proven recovery between runs, so a record already cleared is answered without listing green full runs again.
+
 ## [13.3.0] - 2026-11-21
 
 ### Changed
