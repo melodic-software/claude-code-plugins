@@ -53,8 +53,9 @@ async page => {
       listed[2]?.startsWith("D1") && listed[2].includes(`${XSS}A draft left unsent.`) && (await rows.nth(2).locator(".state").textContent()) === "draft", listed[2]);
     ok("a note's markup is listed as text and makes no element",
       listed[1]?.includes(`${XSS}Cards need dates first.`) && (await page.$$("#notes img")).length === 0 && (await page.evaluate(() => window.__xss)) === undefined);
-    await frame.waitForFunction(() => ["1", "2", "D1"].every((n) => [...document.querySelector("[data-ui-feedback-layer]").children].some((e) => e.textContent === n)), null, { timeout: 5000 }).catch(() => {});
-    ok("both notes' markers and the draft's are drawn again after the reload", (await frame.evaluate(() => [...document.querySelector("[data-ui-feedback-layer]").children].filter((e) => e.textContent).map((e) => e.textContent).join())) === "1,2,D1");
+    const markers = () => frame.evaluate(() => [...(document.querySelector("[data-ui-feedback-layer]")?.children ?? [])].filter((e) => e.textContent).map((e) => e.textContent).join());
+    await until(markers, (m) => m === "1");
+    ok("after the reload variant A draws only its own note's marker", (await markers()) === "1", await markers());
     ok("the reload starts on variant A", (await shownVariant()) === "A");
 
     await rows.nth(0).hover();
@@ -68,6 +69,8 @@ async page => {
     await rows.nth(1).click();
     await frame.waitForFunction(() => !document.querySelector('[data-variant="B"]').hidden, null, { timeout: 5000 }).catch(() => {});
     ok("clicking row 2 restores the variant note 2 was taken on", (await shownVariant()) === "B", await shownVariant());
+    await until(markers, (m) => m === "2,D1");
+    ok("variant B draws note 2's marker and the draft's, and not note 1's", (await markers()) === "2,D1", await markers());
     b = await box("selected", CARD);
     ok("clicking row 2 draws note 2's box on its card", b.drawn && b.on, JSON.stringify(b));
     ok("row 2 shows as selected", (await rows.nth(1).getAttribute("aria-current")) === "true");
@@ -85,6 +88,8 @@ async page => {
     await until(() => box("selected", CARD), (b) => !b.drawn);
     ok("a click elsewhere on the host page clears it too", !(await box("selected", CARD)).drawn && (await rows.nth(1).getAttribute("aria-current")) === null);
 
+    await inFrame.locator('nav.vs [aria-label="Previous variant"]').click();
+    await until(markers, (m) => m === "1");
     const at = await frame.evaluate(() => {
       const m = [...document.querySelector("[data-ui-feedback-layer]").children].find((e) => e.textContent === "1").getBoundingClientRect();
       return { x: m.left + m.width / 2, y: m.top + m.height / 2 };
@@ -93,7 +98,7 @@ async page => {
     await page.mouse.click(f.x + at.x, f.y + at.y);
     await until(() => rows.nth(0).getAttribute("aria-current"), (v) => v === "true");
     ok("clicking marker 1 selects row 1, as clicking the row does", (await rows.nth(0).getAttribute("aria-current")) === "true");
-    ok("and restores note 1's variant with its box drawn", (await shownVariant()) === "A" && (await box("selected", ROW)).on, await shownVariant());
+    ok("and keeps note 1's variant with its box drawn", (await shownVariant()) === "A" && (await box("selected", ROW)).on, await shownVariant());
   } catch (err) {
     R.push("ERROR " + String(err && err.message || err).slice(0, 300));
   }
