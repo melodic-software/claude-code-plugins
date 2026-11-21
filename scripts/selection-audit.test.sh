@@ -238,7 +238,7 @@ EOF
   rc=0
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
     bash "$AUDIT" trace --strict --budget 1 --out "$TMP_ROOT/out-budget" suites/declared.test.sh) >/dev/null 2>&1 || rc=$?
-  if [[ "$rc" -eq 1 ]] && grep -qxF -- '- `suites/declared.test.sh`' "$TMP_ROOT/out-budget/report.md"; then
+  if [[ "$rc" -eq 1 ]] && grep -qxF -- "- \`suites/declared.test.sh\`" "$TMP_ROOT/out-budget/report.md"; then
     ok "trace --strict: a suite the budget left untraced is named in the report and fails the trace"
   else
     fail "trace --strict: budget exit $rc, report [$(cat "$TMP_ROOT/out-budget/report.md" 2>/dev/null)]"
