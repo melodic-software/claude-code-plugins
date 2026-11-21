@@ -24,7 +24,8 @@
   script drives frame by frame (requestAnimationFrame, timers) is not slowed.
   Switching and replay remount a variant from a copy of its markup, so listeners attached to
   elements inside it are lost: wire variant interactions with listeners delegated from document.
-  Chrome, not a contestant: leave its look alone.
+  Chrome, not a contestant: leave its look alone. It takes the notes host page's light and dark
+  tokens, and it hides when that page frames the mockup, whose command bar steps the variants.
 -->
 <nav class="vs" aria-label="Variants" data-position="bottom">
   <span class="vs-highlight" aria-hidden="true"></span>
@@ -40,6 +41,31 @@
 </nav>
 <style>
   .vs {
+    --uif-surface: #ffffff;
+    --uif-sunk: #f0f1f5;
+    --uif-ink: #16171d;
+    --uif-ink-2: #4f5363;
+    --uif-line: #d9dbe3;
+    --uif-accent: #4433cc;
+    --uif-accent-soft: #eceafe;
+    --uif-accent-text: #3a2bb8;
+    --uif-shadow: 0 1px 2px rgb(20 20 40 / 0.08), 0 8px 28px rgb(20 20 40 / 0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    .vs {
+      --uif-surface: #1c1d24;
+      --uif-sunk: #272934;
+      --uif-ink: #ecedf2;
+      --uif-ink-2: #a9adbd;
+      --uif-line: #343743;
+      --uif-accent: #a99bff;
+      --uif-accent-soft: #2e2a55;
+      --uif-accent-text: #bdb2ff;
+      --uif-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 32px rgb(0 0 0 / 0.5);
+    }
+  }
+  :root[data-ui-feedback-bar] .vs { display: none; }
+  .vs {
     position: fixed;
     inset-block-end: 24px;
     inset-inline-start: 50%;
@@ -47,11 +73,17 @@
     z-index: 2147483647;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    inline-size: max-content;
+    max-inline-size: calc(100vw - 16px);
+    box-sizing: border-box;
+    white-space: nowrap;
     gap: 2px;
     padding: 4px;
-    border-radius: 999px;
-    background: rgb(10 10 10 / 0.86);
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08) inset, 0 8px 24px rgb(0 0 0 / 0.24);
+    border-radius: 18px;
+    background: var(--uif-surface);
+    box-shadow: 0 0 0 1px var(--uif-line) inset, var(--uif-shadow);
     font: 13px/1 system-ui, sans-serif;
     direction: ltr;
     user-select: none;
@@ -67,7 +99,7 @@
     inline-size: 100px;
     block-size: 28px;
     border-radius: 999px;
-    background: rgb(255 255 255 / 0.14);
+    background: var(--uif-accent-soft);
     transform-origin: left center;
     pointer-events: none;
   }
@@ -85,19 +117,37 @@
     border: 0;
     border-radius: 999px;
     background: transparent;
-    color: rgb(255 255 255 / 0.6);
+    color: var(--uif-ink-2);
     font: inherit;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
     transition: color 150ms ease-out;
   }
   @media (hover: hover) and (pointer: fine) {
-    .vs-item:hover { color: rgb(255 255 255 / 0.9); }
+    .vs-item:hover { color: var(--uif-ink); }
   }
-  .vs-item:focus-visible { outline: 2px solid rgb(255 255 255 / 0.5); outline-offset: 2px; }
-  .vs-item[aria-current="true"], .vs-item[aria-pressed="true"] { color: #fff; }
-  .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
-  .vs-state { color: #fff; }
+  .vs-item:focus-visible { outline: 2px solid var(--uif-accent); outline-offset: 2px; }
+  .vs-item[aria-current="true"], .vs-item[aria-pressed="true"] { color: var(--uif-accent-text); }
+  .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: var(--uif-line); }
+  .vs-state { color: var(--uif-ink); }
+  .vs-speed::after, .vs-replay::after {
+    content: attr(aria-label);
+    position: absolute;
+    inset-block-end: calc(100% + 10px);
+    inset-inline-end: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--uif-ink);
+    color: var(--uif-surface);
+    font-size: 12px;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  .vs[data-position="top"] .vs-speed::after, .vs[data-position="top"] .vs-replay::after { inset-block-end: auto; inset-block-start: calc(100% + 10px); }
+  .vs-speed:focus-visible::after, .vs-replay:focus-visible::after { visibility: visible; }
+  @media (hover: hover) and (pointer: fine) {
+    .vs-speed:hover::after, .vs-replay:hover::after { visibility: visible; }
+  }
   [data-variant][hidden], [data-screen-state][hidden] { display: none !important; }
   :root:not([data-vs-content="worst"]) [data-content-set="worst"],
   :root[data-vs-content="worst"] [data-content-set="demo"] { display: none !important; }
@@ -145,7 +195,7 @@
 
     function place() {
       const el = items[current];
-      highlight.style.transform = `translateX(${el.offsetLeft}px) scaleX(${el.offsetWidth / 100})`;
+      highlight.style.transform = `translate(${el.offsetLeft}px, ${el.offsetTop - 4}px) scaleX(${el.offsetWidth / 100})`;
     }
 
     // Applies the speed to every running animation outside the switcher itself.
@@ -234,6 +284,8 @@
     contentButton.addEventListener("click", flipContent);
     speedButton.addEventListener("click", stepSpeed);
     window.addEventListener("resize", place);
+    const resized = new ResizeObserver(place);
+    nav.querySelectorAll(".vs-item").forEach((b) => resized.observe(b));
 
     document.addEventListener("keydown", (e) => {
       const t = e.target;

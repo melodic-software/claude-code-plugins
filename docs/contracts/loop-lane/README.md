@@ -565,13 +565,18 @@ real-time deadline. A hold that lands after the merge is not a hold.
   loss ([skills and agents](../../review/skills-and-agents.md)) uses `reason=eval`, and the session
   that posts the paired result adds a line
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
-  and shows no loss. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
+  and shows no loss. `pr-run-plugin-evals.yml`'s compare mode posts the same line, with
+  `<!-- eval-pair-run id=<run id> -->` beside it, as `github-actions[bot]`. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
   `do-not-merge` and a `reason=eval` comment in the same step. The same pr-merge step that releases
   the hold also adds it, label first, to any open PR that closes an `eval-gated` issue, whoever
   opened it, unless the PR already carries `do-not-merge`, was held for eval before, or its newest
   record names its head. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
   removes `do-not-merge`, after a comment naming the record and the head, when that record is the
-  newest since the label went on and names the current head, the record is by a listed human, the reason line by a listed human or the lanes App, both on a
+  newest since the label went on and names the current head, the record is by a listed human or
+  is a compare record whose cited run reads back as a successful dispatch of that workflow on the
+  default branch with this PR and this head in its run name and its Compare Record job run to
+  success (the author alone counts for nothing),
+  the reason line by a listed human or the lanes App, both on a
   line of their own outside a quote or fence, and no other reason, body hold or member veto stands
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
   merge" and `do-not-merge` out of the record comment: they read as a veto.
@@ -648,7 +653,7 @@ larger than the record; see the egress note below.
 
 The local channels (OS toast, terminal bell/OSC 9, in the `autonomy` plugin's `lane-notify.sh`)
 reach only an operator at the machine running the lane. The escalation record write gives a
-consuming repo a deterministic surface that reaches one who is not: a `PostToolUse` hook in the
+consuming repo a deterministic trigger that reaches an operator who is not: a `PostToolUse` hook in the
 consuming repo's own tracked `.claude/settings.json`, matched on the `Write` tool, filtered to the
 record directory, with a `type: "http"` handler that POSTs the hook event's JSON, whose
 `tool_input.content` carries the record, to the repo's chosen endpoint. Documented default shape:
@@ -1457,7 +1462,7 @@ miss a copy nobody registered.
 **Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
-way for the guard to detect it. Same-machine account rotation happens: the owner rotates accounts
+way for the guard to detect it. Same-machine account rotation happens because the owner rotates accounts
 by hand on the rate-limit alerts.
 
 This is a **gap**, not an invariant. Assuming one account per machine describes how the guard is
@@ -1553,6 +1558,23 @@ claims.
 
 Neither step recalls a worker already dispatched on the item: `/work-items:work` checks the
 frontier at selection, not after its claim. To keep that work from merging, hold its PR.
+
+**Keep the lanes off work a local session owns.** When a local Claude Code session will do the work
+itself, apply the session-owned role label, not the human-gated one (default `session-owned`, key
+`config.role_labels["session-owned"]`), resolved from the binding the same way. The human-gated
+label means an owner decision is needed; the session-owned label means no decision is pending and
+the lanes skip the item. Intake triage,
+the triage sweep, intake re-entry, the WIP cap, the issue lane's admission and the unblock sweep
+skip it (`.github/actions/check-born-triaged`), and `list-frontier --autonomous` excludes it, so
+`work-loop` never admits it, while the interactive frontier keeps it for the owning session. The
+label is about ownership only: whether a person drives a run stays `attended` or unattended.
+
+```bash
+L=$(yq -o=json -e '.tracker' "<project root>/docs/conventions/work-items.yaml" 2>/dev/null |
+  jq -r '.config.role_labels["session-owned"] // empty' 2>/dev/null)
+L=${L:-session-owned}
+gh issue edit <n> -R "$R" --add-label "$L"
+```
 
 **Hold a PR (merge lane).** `do-not-merge` is the only cross-lane hold, and
 [Cross-lane PR hold](#cross-lane-pr-hold) owns its rules. The commands, in the order that section

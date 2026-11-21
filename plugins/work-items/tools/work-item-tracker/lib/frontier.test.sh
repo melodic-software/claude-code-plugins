@@ -108,6 +108,24 @@ assert_eq "autonomous frontier excludes wayfind: items even when agent-ready" \
 COUNT="$(frontier_count false <<<'{"schema_version":"1.0","items":[{"id":"local:a#1","state":"open","labels":[1],"blocked_by_count":0}]}')"
 assert_eq "a non-string label does not fail the wayfind check" "1" "$COUNT"
 
+SESSION_OWNED='{
+  "schema_version": "1.0",
+  "items": [
+    {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0},
+    {"id":"github:o/r#15","state":"open","assignees":[],"labels":["agent-ready","session-owned"],"blocked_by_count":0},
+    {"id":"github:o/r#16","state":"open","assignees":[],"labels":["mine"],"blocked_by_count":0}
+  ]
+}'
+IDS="$(frontier_ids true <<<"$SESSION_OWNED")"
+assert_eq "autonomous frontier drops a session-owned item even when agent-ready" \
+  "github:o/r#1,github:o/r#16" "$IDS"
+IDS="$(frontier_ids false <<<"$SESSION_OWNED")"
+assert_eq "default frontier keeps a session-owned item for the owning session" \
+  "github:o/r#1,github:o/r#15,github:o/r#16" "$IDS"
+IDS="$(WIT_SESSION_OWNED_LABEL=mine frontier_ids true <<<"$SESSION_OWNED")"
+assert_eq "autonomous frontier drops the remapped session-owned label, not the stale default" \
+  "github:o/r#1,github:o/r#15" "$IDS"
+
 # A non-default container label passed explicitly is honored (parity with the
 # human-gated remap path); the shipped default must not exclude once remapped.
 REMAP_CONTAINER='{

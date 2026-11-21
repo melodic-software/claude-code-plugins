@@ -5,6 +5,7 @@ import { bedroomSvg } from '../scene.ts'
 import { minuteOfHalfDay, nowMs } from './clock.js'
 import { builtPieces } from './context.js'
 import type { Ctx, Piece } from './piece.js'
+import { noteShaderStart } from './schedule.js'
 import { countValueOnly, failedOnce, flush, note, stats } from './telemetry.js'
 import { REASK_MS, ask, lastCause, nextValues, startShader } from './values.js'
 
@@ -95,6 +96,7 @@ export function noteAsked(): void {
 export function holdShader($: EngineInterface, why: string): void {
   holdUntil = nowMs() + SETTLE_MS
   isShaderShown = false
+  noteShaderStart(holdUntil)
   note(`${why}: drawing the room alone for ${SETTLE_MS} ms`)
   holdTimer?.cancel()
   holdTimer = $.clock.after(SETTLE_MS, () => {
@@ -159,6 +161,7 @@ export function draw($: EngineInterface, ctx: Ctx): { source: string; values?: R
   if (!ctx.setting('shader')) {
     shaderSource = ''
     isShaderShown = false
+    noteShaderStart(undefined)
     const source = wholeRoom(ctx)
     counted(source, startedAt)
     note(`render ${stats.renders} after ${lastCause()}: shader off`)
@@ -184,6 +187,7 @@ export function draw($: EngineInterface, ctx: Ctx): { source: string; values?: R
   if (!isShaderShown) {
     isShaderShown = true
     startShader(ctx.saved.state, ctx.fields(), minuteOfHalfDay(now), now)
+    noteShaderStart(now)
     note('the shader starts, every value at its target')
   } else if (!isNewRoom) {
     countValueOnly(now)

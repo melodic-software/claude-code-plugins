@@ -1744,5 +1744,215 @@
         ]
       }
     }
-  ]
+  ],
+  "changes": {
+    "valid": [
+      {
+        "why": "a region moved over the elements it now crosses",
+        "change": {
+          "change": 1,
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "rect": {
+            "x": 5,
+            "y": 20,
+            "w": 40,
+            "h": 70
+          },
+          "elements": [
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            }
+          ]
+        }
+      },
+      {
+        "why": "a region resized to cross no element",
+        "change": {
+          "change": 500,
+          "anchor": {
+            "tag": "main",
+            "cssPath": ""
+          },
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 100,
+            "h": 100
+          },
+          "elements": []
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "why": "no note seq",
+        "change": {
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "rect": {
+            "x": 5,
+            "y": 20,
+            "w": 40,
+            "h": 70
+          },
+          "elements": []
+        }
+      },
+      {
+        "why": "a note seq of 0",
+        "change": {
+          "change": 0,
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "rect": {
+            "x": 5,
+            "y": 20,
+            "w": 40,
+            "h": 70
+          },
+          "elements": []
+        }
+      },
+      {
+        "why": "no rect",
+        "change": {
+          "change": 1,
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "elements": []
+        }
+      },
+      {
+        "why": "a rect off the page",
+        "change": {
+          "change": 1,
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "rect": {
+            "x": 5,
+            "y": 20,
+            "w": 40,
+            "h": 170
+          },
+          "elements": []
+        }
+      },
+      {
+        "why": "eleven elements",
+        "change": {
+          "change": 1,
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "rect": {
+            "x": 5,
+            "y": 20,
+            "w": 40,
+            "h": 70
+          },
+          "elements": [
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            },
+            {
+              "testid": "candidate",
+              "testidIndex": 0,
+              "tag": "li",
+              "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1) > li:nth-of-type(1)"
+            }
+          ]
+        }
+      },
+      {
+        "why": "the note's text",
+        "change": {
+          "change": 1,
+          "anchor": {
+            "tag": "ul",
+            "cssPath": "div:nth-of-type(3) > ul:nth-of-type(1)"
+          },
+          "rect": {
+            "x": 5,
+            "y": 20,
+            "w": 40,
+            "h": 70
+          },
+          "elements": [],
+          "text": "x"
+        }
+      }
+    ]
+  }
 }

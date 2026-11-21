@@ -77,7 +77,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
@@ -376,7 +376,7 @@ export async function main({ env = process.env, github, log = console.log, statu
     const issue = await client("GET", base);
     const routed = routingLabel(labelNames(issue).filter(Boolean), routing ?? readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "intake-reenter", log }));
     if (routed) {
-      log(`intake-reenter: the issue carries '${routed}', a container or wayfind label, so the skill that filed it routes it; nothing changed`);
+      log(`intake-reenter: the issue carries '${routed}', ${ROUTED_BY}; nothing changed`);
       return 0;
     }
     if (field) {

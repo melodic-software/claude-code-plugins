@@ -363,7 +363,7 @@ wit_storage_root() {
 # lease_ttl_hours is REQUIRED: defaults live in the binding, never in code.
 wit_read_binding() {
   local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
-  local owner_decision hold_labels hold_states hold_state_labels wayfind
+  local owner_decision hold_labels hold_states hold_state_labels wayfind session_owned
   json="$(wit_effective_binding_json "$path")" || return 1
   version="$(jq -r '.schema_version // empty' <<<"$json")"
   [[ "$version" == 1.* ]] || { wit_invalid "$path" schema_version "$version"; return 1; }
@@ -391,6 +391,7 @@ wit_read_binding() {
   container="$(wit_config_text "$json" container_label "$WIT_DEFAULT_CONTAINER_LABEL")" ||
     { wit_invalid "$path" config.container_label "$(jq -c '.config.container_label' <<<"$json")"; return 1; }
   owner_decision="$(wit_role_label "$json" "owner-decision" "$WIT_DEFAULT_OWNER_DECISION_LABEL")"
+  session_owned="$(wit_role_label "$json" "session-owned" "$WIT_DEFAULT_SESSION_OWNED_LABEL")"
   # The hold lists and the wayfind prefix: absent or empty keeps the lib/labels.sh
   # default; a present value of the wrong shape is a config error, never a fallback.
   hold_labels="$(wit_config_list "$json" hold_labels \
@@ -417,8 +418,9 @@ wit_read_binding() {
   WIT_HOLD_STATES_JSON="$hold_states"
   WIT_HOLD_STATE_LABELS_JSON="$hold_state_labels"
   WIT_WAYFIND_PREFIX="$wayfind"
+  WIT_SESSION_OWNED_LABEL="$session_owned"
   export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_LEASE_TTL_MINUTES WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL \
     WIT_AUTONOMOUS_ELIGIBLE_LABEL WIT_RECURRING_MAINTENANCE_LABEL WIT_CONTAINER_LABEL \
     WIT_OWNER_DECISION_LABEL WIT_HOLD_LABELS_JSON WIT_HOLD_STATES_JSON WIT_HOLD_STATE_LABELS_JSON \
-    WIT_WAYFIND_PREFIX
+    WIT_WAYFIND_PREFIX WIT_SESSION_OWNED_LABEL
 }

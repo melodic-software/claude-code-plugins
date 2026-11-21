@@ -18,6 +18,8 @@ readonly WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL="recurring"
 # label defaults below (lib/binding.sh).
 # shellcheck disable=SC2034
 readonly WIT_DEFAULT_OWNER_DECISION_LABEL="needs-owner-decision"
+# shellcheck disable=SC2034
+readonly WIT_DEFAULT_SESSION_OWNED_LABEL="session-owned"
 # Container marker (CONTRACT.md "Containers and state"): not a canonical role, but
 # remapped the same way through binding config.container_label.
 # shellcheck disable=SC2034
