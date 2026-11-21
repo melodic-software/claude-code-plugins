@@ -3215,6 +3215,7 @@ describe("unrunnable-rules.json", () => {
   test("an item only the eval row flags that names a billing account is a paid eval, held for the owner", () => {
     const line = "Eval evidence of no loss, measured on Amazon Bedrock.";
     assert.equal(first(line), PAID_EVAL);
+    assert.equal(first("A before-and-after eval run on Amazon Bedrock is recorded; the full-suite eval run is not part of this work."), PAID_EVAL);
     const result = decide(facts({ issue: doneWhen(line) }));
     assert.equal(result.hold, true);
     assert.equal(result.hostRun, undefined);
@@ -3291,6 +3292,8 @@ describe("unrunnable-rules.json", () => {
   for (const line of [
     "A before-and-after eval run is recorded: the trailing-period case fails on the unchanged SKILL.md and passes on the changed one",
     "A before-and-after eval run is recorded; the cache warm-up is not part of this work.",
+    "A before-and-after eval run is recorded on the changed SKILL.md; the full-suite eval run is not part of this work.",
+    "The full-suite eval run is not part of this work; a before-and-after eval of the changed skill is in the PR body.",
   ]) {
     test(`flags an eval run beside an exclusion: ${line.slice(0, 60)}`, () => {
       assert.equal(first(line), "eval", line);
