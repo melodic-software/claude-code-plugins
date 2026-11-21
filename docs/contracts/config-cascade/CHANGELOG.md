@@ -11,6 +11,10 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`locations.md` lists where plugin config lives.** One editable page of the four layers, the
+  `.local` naming and the paths outside the contract, pointing at this README's sections. Plugins
+  that teach a config location carry a generated copy at `reference/config-locations.md`. The
+  layering axis is unchanged, so `contract_version` stays.
 - **`plugin-quality` gets a `standards_repo` row.** A team-only key in `<home>/plugin-quality.yaml`
   beside `verification`, read by the auditor agent; unset resolves no standards repository.
 - **`improvement` and the `architecture` `improve` object get Implementers rows.** `improvement`

@@ -18,6 +18,8 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.yaml` for the keys; `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.md` for prose and `## Gotchas` | must be tracked, the only layer teammates receive |
 | 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+
 The team files sit in `docs/conventions/` whatever convention home the repository binds; a
 repository that binds another home still keeps them there.
 
@@ -122,7 +124,9 @@ one entry were absent. Do not discard the whole layer.
 
 ## Consumer `.gitignore`
 
-One recursive line covers the personal override here and every other cascade surface:
+This recursive line ignores the personal override this plugin reads today, `.claude/bugs.local.md`.
+A personal override at `<home>` needs `<home>/**/*.local.*` instead; see
+[config locations](config-locations.md).
 
 ```gitignore
 .claude/**/*.local.*
