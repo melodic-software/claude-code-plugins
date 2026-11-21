@@ -138,7 +138,7 @@ function candidateOf(value, at) {
   keys(value, name, ["id", "title", "recommendation", "category", "problem", "solution", "wins", "verified", "files", "diagram"], ["depends_on", "adr"]);
   keys(value.diagram, `${name}: diagram`, ["before", "after"]);
   const verified = text(value.verified, `${name}: verified`);
-  if (!VERIFIED.test(verified)) fail(`${name}: verified`, 'must be "reproduced", "unverified" or "corrected: <one clause>"');
+  if (!VERIFIED.test(verified)) fail(`${name}: verified`, 'must be "reproduced", "unverified" or "corrected: <one clause, with no semicolon>"');
   const wins = list(value.wins, `${name}: wins`, win);
   if (!wins.some(({ term }) => term === "leverage" || term === "locality")) fail(`${name}: wins`, "must hold at least one leverage or locality win");
   return {

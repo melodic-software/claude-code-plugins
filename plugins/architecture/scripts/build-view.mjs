@@ -17,7 +17,7 @@
 
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 import { DeepeningRecordError, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
@@ -135,7 +135,8 @@ try {
   if (!lstatSync(dir).isDirectory())
     throw new Error("build-view: refusing a symlinked or non-directory output path");
   chmodSync(dir, 0o700);
-  const out = join(dir, `${kind}.html`);
+  const stem = basename(flags["--record"]).replace(/\.json$/i, "");
+  const out = join(dir, kind === "deepening" && /^[A-Za-z0-9._-]{1,80}$/.test(stem) && !stem.startsWith(".") ? `${stem}.html` : `${kind}.html`);
   rmSync(out, { force: true });
   writeFileSync(out, page, { mode: 0o600 });
   console.log(out);

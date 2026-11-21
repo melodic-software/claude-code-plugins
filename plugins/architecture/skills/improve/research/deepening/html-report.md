@@ -42,7 +42,7 @@ Each candidate:
 | `problem` | the artifact's `problem`, one sentence |
 | `solution` | the artifact's `solution`, one sentence naming a change; a candidate that proposes none was dropped in Phase 2 |
 | `wins` | the artifact's `wins`, one entry per gain (see Wins) |
-| `verified` | `reproduced`, `corrected: <one clause>` or `unverified` |
+| `verified` | `reproduced`, `corrected: <one clause>` (no semicolon: the builder refuses one) or `unverified` |
 | `files` | one entry per path, written in full |
 | `diagram` | `{ "before": <panel>, "after": <panel> }` (see Diagram patterns) |
 | `depends_on` | optional: the `id` of the candidate that must be done first |

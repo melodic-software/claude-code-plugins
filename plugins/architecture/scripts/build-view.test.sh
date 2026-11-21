@@ -36,7 +36,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" "$chrome" <<'NODE'
-import { copyFileSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -179,7 +179,9 @@ check("an output path that is a symlink is replaced, not followed", (() => {
 
 const deepening = JSON.parse(readFileSync(`${dir}/testdata/deepening-candidates.json`, "utf8"));
 const deepeningBuilt = build("deepening", write("deepening", deepening));
-check("deepening: the 23-candidate record builds", deepeningBuilt.status === 0 && deepeningBuilt.stdout.trim().endsWith("deepening.html"), deepeningBuilt.stderr);
+check("deepening: the 23-candidate record builds to a page named after the record", deepeningBuilt.status === 0 && deepeningBuilt.stdout.trim().endsWith("deepening.html"), deepeningBuilt.stderr);
+const laterBuilt = build("deepening", write("deepening-report-20261121T082841Z", deepening));
+check("deepening: a second record's page does not replace the first", laterBuilt.status === 0 && laterBuilt.stdout.trim().endsWith("deepening-report-20261121T082841Z.html") && existsSync(deepeningBuilt.stdout.trim()), laterBuilt.stderr);
 const deepeningPage = readFileSync(deepeningBuilt.stdout.trim(), "utf8");
 check("deepening: every card has a solution, wins and a diagram", ["solution", "wins", "diagram"].every((part) => deepeningPage.split(`data-part="${part}"`).length === 24));
 const longWin = structuredClone(deepening);
