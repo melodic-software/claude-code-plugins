@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: 'codify-note-trailing-period-reads-applied-flag'
+plugins: ["../.."]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'row-is-applied'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*\.work/codify/notes/[^"]*\.jsonl")(?=[\s\S]*\\"kind\\":\s*\\"applied\\")(?=[\s\S]*\\"source_id\\":\s*\\"#42\\")'
+    min: 1
+    arm: 'with-only'
+  - name: 'writes-only-under-work-codify'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*\.work/codify/)'
+    min: 0
+    max: 0
+    arm: 'both'

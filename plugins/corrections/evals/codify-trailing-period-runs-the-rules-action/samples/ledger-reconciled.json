@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/scripts/rules-ledger.mjs\" .work/codify/main/20261121T000000Z-rules-ledger.json"
+          }
+        }
+      ],
+      "why": "rules action reconciles its ledger"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -50"
+          }
+        }
+      ],
+      "why": "default action counts the mistake in history instead"
+    }
+  ]
+}
