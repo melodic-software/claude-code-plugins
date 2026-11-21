@@ -788,6 +788,7 @@ class TestLoop(unittest.TestCase):
             "proto-pin.js",
             "note-model.mjs",
             "frame-channel.mjs",
+            "bar-edges.mjs",
             "note.schema.json",
             "controls.schema.json",
             "controls.js",

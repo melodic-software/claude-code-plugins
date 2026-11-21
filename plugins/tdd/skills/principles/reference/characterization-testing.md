@@ -1,13 +1,13 @@
 # Characterization Testing
 
 How to get legacy code, or code about to be rewritten, under test before changing it: Feathers'
-characterization tests, golden master and approval tests, the sabotage check, and why every one of
-them proves sameness rather than correctness.
+characterization tests, the sabotage check, and why every recorded-baseline test proves sameness
+rather than correctness.
 
 **Provenance, read first.** This file is **not** a book distillation. Of Michael Feathers'
 *Working Effectively with Legacy Code* (2004), only the publisher's free sample was read: chapter
 4 and the preface. His definition and recipe below come from his 2016 web page. The other sources
-are tool documentation, one 2025 blog post and Martin Fowler's Strangler Fig page. The sources and
+are one 2025 blog post and Martin Fowler's Strangler Fig page. The sources and
 their read depth are in [Sources](#sources) at the end.
 
 ## What a Characterization Test Is
@@ -73,22 +73,6 @@ seams that we can insert into the system". Each piece moved is pinned by charact
 the old behavior before it moves (this file's reading; Fowler's page does not prescribe the test).
 Planning such a migration belongs to `/planning:design`, where that skill is available.
 
-## Golden Master, Approval and Snapshot Tests
-
-The same idea at a coarser grain: record the old output once, commit it, and compare every later
-run against it. ApprovalTests calls the pair received and approved, Verify calls it received and
-verified, Jest calls it a snapshot. It fits batch outputs and large objects where per-field
-assertions would be tedious.
-
-In each tool, accepting a changed output is a reviewed step, not a reflex (HIGH: ApprovalTests,
-Verify and Jest each document it). Jest names the failure plainly: fix the bug before regenerating,
-or the snapshot records the buggy behavior. Volatile values (timestamps, generated ids) are
-normalized before the comparison rather than dropped from it: Verify scrubbers, Jest property
-matchers, a custom compare hook (MEDIUM after verification; the scope of the claim was narrowed).
-
-An intentional difference is handled as a named, reviewed exception, and the comparison stays
-strict everywhere else (HIGH).
-
 ## The Sabotage Check
 
 Mark Seemann (2025) adds one step to the recipe: after the assertion holds the observed value,
@@ -100,9 +84,9 @@ can.
 ## Pins Prove Sameness, Not Correctness
 
 Every recorded-baseline test (characterization, golden master, approval, snapshot) asserts that
-today's output equals yesterday's. It says nothing about whether yesterday's output was right, so a
-baseline accepted without review records whatever bug produced it (HIGH: Feathers' page plus three
-tool docs).
+today's output equals yesterday's. It says nothing about whether yesterday's output was right
+(HIGH, single source: Feathers' page), so a baseline accepted without review records whatever bug
+produced it.
 
 Two consequences, stated as this file's reading of the sources:
 
@@ -133,10 +117,3 @@ Each source was read at the depth noted.
   <https://martinfowler.com/bliki/StranglerFigApplication.html>). Page read.
 - Mark Seemann, "Empirical characterization testing" (2025-11-03,
   <https://blog.ploeh.dk/2025/11/03/empirical-characterization-testing/>). Post read.
-- ApprovalTests (<https://approvaltests.com/>), Verify snapshot management
-  (<https://github.com/VerifyTests/Verify#snapshot-management>, scrubbers:
-  <https://github.com/VerifyTests/Verify/blob/main/docs/scrubbers.md>), Jest snapshot testing
-  (<https://jestjs.io/docs/snapshot-testing#updating-snapshots>, property matchers:
-  <https://jestjs.io/docs/snapshot-testing#property-matchers>, 30.5 docs). Docs read.
-- Scientist compare hook (<https://github.com/github/scientist>) and known-difference ignores
-  (<https://github.blog/developer-skills/application-development/scientist/>). Docs read.

@@ -421,7 +421,7 @@ describe("a binary run through cmd.exe", () => {
 
 describe("a CLI that prints one JSON result (envelope)", () => {
   const agy = (w, extra) => ({ ...w.opts, product: "antigravity", providersRoot: fixtures, binary: fakeAgy, model: "m1", ...extra });
-  const preface = "This run is read-only: shell commands and file writes are refused, so use only your file-reading tools.";
+  const preface = loadProvider("antigravity", fixtures).modes["read-only"].prompt_preface;
 
   test("a read-only run writes the mode's settings file and puts the prefaced prompt in argv", async () => {
     const w = world({ envelope: { status: "SUCCESS", response: "it is slow because", conversation_id: "conv-1" } });

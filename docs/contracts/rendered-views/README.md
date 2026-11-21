@@ -830,8 +830,8 @@ validation answer set). Fleet audits check those surfaces against this section.
 copies the state the user built out as text they can paste into the session or commit. For
 the author's version of this rule, see S2, section "Custom editing interfaces"
 ([source list](../../finding-your-unknowns.md#sources-and-citation-shape)). The doctrine
-recurs three times independently in the corpus; it is what keeps a throwaway editor inside
-the agent loop instead of becoming a dead end.
+recurs three times independently in the corpus; without the control, the state a user
+builds in a throwaway editor stays in the browser, so the session never sees it.
 
 **Who is bound.** Skills that emit interactive HTML artifacts cite this section.
 
@@ -927,6 +927,8 @@ lane. A skill runs its `resolve` command and never reads the files itself.
   `medium`, `decidedBy`, `notices`), then the report line (see Reachability and the fallback
   chain). Each lane registers once in the medium registry with its view kinds, whether it is
   hosted-capable, and its default.
+
+  A plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../config-cascade/locations.md) says.
 
 ## Template vendoring posture
 

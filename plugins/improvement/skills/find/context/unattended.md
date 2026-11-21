@@ -162,9 +162,10 @@ the lane, and Tier 0 stands alone for the code dimension.
    entry. Use the file only when `mode` is `unattended`, `producer` is `architecture:improve` and
    `source-sha` equals the target's `git rev-parse HEAD`; otherwise, or when no file was written,
    add a `gap:` line and use no architecture candidate.
-2. **Map each entry to a candidate row.** Dimension is code / architecture, Size is judged from the
-   entry's files and `deepening` text, and Evidence cites `architecture:improve` and the entry's
-   `shallow-signal`. A `Strong` entry with `signal-verified: true` takes the confidence ranking.md
+2. **Map each entry to a candidate row.** Dimension is code / architecture, Size is the band the
+   entry's `size` field opens with (`S`, `M` or `L`), and Evidence cites `architecture:improve` and
+   the entry's `shallow-signal`. An entry with no valid `size` gets a `gap:` line naming it and is
+   used as no candidate. A `Strong` entry with `signal-verified: true` takes the confidence ranking.md
    gives a structural presence signal; every other entry takes the one it gives model judgment,
    labeled judgment.
 3. **Mark what may be filed.** Only an entry with `recommendation: Strong` and

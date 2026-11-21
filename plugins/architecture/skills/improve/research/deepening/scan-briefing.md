@@ -116,6 +116,7 @@ render without re-deriving structure:
 - shallow-signal: <the concrete observation that is the evidence for shallowness, e.g. "three one-method
   wrappers each forwarding their argument"; this is what Phase 1.5 reproduces>
 - category: in-process | local-substitutable | ports-and-adapters | mock
+- size: S | M | L: <basis, at most twelve words; bands in html-report.md "Size">
 - deletion-verdict: concentrates | moves
 - test-surface: <what a test at the deepened interface would assert>
 - confidence: strong | worth-exploring | speculative   # calibrated against §4, not gut feel

@@ -18,22 +18,6 @@ The first two are non-controversial. The third, what *isolation* means, is the r
 
 Isolation = isolate the **system under test from its collaborators**. Replace all dependencies with test doubles so you verify the SUT exclusively, separated from external influence.
 
-```csharp
-// London style — Store replaced with a mock
-var storeMock = new Mock<IStore>();
-storeMock
-    .Setup(x => x.HasEnoughInventory(Product.Shampoo, 5))
-    .Returns(true);
-var customer = new Customer();
-
-bool success = customer.Purchase(storeMock.Object, Product.Shampoo, 5);
-
-Assert.True(success);
-storeMock.Verify(
-    x => x.RemoveInventory(Product.Shampoo, 5),
-    Times.Once);
-```
-
 Benefits claimed:
 
 - Know exactly which class broke (no other suspects)
@@ -43,20 +27,6 @@ Benefits claimed:
 ### Classical School (Detroit)
 
 Isolation = isolate **unit tests from each other**. Tests shouldn't share mutable state (databases, static fields) that lets one test affect another's outcome. But using real collaborators within a test is fine.
-
-```csharp
-// Classical style — real Store instance, real collaborators
-var store = new Store();
-store.AddInventory(Product.Shampoo, 10);
-var customer = new Customer();
-
-bool success = customer.Purchase(store, Product.Shampoo, 5);
-
-Assert.True(success);
-Assert.Equal(5, store.GetInventory(Product.Shampoo));
-```
-
-The classical test verifies both `Customer` and `Store` together. A bug in `Store` will fail `Customer`'s tests too, and that's fine.
 
 ## The Two Schools Summarized
 
@@ -146,7 +116,7 @@ London-style tests point to the exact broken class. Classical tests may cascade.
 
 > "The most crucial distinction between the schools is the issue of over-specification: that is, coupling the tests to the SUT's implementation details. The London style tends to produce tests that couple to the implementation more often than the classical style."
 
-This couples directly to **Pillar 2: Resistance to Refactoring** (Ch 4). Tests that verify interaction patterns (`storeMock.Verify(x => x.RemoveInventory(...), Times.Once)`) break when you refactor how the SUT achieves its result, even if the result is unchanged. This creates false positives.
+This couples directly to **Pillar 2: Resistance to Refactoring** (Ch 4). Tests that verify interaction patterns break when you refactor how the SUT achieves its result, even if the result is unchanged. This creates false positives.
 
 ## Integration Tests in the Two Schools
 

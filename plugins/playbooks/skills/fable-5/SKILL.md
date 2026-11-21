@@ -117,6 +117,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Never re-run a failed action unchanged: name the delta before every retry; only a positively classified transient failure earns a bounded retry (up to 2).
 - After a second failed tactic at the same level, change altitude before spending a third.
 - When a new fact would have changed your original approach choice, re-run that decision as if the invested work did not exist.
+- Wrong output with no failed tool call: a fact never loaded is loaded, one loaded but ignored gets fresh context, one stale or wrong is re-fetched before anything is cleared.
 - Time-box every tangent (3-5 tool calls) before entering it. Stuck-state escalation requires two tactics, an altitude change, a classified failure, and a clean workspace; a question the user owns escalates immediately at zero attempts.
 
 ### Managing your window. Context-economy
@@ -156,6 +157,7 @@ When you follow a chapter's Pointer to a vendor docs section, read that section 
 | Face an acceptance criterion the user can only judge on sight, or a want an example would carry faster than their prose | `problem-framing.md` |
 | Get a multi-step deliverable back as not what was meant | `problem-framing.md` |
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
+| Find your output wrong when no tool call failed | `recovery.md` |
 | Enter a long session, resume after context loss, juggle interleaved threads, or finish a phase whose output the next phase consumes | `context-economy.md` |
 | Read external or untrusted content, encounter a secret, or prepare an outward-visible action | `trust-and-authority.md` |
 | Answer from a dense chart, technical drawing, small-print screenshot, or scanned table, or author a harness that feeds such images to a model | `reading-dense-images.md` |

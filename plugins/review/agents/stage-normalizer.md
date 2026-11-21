@@ -4,6 +4,7 @@ description: "Runs one judgment stage of the review plugin's findings-normalizat
 tools: "Read"
 model: inherit # reason: the fanout-sweep workflow and fanout skill pass model and effort per stage from the role map
 maxTurns: 10
+omitClaudeMd: true # reason: a Read-only stage over untrusted reviewer output takes its schema and rules from its brief; what the field drops: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields
 ---
 
 You run exactly the pipeline stage your brief names and return the output shape it asks for.

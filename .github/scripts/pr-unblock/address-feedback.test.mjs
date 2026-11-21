@@ -1,7 +1,8 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -20,6 +21,7 @@ const HUMAN = 153232337;
 const STRANGER = 4242;
 const HEAD = "a".repeat(40);
 const OLD_HEAD = "b".repeat(40);
+const noPlan = () => ({});
 const ROUND = "<!-- pr-unblock:address-feedback-round -->";
 const marker = (lane, sha) => `<!-- claude-lane-reviewed-head lane=${lane} sha=${sha} -->\n${lane} has reviewed this pull request.`;
 const INJECTION =
@@ -78,6 +80,7 @@ function fakeApi(overrides = {}) {
     },
     listPullCommits: async () => Object.keys(overrides.checks ?? { [HEAD]: [] }).map((sha) => ({ sha })),
     listCheckRuns: async (sha) => (overrides.checks ?? {})[sha] ?? [],
+    listModelRounds: async () => Object.values(overrides.checks ?? { [HEAD]: [] }),
     createIssueComment: async (pr, body) => posted.push({ pr, body }),
   };
 }
@@ -611,9 +614,9 @@ test("a thread read that fails throws, so main writes no outputs and resolves no
   writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
   const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, "t.json"), RUN_FILE: join(dir, "r.json"), TRUSTED_ACTORS: actors };
   const broken = { ...fakeApi(), listThreads: async () => Promise.reject(new Error("GraphQL: timeout")) };
-  await assert.rejects(main(["select"], env, { api: broken, log: () => {} }), /timeout/);
+  await assert.rejects(main(["select"], env, { plan: noPlan, api: broken, log: () => {} }), /timeout/);
   assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
-  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "resolved") }, { api: fakeApi({ threads: [] }), log: () => {} });
+  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "resolved") }, { plan: noPlan, api: fakeApi({ threads: [] }), log: () => {} });
   assert.match(readFileSync(join(dir, "resolved"), "utf8"), /^skip-reason=stop-resolved\n(?:.*\n)*stop-resolved=true$/m);
 });
 
@@ -1163,7 +1166,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
     RUN_FILE: join(dir, `${name}.run.json`),
     TRUSTED_ACTORS: actors,
   });
-  await main(["select"], env("ok"), { api: fakeApi(), log: () => {} });
+  await main(["select"], env("ok"), { plan: noPlan, api: fakeApi(), log: () => {} });
   assert.equal(readFileSync(join(dir, "ok.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   const okFile = JSON.parse(readFileSync(join(dir, "ok.json"), "utf8"));
   assert.equal(okFile.threads[0].id, "PRRT_1");
@@ -1179,7 +1182,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   );
 
   // The people on the list come from TRUSTED_ACTORS.
-  await main(["select"], env("decided"), { api: fakeApi(escalated()), log: () => {} });
+  await main(["select"], env("decided"), { plan: noPlan, api: fakeApi(escalated()), log: () => {} });
   assert.equal(readFileSync(join(dir, "decided.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   assert.equal(JSON.parse(readFileSync(join(dir, "decided.json"), "utf8")).threads[0].comments[2].direction, true);
 
@@ -1187,13 +1190,13 @@ test("main select writes outputs and the thread file; escalation writes no threa
   const tracker = join(dir, "tracker.json");
   writeFileSync(tracker, JSON.stringify({ config: { role_labels: { "human-gated": "status: blocked-human" } } }));
   const gatedEnv = { ...env("gated"), TRACKER_CONFIG: tracker };
-  await main(["select"], gatedEnv, { api: fakeApi({ ...escalated({ replies: [[102, HUMAN, REQUEST]] }), labels: ["status: blocked-human"] }), log: () => {} });
+  await main(["select"], gatedEnv, { plan: noPlan, api: fakeApi({ ...escalated({ replies: [[102, HUMAN, REQUEST]] }), labels: ["status: blocked-human"] }), log: () => {} });
   assert.equal(readFileSync(join(dir, "gated.out"), "utf8"), "proceed=true\nhuman-gate=fix-request\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   const heldEnv = { ...env("held"), TRACKER_CONFIG: tracker };
-  await main(["select"], heldEnv, { api: fakeApi({ ...escalated(), labels: ["status: blocked-human"] }), log: () => {} });
+  await main(["select"], heldEnv, { plan: noPlan, api: fakeApi({ ...escalated(), labels: ["status: blocked-human"] }), log: () => {} });
   assert.equal(readFileSync(join(dir, "held.out"), "utf8"), "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=awaiting-human\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
 
-  await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
+  await main(["select"], env("esc"), { plan: noPlan, api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
   assert.equal(
     readFileSync(join(dir, "esc.out"), "utf8"),
     "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-protected-path\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n",
@@ -1211,7 +1214,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
       ...[1, 2].map((n) => ({ id: 10 + n, user: { id: APP }, body: `${ROUND}\nround ${n}`, created_at: at(10) })),
     ],
   });
-  await main(["select"], { ...env("bound"), REVIEW_ROUNDS: "1" }, { api: bound, log: () => {} });
+  await main(["select"], { ...env("bound"), REVIEW_ROUNDS: "1" }, { plan: noPlan, api: bound, log: () => {} });
   assert.equal(
     readFileSync(join(dir, "bound.out"), "utf8"),
     "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-not-converging\nnot-run-detail=round 2 of max 2\nstop-resolved=false\nperson-opened=false\n",
@@ -1244,7 +1247,7 @@ test("main select takes the head step's PR read for this PR and head, and reads 
   const go = async (name, path) => {
     const api = counted();
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, ...(path === undefined ? {} : { PULL_FILE: path }) };
-    await main(["select"], env, { api, log: () => {} });
+    await main(["select"], env, { plan: noPlan, api, log: () => {} });
     return { reads: api.pullReads, out: readFileSync(join(dir, `${name}.out`), "utf8") };
   };
   const same = { number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body: "" };
@@ -1277,7 +1280,7 @@ test("main select takes the head step's PR read for this PR and head, and reads 
   writeFileSync(tracker, JSON.stringify({ config: { role_labels: { "human-gated": "status: blocked-human" } } }));
   const api = counted();
   const held = join(dir, "held.out");
-  await main(["select"], { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: held, PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, "held.json"), RUN_FILE: join(dir, "held.run.json"), TRUSTED_ACTORS: actors, TRACKER_CONFIG: tracker, PULL_FILE: pullFile("held", { ...same, labels: [{ name: "status: blocked-human" }] }) }, { api, log: () => {} });
+  await main(["select"], { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: held, PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, "held.json"), RUN_FILE: join(dir, "held.run.json"), TRUSTED_ACTORS: actors, TRACKER_CONFIG: tracker, PULL_FILE: pullFile("held", { ...same, labels: [{ name: "status: blocked-human" }] }) }, { plan: noPlan, api, log: () => {} });
   assert.equal(api.pullReads, 0);
   assert.match(readFileSync(held, "utf8"), /^skip-reason=awaiting-human$/m);
 });
@@ -1293,7 +1296,7 @@ test("main select needs RUN_FILE beside THREAD_FILE, and no LANE_BRANCH", async 
     THREAD_FILE: join(tmpdir(), "unused.json"),
     TRUSTED_ACTORS: join(tmpdir(), "unused-actors.json"),
   };
-  await assert.rejects(main(["select"], env, { api: fakeApi() }), /RUN_FILE is not set/);
+  await assert.rejects(main(["select"], env, { plan: noPlan, api: fakeApi() }), /RUN_FILE is not set/);
 });
 
 test("run.json carries each kept thread's named_paths and no comment body", () => {
@@ -1320,8 +1323,8 @@ test("main refuses bad inputs and any subcommand but select", async () => {
     APP_SENDER_ID: String(APP),
   };
   const api = fakeApi();
-  await assert.rejects(main(["select"], { ...env, HEAD_SHA: "x" }, { api }), /HEAD_SHA/);
-  await assert.rejects(main(["select"], { ...env, PR_NUMBER: "0" }, { api }), /PR_NUMBER/);
+  await assert.rejects(main(["select"], { ...env, HEAD_SHA: "x" }, { plan: noPlan, api }), /HEAD_SHA/);
+  await assert.rejects(main(["select"], { ...env, PR_NUMBER: "0" }, { plan: noPlan, api }), /PR_NUMBER/);
   await assert.rejects(main(["record-round"], env, { api }), /usage/);
   assert.equal(api.posted.length, 0);
 });
@@ -1389,10 +1392,18 @@ test("listActivity rejects when a later page answers an error, never returning t
 test("listActivity loads its cursor reader from the staged layout a script activity runs in", async () => {
   const root = tempDir("base-activity-");
   try {
-    cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
-    cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
-    mkdirSync(join(root, "pr-merge"));
-    cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
+    const scripts = fileURLToPath(new URL("../", import.meta.url));
+    const dest = (file) => join(root, relative(scripts, file).replace(/^pr-unblock\//, "base-script/"));
+    const seen = new Set();
+    const stage = (file) => {
+      if (seen.has(file) || !file.startsWith(scripts) || !existsSync(file)) return;
+      seen.add(file);
+      mkdirSync(dirname(dest(file)), { recursive: true });
+      cpSync(file, dest(file));
+      if (!file.endsWith(".mjs")) return;
+      for (const [, spec] of readFileSync(file, "utf8").matchAll(/(?:from |import\(|new URL\()"(\.\.?\/[^"]+)"/g)) stage(resolve(dirname(file), spec));
+    };
+    stage(fileURLToPath(new URL("./address-feedback.mjs", import.meta.url)));
     const { createGitHubApi: staged } = await import(pathToFileURL(join(root, "base-script", "address-feedback.mjs")).href);
     const api = staged({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch: activityFetch([rows(100), rows(1)]) });
     assert.equal((await api.listActivity("b")).length, 101);
@@ -1777,7 +1788,7 @@ test("at the round cap a Codex finding is a bot finding: it gets the fresh fixer
 
 test("at the round cap a Codex finding goes to a person when the security-review lane held its head, and to a session when a person directed it", async () => {
   const held = codexAt(lanesMarked(securityMarked(), securityHold(HEAD)));
-  const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [] }, { maxRounds: 2 });
+  const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [], listModelRounds: async () => Object.values(modelRounds(2)) }, { maxRounds: 2 });
   assert.deepEqual([heldResult.decision, heldResult.escalationReason], ["escalate", "feedback-round-cap-security"]);
   // A write-access fix request older than the newest round directed it.
   const directed = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), checks: modelRounds(2) }), { maxRounds: 2 });
@@ -2286,7 +2297,7 @@ test("main select takes the FAILed heads only from a dispatcher's model round, a
     ["self", { VERIFY_EARLIER_FAIL_HEADS: HEAD }],
     ["twice", { VERIFY_EARLIER_FAIL_HEADS: `${OLD_HEAD} ${OLD_HEAD}` }],
   ]) {
-    await assert.rejects(main(["select"], env(name, extra), { api: fakeApi(), log: () => {} }), /VERIFY_EARLIER_FAIL_HEADS|earlier FAILed heads/, name);
+    await assert.rejects(main(["select"], env(name, extra), { plan: noPlan, api: fakeApi(), log: () => {} }), /VERIFY_EARLIER_FAIL_HEADS|earlier FAILed heads/, name);
   }
   assert.deepEqual(earlierFailHeadsFrom({ VERIFY_EARLIER_FAIL_HEADS: "" }), []);
   assert.deepEqual(earlierFailHeadsFrom({ HEAD_SHA: HEAD, DISPATCHER_RUN_ID: "1", VERIFY_EARLIER_FAIL_HEADS: `${OLD_HEAD} ${"c".repeat(40)}` }), [OLD_HEAD, "c".repeat(40)]);
@@ -2321,31 +2332,31 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   const api = (threads) => ({ listThreads: async () => threads });
   const out = (name) => (existsSync(join(dir, `${name}.out`)) ? readFileSync(join(dir, `${name}.out`), "utf8") : "");
 
-  await main(["select"], env("pass"), { api: api([note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)]), log: () => {} });
+  await main(["select"], env("pass"), { plan: noPlan, api: api([note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)]), log: () => {} });
   assert.equal(out("pass"), "resolve-only=true\n");
   assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
 
   // The PR moved past the passing head: nothing to do, and no output, so
   // neither a model job nor a neutral check runs.
-  await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { api: api([note("PRRT_old")]), log: () => {} });
+  await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { plan: noPlan, api: api([note("PRRT_old")]), log: () => {} });
   assert.equal(out("moved"), "");
 
   // Only a dispatcher sends a pass head.
-  await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
-  await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+  await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { plan: noPlan, api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
+  await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { plan: noPlan, api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
 
   // A same-head FAIL the gate's reader found superseded (the dispatcher's
   // verify-superseded-head) adds its notes, and run.json names that head for
   // the reply job's re-check; a FAIL not superseded there, or one superseded
   // at another head, adds none.
   const threads = [note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)];
-  await main(["select"], env("superseded", { VERIFY_SUPERSEDED_HEAD: HEAD }), { api: api(threads), log: () => {} });
+  await main(["select"], env("superseded", { VERIFY_SUPERSEDED_HEAD: HEAD }), { plan: noPlan, api: api(threads), log: () => {} });
   assert.equal(out("superseded"), "resolve-only=true\n");
   assert.equal(readFileSync(join(dir, "superseded.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old","PRRT_now"],"superseded_head":"${HEAD}"}\n`);
-  await main(["select"], env("elsewhere", { VERIFY_SUPERSEDED_HEAD: OLD }), { api: api(threads), log: () => {} });
+  await main(["select"], env("elsewhere", { VERIFY_SUPERSEDED_HEAD: OLD }), { plan: noPlan, api: api(threads), log: () => {} });
   assert.equal(readFileSync(join(dir, "elsewhere.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
-  await assert.rejects(main(["select"], env("bad-superseded", { VERIFY_SUPERSEDED_HEAD: "main" }), { api: api(threads), log: () => {} }), /VERIFY_SUPERSEDED_HEAD/);
+  await assert.rejects(main(["select"], env("bad-superseded", { VERIFY_SUPERSEDED_HEAD: "main" }), { plan: noPlan, api: api(threads), log: () => {} }), /VERIFY_SUPERSEDED_HEAD/);
 });
 
 // A rerun of a pass-only round after its stale notes were resolved by hand
@@ -2370,7 +2381,7 @@ async function passOnlyWithoutStale(t, api) {
     VERIFY_PASS_HEAD: HEAD,
     DISPATCHER_RUN_ID: "5000",
   };
-  await main(["select"], env, { api, log: () => {} });
+  await main(["select"], env, { plan: noPlan, api, log: () => {} });
   assert.equal(existsSync(env.RUN_FILE), false);
   return existsSync(env.GITHUB_OUTPUT) ? readFileSync(env.GITHUB_OUTPUT, "utf8") : "";
 }
@@ -2590,11 +2601,20 @@ test("ciSnapshot plans from every changed path, rename sources included", async 
   assert.deepEqual(seen, [".github/workflows/x.yml", "docs/new.md", "docs/old.md"]);
 });
 
-const PLAN_SCRIPT = new URL("../../../scripts/plan-test-lanes.sh", import.meta.url);
-test("planLanes runs the repository's scripts/plan-test-lanes.sh over the paths", { skip: !existsSync(PLAN_SCRIPT) && "no scripts/plan-test-lanes.sh in this repository" }, () => {
-  const plan = planLanes(["scripts/plan-test-lanes.sh"]);
-  assert.equal(plan.bash, "true");
-  assert.ok(coveringLanes(plan).includes("test-bash (0)"));
+test("planLanes runs the root's scripts/plan-test-lanes.sh over the paths and reads its key=value lines", () => {
+  const root = tempDir("address-feedback-plan-");
+  mkdirSync(join(root, "scripts"));
+  writeFileSync(join(root, "scripts", "plan-test-lanes.sh"), '[ "$1 $2" = "-- a.sh" ] || exit 1\necho "plan for $2"\necho bash=true\necho \'bash_legs=[0]\'\n');
+  const plan = planLanes(["a.sh"], root);
+  assert.deepEqual(plan, { bash: "true", bash_legs: "[0]" });
+  assert.deepEqual(coveringLanes(plan), ["test-bash (0)"]);
+});
+
+test("scripts/plan-test-lanes.sh still prints the <lane>, <lane>_legs and windows_jobs lines planLanes reads", () => {
+  const planner = readFileSync(new URL("../../../scripts/plan-test-lanes.sh", import.meta.url), "utf8");
+  assert.match(planner, /printf "%s=true\\n%s_legs=\[%s\]\\n/);
+  assert.match(planner, /printf "%s=false\\n%s_legs=\[0\]\\n/);
+  assert.match(planner, /echo "windows_jobs=\$\(json_on /);
 });
 
 test("select records the ci snapshot for run.json; with no snapshot function it records none", async () => {
@@ -2765,7 +2785,7 @@ test("main select writes the offered sections to the thread file unless pr_body_
   writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body: REFRESH_BODY }));
   const go = async (name, extra) => {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
-    await main(["select"], env, { api: fakeApi(), log: () => {} });
+    await main(["select"], env, { plan: noPlan, api: fakeApi(), log: () => {} });
     return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
   };
   const [threads, run] = await go("on", { BODY_SECTIONS: "Verification" });
@@ -2790,7 +2810,7 @@ test("main select shows every ## section in body_view, a Summary over the refres
   writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body }));
   const go = async (name, extra) => {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
-    await main(["select"], env, { api: fakeApi(), log: () => {} });
+    await main(["select"], env, { plan: noPlan, api: fakeApi(), log: () => {} });
     return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
   };
   const [threads, run] = await go("on", {});
@@ -2886,4 +2906,68 @@ test("a gated PR's fix-request thread proceeds without the comment items", async
 test("an ungated PR's kept thread and a workflow change escalate as before, with the comment ignored", async () => {
   const result = await run(fakeApi({ files: [{ filename: ".github/workflows/ci.yml" }, { filename: "src/a.js" }], issueComments: [reviewMarker, asking(500)] }));
   assert.equal(result.escalationReason, "feedback-protected-path");
+});
+
+const roundsAnswer = (commits, { more = false } = {}) => ({
+  data: {
+    repository: {
+      pullRequest: {
+        commits: {
+          pageInfo: { hasNextPage: more },
+          nodes: commits.map(({ oid, runs = [], suitesMore = false, runsMore = false, repeats = 1 }) => ({
+            commit: { oid, checkSuites: { pageInfo: { hasNextPage: suitesMore }, nodes: Array.from({ length: repeats }, () => ({ checkRuns: { pageInfo: { hasNextPage: runsMore }, nodes: runs } })) } },
+          })),
+        },
+      },
+    },
+  },
+});
+const roundsApi = (answer, rest = {}) => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    const data = url === "https://gql" ? answer : rest[url];
+    return { ok: true, status: 200, json: async () => data, headers: { get: () => "" } };
+  };
+  return { urls, api: createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch }) };
+};
+const restRuns = (sha) => `https://api/repos/o/r/commits/${sha}/check-runs?check_name=pr-unblock%20%2F%20address-feedback&filter=all&per_page=100`;
+
+test("listModelRounds reads every commit's model runs in one GraphQL query, in listCheckRuns' shape, once each when a suite repeats", async () => {
+  const { urls, api } = roundsApi(
+    roundsAnswer([
+      { oid: "a".repeat(40), runs: [{ databaseId: 1, name: "pr-unblock / address-feedback", conclusion: "SUCCESS", completedAt: "2026-11-21T15:19:12Z" }, { databaseId: 2, name: "pr-unblock / address-feedback", conclusion: null, completedAt: null }], repeats: 2 },
+      { oid: "b".repeat(40) },
+    ]),
+  );
+  assert.deepEqual(await api.listModelRounds(17939, "pr-unblock / address-feedback"), [
+    [
+      { id: 1, name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success", completed_at: "2026-11-21T15:19:12Z" },
+      { id: 2, name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: null, completed_at: null },
+    ],
+    [],
+  ]);
+  assert.deepEqual(urls, ["https://gql"]);
+});
+
+test("listModelRounds reads a commit over REST when its suites or runs run past a page", async () => {
+  const [a, b, c] = ["a", "b", "c"].map((x) => x.repeat(40));
+  const kept = { name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "failure" };
+  const { urls, api } = roundsApi(roundsAnswer([{ oid: a, suitesMore: true }, { oid: b, runsMore: true }, { oid: c }]), {
+    [restRuns(a)]: { check_runs: [kept] },
+    [restRuns(b)]: { check_runs: [] },
+  });
+  assert.deepEqual(await api.listModelRounds(1, "pr-unblock / address-feedback"), [[kept], [], []]);
+  assert.deepEqual(urls, ["https://gql", restRuns(a), restRuns(b)]);
+});
+
+test("listModelRounds reads every commit over REST for a PR past 100 commits", async () => {
+  const shas = ["d", "e"].map((x) => x.repeat(40));
+  const { urls, api } = roundsApi(roundsAnswer([], { more: true }), {
+    "https://api/repos/o/r/pulls/7/commits?per_page=100": shas.map((sha) => ({ sha })),
+    [restRuns(shas[0])]: { check_runs: [{ name: "x" }] },
+    [restRuns(shas[1])]: { check_runs: [] },
+  });
+  assert.deepEqual(await api.listModelRounds(7, "pr-unblock / address-feedback"), [[{ name: "x" }], []]);
+  assert.deepEqual(urls, ["https://gql", "https://api/repos/o/r/pulls/7/commits?per_page=100", restRuns(shas[0]), restRuns(shas[1])]);
 });

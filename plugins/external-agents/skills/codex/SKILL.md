@@ -12,7 +12,7 @@ allowed-tools:
   - "Bash(external-agents update codex:*)"
 shell: bash
 metadata:
-  workflow-stage: implementation
+  workflow-stage: implement
   summary: Hand tasks, investigations and reviews to the Codex CLI and read back its jobs
 ---
 
