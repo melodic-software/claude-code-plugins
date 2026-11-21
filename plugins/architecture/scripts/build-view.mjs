@@ -17,9 +17,10 @@
 
 import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
+import { DeepeningRecordError, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
 
 const TITLES = {
   landscape: "Landscape",
@@ -31,6 +32,7 @@ const TITLES = {
   flow: "Flow",
   context: "Context",
   deployment: "Deployment",
+  deepening: "Deepening review",
 };
 const NAME_KEYS = ["id", "name", "message", "title", "path", "entry", "resource"];
 
@@ -98,6 +100,13 @@ const viewData = (kind, record, from) => {
   return { title: `${TITLES[kind]} view`, facts, rows };
 };
 
+const deepeningPage = (record) => {
+  const page = renderDeepening(parseDeepening(record));
+  const checked = validateDeepeningPage(page);
+  if (!checked.ok) throw new ViewBuildError(checked.failures);
+  return page;
+};
+
 const [kind, ...rest] = process.argv.slice(2);
 const flags = {};
 for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
@@ -113,8 +122,9 @@ try {
   } catch (err) {
     throw err instanceof SyntaxError ? new RecordError("the record is not JSON") : err;
   }
-  if (!isObject(record) || record.schema_version !== 1) throw new RecordError("the record is not a schema_version 1 map record");
-  const page = buildView({
+  if (kind === "deepening" && flags["--from"]) throw new RecordError("--from does not apply to the deepening record");
+  if (!isObject(record) || record.schema_version !== 1) throw new RecordError("the record is not a schema_version 1 record");
+  const page = kind === "deepening" ? deepeningPage(record) : buildView({
     profile: "interactive",
     template: readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
     data: viewData(kind, record, flags["--from"]),
@@ -125,11 +135,12 @@ try {
   if (!lstatSync(dir).isDirectory())
     throw new Error("build-view: refusing a symlinked or non-directory output path");
   chmodSync(dir, 0o700);
-  const out = join(dir, `${kind}.html`);
+  const stem = basename(flags["--record"]).replace(/\.json$/i, "");
+  const out = join(dir, kind === "deepening" && /^[A-Za-z0-9._-]{1,80}$/.test(stem) && !stem.startsWith(".") ? `${stem}.html` : `${kind}.html`);
   rmSync(out, { force: true });
   writeFileSync(out, page, { mode: 0o600 });
   console.log(out);
 } catch (err) {
   console.error(err instanceof RecordError ? `build-view: ${err.message}` : err.message);
-  process.exit(err instanceof RecordError || err instanceof ViewBuildError ? 1 : 2);
+  process.exit(err instanceof RecordError || err instanceof DeepeningRecordError || err instanceof ViewBuildError ? 1 : 2);
 }
