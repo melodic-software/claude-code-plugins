@@ -1065,14 +1065,34 @@ describe("split", () => {
 
     // Admission writes only the Work status field, so the parked state reaches
     // refine-select as the field decides the labels, never as a label.
-    test("selects an issue parked at confirmed on the Work status field alone, and not one the App already refined", async () => {
+    test("selects an issue parked at confirmed on the Work status field alone, and not one the App already split", async () => {
       const selectBy = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }), statusOf: fake.statusOf });
       const fielded = fakeGitHub({ issue: held({ labels: [] }), comments: heldComments, events: [], fields: onField(APP, "confirmed") });
       const result = await selectBy(fielded);
       assert.equal(result.refine, true, result.reason);
       assert.deepEqual(result.context.split.items.map(({ n }) => n), [2]);
-      const again = await selectBy(fakeGitHub({ issue: held({ labels: [] }), comments: [...heldComments, refined(BODY)], events: [], fields: onField(APP, "confirmed") }));
+      const again = await selectBy(fakeGitHub({ issue: held({ labels: [] }), comments: [...heldComments, refined(BODY, `${splitItemsLine([2])}\nold`)], events: [], fields: onField(APP, "confirmed") }));
       assert.deepEqual(again, { refine: false, reason: "the lanes App already refined this body" });
+    });
+
+    test("splits a body the App refined earlier without a split record, once", async () => {
+      const plain = [...heldComments, refined(BODY)];
+      const selected = await select(fakeGitHub({ issue: parked(), comments: plain, events: [] }));
+      assert.equal(selected.refine, true, selected.reason);
+      assert.deepEqual(selected.context.split.items.map(({ n }) => n), [2]);
+      const fake = fakeGitHub({ issue: parked(), comments: plain, events: [] });
+      assert.deepEqual(await apply(fake), { outcome: "split", redispatch: true });
+      assert.ok(writes(fake.calls)[1].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(BODY)}\n${splitItemsLine([2])}\n`));
+      const exact = fakeGitHub({ issue: parked(), comments: plain, events: [] });
+      const unsplit = { github: exact.github, repository: "o/r", number: 7, appId: APP, rules, output: validateOutput(EXACT, new Set(), null), context, setStatus: exact.setStatus, log: () => {} };
+      assert.deepEqual(await applyRefinement(unsplit), { outcome: "skipped", redispatch: false }, "no split in the output: the loop guard holds");
+      assert.equal(writes(exact.calls).length, 0);
+    });
+
+    test("an earlier refinement without a split record still stops refining a body with no split due", async () => {
+      const body = "- [ ] Line 3 says nineteen.\n- [ ] Tests pass.";
+      const result = await select(fakeGitHub({ issue: held({ body, labels: [{ name: PARKED }] }), comments: [...heldComments, refined(body)], events: [] }));
+      assert.deepEqual(result, { refine: false, reason: "the lanes App already refined this body" });
     });
 
     test("applies the split to an issue parked at confirmed on the Work status field alone", async () => {
