@@ -33,8 +33,9 @@ re-captures it, and never edits a capture harness or the app's styles to make a 
 ## Step 1: Pick the capture route
 
 1. **The repository's own visual suite first.** When the repository already runs a
-   visual-regression suite, run it at each checkpoint and report its verdict as the result for the
-   states it covers. Run it through the repository's own entry point when it has
+   visual-regression suite (a Playwright `toHaveScreenshot` spec, a Storybook visual test, a
+   screenshot test in its unit runner), run it at each checkpoint and report its verdict as the
+   result for the states it covers. Run it through the repository's own entry point when it has
    one (its documented test command or runner script), not the test tool directly, and name that
    command in the report. Capture here only the states it does not cover. A state the run did not
    compare (the run stopped on a build, install or browser-launch error, or the state has no
@@ -50,10 +51,11 @@ re-captures it, and never edits a capture harness or the app's styles to make a 
    each drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory,
    and record that state name in `baseline-routes.txt`. When drive reports `screenshot` as a
    capability gap, or writes no PNG, fall through to the next choice. Otherwise capture only
-   through the repository's own harness or browser-automation tool when it writes PNG files (the
-   `harness` route). Any other driver, including one that returns screenshots only into the
-   conversation, cannot feed a pixel count: stop with the gap report (what to hold, which driver
-   resolved, and that a PNG-writing driver is needed).
+   through the Playwright CLI (`/playwright:playwright`, when it is among the available skills) or
+   through the repository's own harness when that harness writes PNG files. Any other driver,
+   including one that returns screenshots only into the conversation, cannot feed a pixel count:
+   stop with the gap report (what to hold, which driver resolved, and that a PNG-writing driver is
+   needed).
 3. **One launch path.** When drive captures, drive's own launch is the one launch path: do not
    also start the app the way `/testing:run-e2e` starts it. For the other routes, start and
    restart the app through `/testing:run-e2e`'s launch path (its orchestrator rule, the bundled
@@ -105,7 +107,7 @@ Before the first edit of the change:
    project's instructions name another root). Name each file for its state, such as
    `invoice-list-empty.png`. Write the route that captured each state to
    `<memory_dir>/<branch-slug>/visual-parity/baseline-routes.txt`, one `<image name>: <route>`
-   line per state (`drive` or `harness`), outside the baseline directory so the
+   line per state (`drive`, `playwright` or `harness`), outside the baseline directory so the
    manifest does not hash it. `compare` reads it there and reuses each route.
 2. Record the manifest:
 
@@ -152,7 +154,7 @@ Per checkpoint: the `pixel_tolerance` line from Step 2; each image's
 `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>` line; the diff image path for each
 failure; when route 1 ran the repository's visual suite, the command that ran it and its verdict,
 or its environment failure with its last lines; each gap report; the route that captured each state
-(drive or the repository's harness); and the capture cost, as the number of
+(drive, the Playwright CLI or the repository's harness); and the capture cost, as the number of
 images captured and the seconds the capture and compare took.
 
 ## Upstream facts this rests on
