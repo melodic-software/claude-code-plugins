@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2] - 2026-11-21
+
+### Changed
+
+- **The `principles` reference pages explain the theory without one tool's examples.** `operators-and-states.md` drops PIT's default operator table and its pointer to this repository's `lib/hook-utils.test.sh`. `metrics.md` drops the table mapping the two scores to Stryker, PIT and Infection names, the Infection notes beside it, and the sample report table, now one sentence naming its columns. Both pages' Sources lines drop the PIT and Infection links. `theory.md` drops its Python loop example of an equivalent mutant. The README's Sources list keeps the papers and drops the Stryker, PIT and Infection docs links; each reference page still names the tool docs it draws on. `scaling-and-suppression.md` is unchanged, because `scripts/suppression-lint.sh` reads its node-kind table ([#17739](https://github.com/melodic-software/claude-code-plugins/issues/17739)).
+
 ## [0.21.1] - 2026-11-21
 
 ### Changed
