@@ -184,8 +184,6 @@
         "plugins/playwright/skills/demo-video/reference/replay-script.md": 1,
         "plugins/playwright/skills/playwright/reference/running-code.md": 3,
         "plugins/playwright/skills/playwright/reference/test-generation.md": 2,
-        "plugins/tdd/skills/principles/reference/anti-patterns-khorikov.md": 11,
-        "plugins/tdd/skills/principles/reference/testable-architecture-khorikov.md": 6,
         "plugins/user-interface/skills/write-css/reference/foundations.md": 6,
         "plugins/user-interface/skills/write-css/reference/interaction.md": 14,
         "plugins/user-interface/skills/write-css/reference/layout.md": 8,
