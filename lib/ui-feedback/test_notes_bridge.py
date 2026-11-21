@@ -20,6 +20,7 @@ import time
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE.parent / "session-bridge"
@@ -97,7 +98,8 @@ class TestHostAndPage(NotesCase):
     def test_the_host_page_is_served_with_its_policy(self):
         code, body = self.request("GET", "/", token=False)
         self.assertEqual(code, 200)
-        self.assertEqual(body, (HERE / "host.html").read_bytes())
+        raw = (HERE / "host.html").read_bytes()
+        self.assertEqual(body, raw.replace(nb.SANDBOX, nb.MOCKUP_FRAME))
         self.assertEqual(self.last_headers["Content-Security-Policy"], nb.HOST_CSP)
         self.assertEqual(self.last_headers["X-Frame-Options"], "DENY")
         self.assertNotIn(self.hub.token.encode(), body)
@@ -190,6 +192,151 @@ class TestHostAndPage(NotesCase):
         for bad in ("a</script>b", "<SCRIPT>", "x<!--y"):
             with self.assertRaises(RuntimeError):
                 nb.pin_helper(bad)
+
+
+class Frame(HTMLParser):
+    """The attributes of the host page's #page iframe."""
+
+    attrs = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "iframe" and dict(attrs).get("id") == "page":
+            self.attrs = dict(attrs)
+
+
+def frame_of(body):
+    parser = Frame()
+    parser.feed(body.decode())
+    return parser.attrs
+
+
+DEV = "http://localhost:5173"
+
+
+class TestRealStack(NotesCase):
+    def setUp(self):
+        super().setUp()
+        self.hub.dev_origin = DEV
+
+    def test_the_dev_route_frame_has_no_sandbox_and_the_policy_adds_frame_src(self):
+        code, body = self.request("GET", "/", token=False)
+        self.assertEqual(code, 200)
+        attrs = frame_of(body)
+        self.assertNotIn("sandbox", attrs)
+        self.assertNotIn("data-mockup-target", attrs)
+        self.assertNotIn(b'"*"', body, "the real-stack host page holds no wildcard target")
+        self.assertEqual(attrs["data-dev-origin"], DEV)
+        policy = self.last_headers["Content-Security-Policy"]
+        self.assertEqual(policy, f"{nb.HOST_CSP}; frame-src {DEV}")
+        self.assertIn("frame-ancestors 'none'", policy.split("; "))
+        self.assertNotIn(self.hub.token.encode(), body)
+
+    def test_the_origin_stays_one_attribute_even_unchecked(self):
+        self.hub.dev_origin = 'http://a"onload="alert(1)'
+        _, body = self.request("GET", "/", token=False)
+        attrs = frame_of(body)
+        self.assertEqual(attrs["data-dev-origin"], self.hub.dev_origin)
+        self.assertNotIn("onload", attrs)
+
+    def test_the_mockup_frame_keeps_its_sandbox(self):
+        self.hub.dev_origin = None
+        code, body = self.request("GET", "/", token=False)
+        self.assertEqual(frame_of(body)["sandbox"], "allow-scripts")
+        self.assertEqual(frame_of(body)["data-mockup-target"], "*")
+        self.assertNotIn("frame-src", self.last_headers["Content-Security-Policy"])
+
+    def test_ping_names_the_dev_origin(self):
+        self.assertEqual(self.hub.identity()["devOrigin"], DEV)
+        self.hub.dev_origin = None
+        self.assertNotIn("devOrigin", self.hub.identity())
+
+    def test_the_token_route_refuses_a_request_from_the_dev_origin(self):
+        cases = [{"Sec-Fetch-Site": "same-site"}] + [
+            {"Sec-Fetch-Site": site, "Origin": DEV}
+            for site in ("same-site", "cross-site", "same-origin")
+        ]
+        for headers in cases:
+            with self.subTest(headers=headers):
+                code, body = self.request(
+                    "GET", "/api/token", headers=headers, token=False
+                )
+                self.assertEqual(code, 403)
+                self.assertNotIn(self.hub.token, str(body))
+
+
+@unittest.skipUnless(shutil.which("node"), "harness-fence.mjs runs on node")
+class TestOneHostSpelling(NotesCase):
+    def fence_source(self, bridge_origin):
+        done = subprocess.run(
+            ["node", str(HERE / "harness-fence.mjs"), bridge_origin],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        )
+        name, value = done.stdout.strip().split(": ", 1)
+        self.assertEqual(name, "Content-Security-Policy")
+        directive, source = value.split(" ", 1)
+        self.assertEqual(directive, "frame-ancestors")
+        return source
+
+    def test_the_origin_check_the_frame_url_and_frame_ancestors_share_one_host(self):
+        host = (HERE / "host.html").read_text(encoding="utf-8")
+        self.assertIn("if (!fromFrame(e, frame.contentWindow, devOrigin)", host)
+        self.assertIn(
+            "const target = frameTarget(devOrigin, frame.dataset.mockupTarget || null);",
+            host,
+        )
+        self.assertIn("if (devOrigin) frame.src = `${devOrigin}/`;", host)
+        self.assertEqual(
+            self.hub.hosts, {f"{h}:{self.port}" for h in nb.BRIDGE_HOSTS}
+        )
+        for dev in ("http://localhost:5173", "http://127.0.0.1:3000"):
+            with self.subTest(dev=dev):
+                self.hub.dev_origin = dev
+                _, body = self.request("GET", "/", token=False)
+                checked = frame_of(body)["data-dev-origin"]
+                frame_url = f"{checked}/"
+                bridge = nb.bridge_origin(self.port, dev)
+                source = self.fence_source(bridge)
+                self.assertEqual(source, bridge)
+                hosts = {urlsplit(u).hostname for u in (checked, frame_url, source)}
+                self.assertEqual(hosts, {urlsplit(dev).hostname})
+                spelled = {"Host": urlsplit(source).netloc}
+                self.assertEqual(
+                    self.request("GET", "/", headers=spelled, token=False)[0], 200
+                )
+
+    def test_with_no_dev_origin_the_bridge_origin_stays_on_127_0_0_1(self):
+        self.assertEqual(nb.bridge_origin(self.port), f"http://127.0.0.1:{self.port}")
+
+
+@unittest.skipUnless(shutil.which("node"), "dev-origin.mjs runs on node")
+class TestDevOriginAtStart(unittest.TestCase):
+    def test_a_canonical_origin_is_taken(self):
+        self.assertEqual(nb.dev_origin(DEV), DEV)
+        local = "http://127.0.0.1:3000"
+        self.assertEqual(nb.dev_origin(local), local)
+
+    def test_a_host_the_bridge_does_not_answer_on_is_refused_at_start(self):
+        for bad in ("http://app.test:3000", "https://localhost.example"):
+            for cmd in ("ensure-running", "serve"):
+                with self.subTest(bad=bad, cmd=cmd), contextlib.redirect_stderr(
+                    io.StringIO()
+                ) as err, self.assertRaises(SystemExit) as stop:
+                    nb.main(["--dir", "unused", cmd, "--dev-origin", bad])
+                self.assertEqual(stop.exception.code, 2)
+                self.assertIn("not on a host the bridge answers on", err.getvalue())
+
+    def test_an_input_that_is_not_its_own_origin_is_refused_at_start(self):
+        for bad in ("http://localhost:80", "http://localhost:5173/", "HTTP://localhost:5173"):
+            for cmd in ("ensure-running", "serve"):
+                with self.subTest(bad=bad, cmd=cmd), contextlib.redirect_stderr(
+                    io.StringIO()
+                ) as err, self.assertRaises(SystemExit) as stop:
+                    nb.main(["--dir", "unused", cmd, "--dev-origin", bad])
+                self.assertEqual(stop.exception.code, 2)
+                self.assertIn("is not its own origin", err.getvalue())
 
 
 class TestGuards(NotesCase):
@@ -314,6 +461,25 @@ class TestNotes(NotesCase):
         self.assertEqual(code, 200)
         self.assertEqual(body["note"], sb.DATA_NOTE)
         self.assertEqual(body["events"][0]["text"], NOTE["text"])
+
+    def test_a_move_arrow_reaches_the_session_naming_both_anchors(self):
+        move = next(
+            c["note"]
+            for c in FIXTURES["valid"]
+            if c["note"]["kind"] == "move" and "anchor" in c["note"]["to"]
+        )
+        self.assertEqual(self.note(move)[0], 200)
+        code, body = self.request(
+            "GET",
+            "/api/wait?after=handled&timeout=5",
+            headers={"X-Notes-Token": self.hub.watch_token},
+            token=False,
+        )
+        self.assertEqual(code, 200)
+        event = body["events"][0]
+        self.assertEqual(event["anchor"], move["anchor"])
+        self.assertEqual(event["to"]["anchor"], move["to"]["anchor"])
+        self.assertEqual(event["to"]["point"], move["to"]["point"])
 
     def test_the_page_name_is_a_plain_html_file_name(self):
         for bad in ("../x.html", "a/b.html", "x.txt", ".hidden.html"):
@@ -462,9 +628,11 @@ class TestLoop(unittest.TestCase):
             "host.html",
             "proto-pin.js",
             "note-model.mjs",
+            "frame-channel.mjs",
             "note.schema.json",
             "controls.schema.json",
             "controls.js",
+            "dev-origin.mjs",
         ):
             shutil.copy(HERE / f, self.bin / f)
         (self.bin / "session-bridge.conf").write_text(
@@ -555,6 +723,39 @@ class TestLoop(unittest.TestCase):
         time.sleep(0.2)
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
+
+    @unittest.skipUnless(
+        shutil.which("node"), "dev-origin.mjs and harness-fence.mjs run on node"
+    )
+    def test_ensure_running_with_a_dev_origin_prints_the_origin_the_fence_names(self):
+        r = self.control("ensure-running", "--dev-origin", DEV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        started = json.loads(r.stdout)
+        port = self.session()["port"]
+        self.assertEqual(started["origin"], f"http://localhost:{port}")
+        self.assertEqual(started["url"], started["origin"] + "/")
+        fence = subprocess.run(
+            ["node", str(HERE / "harness-fence.mjs"), started["origin"]],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        )
+        name, value = fence.stdout.strip().split(": ", 1)
+        self.assertEqual(name, "Content-Security-Policy")
+        directive, source = value.split(" ", 1)
+        self.assertEqual(directive, "frame-ancestors")
+        self.assertEqual(source, started["origin"])
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/", headers={"Host": urlsplit(source).netloc})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            checked = frame_of(resp.read())["data-dev-origin"]
+        finally:
+            conn.close()
+        hosts = {urlsplit(u).hostname for u in (checked, f"{checked}/", source)}
+        self.assertEqual(hosts, {urlsplit(DEV).hostname})
 
     def test_ensure_running_with_another_page_restarts_on_that_page(self):
         for name in ("first.html", "second.html"):

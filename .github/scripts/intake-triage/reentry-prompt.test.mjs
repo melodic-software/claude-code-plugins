@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 // The prompt as flowing text, one space between its lines.
-const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
+const PROMPT = readFileSync(new URL("./triage-rubric.txt", import.meta.url), "utf8")
   .split("\n")
   .map((line) => line.trim())
   .join(" ");

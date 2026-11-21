@@ -199,38 +199,52 @@ def test_codex_command_pins_the_model_and_stays_ephemeral():
     assert cmd[-1] == "resume now"
 
 
-def test_settings_disable_the_installed_plugin_and_deny_the_network():
+def test_settings_disable_the_installed_plugin_and_sandbox_the_network():
     doc = resume_eval.run_settings(
-        plugin_configs={"planning@inline": {"options": {"x": True}}}
+        plugin_configs={"planning@inline": {"options": {"x": True}}},
+        writable=["/r/run"],
     )
     assert doc["enabledPlugins"] == {"session-flow@melodic-software": False}
+    assert doc["sandbox"] == {
+        "enabled": True,
+        "autoAllowBashIfSandboxed": True,
+        "allowUnsandboxedCommands": False,
+        "failIfUnavailable": True,
+        "network": {"allowedDomains": [], "strictAllowlist": True},
+        "filesystem": {"allowWrite": ["/r/run"]},
+    }
     deny = doc["permissions"]["deny"]
-    assert "Bash(curl *)" in deny and "Bash(wget *)" in deny
-    assert {"Bash(git ls-remote *)", "Bash(git ls-remote:*)"} <= set(deny)
+    assert "allow" not in doc["permissions"]
+    assert {"WebFetch", "WebSearch", "Bash(curl *)", "Bash(wget *)"} <= set(deny)
     from fnmatch import fnmatchcase
 
-    trailing_colon_star_reads_as_space_star = ":*)"
-    patterns = [
-        d[5:-3] + " *" if d.endswith(trailing_colon_star_reads_as_space_star) else d[5:-1]
-        for d in deny
-        if d.startswith("Bash(git ")
-    ]
-    for remote in (
-        "git ls-remote http://h/x",
-        "git ls-remote --heads https://h/x",
-        "git ls-remote ssh://h/x",
-        "git ls-remote h:org/repo",
+    def denied(command):
+        return any(
+            r.startswith("Bash(") and fnmatchcase(command, r[5:-1]) for r in deny
+        )
+
+    for network in (
+        "curl https://h/x",
+        "wget http://h/x",
+        "git ls-remote https://h/x",
         "git ls-remote git@h:x",
-        "git fetch git://h/x",
-        "git fetch -q https://h/x",
+        "git -C /any/repo ls-remote --heads ssh://h/x",
+        "git fetch https://h/x",
         "git fetch git@h:x",
+        "git -C /any/repo fetch -q https://h/x main",
     ):
-        assert any(fnmatchcase(remote, p) for p in patterns), remote
-    for local in ("git fetch origin", "git fetch --prune origin"):
-        assert not any(fnmatchcase(local, p) for p in patterns), local
-    assert "WebFetch" in deny
+        assert denied(network), network
+    for local in (
+        "git ls-remote origin",
+        "git -C /any/repo ls-remote --tags --sort=v:refname origin",
+        "git fetch --prune origin",
+        "git -C /any/repo fetch origin refs/pull/4460/head:review-4460",
+    ):
+        assert not denied(local), local
     assert doc["pluginConfigs"] == {"planning@inline": {"options": {"x": True}}}
-    assert "pluginConfigs" not in resume_eval.run_settings()
+    plain = resume_eval.run_settings()
+    assert "pluginConfigs" not in plain
+    assert plain["sandbox"]["filesystem"] == {"allowWrite": []}
 
 
 def test_worktree_isolated_session_is_found_in_an_ancestor_claude_argv():
@@ -436,6 +450,37 @@ def test_stub_gh_answers_from_the_fixture_in_order(tmp_path):
         "pr view 1",
         "issue list",
     ]
+
+
+@pytest.mark.parametrize(
+    ("name", "number", "head"),
+    [
+        ("re-late-event", 4460, "feat/stop-reason"),
+        ("re-superseded-rule", 4231, "ci/shared-spend-alarm"),
+    ],
+)
+def test_stub_pr_view_of_an_open_pr_names_its_head_branch(tmp_path, name, number, head):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    here = Path(resume_eval.__file__).resolve().parent
+    case = resume_eval.load_cases(here.parents[1] / "evals", [name])[0]
+    stub = resume_eval.write_stub_gh(
+        tmp_path / "bin",
+        tmp_path / "fixture.json",
+        tmp_path / "gh-calls.log",
+        case["seed"]["gh_fixture"],
+        sys.executable,
+    )
+    done = subprocess.run(
+        [str(stub), "pr", "view", str(number), "--json", "state,headRefName"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    answer = json.loads(done.stdout)
+    assert (answer["state"], answer["headRefName"]) == ("OPEN", head)
 
 
 def test_history_can_continue_an_existing_chain():
@@ -1485,7 +1530,7 @@ def test_shape3_spec_errors_are_refused_before_any_file_is_written(tmp_path):
                 {"id": "x", "hop": 2, "section": "amendment", "text": "t\n**bold**"}
             ]
         },
-        {"shape": 4},
+        {"shape": 5},
     )
     for i, overrides in enumerate(bad):
         repo = tmp_path / str(i)
@@ -2020,3 +2065,148 @@ def test_a_seeded_script_with_a_shebang_is_executable(tmp_path):
     resume_eval.write_fixture(data, "# notes\n")
     assert os.access(script, os.X_OK)
     assert not os.access(data, os.X_OK)
+
+
+def _seed_with_refs(tmp_path, remote_refs):
+    """Seed re-late-event over a base repo that also carries a `stale` branch; returns
+    (run repo, its origin.git, a git runner)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    def git(cwd, *args):
+        return subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+        ).stdout
+
+    here = Path(resume_eval.__file__).resolve().parent
+    case = resume_eval.load_cases(here.parents[1] / "evals", ["re-late-event"])[0]
+    case["seed"].pop("remote_refs", None)
+    if remote_refs is not None:
+        case["seed"]["remote_refs"] = remote_refs
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "README.md").write_text("base\n", encoding="utf-8")
+    git(base, "init", "-q", "-b", "main")
+    git(base, "add", "-A")
+    git(base, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "base")
+    git(base, "branch", "stale")
+    git(base, "remote", "add", "origin", str(base))
+    identity = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@e",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@e",
+    }
+
+    def call(cmd, cwd, env, stdin_text=None):
+        done = subprocess.run(
+            cmd, cwd=cwd, env={**env, **identity}, capture_output=True, text=True
+        )
+        return done.returncode, done.stdout, done.stderr
+
+    cfg = resume_eval.RunConfig(
+        root=tmp_path / "root",
+        tmpdir=str(tmp_path),
+        copies={"before": str(PLUGIN)},
+        codex_model="m",
+        call=call,
+        python=sys.executable,
+    )
+    old_home = os.environ.get("HOME")
+    os.environ["HOME"] = str(tmp_path / "home")
+    try:
+        run = resume_eval.seed_run(case, cfg.root / "r", base, cfg, "before")
+    finally:
+        os.environ["HOME"] = old_home or ""
+    return run["repo"], cfg.root / "r" / "origin.git", git
+
+
+def test_seeded_remote_refs_answer_locally_and_stale_base_refs_are_pruned(tmp_path):
+    repo, bare, git = _seed_with_refs(
+        tmp_path,
+        [
+            "refs/heads/release/2.8",
+            "refs/heads/feat/stop-reason",
+            "refs/tags/v1.7.2",
+            "refs/pull/4460/head",
+        ],
+    )
+    head = git(repo, "rev-parse", "HEAD").strip()
+    remote = git(repo, "branch", "-r", "--format=%(refname)").split()
+    assert sorted(remote) == [
+        "refs/remotes/origin/HEAD",
+        "refs/remotes/origin/feat/stop-reason",
+        "refs/remotes/origin/main",
+        "refs/remotes/origin/pull/4460/head",
+        "refs/remotes/origin/release/2.8",
+    ]
+    assert git(repo, "tag").split() == ["v1.7.2"]
+    for ref in (
+        "origin/release/2.8",
+        "origin/feat/stop-reason",
+        "origin/pull/4460/head",
+        "origin/main",
+        "v1.7.2^{commit}",
+    ):
+        assert git(repo, "rev-parse", ref).strip() == head, ref
+    assert (
+        git(repo, "symbolic-ref", "refs/remotes/origin/HEAD").strip()
+        == "refs/remotes/origin/main"
+    )
+    on_origin = git(bare, "for-each-ref", "--format=%(refname)").split()
+    assert sorted(on_origin) == [
+        "refs/heads/feat/stop-reason",
+        "refs/heads/main",
+        "refs/heads/release/2.8",
+        "refs/pull/4460/head",
+        "refs/tags/v1.7.2",
+    ]
+
+
+def test_a_seed_without_remote_refs_pushes_only_head(tmp_path):
+    repo, bare, git = _seed_with_refs(tmp_path, None)
+    head = git(repo, "rev-parse", "HEAD").strip()
+    assert git(bare, "for-each-ref", "--format=%(refname)").split() == [
+        "refs/heads/main"
+    ]
+    assert git(repo, "rev-parse", "origin/main").strip() == head
+    assert git(repo, "tag").split() == []
+
+
+def test_a_remote_ref_outside_heads_tags_and_pull_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="remote_refs"):
+        _seed_with_refs(tmp_path, ["release/2.8"])
+
+
+def test_a_second_readers_copy_gets_settings_that_name_its_own_folder(tmp_path):
+    import subprocess
+    import sys
+
+    run_dir, copy_dir = tmp_path / "0", tmp_path / "0-claude-code"
+    repo = run_dir / "repo"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "init", "-q", "--bare", str(run_dir / "origin.git")], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "remote", "add", "origin", str(run_dir / "origin.git")],
+        check=True,
+    )
+    case = {"seed": {"gh_fixture": {"responses": [], "default": {"stdout": ""}}}}
+    cfg = resume_eval.RunConfig(
+        root=tmp_path,
+        tmpdir=str(tmp_path / "tmp"),
+        copies={},
+        codex_model="m",
+        python=sys.executable,
+    )
+    resume_eval.write_run_settings(case, run_dir, cfg)
+    run = {"repo": repo, "chain": []}
+    copied = resume_eval._reader_workspace(case, run, run_dir, copy_dir, cfg)
+    settings = json.loads((copied["repo"].parent / "settings.json").read_text())
+    assert settings["sandbox"]["filesystem"]["allowWrite"] == [
+        str(copy_dir),
+        str(tmp_path / "tmp"),
+    ]
+    first = json.loads((run_dir / "settings.json").read_text())
+    assert first["sandbox"]["filesystem"]["allowWrite"][0] == str(run_dir)

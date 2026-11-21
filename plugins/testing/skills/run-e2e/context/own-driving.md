@@ -32,8 +32,8 @@ Five keys govern this path: `recording` (`video | gif | off`), `browser_mode` (`
 - `e2e_driver` and `reuse_running_instance`: run SKILL.md's resolve command (Own driving) as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
   being the file that set it, `userConfig`, or `default`, and names on stderr any value it
   rejected. Use the printed values; a rejected value has already resolved to the default.
-- `browser_driver` (the command name of the browser tool a `playwright` drive uses, default
-  `playwright-cli`): run SKILL.md's browser-driver resolve command as a separate Bash call and use its
+- `browser_driver` (the command name of the browser tool a `playwright` drive uses): run SKILL.md's
+  browser-driver resolve command as a separate Bash call and use its
   `browser_driver` line, `<key> <tab> <value> <tab> <source>`;
   the other lines it prints repeat the call above. [e2e-config.md](e2e-config.md) owns the key.
 - An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [e2e-config.md](e2e-config.md).
@@ -127,8 +127,8 @@ browser tool is a silent substitute, and the run never switches tools partway th
 
 Pass the resolved config through to the executor:
 
-- `browser_mode` → the `/playwright:playwright` session invocation. The executor owns the headed/headless flag spelling; `run-e2e` supplies the resolved value.
-- `recording` → the capture path: `video` records via the playwright CLI, `gif` via `gif_creator`, `off` keeps the evidence-contract screenshots as the floor.
+- `browser_mode` → the browser tool's session invocation. The executor owns the headed/headless flag spelling; `run-e2e` supplies the resolved value.
+- `recording` → the capture path: `video` records with the browser tool's video capture, `gif` via `gif_creator`, `off` keeps the evidence-contract screenshots as the floor.
 - `e2e_driver` → what drives the flows, picked per the Driver ranking in [e2e.md](e2e.md). A pinned value the target cannot use, and `chrome` on an `unattended` run, stop with the gap report instead of switching drivers. When the app has a control skill, the driving tool its hub names comes before `e2e_driver`; only a session instruction overrides it ([Control skill on this path](#control-skill-on-this-path)).
 
 The workflow steps themselves live in [e2e.md](e2e.md). When the project has a committed E2E user-flow suite, the subagent runs it first and its pass or fail is the verdict; the ad-hoc drive and screenshots are evidence beside it, never the oracle. Each failed scenario returns a failure packet path with the evidence paths.
@@ -165,7 +165,7 @@ The scenario part is the scenario text through the slug rule; the joined name th
 rule again, so the 64-character cut only ever shortens the scenario part and the run id survives
 whole. Every name matches `^[a-z0-9-]{1,64}$`. Scenario `Checkout: apply coupon & pay` becomes
 `<run id>-checkout-apply-coupon-pay`. The subagent composes the name itself: the raw scenario text
-never reaches a shell, and only the finished name is passed, quoted, as `-s='<name>'`.
+never reaches a shell, and only the finished name is passed, quoted, as the session argument.
 
 When the run has a `WORKSPACE_ID` (a Workspace environment entry ran), the name starts with
 a workspace part, so runs in different worktrees never share a session name. `WORKSPACE_ID` is
@@ -191,10 +191,10 @@ map) and:
 
 ## Teardown
 
-Teardown closes each session this run opened, by its name (`playwright-cli -s='<name>' close`), and
-stops only processes this run started. Never `close-all` or `kill-all`: another run, worktree or
-person on the machine may own live sessions. A session that will not close is reported
-by name; recovery is the playwright skill's "Recover from stale sessions" step, not part of the run.
+Teardown closes each session this run opened, by its name, and stops only processes this run
+started. Never close or kill every session at once: another run, worktree or person on the machine
+may own live sessions. A session that will not close is reported by name; recovering it is not part
+of the run.
 
 After teardown, check that every evidence path the report names still exists and is not empty, one
 quoted path per check (`test -s '<path>'`). A missing file is reported as missing evidence, and no

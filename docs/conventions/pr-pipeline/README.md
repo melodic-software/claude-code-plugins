@@ -1542,7 +1542,8 @@ the rules that only tighten in
   counts there only when its run's main commit has no diff from main's tip over what the review
   reads from main (`.github/scripts/pr-review-main/criteria.txt`, which the copy steps also read),
   so a verdict judged under other criteria reviews again; a failed or cancelled review, another
-  head of the same tree, or a failed read, fetch or diff reviews again. The diff is
+  head of the same tree, a verdict from a run created at or before the pull request's newest base
+  change (the merge gate's own cutoff), or a failed read, fetch or diff reviews again. The diff is
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
@@ -2029,8 +2030,9 @@ Whole-review request (`babysit_whole_review.py`): when a lane or adopted pull re
 and its only risk reasons are open findings a clean whole review of the head would close (no review
 of that head reported a finding or was whole, and no lane thread is unresolved), `review-path:` holds
 that such findings on the security lane keep standing, or `evidence-unbound:<lane>` with the unbound
-reason `rerun-not-allowed` (the new run's first attempt binds where the re-run did not; no other unbound
-reason requests one), the gate writes a
+reason `rerun-not-allowed` (the new run's first attempt binds where the re-run did not) or
+`base-retargeted` (a lane binds only on runs created after the newest base change, so a new run
+reviews against the new base; no other unbound reason requests one), the gate writes a
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-platforms.yml` and pr-merge itself. The
@@ -4584,6 +4586,15 @@ the lanes.
 | Test repository | [`melodic-software/pr-pipeline-sandbox`](https://github.com/melodic-software/pr-pipeline-sandbox), whose README states its purpose |
 | Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
 | Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review-cli.yml` (both review lanes) and `intake-triage.yml`, called by this repository's `*-hosted.yml` review callers and `intake-triage.yml` |
+
+The calls to ci-workflows reusable workflows (`pr-review-cli.yml`, `intake-triage.yml`,
+`intake-label-needs-triage.yml` and `maintenance-check-links-online.yml`) track `@main`, while the
+ci-workflows actions are pinned to the release `maintenance-repin-ci-workflows.yml` moves. The
+synced runner policy admits a ci-workflows reusable only at `@main` or at a commit its contract
+lists in `approvedShas` (`.github/standards/runner-policy/runner-policy.mjs`,
+`reusableWorkflowContract`). Those lists come from the standards sync and do not follow the repin,
+so a call pinned to the repin release fails `runner-target-contract`, and
+`scripts/repin-ci-workflows.sh` moves only the action pins.
 
 In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
 `docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.

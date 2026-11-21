@@ -61,7 +61,7 @@ FIXTURE_MANIFEST = (
     "non-uuid/handoffs/20260901T100000Z-handoff-widget.md",
     "ascii-rails/handoffs/20260901T100000Z-handoff-widget.md",
     "fill-leftover/handoffs/20260901T100000Z-handoff-widget.md",
-    "shape-4/handoffs/20260901T100000Z-handoff-widget.md",
+    "shape-5/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260902T100000Z-handoff-widget.md",
     "dropped-entry/handoffs/20260901T100000Z-handoff-widget.md",
@@ -188,7 +188,7 @@ def test_validate_shape1_seven_section_legacy_warns_and_exits_zero(tmp_path):
 
 
 def test_validate_newer_shape_hard_fails_with_exit_3(tmp_path):
-    handoffs = materialize(tmp_path, "shape-4")
+    handoffs = materialize(tmp_path, "shape-5")
     result = run("validate", str(handoffs / HOP1))
     assert result.returncode == 3, out(result)
     assert "read it, do not rewrite it" in out(result)
@@ -1461,7 +1461,13 @@ def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
 def _install_in_cache(version_dir):
     scripts = version_dir / "scripts"
     scripts.mkdir(parents=True)
-    for name in ("save_point.py", "io_streams.py", "plugin_paths.py"):
+    for name in (
+        "save_point.py",
+        "io_streams.py",
+        "handoff_chain.py",
+        "handoff_fit.py",
+        "plugin_paths.py",
+    ):
         shutil.copy2(SCRIPT.parent / name, scripts / name)
 
 
@@ -1944,9 +1950,9 @@ def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
 
 
 def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path):
-    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix,
-    spacing and case aside) is a duplicate: validate warns and the oldest tag
-    stays the only copy once the writer drops it."""
+    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix and
+    its settle clause, spacing and case aside) is a duplicate: validate warns and
+    the oldest tag stays the only copy once the writer drops it."""
     target = new_hop2_skeleton(tmp_path)
     carried = "- [h1] The thing must stay green."
     text = target.read_text(encoding="utf-8")
@@ -1958,6 +1964,7 @@ def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path
     )
     copy = (
         "- [h2] UNVERIFIED (predecessor failed validation): the  THING must stay green."
+        f" (settle: save_point.py validate {HOP1})"
     )
     payload = required_slots(text)
     target.write_text(text.replace(slot, copy), encoding="utf-8", newline="\n")
@@ -2363,7 +2370,7 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
 @pytest.mark.parametrize(
     ("line", "expected", "needle"),
     [
-        ("handoff_shape: 4\n", 3, "read it, do not rewrite it"),
+        ("handoff_shape: 5\n", 3, "read it, do not rewrite it"),
         ("handoff_shape: 1\n", 2, "handoff_shape 1"),
         ("", 2, "no handoff_shape key"),
         ("handoff_shape: 0\n", 2, "handoff_shape 0 is not a shape"),
@@ -2713,12 +2720,12 @@ def _sections_by_hand(text: str) -> dict[str, str]:
     return found
 
 
-def test_shape3_is_what_new_writes_by_default(tmp_path):
+def test_shape4_is_what_new_writes_by_default(tmp_path):
     repo = make_repo(tmp_path)
     made = run(*new_args(repo, tmp_path, "--no-previous", shape=None))
     assert made.returncode == 0, err(made)
     text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
-    assert "handoff_shape: 3\n" in text
+    assert "handoff_shape: 4\n" in text
     assert "\nchain:" not in text
     for line in (
         f"chain_root: {HOP1}",
@@ -3395,6 +3402,8 @@ def test_retire_consecutive_units_split_at_each_marker(tmp_path):
     assert merged.returncode == 1, out(merged)
     assert "left this file without a retirement" in out(merged), out(merged)
     assert repr(UNIT_BULLET[:60]) in out(merged), out(merged)
+    assert "the 'retire' list of fill or amend" in out(merged), out(merged)
+    assert "list it verbatim" not in out(merged), out(merged)
 
 
 def test_retire_a_unit_inline_before_the_opening_ask_stops_at_it(tmp_path):
@@ -3735,6 +3744,8 @@ def test_ids_a_dropped_id_fails_until_retired_with_a_reason(tmp_path, entry, hea
     assert dropped.returncode == 1, out(dropped)
     assert f"{ref} left this file without a retirement" in out(dropped), out(dropped)
     assert f"'## {heading}'" in out(dropped), out(dropped)
+    assert f"{{'ref': '{ref}', 'reason': ...}}" in out(dropped), out(dropped)
+    assert "the entry verbatim, then" not in out(dropped), out(dropped)
     edit(
         hop2,
         "## Review before you continue\n\n",
@@ -4264,7 +4275,7 @@ def test_amend_refusals_leave_both_files_byte_identical(
     "prep, code, needle",
     [
         ("skeleton", 1, "unfinished skeleton"),
-        ("shape2", 2, "shape-3 hot files only"),
+        ("shape2", 2, "shape-3 and shape-4 hot files only"),
         ("not-handoff", 2, "not a handoff file"),
     ],
 )
@@ -4477,7 +4488,7 @@ def test_carry_checks_stay_failing_after_a_size_only_predecessor_failure(tmp_pat
     assert dropped.returncode == 1, out(dropped)
     assert "[R1] left this file without a retirement" in out(dropped), out(dropped)
     assert DOWNGRADED not in out(dropped), out(dropped)
-    edit(hop2, "checks: 2\n", "")
+    edit(hop2, "checks: 3\n", "")
     unstamped = strict(hop2)
     assert unstamped.returncode == 0, out(unstamped)
     assert DOWNGRADED in out(unstamped), out(unstamped)
@@ -4516,7 +4527,7 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
     dropped = run("validate", str(hop2))
     assert dropped.returncode == 1, out(dropped)
     assert "predecessor entry dropped" in out(dropped), out(dropped)
-    edit(hop2, "checks: 2\n", "")
+    edit(hop2, "checks: 3\n", "")
     unstamped = run("validate", str(hop2))
     assert unstamped.returncode == 0, out(unstamped)
     assert DOWNGRADED in out(unstamped), out(unstamped)
@@ -4524,10 +4535,10 @@ def test_shape2_carry_is_tagged_unverified_yet_a_drop_fails_after_a_non_content_
 
 def test_amend_keeps_the_checks_stamp(tmp_path):
     hot, _ = amend_hop1(make_repo(tmp_path), tmp_path)
-    assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
+    assert "\nchecks: 3\n" in hot.read_text(encoding="utf-8")
     result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
     assert result.returncode == 0, err(result)
-    assert "\nchecks: 2\n" in hot.read_text(encoding="utf-8")
+    assert "\nchecks: 3\n" in hot.read_text(encoding="utf-8")
 
 
 def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
@@ -4537,9 +4548,9 @@ def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
     hop1 = s3_hop(repo, tmp_path, values={"observations": "- " + "x" * 30000})
     hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     edit(hop2, "- [R1] The thing must stay green.\n", "")
-    assert "\nchecks: 2\n" in hop2.read_text(encoding="utf-8")
+    edit(hop2, "\nchecks: 3\n", "\nchecks: 2\n")
     sp = _save_point_module()
-    monkeypatch.setattr(sp, "CHECKS", 3)
+    monkeypatch.setattr(sp, "CHECKS", 4)
     findings, code = sp.validate_doc(sp.parse_doc(hop2), None, True)
     failed = [x.text for x in findings.items if x.level == "FAIL"]
     assert code == 1, failed
@@ -4551,7 +4562,7 @@ def test_a_checks_2_file_keeps_failing_the_drop_after_the_stamp_is_bumped(
     [
         ("observations", 30000, "size: "),
         ("observations", READ_CAP, "size: "),
-        ("brief", 30000, "UNVALIDATED: "),
+        ("brief", 30000, "slot_size: "),
     ],
 )
 def test_every_size_finding_carries_a_size_kind(tmp_path, slot, pad, marker):

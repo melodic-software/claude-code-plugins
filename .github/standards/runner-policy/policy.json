@@ -167,6 +167,8 @@
         "hold-paths",
         "generated-copies",
         "generated-data",
+        "media-paths",
+        "binary-allowlist",
         "lane-transcript-public-key",
         "pr-number",
         "head-sha",

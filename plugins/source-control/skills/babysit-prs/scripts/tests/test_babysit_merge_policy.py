@@ -4398,7 +4398,7 @@ class Assess(unittest.TestCase):
         gh.rest[f"{variables}/CLAUDE_LANES_MERGE_RUNG_CAP"] = 404
         empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
         gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
-        history = f"repos/{REPO}/commits?sha={SHA}&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100"
+        history = f"repos/{REPO}/commits?sha={SHA}&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100&page=1"
         gh.rest[history] = [{"sha": SHA, "commit": {"committer": {"date": ENABLED_AT}}}]
         return gh
 
@@ -5029,7 +5029,7 @@ class EnabledSince(unittest.TestCase):
 
     HISTORY = (
         f"repos/{REPO}/commits?sha={SHA}"
-        "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100"
+        "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100&page=1"
     )
 
     def commit(self, sha: str, date: str) -> dict[str, Any]:
@@ -5083,15 +5083,67 @@ class EnabledSince(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             policy.enabled_since(REPO, SHA)
 
-    def test_an_enabled_run_longer_than_the_read_has_no_floor(self) -> None:
-        history = [self.commit(SHA, "2026-10-12T00:00:00Z")] * 100
-        self.fake(history, {})
+    def page(self, n: int) -> str:
+        return self.HISTORY.replace("&page=1", f"&page={n}")
+
+    def test_an_enabled_run_longer_than_a_page_reads_the_next_page(self) -> None:
+        gh = self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")] * 100, {})
+        oldest, disabled = "b" * 40, "c" * 40
+        gh.rest[self.page(2)] = [
+            self.commit(SHA, "2026-10-11T00:00:00Z"),
+            self.commit(oldest, "2026-10-02T00:00:00Z"),
+            self.commit(disabled, "2026-10-01T00:00:00Z"),
+        ]
+        enabled = policy.PipelineConfig(
+            SHA, "C2", "local-babysit", IDENTITY, 200, (), None
+        )
+        off = dataclasses.replace(enabled, authority=None, agent_identity=None)
+        configs = {SHA: enabled, oldest: enabled, disabled: off}
+        with mock.patch.object(
+            policy, "read_config_at", side_effect=lambda _, sha: configs[sha]
+        ):
+            self.assertEqual(
+                policy.enabled_since(REPO, SHA),
+                policy.datetime.fromisoformat("2026-10-02T00:00:00Z"),
+            )
+
+    def test_a_run_ending_on_the_first_page_reads_no_second(self) -> None:
+        older, oldest = "b" * 40, "c" * 40
+        history = [self.commit(SHA, "2026-10-12T00:00:00Z")] * 98 + [
+            self.commit(older, "2026-10-11T00:00:00Z"),
+            self.commit(oldest, "2026-10-01T00:00:00Z"),
+        ]
+        gh = self.fake(history, {SHA: PIPELINE, older: PIPELINE, oldest: DISABLED})
+        self.assertEqual(
+            policy.enabled_since(REPO, SHA),
+            policy.datetime.fromisoformat("2026-10-11T00:00:00Z"),
+        )
+        self.assertNotIn(self.page(2), [call[1] for call in gh.calls])
+
+    def test_an_enabled_run_longer_than_every_page_has_no_floor(self) -> None:
+        gh = self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")] * 100, {})
+        for n in range(2, policy.CONFIG_HISTORY_PAGES + 1):
+            gh.rest[self.page(n)] = gh.rest[self.HISTORY]
         enabled = policy.PipelineConfig(
             SHA, "C2", "local-babysit", IDENTITY, 200, (), None
         )
         with (
             mock.patch.object(policy, "read_config_at", return_value=enabled),
-            self.assertRaises(policy.PolicyReadError),
+            self.assertRaisesRegex(policy.PolicyReadError, "more than 5000"),
+        ):
+            policy.enabled_since(REPO, SHA)
+        last = self.page(policy.CONFIG_HISTORY_PAGES)
+        self.assertIn(last, [call[1] for call in gh.calls])
+
+    def test_an_unreadable_later_page_has_no_floor(self) -> None:
+        gh = self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")] * 100, {})
+        gh.rest[self.page(2)] = 502
+        enabled = policy.PipelineConfig(
+            SHA, "C2", "local-babysit", IDENTITY, 200, (), None
+        )
+        with (
+            mock.patch.object(policy, "read_config_at", return_value=enabled),
+            self.assertRaisesRegex(policy.PolicyReadError, "could not be read"),
         ):
             policy.enabled_since(REPO, SHA)
 
@@ -5173,6 +5225,27 @@ class LocalEnabledSince(unittest.TestCase):
             {newest: PIPELINE + "# edit\n", older: PIPELINE, oldest: DISABLED},
             base=base,
         )
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+
+    def test_a_run_longer_than_a_page_matches_the_paged_api(self) -> None:
+        limit = policy.CONFIG_HISTORY_LIMIT
+        disabled_date = "2026-09-01T00:00:00Z"
+        configs = {self.pipeline(DISABLED, disabled_date): (DISABLED, disabled_date)}
+        for n in range(limit + 5):
+            text = PIPELINE + f"# {n}\n"
+            date = f"2026-10-01T{n // 60:02}:{n % 60:02}:00Z"
+            configs[self.pipeline(text, date)] = (text, date)
+        base = next(reversed(configs))
+        expected = policy.datetime.fromisoformat("2026-10-01T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+        self.assertEqual(gh.calls, [])
+        records = [self.commit_record(sha, date) for sha, (_, date) in configs.items()]
+        records.reverse()
+        texts = {sha: text for sha, (text, _) in configs.items()}
+        gh = self.fake(records[:limit], texts, base=base)
+        second = self.HISTORY.replace(SHA, base).replace("&page=1", "&page=2")
+        gh.rest[second] = records[limit:]
         self.assertEqual(policy.enabled_since(REPO, base), expected)
 
     def test_the_newest_config_commit_comes_from_the_same_clone(self) -> None:
@@ -10968,11 +11041,11 @@ class ConcernValuesAnswers(unittest.TestCase):
             first, {"merge.rung": ["off"], "merge.authority": ["pr-merge"]}
         )
         self.assertEqual(second, first)
-        self.assertEqual(len(self.argvs), 2)
+        self.assertEqual(len(self.argvs), 1, "one parser run serves every key")
         second["merge.rung"].append("x")
         self.assertEqual(policy._concern_values(text, keys), first)
         policy._concern_values("merge:\n  rung: on\n", keys)
-        self.assertEqual(len(self.argvs), 4)
+        self.assertEqual(len(self.argvs), 2)
 
     def test_a_rejected_read_is_read_again(self) -> None:
         keys = [("merge.rung", False)]
@@ -11004,6 +11077,97 @@ class ConcernValuesAnswers(unittest.TestCase):
         policy._concern_values(text, keys, run=policy.run_command)
         policy._concern_values(text, keys, run=policy.run_command)
         self.assertEqual(len(self.argvs), 2)
+
+
+class ConcernValuesMatchTheSharedReader(unittest.TestCase):
+    """A pin: `_read_concern_values` parses a document once and selects every
+    key, and must answer as `parse-concern-value.sh --strict [--list]` run per
+    key does, each run's output read as text: exit 3 or a separator
+    character in any value is a rejection (None), any other failure raises."""
+
+    KEYS = [
+        ("a", False),
+        ("a.b", False),
+        ("l", True),
+        ("l.0", False),
+        ("s", False),
+        ("q", False),
+        ("absent", False),
+        ("absent", True),
+    ]
+    DOCUMENTS = {
+        "empty": "",
+        "no trailing newline": "a:\n  b: x/\nl:\n  - one/\n  - two//",
+        "trailing blank lines": "a:\n  b: x\n\n\n",
+        "repeated key": "a:\n  b: 1\n  b: 2\n",
+        "unclosed flow sequence": "l: [a, b\n",
+        "tab indent": "a:\n\tb: 1\n",
+        "crlf": "a:\r\n  b: x\r\nl:\r\n  - one\r\n  - two\r\n",
+        "carriage return inside a value": "s: one\rtwo\nq: x\n",
+        "tab escape": 's: "x\\ty"\n',
+        "next line": "s: a\u0085b\n",
+        "line separator": "s: a\u2028b\n",
+        "nul": "s: a\x00b\nq: c\n",
+        "quoted hash": 'q: "a # b"\ns: c # comment\n',
+        "slashes": "s: a/\nq: a//\nl:\n  - /\n  - x/\n",
+        "mapping item": "l:\n  - a\n  - name: n\n",
+        "empty values": 's: ""\nq:\nl: []\n',
+    }
+
+    @staticmethod
+    def per_key(text: str, keys: list[tuple[str, bool]]) -> Any:
+        bash = policy._shared_bash("reader")
+        values: dict[str, list[str]] = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            document = pathlib.Path(tmp) / "concern.yaml"
+            document.write_text(text, encoding="utf-8")
+            for key, as_list in keys:
+                proc = subprocess.run(
+                    [bash, str(policy.PARSER), "--strict"]
+                    + (["--list"] if as_list else [])
+                    + [str(document), key],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    check=False,
+                )
+                if proc.returncode == 3:
+                    return None
+                if proc.returncode != 0:
+                    return f"exit {proc.returncode}"
+                found = [line for line in proc.stdout.split("\n") if line]
+                if any(policy._SEPARATOR.search(line) for line in found):
+                    return None
+                values[key] = found
+        return values
+
+    def test_one_parse_answers_as_the_reader_run_per_key(self) -> None:
+        live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
+        cases = [(name, text, self.KEYS) for name, text in self.DOCUMENTS.items()]
+        cases.append(
+            (
+                "live pipeline config",
+                live.read_text(encoding="utf-8"),
+                [
+                    ("merge.rung", False),
+                    ("merge.agent-identity", False),
+                    ("merge.check-inputs", True),
+                    ("merge.diff-check.denied-paths", True),
+                    (policy.ISSUE_HOLDS_KEY, True),
+                ],
+            )
+        )
+        outcomes = set()
+        for name, text, keys in cases:
+            with self.subTest(name):
+                expected = self.per_key(text, keys)
+                self.assertNotIsInstance(expected, str, "the reader itself failed")
+                outcomes.add("rejected" if expected is None else "read")
+                self.assertEqual(
+                    policy._read_concern_values(text, keys, policy.run_command),
+                    expected,
+                )
+        self.assertEqual(outcomes, {"read", "rejected"})
 
 
 class FileContents(unittest.TestCase):

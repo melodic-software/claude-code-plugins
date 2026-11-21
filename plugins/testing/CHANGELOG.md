@@ -3,6 +3,29 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.1] - 2026-11-21
+
+### Changed
+
+- **`/testing:diagnose` and `/testing:plan` no longer ship ecosystem-specific examples.** Diagnose drops its .NET test-runner gotcha, the WebApplicationFactory, `--nologo` and `.Result`/`.Wait()` wording from its failure table, the xUnit, pytest and vitest filter flags, the pytest-randomly and `go test -shuffle` seed flags, and the illustrative `dotnet test` block in the regression step. Plan drops WebApplicationFactory, Testcontainers, Docker Compose, EF and Blazor from its file-type table and the .NET/xUnit name pattern from its plan template. The filter and seed flags now come from the test runner's own docs, and the regression command from `/toolchain:check` ([#17741](https://github.com/melodic-software/claude-code-plugins/issues/17741)).
+
+- **`/testing:run-e2e`'s non-UI playbook no longer picks a tool for your runtime.** The per-surface table drops its named tools (WebApplicationFactory, Aspire AppHost, bats, pytest via uv, PSScriptAnalyzer, Pester, `script -q`) and points to the project's own conventions. The Python and PowerShell rows merge into one row for infrastructure code and scripts in a language other than shell. The MCP stdio handshake recipe drops its per-runtime spawn table and its harness list: it now runs the built server directly, never through a package-manager script or a run command that builds, since either writes its own lines to stdout before the server's response ([#17744](https://github.com/melodic-software/claude-code-plugins/issues/17744)).
+
+- `write` and `cleanup` drop single-tool examples and links from rules that apply to every
+  ecosystem. `write`'s property guidance no longer names Hypothesis or fast-check mechanics, and
+  its characterization sources keep only Feathers and Seemann. `cleanup` drops a C# `using` note
+  and a .NET anecdote.
+
+## [5.10.0] - 2026-11-21
+
+### Changed
+
+- **`/testing:write` no longer teaches one ecosystem's examples.** The skill and its `write` and `organize` pages dropped the .NET/xUnit test-name forms, the `.NET` framework-traps gotcha, the orchestrator tool names, the JavaScript hollow-out example and its per-language null values, the C# database-read example, the `{Project}.Tests` and `{ClassUnderTest}Tests` naming examples, and the "Nested test projects (.NET)" section. The neutral rules stay: use the project's documented naming and placement, else mirror the ecosystem's own idiom ([#17740](https://github.com/melodic-software/claude-code-plugins/issues/17740)).
+
+### Removed
+
+- **`/testing:run-e2e` no longer ranks or scripts third-party browser tools.** The run-e2e pages drop the browser-tool table, the browser tool's version floor and install command, its command sequences, the orchestrator and accessibility-tool examples, and the links to one tool's documentation. The browser tool a `playwright` drive uses is the one `browser_driver` names, and any other browser job takes the tool the project's own rules name, or is reported unresolved. The README no longer states a `browser_driver` default; the `userConfig` option's default in `plugin.json` and the resolver's fallback are unchanged ([#17743](https://github.com/melodic-software/claude-code-plugins/issues/17743)).
+
 ## [5.9.0] - 2026-11-20
 
 ### Changed

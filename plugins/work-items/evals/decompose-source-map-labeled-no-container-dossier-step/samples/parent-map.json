@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "`work-item-tracker.sh create-item --parent 520 --title 'Store saved searches' --body-file body-1.md`",
+      "why": "bare number"
+    },
+    {
+      "answer": "create-item --parent \"#520\" --blocked-by 521 --title 'Re-run a saved search from the jobs page'",
+      "why": "quoted #number"
+    },
+    {
+      "answer": "create-item --parent github:o/r#520 --title 'Store saved searches'",
+      "why": "provider-qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Each item body opens Refs #520; the items are created as plain items.",
+      "why": "names the map but passes no --parent"
+    },
+    {
+      "answer": "create-item --parent 5200 --title 'Store saved searches'",
+      "why": "wrong item"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

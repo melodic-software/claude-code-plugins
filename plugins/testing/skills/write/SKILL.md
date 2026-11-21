@@ -91,7 +91,7 @@ conventions for per-ecosystem naming, locations, and fixtures.
 
 - **Test behavior, not implementation**. Assert on what the user sees or what the API returns, not internal state (Kent C. Dodds: "The more your tests resemble the way your software is used, the more confidence they can give you")
 - **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability. Resistance to refactoring is non-negotiable and maintainability stays high; protection and fast feedback trade off, so no test maxes the first three at once (`/tdd:principles`)
-- **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another). Illustrative forms (.NET/xUnit), with casing and separators adapted to the target ecosystem: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
+- **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another)
 - When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative Beck/Khorikov guidance
 - Where each expected value comes from and which tests earn their keep: `testing:test-value` (if enabled)
 - Whether the new tests catch realistic hand-written bugs, beyond the hollow-out run: `/mutation-testing:seed-faults` (if enabled)
@@ -117,5 +117,5 @@ Checks the new tests for assertions that cannot fail.
 
 ## Gotchas
 
-- Framework traps. `.NET`: the Microsoft Testing Platform runner's `dotnet test` options and arguments differ from the classic runner's, so read them for the SDK the project uses before writing a test command; pointer: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options). `global.json` selects the runner, so confirm which one the project uses. Do not nest a test project inside another project's directory, for any SDK-style project, not only the Web SDK; why: [.NET project SDK overview § Default includes and excludes](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/overview#default-includes-and-excludes). Check the consuming project's own gotcha notes before writing tests
+- Check the consuming project's own gotcha notes before writing tests
 - Shared-state workarounds (collection fixtures, process-global singletons) are repo-specific. Consult the consuming project's testing conventions before writing or moving tests in affected areas

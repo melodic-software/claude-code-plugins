@@ -5,6 +5,22 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.5.1] - 2026-11-21
+
+### Changed
+
+- **The audit reads `cp` and `mv` deny coverage by client version.** `reference/required-permissions.md` has the audit read the session's Claude Code version and the 2.1.321 release and permissions pages before reporting a deny as covering a `cp` or `mv`, and report any spelling or file they do not name as uncovered; the file a `cp` or `mv` reads stays unverified. The sandbox section has the audit check the client version against the 2.1.321 sandbox escape fixes before calling a sandbox a boundary ([#14843](https://github.com/melodic-software/claude-code-plugins/issues/14843)).
+
+## [5.5.0] - 2026-11-21
+
+### Added
+
+- The `audit-automation-gaps` rule inventory (`rule-inventory.sh`) now counts each `fix-cmd` command line of an ecosystem record as a `formatter` rung row, tier 2, shaped like the `check-cmd` rows: `<name> fix-cmd: <cmd>`. Before, `fix-cmd` was skipped, so no rule the formatter rung enforces showed in the inventory ([#16931](https://github.com/melodic-software/claude-code-plugins/issues/16931)).
+
+### Fixed
+
+- The rule inventory drops a trailing YAML comment from a recorded command, as in `fix-cmd: "shfmt -w <files>" # shellcheck has no fix mode`. Before, the row kept the quotes and the comment, and `build-cmd: null # no build step` became a row reading `null # no build step`.
+
 ## [5.4.2] - 2026-11-20
 
 ### Changed

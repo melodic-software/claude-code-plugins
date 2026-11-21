@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The session noted the card processor accepts at most one retry per 40 seconds for the same card.",
+      "why": "states the interval"
+    },
+    {
+      "answer": "Retry limit: one every 40s per card (from the hop file's Observations).",
+      "why": "abbreviated unit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The handoff does not say how often the processor allows a retry.",
+      "why": "read only the hot file"
+    },
+    {
+      "answer": "Charges retry three times before the customer email.",
+      "why": "the retry count, not the interval"
+    }
+  ]
+}

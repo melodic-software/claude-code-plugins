@@ -9,24 +9,25 @@ and the native suppression formats.
 A detector sees the static call graph. Everything below is a way code is reached that no static
 analyzer in the roster can follow. Check each one before condemning a candidate.
 
-| Pattern | What to look for | Typical language |
-|---|---|---|
-| String-name dispatch | the symbol's name appearing as a **string literal** anywhere in the repo: a handler map, a command table, a plugin registry | all |
-| DI / serialization | container registration, `__init__` injection, a constructor invoked only by a framework, a field populated only by a deserializer | C#, Python, TS |
-| Reflection | `getattr`, `globals()`, `importlib`, `Object.keys` over a module namespace, `eval`; `GetMethod`, `GetProperty`, `Activator.CreateInstance` with a built name | Python, JS, C# |
-| Assembly scanning | a type nothing names that implements an interface the composition root discovers: `GetTypes()` filtered by `IsAssignableFrom`, a DI scan registration, MediatR-style handler discovery | C# |
-| Markup and framework conventions | a handler a `.razor` or `.cshtml` view builds by name, a component only `@page` routing reaches, a <!-- spellchecker:off -->`[JSInvokable]`<!-- spellchecker:on --> alias, a property only a serializer reads, a partial member a source generator implements | C# |
-| Decorator / route registration | `@app.route`, `@click.command`, `@pytest.fixture`, `@task`, where the decorator *is* the caller | Python |
-| Config-declared entry point | a name referenced from `pyproject.toml`, `package.json` `scripts`/`bin`, a CI workflow, a Dockerfile, a systemd unit, a cron entry | all |
-| Test-only usage | referenced only from a test file. Alive, but say so: a symbol whose only caller is its own test is a real finding of a different kind | all |
-| Public API surface | an exported symbol of a published package, a Go exported identifier, or a C# `public` member of a shipped library. Not decidable from inside the repository. An `internal` member a test assembly reaches through `InternalsVisibleTo` is test-only usage | TS, Go, C# |
-| Generated / templated code | a symbol emitted by a generator, or one a template writes by name | all |
-| Shell dynamic invocation | `"$fn"`, `eval`, `trap ... name`, a dispatch `case` matching a command word to a function | shell |
-| Computed path or glob | a loader that builds the path (`"$dir/$name.sh"`, `scripts/*.sh`, `import(variable)`) and never spells this file's basename or repo-relative path. For `unreferenced-file` the verdict is `uncertain`, not `dead` | all |
+| Pattern | What to look for |
+|---|---|
+| String-name dispatch | the symbol's name appearing as a **string literal** anywhere in the repo: a handler map, a command table, a plugin registry |
+| DI / serialization | container registration, constructor injection, a constructor invoked only by a framework, a field populated only by a deserializer |
+| Reflection | a lookup of a member, attribute or type by a name built at run time, an iteration over a module's or type's members, an eval of a built string |
+| Type scanning | a type nothing names that implements an interface the composition root discovers by scanning loaded types, or a handler a framework finds by convention |
+| Markup and framework conventions | a handler a view or template builds by name, a component only routing reaches, an alias a framework attribute exposes to another runtime, a property only a serializer reads, a member a code generator implements |
+| Decorator / route registration | an annotation that registers the symbol as a route, command, fixture or task, where the annotation *is* the caller |
+| Config-declared entry point | a name referenced from a package manifest's script or executable entries, a CI workflow, a container build file, a service unit, a scheduled-job entry |
+| Test-only usage | referenced only from a test file. Alive, but say so: a symbol whose only caller is its own test is a real finding of a different kind |
+| Public API surface | an exported or public symbol of a published package or shipped library. Not decidable from inside the repository. A non-public member a test project is granted access to is test-only usage |
+| Generated / templated code | a symbol emitted by a generator, or one a template writes by name |
+| Dynamic invocation | a function called through a variable holding its name, an eval of a built string, a signal or event handler registered by name, a dispatch that matches a command word to a function |
+| Computed path or glob | a loader that builds the path from variables, globs a directory, or imports a computed module name, and never spells this file's basename or repo-relative path. For `unreferenced-file` the verdict is `uncertain`, not `dead` |
 
 Cheap checks first, in this order: a repo-wide literal search for the bare name (including inside
-strings), then the config files, then the framework-registration patterns for the candidate's
-language. Stop at the first piece of real evidence.
+strings), then the config files, then the registration conventions of the frameworks the
+candidate's code uses, read from that code and its imports. Stop at the first piece of real
+evidence.
 
 The optional `LSP` assist is one more source, never a substitute. What `findReferences` returns:
 [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior).
@@ -37,8 +38,8 @@ The optional `LSP` assist is one more source, never a substitute. What `findRefe
 - **`uncertain`**: a pattern *might* apply and the evidence does not settle it. Emitted at Tier 2.
   This is the honest verdict for most vulture candidates; do not promote one to `dead` to make the
   report tidier. An `unreferenced-file` candidate that a computed path or a glob could load stays
-  `uncertain`, not `dead`. A C# candidate that reflection, assembly scanning or markup could reach
-  is `uncertain` or `alive`, citing the lookup, the scan or the view, never `dead`.
+  `uncertain`, not `dead`. A candidate that reflection, type scanning or markup could reach is
+  `uncertain` or `alive`, citing the lookup, the scan or the view, never `dead`.
 - **`alive`**: a specific reference or registration was found. **Never emitted as a record**, and
   every one **cites the evidence that saved it** in the prose report. An unevidenced `alive` is a
   guess wearing a verdict's clothes.

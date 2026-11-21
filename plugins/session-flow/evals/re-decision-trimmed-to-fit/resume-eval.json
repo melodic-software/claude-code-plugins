@@ -22,7 +22,6 @@
       "docs/schema-answers.md": "# Schema answers\n\nAnswers from the data owners, copied verbatim.\n"
     },
     "predecessor": {
-      "shape": 3,
       "topic": "billing-sync",
       "lane": "billing-sync",
       "hops": 7,
@@ -89,6 +88,9 @@
         }
       ]
     },
+    "remote_refs": [
+      "refs/heads/release/2.8"
+    ],
     "gh_fixture": {
       "repo": "example-org/billing-sync",
       "responses": [

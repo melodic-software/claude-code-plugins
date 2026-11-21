@@ -1,11 +1,8 @@
 // The report jobs of pr-run-activity-read.yml and -write.yml: one comment per
-// lane run on the pull request, naming the activity, its outcome, the commits
-// it pushed and each GitHub API call that failed, edited in place when the
-// run is re-run. The marker names the activity, the run id, the model rung
-// and the leg (pr-unblock calls the read runner more than once per run: its
-// rung-up call at rung 1, and each call's subscription and fallback legs with
-// the runner's fallback input), not the attempt; a first attempt posts
-// without a lookup. No model runs here, but the run job that carried the failure rows
+// activity on the pull request (the lane-run-report kind of
+// lib/pr-messages), holding a section for each report job of the newest run:
+// the activity's outcome, the commits it pushed and each GitHub API call that
+// failed. No model runs here, but the run job that carried the failure rows
 // shared RUNNER_TEMP with one, so every row is checked again, and a forged
 // outcome or commit renders as unknown or none, and no count the run job
 // carried is shown. A secondary rate limit's refusal is retried once after its
@@ -23,14 +20,21 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { REST_PATH_WORDS, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
-import { upsert } from "../lib/upsert-comment.mjs";
+import { createRateLimitLatch, REST_PATH_WORDS, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
+import { prMessages, sectionHeading } from "../lib/pr-messages/pr-messages.mjs";
+import { graphqlStore } from "../lib/pr-messages/stores.mjs";
 
 export const MAX_ROWS = 50;
+export const MAX_BODY = 60000;
+export const LIST_TIMEOUT_MS = 5000;
+export const LATCH_BUDGET_MS = 5000;
+const KIND = "lane-run-report";
 const METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 const PATH = /^\/[A-Za-z0-9/_.-]{1,200}$/;
+const TEMPLATED = /^\/[A-Za-z0-9/_.{}*-]{1,200}$/;
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const OUTCOMES = new Set(["success", "failure", "cancelled", "skipped"]);
+const COMMITS = /^(?:[0-9a-f]{40}|none \(read lane\)|none recorded)$/;
 // Well inside the report job's 10-minute timeout.
 export const MAX_WAIT_SECONDS = 300;
 
@@ -49,11 +53,7 @@ export function secondaryWait(error) {
   return wait <= MAX_WAIT_SECONDS ? wait : undefined;
 }
 
-// The read runner's fallback input to the leg named in the marker; the first
-// call's empty value is base.
 const LEGS = new Map([["", "base"], ...["handoff", "credit-stop", "no-key", "fallback"].map((leg) => [leg, leg])]);
-
-export const marker = ({ lane, activity, runId, rung = "0", leg = "base" }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} rung=${rung} leg=${leg} -->`;
 
 // Only GitHub REST path words (REST_PATH_WORDS) may appear in the comment.
 // The model shares RUNNER_TEMP, so any other segment could be planted text (a
@@ -83,6 +83,29 @@ const validRow = (row) =>
   row.status >= 0 &&
   row.status <= 599;
 
+// A 404 on a tag-ref lookup means the tag does not exist yet
+// (check-trusted-trigger.mjs readDefaultBranchTip), not a failure, so
+// failureRows neither lists it nor counts it as dropped:
+// https://docs.github.com/en/rest/git/refs#get-a-reference
+const TAG_REF = /^(\/api\/v3)?\/repos\/\{repo\}\/git\/ref\/tags(\/\*)+$/;
+const expectedMiss = (row) => row.method === "GET" && row.status === 404 && TAG_REF.test(row.path);
+
+function foldRows(candidates, before = 0) {
+  const seen = new Set();
+  const rows = [];
+  let skipped = 0;
+  for (const row of candidates) {
+    const key = `${row.method} ${row.path} ${row.status}`;
+    if (seen.has(key) || rows.length >= MAX_ROWS) {
+      skipped += 1;
+      continue;
+    }
+    seen.add(key);
+    rows.push(row);
+  }
+  return { rows, dropped: before + skipped };
+}
+
 // The carried rows that have the recorded shape, each distinct row once, at
 // most MAX_ROWS, each path as its template (templatePath); dropped counts the rest and the run job's own dropped count.
 export function failureRows(text) {
@@ -94,99 +117,201 @@ export function failureRows(text) {
   }
   const given = Array.isArray(carried?.rows) ? carried.rows : [];
   const before = Number.isSafeInteger(carried?.dropped) && carried.dropped >= 0 ? carried.dropped : 0;
-  const seen = new Set();
-  const rows = [];
-  for (const row of given) {
-    if (!validRow(row)) continue;
-    const path = templatePath(row.path);
-    const key = `${row.method} ${path} ${row.status}`;
-    if (seen.has(key) || rows.length >= MAX_ROWS) continue;
-    seen.add(key);
-    rows.push({ method: row.method, path, status: row.status });
-  }
-  return { rows, dropped: before + given.length - rows.length };
+  const shaped = given.filter(validRow).map((row) => ({ method: row.method, path: templatePath(row.path), status: row.status }));
+  const kept = shaped.filter((row) => !expectedMiss(row));
+  const folded = foldRows(kept);
+  return { rows: folded.rows, dropped: before + given.length - shaped.length + folded.dropped };
 }
 
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
 export const escapeCell = (value) => String(value).replace(/[&<>|`*_[\]\\~]/g, (c) => ENTITIES[c] ?? `&#${c.codePointAt(0)};`);
+const NAMED = { "&amp;": "&", "&lt;": "<", "&gt;": ">" };
+const unescapeCell = (value) => value.replace(/&(?:#([0-9]{1,7})|amp|lt|gt);/g, (entity, code) => (code ? String.fromCodePoint(Number(code)) : NAMED[entity]));
 
 const outcome = (value) => (OUTCOMES.has(value) ? value : "unknown");
 
-export function render({ lane, activity, runId, rung = "0", leg, runUrl, runResult, actOutcome, commit, readLane, failures }) {
-  const commits = readLane ? "none (read lane)" : /^[0-9a-f]{40}$/.test(commit ?? "") ? commit : "none recorded";
+export function reportOf({ runId, attempt, rung = "0", leg = "base", runResult, actOutcome, commit, readLane, failures }) {
+  return {
+    fields: { run: runId, attempt, rung: rung === "1" ? "1" : "0", leg },
+    runResult: outcome(runResult),
+    actOutcome: outcome(actOutcome),
+    commits: readLane ? "none (read lane)" : /^[0-9a-f]{40}$/.test(commit ?? "") ? commit : "none recorded",
+    failures,
+  };
+}
+
+export function renderSection(section, runUrlOf = () => "") {
+  const { run, attempt, rung, leg } = section.fields;
   const lines = [
-    marker({ lane, activity, runId, rung, leg }),
-    "## Lane run report",
+    sectionHeading(KIND, section.fields),
+    `### Run ${run}, attempt ${attempt}`,
     "",
     "| Field | Value |",
     "| --- | --- |",
-    `| Activity | ${escapeCell(`${lane}/${activity}`)} |`,
-    `| Model rung | ${rung === "1" ? "1" : "0"} |`,
-    `| Leg | ${leg ?? "base"} |`,
-    `| Run job | ${escapeCell(outcome(runResult))} |`,
-    `| Activity step | ${escapeCell(outcome(actOutcome))} |`,
-    `| Commits pushed | ${escapeCell(commits)} |`,
+    `| Model rung | ${rung} |`,
+    `| Leg | ${leg} |`,
+    `| Run job | ${escapeCell(section.runResult)} |`,
+    `| Activity step | ${escapeCell(section.actOutcome)} |`,
+    `| Commits pushed | ${escapeCell(section.commits)} |`,
   ];
-  if (runUrl) lines.push(`| Run | [${escapeCell(runId)}](${runUrl}) |`);
-  lines.push("", "### Failed GitHub API calls", "");
-  if (failures.rows.length === 0) {
+  const runUrl = runUrlOf(run);
+  if (runUrl) lines.push(`| Run | [${escapeCell(run)}](${runUrl}) |`);
+  lines.push("", "#### Failed GitHub API calls", "");
+  const { rows, dropped } = section.failures;
+  if (rows.length === 0) {
     lines.push("No failed call recorded by the run job's scripts.");
   } else {
     lines.push("| Method | Path | Status |", "| --- | --- | --- |");
-    for (const row of failures.rows) lines.push(`| ${escapeCell(row.method)} | ${escapeCell(row.path)} | ${escapeCell(row.status === 0 ? "0 (network)" : row.status)} |`);
+    for (const row of rows) lines.push(`| ${escapeCell(row.method)} | ${escapeCell(row.path)} | ${escapeCell(row.status === 0 ? "0 (network)" : row.status)} |`);
   }
-  if (failures.dropped > 0) lines.push("", `More rows not shown: repeated, malformed, or past the cap of ${MAX_ROWS}.`);
+  if (dropped > 0) lines.push("", `More rows not shown: repeated, malformed, past the cap of ${MAX_ROWS}, or trimmed to keep the comment short.`);
   return `${lines.join("\n")}\n`;
 }
 
-export async function main(env = process.env, { github, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
+const ROW = /^\| (GET|POST|PATCH|PUT|DELETE) \| (\S{1,1400}) \| (0 \(network\)|[1-9][0-9]{0,2}) \|$/;
+const cell = (text, name) => new RegExp(`^\\| ${name} \\| (.{1,200}) \\|$`, "m").exec(text)?.[1] ?? "";
+
+export function parseSection({ fields, text }) {
+  const candidates = [];
+  let rejected = 0;
+  for (const line of text.split("\n")) {
+    const m = ROW.exec(line);
+    if (!m) continue;
+    const path = unescapeCell(m[2]);
+    const status = m[3] === "0 (network)" ? 0 : Number(m[3]);
+    if (!TEMPLATED.test(path) || templatePath(path.replaceAll("{repo}", "o/r")) !== path || status > 599) {
+      rejected += 1;
+      continue;
+    }
+    candidates.push({ method: m[1], path, status });
+  }
+  const folded = foldRows(candidates, rejected);
+  const commits = unescapeCell(cell(text, "Commits pushed"));
+  return {
+    fields,
+    runResult: outcome(cell(text, "Run job")),
+    actOutcome: outcome(cell(text, "Activity step")),
+    commits: COMMITS.test(commits) ? commits : "none recorded",
+    failures: { rows: folded.rows, dropped: /^More rows not shown/m.test(text) ? Math.max(folded.dropped, 1) : folded.dropped },
+  };
+}
+
+const NOTE = /^Not shown, to keep this comment under 60,000 characters: ([0-9]{1,9}) failure rows and ([0-9]{1,9}) sections\.$/m;
+
+export function merge(kept, mine) {
+  const run = BigInt(mine.fields.run);
+  const newest = kept.reduce((max, s) => (BigInt(s.fields.run) > max ? BigInt(s.fields.run) : max), 0n);
+  if (run < newest) return null;
+  const same = kept.filter((s) => BigInt(s.fields.run) === run);
+  const attempt = Number(mine.fields.attempt);
+  let at = -1;
+  same.forEach((s, i) => {
+    if (s.fields.rung !== mine.fields.rung || s.fields.leg !== mine.fields.leg || Number(s.fields.attempt) >= attempt) return;
+    if (at === -1 || Number(s.fields.attempt) >= Number(same[at].fields.attempt)) at = i;
+  });
+  return at === -1 ? { sections: [...same, mine], own: same.length } : { sections: same.with(at, mine), own: at };
+}
+
+export function renderBody({ activity, sections, own, runUrlOf, cut = { rows: 0, sections: 0 } }) {
+  const list = [...sections];
+  const texts = list.map((s) => renderSection(s, runUrlOf));
+  let mine = own;
+  let rowsCut = cut.rows;
+  let sectionsCut = cut.sections;
+  const head = () => {
+    const lines = ["## Lane run report", "", "| Field | Value |", "| --- | --- |", `| Activity | ${escapeCell(activity)} |`, ""];
+    if (rowsCut + sectionsCut > 0) lines.push(`Not shown, to keep this comment under 60,000 characters: ${rowsCut} failure rows and ${sectionsCut} sections.`, "");
+    return `${lines.join("\n")}\n`;
+  };
+  const size = () => head().length + texts.reduce((n, t) => n + t.length + 1, 0);
+  for (let i = 0; size() > MAX_BODY && i < list.length; i++) {
+    if (i === mine || list[i].failures.rows.length === 0) continue;
+    rowsCut += list[i].failures.rows.length;
+    list[i] = { ...list[i], failures: { rows: [], dropped: Math.max(list[i].failures.dropped, 1) } };
+    texts[i] = renderSection(list[i], runUrlOf);
+  }
+  while (size() > MAX_BODY && list.length > 1) {
+    const oldest = mine === 0 ? 1 : 0;
+    list.splice(oldest, 1);
+    texts.splice(oldest, 1);
+    sectionsCut += 1;
+    if (oldest < mine) mine -= 1;
+  }
+  return `${head()}${texts.join("\n")}`;
+}
+
+const causeOf = (error) => error?.cause ?? error;
+
+export async function main(env = process.env, { github, store, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), listTimeoutMs = LIST_TIMEOUT_MS } = {}) {
   if (!/^[1-9][0-9]*$/.test(env.PULL ?? "")) {
     console.log("::notice::no pull request to put the lane run report on");
     return 0;
   }
-  if (!NAME.test(env.LANE ?? "") || !NAME.test(env.ACTIVITY ?? "") || !/^[1-9][0-9]{0,19}$/.test(env.RUN_ID ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "") || !/^[01]?$/.test(env.MODEL_RUNG ?? "") || !LEGS.has(env.LEG ?? "")) {
-    console.log("::warning::the lane, activity, run id, model rung, leg or repository is not of its shape; no lane run report is posted");
+  if (
+    !NAME.test(env.LANE ?? "") ||
+    !NAME.test(env.ACTIVITY ?? "") ||
+    !/^[1-9][0-9]{0,19}$/.test(env.RUN_ID ?? "") ||
+    !/^[1-9][0-9]{0,4}$/.test(env.GITHUB_RUN_ATTEMPT ?? "") ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "") ||
+    !/^[01]?$/.test(env.MODEL_RUNG ?? "") ||
+    !LEGS.has(env.LEG ?? "")
+  ) {
+    console.log("::warning::the lane, activity, run id, run attempt, model rung, leg or repository is not of its shape; no lane run report is posted");
     return 0;
   }
   const server = /^https:\/\/[A-Za-z0-9.-]+$/.test(env.GITHUB_SERVER_URL ?? "") ? env.GITHUB_SERVER_URL : "";
-  const args = { lane: env.LANE, activity: env.ACTIVITY, runId: env.RUN_ID, rung: env.MODEL_RUNG || "0", leg: LEGS.get(env.LEG ?? "") };
-  const body = render({
-    ...args,
-    runUrl: server && `${server}/${env.REPOSITORY}/actions/runs/${env.RUN_ID}`,
+  const runUrlOf = (run) => (server ? `${server}/${env.REPOSITORY}/actions/runs/${run}` : "");
+  const activity = `${env.LANE}/${env.ACTIVITY}`;
+  const mine = reportOf({
+    runId: env.RUN_ID,
+    attempt: env.GITHUB_RUN_ATTEMPT,
+    rung: env.MODEL_RUNG || "0",
+    leg: LEGS.get(env.LEG ?? ""),
     runResult: env.RUN_RESULT,
     actOutcome: env.ACT_OUTCOME,
     commit: env.PUSHED_COMMIT,
     readLane: env.READ_LANE === "true",
     failures: failureRows(env.API_FAILURES),
   });
+  const alone = renderBody({ activity, sections: [mine], own: 0, runUrlOf });
+  const toSummary = () => {
+    try {
+      if (!env.GITHUB_STEP_SUMMARY) return "";
+      appendFileSync(env.GITHUB_STEP_SUMMARY, alone);
+      return "; the report is in this job's summary";
+    } catch {
+      return "";
+    }
+  };
   try {
-    const client = github ?? createGitHub({ token: env.GITHUB_TOKEN });
-    // A first attempt's run id is new, so no comment can carry its marker yet.
+    const client = store ? undefined : (github ?? createGitHub({ token: env.GITHUB_TOKEN, latch: createRateLimitLatch({ budgetMs: LATCH_BUDGET_MS, hold: true }) }));
     const post = async () => {
-      if (env.GITHUB_RUN_ATTEMPT !== "1") return upsert({ github: client, repository: env.REPOSITORY, pull: env.PULL, marker: marker(args), body });
-      await client("POST", `/repos/${env.REPOSITORY}/issues/${env.PULL}/comments`, { body });
-      return "posted";
+      const thread = prMessages({ store: store ?? graphqlStore(client, { timeoutMs: listTimeoutMs }), repo: env.REPOSITORY, number: Number(env.PULL) });
+      const current = await thread.read(KIND, { activity });
+      const merged = merge((current?.sections ?? []).map(parseSection), mine);
+      if (merged === null) return "older";
+      const note = NOTE.exec(current?.preamble ?? "");
+      const sameRun = current?.sections.some((s) => s.fields.run === mine.fields.run);
+      const cut = sameRun && note ? { rows: Number(note[1]), sections: Number(note[2]) } : undefined;
+      return thread.write(KIND, { activity }, {}, renderBody({ activity, ...merged, runUrlOf, cut }));
     };
     let done;
     try {
       done = await post();
     } catch (error) {
-      const wait = secondaryWait(error);
+      const wait = secondaryWait(causeOf(error));
       if (wait === undefined) throw error;
-      console.log(`::notice::GitHub's secondary rate limit refused the lane run report on #${env.PULL}${detailSuffix(error)}; trying once more in ${wait}s`);
+      console.log(`::notice::GitHub's secondary rate limit refused the lane run report on #${env.PULL}${detailSuffix(causeOf(error))}; trying once more in ${wait}s`);
       await sleep(wait * 1000);
       done = await post();
     }
-    console.log(`::notice::${done} the lane run report on #${env.PULL}`);
+    if (done === "older") {
+      console.log(`::notice::the lane run report on #${env.PULL} already holds a newer run of ${activity}, so it is left as it is${toSummary()}`);
+      return 0;
+    }
+    console.log(`::notice::${done === "unchanged" ? "left unchanged" : done} the lane run report on #${env.PULL}`);
   } catch (error) {
-    let where = "";
-    try {
-      if (env.GITHUB_STEP_SUMMARY) {
-        appendFileSync(env.GITHUB_STEP_SUMMARY, body);
-        where = "; the report is in this job's summary";
-      }
-    } catch {}
-    console.log(`::warning::could not post the lane run report on #${env.PULL}: ${error?.message ?? error}${detailSuffix(error)}${where}`);
+    console.log(`::warning::could not post the lane run report on #${env.PULL}: ${error?.message ?? error}${detailSuffix(causeOf(error))}${toSummary()}`);
   }
   return 0;
 }

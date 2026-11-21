@@ -9,7 +9,7 @@ skills cover it.
 |---|---|
 | `/testing:plan` | Coverage-gap analysis. Classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
-| `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
+| `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell and other script surfaces). |
 | `/testing:check-visual-parity` | Model-invocable; implement's refactor mode calls it for a plan phase with a `**Parity contract:**` line. `baseline` captures PNG screenshots of the listed states before the first edit and records their sha256, OS, browser, viewport and scale in a manifest; `compare` captures them again at each green checkpoint and counts differing pixels per image with pixelmatch against `pixel_tolerance`. It captures only through a driver that writes PNG files, launches through `/testing:run-e2e`'s launch path, runs the repository's own visual suite first, and never edits or re-captures a baseline. pixelmatch and pngjs install on first use from the committed lockfile (`npm` required). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. `--repo` and the other target forms of the shipped `reference/target-scope.md` scan several repositories, one scan each. |
@@ -110,9 +110,10 @@ before. Under `auto` a run now drives through the repository's own
 harness when a spec covers the changed flow, and otherwise through the path it used before. Keys,
 defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
 
-`browser_driver` (default `playwright-cli`) names the one browser tool a `playwright` drive uses. It
-sits in the same layers as `e2e_driver`, plus the `userConfig` option of the same name. When the
-driver for the run is `playwright`, pinned or picked by `auto`, `scripts/check-browser-driver.sh`
+`browser_driver` names the one browser tool a `playwright` drive uses: set it to the browser tool
+your project uses. It sits in the same layers as `e2e_driver`, plus the `userConfig` option of the
+same name. When the driver for the run is `playwright`, pinned or picked by `auto`,
+`scripts/check-browser-driver.sh`
 checks before the first drive that the command is on PATH; if it is not, the run stops, naming the
 setting, the value, where it came from, and the two ways forward (install the tool, or set
 `browser_driver` to one you have). It never substitutes another tool or switches mid-run.

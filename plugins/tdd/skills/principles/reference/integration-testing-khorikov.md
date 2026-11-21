@@ -85,14 +85,6 @@ Two common misconceptions about interfaces:
 
 > **"Don't introduce interfaces for out-of-process dependencies unless you need to mock out those dependencies."** Use interfaces for unmanaged dependencies only. Use concrete classes for managed dependencies.
 
-```csharp
-public class UserController
-{
-    private readonly Database _database;         // Concrete — managed dep
-    private readonly IMessageBus _messageBus;    // Interface — unmanaged dep
-}
-```
-
 ### Never Use Interfaces for In-Process Dependencies
 
 Interfaces on domain classes (e.g., `IUser`) are a red flag. They hint at using mocks to check interactions between domain classes, which couples tests to implementation details.
@@ -108,21 +100,7 @@ Two types (from Freeman & Pryce, *Growing Object-Oriented Software*):
 
 ### The DomainLogger Pattern
 
-Don't mock raw `ILogger` for support logging. Create a `DomainLogger` (implements `IDomainLogger`) that declares specific business-meaningful log operations:
-
-```csharp
-public class DomainLogger : IDomainLogger
-{
-    private readonly ILogger _logger;
-
-    public void UserTypeHasChanged(
-        int userId, UserType oldType, UserType newType)
-    {
-        _logger.Info(
-            $"User {userId} changed type from {oldType} to {newType}");
-    }
-}
-```
+Don't mock raw `ILogger` for support logging. Create a `DomainLogger` (implements `IDomainLogger`) that declares specific business-meaningful log operations, such as an operation that records a user's type change.
 
 When `DomainLogger` introduces an out-of-process dependency into domain classes, use **domain events** (e.g., `UserTypeChangedEvent`) to keep the domain model clean. The controller dispatches events to `DomainLogger` after the business operation.
 
@@ -130,7 +108,7 @@ When `DomainLogger` introduces an out-of-process dependency into domain classes,
 
 - Support logging amount is a business decision. Always test it
 - Diagnostic logging: use sparingly, ideally only for unhandled exceptions. Excessive logging clutters code and damages signal-to-noise ratio
-- Never use ambient context (static `LogManager.GetLogger()`). Always inject loggers explicitly via constructor or method parameter
+- Never use ambient context (a static logger lookup). Always inject loggers explicitly via constructor or method parameter
 - `IDomainLogger` can stay at the `IDomainLogger` level for mocking (unlike `IMessageBus` which should be mocked at `IBus`). The exact log text structure matters less than message bus contracts
 
 ## Five Mocking Best Practices
@@ -141,19 +119,7 @@ When `DomainLogger` introduces an out-of-process dependency into domain classes,
 
 ### 2. Verify Interactions at the System's Edges
 
-Mock the **last type** in the chain between your controller and the unmanaged dependency. For a message bus: mock `IBus` (the raw transport), not `IMessageBus` (your domain-specific wrapper).
-
-```csharp
-// BAD — mocking an intermediate type
-messageBusMock.Verify(x => x.SendEmailChangedMessage(
-    user.UserId, "new@gmail.com"), Times.Once);
-
-// GOOD — mocking at the system edge (IBus)
-busMock.Verify(x => x.Send(
-    "Type: USER EMAIL CHANGED; " +
-    $"Id: {user.UserId}; " +
-    "NewEmail: new@gmail.com"), Times.Once);
-```
+Mock the **last type** in the chain between your controller and the unmanaged dependency. For a message bus: mock `IBus` (the raw transport), not `IMessageBus` (your domain-specific wrapper). Verify the raw message the bus sends, not the wrapper call that builds it.
 
 This maximizes both protection against regressions (more code exercised) and resistance to refactoring (tests verify the actual external contract, not internal class structure).
 
@@ -171,42 +137,14 @@ The "one mock per test" guideline is a misconception rooted in the London school
 
 Verify both:
 
-- **Existence** of expected calls (`Times.Once`)
-- **Absence** of unexpected calls (`VerifyNoOtherCalls()`)
+- **Existence** of expected calls
+- **Absence** of unexpected calls
 
 This ensures backward compatibility in both directions: no missing messages AND no extra messages.
 
 ### Spies Are Superior to Mocks at System Edges
 
-Spies (handwritten mocks) provide reusable fluent assertion interfaces:
-
-```csharp
-public class BusSpy : IBus
-{
-    private List<string> _sentMessages = new List<string>();
-
-    public void Send(string message) { _sentMessages.Add(message); }
-
-    public BusSpy ShouldSendNumberOfMessages(int number)
-    {
-        Assert.Equal(number, _sentMessages.Count);
-        return this;
-    }
-
-    public BusSpy WithEmailChangedMessage(int userId, string newEmail)
-    {
-        string message = "Type: USER EMAIL CHANGED; " + ...;
-        Assert.Contains(_sentMessages, x => x == message);
-        return this;
-    }
-}
-
-// Usage — fluent, readable assertions
-busSpy.ShouldSendNumberOfMessages(1)
-    .WithEmailChangedMessage(user.UserId, "new@gmail.com");
-```
-
-`ShouldSendNumberOfMessages(1)` encompasses both `Times.Once` and `VerifyNoOtherCalls()`. The spy provides an independent checkpoint. It doesn't trust production code for assertion values.
+Spies (handwritten mocks) provide reusable fluent assertion interfaces. A spy on the bus records each sent message. Asserting the exact message count together with the content of each expected message covers both the existence and the absence checks above. The spy provides an independent checkpoint. It doesn't trust production code for assertion values.
 
 ## Database Testing Prerequisites
 
@@ -243,17 +181,17 @@ Split the `Database` class into:
 - **Repositories**: access and modify data (short-lived)
 - **Transaction / Unit of Work**: commits or rolls back all changes atomically (lives for the entire business operation)
 
-The `Transaction` class uses `Commit()` + `Dispose()`. `Commit()` marks the transaction as successful, `Dispose()` ends it (persisting if committed, rolling back otherwise). This guarantees the database is only altered during happy paths. Repositories accept `Transaction` as a constructor parameter, so they always work on top of transactions and can never call the database independently.
+The `Transaction` class has a commit step and an end step. Commit marks the transaction as successful; ending it persists the changes if committed and rolls them back otherwise. This guarantees the database is only altered during happy paths. Repositories accept `Transaction` as a constructor parameter, so they always work on top of transactions and can never call the database independently.
 
 **Upgrading Transaction to Unit of Work:** A unit of work maintains a list of objects affected by a business operation and executes all updates as a single unit at the end. The key advantage over a plain transaction is the *deferral of updates*: all changes execute at the end of the business operation, minimizing database transaction duration and reducing data congestion.
 
-ORMs like Entity Framework implement the Unit of Work pattern natively. In Listing 10.4, `CrmContext` (inheriting `DbContext`) replaces `Transaction` directly:
+An ORM that implements the Unit of Work pattern natively can replace `Transaction` directly:
 
-- Repositories work on top of `CrmContext` just as they worked on top of `Transaction`
-- The controller commits via `context.SaveChanges()` instead of `transaction.Commit()`
-- `UserFactory` and `CompanyFactory` are eliminated. EF now serves as the mapper between raw database data and domain objects
+- Repositories work on top of the ORM's context just as they worked on top of `Transaction`
+- The controller commits through that context instead of the transaction
+- `UserFactory` and `CompanyFactory` are eliminated. The ORM now serves as the mapper between raw database data and domain objects
 
-This is the key insight: **the ORM IS the mapper**. There's no need for separate factory classes to translate between database rows and domain objects when EF Core handles that mapping through its change tracker and entity configuration.
+This is the key insight: **the ORM IS the mapper**. There's no need for separate factory classes to translate between database rows and domain objects when the ORM handles that mapping.
 
 ### Don't Reuse Transactions Between Test Sections
 
@@ -261,7 +199,7 @@ This is the key insight: **the ORM IS the mapper**. There's no need for separate
 
 Use at least three separate database contexts:
 
-1. **Arrange**: seed data, then `SaveChanges()` and dispose
+1. **Arrange**: seed data, then save and dispose
 2. **Act**: create fresh context for the controller (matches production behavior)
 3. **Assert**: create fresh context to query and verify independently
 
@@ -279,7 +217,7 @@ This is a recurring theme: when aspects of a valuable test conflict, prefer main
 
 > "I don't recommend using in-memory databases because they aren't consistent functionality-wise with regular databases."
 
-In-memory databases (SQLite, EF InMemory) create a mismatch between production and test environments. Tests can produce false positives or false negatives due to differences. Use the **same DBMS** in tests as in production (version/edition can differ).
+In-memory databases create a mismatch between production and test environments. Tests can produce false positives or false negatives due to differences. Use the **same DBMS** in tests as in production (version/edition can differ).
 
 ### Clean Data at the Start, Not the End
 
@@ -306,7 +244,7 @@ The asymmetry between reads and writes is fundamental to database testing strate
 - A bug in a read operation usually doesn't have consequences as detrimental as a write bug: no data corruption, no side effects propagating to external systems
 - Test only the most complex or important read operations; disregard the rest
 
-**Why reads don't need a domain model:** One of the main goals of domain modeling is encapsulation, preserving data consistency in light of changes (Ch 5-6). The lack of data changes makes encapsulation pointless for reads. You don't need a full ORM (NHibernate, Entity Framework) for reads either. Plain SQL is superior performance-wise, bypassing unnecessary layers of abstraction.
+**Why reads don't need a domain model:** One of the main goals of domain modeling is encapsulation, preserving data consistency in light of changes (Ch 5-6). The lack of data changes makes encapsulation pointless for reads. You don't need a full ORM for reads either. Plain SQL is superior performance-wise, bypassing unnecessary layers of abstraction.
 
 **Unit tests are useless for reads:** Because there are hardly any abstraction layers in reads (the domain model is one such layer), unit tests have no target. If you decide to test reads, do so using integration tests on a real database, the same approach as for writes, just applied more selectively.
 
@@ -348,19 +286,6 @@ Circular dependencies destroy testability and cognitive navigability. Don't mask
 
 ### Object Mother Pattern for Test Data
 
-Factory methods with default parameters create readable, focused tests:
+Factory methods with default parameters create readable, focused tests: each test passes only the values relevant to its scenario.
 
-```csharp
-private User CreateUser(
-    string email = "user@mycorp.com",
-    UserType type = UserType.Employee,
-    bool isEmailConfirmed = false)
-{
-    // ... creates and persists user ...
-}
-
-// Usage — only specify what's relevant to the scenario
-User user = CreateUser(email: "user@mycorp.com", type: UserType.Employee);
-```
-
-Khorikov prefers Object Mother (factory methods with defaults) over Test Data Builder (fluent `.With*()` chains). Object Mother needs less boilerplate in C# thanks to optional parameters.
+Khorikov prefers Object Mother (factory methods with defaults) over Test Data Builder (fluent `.With*()` chains). Object Mother needs less boilerplate where the language has optional parameters.

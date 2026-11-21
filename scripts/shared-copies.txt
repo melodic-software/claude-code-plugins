@@ -120,6 +120,8 @@ docs/contracts/ecosystem-resolution/generic-resolution.md plugins/discovery/refe
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/verification/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/improvement/reference/ecosystem-resolution.md
 docs/contracts/ecosystem-resolution/generic-resolution.md plugins/prototype/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/toolchain/reference/ecosystem-resolution.md
+docs/contracts/ecosystem-resolution/generic-resolution.md plugins/corrections/reference/ecosystem-resolution.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
@@ -316,10 +318,13 @@ lib/ui-feedback/notes-bridge.sh plugins/prototype/notes-bridge/notes-bridge.sh
 lib/ui-feedback/host.html plugins/prototype/notes-bridge/host.html
 lib/ui-feedback/proto-pin.js plugins/prototype/notes-bridge/proto-pin.js
 lib/ui-feedback/note-model.mjs plugins/prototype/notes-bridge/note-model.mjs
+lib/ui-feedback/frame-channel.mjs plugins/prototype/notes-bridge/frame-channel.mjs
 lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
 lib/ui-feedback/controls.schema.json plugins/prototype/notes-bridge/controls.schema.json
 lib/ui-feedback/controls.js plugins/prototype/notes-bridge/controls.js
 lib/ui-feedback/relocate-note.mjs plugins/prototype/notes-bridge/relocate-note.mjs
+lib/ui-feedback/dev-origin.mjs plugins/prototype/notes-bridge/dev-origin.mjs
+lib/ui-feedback/harness-fence.mjs plugins/prototype/notes-bridge/harness-fence.mjs
 lib/ui-feedback/proto-pin.js plugins/planning/shared/web/proto-pin.js
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js

@@ -350,10 +350,6 @@ def _shared_bash(tool: str) -> str:
     return bash
 
 
-# The shared reader's answers by document, keys, reader script, command
-# runner and environment, of which it is a pure function: `read_config_at`
-# reads the same few config texts at hundreds of commits per gate run, and
-# one reader process per key made that most of a candidate's time.
 _CONCERN_ANSWERS: dict[Any, dict[str, list[str]] | None] = {}
 
 
@@ -367,8 +363,11 @@ def _concern_values(
 
     None when the reader rejects the document (`--strict` exit 3). Any other
     failure raises. With the default runner an answer is read once per
-    process (`_CONCERN_ANSWERS`); a rejection or failure is read again, so a
-    one-off reader failure never sticks.
+    process (`_CONCERN_ANSWERS`, keyed by document, keys, reader script,
+    runner and environment, of which it is a pure function), since
+    `read_config_at` reads the same few texts at hundreds of commits per gate
+    run; a rejection or failure is read again, so a one-off reader failure
+    never sticks.
     """
     if run is not None:
         return _read_concern_values(text, keys, run)
@@ -388,37 +387,70 @@ def _concern_values(
     return {k: list(v) for k, v in found.items()}
 
 
+_PARSE_AS_READER = (
+    'text="$(<"$1")"; LC_ALL=C awk -v STRICT=1 -f "$0" <<<"$text" || exit 3'
+)
+
+
+def _reader_lines(values: list[bytes]) -> list[str]:
+    """The lines a text-mode `run` reads from the shared reader printing
+    `values`, one per line: UTF-8, with `\\r\\n` and `\\r` read as `\\n`. Split
+    at `\\n` alone, so U+0085 or U+2028 stays in a value for `_SEPARATOR`
+    to refuse."""
+    printed = b"".join(value + b"\n" for value in values).decode("utf-8")
+    return printed.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
 def _read_concern_values(
     text: str, keys: list[tuple[str, bool]], run: Callable[..., Any]
 ) -> dict[str, list[str]] | None:
-    """`_concern_values`, read through the shared reader every time."""
+    """`_concern_values`, read through the shared parser every time: one parse
+    of the document, each key's values then selected from its records as
+    `parse-concern-value.sh --strict [--list]` selects them.
+
+    `_PARSE_AS_READER` gives the parser the script's own input, the document
+    read by `$(<file)` through a here-string, so trailing newlines and NUL
+    bytes reach yaml-subset.awk as they do there; any awk failure exits 3."""
     bash = _shared_bash("reader")
-    values: dict[str, list[str]] = {}
+    if not keys:
+        return {}
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
         document.write_text(text, encoding="utf-8")
-        for key, as_list in keys:
-            argv = [bash, str(PARSER), "--strict", *(["--list"] if as_list else [])]
-            try:
-                proc = run(
-                    [*argv, str(document), key],
-                    allowed_executables=(bash,),
-                    check=False,
-                )
-            except (RuntimeError, ValueError, OSError) as exc:
-                raise PolicyReadError(f"the shared YAML reader failed: {exc}") from exc
-            if proc.returncode == 3:
-                return None
-            if proc.returncode != 0:
-                raise PolicyReadError(
-                    f"the shared YAML reader exited {proc.returncode}: {proc.stderr.strip()}"
-                )
-            # One value per "\n": splitlines() would also cut a value at U+0085
-            # or U+2028, and a value carrying any such character is refused.
-            found = [line for line in proc.stdout.split("\n") if line]
-            if any(_SEPARATOR.search(line) for line in found):
-                return None
-            values[key] = found
+        awk = str(PARSER.with_name("yaml-subset.awk"))
+        try:
+            proc = run(
+                [bash, "-c", _PARSE_AS_READER, awk, str(document)],
+                allowed_executables=(bash,),
+                check=False,
+                binary=True,
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise PolicyReadError(f"the shared YAML reader failed: {exc}") from exc
+    if proc.returncode == 3:
+        return None
+    if proc.returncode != 0:
+        raise PolicyReadError(
+            f"the shared YAML reader exited {proc.returncode}: {proc.stderr.strip()}"
+        )
+    records = [line.partition(b"\t") for line in proc.stdout.split(b"\n")]
+    values: dict[str, list[str]] = {}
+    for key, as_list in keys:
+        name = key.encode()
+        if as_list:
+            item = re.compile(re.escape(name + b".") + rb"[0-9]+")
+            raw = [value for found, _, value in records if item.fullmatch(found)]
+        else:
+            raw = next(([value] for found, _, value in records if found == name), [])
+        kept = [stripped for value in raw if (stripped := value.removesuffix(b"/"))]
+        try:
+            lines = _reader_lines(kept)
+        except ValueError as exc:
+            raise PolicyReadError(f"the shared YAML reader failed: {exc}") from exc
+        found = [line for line in lines if line]
+        if any(_SEPARATOR.search(line) for line in found):
+            return None
+        values[key] = found
     return values
 
 
@@ -6364,10 +6396,8 @@ def cached_pull_request(
 
 # --- The post-merge floor -----------------------------------------------------------------------
 
-# The pipeline file's commits the contents-API fallback reads for the enabling
-# commit: one page. A run of enabled commits longer than that has no readable
-# start, which refuses. The local git history has no such limit.
 CONFIG_HISTORY_LIMIT = 100
+CONFIG_HISTORY_PAGES = 50
 
 
 def _history_checkouts() -> list[Path]:
@@ -6501,6 +6531,32 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
     return None
 
 
+def _api_history(repo: str, base_sha: str) -> Iterator[tuple[str, str]]:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the commits API a page at a time, so a caller that
+    stops early reads no further page. A short page ends the history. Raises
+    `PolicyReadError` on a page that cannot be read, and on a full
+    `CONFIG_HISTORY_PAGES`-th page, whose history goes on unread."""
+    owner, name = _split_repo(repo)
+    for page in range(1, CONFIG_HISTORY_PAGES + 1):
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits?sha={base_sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}"
+            f"&per_page={CONFIG_HISTORY_LIMIT}&page={page}"
+        )
+        if status != 200 or not is_json_array(payload):
+            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+        for commit in map(json_object, payload):
+            committer = json_object(json_object(commit.get("commit")).get("committer"))
+            yield str(commit.get("sha")), str(committer.get("date"))
+        if len(payload) < CONFIG_HISTORY_LIMIT:
+            return
+    raise PolicyReadError(
+        f"more than {CONFIG_HISTORY_PAGES * CONFIG_HISTORY_LIMIT} enabled "
+        f"{CONFIG_PATH} commits"
+    )
+
+
 def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> datetime:
     """When the unattended path's current enabled run began: the committer
     date of the oldest commit in the unbroken run of pipeline-file commits,
@@ -6511,12 +6567,12 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
     branch through the merge queue, whose squash commits GitHub dates.
 
     The history and each config come from a local clone holding `base_sha`
-    (`_local_history`), else from the commits and contents APIs.
-    Raises `PolicyReadError` when no start can be read."""
+    (`_local_history`), else from the commits and contents APIs
+    (`_api_history`). Raises `PolicyReadError` when no start can be read."""
+    commits: Iterable[tuple[str, str]]
     local = _local_history(base_sha)
     if local is not None:
         root, commits = local
-        complete = True
 
         def read(sha: str) -> PipelineConfig:
             return read_config_at(
@@ -6524,44 +6580,23 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
             )
 
     else:
-        owner, name = _split_repo(repo)
-        status, payload = _get(
-            f"repos/{owner}/{name}/commits?sha={base_sha}"
-            f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
-        )
-        if status != 200 or not is_json_array(payload):
-            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
-        commits = [
-            (
-                str(commit.get("sha")),
-                str(
-                    json_object(json_object(commit.get("commit")).get("committer")).get(
-                        "date"
-                    )
-                ),
-            )
-            for commit in map(json_object, payload)
-        ]
-        complete = len(commits) < CONFIG_HISTORY_LIMIT
+        commits = _api_history(repo, base_sha)
 
         def read(sha: str) -> PipelineConfig:
             return read_config_at(repo, sha)
 
-    if not commits:
-        raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+    seen = False
     start: str | None = None
     for sha, date in commits:
+        seen = True
         config = read(sha)
         enabled = None if config.error else enabled_authority(config)
         authority = authority or enabled
         if enabled is None or enabled != authority:
             break
         start = date
-    else:
-        if not complete:
-            raise PolicyReadError(
-                f"more than {CONFIG_HISTORY_LIMIT} enabled {CONFIG_PATH} commits"
-            )
+    if not seen:
+        raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
     if start is None:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha} does not enable the path")
     return _time(start.replace("Z", "+00:00")).astimezone(UTC)

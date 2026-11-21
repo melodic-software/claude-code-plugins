@@ -22,7 +22,35 @@ design while it waits for its `read`. When the count is above zero, print the co
 point at [Removing a read's sandboxes](#removing-a-reads-sandboxes): each run's owner removes its
 own sandboxes by results file.
 
+## Stale run roots
+
+How preflight fills `stale_run_roots` on Linux and WSL2. A run root is a direct child of
+`$HOME/.ev`, one per run ([SKILL.md, Run](../SKILL.md#run) step 3); a missing `$HOME/.ev` reports
+`0`. Probe read-only, the second and third commands once per root the first prints:
+
+```bash
+find "$HOME/.ev/" -mindepth 1 -maxdepth 1 -type d -mmin +4320
+find '<root>' -mindepth 1 -maxdepth 1 -type d -name 'claude-eval-*'
+du -skc '<root>'
+```
+
+The first command's lines are the roots older than 3 days (4,320 minutes since the root last
+gained or lost an entry), listed by path. The sandbox count is the sum of the second command's
+lines over those roots, the `claude-eval-*` sandboxes nested in them. The size and unreadable-path
+rules are the ones above: a root `find` cannot read makes the sandbox count `unknown`, and a
+`sealed/` `du` cannot enter makes the size `at least <total>`.
+
+Preflight lists these roots and removes none of them. A root older than 3 days can still be a run
+whose session keeps it for a later read. Only the session that owns a root removes it, or the
+user once they confirm no session keeps it, by [Removing a run root](#removing-a-run-root).
+
 ## Removing a read's sandboxes
+
+A run this session made under a run root (Linux and WSL2) skips this section:
+[SKILL.md, Run](../SKILL.md#run) step 5 removes the whole root by
+[Removing a run root](#removing-a-run-root), its sandboxes included. A read of another session's
+run-root results finds its sandboxes outside `<tmp>`, so the loop below skips them all: name their
+run root for the user as a [stale run root](#stale-run-roots) would be named.
 
 After the `read` action's promote line (SKILL.md, Reading the delta), or wherever the reading
 stopped, remove the sandboxes the run in this file kept. First finish everything the traces are
@@ -68,14 +96,46 @@ session that owns them names them by literal path in the loop above. Preflight n
 
 A later read of the same file finds its traces gone: the gate's unresolved-trace INVALID then comes
 from this removal, not the run. Say so and report the earlier read's verdict if it is known; do not
-prescribe a rerun for that reason alone.
+prescribe a rerun for that reason alone. The same holds after [Removing a run root](#removing-a-run-root).
+
+## Removing a run root
+
+[SKILL.md, Run](../SKILL.md#run) step 5 removes the run directory step 3 created,
+`$HOME/.ev/<short-run-id>`, by the literal path `mktemp` printed, which needs no results file.
+First finish everything the traces are needed for, the list that opens the read's removal in
+[Removing a read's sandboxes](#removing-a-reads-sandboxes). A session that ended before that step
+leaves the root for `stale_run_roots` ([Stale run roots](#stale-run-roots)) to list. The loop acts
+on a path only when all of these hold, and prints every other one with the reason:
+
+- it is a directory and not a symlink;
+- its `realpath` is a direct child of the `realpath` of `$HOME/.ev`;
+- it holds at least one `claude-eval-*` directory.
+
+The path holds no `'` and no control character, since it goes inside single quotes. Each sandbox in
+the root gets the same handling as the loop in [Removing a read's sandboxes](#removing-a-reads-sandboxes):
+`chmod u+rwx` on the sandbox, `chmod 700` on its `sealed/`, then `chmod -R u+rwx` and `rm -rf` on
+the root. A `claude-eval-*` entry that is a symlink is not opened; `rm -rf` removes the link, not
+its target.
+
+```bash
+e=$(realpath "$HOME/.ev"); for d in '<run-root>'; do d=${d%/}; r=$(realpath "$d"); if [ -L "$d" ] || [ ! -d "$d" ] || [ "$(dirname "$r")" != "$e" ]; then echo "skipped (not a directory directly under $e): $d"; continue; fi; if ! chmod u+rwx "$r"; then echo "skipped (chmod cannot open it): $d"; continue; fi; if [ -z "$(find "$r" -mindepth 1 -maxdepth 1 -type d -name 'claude-eval-*' -print -quit)" ]; then echo "skipped (holds no claude-eval-* sandbox): $d"; continue; fi; find "$r" -mindepth 1 -maxdepth 1 -type d -name 'claude-eval-*' -exec chmod u+rwx {} \; -exec sh -c '[ ! -d "$1/sealed" ] || chmod 700 "$1/sealed"' sh {} \;; chmod -R u+rwx "$r"; rm -rf "$r"; done
+```
+
+Then check each path. A `not a directory directly under` skip is a deliberate refusal: remove
+nothing for it. A `chmod cannot open it` skip, or a path the loop did not print as skipped that
+still exists, was left behind: print the loop with it for the user, and note that a directory
+`chmod` cannot enter still needs `sudo rm -rf`. A `holds no claude-eval-* sandbox` skip is a run
+that stopped before its first case started: `rmdir '<run-root>'` removes it when it is empty;
+otherwise list its contents for the user and remove nothing. Never remove `$HOME/.ev` itself or a
+glob over its children, which holds other runs' roots.
 
 ## Sandbox start
 
 A run under the default `<tmp>`, or under a long `$TMPDIR`, can end with no session or no shell:
 the validity gate's `session started` check fails it as a harness failure. Rerun with `TMPDIR` set
-to a directory of at most 24 characters outside the system temp directory; preflight's
-`eval_tmpdir` field refuses a longer one before any spend.
+to the per-run path `$HOME/.ev/<short-run-id>` ([SKILL.md, Run](../SKILL.md#run) step 3), which
+must be at most 24 characters; preflight's `eval_tmpdir` field refuses a longer one before any
+spend.
 
 Why 24: on Linux the shell sandbox starts two socat bridges whose Unix sockets are named
 `claude-http-<16 hex>.sock` and `claude-socks-<16 hex>.sock` in the process's temp directory, and a
@@ -88,8 +148,8 @@ failed every Bash call with `Sandbox is required but failed to initialize: Faile
 sockets after 5 attempts`, and a 24-character `<dir>` with the same case and tree ran Bash and
 scored.
 
-Under a run root in `/tmp`, the workspace `.git` and the session tmp are also read-only to Bash,
-and by the run's settings the whole root is, so a case that writes there fails even when its
+Under a `TMPDIR` in `/tmp`, the workspace `.git` and the session tmp are also read-only to Bash,
+and by the run's settings the whole `TMPDIR` is, so a case that writes there fails even when its
 sandbox starts: [records.md, Sandbox and credential store](records.md#sandbox-and-credential-store).
 A `TMPDIR` outside the system temp directory avoids that too.
 
@@ -148,12 +208,11 @@ Wrap the run step's CLI command, unchanged:
 python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
 ```
 
-`<dir>` is the run step's directory: at most 24 characters, outside the system temp directories,
-created first, on disk (for example `$HOME/.ev` when that path stays within 24 characters). A
-longer one is untested, and at 63 characters no run started a shell sandbox
-([Sandbox start](#sandbox-start)). Not `/run/user/<uid>`: it is a small tmpfs that kept
-`--keep-temp` sandboxes can fill, which fails every eval on the host with ENOSPC and breaks the
-session sockets stored there.
+`<dir>` is the run step's directory, `$HOME/.ev/<short-run-id>`, at most 24 characters. A longer
+one is untested, and at 63 characters no run started a shell sandbox
+([Sandbox start](#sandbox-start)). The root stays on disk under `$HOME`, not `/run/user/<uid>`: that
+is a small tmpfs that kept `--keep-temp` sandboxes can fill, which fails every eval on the host
+with ENOSPC and breaks the session sockets stored there.
 
 It changes `~/.docker` outside the repository, and only for the run. It replaces
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of

@@ -54,6 +54,15 @@ against Edit allow and deny rules. The 2.1.259 widening that applied `Read()` de
 arguments generally was reverted in 2.1.260 and is not the rule: a command that reads files without
 naming them, such as `grep -r pattern .` from the directory that holds the file, is not covered.
 
+**`cp` and `mv` coverage is read by client version, never assumed.** Which `cp` and `mv`
+spellings, and which of the files they touch, a deny rule or protected-file prompt reaches depends
+on the Claude Code version. Before reporting a deny as covering a `cp` or `mv`, read the session's
+client version and fetch [changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321) and
+[permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
+Report a spelling or file those sources do not name for that version as uncovered; the file a `cp`
+or `mv` reads stays with the commands under "Unverified" below until the permissions page names
+it.
+
 **Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
 files indirectly, like a Python or Node script that opens files itself." Any script that opens the
 path, one-liners included, reads a `Read`-denied file with no deny firing. That is the real
@@ -100,6 +109,11 @@ the same defect as recommending the deny globs without their scope. Strict mode
 not close `!` shell mode in an interactive session. When strict mode may make the sandbox
 admin-required, audit the loosening settings only in the scopes it still reads, and do not report
 the repository's ignored entries as live.
+
+Before calling a sandbox a boundary, read the session's client version against the sandbox escape
+fixes in [changelog 2.1.321](https://code.claude.com/docs/en/changelog#2-1-321), the read-only
+Bash command case among them, and report the sandbox as partial on a client older than a fix that
+closes an escape the finding relies on.
 
 - **Pointer**: when you need what makes the sandbox admin-required, or which loosening settings it
   then ignores from the repository, fetch

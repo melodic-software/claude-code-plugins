@@ -337,13 +337,13 @@ describe("render", () => {
   // The Issue Triage prompt asks owner questions too, so its comment must end
   // with the same reply and lead-in the refinement prints (#7916).
   test("the Issue Triage prompt ends its owner questions with the refinement's copyable reply", () => {
-    const workflow = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
-    const rule = /\n {8}DECISION REPLY\. ((?:.+\n)+?)(?: {4}\S|\n)/.exec(workflow);
-    assert.ok(rule, "intake-triage.yml prompt has a DECISION REPLY paragraph");
+    const rubric = readFileSync(new URL("triage-rubric.txt", import.meta.url), "utf8");
+    const rule = /\nDECISION REPLY\. ((?:.+\n)+?)\n/.exec(rubric);
+    assert.ok(rule, "the triage rubric has a DECISION REPLY paragraph");
     const text = rule[1].split("\n").map((line) => line.trim()).join(" ");
     assert.ok(text.includes(`\`${DECISION_REPLY}\``), text);
     assert.ok(text.includes("`To answer, post a comment that starts with this line:`"), text);
-    assert.equal((workflow.match(/with a `RECOMMENDED:` answer/g) ?? []).length, 2, "the rule covers both places that ask RECOMMENDED questions");
+    assert.equal((rubric.match(/with a `RECOMMENDED:` answer/g) ?? []).length, 2, "the rule covers both places that ask RECOMMENDED questions");
     assert.ok(text.includes("RE-ENTRY"), text);
   });
 

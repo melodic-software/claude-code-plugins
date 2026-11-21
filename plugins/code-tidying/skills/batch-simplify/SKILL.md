@@ -351,6 +351,6 @@ A simplification pass sits at review; verify proves the swept change still meets
 - **Agent reports deferrals**: non-optional path. Run Phase 6.5 and resolve them in-run; only items with a surviving ground (Needs-human, Too-large, or a deferral the resolution wave could not finish) reach the report. Never paraphrase or collapse deferred items without presenting them to the user
 - **Verification fails after simplification**: report the failure prominently, the agent should have caught this, but the final verification is the safety net
 - **Very large groups (>25 files)**: split into sub-groups by subdirectory to keep the simplifier focused
-- **Files that span multiple ecosystems**: group by the primary ecosystem (e.g., a `.sh` hook that invokes `ruff` goes in the shell group, not Python)
+- **Files that span multiple ecosystems**: group by the primary ecosystem
 - **A consumer hook blocks subagent edits**: some projects gate edits behind precondition hooks (e.g., explore/research-first gates). Comply. Satisfy the hook's precondition in the main session, then re-spawn the blocked groups. Do not bypass the hook via Bash workarounds and do not negotiate with it
 - **Commits appear mid-run that this skill didn't make**: parallel sessions or auto-snapshot mechanisms may commit concurrently. `git log --oneline -5` reveals what was captured; treat those commits as authoritative for the changed state and proceed

@@ -7,6 +7,10 @@
     {
       "answer": "**Extras**\n- Unit-7 warehouse pick-and-pack shift",
       "why": "bold heading"
+    },
+    {
+      "answer": "## EXTRAS (robotics)\n\n**MEDIUM**\n- **Anchorpoint Dynamics' Unit-7 humanoid completes a full warehouse pick-and-pack shift autonomously** (2026-06-19). [Source](https://blog.anchorpoint.example/unit-7-warehouse-shift)",
+      "why": "a bold tier label under the EXTRAS heading does not end the section"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "**Extras**\n*No notable items.*\n\n**Anchorpoint Dynamics**\n- Unit-7 warehouse pick-and-pack shift",
       "why": "a later bold heading ends the EXTRAS section"
+    },
+    {
+      "answer": "**Extras**\n**MEDIUM**\n*No notable items.*\n\n**Anchorpoint Dynamics**\n**MEDIUM**\n- Unit-7 warehouse pick-and-pack shift",
+      "why": "tier labels do not carry the EXTRAS section past a different bold section heading"
     },
     {
       "answer": "## Anchorpoint Dynamics\n\n- Unit-7 warehouse shift\n\n## Caveats\n\n**Extras note:** Unit-7 could also sit in EXTRAS.",

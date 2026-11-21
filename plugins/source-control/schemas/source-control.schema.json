@@ -37,7 +37,14 @@
     "evidence_record_fields": {
       "type": "boolean",
       "default": false,
-      "description": "When true, the /source-control:pull-request evidence comment carries a record block: who ran the verification, when, and the issues it found with their resolution, the record a regulated team keeps for an assurance activity. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to false."
+      "description": "When true, the /source-control:pull-request evidence comment carries a record block: who ran the verification, when, and the issues it found with their resolution. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to false."
+    },
+    "evidence_ocr_mpdecimate_hi": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9999,
+      "default": 256,
+      "description": "The ffmpeg mpdecimate hi threshold at which the /source-control:pull-request evidence step samples a video's frames before reading their text with OCR and leak-scanning it; mpdecimate drops a frame that differs too little from the last kept one. Lower keeps more frames, catching dimmer text at more OCR cost. Read at the pull request's base branch and honored only when that base is the default branch; an invalid value falls back to 256."
     },
     "sync_stale_base": {
       "type": "boolean",

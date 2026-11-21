@@ -45,6 +45,7 @@ head_sha="$(git rev-parse HEAD)"
 
 bash "$here/gh-forge/install.sh" 412 feat/cart-totals main "feat: show the cart total in currency" --open
 forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
+bash "$here/ocr-stand-ins.sh" "$forge/bin"
 
 criteria="" rows=()
 for ((i = 0; i < count; i++)); do

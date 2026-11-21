@@ -3,6 +3,42 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-11-21
+
+### Changed
+
+- **The notes host page now reports a framed page that never says it is ready.** If the frame helper's first ready message has not arrived within 10 seconds, the host page says so, on a real-stack route and on a mockup alike. On a real-stack route it adds that the dev server may refuse to be framed or the route may not load the helper. It does not judge by the frame's load event. The new `notes-bridge/frame-channel.mjs` holds the host page's channel rules. A message is taken only from the frame's window and, on a real-stack route, from the dev origin. Every message to a real-stack frame names the dev origin as `targetOrigin` ([#17748](https://github.com/melodic-software/claude-code-plugins/issues/17748)).
+
+## [0.41.0] - 2026-11-21
+
+### Added
+
+- **Hide markers (M) shows or hides every note marker on the mockup.** The toggle sits beside Hide notes in the notes host's dock, so it works with the panel closed. It never starts or ends a pick, markers never take a click meant for the page, and the choice lasts across reloads for the tab's run ([#17802](https://github.com/melodic-software/claude-code-plugins/issues/17802)).
+
+## [0.40.0] - 2026-11-21
+
+### Changed
+
+- **A picked element, marked region or selected text stays drawn while you write its note.** The notes host asks the frame to hold the pick, so the outline stays on the page after pick mode ends and goes when the note is sent, saved as a draft or cancelled. A sent note then shows as its numbered marker and a draft as D1, D2 and so on ([#17800](https://github.com/melodic-software/claude-code-plugins/issues/17800)).
+
+- The sandbox rules in explore-directions and pressure-test state the general rule (sandbox keys only, synthetic records, no production or real data) without domain-specific wording.
+
+## [0.39.0] - 2026-11-21
+
+### Added
+
+- **A real-stack route can let only the notes bridge frame it.** The new `notes-bridge/harness-fence.mjs` is a connect-style middleware for the app's dev server. It sends `Content-Security-Policy: frame-ancestors <bridge origin>` as a response header and adds no `<meta>` policy. `node harness-fence.mjs <bridge origin>` prints that header ([#17750](https://github.com/melodic-software/claude-code-plugins/issues/17750)).
+
+### Changed
+
+- **`notes-bridge.sh ensure-running --dev-origin` uses one host spelling.** The dev origin's host must now be `localhost` or `127.0.0.1`, the two hosts the bridge answers on. Any other host is refused at start. The printed `url` and `origin` use the dev origin's host, so the host page's origin check, its frame URL and the dev server's `frame-ancestors` source all name the same host.
+
+## [0.38.0] - 2026-11-21
+
+### Added
+
+- **The notes bridge can frame a real-stack route from the app's dev server.** `notes-bridge.sh ensure-running --dev-origin <origin>` takes the origin only when `new URL(input).origin` returns it unchanged, so an input such as `http://localhost:80` is refused with the canonical form to pass instead. In that mode the host page frames the dev origin with no `sandbox` attribute, its policy adds `frame-src <dev origin>` and keeps `frame-ancestors 'none'`, and it trades messages only with that origin. Starting the mode needs `node` on `PATH` ([#17749](https://github.com/melodic-software/claude-code-plugins/issues/17749)).
+
 ## [0.37.0] - 2026-11-20
 
 ### Changed

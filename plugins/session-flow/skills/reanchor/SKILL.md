@@ -24,6 +24,12 @@ back up.
 
 ## What it re-anchors
 
+Read a handoff's premises section by section with
+`python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`:
+every section but Prior sessions and Resume prompt can hold one (Decisions in force, Current rules,
+Observations, Environment to re-establish and the rest), and a section moved to the hop file is
+read from there.
+
 1. **Handoff / plan premises.** For every PR, issue, or branch a handoff or
    locked plan references, confirm it is still in the state the document claims:
    open vs merged/closed, same head, same base, not renamed. A plan that
@@ -66,14 +72,16 @@ back up.
    actions still connect to it, stated in one sentence. A quote that was
    re-derived instead of copied is reported as drift between the links, the
    paraphrase is the drift, and it is invisible at any single hop because each
-   rewording is individually plausible. For a shape-3 handoff (`handoff_shape: 3`)
-   that comparison is
-   `python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" validate <file>`
-   (`python` when `python3` is absent, 3.10+) on each shape-3 link: an exit 0 means
-   that link's goal section starts with its predecessor's verbatim, and a FAIL line
-   naming `Original goal` is the drift finding, so the links' text never needs
-   reading. Open the prior link's file only for a shape-1 or shape-2 link, or when
-   `validate` cannot run. An absent `Original goal` is itself a
+   rewording is individually plausible. List the links with
+   `python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" chain <file> --json`
+   (`python` when `python3` is absent, 3.10+): each link's file, shape and status.
+   For a shape-3 or shape-4 link that comparison is `save_point.py validate <link>`:
+   an exit 0 means that link's goal section starts with its predecessor's verbatim,
+   and a FAIL line naming `Original goal` is the drift finding, so the links' text
+   never needs reading. A link `chain` reports `missing` or `unreadable` ends the
+   comparison there; name it in the report. For a shape-1 or shape-2 link, or when
+   `validate` cannot run, read the goal with
+   `save_point.py read <link> --section "Original goal"`. An absent `Original goal` is itself a
    defect: never infer the goal from the process the document describes, because
    that process is the thing that drifted. Ask for it in the user's own words.
    Where the next actions cannot be tied to the goal in a sentence, that is the
@@ -91,9 +99,12 @@ back up.
 
 1. Gather the session's inputs, the handoff / plan / memory files, the
    `Original goal` they record, the tagged decisions they carry, and any PRs, issues, branches, skills, or plugin
-   versions they name. When an input chains from a prior handoff, the goal check
-   compares links, which a single document cannot do: validate a shape-3 input,
-   and open the prior file for an older one (check 5).
+   versions they name, reading a handoff's sections with `save_point.py read`.
+   When an input chains from a prior handoff, the goal check compares links,
+   which a single document cannot do: list them with `save_point.py chain`,
+   validate each shape-3 or shape-4 link, and read `Original goal` with
+   `save_point.py read` for a shape-1 or shape-2 link or when `validate`
+   cannot run (check 5).
 2. Run the six checks above against live reality. Fetch/read the live source
    (`git fetch` the base, query `gh`, read installed vs repo-source manifests).
    When a check cannot reach what it needs (no network, no `gh`, no fetch),

@@ -1,13 +1,13 @@
 schema_version: "1.1"
 name: cb-dirty-tree-blocks-launch
-description: 'The user asks by name for a background continuation, but the checkout (a main working tree, not a linked worktree) holds an unrelated uncommitted edit. The dirty-tree gate runs git status --porcelain -uall, finds src/other_feature.py, and does not launch: no claude --bg or --cloud command runs, nothing is committed or stashed to clean the tree, and the reply names the file and falls back to the /clear-then-paste instruction. A correct run never reaches the launch; a wrong one is caught by no-background-launch, and the fixture has no remote and Bash runs in the eval sandbox. A run needs --scaffold and --allow-tools Bash Write.'
+description: 'The user asks by name for a background continuation, but the checkout (a main working tree, not a linked worktree) holds an unrelated uncommitted edit. The dirty-tree gate runs git status --porcelain -uall, finds src/other_feature.py, and does not launch: no claude --bg or --cloud command runs, nothing is committed or stashed to clean the tree, and the reply names the file and falls back to the /clear-then-paste instruction. The prompt carries the 2 GB export size the last session''s shape-4 handoff holds only in its Observations section, moved to the hop file. A correct run never reaches the launch; a wrong one is caught by no-background-launch, and the fixture has no remote and Bash runs in the eval sandbox. A run needs --scaffold and --allow-tools Bash Write.'
 tags: [continue-in-background, dirty-tree-gate, must-not-launch]
 plugins: ["../.."]
-expected_outcome: 'The answer produces the prompt-only save-point and its rails resume prompt, runs the dirty-tree gate (git rev-parse --is-inside-work-tree, then git status --porcelain -uall), finds the uncommitted change to src/other_feature.py, states that no background agent was launched and why, and gives the /clear-then-paste instruction, noting the user can commit or stash and re-run. It runs no claude --bg or claude --cloud command and does not commit, stash, restore or reset anything.'
+expected_outcome: 'The answer produces the prompt-only save-point and its rails resume prompt, runs the dirty-tree gate (git rev-parse --is-inside-work-tree, then git status --porcelain -uall), finds the uncommitted change to src/other_feature.py, states that no background agent was launched and why, and gives the /clear-then-paste instruction, noting the user can commit or stash and re-run. Its resume prompt says the row writer streams rows because ledger exports reach 2 GB, the size it read from the hop file the last handoff''s Observations pointer names. It runs no claude --bg or claude --cloud command and does not commit, stash, restore or reset anything.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/session-flow:continue-in-background prompt csv-export keep the CSV export moving while I am away. Status: src/export.py writes the header row; what remains is the row writer and its test in tests/test_export.py.'
+  prompt: '/session-flow:continue-in-background prompt csv-export keep the CSV export moving while I am away. Status: src/export.py writes the header row; what remains is the row writer and its test in tests/test_export.py. Carry what the last handoff in .work/handoffs/ noted about memory into the prompt.'
   allowed_tools: [Bash, Read, Write, Grep, Glob]
   max_turns: 20
   timeout_seconds: 600
@@ -44,6 +44,11 @@ graders:
     type: tool_used
     tool: Bash
     input_match: '\bgit\b[^\n;&|]*\sstatus\b[^\n;&|]*(?:\s-uall\b|\s--untracked-files(?:=|\s+)all\b|\s-u\s*all\b)'
+    arm: with-only
+  - name: export-size-from-moved-section
+    type: regex
+    pattern: '(?<![\w.])2[ \t]*(?:GB|gigabytes?)\b|\btwo[ \t]+gigabytes?\b'
+    flags: 'i'
     arm: with-only
   - name: reports-no-launch-and-fallback
     type: regex

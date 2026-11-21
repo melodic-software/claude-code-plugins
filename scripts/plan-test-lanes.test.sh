@@ -372,6 +372,25 @@ plan -- .node-version
 is "$(key node_packages | wc -w | tr -d ' ')" 13
 check "a Node pin runs every Node package" $?
 
+is "$(suites node)" "$(key node_packages | tr ' ' '\n' | LC_ALL=C sort)" &&
+  is "$(key node_plan | jq -r '[.[][]] | length' | tr -d '\r')" 13 &&
+  is "$(key node_legs)" "[0]" && grep -q 'node: 13 suite(s), 65 suite-seconds, 1 leg(s)' "$ERR"
+check "unlisted Node packages count the 5 s default, so 13 of them share one leg, each once" $?
+
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+printf '%s\n' ".github/actions/resolve-config 100" ".github/scripts/pr-merge 90" ".github/scripts/pr-verify 80" \
+  ".github/scripts/lib 60" "plugins/miro/server 1" "plugins/ai-briefing/skills/generate/output/build 1" \
+  "plugins/knowledge/skills/video-digest/extraction 1" "plugins/knowledge/skills/course-digest/extraction 1" \
+  "plugins/knowledge/vendor/repo-analysis 1" ".github/actions/check-signed-commits 1" ".github/actions/check-wip-cap 1" \
+  ".github/actions/log-api-budget 1" "scripts/lane-transcripts 1" >>"$repo/scripts/suite-seconds.txt"
+plan -- .node-version
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
+is "$(key node_legs)" "[0,1,2]" &&
+  is "$(key node_plan | jq -c '.["0"], .["2"]' | tr -d '\r' | paste -sd ' ' -)" \
+    '[".github/actions/resolve-config"] [".github/scripts/pr-verify",".github/scripts/lib"]' &&
+  grep -q 'node: 13 suite(s), 339 suite-seconds, 3 leg(s): 100s/1 99s/10 140s/2' "$ERR"
+check "339 package-seconds take ceil(339/140) = 3 legs: 100, 90 and 80 open them, 60 joins 80 and the nine 1 s packages fill 90 to 99" $?
+
 plan -- plugins/ps/x.ps1
 is "$(key windows_steps)" '["plugins/ps/run.ps1"]' && is "$(key windows_jobs)" '["win-b"]' && is "$(key bash)" false
 check "a Pester suite starts the test-windows step a pattern names, and no Linux lane" $?

@@ -178,7 +178,8 @@ personal override:
    provider.
 9. Lead the report with anything waiting on the user (a missing build prerequisite with its
    setup command, the text of a user-supplied X URL the run needs), then the collected,
-   excluded, deduplicated, and secondary-only counts plus the output path, the source of
+   excluded, deduplicated, and secondary-only counts (an item the apolitical filter dropped is
+   counted, never named, described, or linked) plus the output path, the source of
    the format (`--format`, or "shipped default"), and the resolver's report line and notices.
    Make warnings visible, including unreachable sources and missing optional build tooling.
 
@@ -213,6 +214,8 @@ The markdown briefing contains:
 - A source status list: every source read, with its state `data`, `empty`, or `unreadable`,
   and for an unreadable one the cause.
 - Provider sections with HIGH, MEDIUM, and LOW tiers.
+- A cross-provider `Legal & regulatory` section, tiered the same way, for lawsuits, regulation, and
+  the procurement and policy disputes the apolitical filter keeps.
 - Item title, concise evidence-backed summary, practical impact, publication date, and
   source links.
 - A visible caveats section for inaccessible sources, secondary-only claims, and gaps.

@@ -72,10 +72,8 @@ const CALLER = [
   "      allowed-labels: |",
   "        priority: low",
   "        needs-human",
-  "      instructions: |",
-  "        RULE ONE.",
-  "",
-  "          indented line",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a workflow expression, not a template
+  "      instructions: ${{ needs.check-born-triaged.outputs.instructions }}",
   "    secrets: {}",
   "",
 ].join("\n");
@@ -123,11 +121,12 @@ test("checkSchemaSteps fails closed on a missing schema step or one not fed verd
   );
 });
 
-test("callerInputs reads the pin, unquotes verdict-schema and dedents the block scalars as YAML does", () => {
+const RUBRIC = "RULE ONE.\n\n  indented line\n";
+
+test("callerInputs reads the pin, unquotes verdict-schema and dedents the allowed-labels block scalar as YAML does", () => {
   assert.deepEqual(callerInputs(CALLER), {
     ref: "abc123",
     allowedLabels: "priority: low\nneeds-human\n",
-    instructions: "RULE ONE.\n\n  indented line\n",
     verdictSchema: '{"note":"it\'s"}',
   });
 });
@@ -154,6 +153,7 @@ test("build fails when the schema step writes no schema file", async () => {
       sha: "0".repeat(40),
       out: tempDir("reentry-build-"),
       callerText: CALLER,
+      rubricText: RUBRIC,
     }),
     /the schema step wrote no schema file/u,
   );
@@ -169,8 +169,9 @@ test("build fills every case with the composed prompt and writes the issue files
       out,
       instructions,
       callerText: CALLER,
+      rubricText: RUBRIC,
     });
-    assert.equal(cases.length, 9);
+    assert.equal(cases.length, 10);
     for (const name of cases) {
       const dir = join(out, "evals", name);
       const prompt = JSON.parse(
@@ -227,6 +228,7 @@ test("build gives a case its own body.md and the rest the shared one", async () 
     sha: "0".repeat(40),
     out,
     callerText: CALLER,
+    rubricText: RUBRIC,
   });
   const body = (name) =>
     readFileSync(

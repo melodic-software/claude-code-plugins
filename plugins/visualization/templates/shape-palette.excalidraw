@@ -1,0 +1,150 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "palette-lane",
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "width": 720,
+      "height": 240,
+      "name": "Lane",
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent"
+    },
+    {
+      "id": "palette-step",
+      "type": "rectangle",
+      "x": 40,
+      "y": 60,
+      "width": 160,
+      "height": 60,
+      "frameId": "palette-lane",
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 },
+      "boundElements": [
+        { "type": "text", "id": "palette-step-label" },
+        { "type": "arrow", "id": "palette-step-to-decision" }
+      ]
+    },
+    {
+      "id": "palette-step-label",
+      "type": "text",
+      "x": 50,
+      "y": 80,
+      "width": 140,
+      "height": 20,
+      "frameId": "palette-lane",
+      "containerId": "palette-step",
+      "text": "Step",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "id": "palette-decision",
+      "type": "diamond",
+      "x": 280,
+      "y": 50,
+      "width": 160,
+      "height": 80,
+      "frameId": "palette-lane",
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#ffec99",
+      "fillStyle": "solid",
+      "boundElements": [
+        { "type": "text", "id": "palette-decision-label" },
+        { "type": "arrow", "id": "palette-step-to-decision" }
+      ]
+    },
+    {
+      "id": "palette-decision-label",
+      "type": "text",
+      "x": 310,
+      "y": 80,
+      "width": 100,
+      "height": 20,
+      "frameId": "palette-lane",
+      "containerId": "palette-decision",
+      "text": "Decision",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "id": "palette-step-to-decision",
+      "type": "arrow",
+      "x": 200,
+      "y": 90,
+      "width": 80,
+      "height": 0,
+      "points": [[0, 0], [80, 0]],
+      "frameId": "palette-lane",
+      "startBinding": { "elementId": "palette-step", "focus": 0, "gap": 1 },
+      "endBinding": { "elementId": "palette-decision", "focus": 0, "gap": 1 },
+      "endArrowhead": "arrow",
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "id": "palette-terminal",
+      "type": "ellipse",
+      "x": 520,
+      "y": 60,
+      "width": 160,
+      "height": 60,
+      "frameId": "palette-lane",
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#b2f2bb",
+      "fillStyle": "solid",
+      "boundElements": [{ "type": "text", "id": "palette-terminal-label" }]
+    },
+    {
+      "id": "palette-terminal-label",
+      "type": "text",
+      "x": 550,
+      "y": 80,
+      "width": 100,
+      "height": 20,
+      "frameId": "palette-lane",
+      "containerId": "palette-terminal",
+      "text": "Start or end",
+      "fontSize": 16,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "id": "palette-divider",
+      "type": "line",
+      "x": 40,
+      "y": 160,
+      "width": 640,
+      "height": 0,
+      "points": [[0, 0], [640, 0]],
+      "frameId": "palette-lane",
+      "strokeColor": "#868e96"
+    },
+    {
+      "id": "palette-note",
+      "type": "text",
+      "x": 40,
+      "y": 180,
+      "width": 240,
+      "height": 20,
+      "frameId": "palette-lane",
+      "text": "Note",
+      "fontSize": 14,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "strokeColor": "#1e1e1e"
+    }
+  ],
+  "appState": { "viewBackgroundColor": "#ffffff" },
+  "files": {}
+}

@@ -123,10 +123,6 @@ export function planLanes(paths, root = ROOT) {
   );
 }
 
-// The job ids of a plan's lanes: test-bash, test-python and test-node in
-// pr-require-checks.yml (a matrix lane once per leg its bash_legs or
-// python_legs lists, as `<lane> (<leg>)`), and each pr-test-platforms.yml job
-// it names. An unreadable leg list throws.
 const legs = (value) => {
   const list = JSON.parse(value || "[0]");
   if (!Array.isArray(list) || list.length === 0 || !list.every((leg) => Number.isSafeInteger(leg) && leg >= 0)) {
@@ -135,10 +131,9 @@ const legs = (value) => {
   return list;
 };
 export function coveringLanes(plan) {
-  const matrix = ["bash", "python"].filter((lane) => plan[lane] === "true").flatMap((lane) => legs(plan[`${lane}_legs`]).map((leg) => `test-${lane} (${leg})`));
-  const node = plan.node === "true" ? ["test-node"] : [];
+  const matrix = ["bash", "python", "node"].filter((lane) => plan[lane] === "true").flatMap((lane) => legs(plan[`${lane}_legs`]).map((leg) => `test-${lane} (${leg})`));
   const windows = JSON.parse(plan.windows_jobs || "[]");
-  return [...matrix, ...node, ...(Array.isArray(windows) ? windows.filter((job) => typeof job === "string") : [])];
+  return [...matrix, ...(Array.isArray(windows) ? windows.filter((job) => typeof job === "string") : [])];
 }
 
 // A test lane's check-run name: every test job in pr-require-checks.yml and
@@ -1770,13 +1765,10 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
-// The fetch a main run from the full base checkout hands createGitHubApi: each
-// attempt's rate-limit reading goes to the job-end api-calls notice
-// (rate-guard.mjs countRequests), and nothing else changes. It loads here, at
-// run time: publish-feedback.mjs and apply-dependency-verdict.mjs import this
-// module from a copy of this directory alone, which cannot reach .github/actions.
-export const countedFetch = async (fetchImpl = globalThis.fetch) =>
-  (await import("../../actions/log-api-budget/rate-guard.mjs")).countRequests(fetchImpl);
+export const guardedFetch = async (fetchImpl = globalThis.fetch, latch) => {
+  const guard = await import("../../actions/log-api-budget/rate-guard.mjs");
+  return (latch ?? guard.rateLimitLatch).guard(fetchImpl, { floorGraceMs: guard.DISPATCH_FLOOR_GRACE_MS });
+};
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
@@ -2182,7 +2174,7 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  const fetch = api ? undefined : await countedFetch();
+  const fetch = api ? undefined : await guardedFetch();
   const client = withLaneBinding(
     api ??
       createGitHubApi({

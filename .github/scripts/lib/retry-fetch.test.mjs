@@ -188,6 +188,21 @@ test("a call that still fails is recorded once, by path with no query, and a net
   ]);
 });
 
+test("a GET 404 on a tag ref is no row, twice over; a 404 elsewhere, a tag-ref write or a tag-ref 500 still is", async () => {
+  const r = recorded([404, 404, 404, 404, 500, 500, 500, 404]);
+  await r.send("https://api.github.com/repos/o/r/git/ref/tags/main");
+  await r.send("https://api.github.com/repos/o/r/git/ref/tags/main");
+  await r.send("https://ghe.example/api/v3/repos/o/r/git/ref/tags/v1/rc");
+  await r.send("https://api.github.com/repos/o/r/git/ref/heads/main");
+  await r.send("https://api.github.com/repos/o/r/git/ref/tags/main");
+  await r.send("https://api.github.com/repos/o/r/git/refs/tags/main", { method: "PATCH", body: "{}" });
+  assert.deepEqual(r.rows(), [
+    { method: "GET", path: "/repos/o/r/git/ref/heads/main", status: 404 },
+    { method: "GET", path: "/repos/o/r/git/ref/tags/main", status: 500 },
+    { method: "PATCH", path: "/repos/o/r/git/refs/tags/main", status: 404 },
+  ]);
+});
+
 test("a fetch that already counts its answers leaves the HTTP failures to rate-guard, and nothing is written without RUNNER_TEMP", async () => {
   const r = recorded([500, 500, 500, dropped()], { counted: true });
   await r.send("https://api.github.com/x");

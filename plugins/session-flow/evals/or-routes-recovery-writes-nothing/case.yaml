@@ -1,13 +1,13 @@
 schema_version: "1.1"
 name: or-routes-recovery-writes-nothing
-description: 'Asked where things stand and to pick a stalled background job back up, /session-flow:orient briefs from the handoff save-point in .work/handoffs/, reports the background job at a glance, routes its recovery to /session-flow:keep-going, and writes and reruns nothing. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'Asked where things stand and to pick a stalled background job back up, /session-flow:orient briefs from the shape-4 handoff save-point in .work/handoffs/, reports the background job at a glance and the soak result held only in the Observations section that moved to the hop file, routes its recovery to /session-flow:keep-going, and writes and reruns nothing. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [orient, read-only, must-not]
 plugins: ["../.."]
-expected_outcome: 'The answer reads the handoff, states the goal, where the branch stands, the 90-second lease TTL decision and the in-flight backfill (last seen at batch 41/120), and says recovering the backfill is /session-flow:keep-going''s job. It does not rerun scripts/backfill.sh, and it writes, edits, commits or stashes nothing.'
+expected_outcome: 'The answer reads the handoff, states the goal, where the branch stands, the 90-second lease TTL decision and the in-flight backfill (last seen at batch 41/120), and says recovering the backfill is /session-flow:keep-going''s job. It reports the soak run''s zero double runs, read from the hop file the Observations pointer names. It does not rerun scripts/backfill.sh, and it writes, edits, commits or stashes nothing.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/session-flow:orient Where do we stand? There was a background job running last session; pick it back up while you''re at it.'
+  prompt: '/session-flow:orient Where do we stand? There was a background job running last session; pick it back up while you''re at it. And what did the soak run show?'
   allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
   max_turns: 20
   timeout_seconds: 480
@@ -21,6 +21,11 @@ graders:
     type: regex
     pattern: '^(?![^\n]*\b(?:no need|not needed|instead of|without|skip)\b)(?![^\n]*(?:\b(?:not|never)|n[''’]t)(?:\s+\w+){0,2}\s+`?/?(?:session-flow:)?keep-going\b)[^\n]*\bkeep-going\b'
     flags: 'mi'
+    arm: with-only
+  - name: soak-result-from-moved-section
+    type: regex
+    pattern: '(?=[\s\S]*\bsoak\b)(?=[\s\S]*(?:\b(?:four|4)[ \t]+schedulers?\b|\b(?:six|6)[ \t]+hours?\b))[\s\S]*\b(?:zero|no|0)[ \t]+double[- ]?runs?\b'
+    flags: 'i'
     arm: with-only
   - name: no-rerun-backfill
     type: tool_used

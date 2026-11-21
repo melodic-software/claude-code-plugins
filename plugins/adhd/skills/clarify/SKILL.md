@@ -155,7 +155,8 @@ In every medium the table has numbered rows and these columns.
   and attribute positions; never interpolate unescaped content into `<script>`
   or `<style>`; never build an event-handler attribute from input. A local-file page may
   load a popular, widely used library from a public CDN, pinned to an exact version, and makes no
-  other external request; it then has a fallback for when the CDN is unreachable, so the
+  other external request; each CDN `<script>` and `<link>` tag carries `crossorigin="anonymous"`
+  and an `integrity` hash of the exact file its pinned URL serves; it then has a fallback for when the CDN is unreachable, so the
   table still shows. A page destined for a published claude.ai Artifact stays self-contained,
   assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
   Operative terms often carry code-like characters (`<dialog>`, `A && B`, `--force`); escaping

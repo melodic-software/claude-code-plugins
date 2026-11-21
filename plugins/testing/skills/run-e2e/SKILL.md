@@ -31,8 +31,8 @@ run each, judge it against its expected outcome, and report per entry point. Whe
 this skill drives the app itself ([context/own-driving.md](context/own-driving.md)). UI changes
 follow the mandatory evidence contract in [context/e2e.md](context/e2e.md); non-UI runtime surfaces
 route to the smoke-test playbook. The consuming project's conventions supply the e2e-orchestrator
-configuration (start command, prerequisite tooling, degraded fallback); its orchestrator (Aspire,
-docker-compose, tilt, a dev-server script) and any documented evidence requirements govern.
+configuration (start command, prerequisite tooling, degraded fallback); its orchestrator and any
+documented evidence requirements govern.
 
 ## Arguments
 
@@ -342,7 +342,7 @@ result block. The drive route never invokes `run`: `/app-control:drive` launches
 With `worst-case`, the Step 3 subagent renders `<target>` with the most demanding data a real user
 could produce and reports what breaks, following [context/worst-case.md](context/worst-case.md):
 map every rendered field and its limit, inject plausible worst-case values at the data boundary
-(network mocking through `/playwright:playwright` first; a file only when the data is file-bound,
+(network mocking through the browser tool first; a file only when the data is file-bound,
 never one that is already dirty, backed up byte for byte and reverted), render in the narrow, wide,
 zoom, dark and right-to-left environments, and report. Before injecting a file and after reverting
 it, save `git diff HEAD` and `git status --porcelain --untracked-files=all --ignored` outside the
@@ -386,8 +386,7 @@ skill drives the run in an isolated subagent and fingerprints the tracked tree a
 invocation (Native step, Mutation).
 
 **One launch path per verification.** On own driving, when the project's orchestrator
-configuration governs the start (Aspire, docker-compose, tilt, a dev-server script), the Native
-step is skipped with `skipped (orchestrator governs the start)` and the orchestrator path runs
+configuration governs the start, the Native step is skipped with `skipped (orchestrator governs the start)` and the orchestrator path runs
 unchanged. Otherwise, when `run` resolves, `run` launches the app. Never both. When the app is
 already running, nothing launches: the step records `skipped (app already running)`. Either launch
 happens inside the Step 3 drive subagent. On the drive route, drive is the one launch path.
@@ -398,7 +397,7 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 ## What this skill does NOT do
 
-- **Does not own browser-automation mechanics**. `/playwright:playwright` (when the playwright plugin is enabled) covers sessions, snapshots, tracing, Windows quirks; this skill owns the broader orchestrator + API + UI story
+- **Does not own browser-automation mechanics**. Sessions, snapshots and tracing belong to the browser tool the project uses; this skill owns the broader orchestrator + API + UI story
 - **Does not replace `/verification:confirm`**. That skill orchestrates the mechanical prerequisite (build+test+lint) + outcome verification
 - **Does not restate `/app-control:drive`**. On the drive route, drive's body owns launching, operating, capturing and cleanup; this skill chooses the entry points and judges
 
@@ -414,5 +413,5 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 - **Semantic locators**. Use the snapshot's accessibility-based element refs; CSS selectors and XPath break on cosmetic changes
 - Orchestrator version coupling + health-check waits. Wait for the orchestrator's health signal before driving flows; don't poll blindly
-- Which browser tool: the rubric in [context/e2e.md](context/e2e.md) is the one owner; Playwright CLI is the default
-- A screenshot is not an inspection: run the layered render checks in [context/e2e.md](context/e2e.md) (axe, geometry, pixel baseline, vision review as leads only)
+- Which browser tool: the rubric in [context/e2e.md](context/e2e.md) is the one owner, and it resolves the tool from the consuming project
+- A screenshot is not an inspection: run the layered render checks in [context/e2e.md](context/e2e.md) (accessibility scan, geometry, pixel baseline, vision review as leads only)

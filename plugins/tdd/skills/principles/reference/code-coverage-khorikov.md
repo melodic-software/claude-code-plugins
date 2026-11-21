@@ -34,25 +34,7 @@ Tests are code too. They aim at a particular problem (ensuring correctness), but
 Code coverage = Lines of code executed / Total number of lines
 ```
 
-**Problem: easily gamed by code compaction.** Inlining an `if` statement:
-
-```csharp
-// Before: 4/5 lines covered = 80%
-public static bool IsStringLong(string input)
-{
-    if (input.Length > 5)
-        return true;
-    return false;
-}
-
-// After: 3/3 lines covered = 100%
-public static bool IsStringLong(string input)
-{
-    return input.Length > 5;
-}
-```
-
-Same test, same verification, but coverage jumps from 80% to 100%. "The more compact your code is, the better the test coverage metric becomes, because it only accounts for the raw line numbers."
+**Problem: easily gamed by code compaction.** Inlining an `if` statement into a single `return` can raise coverage (in a five-line method, from 80% to 100%) with the same test and the same verification. "The more compact your code is, the better the test coverage metric becomes, because it only accounts for the raw line numbers."
 
 ### Branch Coverage
 
@@ -60,52 +42,19 @@ Same test, same verification, but coverage jumps from 80% to 100%. "The more com
 Branch coverage = Branches traversed / Total number of branches
 ```
 
-More precise than code coverage, and not affected by code reformatting. `IsStringLong` always has 2 branches regardless of notation. But still insufficient.
+More precise than code coverage, and not affected by code reformatting. An `if` has 2 branches whether it is written as a statement or inlined. But still insufficient.
 
 ### Two Fundamental Problems
 
 **1. Coverage can't guarantee outcomes are verified, only that code was executed.**
 
-```csharp
-public static bool WasLastStringLong { get; private set; }
+A method that returns a result and also records it as a side effect can reach 100% code coverage from a test that asserts only the return value. The side effect is never verified. Coverage metrics measure execution, not assertion.
 
-public static bool IsStringLong(string input)
-{
-    bool result = input.Length > 5;
-    WasLastStringLong = result;  // First outcome (implicit)
-    return result;               // Second outcome (explicit)
-}
-
-public void Test()
-{
-    bool result = IsStringLong("abc");
-    Assert.Equal(false, result);  // Only verifies the second outcome
-}
-```
-
-100% code coverage, 50% branch coverage, but the `WasLastStringLong` side effect is never verified. Coverage metrics measure execution, not assertion.
-
-The extreme case is **assertion-free testing**:
-
-```csharp
-public void Test()
-{
-    bool result1 = IsStringLong("abc");
-    bool result2 = IsStringLong("abcdef");
-    // No assertions — 100% coverage, 0% value
-}
-```
+The extreme case is **assertion-free testing**: a test that exercises every path and asserts nothing reaches 100% coverage with 0% value.
 
 **2. Coverage can't account for code paths in external libraries.**
 
-```csharp
-public static int Parse(string input)
-{
-    return int.Parse(input);
-}
-```
-
-100% branch coverage on `Parse`, but `int.Parse` has hidden branches for null, empty string, non-numeric input, and overflow, none of which the test exercises. "Coverage metrics have no way to see how many [external branches] there are and how many of them your tests exercise."
+A method that only delegates to a library's integer parser shows 100% branch coverage, but the parser has hidden branches for null, empty string, non-numeric input, and overflow, none of which the test exercises. "Coverage metrics have no way to see how many [external branches] there are and how many of them your tests exercise."
 
 ## Don't Target a Coverage Number
 
@@ -136,9 +85,9 @@ There's no automated way to measure test suite quality. You must evaluate each t
 > equivalent mutants cannot all be removed, and targeting the number reproduces exactly the perverse
 > incentive described above. For the operators, the metric family, and why not to gate on it, invoke
 > `/mutation-testing:principles` when the `mutation-testing` plugin is enabled; without it, the
-> one-line version is that the metric to read is the *covered-code* mutation score (PIT calls it
-> test strength, Infection calls it Covered Code MSI), because the plain score mixes weak tests with
-> absent tests, and that it belongs beside coverage as an indicator rather than as a target.
+> one-line version is that the metric to read is the *covered-code* mutation score, because the
+> plain score mixes weak tests with absent tests, and that it belongs beside coverage as an
+> indicator rather than as a target.
 
 ### 1. Integrated into the Development Cycle
 

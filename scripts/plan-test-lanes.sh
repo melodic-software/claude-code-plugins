@@ -10,8 +10,11 @@
 # Prints one `key=value` line per key on stdout, the form $GITHUB_OUTPUT takes,
 # and a summary on stderr:
 #   bash, python, node        `true` when the lane has work, else `false`
-#   bash_legs, python_legs    the lane's matrix, a JSON list of leg numbers (`[0]` at least)
-#   bash_plan, python_plan    a JSON object from leg number to the suites that leg runs
+#   bash_legs, python_legs, node_legs
+#                             the lane's matrix, a JSON list of leg numbers (`[0]` at least)
+#   bash_plan, python_plan, node_plan
+#                             a JSON object from leg number to the suites (for
+#                             node, the Node packages) that leg runs
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
@@ -22,7 +25,7 @@
 #                             ffmpeg), mediarender
 #                             (the media-render and explainer-video suites: lib/media-render's locked
 #                             Playwright for Python and its Chromium)
-#   node_packages             the Node packages to install and test, space-separated
+#   node_packages             every leg's Node packages, space-separated
 #   windows_jobs              the pr-test-platforms.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-platforms.yml steps to run, a JSON list of the keys
 #                             in scripts/test-windows-plan.txt
@@ -66,7 +69,9 @@
 # LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
 # the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
 # run at a time, so about 40 s of wall) up to 12 legs, and the whole tree always
-# takes 12; test-python takes 180 s a leg (one suite at a time) up to 9. A
+# takes 12; test-python takes 180 s a leg (one suite at a time) up to 9;
+# test-node takes 140 s a leg (one package at a time, a package's seconds the
+# wall of its install and test steps) up to 8. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
 # over whole-tree CI runs; a suite the file does not list counts the mean of
 # the listed suites of its runner, rounded and at least 5, and a suite
@@ -382,6 +387,7 @@ pack() {
   local runner
   case "$lane" in
     python) runner='(^|/)test_[^/]*[.]py$' ;;
+    node) runner='(^|/)[^/.]+$' ;;
     *) runner='[.]test[.]sh$' ;;
   esac
   awk -v def="$DEFAULT_SECONDS" -v workers="$workers" -v runner="$runner" '
@@ -489,9 +495,9 @@ pack() {
 
 pack bash 120 12 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
 pack python 180 9 0 1 "$WORK/python"
-echo "node=$([[ -n "$node_packages" ]] && echo true || echo false)"
+tr ' ' '\n' <<<"$node_packages" | grep . >"$WORK/node"
+pack node 140 8 0 1 "$WORK/node"
 echo "node_packages=$node_packages"
-echo "node: ${node_packages:-nothing selected}" >&2
 
 # --- test-windows -----------------------------------------------------------
 

@@ -1,0 +1,71 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work/handoffs/h.md"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "write elsewhere"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/20261008T160000Z-handoff-lease-table.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "overwrites the handoff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/20261013T090000Z-handoff-lease-table.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a new corrected handoff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/handoffs/x.md",
+            "content": "y"
+          }
+        }
+      ],
+      "why": "relative path"
+    }
+  ]
+}

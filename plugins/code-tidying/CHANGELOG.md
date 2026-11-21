@@ -3,6 +3,43 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.0] - 2026-11-21
+
+### Changed
+
+- **Three skills no longer carry one stack's specifics.** `/code-tidying:audit-dead-code`'s evidence-pattern table describes each way code is reached without one language's idioms and drops its typical-language column. The skill now checks the registration conventions of the frameworks the candidate's own code uses. `/code-tidying:batch-simplify` groups files by the nearest build or package manifest without listing manifest names, and drops its shell-hook example. `/code-tidying:tidy-diff`'s generated-code residue cues describe each residue in plain terms instead of TypeScript and JavaScript syntax ([#17755](https://github.com/melodic-software/claude-code-plugins/issues/17755)).
+
+- **The `shell-tooling` and `docs-prose` tidy lanes no longer pick your check tools.** They verify with the commands your repository names in its ecosystem record, project instructions or CI config: lint, format-check and test commands for `shell-tooling`, and a markdown lint command for `docs-prose`, which still checks relative links. When none is named, the lane reports that check as unresolved and skips it. Before, the lanes ran `shellcheck`, `shfmt`, `Invoke-ScriptAnalyzer` and `npx markdownlint-cli2`. `shell-tooling` also no longer ships `tools/` and `scripts/` scope globs, a Bash and PowerShell watch-for list, or named research authorities. Its scope is now your repository's tracked Bash and PowerShell scripts, with test scripts soft-excluded, and a project lane sets anything narrower. A project lane's `Verification commands` section now replaces the bundled one as a whole, so `/code-tidying:setup check` no longer requires its entries under `### Bash` or `### PowerShell` headings ([#17759](https://github.com/melodic-software/claude-code-plugins/issues/17759)).
+
+## [0.55.3] - 2026-11-21
+
+### Changed
+
+- **`/code-tidying:tidy` drops eight examples tied to one stack.** The skill and its exclusions and tidyings references dropped a `node --test` scope example, a `shellcheck`/`shfmt` commit title, `Directory.Build.props` and `Directory.Packages.props` as typical protected paths, `ruff.toml` in the overrides-file example, the Roslyn, ruff and biome analyzer list, a C#/TS/Python/C language list, a `.cs` file name and an `npx markdownlint-cli2` example. The rules around them are unchanged; each consumer's own tools and paths apply instead ([#17758](https://github.com/melodic-software/claude-code-plugins/issues/17758)).
+
+## [0.55.2] - 2026-11-21
+
+### Changed
+
+- **The vendored git-hook installer renders a format and lint pair as one piped lefthook group.** `lib/git-hooks/install.mjs` and the setup skill's `git-hook-decisions.md` now return a plugin's pre-commit `format` and `lint` entries as one `lefthook-config` decision, carrying `entries`, so lint runs after format even under `parallel: true`. This plugin's own entries render as before ([#16911](https://github.com/melodic-software/claude-code-plugins/issues/16911)).
+
+## [0.55.1] - 2026-11-21
+
+### Fixed
+
+- **The comment lint accepts the shell-portability markers.** Under the `necessary` posture, a `portability-ok: <reason>` comment and a comment line that opens with `portability-scope: <reason>` now pass as tool directives, like `shellcheck disable=` and `gitleaks:allow`. Before, the comment the portability check asks for was the comment the lint reported, so a repository with `comment_lint: block` could not pass both. A comment that only mentions `portability-scope:` in the middle of a sentence still fails ([#17414](https://github.com/melodic-software/claude-code-plugins/issues/17414)).
+
+## [0.55.0] - 2026-11-20
+
+### Added
+
+- `/code-tidying:audit-comment-residue`, `audit-dead-code`, `batch-simplify`, `remove-comments` and `tidy` take the shared target forms (`--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the same request in words) and run once per repository, with findings merged into one report. Writes, worktrees, pull requests and per-repository state (findings files, run state, lane anchor commit, throttle) stay in each repository. With no target form, each skill runs as before. The plugin now ships the contract as `reference/target-scope.md`.
+- `dead-code-scan.sh --root <dir>` scans the repository that holds `<dir>` and resolves relative targets against it. A `--root` that is not a directory is a usage error (exit 2).
+
+### Changed
+
+- The argument hints of `remove-comments`, `batch-simplify` and `tidy` drop tokens to make room for `[--repo <repo> ...]` within the 100-character budget: `--pipeline` and `--base` (remove-comments), `docs` and `override` (batch-simplify) and `dry-run`'s scope (tidy). Each skill body still documents every token.
+
 ## [0.54.0] - 2026-11-20
 
 ### Changed

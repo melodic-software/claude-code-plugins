@@ -37,9 +37,13 @@ In this marketplace the review and run lanes accept a native stack layer whose s
 default branch, and still fail any other non-default base
 ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md),
 "The run job"; [#15400](https://github.com/melodic-software/claude-code-plugins/pull/15400)). The
-merge and issue lanes do not handle layers yet
-([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)), so an attended
-session may stack, and an unattended lane does not stack until that work lands.
+merge lane sends only a stack's bottom layer to the async merge, once its `CI Status` is green, and
+never a layer above it
+([#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)). Into a merge queue
+GitHub refuses that merge from the lanes App, so there the layer gets a refusal comment and a person
+merges it. The issue lane
+does not stack yet ([#17539](https://github.com/melodic-software/claude-code-plugins/issues/17539)),
+so an attended session may stack, and an unattended lane does not.
 
 - **Pointer**: for why and when GitHub recommends a stack, fetch
   [About stacked pull requests](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs#why-use-github-stacked-pull-requests)
@@ -48,7 +52,7 @@ session may stack, and an unattended lane does not stack until that work lands.
   Correlate with the probe results in the pull request that closed
   [#7664](https://github.com/melodic-software/claude-code-plugins/issues/7664).
 - **Recheck trigger**: [#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)
-  closes.
+  or [#17539](https://github.com/melodic-software/claude-code-plugins/issues/17539) closes.
 
 ## Create
 
@@ -87,7 +91,8 @@ session may stack, and an unattended lane does not stack until that work lands.
 - Treat a stack as merging until every one of its PRs reads `MERGED`; on a trunk with a merge
   queue, read how the queue takes the stack from the pointer below, live.
 - `/source-control:babysit-prs` holds stack layers for a human unless its `babysit_stacked_prs`
-  option is on.
+  option is on. Its unattended merge path never pins or enqueues a stack layer: GitHub refuses
+  that enqueue, so a person enqueues the layer.
 
 - **Pointer**: when you need how a stack merges, its rules and CI, or its merge methods, fetch
   [About stacked pull requests: Rules, CI, and merging](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs#rules-ci-and-merging)

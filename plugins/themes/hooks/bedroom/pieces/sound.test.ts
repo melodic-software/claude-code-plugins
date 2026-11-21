@@ -114,7 +114,7 @@ test('in the plugin, one mixer plays the bed, the television and a change of wea
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000, tokens: 20_000, percent: 10 }, rateLimits: [] } }))
   on('session.info', () => ({ value: { platform: 'wsl', isHosted: false } as never }))
   on('env.get', (_, e) => ({ value: e.name === 'PATH' ? '/win:/usr/bin' : undefined }))
-  on('fs.exists', (_, e) => ({ value: e.path === '/win/powershell.exe' || e.path === '/usr/bin/wslpath' }))
+  on('fs.exists', (_, e) => ({ value: ['/win/powershell.exe', '/usr/bin/wslpath'].includes(String(e.path).replace(/^[A-Za-z]:/, '').replace(/\\/g, '/')) }))
   on('process.run', (_, e) => ({ value: { exitCode: 0, stdout: e.argv[1] === '-u' ? `${COMMANDS}\n` : 'W:\\room\\sounds\\bedroom\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('audio.play', () => ({ value: undefined }))
   let clockNow = (): number => 0
@@ -179,7 +179,7 @@ test('in the plugin, /bedroom weather strike (the card\'s bolt) brings one thund
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000, tokens: 20_000, percent: 10 }, rateLimits: [] } }))
   on('session.info', () => ({ value: { platform: 'wsl', isHosted: false } as never }))
   on('env.get', (_, e) => ({ value: e.name === 'PATH' ? '/win:/usr/bin' : undefined }))
-  on('fs.exists', (_, e) => ({ value: e.path === '/win/powershell.exe' || e.path === '/usr/bin/wslpath' }))
+  on('fs.exists', (_, e) => ({ value: ['/win/powershell.exe', '/usr/bin/wslpath'].includes(String(e.path).replace(/^[A-Za-z]:/, '').replace(/\\/g, '/')) }))
   on('process.run', (_, e) => ({ value: { exitCode: 0, stdout: e.argv[1] === '-u' ? `${COMMANDS}\n` : 'W:\\room\\sounds\\bedroom\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('audio.play', () => ({ value: undefined }))
   let clockNow = (): number => 0

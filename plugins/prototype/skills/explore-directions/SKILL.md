@@ -141,7 +141,7 @@ realism the override was asked for.
 the variants are read-only. When the question names a write's behavior, such as how a carrier's
 "mark all delivered" or its paging behaves, that write may go to the vendor's sandbox instead:
 sandbox keys only, read from the environment and never written into a file, never against
-production or regulated data, and every record synthetic ("Synthetic data only" still holds). State
+production data, and every record synthetic ("Synthetic data only" still holds). State
 it at the top of the prototype: in the plan line, the mount block's fence comment and the first
 line of each variant file that makes the call. Reseed the sandbox records before each review pass,
 and remove them when the exercise ends. The mockup's CSP blocks every remote call, so a

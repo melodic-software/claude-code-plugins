@@ -955,6 +955,76 @@ test("the sweep labels an issue whose last blocker a bot closed", async () => {
   );
 });
 
+const STOP_AT = "2026-10-16T08:00:00Z";
+const stoppedIssue = (summary = { blocked_by: 0, total_blocked_by: 1 }) => ({ ...issue(70, { labels: ["needs-human"] }), issue_dependencies_summary: summary });
+const blockerPull = ({ merged = "2026-10-16T10:00:00Z", body = "" } = {}) => ({
+  ...issue(71, { state: merged ? "closed" : "open", reason: merged ? "completed" : null, closer: merged ? LANES_BOT : null, at: merged }),
+  pull_request: { merged_at: merged },
+  body,
+});
+const stopNote = (reason, outcome = "stopped") => ({
+  id: 70,
+  body: `<!-- work-resolve-issue outcome=${outcome} run=7 -->\n<!-- stop-reason lane=work-resolve-issue reason=${reason} -->\nThe work-resolve-issue lane stopped partway through this issue and needs a person.`,
+  user: LANES_BOT,
+  created_at: STOP_AT,
+});
+const humanSet = (actor = LANES_BOT) => ({ event: "labeled", label: { name: "needs-human" }, actor, created_at: STOP_AT });
+function stoppedWorld({ blockers = [blockerPull()], reason = "design", outcome, actor = LANES_BOT, summary, comments = [] } = {}) {
+  const made = world({
+    blocking: [],
+    openIssues: [stoppedIssue(summary)],
+    blockedBy: { 70: blockers },
+    comments: { 70: [stopNote(reason, outcome), ...comments] },
+    events: { 70: [humanSet(actor)] },
+  });
+  const options = [];
+  const writer = { ...made.writer, set: async (number, state, given) => options.push(given) && made.calls.push(`SET ${number} ${state}`) };
+  return { ...made, writer, options };
+}
+const isReentry = (call) => call.startsWith(`POST /repos/${REPO}/issues/70/comments ${JSON.stringify({ body: `${UNPARKED_MARKER}\nPull request #71` }).slice(0, -2)}`);
+
+test("the sweep sends an issue the lane stopped at needs-human to needs-triage once its recorded pull request blocker merges", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const stopped = stoppedWorld();
+  assert.equal(await sweep({ github: stopped.github, writer: stopped.writer }), 0);
+  const made = writes(stopped.calls);
+  assert.equal(made.length, 2, made.join("\n"));
+  assert.ok(isReentry(made[0]), made[0]);
+  assert.equal(made[1], "SET 70 needs-triage");
+  assert.deepEqual(stopped.options, [{ keepHold: true }]);
+  const posted = { id: 72, body: `${UNPARKED_MARKER}\nPull request #71 merged.`, user: LANES_BOT, created_at: "2026-10-16T10:30:00Z" };
+  const again = stoppedWorld({ comments: [posted] });
+  assert.equal(await sweep({ github: again.github, writer: again.writer }), 0);
+  assert.deepEqual(writes(again.calls), ["SET 70 needs-triage"]);
+  const named = stoppedWorld({ reason: "security", blockers: [blockerPull({ body: "This unblocks the work-resolve-issue lane for #70." })] });
+  assert.equal(await sweep({ github: named.github, writer: named.writer }), 0);
+  assert.deepEqual(writes(named.calls).slice(1), ["SET 70 needs-triage"]);
+});
+
+test("the sweep leaves a needs-human stop alone with no recorded blocker, an unmerged one, or one the stop does not clear", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const cases = {
+    "no recorded blocker": { summary: { blocked_by: 0, total_blocked_by: 0 }, blockers: [] },
+    "an unmerged pull request": { blockers: [blockerPull({ merged: null })] },
+    "a pull request merged before the stop": { blockers: [blockerPull({ merged: "2026-10-16T07:00:00Z" })] },
+    "an issue blocker still open": { blockers: [blockerPull(), issue(73)] },
+    "a person's needs-human": { actor: OWNER },
+    "a security stop the pull request does not name": { reason: "security", blockers: [blockerPull({ body: "Fixes the scan's fixture in #700." })] },
+    "a pushback": { reason: "intent", outcome: "pushback" },
+    "an intake hold after the lane's stop": {
+      comments: [{ id: 74, body: "<!-- stop-reason lane=intake-triage reason=security -->\nHeld for a person.", user: LANES_BOT, created_at: "2026-10-16T08:30:00Z" }],
+    },
+  };
+  for (const [name, args] of Object.entries(cases)) {
+    const stopped = stoppedWorld(args);
+    assert.equal(await sweep({ github: stopped.github, writer: stopped.writer }), 0, name);
+    assert.deepEqual(writes(stopped.calls), [], name);
+  }
+  const bare = stoppedWorld(cases["no recorded blocker"]);
+  await sweep({ github: bare.github, writer: bare.writer });
+  assert.ok(!bare.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/70/`)), bare.calls.join("\n"));
+});
+
 // A finished work-resolve-issue run sweeps as the schedule does. Its payload,
 // sent by the lanes App, is never read, so the bot-close skip and the closer
 // check do not apply.
@@ -4528,7 +4598,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.match(read["check-broker"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
   // Its gate reads the budget on a starting caller's first call, and a budget
   // stop sets skip-reason budget, which skips the run job.
-  assert.match(read["check-broker"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m);
+  assert.match(read["check-broker"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m);
   assert.match(read["check-broker"], /^ {6}skip-reason: \$\{\{ steps\.kill\.outputs\.cause == 'budget' && 'budget' \|\| steps\.broker\.outputs\.skip-reason \}\}$/m);
   assert.match(read.run, /^ {6}&& needs\.check-broker\.outputs\.skip-reason == ''$/m);
   assert.match(caller["resolve-issue"], /^ {6}start-gate: true$/m);
