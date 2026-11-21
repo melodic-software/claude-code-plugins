@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.8] - 2026-11-21
+
+### Changed
+
+- `apply --ci` handoffs are filed one issue per row: a replace row as a held nomination for `/harness-ops:audit-native-overlap`, a docs-lag row only in the run summary, and a stopped plan's stop reason as its own notice
+
 ## [10.5.7] - 2026-11-21
 
 ### Fixed

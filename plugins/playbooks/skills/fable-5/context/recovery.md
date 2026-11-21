@@ -57,6 +57,18 @@ When ambiguous, default to deterministic and read the error carefully: misclassi
 
 A permission denial (a classifier, hook or permission rule refusing the call) belongs to none of the three classes and is never routed around: follow the trust-and-authority chapter, section "A denied action is a boundary, not an obstacle". A safety-classifier refusal of a request, or the automatic model switch that follows one, is a fourth thing again: the switch is governed by meta-rule 3 in the skill body, and a benign request that keeps tripping the classifier is rephrased, not retried. Pointers: for the refusal categories, see [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#safeguard-refusals); for the phrasings and inputs that raise false positives, [Reduce safeguard false positives](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#reduce-safeguard-false-positives) in the Fable 5.1 guide (the Fable 5.2 guide has no section on this topic). Recheck trigger: a later Fable guide covering the topic.
 
+## Wrong-output taxonomy
+
+TRIGGER: your output is wrong and no tool call failed. Classify by where the right fact was before you respond, because each class has a different fix.
+
+| Class | Evidence | Response |
+|---|---|---|
+| **Missing** | The fact the answer needed was never in context | Load it: read the file, page or record, then redo the step. A fresh context without the fact repeats the error. |
+| **Ignored** | The fact was in context and the output contradicts it or answers from general knowledge instead (a faithfulness failure, not a factuality one) | Restart in fresh context with the fact placed first, or hand the step to a fresh subagent with the fact in its brief. Re-reading it into the context that already missed it is not a fix. |
+| **Stale or wrong** | The output matches what is in context, and what is in context is out of date or a tool returned a wrong result | Re-fetch the source and confirm it before clearing anything: a clear or a fresh context reloads the same stale fact. |
+
+When you cannot tell Missing from Ignored, search the context for the fact: found means Ignored, not found means Missing.
+
 ## Time-box tangents
 
 TRIGGER: before entering any exploratory side-path, such as chasing whether a nicer approach exists, investigating a suspicious-but-orthogonal wart, or satisfying curiosity about adjacent code.
