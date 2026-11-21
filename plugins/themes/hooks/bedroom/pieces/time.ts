@@ -1,5 +1,5 @@
 import type { Ctx, Piece } from '../core/piece.js'
-import { PHASES, minutesOf } from '../core/settings.js'
+import { PHASES, SEASONS, SEASON_DATES, accepts, minutesOf } from '../core/settings.js'
 
 /**
  * The time of day: the sun field from the local time, the sunrise and sunset settings and a stored /bedroom time, and
@@ -55,9 +55,21 @@ export function seasonOf(ms: number): { sunrise: number; sunset: number } {
   return { sunrise: Math.round(noon - half), sunset: Math.round(noon + half) }
 }
 
-/** Sunrise and sunset now, in minutes of the day: a setting's HH:MM all year, or `auto`'s for today's date. */
+/**
+ * The room's date, as noon of that day in milliseconds on the local clock: the real date under `/bedroom date auto`, else
+ * the day held (MM-DD, or a season's) in the real date's year. Everything seasonal reads the date from here; the clock's
+ * hours and the VCR keep the real time.
+ */
+export function roomDate(ctx: Ctx): number {
+  const held = ctx.setting('date')
+  if (held === 'auto') return ctx.nowMs
+  const monthDay = held in SEASON_DATES ? SEASON_DATES[held as keyof typeof SEASON_DATES] : held
+  return new Date(new Date(ctx.nowMs).getFullYear(), Number(monthDay.slice(0, 2)) - 1, Number(monthDay.slice(3, 5)), 12).getTime()
+}
+
+/** Sunrise and sunset now, in minutes of the day: a setting's HH:MM all year, or `auto`'s for the room's date. */
 export function sunTimes(ctx: Ctx): [number, number] {
-  const season = seasonOf(ctx.nowMs)
+  const season = seasonOf(roomDate(ctx))
   const rise = ctx.setting('sunrise')
   const set = ctx.setting('sunset')
   return [rise === 'auto' ? season.sunrise : minutesOf(rise), set === 'auto' ? season.sunset : minutesOf(set)]
@@ -89,8 +101,28 @@ async function time(ctx: Ctx, args: readonly string[]): Promise<string> {
   return `the room holds ${phase}${word === phase ? '' : ` (${word})`} until /bedroom time auto; the VCR still shows the real time`
 }
 
+const DATE_USAGE = `say auto, a day as MM-DD or a season (${SEASONS.map(season => `${season} ${SEASON_DATES[season]}`).join(', ')}), as in /bedroom date 06-21`
+
+/** /bedroom date: holds the room on a day of the year, or follows the real date; alone, says which. */
+async function date(ctx: Ctx, args: readonly string[]): Promise<string> {
+  const word = (args[0] ?? '').toLowerCase()
+  const told = (): string => {
+    const held = ctx.setting('date')
+    const day = new Date(roomDate(ctx))
+    const shown = `${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+    const [rise, set] = sunTimes(ctx)
+    const why = held === 'auto' ? 'the real date' : held in SEASON_DATES ? `held for ${held} until /bedroom date auto` : 'held until /bedroom date auto'
+    return `the room is on ${shown}, ${why}; sunrise ${hhmm(rise)}, sunset ${hhmm(set)}; the VCR still shows the real time`
+  }
+  if (word === '') return told()
+  if (!accepts('date', word)) return DATE_USAGE
+  await ctx.save({ date: word })
+  await ctx.send(`/bedroom date ${word}`, { hurry: true })
+  return told()
+}
+
 export const piece: Piece = {
   name: 'time',
   fields: ctx => ({ sun: sunOf(ctx) }),
-  commands: { time },
+  commands: { time, date },
 }

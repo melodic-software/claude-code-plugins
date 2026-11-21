@@ -27,7 +27,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'bedroom',
       description:
-        'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), time, weather, signal, hall, shader, sound, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), sync, stats, calibrate, reset, on, off',
+        'The bedroom theme of the themes plugin: alone it shows the settings card in the desktop app; status, tv, tape, console, pc, light, lamp, lava (on or off), time, date, weather, signal, hall, shader, sound, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), sync, stats, calibrate, reset, on, off',
     })
     await load($)
     await readNow($)

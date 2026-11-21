@@ -19,6 +19,7 @@ export type Saved = {
   blur: number
   titles: Titles
   time?: string
+  date?: string
   weather?: string
   lightning?: string
   sound?: boolean

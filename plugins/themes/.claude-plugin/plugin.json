@@ -16,6 +16,13 @@
       "options": ["auto", "dusk", "evening", "night", "predawn", "dawn", "morning", "noon", "golden"],
       "default": "auto"
     },
+    "date": {
+      "type": "string",
+      "title": "Bedroom: date",
+      "description": "auto follows the real date; a season holds its day (spring 04-20, summer 07-15, autumn 10-15, winter 01-15). /bedroom date MM-DD holds any day.",
+      "options": ["auto", "spring", "summer", "autumn", "winter"],
+      "default": "auto"
+    },
     "sunrise": {
       "type": "string",
       "title": "Bedroom: sunrise",

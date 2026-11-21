@@ -130,10 +130,33 @@ for (const [name, month, day] of [['December', 11, 21], ['June', 5, 21]] as cons
   })
 }
 
+test('/bedroom date 06-21 puts the room on June\'s sunrise and sunset while the clock says November; auto, seasons, bad input and a reload', { timeoutMs: 60000, options: { time: 'auto', weather: 'clear', hall: false, signal: false } }, async ($, on) => {
+  if (!BUILT.includes('time')) return
+  const room = await startRoom($, on, { now: MIDNIGHT })
+  expect(await room.run('date')).toMatch(/^the room is on 11-20, the real date; sunrise \d\d:\d\d, sunset \d\d:\d\d; the VCR still shows the real time$/)
+  expect(await room.run('date 06-21')).toMatch(/^the room is on 06-21, held until \/bedroom date auto/)
+  expect((room.store.get(STORE_KEY) as { date?: string }).date).toBe('06-21')
+  for (const word of ['13-01', '02-30', '6-21', 'june', '06/21']) expect(await room.run(`date ${word}`)).toBe('say auto, a day as MM-DD or a season (spring 04-20, summer 07-15, autumn 10-15, winter 01-15), as in /bedroom date 06-21')
+  const june = seasonOf(new Date(2026, 5, 21, 12).getTime())
+  const november = seasonOf(new Date(2026, 10, 20, 12).getTime())
+  const starts = rowStarts(june.sunrise, june.sunset)
+  await room.clock.advance(8000)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await room.clock.advance(8000)
+  expect(await room.run('date')).toMatch(/^the room is on 06-21, held until/)
+  const { changes } = await walkDay($, room, [...starts, ...rowStarts(november.sunrise, november.sunset)])
+  expect(changes).toEqual([3, 4, 5, 6, 7, 0, 1, 2].map(row => [PHASES[row]!, hhmm(starts[row]!)]))
+  expect(new Date(room.clock.now()).getMonth()).toBe(10)
+  expect(await room.run('date summer')).toMatch(/^the room is on 07-15, held for summer until \/bedroom date auto/)
+  expect(await room.run('date auto')).toMatch(/^the room is on 11-20, the real date/)
+  expect(await room.run('date winter')).toMatch(/^the room is on 01-15, held for winter/)
+  expect(await room.run('date default')).toMatch(/^date follows its setting again \(now auto\)/)
+})
+
 test('an HH:MM sunrise or sunset holds all year over the season', () => {
   if (!BUILT.includes('time')) return
   const december = new Date(2026, 11, 21, 12).getTime()
-  const ctx = (rise: string, set: string) => ({ nowMs: december, setting: (key: string) => (key === 'sunrise' ? rise : set) }) as unknown as Parameters<typeof sunTimes>[0]
+  const ctx = (rise: string, set: string) => ({ nowMs: december, setting: (key: string) => (key === 'sunrise' ? rise : key === 'sunset' ? set : 'auto') }) as unknown as Parameters<typeof sunTimes>[0]
   expect(sunTimes(ctx('06:30', '20:30'))).toEqual([minutesOf('06:30'), minutesOf('20:30')])
   expect(sunTimes(ctx('auto', '20:30'))).toEqual([seasonOf(december).sunrise, minutesOf('20:30')])
   expect(seasonOf(december).sunset).toBeLessThan(minutesOf('18:00'))

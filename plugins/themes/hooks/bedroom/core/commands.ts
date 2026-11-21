@@ -35,7 +35,7 @@ export function withTitle(titles: Titles, key: TitleKey, text: string): Titles {
 }
 
 /** The words the pieces own. */
-const PIECE_WORDS = ['time', 'weather', 'signal', 'hall', 'sound']
+const PIECE_WORDS = ['time', 'date', 'weather', 'signal', 'hall', 'sound']
 const WORDS = `The switches are ${SWITCHES.join(', ')}; also status, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), shader, instant, sync, stats, calibrate, reset, on, off, ${PIECE_WORDS.join(', ')}, and <setting> default`
 
 /** The status line: what is on and off, the posters and the dim. */
@@ -132,7 +132,7 @@ export async function runCommand($: EngineInterface, args: string): Promise<stri
   if (word === 'reset') {
     const keep = { aspect: ctx.saved.aspect, titles: ctx.saved.titles }
     for (const key of SWITCHES) extra[key] = 0
-    await ctx.save({ ...defaults(), ...keep, time: undefined, weather: undefined, lightning: undefined, sound: undefined, signal: undefined, hall: undefined, shader: undefined })
+    await ctx.save({ ...defaults(), ...keep, time: undefined, date: undefined, weather: undefined, lightning: undefined, sound: undefined, signal: undefined, hall: undefined, shader: undefined })
     await setLook($, ctx)
     noteAsked()
     await sync($, '/bedroom reset')

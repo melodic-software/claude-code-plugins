@@ -10,6 +10,7 @@ bump: minor
 - A sound bank: each kind has named entries and a default, chosen by `/bedroom sound pick <kind> <name>` or on the card's sounds button, and kept. A choice saved by 0.3 of the second cicadas recording loads as `river`; the other 0.3 choices play the default.
 - The settings card's switch row ends with `pass`, `door` and `bolt`: someone passes the door, the hall light, and a lightning strike, each through its command; the card stays six rows. `door` is the hall light's switch and carries a check while the light is on, including when the hallway turns it on by itself; `pass` and `bolt` run once.
 - A storm strikes about two times a minute at uneven gaps by default, each strike with its thunder; the `lightning` setting and `/bedroom weather lightning rare|normal|often` choose about one in three minutes (the shader's own schedule alone), two a minute or three.
+- `/bedroom date MM-DD` holds the room on a day of the year for its sunrise and sunset; `spring`, `summer`, `autumn` and `winter` hold 04-20, 07-15, 10-15 and 01-15, and `auto` (the default, also the `date` setting) follows the real date. The clock's hours and the VCR keep the real time.
 
 ### Changed
 

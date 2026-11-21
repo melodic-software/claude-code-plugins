@@ -49,6 +49,9 @@ bottom-left corner of the front of the dresser.
   July one) the season is turned; a clock without daylight saving time is taken as northern. The
   plugin's `sunrise` and `sunset` settings hold one time all year instead (`HH:MM`). A phase
   changes at the minute it starts and the light eases into it over up to about 25 minutes.
+  `/bedroom date 06-21` puts the room on another day of the year for its sunrise and sunset
+  (`spring`, `summer`, `autumn` and `winter` hold 04-20, 07-15, 10-15 and 01-15; `auto` follows
+  the real date); the clock's hours and the VCR keep the real time.
   `/bedroom time noon` holds one phase all day; `/bedroom time auto` follows the clock again. The
   room starts at dusk and eases to the hour over about six seconds. The VCR always shows the real
   time. The view outside is the dusk view at every hour, lit for it: by day the trees, with clumps
@@ -161,6 +164,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom status` | Says what is on and off |
 | `/bedroom <tv\|tape\|console\|pc\|light\|lamp\|lava> [on\|off]` | Switches one thing; with neither word it flips. A switch already in that state stays as it is |
 | `/bedroom time <auto\|dusk\|evening\|night\|predawn\|dawn\|morning\|noon\|golden\|HH:MM>` | Follows the clock, or holds a phase (`HH:MM` holds the phase of that hour); alone, says which |
+| `/bedroom date <auto\|MM-DD\|spring\|summer\|autumn\|winter>` | Follows the real date, or holds a day of the year for sunrise and sunset (the seasons hold 04-20, 07-15, 10-15, 01-15); alone, says which |
 | `/bedroom weather <auto\|clear\|overcast\|rain\|downpour\|storm>` | The weather in the window; alone, says which |
 | `/bedroom weather strike` | In a storm, one flash of lightning within about five seconds; at most one each 20 seconds |
 | `/bedroom weather lightning [rare\|normal\|often]` | How often a storm strikes: about one in three minutes, two a minute, or three; alone, says which |
@@ -171,7 +175,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom sound volume <0-100>` | The volume of every sound |
 | `/bedroom sound pick <cicadas\|crickets\|rain\|thunder\|tv> <name>` | Which of the bank's entries a kind plays |
 | `/bedroom sound objects <on\|off>` | The sounds of the lamp, light, monitor, console, tape and cat |
-| `/bedroom <time\|weather\|lightning\|signal\|hall\|sound> default` | Follows the plugin's setting again |
+| `/bedroom <time\|date\|weather\|lightning\|signal\|hall\|sound> default` | Follows the plugin's setting again |
 | `/bedroom sync` | Shows the room alone for seven seconds, then brings the shader back with every switch as saved |
 | `/bedroom dim <0-80>` | Lays a dark veil over the room |
 | `/bedroom glass <0-95>`, `/bedroom blur <0-40>` | How solid the panels over the room are, and how much they blur it |
@@ -216,6 +220,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `time` | string | `"auto"` | auto follows the clock; a phase holds that light all day. |
+| `date` | string | `"auto"` | auto follows the real date; a season holds its day (spring 04-20, summer 07-15, autumn 10-15, winter 01-15). /bedroom date MM-DD holds any day. |
 | `sunrise` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 04:00 to 09:00, held all year. |
 | `sunset` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 16:00 to 22:00, held all year. |
 | `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |

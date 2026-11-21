@@ -2,9 +2,22 @@ import type { PluginOptions } from 'claude-code'
 
 export const PHASES = ['dusk', 'evening', 'night', 'predawn', 'dawn', 'morning', 'noon', 'golden'] as const
 export const WEATHERS = ['clear', 'overcast', 'rain', 'downpour', 'storm'] as const
+/** The seasons /bedroom date holds, each as the MM-DD it stands for. */
+export const SEASON_DATES = { spring: '04-20', summer: '07-15', autumn: '10-15', winter: '01-15' } as const
+export const SEASONS = Object.keys(SEASON_DATES) as (keyof typeof SEASON_DATES)[]
+
+/** Whether MM-DD is a day of the year (02-29 counts). */
+export function isMonthDay(value: string): boolean {
+  const parts = /^(\d\d)-(\d\d)$/.exec(value)
+  if (parts === null) return false
+  const month = Number(parts[1])
+  const day = Number(parts[2])
+  return month >= 1 && month <= 12 && day >= 1 && day <= new Date(2024, month, 0).getDate()
+}
 
 type Spec =
   | { kind: 'choice'; options: readonly string[]; default: string }
+  | { kind: 'date'; options: readonly string[]; default: string }
   | { kind: 'time'; from: string; to: string; default: string }
   | { kind: 'boolean'; default: boolean }
   | { kind: 'string'; default: string }
@@ -12,6 +25,7 @@ type Spec =
 /** The plugin's settings (`userConfig` in plugin.json), each with its range and default. */
 export const SETTINGS = {
   time: { kind: 'choice', options: ['auto', ...PHASES], default: 'auto' },
+  date: { kind: 'date', options: ['auto', ...SEASONS], default: 'auto' },
   sunrise: { kind: 'time', from: '04:00', to: '09:00', default: 'auto' },
   sunset: { kind: 'time', from: '16:00', to: '22:00', default: 'auto' },
   weather: { kind: 'choice', options: ['auto', ...WEATHERS], default: 'auto' },
@@ -26,7 +40,7 @@ export const SETTINGS = {
 export type SettingKey = keyof typeof SETTINGS
 export type SettingValue<K extends SettingKey> = (typeof SETTINGS)[K]['default'] extends boolean ? boolean : string
 /** The settings a command may hold an override for, in the store. */
-export const OVERRIDES = ['time', 'weather', 'lightning', 'sound', 'signal', 'hall', 'shader'] as const
+export const OVERRIDES = ['time', 'date', 'weather', 'lightning', 'sound', 'signal', 'hall', 'shader'] as const
 export type Override = (typeof OVERRIDES)[number]
 
 let options: PluginOptions = {}
@@ -39,6 +53,7 @@ function isValid(spec: Spec, value: unknown): boolean {
   if (spec.kind === 'boolean') return typeof value === 'boolean'
   if (typeof value !== 'string') return false
   if (spec.kind === 'choice') return spec.options.includes(value)
+  if (spec.kind === 'date') return spec.options.includes(value) || isMonthDay(value)
   if (spec.kind === 'time') return value === 'auto' || (/^\d\d:\d\d$/.test(value) && value >= spec.from && value <= spec.to && Number(value.slice(3)) < 60)
   return true
 }
