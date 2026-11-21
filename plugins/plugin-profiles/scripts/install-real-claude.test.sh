@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/plugin-profiles/.claude-plugin/plugin.json plugins/plugin-profiles/profiles/*.yaml plugins/plugin-profiles/evals/fixtures/fixture-market.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
