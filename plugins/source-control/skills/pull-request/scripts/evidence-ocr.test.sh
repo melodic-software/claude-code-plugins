@@ -55,6 +55,22 @@ assert_exit "a secret in an image's text is refused" 5 "$?"
 assert_contains "the refusal names the capture and kind" "$(cat "$ERR")" "shot.png: secret assignment"
 assert_not_contains "the refusal never prints the secret" "$(cat "$ERR")" "Zq7Wm2Kx9Lp4Rt"
 
+printf 'Pass''word: required\n' >"$OCR_STUB_TEXT"
+ocr "$CAPTURES/shot.png" >/dev/null
+assert_exit "a label beside a plain word is not a secret" 0 "$?"
+
+printf 'Sign in\n\nPass''word:\n\nRemember me\n' >"$OCR_STUB_TEXT"
+ocr "$CAPTURES/shot.png" >/dev/null
+assert_exit "a label is not joined onto the next screen block" 0 "$?"
+
+printf 'tok''en : Zq7Wm2Kx9Lp4Rt\n' >"$OCR_STUB_TEXT"
+ocr "$CAPTURES/shot.png" >/dev/null
+assert_exit "a secret with OCR spaces around the separator is refused" 5 "$?"
+
+printf 'Pass''word:\n\nZq7Wm2Kx9Lp4Rt\n' >"$OCR_STUB_TEXT"
+ocr "$CAPTURES/shot.png" >/dev/null
+assert_exit "a secret on the line after its key is refused" 5 "$?"
+
 printf 'Account owner\nAcme Ledger Ltd\n' >"$OCR_STUB_TEXT"
 printf 'acme ledger\n' | ocr --mask-stdin "$CAPTURES/shot.png" >/dev/null
 assert_exit "a mask value in the text, case and spacing aside, is refused" 5 "$?"

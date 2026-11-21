@@ -33,17 +33,17 @@ STILL = {".png", ".jpg", ".jpeg", ".webp"}
 UPSCALE = "scale=iw*2:ih*2:flags=lanczos,format=gray"
 BOX_DRAWING = re.compile("[─-╿]")
 LINE_WRAP = re.compile(r"\s*\n\s*")
+SECRET_KEY = r"(?:token|secret|password|apikey|api_key)\w*[\"']?"
+# The evidence step's body-scan shape, applied to each OCR line as read.
+SECRET_STRICT = re.compile(SECRET_KEY + r"[=:][\"']?[^\s*•]{8,}", re.I)
+# OCR spaces around the separator, or a key and value tesseract's sparse mode put on separate
+# lines, match only a value that holds a digit: a label beside a plain word is no secret.
+SECRET_LOOSE = re.compile(
+    SECRET_KEY + r"[ \t]*[=:][ \t]*[\"']?(?=[^\s*•]*\d)[^\s*•]{8,}", re.I
+)
 CREDENTIAL = (
     ("email address", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")),
     ("bearer token", re.compile(r"bearer \S{8,}", re.I)),
-    (
-        "secret assignment",
-        re.compile(
-            r"(?:token|secret|password|apikey|api_key)\w*[\"']?[ \t]*[=:][ \t]*[\"']?"
-            r"[^\s*•]{8,}",
-            re.I,
-        ),
-    ),
     ("private key", re.compile(r"-----BEGIN.*?PRIVATE KEY-----", re.I)),
 )
 
@@ -61,8 +61,11 @@ def squeeze(text: str) -> str:
 def findings(text: str, masks: list[str]) -> list[str]:
     """The kinds of leak in `text`; `masks` are mask values already squeezed."""
     flat = BOX_DRAWING.sub("", text)
-    views = (flat, LINE_WRAP.sub("", flat))
+    joined = LINE_WRAP.sub("", flat)
+    views = (flat, joined)
     kinds = {kind for kind, shape in CREDENTIAL for view in views if shape.search(view)}
+    if SECRET_STRICT.search(flat) or any(SECRET_LOOSE.search(view) for view in views):
+        kinds.add("secret assignment")
     squeezed = squeeze(flat)
     if any(mask in squeezed for mask in masks):
         kinds.add("mask value")

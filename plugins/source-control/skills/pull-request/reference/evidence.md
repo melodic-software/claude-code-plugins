@@ -191,19 +191,25 @@ the PR body or the rows lands in the comment, so step 5 scans it with the rest o
 
    Then scan the pixels of every capture to attach, the images and the videos steps 2 and 3 kept,
    with the same scan. Pass the mask values on stdin through a quoted heredoc, one per line, so
-   the shell expands nothing in them:
+   the shell expands nothing in them. Quoting stops expansion but not termination: a value that
+   is the delimiter line would end the heredoc early, and the shell would run every later value
+   as a command. So pick a fresh delimiter for each run, `MASK_` and 16 random hex digits, and
+   check it against every value before writing the command; pick again when any value equals it:
 
    ```bash
    python3 "<skill-dir>/scripts/evidence-ocr.py" --mask-stdin \
-     --mpdecimate-hi <step 1's evidence_ocr_mpdecimate_hi> "<capture>"... <<'MASK'
+     --mpdecimate-hi <step 1's evidence_ocr_mpdecimate_hi> "<capture>"... <<'MASK_<random hex>'
    <mask value>
-   MASK
+   MASK_<random hex>
    ```
 
    With no mask value, drop `--mask-stdin` and the heredoc; with no capture to attach, skip this
    scan. The script reads each image, and each video frame ffmpeg's `mpdecimate` keeps, with
    tesseract on this machine, upscaled and inverted as well. It scans each reading for the
-   credential pattern, allowing the spaces OCR puts around `=` and `:`, and for the mask values.
+   credential pattern and for the mask values. It applies the pattern to each line as read, and
+   allows the spaces OCR puts around `=` and `:`, or a line break between a key and its value,
+   only when the value holds a digit: tesseract's sparse mode puts each block of screen text on
+   its own line, so a label such as `Password:` beside a plain word is not a secret.
    It needs tesseract and an ffmpeg that has `-fps_mode`. Report the line it prints, which states
    the images read and the seconds taken. Any non-zero exit posts nothing and the report names its
    refusal: 1 ffmpeg or tesseract failed, 2 a usage error, 5 a hit, 6 a capture OCR read no text
