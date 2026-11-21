@@ -184,8 +184,10 @@ The team layer is `docs/conventions/testing.yaml`, validated by
 takes, plus the two run-e2e keys above. Without it, the team layer is the `yaml config` block in
 `docs/conventions/testing.md` (read for one more release), else `<root>/.claude/testing.yaml`. The
 first of the three present wins, and the resolver prints one warning for each other one present.
-The prose testing rules stay in `docs/conventions/testing.md`. This release still reads the
-user-global and `.claude/testing.local.yaml` layers at those paths.
+The prose testing rules stay in `docs/conventions/testing.md`. The personal override is
+`docs/conventions/testing.local.yaml`. The convention home is the folder that holds these files,
+`docs/conventions` by default. When the repository's `AGENTS.md` or `CLAUDE.md` binds another
+convention home, the resolver reads all three files from that folder.
 
 #### Move the team layer to `docs/conventions/testing.yaml`
 
@@ -196,10 +198,14 @@ user-global and `.claude/testing.local.yaml` layers at those paths.
 3. Once every member runs this release, delete the old block or file. Until then every run prints a
    warning naming both; an older release keeps reading the old one.
 
-This release moves only the team layer. It still reads `~/.claude/testing.yaml` and
-`.claude/testing.local.yaml`; keep them there until the plugin migrates
-([#17999](https://github.com/melodic-software/claude-code-plugins/issues/17999)), then move them
-where [config locations](reference/config-locations.md) says. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
+`scripts/resolve-config.sh` still reads the old files, and each run prints one warning for each
+old file it finds, naming where to move it. `.claude/testing.yaml` goes to
+`docs/conventions/testing.yaml`. `.claude/testing.local.yaml` goes to
+`docs/conventions/testing.local.yaml`; once that new file exists, the resolver ignores the old one.
+Each setting in `~/.claude/testing.yaml` goes to its `userConfig` option, and a setting with no
+option goes to `docs/conventions/testing.local.yaml`. A `userConfig` value other than its default
+wins over the old file. The other scripts and skills move in their own changes
+([#17999](https://github.com/melodic-software/claude-code-plugins/issues/17999)). Reading the block costs the same as reading the file; the measured p50 and p95 are in the
 [latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.
 
