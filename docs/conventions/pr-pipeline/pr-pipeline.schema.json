@@ -1431,7 +1431,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 3,
-          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail` when one stands at its head, superseded or not; fail verdicts at other heads alone never do (owner decision Q245): the pr-merge lane closes a lanes App pull request for a fresh attempt at its issue, and address-feedback and fix-ci start no more rounds on it (README.md, Verifier verdict). Any other value is 1, so any fail standing at the head caps."
+          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail` when one that is not superseded stands at its head; fail verdicts at other heads alone never do (owner decision Q245): the pr-merge lane closes a lanes App pull request for a fresh attempt at its issue, and address-feedback and fix-ci start no more rounds on it (README.md, Verifier verdict). Any other value is 1, so any fail standing at the head caps."
         },
         "verify-cap-attempts": {
           "type": "integer",

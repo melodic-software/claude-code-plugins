@@ -241,17 +241,16 @@ test("a PR whose pr-verify FAILs are at the cap gets no fix-ci round", async () 
   assert.match(lines.join("\n"), /^skip fix-ci #5: .*verify:repeated-fail/m);
 });
 
-test("a capped head is recorded, so the next run skips it without reading the verifier again", async () => {
+test("a capped head whose FAIL a later pass superseded is read again and dispatched", async () => {
   const record = emptyRecord();
-  let reads = 0;
-  const verifyCapped = () => {
-    reads += 1;
-    return "verify:repeated-fail";
-  };
-  await run({ pages: [[pr(5)]] }, { verifyCapped, record });
-  const { api } = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
-  assert.equal(reads, 1);
-  assert.deepEqual(api.calls.dispatch, []);
+  const answers = ["verify:repeated-fail: fails at 3 heads, the cap is 3", null];
+  const verifyCapped = () => answers.shift();
+  const capped = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.deepEqual(capped.api.calls.dispatch, [], "capped: no round");
+  assert.equal(record.handled.size, 0, "the cap is not recorded as handling the head");
+  const cleared = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.deepEqual(cleared.api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["5"]);
+  assert.equal(answers.length, 0, "a superseded head FAIL is a clean head (#17646): the second run reads the verifier again");
 });
 
 test("a head whose sibling FAIL run cannot be read is skipped but not recorded", async () => {

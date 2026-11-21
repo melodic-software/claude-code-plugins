@@ -21,12 +21,12 @@ failed read, a list cut short or no such run keeps the FAIL.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- a counted FAIL at the head, under any pull request number, superseded (the
-  next item) or not, with counted FAILs at `max_fails` or more distinct heads
-  of this pull request (tied as in the item after next), that head included:
-  `verify:repeated-fail`. FAILs at other heads alone never cap: a head with
-  no counted FAIL goes on to the items below (owner decision Q245,
-  2026-11-20). Before a FAIL at
+- a counted FAIL at the head, under any pull request number, that is not
+  superseded (the next item), with counted FAILs at `max_fails` or more
+  distinct heads of this pull request (tied as in the item after next), that
+  head included: `verify:repeated-fail`. FAILs at other heads alone never
+  cap: a head whose newest verdicts pass, or whose FAIL is superseded, goes
+  on to the items below (owner decision Q245, 2026-11-20). Before a FAIL at
   the head decides, FAILs of other pull requests in this repository that are
   not merged, nor a closed lanes App attempt (`_counts`), and close one of its
   issues (its closing issues, or its `Refs:` issue) count too, at their own
@@ -46,12 +46,10 @@ failed read, a list cut short or no such run keeps the FAIL.
   at least one from the first FAIL's creation for a pass that records other
   linked issues than each FAIL does (a relink), else at least one body edit
   from the last FAIL's creation (a body fix judged at the same head).
-  The cap is judged before supersession, so a capped head stays capped
-  (`VERIFY_FINAL`). Under the cap a superseded FAIL refuses nothing at its
-  own head, and the passes then decide as below; it still counts toward
-  `max_fails`, at its own head and when a later head FAILs. The report's
-  `supersededAtHead` names it, false when the cap decided, for pr-unblock to
-  resolve that FAIL's fail-note threads. Any record,
+  Supersession is judged before the cap. A superseded FAIL caps nothing at
+  its own head, and the passes then decide as below; it still counts toward
+  `max_fails` when a later head FAILs. The report's `supersededAtHead` names
+  it, for pr-unblock to resolve that FAIL's fail-note threads. Any record,
   time or read that fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -4347,21 +4345,15 @@ class Reader:
             )
             return self._superseded(number, sha, fail_artifacts, at)
 
-        read_elsewhere: list[tuple[dict[Any, Any], set[str]]] = []
-
         def elsewhere() -> tuple[dict[Any, Any], set[str]]:
-            if not read_elsewhere:
-                read_elsewhere.append(
-                    self._elsewhere(
-                        number,
-                        failed_by_pr,
-                        unread_prs,
-                        failed_by_issue,
-                        unread_issues,
-                        fail_times,
-                    )
-                )
-            return read_elsewhere[0]
+            return self._elsewhere(
+                number,
+                failed_by_pr,
+                unread_prs,
+                failed_by_issue,
+                unread_issues,
+                fail_times,
+            )
 
         def capped(heads: set[str]) -> str:
             return (
@@ -4372,21 +4364,21 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
-        head_superseded = head in failed and superseded(head)
-        if head in failed and len(failed) >= self.max_fails:
+        head_superseded = False
+        if (
+            head in failed
+            and not (head_superseded := superseded(head))
+            and len(failed) >= self.max_fails
+        ):
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-            head_superseded = False
-        elif (
-            head in failed
-            and len(heads := failed | elsewhere()[1]) >= self.max_fails
-        ):
+        elif head in failed and not head_superseded:
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
-            refusal, detail = REPEATED_FAIL, capped(heads)
-            head_superseded = False
-        elif head in failed and not head_superseded:
+            heads = failed | elsewhere()[1]
             refusal = FAIL
+            if len(heads) >= self.max_fails:
+                refusal, detail = REPEATED_FAIL, capped(heads)
         elif fails and (
             not self._passes_follow(fails, passes)
             or not self._change_differs(

@@ -1373,7 +1373,7 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         fake.records[name] = record(99, verdict="fail", linked_issues=[])
         self.assertEqual(read(fake).refusal, "verify:fail")
 
-    def test_a_superseded_fail_at_the_head_at_the_cap_stays_capped(self) -> None:
+    def test_a_superseded_fail_at_the_head_does_not_reach_the_cap(self) -> None:
         fake = self.relinked()
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
@@ -1382,10 +1382,10 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         ):
             reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
             evidence = reader.evidence(PR, HEAD, pull())
-        self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertIs(evidence.report()["supersededAtHead"], False)
+        self.assertIsNone(evidence.refusal)
+        self.assertIs(evidence.report()["supersededAtHead"], True)
 
-    def test_fails_at_three_earlier_heads_cap_a_head_fail_superseded_or_not(
+    def test_fails_at_three_earlier_heads_cap_only_an_unsuperseded_head_fail(
         self,
     ) -> None:
         def history() -> FakeGitHub:
@@ -1396,8 +1396,8 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             return fake
 
         evidence = read(history())
-        self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertIs(evidence.report()["supersededAtHead"], False)
+        self.assertIsNone(evidence.refusal, "a superseded head FAIL is a clean head")
+        self.assertIs(evidence.report()["supersededAtHead"], True)
         unanswered = history()
         unanswered.relink = relink_answer()
         self.assertEqual(read(unanswered).refusal, "verify:repeated-fail")
@@ -1568,7 +1568,7 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         )
         self.assertIs(read(merge_only).report()["supersededAtHead"], False)
 
-    def test_the_cap_is_judged_before_a_superseded_fail_at_the_head(self) -> None:
+    def test_a_superseded_fail_at_the_head_is_judged_before_the_cap(self) -> None:
         fake = self.edited()
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
@@ -1577,8 +1577,8 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         ):
             reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
             evidence = reader.evidence(PR, HEAD, pull())
-        self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertIs(evidence.report()["supersededAtHead"], False)
+        self.assertIsNone(evidence.refusal)
+        self.assertIs(evidence.report()["supersededAtHead"], True)
 
 
 # Pull request #16602's FAIL notes at head 27fe8d09, as its pr-verify

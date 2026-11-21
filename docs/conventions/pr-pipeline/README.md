@@ -2962,11 +2962,11 @@ other artifact with such a name is ignored. The resolver and the gate each hold 
 dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
 head:
 
-- a counted `fail` at the head, superseded (the next item) or not, with counted `fail`
+- a counted `fail` at the head that is not superseded (the next item), with counted `fail`
   verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull request, tied
   as in the item after next, that head included, refuses (`verify:repeated-fail`). `fail` verdicts
-  at other heads alone never cap: a head with no counted `fail` goes on to the items below (owner
-  decision Q245, 2026-11-20). A value that is not a count of 1 or
+  at other heads alone never cap: a head whose newest verdicts pass, or whose `fail` is superseded,
+  goes on to the items below (owner decision Q245, 2026-11-20). A value that is not a count of 1 or
   more, an empty or non-scalar one included, is 1, so any `fail` standing at the head caps. Before a
   `fail` at the head decides, counted `fail` verdicts of other pull requests in this repository,
   for its linked issues, count too, at their own heads, unless that pull request merged or is a closed lanes App
@@ -3010,10 +3010,9 @@ head:
   relink), else at least one body edit from the last `fail`'s run's creation (a body fix). The
   lanes App, any other Bot, an actor GitHub cannot name, a read that fails or is cut short, a time
   that cannot be read, or the same linked issues with no body edit keep the refusal. Both the
-  resolver and the gate read these acts in one GraphQL query, only on this path. The cap is judged before supersession, so a capped head stays
-  capped: the pr-unblock dispatchers record it as handled. Under the cap a superseded `fail`
-  refuses nothing at its own head, and the passes then decide as below; it still counts toward
-  `merge.max-verify-fails`, at its own head and when a later head fails. A judgment on an older listing (pr-merge's provisional one) can
+  resolver and the gate read these acts in one GraphQL query, only on this path. Supersession is judged before the cap: a superseded `fail` caps
+  nothing at its own head, and the passes then decide as below; it still counts toward
+  `merge.max-verify-fails` when a later head fails. A judgment on an older listing (pr-merge's provisional one) can
   still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from
