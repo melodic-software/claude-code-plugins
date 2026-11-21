@@ -17,8 +17,30 @@ login_status:
 unset_model: cli-default
 model_flag: -m
 profile_flag: -p
+profile_on: [run]
 effort_config: model_reasoning_effort
+config_arg: -c
 always_args: [-c, 'approval_policy="never"']
+prompt:
+  form: "-"
+output:
+  kind: jsonl_events
+  final_message_arg: -o
+  thread_event: thread.started
+  thread_field: thread_id
+  turn_ok_event: turn.completed
+  failure_events: [turn.failed, error]
+  item_event: item.completed
+  item_prefix: item.
+  mcp_item_types: [mcp_tool_call]
+run:
+  args: [exec, --json]
+resume:
+  args: [exec, resume, "{thread}", --json]
+review:
+  kind: native
+  args: [exec, review, --base, "{base}", --json]
+  config_paths: [.codex/]
 modes:
   read-only:
     enforcement: sandbox
@@ -31,7 +53,6 @@ modes:
     args:
       run: [--sandbox, workspace-write]
       resume: [-c, 'sandbox_mode="workspace-write"']
-      review: [-c, 'sandbox_mode="read-only"']
 soft_deny:
   - kind: json_item_failed
     item_types: [command_execution, file_change]
@@ -42,3 +63,16 @@ soft_deny:
       - "Permission denied"
       - "Operation not permitted"
       - "Read-only file system"
+  - kind: json_item_failed
+    item_types: [command_execution]
+    statuses: [declined]
+unavailable:
+  - class: usage-limit
+    patterns:
+      - "usage limit"
+    reset_pattern: "try again at ([^.]+)"
+  - class: auth
+    patterns:
+      - "401 Unauthorized"
+      - "Not logged in"
+      - "token is expired"
