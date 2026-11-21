@@ -124,6 +124,7 @@ check_layer "team" "$team_file" yes
 if [[ -f "$old_local" && -f "$personal_file" ]]; then
   # The resolver keeps reading the old file while the new one is outside the
   # YAML subset (resolve-config.py surface_layer_paths), so both are checked.
+  # Dual-read window: https://github.com/melodic-software/claude-code-plugins/issues/18001
   if "${PY[@]}" "$SCRIPTS/yaml_subset.py" "$personal_file" >/dev/null 2>&1; then
     row WARN "layer local location" "$old_local is the old personal override and is not read because $personal_file exists; delete it once its keys are there"
     check_layer "local" "$personal_file" no
