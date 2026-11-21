@@ -198,11 +198,11 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
   mode is active; the rules are restored when the session leaves it, and nothing edits a settings
   file. The two labels are kept apart because the remedies differ: a `dropped` rule is fixable by
   narrowing that rule, while `suspended` is a global switch no rule edit reaches.
-- **`class` names the reason**: `blanket`, `interpreter-wildcard`, `package-manager-run`,
-  `agent`, or `monitor`. The three shell shapes come from `lib/permission-patterns.sh`, the
-  vocabulary `audit-permission-grants` check P1 also scans with; `agent` and `monitor` are
-  whole-tool classes this script tests on the tool token, `monitor` with the version bound
-  `reference/criteria.md` §"The auto-mode entry diff" records.
+- **`class` names the reason**: `blanket`, `interpreter-wildcard`, `wrapper-wildcard`,
+  `leading-wildcard`, `path-wildcard`, `package-manager-run`, `agent`, or `monitor`. The six shell
+  shapes come from `lib/permission-patterns.sh`, the vocabulary `audit-permission-grants` check P1
+  also scans with; `agent` and `monitor` are whole-tool classes this script tests on the tool token,
+  `monitor` with the version bound `reference/criteria.md` §"The auto-mode entry diff" records.
 - **`autoMode.classifyAllShell` inverts the answer wholesale.** The stage treats it, when true, as
   suspending *every* Bash and PowerShell allow rule, so narrow rules do **not** carry over. It
   resolves the key only from the scopes it treats the classifier as reading, so a project- or

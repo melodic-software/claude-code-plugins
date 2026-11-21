@@ -62,6 +62,36 @@ assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before
 assert_contains "a monitor verdict carries its version bound" "$OUT" \
   "Requires Claude Code v2.1.236 or later"
 
+NEWER_CLASSES=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash(timeout *)
+effective allow scopes=user precedence_basis=uncontested Bash(timeout 30 git status)
+effective allow scopes=user precedence_basis=uncontested Bash(* --version)
+effective allow scopes=user precedence_basis=uncontested Bash($HOME/bin/*)
+effective allow scopes=user precedence_basis=uncontested Bash($HOME/bin/deploy.sh)
+effective allow scopes=user precedence_basis=uncontested PowerShell(C:\tools\x.exe *)
+effective allow scopes=user precedence_basis=uncontested PowerShell(.\tools\x.ps1 *)
+effective allow scopes=user precedence_basis=uncontested Bash(/usr/bin/npm run:*)
+effective allow scopes=user precedence_basis=uncontested Bash(/usr/bin/npm test)
+effective allow scopes=user precedence_basis=uncontested Bash(pnpm@9 dlx *)
+effective allow scopes=user precedence_basis=uncontested Bash(pnpm@9 install)
+EOF
+)
+OUT=$(diff_only "$NEWER_CLASSES")
+assert_contains "a wrapper followed only by a wildcard is dropped" "$OUT" "entry-diff dropped class=wrapper-wildcard scopes=user Bash(timeout *)"
+assert_contains "a wrapper with a fixed command carries over" "$OUT" "entry-diff kept scopes=user Bash(timeout 30 git status)"
+assert_contains "a leading-wildcard rule is dropped" "$OUT" "entry-diff dropped class=leading-wildcard scopes=user Bash(* --version)"
+assert_contains "a \$HOME-led wildcard is dropped" "$OUT" "entry-diff dropped class=path-wildcard scopes=user Bash(\$HOME/bin/*)"
+assert_contains "an exact \$HOME path carries over" "$OUT" "entry-diff kept scopes=user Bash(\$HOME/bin/deploy.sh)"
+assert_contains "a Windows backslash program wildcard is dropped" "$OUT" 'entry-diff dropped class=path-wildcard scopes=user PowerShell(C:\tools\x.exe *)'
+assert_contains "a .\\ script wildcard carries over" "$OUT" 'entry-diff kept scopes=user PowerShell(.\tools\x.ps1 *)'
+assert_contains "a path-prefixed runner is dropped" "$OUT" "entry-diff dropped class=package-manager-run scopes=user Bash(/usr/bin/npm run:*)"
+assert_contains "a narrow path-prefixed runner carries over" "$OUT" "entry-diff kept scopes=user Bash(/usr/bin/npm test)"
+assert_contains "a version-suffixed runner is dropped" "$OUT" "entry-diff dropped class=package-manager-run scopes=user Bash(pnpm@9 dlx *)"
+assert_contains "a narrow version-suffixed runner carries over" "$OUT" "entry-diff kept scopes=user Bash(pnpm@9 install)"
+assert_contains "the newer-class summary reconciles" "$OUT" "entry-diff summary allow_before=11 dropped=6 suspended=0 kept=5"
+
 # A SCOPED Agent rule is dropped too: auto mode drops all Agent allow rules
 # categorically, unlike Bash where narrow rules survive.
 SCOPED_AGENT=$(
