@@ -7,7 +7,7 @@ skill=$(cd "$here/.." && pwd)
 bridge=$(cd "$skill/../../notes-bridge" && pwd)
 # shellcheck source=../../../lib/browser-test-helpers.sh
 source "$here/../../../lib/browser-test-helpers.sh"
-browser_setup ed-notes-edit ede playwright-cli python3 curl
+browser_setup ed-notes-edit edxplaywright-cli python3 curl
 
 marker='<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->'
 while IFS= read -r line; do

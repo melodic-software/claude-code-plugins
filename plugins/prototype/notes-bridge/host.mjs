@@ -234,9 +234,9 @@ function viewWords(n) {
   return `On ${v ? `${n.variant.key} ${v}` : `variant ${n.variant.key}`}${s ? `, ${s.toLowerCase()}` : ""}`;
 }
 
-/** A row's number, as its marker shows it: the seq once sent, D1, D2... for drafts, null for a note no marker shows. */
 /** Whether a sent note was withdrawn, here or, after a reload, as the bridge reports. */
 const gone = (m) => Boolean(m && (m.withdrawn || last.notes.some((n) => n.seq === m.seq && n.withdrawn)));
+/** A row's number, as its marker shows it: the seq once sent, D1, D2... for drafts, null for a note no marker shows. */
 const numberOf = (m) => m.seq ?? (m.draft ? `D${mine.filter((x) => x.draft).indexOf(m) + 1}` : null);
 /** What the frame needs to find a note's box and restore its view: contract keys, a path and a box, never its text. */
 function noteTarget(m) {
