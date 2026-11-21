@@ -281,10 +281,12 @@ fi
 # edit to your rules, and "dropped" alone reads as one.
 echo "DIFF-NOTE: dropped and suspended rules alike are RESTORED when the session leaves auto mode. Neither verdict changes any settings file; both describe what is in force while auto mode is active."
 
-# Auto mode is the starting mode in exactly one of the seven documented run
-# shapes. Printing this diff unconditionally hands a headless or Agent SDK run a
-# verdict for a transition it never makes.
-echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. With no --permission-mode flag and no permissions.defaultMode setting, a session in a terminal or the VS Code extension starts in auto mode on Claude Code v2.1.283 or later, on Bedrock / Google Cloud Agent Platform / Microsoft Foundry / signed-in apps gateway sessions as well; on earlier versions it does so only on Pro, Max, Ultra, or Team plans in sessions that fetch feature flags. Sessions under 'claude -p' or the Agent SDK with no permission mode set (v2.1.302 or later), with disableAutoMode set to \"disable\" in any settings file, on a model that does not support auto mode on its provider, or eligible for an organization's HIPAA configuration on v2.1.285 through v2.1.325 start in Manual instead and never make this transition."
+# Not every run shape starts in auto mode (headless and Agent SDK runs with no
+# mode set do not), so printing this diff unconditionally hands those runs a
+# verdict for a transition they never make. The note states that precondition
+# and points at the live start-mode table instead of copying it, so an upstream
+# change to the table cannot make the note false.
+echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Not every session does: a 'claude -p' or Agent SDK run with no permission mode set starts in Manual and never makes this transition. Which sessions start in auto mode depends on the Claude Code version, how it is run, the provider and model, and settings such as disableAutoMode; read the current conditions at https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in before acting on this diff."
 
 printf '%s' "$diff_lines"
 if [[ -n "$unread_scopes" ]]; then

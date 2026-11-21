@@ -404,8 +404,8 @@ else
 fi
 
 # --- The diff states its precondition and its reversibility -------------------
-# Auto mode is the starting mode in one of the seven documented run shapes, so a
-# headless or Agent SDK session gets a diff for a transition it never makes
+# Not every run shape starts in auto mode (headless and Agent SDK runs with no
+# mode set do not), so those runs get a diff for a transition they never make
 # unless the precondition is stated. And the docs say dropped rules are restored
 # on leaving auto mode, which "dropped" alone does not convey.
 BASE_IN=$(
@@ -417,6 +417,7 @@ EOF
 OUT_BASE=$(printf '%s\n' "$BASE_IN" | bash "$SCRIPT" --diff-only)
 assert_contains "the diff names the transition it describes" "$OUT_BASE" "applies only to a session that ENTERS auto mode"
 assert_contains "and names a run shape that never makes it" "$OUT_BASE" "claude -p"
+assert_contains "and points at the live start-mode table" "$OUT_BASE" "permission-modes#which-mode-a-session-starts-in"
 assert_contains "the diff says both classes are restored on leaving" "$OUT_BASE" "RESTORED"
 assert_contains "the broad rule is still classified" "$OUT_BASE" "entry-diff dropped class=blanket"
 
