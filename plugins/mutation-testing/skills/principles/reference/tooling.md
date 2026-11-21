@@ -12,7 +12,7 @@ Sources: [StrykerJS configuration](https://stryker-mutator.io/docs/stryker-js/co
 [Infection CLI](https://infection.github.io/guide/command-line-options.html),
 [mutmut](https://mutmut.readthedocs.io/). Fetched 2026-08-15. Recheck when any listed tool
 publishes a release note touching its diff-scoping switch or its in-place / out-of-tree write
-behavior, when a new mutation tool appears for a listed ecosystem, or at the next fleet audit.
+behavior, when a new mutation tool gains a shipped adapter, or at the next fleet audit.
 
 ## Established tools
 
