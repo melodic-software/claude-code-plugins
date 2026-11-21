@@ -49,8 +49,8 @@ routes rather than halting unconditionally.
     without a binding: the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
-    arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run** → run
-    `/work-items:setup` to bind the provider; **(2) a deliberate gh-native operating mode** → the lane
+    arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run**, so run
+    `/work-items:setup` to bind the provider; **(2) a deliberate gh-native operating mode**, so the lane
     may proceed for provider-mechanic operations only, accepting that **no race-safe claim/lease is
     available**. The seam coordination verbs stay unavailable and claim collisions become the
     operator's responsibility.
