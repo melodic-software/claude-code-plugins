@@ -55,6 +55,13 @@ assert_contains "a narrow exact rule carries over" "$OUT" "entry-diff kept scope
 assert_eq "all five classes appear in the dropped set" 5 "$(count_matching "$OUT" '^entry-diff dropped ')"
 assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before=6 dropped=5 suspended=0 kept=1"
 
+# The monitor verdict is version-dependent: before v2.1.236 a Monitor allow rule
+# stayed in effect, so reporting it dropped on an older version is inverted in
+# the direction that matters. The script cannot read the running version, so it
+# must say so rather than assert the verdict unqualified.
+assert_contains "a monitor verdict carries its version bound" "$OUT" \
+  "Requires Claude Code v2.1.236 or later"
+
 NEWER_CLASSES=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -84,13 +91,6 @@ assert_contains "a narrow path-prefixed runner carries over" "$OUT" "entry-diff 
 assert_contains "a version-suffixed runner is dropped" "$OUT" "entry-diff dropped class=package-manager-run scopes=user Bash(pnpm@9 dlx *)"
 assert_contains "a narrow version-suffixed runner carries over" "$OUT" "entry-diff kept scopes=user Bash(pnpm@9 install)"
 assert_contains "the newer-class summary reconciles" "$OUT" "entry-diff summary allow_before=11 dropped=6 suspended=0 kept=5"
-
-# The monitor verdict is version-dependent: before v2.1.236 a Monitor allow rule
-# stayed in effect, so reporting it dropped on an older version is inverted in
-# the direction that matters. The script cannot read the running version, so it
-# must say so rather than assert the verdict unqualified.
-assert_contains "a monitor verdict carries its version bound" "$OUT" \
-  "Requires Claude Code v2.1.236 or later"
 
 # A SCOPED Agent rule is dropped too: auto mode drops all Agent allow rules
 # categorically, unlike Bash where narrow rules survive.
