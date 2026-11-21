@@ -69,7 +69,7 @@ percent of the page, and `to.anchor` is the destination element when there is on
 note's variant and screen state, the scope both ends' anchors are counted in. Each end runs its own
 anchor ladder, with the stored box or point as its position-only last rung. The frame
 helper draws the arrow from the middle of one end to the middle of the other, and redraws it from
-the elements whenever the page re-flows. The relocation script reports the destination's rungs,
+the elements whenever the layout re-flows. The relocation script reports the destination's rungs,
 match and `positionOnly` under `to`. The session that acts on a move arrow restates both ends: the
 element to move and the element or point it goes to.
 
