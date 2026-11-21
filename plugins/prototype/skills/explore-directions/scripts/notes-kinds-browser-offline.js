@@ -13,7 +13,8 @@ async page => {
     await page.click("#send");
     await page.waitForFunction(() => /Not sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });
     const kept = await page.textContent("#notes");
-    ok("the unsent note is kept on the page", /not sent: use Copy all notes/.test(kept), kept.slice(-80));
+    ok("the unsent note is kept on the page", /Not sent: use Copy all notes/.test(kept), kept.slice(-80));
+    await page.click("#copy-button");
     await page.click("#copy");
     block = await page.inputValue("#block");
     ok("Copy all notes makes one prototype-notes block", /^```prototype-notes\n[\s\S]*\n```\n$/.test(block) && block.split("```").length === 3, block.length);

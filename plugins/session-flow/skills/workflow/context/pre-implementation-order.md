@@ -32,10 +32,9 @@ this order when you run several:
    independently shippable ticket; each ticket quotes its part of the design.
 
 Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
-artifact form is optional. The passes a person answers (interview through plan) run in one
-session, and `/session-flow:workflow` suggests a handoff between them only when context-usage
-reports zone `heavy` or its compaction marker exists; execution of a finished plan moves to a
-fresh session with the artifacts carried forward.
+artifact form is optional. Each pass ends at a phase boundary, where `/session-flow:workflow` suggests a handoff then
+`/clear`, so the next pass, and execution of a finished plan, starts in a fresh session with the
+artifacts carried forward.
 
 As everywhere in this skill, a pass whose skill the consuming setup does not install runs inline
 or is named to the user; never invent a skill name.

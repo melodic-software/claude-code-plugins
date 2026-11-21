@@ -28,20 +28,6 @@ Arrange is often shared (setUp); Act and Assert are unique per test.
 
 Start from the assertion and work backward. This forces you to answer "what's the right answer?" and "how do I check?" before everything else.
 
-```java
-// Start here:
-assertEquals(Money.dollar(10), reduced);
-
-// Then: where does 'reduced' come from?
-Money reduced = bank.reduce(sum, "USD");
-
-// Then: where does 'sum' come from?
-Expression sum = five.plus(five);
-
-// Then: where does 'five' come from?
-Money five = Money.dollar(5);
-```
-
 ### Test Data (Ch 25)
 
 - Use data that makes tests easy to read: "you are writing tests to an audience"
@@ -51,17 +37,7 @@ Money five = Money.dollar(5);
 
 ### Evident Data (Ch 25)
 
-Make the relationship between inputs and expected outputs visible in the test itself:
-
-```java
-// BAD — where does 49.25 come from?
-assertEquals(new Note(49.25, "GBP"), result);
-
-// GOOD — the calculation is visible
-bank.addRate("USD", "GBP", 2);
-bank.commission(0.015);
-assertEquals(new Note(100 / 2 * (1 - 0.015), "GBP"), result);
-```
+Make the relationship between inputs and expected outputs visible in the test itself: write the expected value as the calculation from the inputs (converting an amount of 100 at a rate of 2 with a 0.015 commission: 100 / 2 × (1 − 0.015)), not as the precomputed result (49.25).
 
 "I can read this test and see the connection between the numbers used in the input and the numbers used to calculate the expected result."
 
@@ -104,17 +80,7 @@ Use `tearDown()` to release external resources (files, connections). xUnit guara
 
 ### Exception Test
 
-```java
-public void testMissingRate() {
-    try {
-        exchange.findRate("USD", "GBP");
-        fail();  // If no exception, test fails
-    } catch (IllegalArgumentException expected) {
-    }
-}
-```
-
-Only catch the specific exception you expect.
+Call the code expected to throw, and fail the test if it returns normally. Only catch the specific exception you expect.
 
 ### All Tests
 
@@ -163,29 +129,7 @@ For Khorikov's deeper treatment of coverage metrics: [code-coverage-khorikov.md]
 
 ## The Fibonacci Example (Appendix II)
 
-A compact TDD demo that "turned on the light" for reviewers. Drives the implementation entirely from tests:
-
-```java
-// Test evolves from table-driven data:
-int cases[][] = {{0,0}, {1,1}, {2,1}, {3,2}};
-for (int i = 0; i < cases.length; i++)
-    assertEquals(cases[i][1], fib(cases[i][0]));
-
-// Implementation evolves from constants to recursion:
-// Step 1: return 0;
-// Step 2: if (n == 0) return 0; return 1;
-// Step 3: if (n == 0) return 0; if (n <= 2) return 1; return 2;
-// Step 4: ... return 1 + 1;     (2 = 1 + 1)
-// Step 5: ... return fib(n-1) + 1;  (first 1 = fib(n-1))
-// Step 6: ... return fib(n-1) + fib(n-2);  (second 1 = fib(n-2))
-// Step 7: tighten: if (n == 1) return 1;  (== not <=)
-// Final:
-int fib(int n) {
-    if (n == 0) return 0;
-    if (n == 1) return 1;
-    return fib(n-1) + fib(n-2);
-}
-```
+A compact TDD demo that "turned on the light" for reviewers. Drives the implementation entirely from tests.
 
 "There we have Fibonacci, derived totally from the tests." The key move: `return 2` → `return 1 + 1` → `return fib(n-1) + 1` → `return fib(n-1) + fib(n-2)`. Each step replaces a constant with an expression, driven by the data.
 
@@ -213,15 +157,7 @@ Khorikov's three naming guidelines:
 2. **Name the test as if describing the scenario to a non-programmer** familiar with the problem domain
 3. **Separate words with underscores** for readability
 
-```csharp
-// BAD — rigid convention, coupled to method name
-public void IsDeliveryValid_InvalidDate_ReturnsFalse()
-
-// Improvement progression:
-public void Delivery_with_invalid_date_should_be_considered_invalid()
-public void Delivery_with_past_date_should_be_invalid()  // more specific
-public void Delivery_with_a_past_date_is_invalid()       // remove "should be"
-```
+Refine a name toward the specific fact it states: "delivery with a past date is invalid", not "delivery with invalid date should be considered invalid". Name the specific case (a past date, not an invalid one), and state a fact, not a wish (drop "should be").
 
 Don't include the SUT's method name in the test name, since you test *behavior*, not methods. If the method is renamed, the test shouldn't need renaming.
 
@@ -229,89 +165,24 @@ Don't include the SUT's method name in the test name, since you test *behavior*,
 
 Extracting shared fixture setup into the test class constructor introduces **high coupling between tests** (changing one test's arrangement affects all) and **diminishes readability** (you can't see the full context in the test method).
 
-**Better approach:** private factory methods with default parameters:
-
-```csharp
-private Store CreateStoreWithInventory(Product product, int quantity)
-{
-    Store store = new Store();
-    store.AddInventory(product, quantity);
-    return store;
-}
-```
+**Better approach:** private factory methods with default parameters.
 
 Tests specify only what's relevant to their scenario. Factory methods don't couple tests to each other. Exception: base class constructors are fine for infrastructure shared by all tests (database connections).
 
-Khorikov prefers **Object Mother** (factory methods with defaults) over **Test Data Builder** (fluent `.With*()` chains). Object Mother needs less boilerplate in C# thanks to optional parameters.
+Khorikov prefers **Object Mother** (factory methods with defaults) over **Test Data Builder** (fluent `.With*()` chains). Object Mother needs less boilerplate where the language has optional parameters.
 
 ### Parameterized Tests
 
-Group similar facts about a behavior into a single parameterized test. Use `[Theory]` + `[InlineData]` in xUnit:
+Group similar facts about a behavior into a single parameterized test.
 
-```csharp
-[InlineData("mycorp.com", "email@mycorp.com", true)]
-[InlineData("mycorp.com", "email@gmail.com", false)]
-[Theory]
-public void Differentiates_a_corporate_email_from_non_corporate(
-    string domain, string email, bool expectedResult)
-{
-    var sut = new Company(domain, 0);
-    bool isEmailCorporate = sut.IsEmailCorporate(email);
-    Assert.Equal(expectedResult, isEmailCorporate);
-}
-```
-
-**Positive/negative split pattern**: when behavior differs significantly between positive and negative cases, extract the positive test into its own `[Fact]` method with a descriptive name, and keep only the negative cases parameterized:
-
-```csharp
-[InlineData(-1)]
-[InlineData(0)]
-[InlineData(1)]
-[Theory]
-public void Detects_an_invalid_delivery_date(int daysFromNow) { /* ... */ }
-
-[Fact]
-public void The_soonest_delivery_date_is_two_days_from_now() { /* ... */ }
-```
+**Positive/negative split pattern**: when behavior differs significantly between positive and negative cases, extract the positive test into its own test method with a descriptive name, and keep only the negative cases parameterized. A combined test passes the expected result in as a Boolean parameter.
 
 This removes the `expected` Boolean parameter entirely from the negative cases (they're all `false`), and the positive case gets its own expressive name.
 
-**`[MemberData]` for complex data**: `[InlineData]` only accepts compile-time constants (literals, `typeof()`). For runtime values like `DateTime.Now.AddDays(-1)`, use `[MemberData]` pointing to a static method:
-
-```csharp
-[Theory]
-[MemberData(nameof(Data))]
-public void Can_detect_an_invalid_delivery_date(
-    DateTime deliveryDate, bool expected) { /* ... */ }
-
-public static List<object[]> Data()
-{
-    return new List<object[]>
-    {
-        new object[] { DateTime.Now.AddDays(-1), false },
-        new object[] { DateTime.Now, false },
-        new object[] { DateTime.Now.AddDays(1), false },
-        new object[] { DateTime.Now.AddDays(2), true }
-    };
-}
-```
-
 **Decision rule for parameterization**: keep positive and negative cases in a single method only when it's self-evident from the input parameters which case stands for what. Otherwise, extract the positive case. If the behavior is too complicated, don't parameterize at all. Represent each negative and positive case with its own test method.
 
-### Fluent Assertions (Ch 3.6)
+### Readable Assertions (Ch 3.6)
 
-Assertion libraries restructure assertions to read like plain English, following the [Subject] [action] [object] story pattern:
+Assertion libraries restructure assertions to read like plain English, following the [Subject] [action] [object] story pattern: an assertion that reads as "result should be 30" names the subject, the action and the object in that order.
 
-```csharp
-// Standard xUnit — reads backward (expected, actual)
-Assert.Equal(30, result);
-
-// Fluent assertion — reads like a sentence
-result.Should().Be(30);
-```
-
-`result.Should().Be(30)` reads as "result should be 30": subject, action, object. Khorikov prefers Fluent Assertions for this readability benefit. The library provides helper methods for numbers, strings, collections, dates, and more.
-
-**Trade-off**: fluent assertions are a dev-only dependency (not shipped to production). The readability improvement is significant enough to justify the additional package in most projects.
-
-Fluent assertions become especially valuable for **state-based tests** where multiple properties need checking (see Ch 6's state verification examples with `BeEquivalentTo` and collection assertions).
+That readability matters most for **state-based tests** where multiple properties need checking (see Ch 6's state verification examples).

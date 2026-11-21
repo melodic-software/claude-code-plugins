@@ -520,6 +520,9 @@ lib/ui-feedback/notes-bridge.sh -> plugins/*/notes-bridge/notes-bridge.sh
 lib/ui-feedback/host.html -> plugins/*/notes-bridge/host.html
 
 # Dedicated check: scripts/sync-shared-copies.sh --check.
+lib/ui-feedback/host.mjs -> plugins/*/notes-bridge/host.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/proto-pin.js -> plugins/*/notes-bridge/proto-pin.js plugins/*/shared/web/proto-pin.js
 
 # Dedicated check: scripts/sync-shared-copies.sh --check.

@@ -99,6 +99,7 @@ FENCE = re.compile(r"\s*```prototype-notes[ \t]*\r?\n(.*?)\r?\n```\s*", re.DOTAL
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
     "/frame-channel.mjs": ("frame-channel.mjs", "text/javascript"),
+    "/host.mjs": ("host.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
     "/controls.schema.json": ("controls.schema.json", "application/json"),
     "/controls.js": ("controls.js", "text/javascript"),
@@ -272,6 +273,7 @@ class NotesHub(view.ViewHub):
                 "reply": replies.get(str(e["seq"])),
             }
             for e in log.get("events", [])
+            if "change" not in e
         ]
         return {
             "instance": self.instance,
@@ -289,6 +291,33 @@ class NotesHub(view.ViewHub):
                 raise ValueError(
                     f"the page has sent {MAX_NOTES} notes; restart the server"
                 )
+            log["seq"] += 1
+            log["events"].append({"seq": log["seq"], "at": bridge.now_iso(), **msg})
+            self.write_log(log)
+            self.cond.notify_all()
+            return log["seq"]
+
+    def record_change(self, msg):
+        """A sent region note moved or resized: its anchor, rect and elements are replaced in the
+        log, and the change is appended as an event of its own naming the note, so the watcher
+        wakes and the session reads it as that note changed."""
+        found = problems(msg, SCHEMA["$defs"]["change"], "change")
+        if found:
+            raise ValueError(found[0])
+        with self.cond:
+            log = self.read_log()
+            note = next(
+                (e for e in log["events"] if e["seq"] == msg["change"] and "change" not in e),
+                None,
+            )
+            if note is None or note.get("kind") != "region":
+                raise ValueError(f"change: no region note {msg['change']} in this run")
+            if len(log["events"]) >= MAX_NOTES:
+                raise ValueError(
+                    f"the page has sent {MAX_NOTES} notes; restart the server"
+                )
+            for k in ("anchor", "rect", "elements"):
+                note[k] = msg[k]
             log["seq"] += 1
             log["events"].append({"seq": log["seq"], "at": bridge.now_iso(), **msg})
             self.write_log(log)
@@ -339,10 +368,11 @@ class NotesHandler(view.ViewHandler):
         return self.send(404, {"error": "not found"})
 
     def route_post(self, path, msg):
-        if path != "/api/note":
+        record = {"/api/note": self.hub.record, "/api/note/change": self.hub.record_change}.get(path)
+        if record is None:
             return self.send(404, {"error": "not found"})
         try:
-            seq = self.hub.record(msg)
+            seq = record(msg)
         except ValueError as e:
             return self.send(400, {"error": str(e)})
         return self.send(

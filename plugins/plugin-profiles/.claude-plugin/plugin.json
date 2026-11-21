@@ -5,8 +5,11 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.9.3",
+  "version": "0.9.4",
   "license": "MIT",
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "types": "./types/index.d.ts",
   "keywords": [
     "plugins",

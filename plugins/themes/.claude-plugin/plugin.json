@@ -1,12 +1,15 @@
 {
   "name": "themes",
-  "description": "Backdrop themes for the Claude Code desktop app. The first, bedroom, is a teenager's bedroom in the country, about 2004, drawn as one SVG with a lighting shader that follows the time of day and the weather, with things to click (television, VCR, console, computer, lamps) and a /bedroom command.",
+  "description": "Backdrop themes for the Claude Code desktop app. The first, bedroom, is a teenager's bedroom in the country, about 2004, drawn as one SVG with a lighting shader that follows the time of day and the weather. It has a hallway, a television that reacts to Claude, sound (off by default), things to click (television, VCR, console, computer, lamps) and a /bedroom command.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MIT",
+  "engines": {
+    "claude-code": ">=2.1.287"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "time": {
@@ -16,29 +19,43 @@
       "options": ["auto", "dusk", "evening", "night", "predawn", "dawn", "morning", "noon", "golden"],
       "default": "auto"
     },
+    "date": {
+      "type": "string",
+      "title": "Bedroom: date",
+      "description": "auto follows the real date; a season holds its day (spring 04-20, summer 07-15, autumn 10-15, winter 01-15). /bedroom date MM-DD holds any day.",
+      "options": ["auto", "spring", "summer", "autumn", "winter"],
+      "default": "auto"
+    },
     "sunrise": {
       "type": "string",
       "title": "Bedroom: sunrise",
-      "description": "Local time of sunrise, HH:MM from 04:00 to 09:00.",
-      "default": "06:30"
+      "description": "auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 04:00 to 09:00, held all year.",
+      "default": "auto"
     },
     "sunset": {
       "type": "string",
       "title": "Bedroom: sunset",
-      "description": "Local time of sunset, HH:MM from 16:00 to 22:00.",
-      "default": "20:30"
+      "description": "auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 16:00 to 22:00, held all year.",
+      "default": "auto"
     },
     "weather": {
       "type": "string",
       "title": "Bedroom: weather",
-      "description": "auto changes by itself every three hours and never picks a storm.",
-      "options": ["auto", "clear", "overcast", "rain", "downpour", "storm"],
+      "description": "random changes by itself every three hours and never picks a storm; auto is random until real weather is connected.",
+      "options": ["auto", "random", "clear", "overcast", "rain", "downpour", "storm"],
       "default": "auto"
+    },
+    "lightning": {
+      "type": "string",
+      "title": "Bedroom: lightning in a storm",
+      "description": "rare: about one strike in three minutes; normal: about two a minute; often: about three a minute.",
+      "options": ["rare", "normal", "often"],
+      "default": "normal"
     },
     "sound": {
       "type": "boolean",
       "title": "Bedroom: sound",
-      "description": "The television's click, cicadas, rain, a downpour, a storm and thunder. Off by default.",
+      "description": "Cicadas, crickets and katydids, rain, a downpour or a storm, thunder, the television and the room's things. Off by default.",
       "default": false
     },
     "soundPlayer": {
