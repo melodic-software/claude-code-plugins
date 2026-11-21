@@ -10,6 +10,7 @@ see the `--json` row of
 
 - [Read order](#read-order)
 - [Denials](#denials)
+- [Counted denials](#counted-denials)
 - [Document fields](#document-fields)
 - [Per-case fields](#per-case-fields)
 - [Per-run fields](#per-run-fields)
@@ -21,8 +22,9 @@ see the `--json` row of
 
 ## Read order
 
-1. `scripts/run-validity.py <json> --runs <n>`. Only `verdict: VALID` lets a number be reported;
-   on `verdict: INVALID`, report INVALID and its reasons. The command and its exits are in
+1. `scripts/run-validity.py <json> --runs <n>`. Only `verdict: VALID` lets a number be reported,
+   apart from what [Counted denials](#counted-denials) allows; on any other
+   `verdict: INVALID`, report INVALID and its reasons. The command and its exits are in
    [SKILL.md, Reading the delta](../SKILL.md#reading-the-delta). Add `--scaffolded` only when the
    eval ran with `--scaffold`. Without the flag, the `scaffold` check fails each case whose
    `case.yaml` sets `context.scaffold_script`; a `case.yaml` it cannot locate or read leaves that
@@ -190,6 +192,36 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   max-turns error after the graded Skill call. `probe tools` warns when a probe run could call
   Read, Glob, Grep or Agent, the tools the emitted README's run line removes, or its trace has no
   init tools list; when no probe run's list can be read, the check is UNCHECKED.
+
+## Counted denials
+
+A run with a denied tool call that no grader of its case reads is counted: it stays in the score,
+not excluded, and each such call is listed in the record the result is reported in. The gate
+still prints `verdict: INVALID` for these runs; this rule is how a report reads that verdict, and
+it overrides the FAIL rules in [Denials](#denials), the plugin-directory FAIL included, for such
+a call.
+
+- **When it applies**: the only failing check is `permission denials`, none of its calls is a
+  sandbox network denial, and no grader reads any denied call in the run's trace (its
+  `permission_denials` entries and denied tool results, not only the calls the verdict line
+  shows). Any other failing check, such as a run error, a skipped judge, `skill loaded` or
+  `programs started`, keeps the result INVALID.
+- **What reads a call**: a `tool_used` grader naming the call's tool, whose `input_match`, when
+  set, matches the call's input; a `tool_order` grader naming that tool in `before` or `after`; a
+  `regex` grader with `target: trace` whose pattern matches the call's input or result; an `llm`
+  grader with `focus: trace`; a `file_exists` grader on a path the denied call would have
+  written. A call one of these reads keeps the gate's verdict, since the denial may have decided
+  that grader's result.
+- **What the record lists**: for each counted call, the run, its arm, the tool, its target as the
+  gate's denial line prints it (redacted), and that no grader of its case reads it. Report beside
+  the score how many runs carried a counted denial.
+- **Why**: a denial no grader reads is not scored as a failure itself, while leaving its run out
+  keeps only the runs that happened not to make the refused call, such as a self-check or a read
+  of the plugin's own files through a compound shell command, so the counted runs stop being
+  typical of the skill's use. A denied plugin-file read is still a hub defect to fix. The sandbox
+  cannot be widened for one case: an `--allow-tools` grant applies to every case in the run
+  ([Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)). Do not add a case
+  line that steers the run away from the refused call; this rule covers it.
 
 ## Document fields
 

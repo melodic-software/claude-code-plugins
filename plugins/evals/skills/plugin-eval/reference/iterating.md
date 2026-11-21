@@ -5,8 +5,8 @@
 2. The usual first finding: a delta near zero with the case's `tool_used: Skill` grader failing means the model is not
   choosing the skill on natural phrasing. Fix the skill's `description`, not the case, and re-run
   that one case until the grader passes. A passing fired grader shows the trigger works; it is not
-  evidence that the skill improved, and any claim of a gain still needs a VALID run and its noise
-  report.
+  evidence that the skill improved, and any claim of a gain still needs a VALID run, or one
+  [Counted denials](reading-results.md#counted-denials) allows, and its noise report.
 3. That grader passing and a negative delta: suspect the judge before the plugin, since a small
   judge marks a correct answer wrong on formatting. Re-run with a larger `--judge-model` and
   tighten the rubric until it survives a rubric silent on form.

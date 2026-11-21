@@ -35,6 +35,8 @@
 import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
 
+export class LaneRunPending extends Error {}
+
 // Each lane's caller workflow, the only workflow whose runs bind its comments
 // (babysit_review_evidence.py LANES holds the same table).
 export const LANE_WORKFLOWS = Object.freeze({
@@ -283,7 +285,7 @@ export function laneChecker({ pr, getPull, getRun, listArtifacts, download, work
     // A run still going may not have uploaded the record of the attempt that
     // posted this comment yet.
     if (run.status !== "completed") {
-      throw new Error(`lane run ${binding.runId} is still running, so its comment record may not be uploaded yet`);
+      throw new LaneRunPending(`lane run ${binding.runId} is still running, so its comment record may not be uploaded yet`);
     }
     // Every attempt left a live record of this lane, and none lists it.
     if (attemptRecords(run, lane).every((name) => recorded.has(name))) {

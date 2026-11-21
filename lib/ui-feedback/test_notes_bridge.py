@@ -20,6 +20,7 @@ import time
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE.parent / "session-bridge"
@@ -245,11 +246,79 @@ class TestRealStack(NotesCase):
         self.hub.dev_origin = None
         self.assertNotIn("devOrigin", self.hub.identity())
 
+    def test_the_token_route_refuses_a_request_from_the_dev_origin(self):
+        cases = [{"Sec-Fetch-Site": "same-site"}] + [
+            {"Sec-Fetch-Site": site, "Origin": DEV}
+            for site in ("same-site", "cross-site", "same-origin")
+        ]
+        for headers in cases:
+            with self.subTest(headers=headers):
+                code, body = self.request(
+                    "GET", "/api/token", headers=headers, token=False
+                )
+                self.assertEqual(code, 403)
+                self.assertNotIn(self.hub.token, str(body))
+
+
+@unittest.skipUnless(shutil.which("node"), "harness-fence.mjs runs on node")
+class TestOneHostSpelling(NotesCase):
+    def fence_source(self, bridge_origin):
+        done = subprocess.run(
+            ["node", str(HERE / "harness-fence.mjs"), bridge_origin],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        )
+        name, value = done.stdout.strip().split(": ", 1)
+        self.assertEqual(name, "Content-Security-Policy")
+        directive, source = value.split(" ", 1)
+        self.assertEqual(directive, "frame-ancestors")
+        return source
+
+    def test_the_origin_check_the_frame_url_and_frame_ancestors_share_one_host(self):
+        host = (HERE / "host.html").read_text(encoding="utf-8")
+        self.assertIn("if (devOrigin && e.origin !== devOrigin) return;", host)
+        self.assertIn("if (devOrigin) frame.src = `${devOrigin}/`;", host)
+        self.assertEqual(
+            self.hub.hosts, {f"{h}:{self.port}" for h in nb.BRIDGE_HOSTS}
+        )
+        for dev in ("http://localhost:5173", "http://127.0.0.1:3000"):
+            with self.subTest(dev=dev):
+                self.hub.dev_origin = dev
+                _, body = self.request("GET", "/", token=False)
+                checked = frame_of(body)["data-dev-origin"]
+                frame_url = f"{checked}/"
+                bridge = nb.bridge_origin(self.port, dev)
+                source = self.fence_source(bridge)
+                self.assertEqual(source, bridge)
+                hosts = {urlsplit(u).hostname for u in (checked, frame_url, source)}
+                self.assertEqual(hosts, {urlsplit(dev).hostname})
+                spelled = {"Host": urlsplit(source).netloc}
+                self.assertEqual(
+                    self.request("GET", "/", headers=spelled, token=False)[0], 200
+                )
+
+    def test_with_no_dev_origin_the_bridge_origin_stays_on_127_0_0_1(self):
+        self.assertEqual(nb.bridge_origin(self.port), f"http://127.0.0.1:{self.port}")
+
 
 @unittest.skipUnless(shutil.which("node"), "dev-origin.mjs runs on node")
 class TestDevOriginAtStart(unittest.TestCase):
     def test_a_canonical_origin_is_taken(self):
         self.assertEqual(nb.dev_origin(DEV), DEV)
+        local = "http://127.0.0.1:3000"
+        self.assertEqual(nb.dev_origin(local), local)
+
+    def test_a_host_the_bridge_does_not_answer_on_is_refused_at_start(self):
+        for bad in ("http://app.test:3000", "https://localhost.example"):
+            for cmd in ("ensure-running", "serve"):
+                with self.subTest(bad=bad, cmd=cmd), contextlib.redirect_stderr(
+                    io.StringIO()
+                ) as err, self.assertRaises(SystemExit) as stop:
+                    nb.main(["--dir", "unused", cmd, "--dev-origin", bad])
+                self.assertEqual(stop.exception.code, 2)
+                self.assertIn("not on a host the bridge answers on", err.getvalue())
 
     def test_an_input_that_is_not_its_own_origin_is_refused_at_start(self):
         for bad in ("http://localhost:80", "http://localhost:5173/", "HTTP://localhost:5173"):
@@ -535,6 +604,7 @@ class TestLoop(unittest.TestCase):
             "note.schema.json",
             "controls.schema.json",
             "controls.js",
+            "dev-origin.mjs",
         ):
             shutil.copy(HERE / f, self.bin / f)
         (self.bin / "session-bridge.conf").write_text(
@@ -625,6 +695,39 @@ class TestLoop(unittest.TestCase):
         time.sleep(0.2)
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
+
+    @unittest.skipUnless(
+        shutil.which("node"), "dev-origin.mjs and harness-fence.mjs run on node"
+    )
+    def test_ensure_running_with_a_dev_origin_prints_the_origin_the_fence_names(self):
+        r = self.control("ensure-running", "--dev-origin", DEV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        started = json.loads(r.stdout)
+        port = self.session()["port"]
+        self.assertEqual(started["origin"], f"http://localhost:{port}")
+        self.assertEqual(started["url"], started["origin"] + "/")
+        fence = subprocess.run(
+            ["node", str(HERE / "harness-fence.mjs"), started["origin"]],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            check=True,
+        )
+        name, value = fence.stdout.strip().split(": ", 1)
+        self.assertEqual(name, "Content-Security-Policy")
+        directive, source = value.split(" ", 1)
+        self.assertEqual(directive, "frame-ancestors")
+        self.assertEqual(source, started["origin"])
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/", headers={"Host": urlsplit(source).netloc})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            checked = frame_of(resp.read())["data-dev-origin"]
+        finally:
+            conn.close()
+        hosts = {urlsplit(u).hostname for u in (checked, f"{checked}/", source)}
+        self.assertEqual(hosts, {urlsplit(DEV).hostname})
 
     def test_ensure_running_with_another_page_restarts_on_that_page(self):
         for name in ("first.html", "second.html"):
