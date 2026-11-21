@@ -414,9 +414,10 @@ function isExecutable(file, platform, fs = FS) {
 
 // which(name) -> absolute path of the first PATH match, or null. fs is injectable for tests.
 // rejectStoreAlias skips WindowsApps directories on win32, so no App Execution Alias matches.
-export function which(name, env = process.env, platform = process.platform, fs = FS, rejectStoreAlias = false) {
+export function which(name, env = process.env, platform = process.platform, fs = FS, rejectStoreAlias = false, runnable = false) {
   const pathVar = env.PATH ?? env.Path ?? "";
-  const exts = platform === "win32" ? ["", ...(env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)] : [""];
+  const pathExts = (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const exts = platform !== "win32" ? [""] : runnable ? pathExts : ["", ...pathExts];
   for (const dir of pathVar.split(path.delimiter)) {
     if (!dir || (rejectStoreAlias && platform === "win32" && isWindowsApps(dir))) continue;
     for (const ext of exts) {
@@ -444,7 +445,10 @@ function findLocalBin(rels, cwd, platform, fs) {
 // file is resolved against the caller's directory first, where which() found it
 // (a relative PATH entry gives a relative match), since the probe runs from HERE.
 function run(file, args, env) {
-  const r = spawnSync(path.resolve(file), args, {
+  const viaShell = process.platform === "win32" && /\.(bat|cmd)$/i.test(file);
+  const command = viaShell ? [path.resolve(file), ...args].map((a) => `"${a}"`).join(" ") : path.resolve(file);
+  const r = spawnSync(command, viaShell ? [] : args, {
+    shell: viaShell,
     cwd: HERE,
     encoding: "utf8",
     timeout: PROBE_TIMEOUT_MS,
@@ -454,9 +458,9 @@ function run(file, args, env) {
   return { ok: !r.error && r.status === 0, out: `${r.stdout ?? ""}${r.stderr ?? ""}`, stdout: r.stdout ?? "" };
 }
 
-function firstOnPath(names, ctx, rejectStoreAlias = false) {
+function firstOnPath(names, ctx, rejectStoreAlias = false, runnable = false) {
   for (const name of names) {
-    const found = which(name, ctx.env, ctx.platform, ctx.fs, rejectStoreAlias);
+    const found = which(name, ctx.env, ctx.platform, ctx.fs, rejectStoreAlias, runnable);
     if (found) return found;
   }
   return null;
@@ -752,7 +756,7 @@ async function cmdLatest(opts, ctx, out) {
   const { checkVersion } = await import("./cli-version-check.mjs");
   for (const entry of entries) {
     const d = entry.detect;
-    const found = firstOnPath(d.any, local, d.reject_store_alias) ?? findLocalBin(d.local_bin, local.cwd, local.platform, local.fs);
+    const found = firstOnPath(d.any, local, d.reject_store_alias, true) ?? findLocalBin(d.local_bin, local.cwd, local.platform, local.fs);
     const installed = found ? (new RegExp(d.version.pattern).exec(run(found, d.version.args).out)?.[1] ?? "") : "";
     const result = await checkVersion({ stateDir, cli: entry.id, installed, source: d.version.latest, fetch: ctx.fetch });
     if (result.message) out.stdout(result.message);
