@@ -369,6 +369,8 @@ DELETERS = {
     "write_text_atomic",
     "run_inventory",
     "close_clean_runs",
+    "sweep_orphaned_inventory_partials",
+    "prune_inventory_reports",
 }
 # The only function that may name a registry command or tool: `apply_plan` carries
 # the plan's owner claim, which `handoff_apply` has no parameter to receive.
