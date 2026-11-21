@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.2.1] - 2026-11-21
+
+### Changed
+
+- The pull-request evidence reference and the `evidence_record_fields` schema description drop domain-specific framing and the external guidance analogy; screenshots and recordings show synthetic data only.
+
 ## [13.2.0] - 2026-11-21
 
 ### Added

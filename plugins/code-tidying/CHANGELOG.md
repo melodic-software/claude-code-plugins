@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.0] - 2026-11-21
+
+### Changed
+
+- **Three skills no longer carry one stack's specifics.** `/code-tidying:audit-dead-code`'s evidence-pattern table describes each way code is reached without one language's idioms and drops its typical-language column. The skill now checks the registration conventions of the frameworks the candidate's own code uses. `/code-tidying:batch-simplify` groups files by the nearest build or package manifest without listing manifest names, and drops its shell-hook example. `/code-tidying:tidy-diff`'s generated-code residue cues describe each residue in plain terms instead of TypeScript and JavaScript syntax ([#17755](https://github.com/melodic-software/claude-code-plugins/issues/17755)).
+
+- **The `shell-tooling` and `docs-prose` tidy lanes no longer pick your check tools.** They verify with the commands your repository names in its ecosystem record, project instructions or CI config: lint, format-check and test commands for `shell-tooling`, and a markdown lint command for `docs-prose`, which still checks relative links. When none is named, the lane reports that check as unresolved and skips it. Before, the lanes ran `shellcheck`, `shfmt`, `Invoke-ScriptAnalyzer` and `npx markdownlint-cli2`. `shell-tooling` also no longer ships `tools/` and `scripts/` scope globs, a Bash and PowerShell watch-for list, or named research authorities. Its scope is now your repository's tracked Bash and PowerShell scripts, with test scripts soft-excluded, and a project lane sets anything narrower. A project lane's `Verification commands` section now replaces the bundled one as a whole, so `/code-tidying:setup check` no longer requires its entries under `### Bash` or `### PowerShell` headings ([#17759](https://github.com/melodic-software/claude-code-plugins/issues/17759)).
+
 ## [0.55.3] - 2026-11-21
 
 ### Changed

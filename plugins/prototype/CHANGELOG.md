@@ -3,6 +3,14 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0] - 2026-11-21
+
+### Changed
+
+- **A picked element, marked region or selected text stays drawn while you write its note.** The notes host asks the frame to hold the pick, so the outline stays on the page after pick mode ends and goes when the note is sent, saved as a draft or cancelled. A sent note then shows as its numbered marker and a draft as D1, D2 and so on ([#17800](https://github.com/melodic-software/claude-code-plugins/issues/17800)).
+
+- The sandbox rules in explore-directions and pressure-test state the general rule (sandbox keys only, synthetic records, no production or real data) without domain-specific wording.
+
 ## [0.39.0] - 2026-11-21
 
 ### Added
