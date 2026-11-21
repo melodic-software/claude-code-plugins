@@ -10,7 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { decide, LABEL, main, mayRelease, ownLines, RELEASES_PER_RUN } from "./release-eval-hold.mjs";
+import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
+import { decide, EVAL_GATED_LABEL, evalGatedIssue, holdDecision, LABEL, main, markers, mayRelease, ownLines, RELEASES_PER_RUN } from "./release-eval-hold.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
@@ -35,8 +36,9 @@ const comment = (body, { user = PERSON, at = "2026-11-06T11:00:00Z", app = null 
   body,
 });
 
-const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1" } = {}) => ({
+const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1", user = APP } = {}) => ({
   number: 7,
+  user,
   state: "open",
   head: { sha: head },
   body,
@@ -166,10 +168,13 @@ const outputFile = () => {
   return path;
 };
 
-function fakeGitHub(pulls,{ failDelete = [] } = {}) {
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls) } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: open } } } };
+    }
     if (method === "DELETE" && failDelete.some((n) => path.includes(`/issues/${n}/labels/`))) {
       throw new Error("HTTP 502");
     }
@@ -178,7 +183,7 @@ function fakeGitHub(pulls,{ failDelete = [] } = {}) {
       return [];
     }
     if (method === "GET" && path.startsWith(`/repos/${REPO}/issues?state=open&labels=${LABEL}`)) {
-      return Object.keys(pulls).map((n) => ({ number: Number(n), pull_request: {}, labels: [{ name: LABEL }] }));
+      return labeled.map((n) => ({ number: Number(n), pull_request: {}, labels: [{ name: LABEL }] }));
     }
     const match = /^\/repos\/[^/]+\/[^/]+\/(pulls|issues)\/([0-9]+)(\/[a-z]+)?/.exec(path);
     const entry = pulls[match?.[2]];
@@ -191,6 +196,8 @@ function fakeGitHub(pulls,{ failDelete = [] } = {}) {
   };
   return { github, calls };
 }
+
+const isWrite = (call) => call.method !== "GET" && call.path !== "/graphql";
 
 test("main comments with the record's URL and head, then removes the label, and logs the outcome", async () => {
   const record = recordComment();
@@ -213,7 +220,7 @@ test("main comments with the record's URL and head, then removes the label, and 
     console.log = log;
   }
   assert.equal(readFileSync(output, "utf8"), "released=7\n");
-  const writes = calls.filter((call) => call.method !== "GET");
+  const writes = calls.filter(isWrite);
   assert.deepEqual(
     writes.map((call) => `${call.method} ${call.path}`),
     [`POST /repos/${REPO}/issues/7/comments`, `DELETE /repos/${REPO}/issues/7/labels/${LABEL}`],
@@ -285,4 +292,94 @@ test("main releases at most RELEASES_PER_RUN a run", async () => {
   assert.equal(calls.filter((call) => call.method === "DELETE").length, RELEASES_PER_RUN);
   const list = calls.find((call) => call.path.startsWith(`/repos/${REPO}/issues?state=open&labels=${LABEL}`));
   assert.match(list.path, /[?&]sort=created&direction=asc(&|$)/, "the oldest held pull request is read first, so the cap never strands it");
+});
+
+test("the eval-gated label is report-outcome's", () => {
+  assert.equal(EVAL_GATED_LABEL, REPORT_OUTCOME_EVAL_GATED_LABEL);
+});
+
+const openNode = (number, { issueLabels = [EVAL_GATED_LABEL], labels = [], repo = REPO } = {}) => ({
+  number,
+  labels: { nodes: labels.map((name) => ({ name })) },
+  closingIssuesReferences: { nodes: [{ number: 1, repository: { nameWithOwner: repo }, labels: { nodes: issueLabels.map((name) => ({ name })) } }] },
+});
+
+test("evalGatedIssue names an eval-gated issue in this repository the pull request closes, and no other", () => {
+  assert.equal(evalGatedIssue(openNode(9), REPO), 1);
+  assert.equal(evalGatedIssue(openNode(9, { issueLabels: ["bug"] }), REPO), null);
+  assert.equal(evalGatedIssue(openNode(9, { repo: "someone/else" }), REPO), null);
+  assert.equal(evalGatedIssue({ number: 9 }, REPO), null);
+});
+
+const appHold = () => comment(`Held for the eval.\n\n${holdLine("eval")}`, { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+const decideHold = (overrides = {}) => holdDecision({ pull: pull({ labels: [], user: PERSON }), comments: [], humans: HUMANS, ...overrides });
+
+test("holdDecision holds a session-opened pull request with no eval record for its head", () => {
+  assert.deepEqual(decideHold(), { hold: true });
+  assert.deepEqual(decideHold({ comments: [recordComment(OLD)] }), { hold: true });
+  assert.deepEqual(decideHold({ comments: [recordComment(HEAD, { user: STRANGER })] }), { hold: true });
+  assert.deepEqual(decideHold({ comments: [comment(holdLine("eval"), { user: STRANGER })] }), { hold: true });
+});
+
+test("holdDecision leaves a pull request already held, held for eval before, recorded at its head, or no longer open", () => {
+  assert.equal(decideHold({ pull: pull({ user: PERSON }) }).reason, "labeled");
+  assert.equal(decideHold({ comments: [appHold()] }).reason, "held-before");
+  assert.equal(decideHold({ comments: [recordComment()] }).reason, "record-at-head");
+  assert.equal(decideHold({ pull: { ...pull({ labels: [] }), state: "closed" } }).reason, "not-open");
+  assert.equal(decideHold({ pull: { ...pull({ labels: [] }), merged_at: "2026-11-06T12:00:00Z" } }).reason, "not-open");
+});
+
+const quiet = async (fn) => {
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    return { code: await fn(), lines };
+  } finally {
+    console.log = log;
+  }
+};
+
+test("main holds a session-opened pull request that closes an eval-gated issue: the label, then the eval reason comment", async () => {
+  const { github, calls } = fakeGitHub({ 9: { pull: pull({ labels: [], user: PERSON }), comments: [] } }, { open: [openNode(9)], labeled: [] });
+  const { code, lines } = await quiet(() => main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED }, github }));
+  assert.equal(code, 0);
+  const writes = calls.filter(isWrite);
+  assert.deepEqual(
+    writes.map((call) => `${call.method} ${call.path}`),
+    [`POST /repos/${REPO}/issues/9/labels`, `POST /repos/${REPO}/issues/9/comments`],
+  );
+  assert.deepEqual(writes[0].body, { labels: [LABEL] });
+  assert.deepEqual(markers(writes[1].body.body, /^<!-- pr-hold reason=([a-z0-9-]+) -->$/), ["eval"]);
+  assert.match(writes[1].body.body, /#1\b/);
+  assert.ok(lines.includes("release-eval-hold: #9 held for eval: it closes eval-gated #1"));
+  assert.ok(lines.includes("release-eval-hold: eval-gated=1 holds-added=1 not-held=0 failed=0"));
+  const posted = comment(writes[1].body.body, { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  assert.equal(run({ comments: [posted, recordComment()] }).release, true);
+  assert.equal(run({ comments: [posted] }).reason, "no-record");
+});
+
+test("main leaves a lane-opened pull request as report-outcome held it, and reads nothing for one whose issue is not eval-gated", async () => {
+  const { github, calls } = fakeGitHub(
+    { 7: { pull: pull({ labels: [] }), comments: [appHold()] } },
+    { open: [openNode(7), openNode(8, { labels: [LABEL] }), openNode(10, { issueLabels: ["bug"] })], labeled: [] },
+  );
+  const { code, lines } = await quiet(() => main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED }, github }));
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter(isWrite), []);
+  assert.ok(lines.includes("release-eval-hold: #7 not held: held-before"));
+  assert.ok(!calls.some((call) => /\/(?:issues|pulls)\/(?:8|10)\b/.test(call.path)));
+});
+
+test("a failed read of the open pull requests fails the run and still runs the release", async () => {
+  const { github: inner, calls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), recordComment()] } });
+  const github = async (method, path, body) => {
+    if (path === "/graphql") {
+      throw new Error("HTTP 502");
+    }
+    return inner(method, path, body);
+  };
+  const { code } = await quiet(() => main({ env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED }, github }));
+  assert.equal(code, 1);
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.path === `/repos/${REPO}/issues/7/labels/${LABEL}`));
 });
