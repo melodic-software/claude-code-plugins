@@ -2210,7 +2210,7 @@ export function pullFromFile(path, pr, headSha) {
   }
 }
 
-export async function main(argv, env, { api, actions, log = (line) => console.log(line) } = {}) {
+export async function main(argv, env, { api, actions, plan, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
@@ -2246,7 +2246,7 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
       humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
-      ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),
+      ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files, plan }),
       earlierFailHeads,
       // Loaded only for such a round: it reads pr-verify's scripts.
       readFailNotes: async ({ heads, files }) => {
