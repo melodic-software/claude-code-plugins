@@ -149,9 +149,6 @@ function hw_hold(x: number): number {
   return smoothstep(-75, -25, x) * (1 - smoothstep(25, 75, x))
 }
 function pic(uv: vec2): vec4 {
-  let now_tv = state.at(vec2(0, 0)).x
-  let now_tape = state.at(vec2(4, 0)).x
-  let now_console = state.at(vec2(5, 0)).x
   let now_light = state.at(vec2(6, 0)).x
   let s = max(size.x / 1600, size.y / 1000)
   let at = vec2(vec2(800 + (uv.x - 0.5) * size.x / s, 500 + (0.5 - uv.y) * size.y / s))
@@ -242,17 +239,17 @@ function pic(uv: vec2): vec4 {
   if (at.y < 356.0) {
   if (abs(at.x - 1260.0) < 128.0 && at.y > 170.0) {
   let pt = sbox(at, vec2(1183, 275), vec2(45, 67), 2) + sbox(at, vec2(1317, 259), vec2(65, 83), 2)
-  m = mix(m, 0.1 + 0.02 * now_tv, pt)
-  dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.075 * now_tv), pt))
+  m = mix(m, 0.1 + 0.02 * state.at(vec2(0, 0)).x, pt)
+  dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * 0.075 * state.at(vec2(0, 0)).x), pt))
   }
   } else {
   // The dresser's left side from its top down, and the front lip of its top, lit from the television.
   if (at.y > 590.0 && at.x > 1066.0 && at.x < 1402.0) {
   let sd = 1 - smoothstep(1108, 1112, at.x)
   let top = sbox(at, vec2(1256, 608), vec2(146, 8.5), 1)
-  m = mix(mix(m, 0.14 + 0.05 * now_tv, sd), 0.17 + 0.12 * now_tv, top)
-  dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.05 * now_tv), sd))
-  dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.1 * now_tv), top))
+  m = mix(mix(m, 0.14 + 0.05 * state.at(vec2(0, 0)).x, sd), 0.17 + 0.12 * state.at(vec2(0, 0)).x, top)
+  dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * 0.05 * state.at(vec2(0, 0)).x), sd))
+  dc = vec3(mix(dc, vec3(0, 0.01, 0.035) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * 0.1 * state.at(vec2(0, 0)).x), top))
   }
   if (at.x > 1111.5 - 0.075 * (at.y - 430.0) && at.x < 1296.0 && at.y > 421.0 && at.y < 597.0) {
   m = 0.23
@@ -262,12 +259,12 @@ function pic(uv: vec2): vec4 {
   }
   if (abs(at.x - 1232.0) < 60.0 && at.y < 432.0) {
   let cat = 1 - smoothstep(0.95, 1.05, min(ell(at, vec2(1231, 425), vec2(49, 44)), ell(at, vec2(1254, 388), vec2(20, 21))))
-  m = mix(m, 0.07 + 0.05 * now_tv, cat)
+  m = mix(m, 0.07 + 0.05 * state.at(vec2(0, 0)).x, cat)
   }
   if (abs(at.x - 1411.75) < 12.0 && abs(at.y - 493.0) < 19.0) {
   let sw = sbox(at, vec2(1411.75, 493), vec2(10.75, 17.5), 0.7)
   m = mix(m, 0.12, sw)
-  dc = vec3(dc + vec3(0, 0.005, 0.06) * (sw * night * now_tv))
+  dc = vec3(dc + vec3(0, 0.005, 0.06) * (sw * night * state.at(vec2(0, 0)).x))
   }
   }
   if (at.y > 268.0) {
@@ -277,9 +274,9 @@ function pic(uv: vec2): vec4 {
   let qb = clamp(1 - dot(eb, eb), 0, 1)
   let glow = (0.199 * qa * qa + 0.102 * qb * qb) * (1 - smoothstep(560, 616, at.y))
   glow = glow + 0.25 * clamp(1 - abs(at.x - 1208) / 110, 0, 1) * clamp(1 - abs(at.y - 604) / 8, 0, 1)
-  glow = glow * (1 - 0.6 * step(1111.5 - 0.075 * (at.y - 430), at.x) * step(at.x, 1296) * step(421, at.y) * step(at.y, 597)) * now_tv
+  glow = glow * (1 - 0.6 * step(1111.5 - 0.075 * (at.y - 430), at.x) * step(at.x, 1296) * step(421, at.y) * step(at.y, 597)) * state.at(vec2(0, 0)).x
   m = m * (1 - glow)
-  dc = vec3(dc * (1 - glow) + tvl(now_tape, now_console, night * glow))
+  dc = vec3(dc * (1 - glow) + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * glow))
   }
   if (abs(at.x - 1207.5) < 76.0 && abs(at.y - 485.0) < 58.0) {
   let gd = vec2(abs(at - vec2(1207.5, 485)) - vec2(73, 55.5))
@@ -297,16 +294,16 @@ function pic(uv: vec2): vec4 {
   // they read as the neutral dark grey of the hand-drawn dusk room (fitted to it on the three rows of drawers).
   let du = clamp(1 - dt * 2, 0, 1) * (1 - 0.3 * smoothstep(1200, 1340, at.x))
   let dw = 1 - dt
-  let dg = (0.007 + 0.05 * dw * dw * (1 - 0.3 * smoothstep(1200, 1340, at.x))) * (1 - sd) * now_tv * (1 - 0.6 * max(now_tape, now_console))
-  m = 0.15 + now_tv * mix(-0.008, 0.05, sd)
-  dc = vec3((vec3(0, 0.004, 0.012) + vec3(0, 0.006, 0.023) * sd + vec3(dg)) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * now_tv * mix(0.01 + 0.085 * du * du, 0.05, sd)))
+  let dg = (0.007 + 0.05 * dw * dw * (1 - 0.3 * smoothstep(1200, 1340, at.x))) * (1 - sd) * state.at(vec2(0, 0)).x * (1 - 0.6 * max(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x))
+  m = 0.15 + state.at(vec2(0, 0)).x * mix(-0.008, 0.05, sd)
+  dc = vec3((vec3(0, 0.004, 0.012) + vec3(0, 0.006, 0.023) * sd + vec3(dg)) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * state.at(vec2(0, 0)).x * mix(0.01 + 0.085 * du * du, 0.05, sd)))
   }
   if (at.y > 900.0) {
   let ep = vec2((at - vec2(1230, 965)) * vec2(0.0042, 0.0143))
   let pool = clamp(1 - dot(ep, ep), 0, 1)
-  pool = 0.12 * pool * pool * now_tv
+  pool = 0.12 * pool * pool * state.at(vec2(0, 0)).x
   m = m * (1 - pool)
-  dc = vec3(dc * (1 - pool) + tvl(now_tape, now_console, night * pool))
+  dc = vec3(dc * (1 - pool) + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * pool))
   }
   }
   // The guitar leaning on the dresser: its headstock and neck along one slanted line, and its body.
@@ -318,8 +315,8 @@ function pic(uv: vec2): vec4 {
   let gh = vec2(abs(at - vec2(1071, 753)) - vec2(1, 16))
   let gb = min(length(max(gq, vec2(0))) + min(max(gq.x, gq.y), 0) - 18, length(max(gh, vec2(0))) + min(max(gh.x, gh.y), 0) - 8)
   let gm = max(neck, 1 - smoothstep(-1, 1, gb))
-  m = mix(m, 0.15 + 0.16 * now_tv, gm)
-  dc = vec3(mix(dc, vec3(0, 0.004, 0.012) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.05 * now_tv), gm))
+  m = mix(m, 0.15 + 0.16 * state.at(vec2(0, 0)).x, gm)
+  dc = vec3(mix(dc, vec3(0, 0.004, 0.012) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * 0.05 * state.at(vec2(0, 0)).x), gm))
   }
   } else {
   // The door: its panels kept, a little of the television's light, and a warm strip of hallway light in the gap.
@@ -327,7 +324,7 @@ function pic(uv: vec2): vec4 {
   m = 0.33
   let el = vec2((at - vec2(1208, 485)) * 0.00179)
   let lq = clamp(1 - dot(el, el), 0, 1)
-  dc = vec3(vec3(0, 0.012, 0.045) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(now_tape, now_console, night * 0.13 * lq * lq * now_tv))
+  dc = vec3(vec3(0, 0.012, 0.045) * night + vec3(0.36, 0.2, 0.06) * wf + tvl(state.at(vec2(4, 0)).x, state.at(vec2(5, 0)).x, night * 0.13 * lq * lq * state.at(vec2(0, 0)).x))
   if (abs(at.x - 1460.5) < 12.0 && at.y > 234.0) {
   let hs = sbox(at, vec2(1460.5, 545), vec2(10.5, 311), 1)
   let wl = smoothstep(560, 760, at.y)
@@ -372,6 +369,9 @@ dc = vec3(dc + vec3(0.13, 0.078, 0.028) * (hw_fon * 1.5 * hw_udim * hw_under))
   }
   acc = vec4(vec4(dc, fade * (1 - m * state.at(vec2(12, 0)).y)))
   }
+  // The things left of the room's middle, in one box (x up to 569, y 333.5 to 641) so the boxes inside it are tested
+  // only there: each box test is work at every point it is asked.
+  if (at.x < 569.0 && at.y > 333.5 && at.y < 641.0) {
   // The window: the glass and no more, for the pieces' snippets.
   if (abs(at.x - 397.5) < 106.6 && at.y > 333.5 && at.y < 573.0) {
   let w_pane = win_pane(at)
@@ -481,13 +481,39 @@ acc = vec4(vec4(acc.rgb * (1 - wx_streak) + (wx_cc * 1.5 + vec3(0.12, 0.13, 0.16
 let wx_f = 0.4 * state.at(vec2(13, 0)).w * w_sky * wx_glass
 acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1 - wx_f) + wx_f))
   }
+  if (at.x < 345.0 && abs(at.y - 568.0) < 54.0) {
+  let dark = 1 - state.at(vec2(2, 0)).x
+  let m = vec2(abs(at - vec2(270, 557)) - vec2(56, 41))
+  let screen = (1 - smoothstep(-4, 0.5, max(m.x, m.y))) * 0.78 * dark
+  acc = vec4(vec4(acc.rgb * (1 - screen) + vec3(0.03, 0.035, 0.035) * screen, acc.a * (1 - screen) + screen))
+  let led = (1 - smoothstep(0.6, 1, ell(at, vec2(319, 616), vec2(4.5, 4.5)))) * 0.85 * dark
+  acc = vec4(vec4(acc.rgb * (1 - led) + vec3(0.05, 0.06, 0.05) * led, acc.a * (1 - led) + led))
+  }
+  if (abs(at.x - 524.0) < 45.0 && abs(at.y - 589.0) < 52.0) {
+  let lit = state.at(vec2(3, 0)).x * (1 - 0.65 * step(0.4, state.at(vec2(3, 0)).x) * step(state.at(vec2(3, 0)).x, 0.6)) * state.at(vec2(12, 0)).z
+  let w1 = 0.2 * pow(clamp(1 - ell(at, vec2(524, 593), vec2(38, 46)), 0, 1), 1.5) * lit
+  acc = vec4(vec4(acc.rgb * (1 - w1) + vec3(1, 0.66, 0.4) * w1, acc.a * (1 - w1) + w1))
+  let w2 = 0.26 * pow(clamp(1 - ell(at, vec2(521, 567), vec2(32, 26)), 0, 1), 1.5) * lit
+  acc = vec4(vec4(acc.rgb * (1 - w2) + vec3(1, 0.69, 0.44) * w2, acc.a * (1 - w2) + w2))
+  let q = vec2(at - vec2(519.6, 564))
+  let turned = vec2(vec2(q.x * 0.755 + q.y * 0.656, q.y * 0.755 - q.x * 0.656))
+  let ring = length(turned / vec2(15, 5.5))
+  let mouth = (1 - smoothstep(0.7, 1, ring)) * 0.95 * lit
+  acc = vec4(vec4(acc.rgb * (1 - mouth) + mix(vec3(1, 0.86, 0.62), vec3(0.98, 0.6, 0.28), clamp(ring * ring, 0, 1)) * mouth, acc.a * (1 - mouth) + mouth))
+  let ledge = (1 - smoothstep(538, 552, at.x)) * smoothstep(526, 529, at.x) * smoothstep(626.5, 628, at.y) * (1 - smoothstep(633, 635, at.y)) * 0.45 * lit
+  acc = vec4(vec4(acc.rgb * (1 - ledge) + vec3(1, 0.85, 0.65) * ledge, acc.a * (1 - ledge) + ledge))
+  }
+  }
+  // The television, the lava lamp and the wall switch, the VCR clock and the console's light, in one box (x 1121 to
+  // 1461, y 417 to 642) for the same reason.
+  if (at.x > 1121.0 && at.x < 1461.0 && at.y > 417.0 && at.y < 642.0) {
   let c = vec2(at - vec2(1207.5, 485))
   // The television: its cover, and under it the tape and the console, gathered in tv and laid over the dusk.
   let tv = vec4(vec4(0))
   if (abs(c.x) < 82.0 && abs(c.y) < 60.0) {
   let d = vec2(abs(c) - vec2(73, 55.5))
   let glass = 1 - smoothstep(-2, 1.5, max(d.x, d.y))
-  let p = 1 - now_tv
+  let p = 1 - state.at(vec2(0, 0)).x
   let squash = clamp(p * 2, 0, 1)
   let shrink = clamp(p * 2 - 1, 0, 1)
   let h = 57 * (1 - squash) * (1 - squash)
@@ -512,7 +538,7 @@ acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1
   let tqx = max(abs(c.x) - 62.5, 0)
   let tqy = max(abs(c.y) - 45, 0)
   let tlip = sqrt(tqx * tqx + tqy * tqy) - 11
-  let tk = now_tape * (1 - smoothstep(-0.8, 0.4, tlip))
+  let tk = state.at(vec2(4, 0)).x * (1 - smoothstep(-0.8, 0.4, tlip))
   let tb = 1.5 / (55.5 * s)
   let tu = vec2(vec2(c.x, -c.y) / 55.5)
   // The tracking band rolls down the picture once every 21 seconds and bends the lines it crosses.
@@ -606,7 +632,7 @@ acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1
   let k_sd = length(max(k_e, vec2(0))) + min(max(k_e.x, k_e.y), 0) - 9
   let k_gm = 1 - smoothstep(-0.7, 0.5, k_sd)
   let k_ce = vec2(abs(at - vec2(1208, 480)) - vec2(44, 8))
-  let k_on = clamp(now_console * (1 - now_tape), 0, 1)
+  let k_on = clamp(state.at(vec2(5, 0)).x * (1 - state.at(vec2(4, 0)).x), 0, 1)
   let k_w = k_on * k_gm
   let k_t = state.at(vec2(5, 1)).x
   let k_pic = vec3(vec3(0))
@@ -678,7 +704,7 @@ acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1
   k_cb = vec3(mix(k_cb, vec3(0.91, 0.93, 1), 0.12 * clamp(1 - k_bt, 0, 1)))
   k_cb = vec3(k_cb * 0.81 + vec3(0.2, 0.329, 0.949) * 0.19 + vec3(0.0064, 0.0078, 0.013))
   con = vec4(vec4(con.rgb + k_cb * k_m * (1 - k_w), con.a + k_m * (1 - k_w)))
-  let k_hole = k_mh * k_on * now_tv * smoothstep(2.6, 3.6, k_t)
+  let k_hole = k_mh * k_on * state.at(vec2(0, 0)).x * smoothstep(2.6, 3.6, k_t)
   con = vec4(con * (1 - k_hole) + vec4(0, 0, 0, 0.15 * k_hole))
   }
   if (abs(c.y) < 56.0) {
@@ -696,7 +722,7 @@ acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1
   let k_band = k_w * (0.21 * (1 - abs(at.y - k_ty) / 11) + 0.12 * exp(-k_s1 * k_s1) * smoothstep(0.2, 0.8, sin(at.x * 0.11 + 1.7) * sin(at.x * 0.037 + 0.4)))
   con = vec4(vec4(vec3(0.847, 0.878, 1) * k_band + con.rgb * (1 - k_band), k_band + con.a * (1 - k_band)))
   }
-  let k_lo = k_on * now_tv * (1 - k_gm)
+  let k_lo = k_on * state.at(vec2(0, 0)).x * (1 - k_gm)
   if (k_lo > 0.001) {
   let k_le = vec2(abs(c) - vec2(63, 45.5))
   let k_ls = length(max(k_le, vec2(0))) + min(max(k_le.x, k_le.y), 0) - 12
@@ -714,7 +740,7 @@ acc = vec4(vec4(acc.rgb * (1 - wx_f) + vec3(0.75, 0.80, 0.95) * wx_f, acc.a * (1
   acc = vec4(vec4(acc.rgb * (1 - tv.a) + tv.rgb, acc.a * (1 - tv.a) + tv.a))
 // While Claude works, a black layer of 2.5 to 5% that drifts with two slow waves: the screen only darkens, softly.
 let ct_d = vec2(abs(c) - vec2(73, 55.5))
-let ct_glass = (1 - smoothstep(-2, 1.5, max(ct_d.x, ct_d.y))) * now_tv
+let ct_glass = (1 - smoothstep(-2, 1.5, max(ct_d.x, ct_d.y))) * state.at(vec2(0, 0)).x
 let ct_a = ct_glass * state.at(vec2(14, 0)).x * (0.025 + 0.0125 * (1 + sin(time * 2.9) * sin(time * 1.7 + 1.3)))
 acc = vec4(vec4(acc.rgb * (1 - ct_a), acc.a * (1 - ct_a) + ct_a))
 // As the context fills, a second soft band rolls down the glass once every 13 s, streaked along its length, at up to 8%.
@@ -775,28 +801,6 @@ acc = vec4(vec4(acc.rgb * (1 - ct_b) + vec3(0.82, 0.86, 0.96) * ct_b, acc.a * (1
   let swc = vec3(mix(mix(vec3(0.082, 0.09, 0.188), vec3(0.047, 0.059, 0.153), step(488.4, at.y)), vec3(0.15, 0.16, 0.27) - vec3(0.08) * smoothstep(494, 500.5, at.y), swl))
   acc = vec4(vec4(acc.rgb * (1 - swp) + swc * swp, acc.a * (1 - swp) + swp))
   }
-  if (at.x < 345.0 && abs(at.y - 568.0) < 54.0) {
-  let dark = 1 - state.at(vec2(2, 0)).x
-  let m = vec2(abs(at - vec2(270, 557)) - vec2(56, 41))
-  let screen = (1 - smoothstep(-4, 0.5, max(m.x, m.y))) * 0.78 * dark
-  acc = vec4(vec4(acc.rgb * (1 - screen) + vec3(0.03, 0.035, 0.035) * screen, acc.a * (1 - screen) + screen))
-  let led = (1 - smoothstep(0.6, 1, ell(at, vec2(319, 616), vec2(4.5, 4.5)))) * 0.85 * dark
-  acc = vec4(vec4(acc.rgb * (1 - led) + vec3(0.05, 0.06, 0.05) * led, acc.a * (1 - led) + led))
-  }
-  if (abs(at.x - 524.0) < 45.0 && abs(at.y - 589.0) < 52.0) {
-  let lit = state.at(vec2(3, 0)).x * (1 - 0.65 * step(0.4, state.at(vec2(3, 0)).x) * step(state.at(vec2(3, 0)).x, 0.6)) * state.at(vec2(12, 0)).z
-  let w1 = 0.2 * pow(clamp(1 - ell(at, vec2(524, 593), vec2(38, 46)), 0, 1), 1.5) * lit
-  acc = vec4(vec4(acc.rgb * (1 - w1) + vec3(1, 0.66, 0.4) * w1, acc.a * (1 - w1) + w1))
-  let w2 = 0.26 * pow(clamp(1 - ell(at, vec2(521, 567), vec2(32, 26)), 0, 1), 1.5) * lit
-  acc = vec4(vec4(acc.rgb * (1 - w2) + vec3(1, 0.69, 0.44) * w2, acc.a * (1 - w2) + w2))
-  let q = vec2(at - vec2(519.6, 564))
-  let turned = vec2(vec2(q.x * 0.755 + q.y * 0.656, q.y * 0.755 - q.x * 0.656))
-  let ring = length(turned / vec2(15, 5.5))
-  let mouth = (1 - smoothstep(0.7, 1, ring)) * 0.95 * lit
-  acc = vec4(vec4(acc.rgb * (1 - mouth) + mix(vec3(1, 0.86, 0.62), vec3(0.98, 0.6, 0.28), clamp(ring * ring, 0, 1)) * mouth, acc.a * (1 - mouth) + mouth))
-  let ledge = (1 - smoothstep(538, 552, at.x)) * smoothstep(526, 529, at.x) * smoothstep(626.5, 628, at.y) * (1 - smoothstep(633, 635, at.y)) * 0.45 * lit
-  acc = vec4(vec4(acc.rgb * (1 - ledge) + vec3(1, 0.85, 0.65) * ledge, acc.a * (1 - ledge) + ledge))
-  }
   if (max(abs(at.x - 1227.0) / 16.0, abs(at.y - 591.5) / 7.0) < 1.0) {
   let r = vec2(abs(at - vec2(1227, 591.5)) - vec2(13.8, 5.4))
   let face = 1 - smoothstep(-0.4, 0.4, max(r.x, r.y))
@@ -824,8 +828,9 @@ acc = vec4(vec4(acc.rgb * (1 - ct_b) + vec3(0.82, 0.86, 0.96) * ct_b, acc.a * (1
   // The console's power light: a small green lamp on its front, lit while the console is on.
   if (max(abs(at.x - 1332.6), abs(at.y - 507.6)) < 5.0) {
   let cpd = length(at - vec2(1332.6, 507.6))
-  let cpg = clamp((0.5 * exp(-cpd * cpd / 5) + 1 - smoothstep(0.5, 0.9, cpd)) * now_console, 0, 1)
+  let cpg = clamp((0.5 * exp(-cpd * cpd / 5) + 1 - smoothstep(0.5, 0.9, cpd)) * state.at(vec2(5, 0)).x, 0, 1)
   acc = vec4(vec4(acc.rgb * (1 - cpg) + vec3(0.55, 1, 0.72) * cpg, acc.a * (1 - cpg) + cpg))
+  }
   }
   return vec4(acc)
 }
