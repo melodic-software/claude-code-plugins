@@ -229,7 +229,7 @@ const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
       var target = document.getElementById(id);
       var at = panes.indexOf(target);
       if (at < 0) { return false; }
-      panes.forEach(function (pane) { pane.hidden = pane !== target; });
+      panes.forEach(function (pane) { if (pane === target) { pane.removeAttribute("hidden"); } else { pane.setAttribute("hidden", "until-found"); } });
       var pending = target.querySelectorAll("pre.mermaid:not([data-processed])");
       if (window.mermaid && pending.length) { mermaid.run({ nodes: Array.prototype.slice.call(pending) }); }
       top.hidden = target !== topCard;
@@ -241,7 +241,7 @@ const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
       });
       document.querySelectorAll("[data-step]").forEach(function (button) {
         var to = at + Number(button.getAttribute("data-step"));
-        button.disabled = to < 0 || to >= panes.length;
+        button.disabled = to < 0 || to >= cards.length;
       });
       current = target;
       var box = main.getBoundingClientRect();
@@ -275,13 +275,17 @@ const INLINE_SCRIPT = `${CHROME_SCRIPT}  if (window.mermaid) {
       }
       var step = event.target.closest("[data-step]");
       if (step) {
-        var next = panes[panes.indexOf(current) + Number(step.getAttribute("data-step"))];
-        if (next && show(next.id, "step")) { history.replaceState(null, "", "#" + next.id); }
+        var next = cards[panes.indexOf(current) + Number(step.getAttribute("data-step"))];
+        if (next && show(next.id, "step")) { history.pushState(null, "", "#" + next.id); }
         return;
       }
       var figure = event.target.closest("[data-enlarge]");
       if (figure) { enlarge(figure); }
     });
+    document.addEventListener("beforematch", function (event) {
+      var pane = panes.filter(function (candidate) { return candidate.contains(event.target); })[0];
+      if (pane && show(pane.id, "")) { history.replaceState(null, "", "#" + pane.id); }
+    }, true);
     window.addEventListener("popstate", function () { show(location.hash.slice(1) || topCard.id, ""); });
     show(location.hash && document.getElementById(location.hash.slice(1)) ? location.hash.slice(1) : topCard.id, "");
   })();
@@ -295,7 +299,7 @@ const SCRIPTS = [
 const REPORT_STYLE = `
   :root { --amber: #B45309; --muted: #6B6A64; }
   body { max-width: 1360px; }
-  [hidden] { display: none !important; }
+  [hidden]:not([hidden=until-found]) { display: none !important; }
   h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
   h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 .25rem; }
   header p { margin: .2rem 0; }
@@ -317,10 +321,14 @@ const REPORT_STYLE = `
   .reader-item[aria-current=true] { background: var(--panel); border-color: var(--fg); }
   .reader-title { font-weight: 600; font-size: .9rem; overflow-wrap: anywhere; }
   .reader-meta { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .78rem; }
-  .reader-solution { font-size: .8rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .reader-problem, .reader-solution { font-size: .8rem; }
+  .reader-solution { color: var(--muted); }
+  .reader-label { font-weight: 600; }
   .top-chip { font-weight: 600; border: 1px solid var(--fg); border-radius: 999px; padding: 0 .45rem; }
   .reader-kept { display: block; margin-top: 1rem; font-weight: 600; }
-  .reader-main { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .reader-main { min-width: 0; }
+  .reader-main > :not([hidden]) { margin-bottom: 1rem; }
+  .reader-main > [hidden=until-found] { margin: 0; padding: 0; border: 0; }
   .reader-step { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
   .reader-step button, .zoom-head button, .zoom-open { font: inherit; font-size: .9rem; padding: .35rem .8rem; border: 1px solid var(--muted); border-radius: 6px; background: transparent; color: var(--fg); cursor: pointer; }
   .reader-step button:disabled { opacity: .45; cursor: default; }
@@ -339,9 +347,8 @@ const REPORT_STYLE = `
   .badge-speculative { border-color: var(--muted); }
   .tag { font-family: var(--mono); font-size: .85rem; border: 1px solid var(--muted); border-radius: 6px; padding: 0 .4rem; }
   .adr { border-left: 4px solid var(--amber); padding-left: .75rem; }
-  .panels { display: flex; flex-wrap: wrap; gap: 1rem; }
-  figure { margin: 0; flex: 1 1 18rem; min-width: 0; cursor: zoom-in; }
-  figure.graph { flex: 1 1 auto; }
+  .panels { display: flex; flex-direction: column; gap: 1rem; }
+  figure { margin: 0; min-width: 0; cursor: zoom-in; }
   figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
   .zoom-open { font-size: .8rem; padding: .1rem .5rem; cursor: zoom-in; }
   .paper { background: var(--white); color: var(--slate); border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; width: fit-content; max-width: 100%; box-sizing: border-box; }
@@ -368,9 +375,13 @@ const REPORT_STYLE = `
   .zoom-body .paper { width: auto; }
   .zoom-body svg { width: 100% !important; max-width: none !important; height: auto !important; max-height: calc(92vh - 9rem); }
   .zoom-body .box, .zoom-body .nest { font-size: 1.15rem; }
+  @media (min-width: 901px) {
+    .back { display: none; }
+  }
   @media (max-width: 900px) {
     .reader { grid-template-columns: minmax(0, 1fr); }
-    .reader-nav { position: static; max-height: none; overflow: visible; }
+    .reader-nav { position: static; max-height: none; overflow: visible; order: 2; }
+    .zoom-body svg { width: auto !important; max-height: none; }
   }
   @media (max-width: 600px) {
     .card, .top { padding: 1rem; }
@@ -421,13 +432,13 @@ function figure(side, panelData, candidate) {
   return `<figure data-enlarge${isMermaid(panelData) ? ' class="graph"' : ""}><figcaption><span>${esc(caption)}</span><button type="button" class="zoom-open" aria-label="${esc(enlarge)}">Enlarge</button></figcaption>${drawn(panelData)}</figure>`;
 }
 
-function card(candidate, titles, shown) {
+function card(candidate, titles, isTop) {
   const [word, , badge] = bandOf(candidate.recommendation);
   const p = (value) => `<p class="v">${esc(value)}</p>`;
   return [
-    `<article class="card" id="${cardId(candidate.id)}"${shown ? "" : " hidden"} tabindex="-1">`,
+    `<article class="card" id="${cardId(candidate.id)}"${isTop ? "" : ' hidden="until-found"'} tabindex="-1">`,
     `<h3 class="v" data-part="title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</h3>`,
-    `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span></p>`,
+    `<p class="badges" data-part="badges"><span class="badge ${badge}">${esc(word)}</span><span class="tag">${esc(candidate.category)}</span>${isTop ? '<span class="top-chip">Top recommendation</span>' : ""}</p>`,
     part("problem", "Problem", p(candidate.problem)),
     part("solution", "Solution", p(candidate.solution)),
     part("diagram", "Before and after", `<div class="panels">${figure("Before", candidate.diagram.before, candidate)}${figure("After", candidate.diagram.after, candidate)}</div>`),
@@ -476,7 +487,7 @@ export function renderDeepening(report) {
   const top = report.candidates.find((candidate) => candidate.id === report.top);
   const tally = BANDS.map(([word]) => `${report.candidates.filter((candidate) => candidate.recommendation === word).length} ${word}`).join(", ");
   const order = BANDS.flatMap(([word]) => report.candidates.filter((candidate) => candidate.recommendation === word).sort((a, b) => (b.id === top.id) - (a.id === top.id)));
-  const item = (candidate) => `<li><a class="reader-item" href="#${cardId(candidate.id)}"${candidate.id === top.id ? ' aria-current="true"' : ""}><span class="reader-title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</span><span class="reader-meta"><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span><span>${esc(verifiedWord(candidate.verified))}</span>${candidate.id === top.id ? '<span class="top-chip">Top recommendation</span>' : ""}</span><span class="reader-solution">${esc(candidate.solution)}</span></a></li>`;
+  const item = (candidate) => `<li><a class="reader-item" href="#${cardId(candidate.id)}"${candidate.id === top.id ? ' aria-current="true"' : ""}><span class="reader-title"><span class="cid">${esc(shortId(candidate.id))}</span> ${esc(candidate.title)}</span><span class="reader-meta"><span class="badge ${bandOf(candidate.recommendation)[2]}">${esc(candidate.recommendation)}</span><span>Verified: ${esc(verifiedWord(candidate.verified))}</span><span>${candidate.files.length} ${candidate.files.length === 1 ? "file" : "files"}</span>${candidate.dependsOn === null ? "" : `<span>Depends on ${esc(shortId(candidate.dependsOn))}</span>`}${candidate.id === top.id ? '<span class="top-chip">Top recommendation</span>' : ""}</span><span class="reader-problem"><span class="reader-label">Problem:</span> ${esc(candidate.problem)}</span><span class="reader-solution"><span class="reader-label">Solution:</span> ${esc(candidate.solution)}</span></a></li>`;
   const sidebar = BANDS.flatMap(([word]) => {
     const cards = order.filter((candidate) => candidate.recommendation === word);
     return cards.length ? [`<li class="reader-band">${esc(word)} · ${cards.length}</li>`, ...cards.map(item)] : [];
@@ -526,11 +537,11 @@ ${report.kept.length ? `<a class="reader-kept" href="#kept">Looked at, no change
 <div class="reader-main" id="candidates">
 ${step(true)}
 <section id="top-recommendation" class="top">
-<h2>Top recommendation</h2>
+<h2>Top recommendation: ${esc(shortId(top.id))} ${esc(top.title)}</h2>
 <p>${esc(report.topWhy)}</p>${topDependents.length ? `<div><h4>Built on it</h4><ul class="built-on">${topDependents.join("")}</ul></div>` : ""}
 </section>
 ${order.map((candidate) => card(candidate, titles, candidate.id === top.id)).join("\n")}
-${report.kept.length ? `<section id="kept" hidden tabindex="-1">
+${report.kept.length ? `<section id="kept" hidden="until-found" tabindex="-1">
 <h2>Looked at, no change</h2>
 <p>The scan checked these and concluded the code should stay as it is. They are not candidates.</p>
 ${report.kept.map((item) => `<div class="kept-item"><h3>${esc(item.title)}</h3><p>${esc(item.reason)}</p><ul class="files">${item.files.map((file) => `<li>${esc(file)}</li>`).join("")}</ul></div>`).join("\n")}

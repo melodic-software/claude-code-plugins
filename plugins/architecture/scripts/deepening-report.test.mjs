@@ -203,7 +203,7 @@ test("a graph with edges goes to Mermaid beside its text fallback; one with no e
 
 const sidebar = (page) => page.slice(page.indexOf('<nav id="index"'), page.indexOf("</nav>", page.indexOf('<nav id="index"')));
 const sidebarTargets = (page) => [...sidebar(page).matchAll(/href="#([a-z0-9-]+)"/g)].map((match) => match[1]);
-const shownCards = (page) => [...page.matchAll(/<article class="card" id="([a-z0-9-]+)"( hidden)?/g)].filter((match) => !match[2]).map((match) => match[1]);
+const shownCards = (page) => [...page.matchAll(/<article class="card" id="([a-z0-9-]+)"( hidden="until-found")?/g)].filter((match) => !match[2]).map((match) => match[1]);
 
 test("the sidebar item carries the badge, the Verified word and the solution, and the card links the candidate it depends on", () => {
   const first = candidate({ verified: "corrected: two call sites, not five" });
@@ -213,8 +213,12 @@ test("the sidebar item carries the badge, the Verified word and the solution, an
   assert.match(item, /INVOICE-EXPORT/);
   assert.match(item, /Fold the invoice export steps into one module/);
   assert.match(item, /<span class="badge badge-strong">Strong<\/span>/);
-  assert.match(item, /corrected/);
-  assert.match(item, /One export module owns loading, formatting and writing an invoice\./);
+  assert.match(item, /Verified: corrected/);
+  assert.match(item, /2 files/);
+  assert.match(item, /Problem:<\/span> Three call sites repeat the load, format, write sequence\./);
+  assert.match(item, /Solution:<\/span> One export module owns loading, formatting and writing an invoice\./);
+  assert.doesNotMatch(item, /Depends on/);
+  assert.match(/<a class="reader-item"[^>]*href="#c-tax-rounding"[^>]*>([\s\S]*?)<\/a>/.exec(sidebar(page))[1], /Depends on INVOICE-EXPORT/);
   assert.match(page, /data-part="depends-on"><h4>Depends on<\/h4><p class="v"><a href="#c-invoice-export">Fold the invoice export steps into one module<\/a><\/p>/);
 });
 
@@ -236,7 +240,9 @@ test("the page opens on the top recommendation with its reason and shows one car
   const page = renderDeepening(parseDeepening(fixture));
   assert.equal(page.split('<article class="card"').length - 1, 23);
   assert.deepEqual(shownCards(page), ["c-s1"]);
-  assert.match(page, /<section id="top-recommendation" class="top">[\s\S]*?Two parsers already read the same ledger differently/);
+  assert.match(page, /<section id="top-recommendation" class="top">\n<h2>Top recommendation: S1 [^<]+<\/h2>\n<p>Two parsers already read the same ledger differently/);
+  assert.match(page, /<article class="card" id="c-s1"[\s\S]*?<p class="badges" data-part="badges">[^\n]*<span class="top-chip">Top recommendation<\/span><\/p>/);
+  assert.equal(page.split('<span class="top-chip">').length - 1, 2);
   assert.equal(sidebarTargets(page).filter((target) => target.startsWith("c-")).length, 23);
   assert.equal(sidebarTargets(page)[0], "c-s1");
 });
@@ -272,7 +278,7 @@ test("a finding kept as it is gets its own section, reached from the sidebar, ne
   assert.match(page, /<a href="#kept">looked at, no change: 1<\/a>/);
   assert.equal(sidebarTargets(page).at(-1), "kept");
   assert.match(sidebar(page), /<a class="reader-kept" href="#kept">Looked at, no change · 1<\/a>/);
-  assert.match(page, /<section id="kept" hidden tabindex="-1">\n<h2>Looked at, no change<\/h2>/);
+  assert.match(page, /<section id="kept" hidden="until-found" tabindex="-1">\n<h2>Looked at, no change<\/h2>/);
   assert.match(page, /<div class="kept-item"><h3>Leave the export copies alone<\/h3><p>Each copy has one reader and a drift check.<\/p><ul class="files"><li>billing\/a.md<\/li><li>billing\/b.md<\/li><\/ul><\/div>/);
   assert.equal(page.split("<article class=\"card\"").length - 1, record().candidates.length);
   assert.ok(!sidebar(page).includes("Leave the export copies alone"));
