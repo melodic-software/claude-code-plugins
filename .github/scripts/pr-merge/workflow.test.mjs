@@ -892,6 +892,18 @@ test("the arm step hands the room's post-merge check the attempts kept beside it
   assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
 });
 
+test("enable-auto-merge reads the kept demotion recoveries, copied out before the report directory is cleared and back beside a fresh report", () => {
+  const eam = job("enable-auto-merge");
+  const keep = /- name: Keep the last sweep's report only while nothing it read has moved\n([\s\S]*?)(?=\n {6}- name: )/.exec(eam)[1];
+  const arm = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(eam)[1];
+  assert.match(keep, /\n {10}BABYSIT_DEMOTION_RECOVERIES: \$\{\{ runner\.temp \}\}\/demotion-recoveries\.json\n/);
+  const out = keep.indexOf('cp "$last/demotion-recoveries.json" "$RUNNER_TEMP/demotion-recoveries.json"');
+  assert.ok(out >= 0 && out < keep.indexOf('rm -rf "${last:?}"'), "copied out before the clear");
+  assert.ok(keep.includes('cp "$RUNNER_TEMP/demotion-recoveries.json" "$last/demotion-recoveries.json"'), "copied back beside a fresh report");
+  assert.match(arm, /\n {10}BABYSIT_DEMOTION_RECOVERIES: \$\{\{ runner\.temp \}\}\/post-merge\/demotion-recoveries\.json\n/);
+  assert.ok(!eam.includes("BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED"), "enable-auto-merge only reads");
+});
+
 // The merge job's own check, run when dispatch-post-merge-runs's report does not
 // stand: the step's script with settle refusing and the check stubbed to
 // record the attempts file it was handed.
