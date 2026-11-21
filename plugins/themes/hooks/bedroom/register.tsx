@@ -71,7 +71,7 @@ export const register: Register = (on, options) => {
     }
     flush($)
     return cleared
-  })
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
     if (e.props.plugin !== $.plugin.name || e.props.scene !== SCENE || e.surface !== 'desktop') return next(e)
