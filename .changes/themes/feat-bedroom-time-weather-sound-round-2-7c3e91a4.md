@@ -22,6 +22,7 @@ bump: minor
 - In dry weather the insects follow the hour all year: quiet at dawn and in the morning, a few distant cicadas at noon building to full by the golden hour and dusk, the cicadas giving way across the evening to crickets and katydids 6 dB quieter, and a little quieter again before dawn; each change eases with the picture, the afternoon's build through the Windows mixer in one ease, and sound turned on partway through the evening starts both beds where the cross-fade is then. The night insects are a new bank kind, `night` (`katydids`, the default, or `crickets`), cut from CC0 recordings listed in `sounds/bedroom/sources.md`.
 - `/bedroom sound pick` takes a kind, `cicadas`, `night`, `rain`, `thunder` or `tv`, and an entry's name or number; 0.3's `downpour` and `storm` kinds are gone, since the rain entry holds all three wet beds.
 - The README states where `soundPlayer` is read from and how it runs.
+- The made-up weather that changes by itself every three hours, never to a storm, is `random` (`/bedroom weather random` and the `weather` setting). `auto`, still the default, is to follow the real weather; with none connected it is random, and `/bedroom weather` says so. A saved `auto` loads as it was.
 
 ### Fixed
 

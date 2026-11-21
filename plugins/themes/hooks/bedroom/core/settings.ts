@@ -28,7 +28,7 @@ export const SETTINGS = {
   date: { kind: 'date', options: ['auto', ...SEASONS], default: 'auto' },
   sunrise: { kind: 'time', from: '04:00', to: '09:00', default: 'auto' },
   sunset: { kind: 'time', from: '16:00', to: '22:00', default: 'auto' },
-  weather: { kind: 'choice', options: ['auto', ...WEATHERS], default: 'auto' },
+  weather: { kind: 'choice', options: ['auto', 'random', ...WEATHERS], default: 'auto' },
   lightning: { kind: 'choice', options: ['rare', 'normal', 'often'], default: 'normal' },
   sound: { kind: 'boolean', default: false },
   soundPlayer: { kind: 'string', default: '' },

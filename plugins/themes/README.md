@@ -64,10 +64,12 @@ bottom-left corner of the front of the dresser.
   with lightning at uneven gaps: about two strikes a minute by default, which the US National
   Weather Service counts as occasional lightning (1 to 3 a minute). `/bedroom weather lightning
   rare` keeps to about one strike in three minutes, and `often` gives about three a minute, the
-  most the shader's event channel carries with room left for the hallway. `auto` changes by itself every three hours and never
-  picks a storm; it asks no weather service, so every session gives the same weather at the same
-  hour. In a storm, `/bedroom weather strike` brings a flash within about five seconds. The shader
-  draws every strike, pass and hall light, and takes none in its first 30 seconds after it starts
+  most the shader's event channel carries with room left for the hallway. `random` is made-up
+  weather that changes by itself every three hours and never picks a storm; it asks no weather
+  service, so every session gives the same weather at the same hour. `auto`, the default, is to
+  follow the real weather; no real weather is connected yet, so for now it is `random`, and
+  `/bedroom weather` says so. In a storm, `/bedroom weather strike` brings a flash within about
+  five seconds. The shader draws every strike, pass and hall light, and takes none in its first 30 seconds after it starts
   (after the app loads, and after a change to the room shows it alone for a few seconds): asked then,
   the command sends nothing and says how many seconds to wait.
 - **The television and Claude.** While a turn runs, the screen flickers faintly, and as the
@@ -169,7 +171,7 @@ clicks are answered at once. A click in those seven seconds still counts and is 
 | `/bedroom <tv\|tape\|console\|pc\|light\|lamp\|lava> [on\|off]` | Switches one thing; with neither word it flips. A switch already in that state stays as it is |
 | `/bedroom time <auto\|dusk\|evening\|night\|predawn\|dawn\|morning\|noon\|golden\|HH:MM>` | Follows the clock, or holds a phase (`HH:MM` holds the phase of that hour); alone, says which |
 | `/bedroom date <auto\|MM-DD\|spring\|summer\|autumn\|winter>` | Follows the real date, or holds a day of the year for sunrise and sunset (the seasons hold 04-20, 07-15, 10-15, 01-15); alone, says which |
-| `/bedroom weather <auto\|clear\|overcast\|rain\|downpour\|storm>` | The weather in the window; alone, says which |
+| `/bedroom weather <auto\|random\|clear\|overcast\|rain\|downpour\|storm>` | The weather in the window; `auto` is `random` until real weather is connected; alone, says which |
 | `/bedroom weather strike` | In a storm, one flash of lightning within about five seconds; at most one each 20 seconds |
 | `/bedroom weather lightning [rare\|normal\|often]` | How often a storm strikes: about one in three minutes, two a minute, or three; alone, says which |
 | `/bedroom signal [on\|off]` | The television reacting to Claude |
@@ -227,7 +229,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `date` | string | `"auto"` | auto follows the real date; a season holds its day (spring 04-20, summer 07-15, autumn 10-15, winter 01-15). /bedroom date MM-DD holds any day. |
 | `sunrise` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 04:00 to 09:00, held all year. |
 | `sunset` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 16:00 to 22:00, held all year. |
-| `weather` | string | `"auto"` | auto changes by itself every three hours and never picks a storm. |
+| `weather` | string | `"auto"` | random changes by itself every three hours and never picks a storm; auto is random until real weather is connected. |
 | `lightning` | string | `"normal"` | rare: about one strike in three minutes; normal: about two a minute; often: about three a minute. |
 | `sound` | boolean | `false` | Cicadas, crickets and katydids, rain, a downpour or a storm, thunder, the television and the room's things. Off by default. |
 | `soundPlayer` | string | *(none)* | Empty: found at run time. Else a command line with {file} where the sound file goes and {volume} for 0 to 100. |

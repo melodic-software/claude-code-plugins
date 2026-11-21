@@ -38,8 +38,8 @@
     "weather": {
       "type": "string",
       "title": "Bedroom: weather",
-      "description": "auto changes by itself every three hours and never picks a storm.",
-      "options": ["auto", "clear", "overcast", "rain", "downpour", "storm"],
+      "description": "random changes by itself every three hours and never picks a storm; auto is random until real weather is connected.",
+      "options": ["auto", "random", "clear", "overcast", "rain", "downpour", "storm"],
       "default": "auto"
     },
     "lightning": {

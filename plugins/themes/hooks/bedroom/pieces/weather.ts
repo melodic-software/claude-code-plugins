@@ -9,11 +9,12 @@ import { CUES } from '../core/signals.gen.js'
 import { cueFree } from '../core/values.js'
 
 /**
- * The weather: the weather field from the stored choice or the setting, and /bedroom weather. `auto` changes by itself
- * without asking any service: the kind is a whole-number hash of the local date and its 3-hour block, so every session
- * gives the same weather at the same hour without writing anything, and it is never a storm.
+ * The weather: the weather field from the stored choice or the setting, and /bedroom weather. `random` changes by
+ * itself without asking any service: the kind is a whole-number hash of the local date and its 3-hour block, so every
+ * session gives the same weather at the same hour without writing anything, and it is never a storm. `auto` is
+ * `random` while no real weather is connected (sourceOf).
  */
-/** How many in 100 blocks `auto` gives each kind, in the order of WEATHERS: clear, overcast, rain, downpour, storm. */
+/** How many in 100 blocks `random` gives each kind, in the order of WEATHERS: clear, overcast, rain, downpour, storm. */
 export const SHARES = [60, 25, 12, 3, 0] as const
 
 /** A whole number from 0 to 99 for a year, a day of the year and a 3-hour block of it. */
@@ -33,14 +34,25 @@ export function autoKind(at: Local): number {
 }
 
 function kindOf(ctx: Ctx): number {
+  const chosen = sourceOf(ctx)
+  return chosen === 'random' ? autoKind(ctx.local()) : WEATHERS.indexOf(chosen as (typeof WEATHERS)[number])
+}
+
+/**
+ * What the weather setting comes to: `auto` follows the real weather, and with no real weather connected it is
+ * `random`, the made-up weather that changes by itself every three hours; `random` and each kind stand as they are.
+ */
+function sourceOf(ctx: Ctx): string {
   const chosen = ctx.setting('weather')
-  return chosen === 'auto' ? autoKind(ctx.local()) : WEATHERS.indexOf(chosen as (typeof WEATHERS)[number])
+  return chosen === 'auto' ? 'random' : chosen
 }
 
 function told(ctx: Ctx): string {
   const chosen = ctx.setting('weather')
   const now = WEATHERS[kindOf(ctx)]
-  return chosen === 'auto' ? `the weather is auto, ${now} now; it changes by itself every three hours, never to a storm` : `the weather is ${now} until /bedroom weather auto`
+  if (chosen === 'auto') return `the weather is auto: no real weather is connected, so it is random, ${now} now; it changes by itself every three hours`
+  if (chosen === 'random') return `the weather is random, ${now} now; it changes by itself every three hours, never to a storm`
+  return `the weather is ${now} until /bedroom weather auto`
 }
 
 /**
@@ -133,7 +145,7 @@ async function weather(ctx: Ctx, args: readonly string[]): Promise<string> {
   if (word === '') return told(ctx)
   if (word === 'strike') return strikeNow(ctx)
   if (word === 'lightning') return lightning(ctx, (args[1] ?? '').toLowerCase())
-  if (word !== 'auto' && !(WEATHERS as readonly string[]).includes(word)) return `say auto, ${WEATHERS.join(', ')}, default, strike or lightning, as in /bedroom weather rain`
+  if (word !== 'auto' && word !== 'random' && !(WEATHERS as readonly string[]).includes(word)) return `say auto, random, ${WEATHERS.join(', ')}, default, strike or lightning, as in /bedroom weather rain`
   const was = kindOf(ctx)
   await ctx.save({ weather: word })
   if (kindOf(ctx) !== was) await ctx.send('/bedroom weather', { hurry: true })
