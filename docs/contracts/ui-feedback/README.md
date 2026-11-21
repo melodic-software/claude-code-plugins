@@ -75,6 +75,16 @@ current box. The bridge also logs the change as an event of its own, which wakes
 the session reads it as that note changed, not as a new note. The host page lists no row for a
 change.
 
+A sent note can also be edited or withdrawn from its row. An edit goes to `POST /api/note/edit` as
+`{"edit": <seq>, "text": ...}` (`$defs/edit`): the text replaces the note's own in the log, under
+the same seq. A withdraw goes to `POST /api/note/withdraw` as `{"withdraw": <seq>}`
+(`$defs/withdraw`): the note stays in the log, and that event alone marks it withdrawn, so a log
+written before withdraws loads unchanged. Each is logged as an event of its own naming the note,
+which wakes the watcher. The bridge refuses an edit, a change or a second withdraw of a withdrawn
+note. A withdrawn note is not pending: `status` and the watcher leave it and the events changing it
+out, and keep its withdraw; the host page lists it as withdrawn, draws no marker for it, and leaves
+it out of Copy all notes.
+
 A move arrow (`kind` `move`) says "move this element to there". The person picks the element to
 move, then where it should go: the element clicked, or a point alone when no element fits (Shift
 and a click). `anchor` and `rect` are the element to move. `to.point` is the destination in
