@@ -34,6 +34,8 @@ skill writes only the **team** file; changes to the user-global layer or the per
 user's to make. Anchor every repo-relative read at the repo root (`${CLAUDE_PROJECT_DIR}` when
 set, otherwise `git rev-parse --show-toplevel`), never at the CWD.
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 ## `check` (read-only)
 
 Inspect the effective merged config and report a PASS/FAIL/WARN/INFO table with one remediation line

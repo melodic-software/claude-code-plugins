@@ -214,7 +214,9 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
 - `plugins/` is not in scope; plugin content is audited in its own repository.
 - The detector's user config layer is the JSON file `$HOME/.claude/ai-slop.json`, even when
   `CLAUDE_CONFIG_DIR` is set; the team and personal layers are YAML. Its project layers come from
-  the session's project directory.
+  the session's project directory. The plugin still reads that JSON file until it migrates
+  ([#18004](https://github.com/melodic-software/claude-code-plugins/issues/18004)); then it moves
+  where [config locations](../../reference/config-locations.md) says.
 - A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets

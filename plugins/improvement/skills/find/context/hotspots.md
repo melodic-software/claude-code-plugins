@@ -83,6 +83,8 @@ Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
    The scan asks nothing and writes no record; `/improvement:setup apply` offers to persist them
    as `churn_exclude` entries.
 
+   This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
+
 All layers absent is a valid state. When item 2 resolves nothing while `churn_exclude_defaults` is
 on, record an evidence-gap line (format: unattended.md), e.g.
 `gap: churn exclusions — no mechanical files resolved from the repository — declare churn_exclude or run /improvement:setup apply`.

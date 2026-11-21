@@ -128,6 +128,8 @@ Per-layer verdicts:
   remediations, so probe them separately. See the two-probe form under
   `apply`. Absent file is OK once the ignore rule itself is present.
 
+  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+
 **FAIL** when the *effective* `subject_pattern` is not machine-checkable. It must be either the
 literal keyword `Conventional Commits` or an anchored regex (`^…`-style); a plain-language
 description cannot be evaluated by `/source-control:commit` or `/source-control:pull-request`. Name the layer that supplied the

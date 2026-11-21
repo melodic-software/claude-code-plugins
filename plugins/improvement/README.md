@@ -45,13 +45,15 @@ churn analysis or declare Tier 2 MCP telemetry sources, run `/improvement:setup`
 the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` personal override. The key contract lives in
 [reference/config.md](reference/config.md).
 
+This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+
 ## Running it as a standing routine
 
 `/improvement:find`'s unattended mode implements the tech-debt-sweep routine shape: a scheduled
 run persists a ranked report and files top candidates as work items, with prioritization always
 human-gated. The recommended wrapper is a **weekly
 [Routine](https://code.claude.com/docs/en/routines)**. Each firing gets a fresh session, and the
-routine's saved prompt is the tuning surface. Consult that docs page for current Routine
+routine's saved prompt is where you tune it. Consult that docs page for current Routine
 capabilities and limits rather than relying on numbers written here.
 
 ### Prerequisite: the plugin must be loaded in the fired session

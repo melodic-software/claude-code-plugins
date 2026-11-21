@@ -20,7 +20,7 @@ A copied paragraph starts accurate and silently stops being accurate the next ti
 page changes. Nothing in the repository records that it drifted. Citing the source and fetching
 it at read time removes the drift risk entirely; where a surface must act on a volatile specific
 without the source, a stamped record (the surface's own decision in its own words, a pointer, an
-as-of date, a recheck trigger) keeps it honest and re-checkable without copying the source.
+as-of date, a recheck trigger) lets a reader tell when to recheck it, without copying the source.
 
 ## Skills
 
@@ -94,7 +94,9 @@ call and routes to its finding-suppression convention, not to a marker this plug
 
 The audit detectors read `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, `<home>`
 being the bound convention home, else `docs/conventions`, over the user-global
-`~/.claude/attribution.json`. The old JSON files of the same names under `.claude/` are not read;
+`~/.claude/attribution.json` ([config locations](reference/config-locations.md) lists where plugin
+config belongs; this user-global read is a declared deviation until it migrates). The old JSON files
+of the same names under `.claude/` are not read;
 `/attribution:setup` reports them and carries their keys into the YAML, which it writes. In YAML,
 quote a glob that starts with `*` (`- "**/vendor/**"`); a file that does not parse is named on
 stderr and not read. The keys, layered over the shipped defaults, with their schema in
