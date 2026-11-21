@@ -72,7 +72,7 @@ export const UPSTREAM_JOBS = Object.freeze([
   "Check Skills",
   "Test Bash (0)",
   "Test Python (0)",
-  "Test Node",
+  "Test Node (0)",
   "Check Managed Files",
   "Check Tests",
   "CI Status",
