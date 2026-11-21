@@ -38,7 +38,8 @@
         "lane-transcript-public-key",
         "key-credit-window-hours",
         "key-credit-reset-at",
-        "verdict-schema"
+        "verdict-schema",
+        "environment"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
@@ -178,7 +179,8 @@
         "key-credit-window-hours",
         "key-credit-reset-at",
         "kill-switch",
-        "review-level"
+        "review-level",
+        "environment"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",
