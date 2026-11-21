@@ -394,6 +394,85 @@ class TestGuards(NotesCase):
         self.assertEqual(len(self.hub.read_log()["events"]), nb.MAX_NOTES)
 
 
+class TestNoteHistory(NotesCase):
+    """GET /api/notes: the run's sent notes, for the host page to list again after a reload."""
+
+    def other_run(self):
+        """A second bridge on its own data dir, as another prototype run would have."""
+        other = self.tmp / "other"
+        other.mkdir()
+        handler = type("Handler", (nb.NotesHandler,), {})
+        httpd, hub = sb.start(
+            handler, lambda p: FastHub(p, other, "explore-directions.html"), 0
+        )
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return other, hub
+
+    def test_the_runs_notes_come_back_oldest_first_with_their_seq(self):
+        first = {**NOTE, "text": "First note."}
+        second = {**NOTE, "text": "Second note."}
+        self.note(first)
+        self.note(second)
+        code, body = self.request("GET", "/api/notes")
+        self.assertEqual(code, 200)
+        self.assertEqual(
+            [(n["seq"], n["text"]) for n in body["notes"]],
+            [(1, "First note."), (2, "Second note.")],
+        )
+        self.assertEqual({k: body["notes"][1][k] for k in second}, second)
+        self.assertNotIn("deliveredAt", body["notes"][0])
+
+    def test_a_request_without_the_token_or_with_a_wrong_one_is_refused(self):
+        self.note({**NOTE, "text": "Private words."})
+        for headers in (
+            {},
+            {"X-Notes-Token": "not-the-token"},
+            {"X-Notes-Token": self.hub.watch_token},
+        ):
+            code, body = self.request("GET", "/api/notes", headers=headers, token=False)
+            self.assertEqual(code, 403, headers)
+            self.assertNotIn(b"Private words.", json.dumps(body).encode())
+
+    def test_another_runs_notes_are_never_returned(self):
+        other, hub = self.other_run()
+        self.note({**NOTE, "text": "This run's note."})
+        conn = http.client.HTTPConnection("127.0.0.1", hub.port, timeout=TIMEOUT)
+        try:
+            conn.request(
+                "POST",
+                "/api/note",
+                body=json.dumps({**NOTE, "text": "The other run's note."}),
+                headers={
+                    "X-Notes-Token": hub.token,
+                    "Content-Type": "application/json",
+                },
+            )
+            self.assertEqual(conn.getresponse().status, 200)
+        finally:
+            conn.close()
+        for path in (
+            "/api/notes",
+            f"/api/notes?dir={other}",
+            "/api/notes?dir=../other",
+        ):
+            code, body = self.request("GET", path)
+            self.assertEqual(code, 200, path)
+            self.assertEqual(
+                [n["text"] for n in body["notes"]], ["This run's note."], path
+            )
+        code, _ = self.request(
+            "GET", "/api/notes", headers={"X-Notes-Token": hub.token}, token=False
+        )
+        self.assertEqual(code, 403)
+
+    def test_a_foreign_host_is_refused_even_with_the_token(self):
+        self.note()
+        code, _ = self.request("GET", "/api/notes", headers={"Host": "evil.example"})
+        self.assertEqual(code, 403)
+
+
 class TestNotes(NotesCase):
     def test_every_fixture_note_is_judged_as_the_fixtures_say(self):
         for case in FIXTURES["valid"]:

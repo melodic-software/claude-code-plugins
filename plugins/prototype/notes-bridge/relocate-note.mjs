@@ -176,7 +176,8 @@ export async function relocate(page, input, decide) {
       const x = Math.max(b.x, f.x), y = Math.max(b.y, f.y);
       const clip = { x, y, width: Math.min(b.x + b.width, f.x + f.width) - x, height: Math.min(b.y + b.height, f.y + f.height) - y };
       if (clip.width >= 1 && clip.height >= 1) {
-        await p.screenshot({ path: shot, clip, style: ".vs { visibility: hidden !important; }", animations: "disabled" });
+        const style = ".vs { visibility: hidden !important; } [data-ui-feedback-layer] { visibility: hidden !important; }";
+        await p.screenshot({ path: shot, clip, style, animations: "disabled" });
         Object.assign(out, { shot, clip, frame: f });
       }
     }
