@@ -358,7 +358,7 @@ END {
       finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a literal-colon command wildcard or a parameter wildcard — verify which you intended")
 
     # A trailing `:*` on the last word is the end-of-pattern prefix syntax
-    # (see C6-colonStar above), not part of the assignment's value, so
+    # (see C6-colonStar above), not part of the value of the assignment, so
     # `Bash(NODE_ENV=production:*)` has the literal value `production`.
     if (kind == "allow" && tool == "Bash") {
       n_words = split(body, words, " ")
