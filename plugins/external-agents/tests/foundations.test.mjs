@@ -184,6 +184,15 @@ describe("binary resolution", () => {
     assert.equal(found.source, "PATH");
   });
 
+  test("on POSIX a PATH file without the execute bit is passed over for a runnable one", { skip: process.platform === "win32" }, () => {
+    const first = dir("posix-path-plain");
+    const second = dir("posix-path-runnable");
+    writeFileSync(join(first, "demo"), "", { mode: 0o644 });
+    writeFileSync(join(second, "demo"), "", { mode: 0o755 });
+    const found = resolveBinary(record, { platform: process.platform, env: { PATH: `${first}:${second}` } });
+    assert.equal(found.path, join(second, "demo"));
+  });
+
   test("a missing binary gives the unavailable message that points to update", () => {
     const found = resolveBinary(record, { platform: "linux", env: { PATH: dir("empty-path") } });
     assert.equal(found.path, null);

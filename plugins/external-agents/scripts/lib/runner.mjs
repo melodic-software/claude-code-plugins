@@ -202,7 +202,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
     id, product, use: plan.use, mode: plan.mode, argv: [binary.path, ...(binary.args ?? []), ...args],
     cli_version: version.code === 0 ? version.stdout.trim().split(/\r?\n/)[0] || null : null,
     cwd: ctx.cwd, started_at: new Date(ctx.now()).toISOString(), ended_at: null, exit_code: null, status: "running", reason: null,
-    pid: null, pid_started_at: null, thread_id: plan.thread ?? null, final_message_path: paths.final, log_path: paths.log, stderr_path: paths.stderr, notices,
+    pid: null, pid_started_at: null, runner_pid: process.pid, runner_started_at: pidStartTime(process.pid), thread_id: plan.thread ?? null, final_message_path: paths.final, log_path: paths.log, stderr_path: paths.stderr, notices,
     ...(plan.scope ? { review_scope: plan.scope } : {}),
   };
 
@@ -323,6 +323,7 @@ export async function review(opts) {
     state = setup(opts);
     const { ctx, record } = state;
     if (!record.review) throw refuse(`${record.product} has no review form`);
+    if (opts.council && state.settings.council?.enabled === false) throw new Stop("skipped", `${record.product}.council.enabled is false`);
     if (opts.base.startsWith("-")) throw refuse(`base ${JSON.stringify(opts.base)} starts with "-"`);
     if (git(ctx.cwd, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${opts.base}^{commit}`]) === null) throw refuse(`base ${JSON.stringify(opts.base)} is not a commit in ${ctx.cwd}`);
     const mergeBase = git(ctx.cwd, ["merge-base", "--end-of-options", opts.base, "HEAD"])?.trim();
@@ -366,10 +367,12 @@ const alive = (pid) => {
   }
 };
 
-/** A `running` job whose process is gone, or whose pid now belongs to another process, is over. */
+const owns = (pid, startedAt) => Number.isInteger(pid) && alive(pid) && (!startedAt || pidStartTime(pid) === startedAt);
+
+/** A `running` job is over once both the CLI and the runner that writes its result are gone; the runner may still be recording a finished CLI. */
 function settle(ctx, job) {
   if (job.status !== "running") return job;
-  if (Number.isInteger(job.pid) && alive(job.pid) && (!job.pid_started_at || pidStartTime(job.pid) === job.pid_started_at)) return job;
+  if (owns(job.pid, job.pid_started_at) || owns(job.runner_pid, job.runner_started_at)) return job;
   const latest = readJob(ctx.dataDir, ctx.key, job.id) ?? job;
   if (latest.status !== "running") return latest;
   const ended = { ...latest, status: "failed", reason: "process exited", ended_at: new Date(ctx.now()).toISOString() };

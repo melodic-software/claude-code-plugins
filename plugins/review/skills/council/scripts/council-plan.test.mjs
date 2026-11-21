@@ -346,13 +346,13 @@ esac
   };
 
   test("the adapter runs the bare external-agents review command", () => {
-    assert.equal(RUN, "external-agents review codex");
+    assert.equal(RUN, "external-agents review codex --council");
   });
 
   test("ran: the lines after the status line are the findings, with the council's flags passed on", () => {
     const out = call(withStub, "ran", "--base main --model gpt-x --brief-file /tmp/b.md");
     assert.equal(out.status, "ran");
-    assert.equal(out.findings, "argv: review codex --base main --model gpt-x --brief-file /tmp/b.md\nIMPORTANT | src/a.js:3 | off by one | fix the bound");
+    assert.equal(out.findings, "argv: review codex --council --base main --model gpt-x --brief-file /tmp/b.md\nIMPORTANT | src/a.js:3 | off by one | fix the bound");
   });
 
   test("fanout's briefed second run passes its bundled brief and reads back through the same path", () => {
@@ -360,7 +360,7 @@ esac
     assert.match(readFileSync(brief, "utf8"), /`SEVERITY \| path:line \| finding \| action`/, "the brief asks for the parse contract's finding line");
     const out = call(withStub, "ran", `--base origin/main --brief-file "${brief}"`);
     assert.equal(out.status, "ran");
-    assert.equal(out.findings.split("\n")[0], `argv: review codex --base origin/main --brief-file ${brief}`);
+    assert.equal(out.findings.split("\n")[0], `argv: review codex --council --base origin/main --brief-file ${brief}`);
   });
 
   test("ran with details keeps them as a note", () => {

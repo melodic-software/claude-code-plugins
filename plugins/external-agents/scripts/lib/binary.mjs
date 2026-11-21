@@ -1,9 +1,21 @@
-import { statSync } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join, posix, win32 } from "node:path";
 
 const isFile = (path) => {
   try {
     return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+};
+
+/** A file this user can run: Windows runs any file with a PATHEXT extension, POSIX needs the execute bit. */
+const isRunnable = (path, windows) => {
+  if (!isFile(path)) return false;
+  if (windows) return true;
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
   } catch {
     return false;
   }
@@ -33,14 +45,14 @@ export function resolveBinary(record, { binaryPath, platform = process.platform,
     if (!path) continue;
     const normalized = windows ? win32.normalize(path) : path;
     tried.push(normalized);
-    if (isFile(normalized)) return found(normalized, "candidate", tried);
+    if (isRunnable(normalized, windows)) return found(normalized, "candidate", tried);
   }
   const exts = windows ? (env.PATHEXT || ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
   const isAbsoluteDir = (windows ? win32 : posix).isAbsolute;
   for (const dir of (env.PATH ?? env.Path ?? "").split(windows ? ";" : delimiter).filter(isAbsoluteDir)) {
     for (const ext of exts) {
       const path = joinPath(dir, record.binary.name + ext.toLowerCase());
-      if (isFile(path)) return found(path, "PATH", [...tried, `PATH (${record.binary.name})`]);
+      if (isRunnable(path, windows)) return found(path, "PATH", [...tried, `PATH (${record.binary.name})`]);
     }
   }
   tried.push(`PATH (${record.binary.name})`);
