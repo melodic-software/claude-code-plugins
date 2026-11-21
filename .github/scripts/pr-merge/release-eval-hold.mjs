@@ -142,9 +142,10 @@ export function runVouches(run, repo, defaultBranch) {
 }
 
 /**
- * Whether GET compare/{run head}...{default branch} shows the run's commit on
- * the default branch. head_branch is only a ref name, which a tag can share,
- * and a tag runs its own copy of the workflow.
+ * Whether GET compare/{run head}...{default branch tip SHA} shows the run's
+ * commit on the default branch. head_branch is only a ref name, which a tag
+ * can share, and a tag runs its own copy of the workflow; the tip is read from
+ * refs/heads/ first, since a bare name resolves to a tag before a branch.
  */
 export const onDefaultBranch = (compare) => compare?.status === "identical" || compare?.status === "ahead";
 
@@ -369,6 +370,19 @@ async function readAll(github, repo, number, humans, runsGitHub = github) {
 async function readRuns(github, repo, comments, defaultBranch) {
   const ids = [...new Set(comments.map(citedRun).filter((id) => id !== null).reverse())].slice(0, RUNS_PER_PULL);
   const vouched = new Map();
+  if (ids.length === 0 || typeof defaultBranch !== "string") {
+    return vouched;
+  }
+  let tip;
+  try {
+    tip = (await github("GET", `/repos/${repo}/git/ref/heads/${encodeURIComponent(defaultBranch)}`))?.object?.sha;
+  } catch (error) {
+    console.log(`release-eval-hold: the ${defaultBranch} tip did not read: ${escapeCommand(error?.message ?? error)}`);
+    return vouched;
+  }
+  if (!/^[0-9a-f]{40}$/.test(String(tip))) {
+    return vouched;
+  }
   for (const id of ids) {
     let run;
     try {
@@ -383,7 +397,7 @@ async function readRuns(github, repo, comments, defaultBranch) {
     }
     let compare;
     try {
-      compare = await github("GET", `/repos/${repo}/compare/${run.head_sha}...${encodeURIComponent(defaultBranch)}`);
+      compare = await github("GET", `/repos/${repo}/compare/${run.head_sha}...${tip}`);
     } catch (error) {
       console.log(`release-eval-hold: run ${id}'s commit did not compare with ${defaultBranch}: ${escapeCommand(error?.message ?? error)}`);
       continue;

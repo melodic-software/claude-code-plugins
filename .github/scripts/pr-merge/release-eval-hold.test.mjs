@@ -169,11 +169,16 @@ const outputFile = () => {
   return path;
 };
 
-function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, compareStatus = "ahead" } = {}) {
+const TIP = "9".repeat(40);
+function fakeGitHub(pulls, { failDelete = [], open = [], labeled = Object.keys(pulls), runs = {}, compareStatus = "ahead", tip = TIP } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
-    if (method === "GET" && /^\/repos\/[^/]+\/[^/]+\/compare\/[0-9a-f]{40}\.\.\.main$/.test(path)) {
+    if (method === "GET" && path === `/repos/${REPO}/git/ref/heads/main`) {
+      if (tip === null) throw new Error("HTTP 404");
+      return { ref: "refs/heads/main", object: { sha: tip } };
+    }
+    if (method === "GET" && new RegExp(`^/repos/[^/]+/[^/]+/compare/[0-9a-f]{40}\\.\\.\\.${TIP}$`).test(path)) {
       return { status: compareStatus };
     }
     const runPath = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)$/.exec(path);
@@ -351,6 +356,7 @@ test("main reads the cited run and releases on a compare run of this pull reques
   const { code } = await quietMain(github);
   assert.equal(code, 0);
   assert.ok(calls.some((call) => call.method === "GET" && call.path === `/repos/${REPO}/actions/runs/${RUN_ID}`));
+  assert.ok(calls.some((call) => call.path === `/repos/${REPO}/compare/${"e".repeat(40)}...${TIP}`), "compares against the branch tip's SHA");
   const writes = calls.filter(isWrite);
   assert.deepEqual(writes.map((call) => call.method), ["POST", "DELETE"]);
   assert.ok(writes[0].body.body.includes(`compare run ${RUN_ID}`));
@@ -363,6 +369,11 @@ test("main keeps the hold when the cited run's commit is not on the default bran
     assert.deepEqual(calls.filter(isWrite), [], compareStatus);
     assert.ok(lines.includes("release-eval-hold: #7 kept: no-record"), compareStatus);
   }
+  const { github: noTip, calls: noTipCalls } = fakeGitHub({ 7: { pull: pull(), comments: [holdComment(), ciRecord()] } }, { runs: { [RUN_ID]: compareRun() }, tip: null });
+  const { lines: noTipLines } = await quietMain(noTip);
+  assert.deepEqual(noTipCalls.filter(isWrite), [], "a tip that does not read keeps the hold");
+  assert.ok(noTipLines.includes("release-eval-hold: #7 kept: no-record"));
+  assert.ok(!noTipCalls.some((call) => /\/compare\/[^/]*\.\.\.main$/.test(call.path)), "never compares against the bare name a tag can answer");
   assert.equal(onDefaultBranch({ status: "identical" }), true);
   assert.equal(onDefaultBranch({ status: "ahead" }), true);
   assert.equal(onDefaultBranch(undefined), false);
