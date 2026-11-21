@@ -50,8 +50,9 @@ and never look up the plugin's install path. Delegate only when the user asks fo
 
 ## Prompts
 
-Write the prompt with the Write tool to a file under the repository's gitignored `.work/` and pass
-it with `--prompt-file`. Name the files and paths Codex should read; never paste file contents,
+Write the prompt with the Write tool to a file in a gitignored scratch folder (this repository's
+convention, else the session scratchpad) and pass it with `--prompt-file`; the command keeps its
+own copy in the job folder. Name the files and paths Codex should read; never paste file contents,
 diffs or logs into the prompt. Codex reads them itself inside its sandbox.
 
 ## Background runs
