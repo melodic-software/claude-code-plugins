@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.4.4] - 2026-11-21
+
+### Changed
+
+- Shared `lane-binding.mjs` synced where this plugin carries it: a lane run still going now throws a typed `LaneRunPending`; no other change to this plugin.
+
 ## [10.4.3] - 2026-11-20
 
 ### Changed
