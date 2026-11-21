@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.2] - 2026-11-21
+
+### Changed
+
+- The shared `reference/rendered-view.md` copy says `/architecture:improve deepening` now builds its report with `build-view.mjs deepening` instead of writing the HTML itself ([#17798](https://github.com/melodic-software/claude-code-plugins/issues/17798)).
+
 ## [2.2.1] - 2026-11-18
 
 ### Changed
