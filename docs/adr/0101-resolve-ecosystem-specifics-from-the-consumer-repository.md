@@ -14,8 +14,8 @@ Generic skills ship language, framework, tool and library choices that a model r
 In a repository the skill's authors did not anticipate, those choices run the wrong command, or a
 shipped default runs unnoticed in place of the repository's own tool. Two examples on `main`:
 
-- `toolchain` bundles nine per-ecosystem default files under
-  `plugins/toolchain/reference/ecosystems/`. The Python file's `check-cmd` runs
+- `toolchain` bundles nine per-ecosystem default files in its reference folder. The Python
+  file's `check-cmd` runs
   `uv run ruff check . --no-fix && uv run ruff format . --check && uv run pyright`, so a repository
   with a ruff config and no ecosystem record gets pyright in its check whether or not it uses
   pyright.
