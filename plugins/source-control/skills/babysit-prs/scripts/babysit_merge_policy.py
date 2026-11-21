@@ -2267,6 +2267,25 @@ class _GreenMain:
             )
         return self.runs[stamp]
 
+    def settled(self, start: datetime, end: datetime) -> bool:
+        """Whether every full run on main created from `start` to `end` has
+        completed, so no earlier run can still turn green; any doubt is
+        False."""
+        created = quote(f"{_stamp(start)}..{_stamp(end)}", safe=":")
+        try:
+            answer = json_object(
+                self._read(
+                    f"repos/{self.owner}/{self.name}/actions/workflows/"
+                    f"pr-require-checks.yml/runs?branch=main&created={created}&per_page=100"
+                )
+            )
+        except PolicyReadError:
+            return False
+        runs = json_array(answer.get("workflow_runs"))
+        return answer.get("total_count") == len(runs) and all(
+            json_object(run).get("status") == "completed" for run in runs
+        )
+
     def ahead(self, base: str, head: str) -> bool:
         """Whether `head` has `base` in its history and is a later commit:
         from a local full-history clone when one can decide two different
@@ -2342,7 +2361,11 @@ def _recovered_at(
         head = str(run["head_sha"])
         if green.ahead(marker[1], head) and green.on_main(head):
             recovered = _time(run.get("created_at"))
-            if key:
+            if (
+                key
+                and os.environ.get(RECOVERIES_WRITE_ENV) == "true"
+                and green.settled(created, recovered)
+            ):
                 green.proven[key] = _stamp(recovered)
             return recovered
     return None
