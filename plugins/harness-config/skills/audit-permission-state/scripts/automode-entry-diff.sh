@@ -284,7 +284,7 @@ echo "DIFF-NOTE: dropped and suspended rules alike are RESTORED when the session
 # Auto mode is the starting mode in exactly one of the seven documented run
 # shapes. Printing this diff unconditionally hands a headless or Agent SDK run a
 # verdict for a transition it never makes.
-echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Auto mode is the built-in starting mode on Pro, Max, and Team plans in a terminal or the VS Code extension; sessions under 'claude -p' or the Agent SDK, on an Enterprise plan or a Console API key, on Bedrock / Google Cloud Agent Platform / Microsoft Foundry / Claude Platform on AWS / the apps gateway, with feature-flag fetching off, in a first session after an install or upgrade, or with disableAutoMode set to \"disable\", all start in Manual instead and never make this transition."
+echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. With no --permission-mode flag and no permissions.defaultMode setting, a session in a terminal or the VS Code extension starts in auto mode on Claude Code v2.1.283 or later, on Bedrock / Google Cloud Agent Platform / Microsoft Foundry / signed-in apps gateway sessions as well; on earlier versions it does so only on Pro, Max, Ultra, or Team plans in sessions that fetch feature flags. Sessions under 'claude -p' or the Agent SDK with no permission mode set (v2.1.302 or later), with disableAutoMode set to \"disable\" in any settings file, on a model that does not support auto mode on its provider, or eligible for an organization's HIPAA configuration on v2.1.285 through v2.1.325 start in Manual instead and never make this transition."
 
 printf '%s' "$diff_lines"
 if [[ -n "$unread_scopes" ]]; then
