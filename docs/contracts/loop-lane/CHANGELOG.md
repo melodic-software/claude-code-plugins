@@ -7,8 +7,8 @@ table (§3); drift found by that audit is recorded here.
 
 ## [20.0.3] - 2026-11-21
 
-Patch. An upstream value corrected; no topology, escalation-contract mechanism, capability-tier or
-§4 invariant changed.
+Patch. An upstream value corrected, plus wording only; no topology, escalation-contract mechanism,
+capability-tier or §4 invariant changed.
 
 - **The `/loop` expiry figure follows Claude Code 2.1.330 (§4, §5, Versioning).** The standing-lane
   expiry record and the three sentences that cite it say a `/loop` or recurring scheduled task
@@ -17,6 +17,14 @@ Patch. An upstream value corrected; no topology, escalation-contract mechanism, 
   at the 2.1.330 changelog entry beside the scheduled-tasks section and its as-of date moves to
   2026-11-21. The relaunch owner, the restart-request and the clean stop on an expiry hit are
   unchanged.
+- **Three passages reworded (§2, §9).** In §2 the escalation record write and the out-of-band
+  notification are "further ways to notify about the one filed escalation", where they were
+  "notification depth on" it, and §2 "Escalation record write" says "The write is a signal. No lane
+  reads the record back", where it said the write "is signal, not storage". The §9 closing sentence
+  says a question "the plan or PR body cannot answer is a gap to close before the build starts",
+  where it said "the design" and "before the build, not after". The §9 change is intended: the
+  section's opening already puts each of the design's answers in a line of its plan or PR body, so
+  the sentence now names where that answer is missing. No rule changed.
 
 ## [20.0.2] - 2026-11-20
 
