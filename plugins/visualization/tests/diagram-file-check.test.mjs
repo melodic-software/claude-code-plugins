@@ -1,12 +1,13 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const CHECK = join(dirname(fileURLToPath(import.meta.url)), "../lib/diagram-file-check.mjs");
+const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "../templates/shape-palette.excalidraw");
 const { checkExcalidraw } = await import(pathToFileURL(CHECK).href);
 
 const scratch = mkdtempSync(join(tmpdir(), "diagram-file-check-"));
@@ -95,5 +96,48 @@ describe("diagram-file-check", () => {
     assert.equal(run(join(scratch, "flow.json")).status, 2);
     assert.equal(run(join(scratch, "missing.excalidraw")).status, 2);
     assert.equal(run(join(scratch, "missing.excalidraw")).stdout, "");
+  });
+});
+
+function stampWithRenamedIds(picked, suffix) {
+  const rename = new Map(picked.map((element) => [element.id, `${element.id}-${suffix}`]));
+  const ref = (id) => rename.get(id) ?? id;
+  return picked.map((source) => {
+    const element = structuredClone(source);
+    element.id = ref(element.id);
+    for (const key of ["frameId", "containerId"]) if (element[key] != null) element[key] = ref(element[key]);
+    for (const key of ["startBinding", "endBinding"]) if (element[key]) element[key].elementId = ref(element[key].elementId);
+    if (element.boundElements) element.boundElements = element.boundElements.map((bound) => ({ ...bound, id: ref(bound.id) }));
+    return element;
+  });
+}
+
+describe("shape-palette template", () => {
+  const text = readFileSync(TEMPLATE, "utf8");
+  const palette = JSON.parse(text);
+
+  test("the bundled template passes the check, from the module and the CLI", () => {
+    assert.equal(palette.type, "excalidraw");
+    assert.deepEqual(checkExcalidraw(text), { ok: true, elements: palette.elements.length, problems: [] });
+    const cli = spawnSync(process.execPath, [CHECK, TEMPLATE], { encoding: "utf8" });
+    assert.equal(cli.status, 0);
+    assert.equal(JSON.parse(cli.stdout).ok, true);
+  });
+
+  test("no template element carries a created key", () => {
+    assert.deepEqual(palette.elements.filter((element) => "created" in element).map((element) => element.id), []);
+  });
+
+  test("a diagram built by copying template elements into a new scene passes the check", () => {
+    const byId = new Map(palette.elements.map((element) => [element.id, element]));
+    const picked = ["palette-lane", "palette-step", "palette-step-label", "palette-step-to-decision", "palette-decision", "palette-decision-label"].map((id) => byId.get(id));
+    const elements = stampWithRenamedIds(picked, "reset");
+    const labels = { "palette-lane-reset": ["name", "User"], "palette-step-label-reset": ["text", "Request reset"], "palette-decision-label-reset": ["text", "Token valid?"] };
+    for (const element of elements) {
+      const [key, value] = labels[element.id] ?? [];
+      if (key) element[key] = value;
+    }
+    assert.equal(elements.some((element) => byId.has(element.id)), false);
+    assert.deepEqual(checkExcalidraw(file(elements)), { ok: true, elements: 6, problems: [] });
   });
 });
