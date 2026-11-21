@@ -8,12 +8,12 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
 
 - **Pick the use from the request.** `task` when agy should change files; `investigate` when it
   should only read and answer. The use's configured mode (`antigravity.uses.<use>.mode`, bundled
-  values in the plugin's `defaults.json`) is both the default and the ceiling. Pass
+  values in the plugin's `defaults.json`) is both the default and the ceiling. Every use is
+  read-only by default: writes need `antigravity.uses.task.mode: write` from the user. Pass
   `--mode read-only` to run a task without writes; `--mode write` never lifts a read-only ceiling.
-- **Model.** agy needs one: with neither `--model` nor `antigravity.model` set, the run is skipped
-  with a notice naming the key, exit `4`. Pass `--model` only when the user names one for this run;
-  otherwise rely on `antigravity.model`. `antigravity.effort` passes `--effort` when set. Choosing
-  one: [routing.md](routing.md).
+- **Model and effort.** Pass `--model` only when the user names one for this run. Otherwise pass
+  nothing: `antigravity.model` and `antigravity.effort` from config apply when set, and agy's own
+  default applies when not. Choosing one: [routing.md](routing.md).
 - **Resume** continues an agy conversation this plugin started. `--resume <thread-id>` takes a
   `thread_id` from `external-agents status <job>`; a thread that is not in this repository's job
   files is refused. `--last` resumes this plugin's newest job with a thread in this repository. A

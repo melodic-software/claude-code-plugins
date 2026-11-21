@@ -12,7 +12,7 @@
   "antigravity": {
     "timeout_seconds": 1800,
     "uses": {
-      "task": { "mode": "write" },
+      "task": { "mode": "read-only" },
       "investigate": { "mode": "read-only" },
       "review": { "mode": "read-only" }
     },

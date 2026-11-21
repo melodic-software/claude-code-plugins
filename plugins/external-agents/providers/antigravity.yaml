@@ -17,7 +17,7 @@ version:
   args: [--version]
   sources:
     standalone: github:google-antigravity/antigravity-cli
-unset_model: skip-with-notice
+unset_model: cli-default
 model_flag: --model
 effort_flag: --effort
 always_args: [--output-format, json, --disable-slash-commands]

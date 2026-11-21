@@ -70,10 +70,10 @@ process tree; stopping the background Bash task alone may leave agy running.
 
 ## Gotchas
 
-- **No model configured means no run.** agy runs are skipped (`antigravity: skipped (...)`, exit
-  `4`) until `antigravity.model` is set in `<home>/external-agents.yaml` or `.local.yaml`; the
-  notice names the key. Relay it and stop; never pick a model for the user. Model slugs come from
-  `models.txt` in the `cli facts:` folder `update` prints.
+- **Write is opt-in.** Every use runs read-only until the user sets
+  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml`, because
+  agy's write mode has no network isolation (next gotchas). A task asked for while the ceiling is
+  read-only runs read-only; relay the notice naming that key, and never set it yourself.
 - **A refused action makes the run `blocked-by-mode`, even with a full answer.** agy keeps going
   after a refusal and may still answer well; the command records the run `blocked-by-mode`, exits
   `3` and prints the answer. Relay the answer, name the refused actions from the first line, and

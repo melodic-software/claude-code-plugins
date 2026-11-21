@@ -32,8 +32,8 @@ One line per check; act on each:
 Read `antigravity.model` from `<home>/external-agents.yaml` and `<home>/external-agents.local.yaml`
 (the local file wins). When it is set and its slug is not a line's first column in `models.txt`,
 tell the user the configured model is not in this agy version's list, name the key, and quote the
-closest slugs from the file. Unset: say nothing here; a run reports the skip itself. Change no
-config file yourself.
+closest slugs from the file. Unset: say nothing; agy's own default applies. Change no config file
+yourself.
 
 ## Routing refresh
 
