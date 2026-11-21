@@ -22,7 +22,7 @@
 set -euo pipefail
 [[ $MAIN_SHA =~ ^[0-9a-f]{40}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::MAIN_SHA and HEAD_SHA must be full SHAs"; exit 1; }
 [[ $PLUGIN =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "::error::PLUGIN must be a plugin directory name"; exit 1; }
-here=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+here=${BASH_SOURCE[0]%/*}
 merge_base=$(git -C "$REPO" merge-base "$MAIN_SHA" "$HEAD_SHA")
 mapfile -t files < <(git -C "$REPO" diff --no-renames --name-only "$merge_base" "$HEAD_SHA" -- \
   "plugins/$PLUGIN/skills" "plugins/$PLUGIN/agents" "plugins/$PLUGIN/evals")

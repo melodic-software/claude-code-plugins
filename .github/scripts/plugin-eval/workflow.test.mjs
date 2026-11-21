@@ -152,6 +152,11 @@ test("compare mode runs both arms on the API key alone and stops without a cost 
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
   assert.ok(passes("1") && passes("12"));
   for (const value of ["", "0", "13", "2.5"]) assert.ok(!passes(value), value);
+  const filter = /read -ra tags <<<"\$TAGS"\n\s+if \[ -z "\$CASE" \].*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
+  const selects = (env) => spawnSync("bash", ["-c", filter], { env }).status === 0;
+  assert.ok(!selects({ CASE: "", TAGS: "" }), "no case and no tag runs nothing");
+  assert.ok(selects({ CASE: "p1-*", TAGS: "" }) && selects({ CASE: "", TAGS: "interview" }));
+  assert.match(job("compare-record"), /if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then/);
 });
 
 test("only the compare record job writes, after the verdict and a fresh head check", () => {
@@ -178,6 +183,7 @@ test("compare mode leaves the suite legs out, and its run name is the one the re
     head_branch: "main",
     status: "completed",
     conclusion: "success",
+    run_attempt: 1,
     display_title: `eval-compare pr=12 head=${head}`,
     repository: { full_name: "o/r" },
     head_repository: { full_name: "o/r" },

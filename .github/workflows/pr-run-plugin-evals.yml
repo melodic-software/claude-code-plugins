@@ -129,7 +129,7 @@ on:
       mode:
         description: >-
           suite runs the target's suite as above. compare runs the target's
-          deterministic cases (filtered by case and tag) on pull request pr's
+          deterministic cases that case or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
           harness, on the API key only, and posts the eval-pair record on a
           PASS; runs, allow-tools and the inputs after them do not apply.
@@ -2266,6 +2266,10 @@ jobs:
             exit 1
           fi
           read -ra tags <<<"$TAGS"
+          if [ -z "$CASE" ] && [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::compare mode runs the registered cases: set case or tag, so the whole suite never runs twice"
+            exit 1
+          fi
           for value in "${tags[@]}" "$CASE"; do
             case "$value" in -*) echo "::error::a case or tag must not start with -"; exit 1 ;; esac
           done
@@ -2494,5 +2498,9 @@ jobs:
           PR: ${{ inputs.pr }}
           BODY: ${{ needs.compare-verdict.outputs.body }}
         run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "::error::rerun-refused: a re-run of failed jobs re-samples an arm, so it posts no record; dispatch again"
+            exit 1
+          fi
           printf '%s' "$BODY" >"$RUNNER_TEMP/record.md"
           gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F "body=@$RUNNER_TEMP/record.md" --jq .html_url

@@ -116,9 +116,11 @@ export function citedRun(comment) {
 
 /**
  * What a run read from GET actions/runs/{id} vouches for, { pr, head }, when
- * it is a completed, successful workflow_dispatch run of COMPARE_WORKFLOW on
- * `defaultBranch` of `repo` with a compare run name; else null. The run name
- * comes from the dispatch inputs, which the runs API does not return.
+ * it is a completed, successful first attempt of a workflow_dispatch run of
+ * COMPARE_WORKFLOW on `defaultBranch` of `repo` with a compare run name; else
+ * null. A re-run of failed jobs skips the dispatcher check and re-samples an
+ * arm, so only attempt 1 counts. The run name comes from the dispatch inputs,
+ * which the runs API does not return.
  */
 export function runVouches(run, repo, defaultBranch) {
   const same = (name) => typeof name === "string" && name.toLowerCase() === String(repo).toLowerCase();
@@ -130,7 +132,8 @@ export function runVouches(run, repo, defaultBranch) {
     !same(run.repository?.full_name) ||
     !same(run.head_repository?.full_name) ||
     run.status !== "completed" ||
-    run.conclusion !== "success"
+    run.conclusion !== "success" ||
+    run.run_attempt !== 1
   ) {
     return null;
   }
