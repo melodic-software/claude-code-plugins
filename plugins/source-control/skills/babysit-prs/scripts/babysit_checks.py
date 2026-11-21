@@ -83,7 +83,7 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
     # check began, so a still-running/queued check can be aged against the
     # snapshot's `generated_at`. gh's `statusCheckRollup` exposes `startedAt`
     # on a CheckRun (no `createdAt`) and `createdAt` on a StatusContext:
-    # https://docs.github.com/en/graphql/reference/objects#checkrun
+    # https://docs.github.com/en/graphql/reference/checks#checkrun
     created_at = str(check.get("startedAt") or check.get("createdAt") or "")
 
     return {
