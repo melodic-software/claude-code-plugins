@@ -2,6 +2,7 @@
 name: interview-recommender
 description: "Blind recommender for a /planning:interview round: given the round's decision questions with their facts, the constraint ledger and the settled decisions, but none of the conversation, returns one recommendation per question with its basis and any departure from a settled decision. Read-only. Dispatched by the interview skill's Step 2; not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob"
+model: inherit # reason: the recommendation should come from the session's own model, so no model is named here
 maxTurns: 15
 ---
 
