@@ -30,8 +30,8 @@ The Beck and Khorikov files are distilled from cover-to-cover reading of those b
 | Anti-patterns: private methods, exposing state, domain knowledge, code pollution, time | [anti-patterns-khorikov.md](reference/anti-patterns-khorikov.md) |
 | Beck's Money example, Value Object, Expression metaphor, Factory Method | [money-example-beck.md](reference/money-example-beck.md) |
 | Beck's xUnit example, bootstrap, Template Method, Composite, Collecting Parameter | [xunit-example-beck.md](reference/xunit-example-beck.md) |
-| Property-based testing: properties as specification, shrinking, property patterns, properties beside example tests, agent-written properties | [property-based-testing.md](reference/property-based-testing.md) (web-sourced) |
-| Legacy code, characterization tests, code that cannot be put in a test harness yet, seam types, Strangler Fig, golden master, approval and snapshot tests, sabotage check, pins prove sameness not correctness | [characterization-testing.md](reference/characterization-testing.md) (web-sourced) |
+| Property-based testing: properties as specification, property patterns, properties beside example tests, agent-written properties | [property-based-testing.md](reference/property-based-testing.md) (web-sourced) |
+| Legacy code, characterization tests, code that cannot be put in a test harness yet, seam types, Strangler Fig, sabotage check, pins prove sameness not correctness | [characterization-testing.md](reference/characterization-testing.md) (web-sourced) |
 
 Load the most relevant file first. Load a second only if the first doesn't fully answer.
 
@@ -59,8 +59,8 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 
 ### Web-sourced references (not book readings)
 
-These two files were built from web pages, papers' abstract and HTML pages, and tool docs read on
-2026-10-06, not from reading a book. Each file lists its sources with read depth and a recheck
+These two files were built from web pages and papers' abstract and HTML pages read on 2026-10-06,
+not from reading a book. Each file lists its sources with read depth and a recheck
 trigger; this list is rechecked when either file's trigger fires.
 
 - [property-based-testing.md](reference/property-based-testing.md): Maaz et al. (arXiv
