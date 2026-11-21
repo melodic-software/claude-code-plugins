@@ -241,7 +241,8 @@ jobs:
       timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
       skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
-      skip-key: ${{ steps.credit.outcome == 'success' && steps.credit.outputs.skip-key || '' }}
+      skip-key: ${{ steps.credit.outcome != 'skipped' && vars.CLAUDE_API_KEYS_DISABLED == 'true' && 'true' || steps.credit.outcome == 'success' && steps.credit.outputs.skip-key || '' }}
+      key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -304,16 +305,6 @@ jobs:
         if: steps.kill.outputs.proceed != 'false' && steps.wip.outputs.capped != 'true' && steps.wip.outputs.capped != 'false'
         run: echo "::notice title=WIP cap hold::the WIP cap check did not finish, so the pause is unknown and this run starts no work; work-unblock's next sweep re-fires it and the check reads again"
 
-      # The key-credit gate, read before the slot queue: a credit stop inside
-      # vars.KEY_CREDIT_WINDOW_HOURS skips resolve-issue, so the run queues
-      # once, for resolve-issue-subscription, instead of once per leg. Every
-      # failure leaves skip-key empty and the key runs, re-reading its credit
-      # in its own check-broker. On a skip, resolve-issue-subscription runs
-      # with fallback credit-stop, and its check-broker writes the skipped key
-      # leg's lane record and re-checks the blockers in the slot.
-      # The decision comes before the first slot wait, so a window that
-      # expires during that wait still sends the run to the subscription,
-      # which costs plan capacity, not correctness.
       - name: Read the key's credit history
         id: credit
         if: steps.wip.outputs.capped == 'false'
@@ -637,11 +628,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription fallback, a second call on new VMs in the same slot: it
-  # runs on resolve-issue-handoff's read, passing fallback handoff, the one
-  # fact that read attests, or as the first call in the slot when pick-slot's
-  # key-credit gate skipped resolve-issue, passing fallback credit-stop. It
-  # holds the OAuth token alone.
   resolve-issue-subscription:
     name: Resolve Issue Subscription
     needs: [check-admission, pick-slot, resolve-issue, resolve-issue-handoff]
@@ -667,7 +653,7 @@ jobs:
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
-      fallback: ${{ needs.resolve-issue.result == 'skipped' && 'credit-stop' || 'handoff' }}
+      fallback: ${{ needs.resolve-issue.result == 'skipped' && (needs.pick-slot.outputs.key-off == 'true' && 'no-key' || 'credit-stop') || 'handoff' }}
       fallback-ready: ${{ needs.resolve-issue-handoff.outputs.fallback-ready }}
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip

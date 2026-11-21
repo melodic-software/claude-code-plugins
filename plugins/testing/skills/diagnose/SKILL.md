@@ -93,5 +93,4 @@ drives the full cycle including code edits and suggests `/verification:confirm` 
 
 ## Gotchas
 
-- Framework traps. .NET: the Microsoft Testing Platform runner's `dotnet test` options, argument forms and exit codes differ from the classic runner's, so an unrecognized option can exit non-zero before any test runs; read them for the SDK the project uses before reading an exit code as a test result. Pointers: [dotnet test with MTP § Options](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-mtp#options) and [Testing platform troubleshooting § Exit codes](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-troubleshooting#exit-codes). `global.json` selects the runner, so confirm which one the project uses before reading any of this as its behavior. Parallel-execution races are the third trap. Check the consuming project's own gotcha notes before diagnosing
 - Process-global singleton symptoms ("frozen", "already initialized"). Usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround

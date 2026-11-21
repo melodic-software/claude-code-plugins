@@ -136,9 +136,8 @@ The table follows the Before text from its first word to its last:
 
 ## After writing
 
-- **Run the project's prose linter.** When the repository configures one (a Vale, markdownlint, or
-  textlint config), run it on the files you wrote, fix what it reports in them, and report the
-  command and its result.
+- **Run the project's prose linter.** When the repository configures one, run it on the files you
+  wrote, fix what it reports in them, and report the command and its result.
 - **Check for AI-writing tells.** Invoke `/ai-slop:audit` on the files you wrote via the Skill tool
   when it is available in the session; it reports filler, stacked hedging, negative parallelism,
   and promotional tone by line. When it is not available, report that the AI-tell check did not

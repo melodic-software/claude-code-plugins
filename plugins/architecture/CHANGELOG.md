@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.1] - 2026-11-21
+
+### Changed
+
+- **`/architecture:improve` deepening says why its interview loop stays in the lens.** Phase 3 now says the interview loop and its Handoff step stay in the deepening playbook, not in `/planning:interview`, because they write `agreed-shape` and `graft-record`, fields the `/planning:interview` Brief has no place for. Behavior is unchanged ([#16962](https://github.com/melodic-software/claude-code-plugins/issues/16962)).
+
 ## [5.6.0] - 2026-11-20
 
 ### Added

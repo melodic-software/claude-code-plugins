@@ -121,8 +121,10 @@ for the user.
   for the pull request and the head you pin.
   Never merge, enqueue or arm `--auto` without a rating: an `unrated` line, neither a line nor an
   artifact, or a rating of an earlier head holds. With `demote=true` (`max` HIGH or CRITICAL; `/review:merge-risk` § What
-  `demote` may do), read the HIGH and CRITICAL rows' `why` and merge only when an owner decision
-  covers each one. A reason no owner decision covers, or one you cannot read, goes to the owner.
+  `demote` may do), read the HIGH and CRITICAL rows' `why`. A reason you cannot read holds. A
+  reason no owner decision covers goes to the owner only when it is a token or secret leak risk,
+  an account-compromise risk, or something that can bill the owner.
+  For any other uncovered reason, post one PR comment naming those reasons, then merge.
 - The session can reach GraphQL and the PR is not a stack layer; otherwise wait for the user.
 
 Run the merge script

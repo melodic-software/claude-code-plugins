@@ -4598,7 +4598,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.match(read["check-broker"], /^ {6}- name: Stop on a low GITHUB_TOKEN budget until \$\{\{ steps\.kill\.outputs\.reset \}\}\n {8}if: steps\.kill\.outputs\.cause == 'budget'\n/m);
   // Its gate reads the budget on a starting caller's first call, and a budget
   // stop sets skip-reason budget, which skips the run job.
-  assert.match(read["check-broker"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop'\) && 'true' \|\| 'false' \}\}$/m);
+  assert.match(read["check-broker"], /^ {10}budget: \$\{\{ inputs\.start-gate && \(inputs\.fallback == '' \|\| inputs\.fallback == 'credit-stop' \|\| inputs\.fallback == 'no-key'\) && 'true' \|\| 'false' \}\}$/m);
   assert.match(read["check-broker"], /^ {6}skip-reason: \$\{\{ steps\.kill\.outputs\.cause == 'budget' && 'budget' \|\| steps\.broker\.outputs\.skip-reason \}\}$/m);
   assert.match(read.run, /^ {6}&& needs\.check-broker\.outputs\.skip-reason == ''$/m);
   assert.match(caller["resolve-issue"], /^ {6}start-gate: true$/m);

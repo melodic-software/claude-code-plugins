@@ -215,7 +215,7 @@ and report whether it was delivered? The process below holds, with these changes
    module imports neither.
 4. **Sandbox keys only.** The adapter reads the vendor's sandbox or test-mode key from an
    environment variable and refuses a key the vendor marks as production. No key is written into a
-   prototype file, a production credential is never used, and no regulated or real data (personal,
+   prototype file, a production credential is never used, and no real data (personal,
    payment or health records) is sent: every record is synthetic. With no sandbox key, or a vendor
    with no sandbox, stop before any call, mark each live step `not driven: no sandbox key`, and
    ask for one; never fall back to production.

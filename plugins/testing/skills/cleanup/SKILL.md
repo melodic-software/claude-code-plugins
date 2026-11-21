@@ -239,8 +239,7 @@ statement, action, gate-blind, approved-by.
 - Gate-blind: a changed or deleted test none of whose production files holds a `before.tsv` row is
   marked gate-blind and needs the user's yes, even for a rewrite. A test's production files are
   the files defining the code it reaches: what it calls directly, through a helper, an interface
-  or dependency injection, read from the code. Read the calls, not the imports: a C# `using` names
-  a namespace, never a file, and a test in a child namespace of its subject needs no `using`.
+  or dependency injection, read from the code. Read the calls, not the imports.
 
 Unattended, apply only the row 2 and 3 rewrites that are not gate-blind, and leave every yes-gated
 item listed and unapplied.
@@ -374,7 +373,6 @@ build and lint the test project before pushing the batch.
 - **Cleanup never edits production code.** The replay refuses when production changes, so an export
   whose only caller was a deleted test stays until a separate dead-code pass removes it.
 - **In cannot-fail-only mode the skeptic is the only check.** A test with no assertion still fails
-  when its setup throws: a constructor, a dependency-injection resolution, a fixture. On one large
-  .NET suite, skeptics rejected 3 of 42 proposed deletions for that reason.
+  when its setup throws: a constructor, a dependency-injection resolution, a fixture.
 - **A record outlives nothing.** Production code that changes between the two runs makes the replay
   refuse. Finish a batch before rebasing it.

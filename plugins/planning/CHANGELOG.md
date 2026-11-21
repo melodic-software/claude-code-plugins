@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.10.3] - 2026-11-21
+
+### Changed
+
+- The shared page's `proto-pin.js` copy takes the ui-feedback frame helper's opt-in hold: a host that sends `hold: true` with pick mode keeps the pick drawn until it sends `release`. The shared page sends neither, so its picks behave as before ([#17800](https://github.com/melodic-software/claude-code-plugins/issues/17800)).
+
+- Wayfind's data-sharing item for a selected outside service asks which fields cross to it and under what agreement, with no domain-specific question; compliance specifics come from the consuming repository's own context.
+- The shared interview lane and the PRD tier cheat sheet drop domain-specific data wording.
+
 ## [5.10.2] - 2026-11-20
 
 ### Fixed
