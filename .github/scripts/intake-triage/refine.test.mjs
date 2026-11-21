@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
