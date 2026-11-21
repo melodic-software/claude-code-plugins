@@ -541,6 +541,25 @@ class TestNotes(NotesCase):
         self.assertEqual(body["note"], sb.DATA_NOTE)
         self.assertEqual(body["events"][0]["text"], NOTE["text"])
 
+    def test_a_move_arrow_reaches_the_session_naming_both_anchors(self):
+        move = next(
+            c["note"]
+            for c in FIXTURES["valid"]
+            if c["note"]["kind"] == "move" and "anchor" in c["note"]["to"]
+        )
+        self.assertEqual(self.note(move)[0], 200)
+        code, body = self.request(
+            "GET",
+            "/api/wait?after=handled&timeout=5",
+            headers={"X-Notes-Token": self.hub.watch_token},
+            token=False,
+        )
+        self.assertEqual(code, 200)
+        event = body["events"][0]
+        self.assertEqual(event["anchor"], move["anchor"])
+        self.assertEqual(event["to"]["anchor"], move["to"]["anchor"])
+        self.assertEqual(event["to"]["point"], move["to"]["point"])
+
     def test_the_page_name_is_a_plain_html_file_name(self):
         for bad in ("../x.html", "a/b.html", "x.txt", ".hidden.html"):
             with (

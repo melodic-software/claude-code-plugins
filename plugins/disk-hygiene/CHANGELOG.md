@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.45] - 2026-11-21
+
+### Fixed
+
+- **A stopped inventory no longer leaves its partial report behind, and old reports are pruned.** `hygiene.py inventory` names its partial `inventory-<stamp>.jsonl.<pid>.<hex>.tmp`, deletes it on SIGTERM as well as SIGINT, and at the next start deletes any partial whose writer PID is gone; a legacy partial with no PID stays. After each run that passes validation it keeps the newest three reports, each `.jsonl` with its `.json` summary, and deletes older pairs. The row format is unchanged.
+
 ## [1.0.44] - 2026-11-19
 
 ### Changed

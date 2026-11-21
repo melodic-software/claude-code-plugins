@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "note.schema.json",
   "title": "UI feedback note",
-  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores, and an import counts toward it. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. kind says what the note is pinned to: an element, a text selection (anchor.textQuote holds it) or a dragged region (rect is the region and elements lists the anchors of the test-id elements it intersects, or of the holding element's children it intersects when it intersects none; anchor is the element that holds it). Every string the page supplies is an id, a key or an enum, except anchor.textQuote and the values in controls: text copied from a model-written page, allowed there only (docs/contracts/rendered-views, rule 9) and data wherever it goes. A quote's exact text is the selection with whitespace runs collapsed, and prefix and suffix are the visible text of the scope just before and after it, so it finds the text again where Seed and Clear move it. rect is a box in percent of the page's scrollable box when the note was taken: the position-only last step of the anchor ladder when no anchor finds the element. data.log is the data controls pressed since the page loaded, in order, so a re-locating script can replay it; a log longer than its limit is left out. viewport is the framed page's size, scroll, color scheme and reduced-motion setting. controls is each control of the page's manifest (controls.schema.json) with its value when the note was taken.",
-  "x-version": 5,
+  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores, and an import counts toward it. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. kind says what the note is pinned to: an element, a text selection (anchor.textQuote holds it), a dragged region (rect is the region and elements lists the anchors of the test-id elements it intersects, or of the holding element's children it intersects when it intersects none; anchor is the element that holds it) or a move arrow (anchor and rect are the element to move, and to is where it should go: to.anchor the destination element when one fits, and to.point the place in percent of the page's scrollable box, that end's position-only last step). Each end of a move arrow runs its own anchor ladder. Every string the page supplies is an id, a key or an enum, except anchor.textQuote and the values in controls: text copied from a model-written page, allowed there only (docs/contracts/rendered-views, rule 9) and data wherever it goes. A quote's exact text is the selection with whitespace runs collapsed, and prefix and suffix are the visible text of the scope just before and after it, so it finds the text again where Seed and Clear move it. rect is a box in percent of the page's scrollable box when the note was taken: the position-only last step of the anchor ladder when no anchor finds the element. data.log is the data controls pressed since the page loaded, in order, so a re-locating script can replay it; a log longer than its limit is left out. viewport is the framed page's size, scroll, color scheme and reduced-motion setting. controls is each control of the page's manifest (controls.schema.json) with its value when the note was taken.",
+  "x-version": 6,
   "x-maxNotesPerRun": 500,
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "anchor", "text"],
   "properties": {
-    "kind": { "enum": ["element", "text", "region"] },
+    "kind": { "enum": ["element", "text", "region", "move"] },
     "variant": { "$ref": "#/$defs/keyed" },
     "state": { "$ref": "#/$defs/keyed" },
     "content": { "enum": ["demo", "worst"] },
@@ -24,6 +24,23 @@
         "y": { "$ref": "#/$defs/percent" },
         "w": { "$ref": "#/$defs/percent" },
         "h": { "$ref": "#/$defs/percent" }
+      }
+    },
+    "to": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["point"],
+      "properties": {
+        "anchor": { "$ref": "#/$defs/anchor" },
+        "point": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "$ref": "#/$defs/percent" },
+            "y": { "$ref": "#/$defs/percent" }
+          }
+        }
       }
     },
     "data": {
