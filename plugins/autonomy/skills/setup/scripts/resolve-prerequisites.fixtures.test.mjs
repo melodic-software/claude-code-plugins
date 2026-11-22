@@ -163,6 +163,10 @@ function assertPostureDivergence(output) {
   if (eco?.provenance?.path !== "docs/conventions/ecosystems" || eco.provenance.rung !== "consumer-authored") {
     throw new Error(`expected the record read from docs/conventions/ecosystems; got ${JSON.stringify(eco?.provenance)}`);
   }
+  const shadowNote = ".claude/ecosystems/typescript.yaml is not read: docs/conventions/ecosystems/typescript.yaml takes its place";
+  if (!JSON.stringify(eco.provenance).includes(shadowNote)) {
+    throw new Error(`expected the shadowed legacy record named; got ${JSON.stringify(eco.provenance)}`);
+  }
 }
 
 function assertLegacyEcosystemsRead(output) {

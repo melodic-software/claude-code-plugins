@@ -222,6 +222,7 @@ assert_line "D: paragraph joined" "$rows" "$(printf 'One paragraph that wraps on
 assert_eq "D: one instruction statement only" 1 "$(grep -c "	instruction	" <<<"$rows")"
 assert_eq "D: three test files, tests/ kept, fixtures excluded" 3 "$(grep -c "^tests in " <<<"$rows")"
 out="$(bash "$GEN" --root "$D")"
+assert_line "D: a shadowed legacy record is named with the file that wins" "$out" "- ecosystems: .claude/ecosystems/lang.yaml is not read: docs/conventions/ecosystems/lang.yaml takes its place; delete it"
 assert_line "D: alias notice" "$out" "- declared: item 0 names semgrep-rule, read as syntax-pattern-rule (renamed in ladder 3.0.0)"
 assert_line "D: unknown rung named" "$out" '- skipped: rung `bogus-rung` from declared in docs/conventions/harness-config.yaml is not a rung of ladder '"$(awk -F': *' '/^enforcement-ladder:/ {print $2; exit}' "$LADDER")"
 

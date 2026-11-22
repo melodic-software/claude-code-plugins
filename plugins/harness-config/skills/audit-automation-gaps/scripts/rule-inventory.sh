@@ -255,7 +255,10 @@ esac
 eco_n=0
 for f in docs/conventions/ecosystems/*.yaml .claude/ecosystems/*.yaml; do
   [[ -e "$f" ]] || continue
-  [[ "$f" == .claude/* && -e "docs/conventions/ecosystems/${f##*/}" ]] && continue
+  if [[ "$f" == .claude/* && -e "docs/conventions/ecosystems/${f##*/}" ]]; then
+    note "ecosystems: $f is not read: docs/conventions/ecosystems/${f##*/} takes its place; delete it"
+    continue
+  fi
   if [[ ! -r "$f" ]]; then note "ecosystems: $f unreadable"; continue; fi
   eco_n=$((eco_n + 1))
   name="${f##*/}"; name="${name%.yaml}"

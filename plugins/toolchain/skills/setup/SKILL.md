@@ -31,7 +31,8 @@ interactive session) the interview below runs.
 REPO_ROOT=$(git rev-parse --show-toplevel)
 ```
 
-Write only inside `$REPO_ROOT/docs/conventions/ecosystems/`, never the plugin directory or the
+Write only inside `$REPO_ROOT/docs/conventions/ecosystems/`, plus moving legacy
+`$REPO_ROOT/.claude/ecosystems/` files there per `apply` step 1; never the plugin directory or the
 plugin data directory; configuration lives in the consumer's tracked files. Also read the legacy
 `$REPO_ROOT/.claude/ecosystems/`.
 
