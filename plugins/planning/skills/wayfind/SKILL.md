@@ -307,7 +307,9 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    the item (comment → index → close, as one atomic sequence). The comment takes its type's shape
    ([`context/map-anatomy.md`](context/map-anatomy.md) "Resolution comments"). A decision that
    rests on a prototype not yet run is recorded as provisional, naming that prototype item, and
-   that prototype's resolution confirms or reverses it (map-anatomy "Provisional decisions").
+   that prototype's verdict confirms or reverses it. A marker naming a prototype item that closed
+   through the `/planning:design` fallback, with no verdict, clears only through a new prototype
+   item charted once the prototype plugin is enabled (map-anatomy "Provisional decisions").
    **Wrongly scoped** (on the tracker
    but not this effort): add one Out-of-scope line linking it, then close it, with no
    Decisions-so-far pointer. Fog stays in Not-yet-specified and never moves into Out-of-scope for
@@ -340,7 +342,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    ruled out of scope by the user, which moves it to Out-of-scope with the reason; that ruling is
    the one way fog leaves without being charted. Then post a closing comment on the map that states every resolved decision in full: for
    each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
-   resolution comment records, not only the link, and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then close the map issue and hand the decisions
+   resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then close the map issue and hand the decisions
    to the destination's skill in a source form it accepts:
 
    | Destination | Closes to |

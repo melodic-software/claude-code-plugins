@@ -108,7 +108,13 @@ line ends `(provisional until [<prototype title>](<prototype URL>))`. When that 
 resolves, a pass confirms it (drop the provisional marker); a fail reverses it through the
 supersede sweep (SKILL.md work step 7), with the prototype's fallback as the new item's starting
 point. A prototype item settled through the `/planning:design` fallback records its own decision
-this way, naming itself, since its artifact was never built.
+this way, naming itself, since its artifact was never built. That item closes with no verdict, so
+its resolution cannot clear the marker. Only running the prototype clears it. Once the prototype
+plugin is enabled, a `work` session that finds a marker naming a closed prototype item with no
+verdict charts a new prototype item. The new item has the same body and links the closed one, and
+the marker is changed to point at it. That item's verdict then confirms or reverses the decision
+as above. Until then the decision stays provisional, and the map's closing comment (SKILL.md work
+step 8) states it as provisional and names the prototype still to run.
 
 ## Invariants (checked at every `work` session start)
 
