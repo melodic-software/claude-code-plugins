@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| Old files | PASS | none found |", "why": "no old file" },
+    { "answer": "INFO: no .claude/codebase-health.md or .claude/codebase-health.local.md exists.", "why": "old paths named as absent, no WARN" }
+  ],
+  "fail": [
+    { "answer": "WARN: read .claude/codebase-health.md (old location); move it to docs/conventions/codebase-health.md with /codebase-health:setup apply.", "why": "warns about an old file that does not exist" },
+    { "answer": "| .claude/codebase-health.local.md | WARN: old location |", "why": "old file row as WARN" }
+  ]
+}

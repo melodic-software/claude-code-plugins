@@ -1,0 +1,20 @@
+---
+id: codebase-health-r001
+retired: 2026-11-22
+plugin_version: 0.16.0
+kind: file
+path: .claude/codebase-health.md
+content_match: '^##[[:space:]]+[A-Za-z0-9_-]+'
+action: migrate
+successor: "the team layer moved to <home>/codebase-health.md (reference/config.md): carry every dimension of the old file into that file, a dimension both files declare taking the union of their globs and claims unless the new file opts it out, resolve the team layer from the new file alone and confirm each moved dimension resolves the same source lists and example claims, have the operator confirm, then clean"
+note: "old team audit-dimension config; moves to <home>/codebase-health.md"
+---
+id: codebase-health-r002
+retired: 2026-11-22
+plugin_version: 0.16.0
+kind: file
+path: .claude/codebase-health.local.md
+content_match: '^##[[:space:]]+[A-Za-z0-9_-]+'
+action: migrate
+successor: "the personal layer moved to <home>/codebase-health.local.md (reference/config.md): confirm git check-ignore covers that path first, carry every dimension of the old file into it, a dimension both files declare taking the union of their globs and claims unless the new file opts it out, resolve the personal layer from the new file alone and confirm each moved dimension resolves the same source lists and example claims, have the operator confirm, then clean"
+note: "old personal audit-dimension config; moves to <home>/codebase-health.local.md"

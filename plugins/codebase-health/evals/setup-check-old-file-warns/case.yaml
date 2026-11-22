@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: setup-check-old-file-warns
+description: 'Bare /codebase-health:setup runs the read-only check on a repository whose only codebase-health config is the old team file .claude/codebase-health.md, declaring documentation and a custom api-contracts dimension, and the old ignored personal file .claude/codebase-health.local.md, adding a runbooks dimension, with no docs/conventions/codebase-health*.md. The dual-read window still applies the old file, so api-contracts is reported with the old file as its layer (old-dimension-applies), and the reply prints a warning naming the old file, its new location docs/conventions/codebase-health.md and /codebase-health:setup apply (warns-with-new-location). The retirement helper reports both records (reports-retirement-records). It neither writes, edits nor deletes anything (no-write, no-edit, old-file-kept). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Write Edit so the write graders can fail.'
+tags: [setup, check, config-cascade, dual-read, no-network]
+expected_outcome: 'A PASS/FAIL/WARN/INFO report in which the api-contracts dimension is supplied by the old .claude/codebase-health.md, and a WARN names that file, says to move it to docs/conventions/codebase-health.md, and names /codebase-health:setup apply as the command that moves it. Nothing is written or deleted.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/codebase-health:setup'
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: old-dimension-applies
+    type: regex
+    pattern: 'api-contracts[^\n]{0,200}?(?<![~\w/])\.claude/codebase-health\.md|(?<![~\w/])\.claude/codebase-health\.md[^\n]{0,200}?api-contracts'
+    target: last_message
+    arm: both
+  - name: warns-with-new-location
+    type: regex
+    pattern: '(?=[\s\S]*\bWARN)(?=[\s\S]*(?<![~\w/])\.claude/codebase-health\.md)(?=[\s\S]*docs/conventions/codebase-health\.md)[\s\S]*codebase-health:setup apply'
+    target: last_message
+    arm: both
+  - name: old-file-kept
+    type: file_exists
+    path: '.claude/codebase-health.md'
+    exists: true
+  - name: reports-retirement-records
+    type: regex
+    pattern: '(?=[\s\S]*codebase-health-r001)[\s\S]*codebase-health-r002'
+    target: last_message
+    arm: both

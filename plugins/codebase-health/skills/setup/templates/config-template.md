@@ -3,8 +3,9 @@
 Tracked audit-dimension configuration for the codebase-health plugin. Each `##` section below is one
 audit dimension. The four bundled dimensions (`documentation`, `configuration`, `code-quality`,
 `architecture`) may be tuned or removed here; new `##` sections add custom dimensions. Personal
-overrides go in `.claude/codebase-health.local.md` (gitignored); a user-global base may live at
-`~/.claude/codebase-health.md`. Layers resolve user-global → this file → personal override, additively.
+overrides go in `codebase-health.local.md` beside this file (gitignored); dimensions for every
+repository go in the file the plugin's `dimensions_file` option names. Layers resolve that file →
+this file → personal override, additively.
 
 Each dimension carries:
 
