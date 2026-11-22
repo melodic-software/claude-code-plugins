@@ -204,14 +204,15 @@ value outside the set is named and its layer dropped.
 ### Comment lint (git hook and CI)
 
 A `pre-commit` git-hook entry, `comment-lint`, fails a comment a change adds outside the comment
-posture. It detects and never edits; `/code-tidying:remove-comments` is the fix. Two team-file
-settings drive it, both read from `<home>/code-tidying.yaml` only, with no personal override and no
+posture. It detects and never edits; `/code-tidying:remove-comments` is the fix. Three team-file
+settings drive it, all read from `<home>/code-tidying.yaml` only, with no personal override and no
 `userConfig` option:
 
 | Setting | Default | Effect |
 |---|---|---|
 | `comment_lint` | `off` | `off` runs nothing; `report` prints the findings and exits 0; `block` prints them and fails the commit. `off` is the kill switch. |
 | `comment_lint_allow` | `[]` | Extended regular expressions (matched with `grep -E`) for the repository's own comment markers, such as a gate's `# silent-skip-ok:`, and for a tool directive the built-in list lacks. A comment whose text matches one passes. |
+| `comment_adr_dir` | `docs/adr` | Repository-relative folder of the decision records. A one-line ADR pointer (`ADR-0042`, or a path into the folder) passes only when its record exists there. A value outside the repository is ignored and the default applies. |
 
 The posture comes from `comment_posture` in the team file and its personal override. A git hook
 runs outside Claude Code, so a `userConfig` posture never reaches it; unset reads as `auto`, which

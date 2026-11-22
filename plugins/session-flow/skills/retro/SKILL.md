@@ -224,6 +224,8 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
   session on the machine.
 - /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.
   Session mode calls it when given `--pattern` ([context/session.md](context/session.md), "Ticket section").
+- /session-flow:recommend-skills: the installed skills that fit next, when the retro found a skill
+  the session missed.
 
 ## Gotchas
 

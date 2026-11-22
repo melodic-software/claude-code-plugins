@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parse } from "../lib/yaml-subset.mjs";
 
-export const RECORD_DIRS = [".claude/ecosystems", "docs/conventions/ecosystems"];
+export const RECORD_DIRS = ["docs/conventions/ecosystems", ".claude/ecosystems"];
 const LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json"]);
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -35,45 +35,54 @@ function entriesOf(record) {
   return out.filter(isObject);
 }
 
-export function listInstalls(root, warn = () => {}) {
-  const byDir = new Map();
-  let declared = 0;
+function recordFiles(root, warn) {
+  const dirOf = new Map();
   for (const rel of RECORD_DIRS) {
     const dir = path.join(root, rel);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) continue;
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".yaml")).sort()) {
-      const where = `${rel}/${file}`;
-      const text = readFileSync(path.join(dir, file), "utf8");
-      if (!/^\s*(- )?install:/m.test(text)) continue;
-      let record;
-      try {
-        record = parse(text);
-      } catch (err) {
-        declared++;
-        warn(`${where}: not read (${err.message}); its install entries are skipped`);
+      if (!dirOf.has(file)) dirOf.set(file, rel);
+      else warn(`${rel}/${file} is not read: ${dirOf.get(file)}/${file} takes its place`);
+    }
+  }
+  return [...dirOf].map(([file, rel]) => ({ file, rel }));
+}
+
+export function listInstalls(root, warn = () => {}) {
+  const byDir = new Map();
+  let declared = 0;
+  for (const { file, rel } of recordFiles(root, warn)) {
+    const where = `${rel}/${file}`;
+    const text = readFileSync(path.join(root, rel, file), "utf8");
+    if (!/^\s*(- )?install:/m.test(text)) continue;
+    let record;
+    try {
+      record = parse(text);
+    } catch (err) {
+      declared++;
+      warn(`${where}: not read (${err.message}); its install entries are skipped`);
+      continue;
+    }
+    for (const entry of entriesOf(record)) {
+      if (!("install" in entry)) continue;
+      declared++;
+      const name = typeof entry.name === "string" ? entry.name : "(unnamed)";
+      const error = installError(entry.install);
+      if (error) {
+        warn(`${where}: ${name}: ${error}; skipped`);
         continue;
       }
-      for (const entry of entriesOf(record)) {
-        if (!("install" in entry)) continue;
-        declared++;
-        const name = typeof entry.name === "string" ? entry.name : "(unnamed)";
-        const error = installError(entry.install);
-        if (error) {
-          warn(`${where}: ${name}: ${error}; skipped`);
-          continue;
-        }
-        const lockfile = entry.install.lockfile;
-        if (!existsSync(path.join(root, lockfile))) {
-          warn(`${where}: ${name}: ${lockfile} does not exist; skipped`);
-          continue;
-        }
-        const lockDir = path.posix.dirname(lockfile);
-        const seen = byDir.get(lockDir);
-        if (seen) {
-          if (!seen.names.includes(name)) seen.names.push(name);
-        } else {
-          byDir.set(lockDir, { dir: lockDir, names: [name], lockfile });
-        }
+      const lockfile = entry.install.lockfile;
+      if (!existsSync(path.join(root, lockfile))) {
+        warn(`${where}: ${name}: ${lockfile} does not exist; skipped`);
+        continue;
+      }
+      const lockDir = path.posix.dirname(lockfile);
+      const seen = byDir.get(lockDir);
+      if (seen) {
+        if (!seen.names.includes(name)) seen.names.push(name);
+      } else {
+        byDir.set(lockDir, { dir: lockDir, names: [name], lockfile });
       }
     }
   }

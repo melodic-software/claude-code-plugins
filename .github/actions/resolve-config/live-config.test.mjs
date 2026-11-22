@@ -514,6 +514,13 @@ test("live config: resolve-issue self-checks its uncommitted work with check-aff
   assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
 });
 
+test("live config: address-feedback and fix-ci self-check their uncommitted work with check-affected", () => {
+  for (const leaf of [selected("pr-unblock", "address-feedback", { mergeable: "clean" }), selected("pr-unblock", "fix-ci")]) {
+    assert.deepEqual(leaf["self-checks"], ["scripts/check-affected.sh --uncommitted"]);
+    assert.ok(!(leaf.checks ?? []).includes("scripts/check-affected.sh --uncommitted"), (leaf.checks ?? []).join(" | "));
+  }
+});
+
 // resolve-issue lists no script that runs checkout code; the PR's own CI runs
 // the tests.
 const RUNS_CHECKOUT_CODE = [

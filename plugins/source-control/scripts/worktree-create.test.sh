@@ -1253,11 +1253,11 @@ exit "${FAKE_NPM_EXIT:-0}"
 EOF
 chmod +x "$fake_bin/npm"
 declare_lockfile() {
-  mkdir -p "$1/.claude/ecosystems"
+  mkdir -p "$1/docs/conventions/ecosystems"
   printf '%s\n' 'globs: ["*.ts"]' 'requires:' '  check-cmd:' '    - name: root toolchain' \
     '      probe: "test -d node_modules"' '      install:' '        manager: npm' \
-    '        lockfile: package-lock.json' >"$1/.claude/ecosystems/typescript.yaml"
-  git -C "$1" add .claude/ecosystems/typescript.yaml
+    '        lockfile: package-lock.json' >"$1/docs/conventions/ecosystems/typescript.yaml"
+  git -C "$1" add docs/conventions/ecosystems/typescript.yaml
   git -C "$1" -c commit.gpgsign=false commit -qm record
 }
 undeclared_repo=$(mkrepo)

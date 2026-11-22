@@ -234,11 +234,11 @@
         "api": {
           "type": "object",
           "additionalProperties": false,
-          "description": "GitHub API margins per pool. The pool's planned budget is the limit its x-ratelimit-limit header reports, at most its limit-cap; plan and read-floor are shares of that planned budget, writer-pause, breaker and stop-floor shares of the header's limit. A graphql call reads `graphql`; any other call reads the entry its token names. Unset fields take their defaults from .github/actions/log-api-budget/rate-limits.json, the only copy, which every merge hold list floors so a change to one waits for a person.",
+          "description": "GitHub API margins per pool, each a share of the limit its x-ratelimit-limit header reports. A graphql call reads `graphql`; any other call reads the entry its token names. Unset fields take their defaults from .github/actions/log-api-budget/rate-limits.json, the only copy, which every merge hold list floors so a change to one waits for a person.",
           "properties": {
             "github-token": {
               "$ref": "#/$defs/api-pool",
-              "description": "GITHUB_TOKEN. GitHub documents 1,000 requests per hour per repository for it (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions), so its default limit-cap plans to that and a higher header limit is headroom, never a target. The one exception is ci-status's merge-group verdict reader, run with BABYSIT_READ_FLOOR_HEADER_LIMIT=1: its read floor is a share of the live header limit (owner decision D418)."
+              "description": "GITHUB_TOKEN. Its shares are of the live x-ratelimit-limit header, which can report more than the 1,000 requests per hour per repository GitHub documents for it (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions)."
             },
             "lanes-app": { "$ref": "#/$defs/api-pool" },
             "graphql": { "$ref": "#/$defs/api-pool" },
@@ -540,7 +540,7 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,
-          "description": "Share of the pool's planned budget the lanes plan to spend. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+          "description": "Share of the header's limit the lanes plan to spend. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         },
         "writer-pause": {
           "type": "number",
@@ -585,18 +585,13 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "description": "Share of the planned budget left below which the rate guard warns once per pool; calls continue."
+          "description": "Share of the header's limit left, by the header's remaining, below which the rate guard warns once per pool; calls continue."
         },
         "stop-floor": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "description": "Share of the header's limit left, by the header's remaining, at or under which the rate guard stops the pool until the header's reset, as at a remaining of 0: it records the stop in the job's stop file, and the step holds where API_BUDGET_HOLD applies, else fails. A response without a readable limit, remaining or future reset never stops on it."
-        },
-        "limit-cap": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Requests per window the pool plans to, whatever higher limit its header reports: planned = min(header limit, limit-cap), used = header limit - header remaining, left = planned - used. Unset in both the config and rate-limits.json: planned is the header's limit. The rate guard's stop still reads only the header's remaining and limit (stop-floor) and GitHub's refusals."
         }
       }
     },
@@ -610,7 +605,6 @@
         "breaker": { "$ref": "#/$defs/api-pool/properties/breaker" },
         "read-floor": { "$ref": "#/$defs/api-pool/properties/read-floor" },
         "stop-floor": { "$ref": "#/$defs/api-pool/properties/stop-floor" },
-        "limit-cap": { "$ref": "#/$defs/api-pool/properties/limit-cap" },
         "per-minute": {
           "type": "integer",
           "minimum": 1,
@@ -763,14 +757,14 @@
         "applied-by": { "required": ["patch"] },
         "prepare": { "not": { "const": "ci-context" } }
       },
-      "description": "Only the read runner stages a skill's edit tools, for a skill with applied-by.patch and no prepare: ci-context, so only that skill takes checks, self-checks, verify-scripts and web-access. Anywhere else they would do nothing, so they are refused."
+      "description": "Only the read runner stages a skill's edit tools, for a skill with applied-by.patch and no prepare: ci-context, so only that skill takes checks, verify-scripts and web-access. Anywhere else they would do nothing, so they are refused."
     },
     "verify-runner": {
       "anyOf": [
         { "$ref": "#/$defs/edit-runner" },
         { "required": ["prepare"], "properties": { "prepare": { "const": "ci-context" } } }
       ],
-      "description": "verify-scripts are staged where checks are, and under prepare: ci-context too, where the skill is told to run a listed script only from its base copy."
+      "description": "verify-scripts and self-checks are staged where checks are, and under prepare: ci-context too, where the skill is told to run a listed script or check only from its base copy."
     },
     "leaf": {
       "type": "object",
@@ -795,7 +789,7 @@
           "properties": { "effect": { "const": "read" }, "gating": { "const": "advisory" } }
         },
         "checks": { "$ref": "#/$defs/edit-runner" },
-        "self-checks": { "$ref": "#/$defs/edit-runner" },
+        "self-checks": { "$ref": "#/$defs/verify-runner" },
         "verify-scripts": { "$ref": "#/$defs/verify-runner" },
         "tidy": {
           "required": ["effect", "applied-by"],

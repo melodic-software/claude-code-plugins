@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { blankProps, blocks, compilePatterns, distinct, maskProps, maskText, splitBlocks, splitMatches } from './mask.ts'
+import { blankProps, blocks, compilePatterns, distinct, maskProps, maskText, splitBlocks, splitMatches, WINDOW } from './mask.ts'
 
 const M = '[hidden]'
 const { patterns } = compilePatterns([])
@@ -252,29 +252,36 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
 // The worst user patterns the guard accepts: each tries many lengths at every start.
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
-// A wall-clock bound depends on the machine, so the test checks how cost grows instead: five times
-// the text costs about five times as much when it is linear, twenty-five times when quadratic. Load
-// on a shared runner can slow any timing, so each pass times both sizes back to back and the pass
-// with the least excess counts: a quadratic pattern has the excess in every pass. The few
-// milliseconds of slack cover a pattern whose whole cost is under a millisecond.
-test('runs each of the worst accepted extra patterns in time linear in the text length', { timeoutMs: 60_000 }, () => {
+const SMALL_TEXT = WINDOW
+const SIZE_RATIO = 5
+
+test('runs each of the worst accepted extra patterns over windows, so its engine calls grow linearly with the text', () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
   const extras = r.patterns.slice(-WORST_ACCEPTED.length)
   expect(extras.map((p) => p.source)).toEqual(WORST_ACCEPTED)
   const inputs = (n: number) => ['a'.repeat(n), '1'.repeat(n), 'ab'.repeat(n / 2), '= '.repeat(n / 2)]
-  const cost = (pattern: RegExp, n: number) => {
-    const start = performance.now()
-    for (const input of inputs(n)) maskText(input, [pattern], M)
-    return performance.now() - start
-  }
   for (const pattern of extras) {
-    let excess = Infinity
-    for (let pass = 0; pass < 5 && excess >= 10; pass++) {
-      const small = cost(pattern, 10_000)
-      excess = Math.min(excess, cost(pattern, 50_000) - 10 * small)
+    const seen: number[] = []
+    const matchAll = RegExp.prototype[Symbol.matchAll]
+    Object.defineProperty(pattern, Symbol.matchAll, {
+      configurable: true,
+      value(this: RegExp, text: string) {
+        seen.push(text.length)
+        return matchAll.call(this, text)
+      },
+    })
+    const calls = (n: number) => {
+      seen.length = 0
+      for (const input of inputs(n)) maskText(input, [pattern], M)
+      return seen.length
     }
-    expect(excess).toBeLessThan(10)
+    const small = calls(SMALL_TEXT)
+    expect(Math.max(...seen)).toBeLessThanOrEqual(WINDOW)
+    const large = calls(SIZE_RATIO * SMALL_TEXT)
+    expect(Math.max(...seen)).toBeLessThanOrEqual(WINDOW)
+    expect(large).toBeLessThanOrEqual(SIZE_RATIO * (small + inputs(0).length))
+    delete (pattern as unknown as Record<symbol, unknown>)[Symbol.matchAll]
   }
 })
 

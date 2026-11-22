@@ -416,7 +416,7 @@ loosening a security control stays with the owner (owner decision 2026-10-29, #1
 the hold on such an escalated verdict, though it carries no flag.
 
 The pr-merge gate keeps two more holds for the owner, each a reason
-[`babysit_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py)
+[`diff_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/diff_risk.py)
 names (owner decision 2026-10-30, #11020):
 
 - A trusted-actor widening (`trust-gate:trusted-actors`): a newly trusted login is a path to

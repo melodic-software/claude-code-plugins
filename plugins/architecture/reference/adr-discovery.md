@@ -1,7 +1,7 @@
 # ADR discovery ladder
 
 How to find a repository's architecture decision records, and how to infer the numbering and record
-shape once they are found. Loaded by `/architecture:record-decision` before it writes, and by
+shape once they are found. Loaded by `/architecture:adr` before it writes, and by
 `/architecture:improve` before a scan reads existing records.
 
 ADR placement varies widely, so a single default glob misses most of them. Walk the ladder below
@@ -36,7 +36,7 @@ code they describe rather than in a directory of their own.
 ## Rung 3. None
 
 No convention. The caller decides what that means: `/architecture:improve` reads nothing and moves
-on; `/architecture:record-decision` names the rungs it searched, recommends its default template beside other shapes, and defers.
+on; `/architecture:adr` names the rungs it searched, recommends its default template beside other shapes, and defers.
 
 ## Inference: numbering
 

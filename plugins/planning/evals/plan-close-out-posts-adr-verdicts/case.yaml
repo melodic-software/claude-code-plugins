@@ -13,12 +13,12 @@ execution:
 graders:
   - name: pr-body-has-verdicts
     type: regex
-    pattern: 'Q1 attempt count: no ADR; no real alternative weighed[\s\S]*Q2 backoff schedule: no ADR; no real alternative weighed[\s\S]*Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the record-decision skill judged it easy to reverse[\s\S]*Q4 alert channel: no ADR; a process decision'
+    pattern: 'Q1 attempt count: no ADR; no real alternative weighed[\s\S]*Q2 backoff schedule: no ADR; no real alternative weighed[\s\S]*Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the adr skill judged it easy to reverse[\s\S]*Q4 alert channel: no ADR; a process decision'
     arm: both
     target: { source: file, path: pr-body.md }
   - name: issue-comment-has-verdicts
     type: regex
-    pattern: 'Q1 attempt count: no ADR; no real alternative weighed[\s\S]*Q2 backoff schedule: no ADR; no real alternative weighed[\s\S]*Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the record-decision skill judged it easy to reverse[\s\S]*Q4 alert channel: no ADR; a process decision'
+    pattern: 'Q1 attempt count: no ADR; no real alternative weighed[\s\S]*Q2 backoff schedule: no ADR; no real alternative weighed[\s\S]*Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the adr skill judged it easy to reverse[\s\S]*Q4 alert channel: no ADR; a process decision'
     arm: both
     target: { source: file, path: issue-comment.md }
   - name: reports-verdict-check

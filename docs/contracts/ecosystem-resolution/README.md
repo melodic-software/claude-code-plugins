@@ -65,7 +65,7 @@ Two guarantees hold across every step:
   is the person's yes in the session.
 - An unattended run writes no record. A lane may instead propose one in a pull request, holding
   only commands that pass the unattended limits. For an ecosystem record (a
-  `.claude/ecosystems/<ecosystem>.yaml` file) a merged pull request counts as acceptance. Every
+  `docs/conventions/ecosystems/<ecosystem>.yaml` file) a merged pull request counts as acceptance. Every
   other record still needs a person's yes.
 - A record is written where the record table puts it, through the writer the table names, never
   into a file the skill picks itself.
@@ -74,7 +74,7 @@ Two guarantees hold across every step:
 
 | Choice | Record | Owner | Writer |
 |---|---|---|---|
-| A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | [`ecosystem-commands`](../ecosystem-commands/README.md) | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
+| A build, test, lint or format command for one ecosystem | `docs/conventions/ecosystems/<ecosystem>.yaml` | [`ecosystem-commands`](../ecosystem-commands/README.md) | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
 | A language, framework or library convention, or a review criterion | the standards index and the files its rows route to | [`standards`](../standards/README.md) | the standards setup, on acceptance |
 | The chosen way for a repeated task | the file the index's `paved-path` row routes to | [`standards`](../standards/README.md#paved-paths) | `/discipline:reuse-or-replace`, after a yes |
 | The order of enforcement mechanisms | the project instructions | [`enforcement-ladder`](../enforcement-ladder/README.md#reordering) | the person |

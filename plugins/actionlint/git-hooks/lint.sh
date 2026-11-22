@@ -10,7 +10,7 @@
 #                       (resolve-tool.sh rt_print); runs nothing
 #
 # The command resolves through lib/git-hooks/resolve-tool.sh to the actionlint
-# adapter in adapters.sh for every workflow file; a .claude/ecosystems/ record
+# adapter in adapters.sh for every workflow file; an ecosystem record
 # is never run here (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#hooks-run-the-shipped-adapter). Its output becomes "<path>:<line>: <message>" lines, repo-relative, and only
 # those on added lines block (stderr, exit 1); a finding about a whole
 # workflow carries the line actionlint names for it. actionlint exiting

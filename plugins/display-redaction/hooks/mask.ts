@@ -2,7 +2,7 @@ const MAX_PATTERN_LENGTH = 200
 const MAX_DEPTH = 64
 // A user pattern runs over windows of this many characters, each overlapping the next by half, so
 // its cost grows with the text's length, not its square; a match up to half a window is whole in one.
-const WINDOW = 1024
+export const WINDOW = 1024
 // The guard's bound on the lengths a pattern tries at each start: one unbounded quantifier (a
 // window) times a small factor.
 const MAX_COST = 4 * WINDOW

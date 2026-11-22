@@ -15,7 +15,7 @@ It ships no rules of its own and no binary. It runs the `actionlint` already on 
   `.github/actionlint.yml` at its root, the config actionlint itself reads, actionlint applies it;
   without one it runs on its built-in defaults. A repository with no workflow files gets nothing.
   The hooks never run a command from the repository's github-actions record
-  (`.claude/ecosystems/github-actions.yaml`); `/toolchain:lint` and `/toolchain:check` run that on
+  (`docs/conventions/ecosystems/github-actions.yaml`); `/toolchain:lint` and `/toolchain:check` run that on
   request. `/actionlint:setup check` reports which applies.
 - **Report only.** The check never rewrites a file. A finding prints as
   `<path>:<line>: <message>` on stderr and exits `1`. A finding about a whole workflow (a job

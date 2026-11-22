@@ -128,7 +128,7 @@ if [[ "$job" == *"- name: Check the kill switch"*"- name: Find the ci-status to 
 # REST call for a branch ref; an empty SHA skips the checkout.
 list_step="$(step_of 'Check out the trusted-actors list')"
 tip_step="$(awk -v name="      - name: Resolve main's tip" '$0 == name { on = 1; print; next } on && /^      - / { exit } on { print }' <<<"$job")"
-for want in 'id: tip' 'continue-on-error: true' 'TIP_BRANCH: main'; do
+for want in 'id: tip' 'continue-on-error: true' 'branch: main' 'actions/resolve-branch-tip@'; do
   if [[ "$tip_step" == *"$want"* ]]; then ok "the tip step carries '$want'"; else fail "the tip step lacks '$want'"; fi
 done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell

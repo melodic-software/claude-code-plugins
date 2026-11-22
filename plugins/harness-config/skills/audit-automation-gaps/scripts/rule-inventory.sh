@@ -24,14 +24,18 @@ Sources, one adapter each:
   settings    .claude/settings.json: each permissions.deny entry is a
               harness-setting; each PreToolUse or PermissionRequest handler is
               an action-guard
-  ecosystems  .claude/ecosystems/*.yaml: each command line of check-cmd is an
-              analyzer-pack-rule, of test-cmd a behavior-test, of build-cmd a
-              compiler-setting, of fix-cmd a formatter
+  ecosystems  docs/conventions/ecosystems/*.yaml, and a legacy
+              .claude/ecosystems/*.yaml of a name not there: each command line
+              of check-cmd is an analyzer-pack-rule, of test-cmd a
+              behavior-test, of build-cmd a compiler-setting, of fix-cmd a
+              formatter
   test files  tracked files named *.test.*, *.spec.*, *_test.*, test_*.* or
               *Tests.*, outside fixtures and testdata directories, one
               behavior-test row per file (a unit of files, not of test cases)
   control     .claude/skills/control-*/SKILL.md, a runtime-verification each
-  review      statements of REVIEW.md, an automated-review each
+  review      statements of REVIEW.md, CODING_STANDARDS.md, the review-criteria
+              index docs/review/README.md and the docs/review/ files it links,
+              an automated-review each
   instruction statements of every tracked CLAUDE.md and AGENTS.md and of
               .claude/rules/*.md, an instruction each
   skills      every other .claude/skills/*/SKILL.md, a skill each
@@ -249,8 +253,12 @@ unreadable) note "settings: $settings unreadable" ;;
 esac
 
 eco_n=0
-for f in .claude/ecosystems/*.yaml; do
+for f in docs/conventions/ecosystems/*.yaml .claude/ecosystems/*.yaml; do
   [[ -e "$f" ]] || continue
+  if [[ "$f" == .claude/* && -e "docs/conventions/ecosystems/${f##*/}" ]]; then
+    note "ecosystems: $f is not read: docs/conventions/ecosystems/${f##*/} takes its place; delete it"
+    continue
+  fi
   if [[ ! -r "$f" ]]; then note "ecosystems: $f unreadable"; continue; fi
   eco_n=$((eco_n + 1))
   name="${f##*/}"; name="${name%.yaml}"
@@ -281,7 +289,7 @@ for f in .claude/ecosystems/*.yaml; do
   ' "$f")
 done
 if [[ "$eco_n" -eq 0 ]]; then
-  note "ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
+  note "ecosystems: no docs/conventions/ecosystems/*.yaml or .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
 else
   note "ecosystems: $eco_n record(s) read"
 fi
@@ -301,9 +309,25 @@ for s in .claude/skills/*/SKILL.md; do
   esac
 done
 
-review_seen=0
-if [[ -r REVIEW.md ]]; then emit_items REVIEW.md automated-review; review_seen=1; fi
-[[ "$review_seen" = 1 ]] || note "review: REVIEW.md absent"
+review_files="REVIEW.md
+CODING_STANDARDS.md"
+idx=docs/review/README.md
+if [[ -r "$idx" ]]; then
+  review_files="$review_files
+$idx
+$(grep -oE '\]\([^)#[:space:]]+\.md' "$idx" | sed -E 's/^\]\(//; s|^\./||' | grep -Ev '^/|^\.\./|://' | sed 's|^|docs/review/|' | sort -u)"
+fi
+review_n=0
+while IFS= read -r f; do
+  [[ -n "$f" && -r "$f" ]] || continue
+  emit_items "$f" automated-review
+  review_n=$((review_n + 1))
+done <<<"$review_files"
+if [[ "$review_n" -eq 0 ]]; then
+  note "review: no REVIEW.md, CODING_STANDARDS.md or docs/review/README.md"
+else
+  note "review: $review_n review-criteria file(s) read"
+fi
 inst="$(own_files | grep -E '(^|/)(CLAUDE|AGENTS)\.md$' || true)"
 rules="$(own_files | grep -E '^\.claude/rules/[^/]+\.md$' || true)"
 inst_n=0

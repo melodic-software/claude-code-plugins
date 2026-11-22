@@ -30,7 +30,7 @@ tree() {
   mkdir -p "$t/.claude/ecosystems" "$t/docs/conventions/ecosystems" "$t/tools"
   printf '{}\n' >"$t/package-lock.json"
   printf '{}\n' >"$t/tools/package-lock.json"
-  cat >"$t/.claude/ecosystems/typescript.yaml" <<'EOF'
+  cat >"$t/docs/conventions/ecosystems/typescript.yaml" <<'EOF'
 globs: ["*.ts"]
 check-cmd: "npx --no biome check ."
 requires:
@@ -53,7 +53,7 @@ assert_exit "list: exits 0" 0 "$?"
 assert_eq "list: one line for the install entry, none for the report-only one" \
   ".	root toolchain	package-lock.json" "$out"
 
-cat >"$t/docs/conventions/ecosystems/node.yaml" <<'EOF'
+cat >"$t/.claude/ecosystems/node.yaml" <<'EOF'
 globs: ["*.mjs"]
 gates:
   - name: policy
@@ -66,10 +66,25 @@ gates:
           lockfile: tools/package-lock.json
 EOF
 out=$(node "$LISTER" list "$t" 2>/dev/null)
-assert_contains "list: a gate's install entry in the other record home is listed" "$out" "tools	policy packages	tools/package-lock.json"
+assert_contains "list: a gate's install entry in a legacy-location record absent from the new home is listed" "$out" "tools	policy packages	tools/package-lock.json"
+
+cat >"$t/.claude/ecosystems/typescript.yaml" <<'EOF'
+globs: ["*.ts"]
+requires:
+  check-cmd:
+    - name: legacy shadowed
+      probe: "true"
+      install:
+        manager: npm
+        lockfile: tools/package-lock.json
+EOF
+out=$(node "$LISTER" list "$t" 2>"$TEST_TMPDIR/err-shadow.txt")
+assert_not_contains "list: a legacy record with a new-home file of the same name is not read" "$out" "legacy shadowed"
+assert_contains "list: the shadowed legacy record is named with the file that wins" "$(cat "$TEST_TMPDIR/err-shadow.txt")" \
+  ".claude/ecosystems/typescript.yaml is not read: docs/conventions/ecosystems/typescript.yaml takes its place"
 
 bad=$(tree list-bad)
-cat >"$bad/.claude/ecosystems/typescript.yaml" <<'EOF'
+cat >"$bad/docs/conventions/ecosystems/typescript.yaml" <<'EOF'
 globs: ["*.ts"]
 requires:
   check-cmd:
@@ -148,7 +163,7 @@ assert_exit "step: no record and no root lockfile exits 0" 0 "$?"
 assert_file_absent "step: no record and no root lockfile runs no npm" "$log"
 
 t=$(tree other-declared)
-cat >"$t/.claude/ecosystems/typescript.yaml" <<'EOF'
+cat >"$t/docs/conventions/ecosystems/typescript.yaml" <<'EOF'
 globs: ["*.ts"]
 requires:
   check-cmd:
@@ -166,7 +181,7 @@ assert_file_absent "no fallback: the undeclared root lockfile is not installed" 
 assert_not_contains "no fallback: no notice is printed" "$(cat "$TEST_TMPDIR/err-other.txt")" "no ecosystem record declares"
 
 t=$(tree broken-declared)
-cat >"$t/.claude/ecosystems/typescript.yaml" <<'EOF'
+cat >"$t/docs/conventions/ecosystems/typescript.yaml" <<'EOF'
 globs: ["*.ts"]
 requires:
   check-cmd:

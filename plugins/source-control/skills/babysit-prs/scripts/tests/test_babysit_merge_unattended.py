@@ -51,7 +51,7 @@ from test_babysit_merge import (
     STRAY_MERGE_COMPARES,
 )
 import test_babysit_merge_async as async_fixtures
-from babysit_risk import ChangedFile, LaneEvidence
+from diff_risk import ChangedFile, LaneEvidence
 from repo_config_fake import RepoConfigFake
 
 HEAD = fixtures.HEAD
@@ -3732,12 +3732,12 @@ class ReasonsComment(Unattended):
 
     def test_a_trust_gate_hold_says_a_human_merges_it(self) -> None:
         # A trusted-actor widening waits for the owner.
-        gate = merge.babysit_risk.Reason(
-            merge.babysit_risk.TRUST_GATE_CODE,
-            merge.babysit_risk.Risk.HIGH,
+        gate = merge.diff_risk.Reason(
+            merge.diff_risk.TRUST_GATE_CODE,
+            merge.diff_risk.Risk.HIGH,
             "x",
         )
-        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (gate,))
+        risk = merge.diff_risk.RiskResult(merge.diff_risk.Risk.HIGH, (gate,))
         self.assertIn(
             "a human merges it in person, never an agent or a lane",
             merge.risk_comment_body(risk, HEAD),
@@ -3748,10 +3748,10 @@ class ReasonsComment(Unattended):
 
     def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
         # A symlink or unreadable list scores this code with the floor off.
-        unsafe = merge.babysit_risk.Reason(
-            merge.babysit_risk.UNSAFE_PATH_CODE, merge.babysit_risk.Risk.HIGH, "x"
+        unsafe = merge.diff_risk.Reason(
+            merge.diff_risk.UNSAFE_PATH_CODE, merge.diff_risk.Risk.HIGH, "x"
         )
-        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
+        risk = merge.diff_risk.RiskResult(merge.diff_risk.Risk.HIGH, (unsafe,))
         self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
 
     LABEL = (
@@ -3808,7 +3808,7 @@ class ReasonsComment(Unattended):
             "created_at": "2026-10-12T10:00:00Z",
         }
         lanes = merge.review_evidence.bind(
-            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=(), floor=merge.babysit_risk.floor_for())
+            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=(), floor=merge.diff_risk.floor_for())
         self.assertEqual(lanes[0].unbound_reason, "run-not-success")
         self.lanes = lanes
         _, out = self.run_main()
@@ -4798,7 +4798,7 @@ class AttachEdits(unittest.TestCase):
             [],
             is_human=evidence_tests.is_human,
             changed_paths=(),
-            floor=merge.babysit_risk.floor_for(),
+            floor=merge.diff_risk.floor_for(),
         )
         reasons = {lane.lane: lane.unbound_reason for lane in lanes}
         self.assertEqual(reasons["claude-security-review"], "comment-edited")
@@ -4868,7 +4868,7 @@ class HeadFileFailure(unittest.TestCase):
                         is_human=ev_tests.is_human,
                         changed_paths=(),
                         head_file=merge._head_file("owner/repo", ev_tests.S),
-                        floor=merge.babysit_risk.floor_for(),
+                        floor=merge.diff_risk.floor_for(),
                     )
                 )
             return lanes["claude-review"], [c.args[0][-1] for c in read.call_args_list]
@@ -4928,7 +4928,7 @@ class HeadFileFailure(unittest.TestCase):
                     is_human=ev_tests.is_human,
                     changed_paths=(),
                     head_file=merge._head_file("owner/repo", ev_tests.S),
-                    floor=merge.babysit_risk.floor_for(),
+                    floor=merge.diff_risk.floor_for(),
                 )
             )
         self.assertTrue(lanes["claude-review"].bound)
@@ -4964,7 +4964,7 @@ class HeadPushers(unittest.TestCase):
                 frozenset(),
                 lambda login: "write",
                 (),
-                merge.babysit_risk.floor_for(),
+                merge.diff_risk.floor_for(),
             )
 
     def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
@@ -5055,7 +5055,7 @@ class LaneEvidenceReadToken(unittest.TestCase):
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
             merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.babysit_risk.floor_for())
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.diff_risk.floor_for())
         return calls
 
     def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
@@ -5239,7 +5239,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     frozenset(),
                     lambda login: "write",
                     (),
-                    merge.babysit_risk.floor_for(),
+                    merge.diff_risk.floor_for(),
                 )
             except RuntimeError as exc:
                 result = exc
@@ -5318,7 +5318,7 @@ class CandidateReadsOnce(unittest.TestCase):
         ):
             pr = policy.pull_request("owner/repo", PR)
             merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.babysit_risk.floor_for())
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", (), merge.diff_risk.floor_for())
             reader = merge.verify_evidence.Reader("owner/repo", "main")
             self.assertEqual(
                 reader._commits(PR, HEAD), {str(row["sha"]) for row in rows}

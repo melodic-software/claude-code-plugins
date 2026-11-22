@@ -1144,12 +1144,12 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    edit. An issue the lanes App both filed and
    admitted refuses as `issue-not-vouched:labeler-not-human` until a person re-adds the label;
    this fails closed, and the pr-merge lane is unaffected. A LOW score merges, and so does a MED one whose
-   every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
+   every reason is a size or reported review-finding reason (`diff_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
    CRITICAL finding, and a change adding or widening a trusted-actors entry scores HIGH as
    `trust-gate:trusted-actors`. The HIGH path floor holds only the takeover set
-   `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
+   `diff_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
    a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body

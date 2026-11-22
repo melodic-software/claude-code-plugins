@@ -19,7 +19,7 @@ analyzer, matcher or test library it already runs; codify names no product of it
 | Finding class | Rung | Hand-off |
 |---|---|---|
 | `invalid-state` (a value or combination the code can express but must never hold: two flags that must not both be true, a field that is always set after construction but typed as optional, two ids of different kinds that can be passed in each other's place) | `make-impossible` | `/architecture:improve` when that skill is available, otherwise `/planning:design`; the proposal names the type, data-structure or API change and implements nothing |
-| `style` (formatting, whitespace, ordering, naming style) | `formatter` when the `fix-cmd` of the repository's ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) can rewrite the code into the rule's shape; otherwise `editorconfig-severity` | build hand-off: the format setting that command reads, or the setting in the in-repo `.editorconfig` |
+| `style` (formatting, whitespace, ordering, naming style) | `formatter` when the `fix-cmd` of the repository's ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`) can rewrite the code into the rule's shape; otherwise `editorconfig-severity` | build hand-off: the format setting that command reads, or the setting in the in-repo `.editorconfig` |
 | `defined-diagnostic` (a diagnostic an installed analyzer pack or linter already defines: a cited diagnostic id, or a rule the pack documents) | `analyzer-pack-rule` | build hand-off: enable the rule or raise its severity in the configuration the repository already uses for that pack |
 | `semantic-invariant` (a project-specific API or usage invariant that needs meaning, not syntax, in any language: a banned API resolved by symbol, a required attribute, a misuse pattern that depends on types or on which symbol a call reaches) | `custom-analyzer` | build hand-off: an analyzer for the compiler or linter the repository already runs |
 | `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant) | `syntax-pattern-rule` | build hand-off: a rule for the pattern matcher the repository already runs |
@@ -179,8 +179,9 @@ directory, a test project), name it.
 - **`action-guard`**: `/harness-config:audit-automation-gaps hooks` when that plugin is enabled,
   presenting the proposal as a candidate; otherwise the proposal records the candidate with its
   frequency, incident history and the enforcement already covering it.
-- **`automated-review`**: a `REVIEW.md` line, for a rule only a reviewer applies or a change to how
-  severe a finding is. Say that no check catches it.
+- **`automated-review`**: a line in the review-criteria file the ladder's `automated-review` rung
+  names, for a rule only a reviewer applies or a change to how severe a finding is. Say that no
+  check catches it.
 - **`instruction`**: a `CLAUDE.md`, `AGENTS.md` or rules-file line, placed by section 3.
 
 ## Record line

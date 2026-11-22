@@ -78,7 +78,7 @@ repository-shaped decision with no single right answer:
   operator place it in their own workflow.
 - **A registry row**, if the repository keeps a list of its gates.
 - **An architecture decision record** for the rule itself. Offer
-  `/architecture:record-decision`; do not write one unprompted.
+  `/architecture:adr`; do not write one unprompted.
 
 If a `REINDEX` row appeared, the repository's `AGENTS.md` or `CLAUDE.md` carries
 a generated instruction-placement rules index, and the new rule file is not in
@@ -117,7 +117,7 @@ exits 0, the checker has been run once and its verdict reported, and every
 
 ## Next
 
-`/architecture:record-decision`
+`/architecture:adr`
 
 For the rule itself, once the gate is wired and green.
 

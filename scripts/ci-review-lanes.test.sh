@@ -699,7 +699,7 @@ fi
 # in any letter case, as the floor folds case.
 for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
-  .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
+  .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS' \
   .GitHub/Actions/Request-Lane-Token/action.yml vendor/sub/.GitModules docs/CodeOwners Scripts/Sync-Hold-Floor.PY; do
   STUB_FILES="$(files README.md "$changed")"

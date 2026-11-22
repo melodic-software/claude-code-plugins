@@ -23,13 +23,13 @@ Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not
 
 Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when enabled) and verification agents compose it for detection and command resolution instead of keeping their own tables.
 
-Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` first, then infers from its build files, then asks. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
+Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` (or the legacy `.claude/ecosystems/` file for a name absent there) first, then infers from its build files, then asks. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
 
 ## Arguments
 
-`$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one recorded, stated or inferred this run ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. A consumer record such as `.claude/ecosystems/rust.yaml` makes `rust` a filter. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
+`$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one recorded, stated or inferred this run ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. A consumer record such as `docs/conventions/ecosystems/rust.yaml` makes `rust` a filter. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
 
-`--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
+`--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
 
 Read on demand:
 
@@ -83,7 +83,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 Resolve `globs`, `build-cmd`, `test-cmd`, `test-changed-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `requires`, `gates` and `notes` per the ladder:
 
-1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
+1. Consumer `docs/conventions/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key; the legacy `.claude/ecosystems/` file for a name absent there) → authoritative.
 2. Absent → infer from the repo's build files, name the inferred id and its globs in the report, and offer to persist via `/toolchain:setup`.
 3. Cannot infer → ask; offer to persist.
 

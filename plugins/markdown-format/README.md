@@ -13,7 +13,7 @@ no rules of its own. A repository with no discoverable markdownlint config has c
 Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
 
 The hooks run only this plugin's markdownlint-cli2 adapter (`git-hooks/adapters.sh`). They
-never run a command from the repository's markdown record (`.claude/ecosystems/markdown.yaml`):
+never run a command from the repository's markdown record (`docs/conventions/ecosystems/markdown.yaml`):
 `/toolchain:lint` and `/toolchain:check` run that on request, and `/markdown-format:setup check`
 says when one exists.
 

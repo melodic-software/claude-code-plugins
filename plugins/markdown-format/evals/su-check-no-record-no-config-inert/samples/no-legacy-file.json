@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/ecosystems/markdown.yaml"
+      ],
+      "why": "wrote the markdown record at the legacy path"
+    }
+  ]
+}

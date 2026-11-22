@@ -28,6 +28,12 @@
 #   scripts/affected-tests.sh --unmapped-corpus  select an unmapped file's whole language corpus (exit 4)
 #   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
 #   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
+#   scripts/affected-tests.sh --each-from LIST --each-out DIR
+#                                                answer each <key>:<path> line of LIST as its own
+#                                                one-file diff, building the tree index once:
+#                                                DIR/<key>.out the suites, DIR/<key>.err its
+#                                                no-suite, deleted or UNMAPPED line; a path whose
+#                                                own run exits 2 is left unanswered
 #   scripts/affected-tests.sh --replay <range> [--against <ref>]
 #                                                select every first-parent commit of <range> against
 #                                                its parent; with --against, diff each selection with
@@ -150,6 +156,14 @@
 #                    through its wrapper (scripts/run-outside-node-suites.sh
 #                    leaves it to the wrapper), so the Node suite alone runs
 #                    nothing. Applied after every other rule, before --shard.
+#   R10 package scope Node reads a package.json for every bare import made in
+#                    its package scope (PACKAGE_SELF_RESOLVE,
+#                    https://nodejs.org/api/esm.html#resolution-algorithm-specification),
+#                    so a changed <dir>/package.json seeds the walk with each
+#                    non-test .js, .mjs or .cjs file under <dir>, short of
+#                    node_modules/ and any nested package.json, that imports or
+#                    requires a dependency the manifest declares at the diff
+#                    base or now; R2, R3 and R4 then apply to each. Needs jq.
 #
 # MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
 # PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
@@ -168,6 +182,8 @@
 # manifest, changelog and catalog gates own those files. Only R1, R2 and a
 # declared scope (R8) reach a suite from them; anything else is on the no-suite
 # list.
+# A package.json also reaches its package scope's importers (R10), because Node
+# reads it on every bare import there (https://nodejs.org/api/esm.html#resolution-algorithm-specification).
 #
 # AMBIGUOUS NAMES. A basename two or more files carry, and the structural docs
 # (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md), name a specific file
@@ -253,11 +269,11 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
+DIFF_BASE=""
 
 # Basenames that name a repository-wide role, reached only through a resolved
 # mention (AMBIGUOUS NAMES in the header), however few files carry them today.
 STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md "
-# Manifests and changelogs, which no mention reaches (MANIFESTS in the header).
 MANIFEST_BASENAMES=" plugin.json marketplace.json hooks.json settings.json package.json package-lock.json "
 MANIFEST_BASENAMES+="CHANGELOG.md LICENSE "
 
@@ -278,6 +294,8 @@ shard_spec=""
 replay_range=""
 against_ref=""
 not_run_file=""
+each_from=""
+each_out=""
 jobs=1
 budget=""
 budget_given=0
@@ -358,6 +376,16 @@ while [[ $# -gt 0 ]]; do
     not_run_file="$2"
     shift
     ;;
+  --each-from)
+    need_value "$1" $# "${2:-}" "a file of <key>:<path> lines"
+    each_from="$2"
+    shift
+    ;;
+  --each-out)
+    need_value "$1" $# "${2:-}" "a directory"
+    each_out="$2"
+    shift
+    ;;
   --)
     shift
     explicit_paths+=("$@")
@@ -401,6 +429,16 @@ fi
 if [[ -n "$not_run_file" ]] && ! : >"$not_run_file"; then
   echo "error: cannot write --write-not-run file: $not_run_file" >&2
   exit 2
+fi
+if [[ -n "$each_from" || -n "$each_out" ]]; then
+  if [[ -z "$each_from" || -z "$each_out" || ! -d "$each_out" || ! -r "$each_from" ]]; then
+    echo "error: --each-from wants a readable list and --each-out an existing directory; pass both." >&2
+    exit 2
+  fi
+  if [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || -n "$replay_range" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
+    echo "error: --each-from takes its files from the list; it combines with no paths, --base, --replay, --run or --shard." >&2
+    exit 2
+  fi
 fi
 if [[ -n "$replay_range" ]] && [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
   echo "error: --replay takes its changed files from each commit; it combines with no paths, --base, --run or --shard." >&2
@@ -1018,6 +1056,60 @@ token_hits() {
   ' "$1" "$2" "$5" "$6" "$3" >"$4"
 }
 
+package_scope_importers() {
+  local manifest="$1" dir deps="" copy
+  dir="${manifest%/*}"
+  [[ "$dir" == "$manifest" ]] && dir="."
+  for copy in "head" "${DIFF_BASE:-HEAD}"; do
+    if [[ "$copy" == head ]]; then
+      [[ -f "$manifest" ]] || continue
+      copy="$(cat "$manifest")" || exit 2
+    else
+      git cat-file -e "$copy:$manifest" 2>/dev/null || continue
+      copy="$(git show "$copy:$manifest")" || exit 2
+    fi
+    if ! copy="$(jq -r '[.dependencies, .devDependencies, .optionalDependencies, .peerDependencies]
+        | map(select(type == "object") | keys[]) | unique[]' <<<"$copy")"; then
+      echo "error: cannot read the dependencies of $manifest (R10 needs jq and valid JSON)." >&2
+      exit 2
+    fi
+    deps+="$copy"$'\n'
+  done
+  deps="$(sort -u <<<"$deps" | sed '/^$/d')"
+  [[ -n "$deps" ]] || return 0
+  awk -v d="$dir/" -v deps="$deps" '
+    BEGIN { n = split(deps, list, "\n"); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+    FNR == NR { if ($0 ~ /(^|\/)package\.json$/) { p = $0; sub(/[^\/]*$/, "", p); pkg[p] = 1 }; next }
+    /(^|\/)node_modules\// || !/\.(js|mjs|cjs)$/ || /\.test\.(js|mjs|cjs)$/ { next }
+    d != "./" && index($0, d) != 1 { next }
+    {
+      n = split($0, part, "/"); up = ""
+      for (k = 1; k < n; k++) up = up part[k] "/"
+      for (k = n - 1; k >= 1 && up != d; k--) {
+        if (up in pkg) next
+        up = substr(up, 1, length(up) - length(part[k]) - 1)
+      }
+      print
+    }
+  ' "$WORK_DIR/all-files" "$WORK_DIR/all-files" >"$WORK_DIR/scope-files"
+  [[ -s "$WORK_DIR/scope-files" ]] || return 0
+  awk -v deps="$deps" '
+    BEGIN { n = split(deps, list, "\n"); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+    {
+      file = $0; found = 0
+      while (!found && (getline line <file) > 0)
+        while (match(line, /(from|import|require)[ \t]*\(?[ \t]*["\047][^"\047]+["\047]/)) {
+          spec = substr(line, RSTART, RLENGTH)
+          line = substr(line, RSTART + RLENGTH)
+          sub(/^[^"\047]*["\047]/, "", spec); sub(/["\047]$/, "", spec)
+          name = spec
+          if (name ~ /^@/) { split(name, s, "/"); name = s[1] "/" s[2] } else sub(/\/.*/, "", name)
+          if (name in want) { print file; found = 1; break }
+        }
+      close(file)
+    }' "$WORK_DIR/scope-files"
+}
+
 # colocated_suites <path> -> every sibling suite covering it, one per line.
 # PLURAL on purpose: a .py can carry a co-located test_<stem>.py and a
 # wrapping <stem>.test.sh at once, and returning one under-selects.
@@ -1091,6 +1183,15 @@ select_for() {
       [[ -n "$copy" ]] && frontier+=("$copy")
     done <<<"${SYNC_SRC_COPIES[$line]:-}"
   done
+  if [[ "${seed##*/}" == package.json && "$seed" != *node_modules/* ]]; then
+    if ! package_scope_importers "$seed" >"$WORK_DIR/scope-importers"; then
+      echo "error: the package-scope import scan of $seed failed; refusing to under-select." >&2
+      exit 2
+    fi
+    while IFS= read -r line; do
+      frontier+=("$line")
+    done <"$WORK_DIR/scope-importers"
+  fi
 
   while [[ ${#frontier[@]} -gt 0 ]]; do
     : >"$WORK_DIR/patterns"
@@ -1348,6 +1449,7 @@ changed_from_diff() {
     mapfile -t merge_heads <"$merge_head_file"
   fi
   mb="$(git merge-base "$base" HEAD "${merge_heads[@]}" 2>/dev/null)" || mb="$base"
+  DIFF_BASE="$mb"
   # Every failure is fatal, never an empty list, which downstream reads as
   # "nothing to select, exit 0". This runs in the CURRENT shell (see the call
   # site) so these exits are the script's.
@@ -1523,8 +1625,14 @@ if [[ -n "$replay_range" ]]; then
   exit 0
 fi
 
-declare -a changed=()
-if [[ ${#explicit_paths[@]} -gt 0 ]]; then
+declare -a changed=() each_keys=()
+if [[ -n "$each_from" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" == *:?* ]] || continue
+    each_keys+=("${line%%:*}")
+    changed+=("${line#*:}")
+  done <"$each_from"
+elif [[ ${#explicit_paths[@]} -gt 0 ]]; then
   for p in "${explicit_paths[@]}"; do
     p="${p#./}"
     # Every rule is repo-relative, and so is every sync-manifest key. An
@@ -1559,9 +1667,75 @@ if [[ ${#changed[@]} -eq 0 ]]; then
   exit 0
 fi
 
+select_unmapped_corpus() {
+  local -A corpora=()
+  local f lang suite
+  for f in "$@"; do
+    lang_family "$f"
+    case "$LANG_FAMILY" in
+    sh | py | node | ps) corpora["$LANG_FAMILY"]=1 ;;
+    *)
+      [[ -f "$f" && "$(head -c 2 "$f" 2>/dev/null)" == '#!' ]] && corpora[sh]=1
+      ;;
+    esac
+  done
+  CORPUS_LANGS="${!corpora[*]}"
+  [[ -n "$CORPUS_LANGS" ]] || return 0
+  awk -v want=" $CORPUS_LANGS " '
+    { b = $0; sub(/.*\//, "", b) }
+    /\.test\.sh$/ { e = "sh" }
+    /\.test\.m?js$/ { e = "node" }
+    /\.Tests\.ps1$/ { e = "ps" }
+    b ~ /^test_.*\.py$/ { e = "py" }
+    e != "" && index(want, " " e " ") { print e "\t" $0 }
+    { e = "" }' "$WORK_DIR/all-files" >"$WORK_DIR/corpus"
+  while IFS=$'\t' read -r lang suite; do
+    add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
+  done <"$WORK_DIR/corpus"
+}
+
+run_each() {
+  local i f s
+  for i in "${!changed[@]}"; do
+    f="${changed[i]}"
+    if [[ -z "$SCOPES_LIST" && " ${SCOPE_SUITES[*]-} " == *" $f "* ]] && ! (check_scope_globs "$f") 2>/dev/null; then
+      continue
+    fi
+    SUITES=()
+    select_for "$f"
+    select_scoped "$f"
+    {
+      if [[ "$SEED_HITS" -eq 0 ]]; then
+        if is_no_suite "$f"; then
+          echo "no-suite: $f (recorded in $NO_SUITE_LIST; a non-shell CI lane covers it)"
+        elif [[ ! -e "$f" ]]; then
+          echo "deleted: $f (no longer exists and no surviving suite names it; nothing left to cover)"
+        else
+          echo "UNMAPPED: 1 changed file(s) map to no test suite:"
+          [[ "$unmapped_corpus" -eq 1 ]] && select_unmapped_corpus "$f"
+        fi
+      fi
+    } >"$each_out/${each_keys[i]}.err"
+    if [[ ${#SUITES[@]} -gt 0 ]]; then
+      for s in "${!SUITES[@]}"; do
+        case "$s" in
+        *.test.js | *.test.mjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
+        *) ;;
+        esac
+      done
+      printf '%s\n' "${!SUITES[@]}" | sort -u
+    fi >"$each_out/${each_keys[i]}.out"
+  done
+}
+
 build_sync_map
 load_no_suite_patterns
 build_tree_index
+
+if [[ -n "$each_from" ]]; then
+  run_each
+  exit 0
+fi
 
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
@@ -1603,32 +1777,9 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
   echo "test-scope on the suite that reads it; or record the path class in $NO_SUITE_LIST" >&2
   echo "with the CI lane that does cover it." >&2
   if [[ "$unmapped_corpus" -eq 1 ]]; then
-    declare -A CORPORA=()
-    for f in "${UNMAPPED[@]}"; do
-      lang_family "$f"
-      case "$LANG_FAMILY" in
-      sh | py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
-      *)
-        # An executable without an extension is shell-run code. Data no rule
-        # reaches is read by no suite: a suite that reads a tree file names it
-        # or declares it (R8), so it widens nothing.
-        [[ -f "$f" && "$(head -c 2 "$f" 2>/dev/null)" == '#!' ]] && CORPORA[sh]=1
-        ;;
-      esac
-    done
-    awk -v want=" ${!CORPORA[*]} " '
-      { b = $0; sub(/.*\//, "", b) }
-      /\.test\.sh$/ { e = "sh" }
-      /\.test\.m?js$/ { e = "node" }
-      /\.Tests\.ps1$/ { e = "ps" }
-      b ~ /^test_.*\.py$/ { e = "py" }
-      e != "" && index(want, " " e " ") { print e "\t" $0 }
-      { e = "" }' "$WORK_DIR/all-files" >"$WORK_DIR/corpus"
-    while IFS=$'\t' read -r lang suite; do
-      add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
-    done <"$WORK_DIR/corpus"
-    if [[ ${#CORPORA[@]} -gt 0 ]]; then
-      echo "Selecting the whole corpus of each unmapped code file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    select_unmapped_corpus "${UNMAPPED[@]}"
+    if [[ -n "$CORPUS_LANGS" ]]; then
+      echo "Selecting the whole corpus of each unmapped code file's language under --unmapped-corpus: $CORPUS_LANGS." >&2
     else
       echo "Every unmapped file is data no suite reads; --unmapped-corpus selects no corpus for it." >&2
     fi

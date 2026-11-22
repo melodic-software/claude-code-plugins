@@ -46,8 +46,9 @@
 # `actions/checkout` steps take only `ref`, `path` and `persist-credentials`,
 # with `ref: ${{ github.event.repository.default_branch }}`, or
 # `ref: ${{ steps.tip.outputs.sha }}` after an earlier step with `id: tip`
-# that runs the canonical `git ls-remote` tip script on `TIP_BRANCH: main` or
-# the default branch (env exactly `TIP_BRANCH` and `GIT_TERMINAL_PROMPT: "0"`),
+# that is the SHA-pinned ci-workflows `resolve-branch-tip` action with only
+# `branch: main` or the default branch as its input (no `repository` or
+# `token`, no `env` or `run`),
 # with no `if` or `continue-on-error` on either step, since an empty ref would
 # check out the event's ref. A full SHA saves checkout's hash-algorithm REST
 # call, which any branch ref costs. A missing

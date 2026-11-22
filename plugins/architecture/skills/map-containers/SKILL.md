@@ -236,7 +236,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   `/architecture:map-flow`.
 - Neighboring repositories need a landscape: `/architecture:map-landscape`.
 - The view opens a topology or binding change to decide: `/planning:design system`.
-- The view settles a decision worth keeping: `/architecture:record-decision`.
+- The view settles a decision worth keeping: `/architecture:adr`.
 
 ## Gotchas
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gitignore-style path matching at the Python 3.9 floor.
 
-The consumer's `.claude/ecosystems/<lane>.yaml` files declare `globs` in the
+The consumer's `docs/conventions/ecosystems/<lane>.yaml` files declare `globs` in the
 gitignore dialect (`*.sh`, `src/**/*.ts`, `**/vendor/**`). `fnmatch` treats
 `*` as crossing `/` and knows nothing of `**`, and `glob.translate` arrived in
 3.13, so this module owns the translation.

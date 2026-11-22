@@ -48,7 +48,7 @@ Beyond the global HARD/SOFT lists:
 
 ## Verification commands
 
-The consuming project's own markdown lint command for the changed files, read from its ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`), its project instructions, or its CI config. When none names one, report the lint check as unresolved and skip it; the lane ships no command to run in its place.
+The consuming project's own markdown lint command for the changed files, read from its ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`), its project instructions, or its CI config. When none names one, report the lint check as unresolved and skip it; the lane ships no command to run in its place.
 
 Plus relative-link integrity on changed files: for each `](<relative>.md)` reference, confirm the target exists.
 

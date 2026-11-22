@@ -1223,6 +1223,49 @@ if [[ "$RC" -eq 0 && ! -s "$TMP_ROOT/not-run" ]]; then
 else
   fail "--write-not-run should leave an empty file after a shell-only run (rc=$RC): $(cat "$TMP_ROOT/not-run") $OUT"
 fi
+
+rm -rf "$TMP_ROOT/each" && mkdir -p "$TMP_ROOT/each"
+printf '%s\n' 000000:eco/gadget.js 000001:eco/hop/far-runner.test.sh 000002:eco/gone.sh >"$TMP_ROOT/each.list"
+(cd "$repo" && bash scripts/affected-tests.sh --allow-unmapped --each-from "$TMP_ROOT/each.list" --each-out "$TMP_ROOT/each" 2>/dev/null)
+RC=$?
+each_same=1
+for keyed in 000000:eco/gadget.js 000001:eco/hop/far-runner.test.sh; do
+  run_sel "$repo" --allow-unmapped "${keyed#*:}"
+  [[ "$OUT" == "$(cat "$TMP_ROOT/each/${keyed%%:*}.out")" && -n "$OUT" ]] || each_same=0
+done
+if [[ "$RC" -eq 0 && "$each_same" -eq 1 ]]; then
+  ok "--each-from: each listed path selects what its own one-file run selects"
+else
+  fail "--each-from answers differ from one-file runs (rc=$RC): $(cat "$TMP_ROOT"/each/*.out)"
+fi
+if grep -q '^deleted: eco/gone.sh' "$TMP_ROOT/each/000002.err" && [[ ! -s "$TMP_ROOT/each/000002.out" ]]; then
+  ok "--each-from: a path that maps to nothing and no longer exists is reported deleted, selecting nothing"
+else
+  fail "--each-from: eco/gone.sh should be deleted with no suite: $(cat "$TMP_ROOT/each/000002.err" "$TMP_ROOT/each/000002.out")"
+fi
+rm -rf "$TMP_ROOT/each-corpus" && mkdir -p "$TMP_ROOT/each-corpus"
+printf '%s\n' 000000:scripts/zzorphan-tool.sh 000001:plugins/alpha/README.md >"$TMP_ROOT/each-corpus.list"
+(cd "$repo" && bash scripts/affected-tests.sh --unmapped-corpus --each-from "$TMP_ROOT/each-corpus.list" --each-out "$TMP_ROOT/each-corpus" 2>/dev/null)
+RC=$?
+each_same=1
+for keyed in 000000:scripts/zzorphan-tool.sh 000001:plugins/alpha/README.md; do
+  one_out="$(cd "$repo" && bash scripts/affected-tests.sh --explain --unmapped-corpus -- "${keyed#*:}" 2>"$TMP_ROOT/each-one.err")"
+  one_mark="$(grep -m1 -oE '^(no-suite|deleted|UNMAPPED):' "$TMP_ROOT/each-one.err")"
+  each_mark="$(grep -m1 -oE '^(no-suite|deleted|UNMAPPED):' "$TMP_ROOT/each-corpus/${keyed%%:*}.err")"
+  [[ "$one_out" == "$(cat "$TMP_ROOT/each-corpus/${keyed%%:*}.out")" && -n "$one_mark" && "$one_mark" == "$each_mark" ]] || each_same=0
+done
+if [[ "$RC" -eq 0 && "$each_same" -eq 1 && -s "$TMP_ROOT/each-corpus/000000.out" ]] &&
+  grep -q '^UNMAPPED:' "$TMP_ROOT/each-corpus/000000.err" && grep -q '^no-suite:' "$TMP_ROOT/each-corpus/000001.err"; then
+  ok "--each-from: an unmapped code file selects its corpus under --unmapped-corpus and a no-suite path says no-suite, as their own runs do"
+else
+  fail "--each-from: unmapped and no-suite answers differ from their own runs (rc=$RC): $(head -n2 "$TMP_ROOT"/each-corpus/*.err)"
+fi
+run_sel "$repo" --each-from "$TMP_ROOT/each.list"
+if [[ "$RC" -eq 2 ]]; then
+  ok "--each-from without --each-out is a usage error (exit 2)"
+else
+  fail "--each-from alone should exit 2, got $RC"
+fi
 OUT="$(cd "$repo" && bash scripts/affected-tests.sh --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && contains "$OUT" 'only applies to --run'; then
@@ -1669,6 +1712,15 @@ if [[ "$RC" -eq 2 ]] && contains "$out" "plugins/alpha/tests/stale.test.sh decla
 else
   fail "R8: a stale glob in a changed suite was not refused (rc=$RC): $out"
 fi
+rm -rf "$TMP_ROOT/each-stale" && mkdir -p "$TMP_ROOT/each-stale"
+printf '%s\n' 000000:plugins/alpha/tests/stale.test.sh 000001:plugins/alpha/tests/scan.test.sh >"$TMP_ROOT/each-stale.list"
+(cd "$repo" && bash scripts/affected-tests.sh --each-from "$TMP_ROOT/each-stale.list" --each-out "$TMP_ROOT/each-stale" 2>/dev/null)
+RC=$?
+if [[ "$RC" -eq 0 && ! -e "$TMP_ROOT/each-stale/000000.out" && -e "$TMP_ROOT/each-stale/000001.out" ]]; then
+  ok "R8: --each-from leaves a suite with a glob matching nothing unanswered, as its own run exits 2, and answers the rest"
+else
+  fail "R8: --each-from should skip only the stale-glob suite (rc=$RC): $(ls "$TMP_ROOT/each-stale")"
+fi
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/scan.test.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]]; then
@@ -1987,6 +2039,49 @@ for args in "--replay HEAD~1..HEAD plugins/alpha/hooks/alpha-hook.sh" "--against
     fail "usage: '$args' should exit 2, got rc=$RC"
   fi
 done
+rm -rf "$repo"
+
+mk_repo repo
+mkdir -p "$repo/pkg/nested" "$repo/pkg/node_modules/yaml"
+printf '{"dependencies":{"yaml":"2.9.1"},"devDependencies":{"@scope/tool":"1.0.0"}}\n' >"$repo/pkg/package.json"
+printf '{"dependencies":{"yaml":"2.9.1"}}\n' >"$repo/pkg/nested/package.json"
+printf '{"devDependencies":{"graphql":"17.1.0"}}\n' >"$repo/package.json"
+printf 'import { parse } from "yaml";\n' >"$repo/pkg/reader.mjs"
+printf 'const t = require("@scope/tool/sub");\n' >"$repo/pkg/tooled.cjs"
+printf 'import { x } from "./reader.mjs";\n' >"$repo/pkg/caller.mjs"
+printf 'import fs from "node:fs";\n' >"$repo/pkg/plain.mjs"
+printf 'import { parse } from "yaml";\n' >"$repo/pkg/nested/inner.mjs"
+printf 'import { parse } from "yaml";\n' >"$repo/pkg/node_modules/yaml/index.mjs"
+for s in reader tooled caller plain nested/inner node_modules/yaml/index; do
+  printf 'import "node:test";\n' >"$repo/pkg/$s.test.mjs"
+done
+git_test_config "$repo" add -f pkg package.json >/dev/null
+git_test_config "$repo" commit -qm pkg >/dev/null
+
+run_sel "$repo" pkg/package.json
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" pkg/reader.test.mjs && has_line "$OUT" pkg/tooled.test.mjs &&
+  has_line "$OUT" pkg/caller.test.mjs && ! contains "$OUT" pkg/plain.test.mjs &&
+  ! contains "$OUT" pkg/nested/ && ! contains "$OUT" node_modules; then
+  ok "R10: a package.json selects what its scope's bare importers reach, short of a nested package"
+else
+  fail "R10: package-scope selection wrong (rc=$RC): $OUT"
+fi
+
+printf '{"devDependencies":{"@scope/tool":"1.0.0"}}\n' >"$repo/pkg/package.json"
+run_sel "$repo" pkg/package.json
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" pkg/reader.test.mjs && has_line "$OUT" pkg/tooled.test.mjs; then
+  ok "R10: a dependency the change removes still selects what imports it"
+else
+  fail "R10: a removed dependency lost its importers (rc=$RC): $OUT"
+fi
+git -C "$repo" checkout -q -- pkg/package.json
+
+run_sel "$repo" package.json
+if [[ "$RC" -eq 0 ]] && ! contains "$OUT" .test.; then
+  ok "R10: a package.json no module in its scope bare-imports from selects nothing"
+else
+  fail "R10: the root package.json should select nothing (rc=$RC): $OUT"
+fi
 rm -rf "$repo"
 
 # --- --help reaches the actual end of the header -----------------------------
