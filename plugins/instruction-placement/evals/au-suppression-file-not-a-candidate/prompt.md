@@ -4,7 +4,7 @@ tags: [audit, suppression, scan-set]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
-expected_outcome: 'The reply raises no finding on docs/conventions/instruction-placement.yaml: it drops the detector''s promote candidate on that file because the suppression surface is excluded from the audit''s scan set, while the detector''s coverage numbers still count the file. It suppresses the Deploy conventions finding with its reason, date (2026-11-02) and the team layer, still proposes the Lint rules finding with paths: **/*.ts, and writes neither the suppression file nor any instruction file.'
+expected_outcome: 'The reply raises no finding on docs/conventions/instruction-placement.yaml: it drops the detector''s promote candidate on that file because the suppression file is excluded from the audit''s scan set, while the detector''s coverage numbers still count the file. It suppresses the Deploy conventions finding with its reason, date (2026-11-02) and the team layer, still proposes the Lint rules finding with paths: **/*.ts, and writes neither the suppression file nor any instruction file.'
 ---
 
 /instruction-placement:audit

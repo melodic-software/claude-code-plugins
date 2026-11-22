@@ -80,7 +80,7 @@ operator is asked again. So a decline has **two** writes, and the second is what
 
 1. **`declined` into the findings artifact.** Unchanged, and still the record this branch's run
    reads.
-2. **An entry on the tracked suppression surface**, `<home>/instruction-placement.yaml`.
+2. **An entry on the tracked suppression file**, `<home>/instruction-placement.yaml`.
    Here and below, `<home>` is the convention home that the marked pointer region in the root
    `AGENTS.md` or `CLAUDE.md` binds, `docs/conventions` when no region binds one
    (`consumer-config.md` "Layers and merge semantics"). It is not the memory-tier home the findings
