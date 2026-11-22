@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no tool calls" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/.work/notes.md", "content": "x" } }], "why": "scratch write" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/docs/conventions/audit-pass.local.md", "content": "x" } }], "why": "overwrites the new file over a conflict" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/.claude/audit-pass.local.md", "content": "" } }], "why": "overwrites the old file" }
+  ]
+}

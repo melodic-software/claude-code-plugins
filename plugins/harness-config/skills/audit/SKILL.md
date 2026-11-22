@@ -114,8 +114,18 @@ consuming repo binds, default `.work/`):
 mkdir -p .work/harness-config-audit
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh" --table \
   --out .work/harness-config-audit/findings.json \
+  --user-suppressions '<option file>' \
   [--docs-dir <dir of pages already fetched>] [--debug-log <file>]
 ```
+
+`<option file>` is this plugin's `audit_pass_suppressions_file` option,
+`${user_config.audit_pass_suppressions_file}`; pass `''` when that reads empty or as an
+unsubstituted placeholder. Read the option value from this text; never put a `${user_config.*}`
+string in a shell command. Pass the same `--user-suppressions` value on every later engine run.
+
+Relay each `WARNING:` line the engine prints about an old suppression location (also listed in
+`suppressions.old_locations`): it names the file, where it moves, and `/harness-config:setup apply`,
+which moves it.
 
 The engine records the installed Claude Code version itself (`claude --version`, carried as
 `claude_version`); version-gated rows are evaluated against it, and Phase 3.2 compares issue-fix

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": [], "why": "no tool calls" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git check-ignore -v docs/conventions/audit-pass.local.md" } }], "why": "probes the new path" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cat .claude/audit-pass.local.md 2>/dev/null" } }], "why": "reads the old file" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /plugin/lib/check-retirements.sh --manifest /plugin/retirements.yaml --root /ws" } }], "why": "detection only" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "rm -f /ws/.claude/audit-pass.local.md" } }], "why": "deletes the old file" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "mkdir -p docs/conventions && mv .claude/audit-pass.local.md docs/conventions/audit-pass.local.md" } }], "why": "moves the old file" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cat .claude/audit-pass.local.md > docs/conventions/audit-pass.local.md" } }], "why": "writes the new file by redirect" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /plugin/lib/check-retirements.sh --manifest /plugin/retirements.yaml --root /ws --clean harness-config-r001 --i-migrated" } }], "why": "cleans the record" }
+  ]
+}

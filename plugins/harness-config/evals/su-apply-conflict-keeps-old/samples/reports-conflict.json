@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Conflict: entry 79e623d5a65b0c5e is in both files with a different reason.\n\n- .claude/audit-pass.local.md: I commit by hand in this repository.\n- docs/conventions/audit-pass.local.md: Commits go through the release script.\n\nStopped; both files are unchanged.", "why": "names the conflict, then the id" },
+    { "answer": "79e623d5a65b0c5e differs between the two files (reason), so this is a CONFLICT and the move stops.", "why": "id first" }
+  ],
+  "fail": [
+    { "answer": "Moved entry 79e623d5a65b0c5e to docs/conventions/audit-pass.local.md and deleted the old file.", "why": "no conflict reported" },
+    { "answer": "The two files conflict, so the move stopped.", "why": "no id named" }
+  ]
+}
