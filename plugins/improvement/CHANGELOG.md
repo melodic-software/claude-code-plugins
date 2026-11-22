@@ -3,6 +3,14 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-22
+
+### Changed
+
+- Config resolves through the config-cascade layers: the plugin default, new `userConfig` options (one per key, with `evidence_sources_file` naming a YAML file of your Tier 2 sources), the team `docs/conventions/improvement.yaml`, then the gitignored `docs/conventions/improvement.local.yaml`. A schema for both files ships at `schemas/improvement.schema.json` ([#18011](https://github.com/melodic-software/claude-code-plugins/issues/18011)).
+- `~/.claude/improvement.md`, `.claude/improvement.md` and `.claude/improvement.local.md` are still read while they exist, wherever the new location does not supply that layer. Each run prints one warning naming the old file, its new location and `/improvement:setup apply`. The two repository files are retirement records `improvement-r001` and `improvement-r002` in the new `retirements.yaml`, checked by the bundled `lib/check-retirements.sh`.
+- `/improvement:setup check` names each old file, and when the new location also exists it lists the old keys that do not apply. `apply` shows a preview, and after your yes moves the old file's settings to the new location, checks they resolve the same values, then deletes the old file. Settings from `~/.claude/improvement.md` move to `userConfig` through `/plugin configure`; the old file is deleted on a later `apply` in a fresh session, once the options read the same values.
+
 ## [0.8.6] - 2026-11-21
 
 ### Changed
