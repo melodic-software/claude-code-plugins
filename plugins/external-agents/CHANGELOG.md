@@ -3,6 +3,12 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-11-22
+
+### Fixed
+
+- A signed-out agy run (`authentication failed or timed out`) or a `RESOURCE_EXHAUSTED` quota error now opens the antigravity breaker, so later runs skip with one notice until `external-agents update antigravity` or the cool-down, instead of each waiting out agy's 60-second sign-in prompt.
+
 ## [0.4.1] - 2026-11-22
 
 ### Changed
