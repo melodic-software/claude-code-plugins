@@ -10,6 +10,10 @@ and [`contract.json`](https://github.com/melodic-software/standards/blob/main/co
 How labels, fields and triage work is the
 [issue-tracker playbook](https://github.com/melodic-software/standards/blob/main/standards/process/issue-tracker.md)'s.
 
+This guide is the organization default. Where a repository's own PR template, issue forms or
+`AGENTS.md` differ from it, the repository's own wins, as GitHub already prefers a repository's
+own template and forms over the organization's.
+
 ## Pull request title
 
 Conventional Commits: `<type>[(<scope>)]: <subject>`, with `!` before the colon for a breaking
