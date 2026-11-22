@@ -100,7 +100,7 @@ files in five places and hoping you knew all five. A deterministic reader discov
 scope, covering managed policy, user-global, project, local, and any pre-v2.1.211 copy left in the
 session's start directory, then inventories each one's `allow` / `ask` / `deny` rules with its source named.
 
-The status vocabulary is the point: `absent` means looked and found nothing, `skipped` means could not
+The status vocabulary separates two cases: `absent` means looked and found nothing, `skipped` means could not
 look. The managed scope is four admin surfaces per OS, not one file, plus the server-managed
 cache record; the Windows policy registry keys and the macOS managed-preferences domain are optional
 platform integrations that degrade visibly while the

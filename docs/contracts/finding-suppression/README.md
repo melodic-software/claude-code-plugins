@@ -166,7 +166,7 @@ It qualifies on all three of the class's conditions:
 Condition 3 is behavioral, not declarative: a surface that declares the inversion but does not report
 which layer supplied each entry has not met the class.
 
-**What the inversion itself decides is narrower than it looks, and saying so is the point.** The
+**What the inversion itself decides is narrower than it looks.** The
 constituents-hash-to-the-key rule means two entries sharing a `finding_id` have identical `check`,
 `claim`, and `sites` by construction. The only fields that can differ are `reason` and `date`. So
 the inversion protects the team's recorded *justification* for an accepted finding. Which findings
