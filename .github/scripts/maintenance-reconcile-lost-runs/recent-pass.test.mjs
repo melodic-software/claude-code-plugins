@@ -108,7 +108,7 @@ test("force, another event or a gap of 0 runs the pass without reading anything"
   assert.deepEqual(calls, []);
 });
 
-const PASS_AFTER = String(Date.parse("2026-11-10T14:31:30Z") / 1000);
+const PASS_AFTER = String(Date.parse("2026-11-10T14:30:00Z") / 1000);
 const startedAt = (id, startedIso, updatedIso) => runAt(id, updatedIso, { event: "schedule", run_started_at: startedIso });
 
 test("a due tick skips when a full pass started after its window's reset, naming that run", async () => {
@@ -119,7 +119,7 @@ test("a due tick skips when a full pass started after its window's reset, naming
 });
 
 test("a due tick runs when the last full pass started before its window's reset, though it finished after", async () => {
-  const { github } = fakeGitHub([startedAt(42837000011, "2026-11-10T14:31:00Z", "2026-11-10T14:33:00Z")], { 42837000011: [settled(11)] });
+  const { github } = fakeGitHub([startedAt(42837000011, "2026-11-10T14:29:50Z", "2026-11-10T14:31:00Z")], { 42837000011: [settled(11)] });
   assert.equal((await run({ EVENT_NAME: "schedule", PASS_AFTER }, github)).output, "skip=false\n");
 });
 

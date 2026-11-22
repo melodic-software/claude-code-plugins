@@ -10,8 +10,8 @@ const at = (iso) => Date.parse(iso) / 1000;
 const RESET = at("2026-11-21T19:55:00Z");
 const WINDOW_START = at("2026-11-21T18:55:00Z");
 
-test("a tick up to 30 minutes into the window that began 18:55Z is due, with the pass after 18:56:30Z", () => {
-  assert.deepEqual(tickPlan(RESET, at("2026-11-21T19:09:00Z")), { due: true, since: 14 * 60, wait: 0, passAfter: at("2026-11-21T18:56:30Z") });
+test("a tick up to 30 minutes into the window that began 18:55Z is due, counting passes started from 18:55Z", () => {
+  assert.deepEqual(tickPlan(RESET, at("2026-11-21T19:09:00Z")), { due: true, since: 14 * 60, wait: 0, passAfter: WINDOW_START });
   assert.equal(tickPlan(RESET, at("2026-11-21T19:25:00Z")).due, true, "30 minutes in");
   assert.deepEqual(tickPlan(RESET, at("2026-11-21T19:25:01Z")), { due: false, since: 30 * 60 + 1 }, "past 30 minutes");
 });
@@ -19,6 +19,14 @@ test("a tick up to 30 minutes into the window that began 18:55Z is due, with the
 test("a tick less than 90 s into the window waits out the rest of the 90 s", () => {
   assert.equal(tickPlan(RESET, at("2026-11-21T18:55:30Z")).wait, 60);
   assert.equal(tickPlan(RESET, at("2026-11-21T18:56:30Z")).wait, 0);
+});
+
+test("a run that started 30 s into the window and waited out the grace still counts as that window's pass", () => {
+  const reset = at("2026-11-10T15:03:30Z");
+  const started = at("2026-11-10T14:04:00Z");
+  const plan = tickPlan(reset, started);
+  assert.equal(plan.wait, 60);
+  assert.ok(started >= plan.passAfter, "the 14:19 tick's recent-pass check sees the 14:04 run's pass");
 });
 
 test("a reset behind now or more than a window ahead is no reading", () => {
@@ -66,7 +74,7 @@ test("a due tick reads the reset once and names the window's pass-after", async 
   const { output, waits, lines, calls } = await run({ EVENT_NAME: "schedule" }, () => response());
   assert.deepEqual(calls, ["https://api.github.com/rate_limit"]);
   assert.deepEqual(waits, [0]);
-  assert.equal(output, `due=true\npost-reset=true\npass-after=${WINDOW_START + 90}\n`);
+  assert.equal(output, `due=true\npost-reset=true\npass-after=${WINDOW_START}\n`);
   assert.deepEqual(lines, [`::notice title=reset-tick::reset=${RESET} now=${at("2026-11-21T19:09:00Z")} since_window_start=840 due=true wait_seconds=0`]);
 });
 

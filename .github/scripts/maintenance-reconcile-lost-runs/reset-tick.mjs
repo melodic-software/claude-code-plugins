@@ -10,7 +10,7 @@
 // One GET /rate_limit, which GitHub does not count against the core pool
 // (https://docs.github.com/en/rest/rate-limit/rate-limit), names the reset.
 // A window that began at most ELIGIBLE_MINUTES ago makes the tick due, once
-// GRACE_SECONDS into it, with pass-after naming that moment for recent-pass.mjs,
+// GRACE_SECONDS into it, with pass-after naming the window's start for recent-pass.mjs,
 // which skips the tick when a full pass already started after it; an older
 // window makes it due=false. Any other event, or a read that fails, writes
 // due=true with no pass-after, so the pass runs as before.
@@ -37,7 +37,7 @@ export function tickPlan(reset, now) {
   if (since > ELIGIBLE_MINUTES * 60) {
     return { due: false, since };
   }
-  return { due: true, since, wait: Math.max(0, Math.ceil(GRACE_SECONDS - since)), passAfter: reset - WINDOW_SECONDS + GRACE_SECONDS };
+  return { due: true, since, wait: Math.max(0, Math.ceil(GRACE_SECONDS - since)), passAfter: reset - WINDOW_SECONDS };
 }
 
 export async function main(env = process.env, { fetchImpl = fetch, now = () => Date.now() / 1000, wait = (seconds) => sleep(seconds * 1000) } = {}) {
