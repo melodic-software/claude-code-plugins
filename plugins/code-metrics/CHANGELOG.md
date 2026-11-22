@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.1] - 2026-11-22
+
+### Changed
+
+- `reference/config.md` says a lane record absent from `docs/conventions/ecosystems/` is read from the legacy `.claude/ecosystems/`, and links the ecosystem-commands contract's "Legacy location" section.
+
 ## [1.7.0] - 2026-11-22
 
 ### Changed

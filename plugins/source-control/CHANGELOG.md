@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.8.0] - 2026-11-22
+
+### Added
+
+- `scripts/provision-prerequisites.sh`, the provisioning step: it installs each lockfile an ecosystem record's `requires` entry declares with an `install` object (`{manager: npm, lockfile: <path>}`) by `npm ci --ignore-scripts --no-audit --no-fund` in that lockfile's directory. It reads records from `docs/conventions/ecosystems/`, and a legacy `.claude/ecosystems/` file only for a name absent there, with a warning naming both when both exist. When no record declares any lockfile, it installs a root `npm-shrinkwrap.json` or `package-lock.json` the same way and prints a notice to declare it under `requires.<command>[].install`; that fallback ends at the ecosystem-commands contract's next major version, with the legacy-location read.
+
+### Changed
+
+- `create` takes the PR body's sections from an explicit `pr_body_required_sections` setting, else the `##` headings of the repository's own pull request template (`.github/`, the root, then `docs/`), else the owner's default template in its `.github` repository, else the `briefing` preset, and reports which level supplied them.
+- `create` writes every run's section prose in the project's glossary terms, through `/domain-driven-design:ubiquitous-language lookup` when that plugin is enabled, else the glossary file.
+- `setup check` reports an unset `pr_body_required_sections` as resolved from the repository template, the owner's default template, or `briefing`.
+
+- Worktree creation runs the provisioning step as its one install path, so its `npm ci` now runs with install scripts off. A lockfile that no record declares is installed only through the root fallback above. A repository declares its lockfiles in a record (`docs/contracts/ecosystem-commands/README.md`, "Provisioning").
+
+### Fixed
+
+- `push-branch.sh` reads the pull request's base from `gh pr view`'s stdout only, so a hint gh prints on stderr no longer skips the stale-base sync.
+
 ## [13.7.1] - 2026-11-22
 
 ### Changed
