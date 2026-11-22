@@ -454,8 +454,8 @@ it was ready. `ci-status` gates the merge either way.
   CI already ran are the only part skipped. Without `scripts/check-affected.sh` in the PR worktree,
   the `if` holds the commands §1.5 resolves joined with `&&`, run from `$PR_TREE`
   (`(cd "$PR_TREE" && <commands>)`), leaving out the test suites on a `ci` line. When an earlier
-  part of §1.5 already failed, record `fail` directly, with the next bullet's command and
-  `--result fail`. A recorded `fail` stops the flip.
+  part of §1.5 already failed, record `fail` directly, with the `skip verify` bullet's command
+  and `--result fail`. A recorded `fail` stops the flip.
 - `verify` did not run because the `read-pre-ready.sh` output has a `verify disabled` line:
   record with `--from-pre-ready`, which reads `pre_ready` at the base itself and records
   `skipped` only when the base is the base repository's default branch and its list turns
