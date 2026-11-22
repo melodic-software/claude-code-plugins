@@ -75,6 +75,7 @@ KEY_LINE = "Drift key: "
 BINARY_UNAVAILABLE = "binary source unavailable: "
 # inventory.py's pick_binary: a native build is a single file over this size,
 # and auto-detection names it so in the binary source's `selected_by`.
+# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/inventory/scripts/inventory.py
 NATIVE_SELECTED_BY = "auto-detected native build"
 NATIVE_MIN_BYTES = 20_000_000
 
@@ -396,6 +397,7 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         else None,
         # Whether the executable read was a native build, even one whose
         # bundle did not extract; None when the inventory has no binary source.
+        # The CI skip reads it: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/native-drift.md#run
         "native_build": native_build(binary),
     }
 
