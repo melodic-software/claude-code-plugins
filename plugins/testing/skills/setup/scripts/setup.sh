@@ -1,34 +1,4 @@
 #!/usr/bin/env bash
-# setup.sh — the deterministic half of /testing:setup.
-#
-# check prints four sections and changes nothing:
-#   config        the resolved testing config cascade (scripts/resolve-config.sh)
-#   lint          per language the repository's tracked test files use, whether
-#                 its lint config turns on the rules that catch can't-fail tests.
-#                 A missing rule is a FINDING; Bash, PowerShell and Go have no
-#                 maintained rule. The reading is textual: a rule named in a
-#                 lint config, or the plugin's recommended set referenced.
-#   instruction   an optional line, printed to paste into the instruction file
-#                 Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
-#   hook-entry    that test-quality findings come from /testing:audit, and
-#                 each consumer glob the shipped test-weaken rows skip
-# apply writes the answer flags to the team layer in use: the whole of
-# <root>/docs/conventions/testing.yaml when it exists (its top-level run-e2e
-# keys are kept), else the body of the config block in
-# <root>/docs/conventions/testing.md when that file holds one (its other text
-# stays), else the whole of <root>/.claude/testing.yaml when it exists, else a
-# new <root>/docs/conventions/testing.yaml. It keeps the result only when it
-# resolves, writes no other file, and refuses when the target or its directory
-# is a symlink.
-#
-# Usage:
-#   setup.sh check [--root <dir>]
-#   setup.sh apply [--root <dir>] [--include <glob>]... [--exclude <glob>]...
-#                  [--enable <id>]... [--disable <id>]... [--adapter-dir <dir>]...
-#                  [--extend <id>.<field>=<value>]... [--rule <rule>=off|warn|error]...
-#
-# Exit: check 0 no finding, 1 a lint finding; apply 0 written; 2 usage error,
-# no repository, or a config that does not resolve.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,7 +11,47 @@ die() {
   exit 2
 }
 
+usage() {
+  cat <<'EOF'
+setup.sh — the deterministic half of /testing:setup.
+
+check prints four sections and changes nothing:
+  config        the resolved testing config cascade (scripts/resolve-config.sh)
+  lint          per language the repository's tracked test files use, whether
+                its lint config turns on the rules that catch can't-fail tests.
+                A missing rule is a FINDING; Bash, PowerShell and Go have no
+                maintained rule. The reading is textual: a rule named in a
+                lint config, or the plugin's recommended set referenced.
+  instruction   an optional line, printed to paste into the instruction file
+                Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
+  hook-entry    that test-quality findings come from /testing:audit, and
+                each consumer glob the shipped test-weaken rows skip
+apply writes the answer flags to the team layer in use: the whole of
+<root>/<home>/testing.yaml when it exists (its top-level run-e2e
+keys are kept), else the body of the config block in
+<root>/<home>/testing.md when that file holds one (its other text
+stays), else the whole of <root>/.claude/testing.yaml when it exists, else a
+new <root>/<home>/testing.yaml. <home> is the convention home the pointer
+region binds, else docs/conventions. It keeps the result only when it
+resolves, writes no other file, and refuses when the target or its directory
+is a symlink.
+
+Usage:
+  setup.sh check [--root <dir>]
+  setup.sh apply [--root <dir>] [--include <glob>]... [--exclude <glob>]...
+                 [--enable <id>]... [--disable <id>]... [--adapter-dir <dir>]...
+                 [--extend <id>.<field>=<value>]... [--rule <rule>=off|warn|error]...
+
+Exit: check 0 no finding, 1 a lint finding; apply 0 written; 2 usage error,
+no repository, or a config that does not resolve.
+EOF
+}
+
 ACTION="${1:-}"
+if [[ "$ACTION" == -h || "$ACTION" == --help ]]; then
+  usage
+  exit 0
+fi
 shift || true
 ROOT=""
 inc=() exc=() ena=() dis=() dirs=() ext=() rules=()
@@ -65,6 +75,14 @@ if [[ -z "$ROOT" ]]; then
   [[ -n "$ROOT" ]] || die "not inside a git repository and no --root given"
 fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
+HOME_REL=docs/conventions
+home_rc=0
+bound="$(bash "$PLUGIN/lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" || home_rc=$?
+case "$home_rc" in
+0) HOME_REL="${bound//$'\r'/}" ;;
+1 | 4 | 5) ;;
+*) die "the convention-home pointer in $ROOT does not resolve (resolve-convention-home.sh exit $home_rc)" ;;
+esac
 
 # q <value>: a single-quoted YAML scalar.
 q() { printf "'%s'" "${1//\'/\'\'}"; }
@@ -78,10 +96,10 @@ flow() {
 plain_text() { LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$1"; }
 
 apply() {
-  local new="$ROOT/docs/conventions/testing.yaml" docs="$ROOT/docs/conventions/testing.md" yaml="$ROOT/.claude/testing.yaml"
+  local new="$ROOT/$HOME_REL/testing.yaml" docs="$ROOT/$HOME_REL/testing.md" yaml="$ROOT/.claude/testing.yaml"
   local d f bak="" tmp y="" e id field r blk from="" to="" l keep=""
   # Refuse a linked docs file before the loader reads it.
-  for l in "$ROOT/docs" "$ROOT/docs/conventions" "$docs" "$new"; do
+  for l in "$ROOT/${HOME_REL%%/*}" "$ROOT/$HOME_REL" "$docs" "$new"; do
     [[ ! -L "$l" ]] || die "refusing to read or write through a symlink: $l"
   done
   # A flag value is one line: a newline would end the fenced block early.
@@ -366,5 +384,5 @@ check() {
 case "$ACTION" in
 check) check ;;
 apply) apply ;;
-*) die "usage: setup.sh check|apply [--root <dir>] (see the header)" ;;
+*) die "usage: setup.sh check|apply [--root <dir>] (see --help)" ;;
 esac

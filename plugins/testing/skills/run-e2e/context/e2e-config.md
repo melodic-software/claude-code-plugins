@@ -124,10 +124,10 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 authority first:
 
 1. Explicit session prompt
-2. Personal override (`.claude/testing.local.yaml`)
-3. Team (`docs/conventions/testing.yaml`)
-4. User-global (`~/.claude/testing.yaml`)
-5. The plugin `userConfig` option of the same name
+2. Personal override (`<home>/testing.local.yaml`, else the old `.claude/testing.local.yaml`)
+3. Team (`<home>/testing.yaml`; `<home>` is `docs/conventions` unless the repository binds another)
+4. The plugin `userConfig` option of the same name, when set to a value other than its default
+5. The old user-global file (`~/.claude/testing.yaml`)
 6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`, and each
    `map` key's default in [map.md](map.md))
 
