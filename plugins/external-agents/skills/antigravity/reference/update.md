@@ -10,8 +10,9 @@ follows the hint the user set in `antigravity.update_hint`.
 
 Run it when a run reports agy unavailable or the breaker open, when the user asks whether agy is
 ready, and after an agy upgrade. Exit `0` when agy is ready, `4` when it is missing. The agy
-record has no login check, so `login:` reads `not checked`; a signed-out agy shows up as a failed
-run.
+record has no login check, so `login:` reads `not checked`. A signed-out agy waits 60 seconds for a
+sign-in, then fails with `authentication failed or timed out`, which opens the breaker: tell the
+user to sign in to agy, then run this command.
 
 ## Reading the output
 

@@ -63,3 +63,10 @@ soft_deny:
     field: denied_actions
   - kind: stderr_substring
     text: "permission that headless mode cannot prompt for"
+unavailable:
+  - class: auth
+    patterns:
+      - "authentication failed or timed out"
+  - class: usage-limit
+    patterns:
+      - "RESOURCE_EXHAUSTED"
