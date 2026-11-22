@@ -10,7 +10,8 @@ bump: minor
   as its follow-up. The removal report also lists plain (unbolded) uses of a removed term inside
   other entries.
 - **`Also called:` glossary line.** An optional line for a synonym a person accepted for the same
-  concept; counting and `audit` treat it as the term itself. It is distinct from `Avoid:`.
+  concept; counting and `audit` treat it as the term itself, and `lookup` returns it and resolves
+  it to its entry. It is distinct from `Avoid:`.
 
 ### Changed
 

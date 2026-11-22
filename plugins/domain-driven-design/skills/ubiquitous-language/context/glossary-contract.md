@@ -18,8 +18,6 @@ States: Draft, then Sent, then Paid or Void.
 
 Actions: void (Avoid: cancel)
 
-Also called: sales invoice
-
 Avoid: bill, payment request
 
 Shown to users as: bill
