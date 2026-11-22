@@ -1,3 +1,4 @@
+// test-scope: docs/upstream/*
 // Expected values come from the verdict rules in
 // docs/conventions/pr-pipeline/README.md ("Verifier verdict"): only a successful pr-require-checks pull_request run of this
 // repository starts a verdict, for exactly one open same-repository PR into
