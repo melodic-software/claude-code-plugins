@@ -165,7 +165,7 @@ playwright-cli open --mobile                   # generic mobile device (Pixel 10
 playwright-cli open --device="iPhone 15"       # specific device profile
 playwright-cli attach --cdp=chrome             # attach to running Chrome
 playwright-cli attach --cdp=http://localhost:9222
-playwright-cli attach --extension              # via Playwright MCP Bridge extension
+playwright-cli attach --extension=chrome       # user's browser via Playwright Extension
 ```
 
 Session isolation with `-s=<name>`: see [sessions.md](sessions.md). `--headed` on Windows: see [windows-quirks.md](windows-quirks.md).
