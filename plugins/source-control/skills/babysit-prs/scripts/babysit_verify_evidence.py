@@ -822,7 +822,9 @@ BRIEFED_ISSUE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){title body author{...actor} "
     "labels(first:100){totalCount nodes{name}} "
-    f"comments(first:100){{{COMMENT_FIELDS}}}}}}}"
+    "comments(first:100){totalCount pageInfo{hasNextPage endCursor} "
+    "nodes{databaseId createdAt updatedAt lastEditedAt body author{...actor} "
+    "editor{...actor}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
 ADMISSION_RECORD_MARKER = "<!-- issue-admission-record -->"
