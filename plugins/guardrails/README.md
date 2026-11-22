@@ -153,10 +153,27 @@ bash beside git's sh.
 | `pre-push-content` | pre-push | The same scan as `pre-commit-content` (it shares that entry's `git-hooks/content-scan.sh`), on every pushed ref, for commits that check never judged: made before the hooks were installed, by a tool or clone without them, or rebased or cherry-picked in. Each pushed commit is judged on the lines it adds to its parent, so a secret one commit adds and a later commit removes still fails the push, which would publish it in history; a merge is judged on what it adds against every parent. A new branch starts from its merge-base with the default branch, and commits a remote-tracking ref already holds are not judged again. Each finding names its commit, and the fix is to rewrite that commit. |
 
 `git-hooks/reference-verify.sh` is not a git hook entry: at about 10 s on a 44-file change it is
-over the 3 s push budget, so `/source-control:pull-request` runs it in the pre-PR check, once per
-head, with the branch's refs on stdin as git passes a pre-push hook (the check-placement
-convention's measured rows). It runs `cli-flag-verify`, `skill-reference-verify` and
-`stale-path-verify` on the lines the branch adds, through `hooks/run-guards.sh`. A new branch is judged from its merge-base with the default branch. Each range then starts instead at the nearest of the remote's tracking refs between its base and its tip, so a stacked branch does not re-verify the pushed branches below it. Lines that a merged branch brings in are not judged when one of the remote's tracking refs holds them, whether that branch is the default branch or another one; `pre-push-content` uses the same rule. Lines that the merge resolution or the branch's own commits add are still judged, unless a merged tracking ref already holds the same line. Those tracking refs are trusted as verified without a check, including another author's branch, fetched into this clone, that was pushed with `--no-verify`. A tracking ref is only as current as the last fetch, and the check never fetches. A ref behind the remote leaves more lines to judge. A ref for a branch the remote deleted or force-pushed, not yet pruned, still counts its commits as pushed, so their lines go unjudged; `git fetch --prune` keeps the refs current. It skips files in a `samples/` folder below an `evals/` folder, which hold recorded model output; the rest of an eval suite stays checked. A cli-flag or skill-reference finding fails the check; a stale-path finding is printed and the check passes. A file whose verifier input it cannot build or whose verifier run fails, or a branch tip it cannot check out, is reported as a finding and fails the check, since it went unchecked. Needs `jq`; the scanned binaries follow `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` when set in the environment. A cli-flag finding is unverified, not proven wrong, so its failure names the way out: decline the check. The script reads that decline (`checks.guardrails.reference-verify.declined`) itself. Each finding names the line holding the flag, path or reference. `git -c checks.skipmissing=jq` skips it only while `jq` is missing.
+over the 3 s push budget. `/source-control:pull-request` runs it in the pre-PR check, once per
+head, and this marketplace's CI runs it in its Lint Repo job, both as `reference-verify.sh --base <default branch>`,
+as `scripts/check-affected.sh` does. It runs `cli-flag-verify`, `skill-reference-verify`
+and `stale-path-verify` on the lines the branch adds from its merge-base with that ref, pushed
+commits included, through `hooks/run-guards.sh`. It skips files in a `samples/` folder below an
+`evals/` folder, which hold recorded model output. A cli-flag or skill-reference finding fails the
+check; a stale-path finding is printed and the check passes. A file whose verifier input it cannot
+build or whose verifier run fails, or a branch tip it cannot check out, is reported as a finding and
+fails the check, since it went unchecked. Needs `jq`; the scanned binaries follow
+`CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS`
+when set in the environment. A cli-flag finding is unverified, not proven wrong, so its failure
+names the way out: `git config checks.guardrails.reference-verify.declined true`. `git -c
+checks.skipmissing=jq` skips it only while `jq` is missing. Given refs on stdin as git passes a
+pre-push hook, it judges only commits the remote's tracking refs lack.
+
+A clone that installed the retired `reference-verify` entry keeps running it at pre-push, and
+`/guardrails:setup check` no longer lists it. Remove the `pre-push.d/guardrails.reference-verify`
+marker and the `guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks` (local
+plain hooks), a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml`, a
+`.husky/pre-push` line that runs `reference-verify.sh`, and `.githooks/guardrails/reference-verify.sh`
+(shared). A lefthook remote drops the job on its next fetch.
 
 ### Settings-write ask
 

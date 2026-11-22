@@ -309,7 +309,6 @@ got="$(cd "$REPO" && bash "$CHECK" --worktree 2>&1 >/dev/null)"
 expect "--worktree judges an untracked file" "1|draft.md:1: secret or credential pattern: GitHub PAT" \
   "$?|$(head -1 <<<"$got")"
 
-# The run time on a representative push: 20 commits, each changing two files.
 new_repo
 for i in $(seq 1 20); do
   printf 'entry %s\n' "$i" >>"$REPO/notes.md"
@@ -317,12 +316,20 @@ for i in $(seq 1 20); do
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m "part $i" --no-verify
 done
-start=$SECONDS
+expect "the entry passes a clean 20-commit push" "0|" "$(new_push)"
+
+new_repo
+for i in $(seq 1 28); do
+  printf '# Part %s\n\nSome prose for part %s.\n' "$i" "$i" >"$REPO/part-$i.md"
+done
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m "28 files" --no-verify
+start=$(date +%s%N)
 got="$(new_push)"
-took=$((SECONDS - start))
-echo "measured: pre-push-content took ${took} s on a 20-commit, 40-file-change push"
-expect "the entry passes the 20-commit push" "0|" "$got"
-expect "the entry runs within the 3 s pre-push budget" yes "$( ((took <= 3)) && echo yes)"
+took_ms=$((($(date +%s%N) - start) / 1000000))
+echo "measured: pre-push-content took ${took_ms} ms on one 28-file commit"
+expect "the entry passes the 28-file push" "0|" "$got"
+expect "the 28-file push runs within check-placement's 3 s pre-push budget" yes "$( ((took_ms <= 3000)) && echo yes)"
 
 # End to end through the plugin's vendored installer and a real git push.
 new_repo

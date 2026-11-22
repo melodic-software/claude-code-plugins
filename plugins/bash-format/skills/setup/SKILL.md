@@ -216,6 +216,8 @@ The `format` entry rewrites: at commit it formats the staged shell scripts the s
 governs and stages the result, so tell the user that a commit can change the files it contains,
 and that a partly staged governed script is refused untouched. The `lint` entry only reports
 findings on the lines the commit adds. A decline of the earlier single entry carries to both.
+`verify` no longer lists a copy of the retired `lint-full` entry; the README's "Git hook
+entries" names the files to remove, which you remove with your edit tools on the user's yes.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
 `bash-format-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints

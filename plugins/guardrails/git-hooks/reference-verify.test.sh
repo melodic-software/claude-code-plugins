@@ -576,6 +576,27 @@ expect "--worktree: an uncommitted unknown flag blocks" 1 "$(c="$(worktree_check
 git -C "$REPO" checkout -q run.sh
 expect "--worktree: no uncommitted change passes" "0|" "$(worktree_check)"
 
+base_check() {
+  local err rc
+  err="$(cd "$REPO" && bash "$CHECK" --base "$1" 2>&1 >/dev/null </dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
+}
+new_repo
+git -C "$REPO" checkout -q -b pushed-feature
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+commit_all pushed-bogus
+git -C "$REPO" push -q --no-verify origin pushed-feature 2>/dev/null
+tip="$(git -C "$REPO" rev-parse HEAD)"
+expect "refs on stdin skip a branch whose commits the remote already has" "0|" \
+  "$(push_check refs/heads/pushed-feature "$tip" "$ZERO")"
+expect "--base judges every commit from the merge-base, pushed ones included" "1|run.sh:3: $FLAG_FINDING" \
+  "$(base_check origin/main)"
+git -C "$REPO" checkout -q main
+expect "--base on a branch that adds nothing passes" "0|" "$(base_check origin/main)"
+expect "--base with no ref is a usage error" 2 \
+  "$(cd "$REPO" && bash "$CHECK" --base >/dev/null 2>&1 </dev/null; echo "$?")"
+
 new_repo
 WT="$WORK/wt$n"
 git -C "$REPO" worktree add -q -b restore "$WT" main

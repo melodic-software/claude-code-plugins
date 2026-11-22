@@ -1390,6 +1390,19 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh as-of-recheck {0}
         run: scripts/check-as-of-recheck.sh --check
 
+      - name: Check the lines the branch adds for unknown CLI flags, skill references and deleted paths
+        id: reference_verify
+        continue-on-error: true
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh reference-verify {0}
+        run: |
+          if [ -z "$DIFF_BASE" ]; then
+            echo "::notice::No lane base, so reference-verify has no range to check."
+            exit 0
+          fi
+          sh plugins/guardrails/git-hooks/reference-verify.sh --base "$DIFF_BASE"
+
       # No price, rate, per-task cost or percentage saving in a skill, agent,
       # reference, doc or prompt (.claude/rules/cost-claims.md). Ungated: the
       # edit that adds one is docs-only. Existing debt sits in
@@ -2024,6 +2037,7 @@ jobs:
             adr-numbers=${{ steps.adr_numbers.outcome }}
             rules-index=${{ steps.rules_index.outcome }}
             as-of-recheck=${{ steps.as_of_recheck.outcome }}
+            reference-verify=${{ steps.reference_verify.outcome }}
             cost-figures=${{ steps.cost_figures.outcome }}
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
@@ -2316,6 +2330,19 @@ jobs:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
 
+      - name: Lint changed shell scripts over 2,000 lines with dataflow analysis
+        id: lint_full
+        continue-on-error: true
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh lint-full {0}
+        run: |
+          if [ -z "$DIFF_BASE" ]; then
+            echo "::notice::No lane base, so lint-full has no range to check."
+            exit 0
+          fi
+          sh plugins/bash-format/git-hooks/lint-full.sh --base "$DIFF_BASE"
+
       - name: Aggregate hygiene results
         if: always()
         env:
@@ -2337,6 +2364,7 @@ jobs:
             pipefail-grep-q=${{ steps.pipefail_grep_q.outcome }}
             test-tmp-cleanup=${{ steps.test_tmp_cleanup.outcome }}
             shellcheck=${{ steps.shellcheck.outcome }}
+            lint-full=${{ steps.lint_full.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
       - name: Log the API budget at the end

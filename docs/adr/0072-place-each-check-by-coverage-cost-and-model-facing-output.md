@@ -138,4 +138,5 @@ Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
 - **The pre-PR check.** `/source-control:pull-request` runs one quick check of the changed files
   once per head before the pull request opens: the repository's affected-files check without its
   test suites, plus guardrails `reference-verify` and bash-format `lint-full` where the
-  repository has them. Both left `pre-push` for it. CI runs the test suites.
+  repository has them. Both left `pre-push` for it and also run in CI over the whole pull
+  request. CI runs the test suites.

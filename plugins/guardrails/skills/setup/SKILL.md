@@ -178,7 +178,13 @@ manager, so the checks cover every commit, not only Claude's tool calls:
 on the lines a commit adds, whatever wrote the file), `pre-push-content` (the same scan on
 each pushed commit, for commits that check never judged). `reference-verify` (CLI flags,
 `/plugin:skill` references and deleted repository paths) is not an entry: over the 3 s push
-budget, it runs in `/source-control:pull-request`'s pre-PR check. The
+budget, it runs in `/source-control:pull-request`'s pre-PR check and in CI. `verify` no longer
+lists a copy an earlier release installed, so look for one and, on the user's yes, remove it
+with your edit tools: the `pre-push.d/guardrails.reference-verify` marker and the
+`guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks` (local plain
+hooks), a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml`, a
+`.husky/pre-push` line that runs `reference-verify.sh`, and `.githooks/guardrails/reference-verify.sh`
+(shared). A lefthook remote needs nothing. The
 installer script only detects, renders and writes files the plugin owns; every step that
 needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
 with your own edit tools. Never runs from bare `apply`.

@@ -520,7 +520,7 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | guardrails `reference-verify` | pre-PR check (moved from pre-push) | 43.6-66.8 s (3 files); 47.5 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
 
 On Linux WSL2, `reference-verify` took 1.25 s on the 28-file sample and 10.6 s on 44 files,
-and `lint-full` 11.8 s on 44 files, both over the 3 s push budget, so both run in the pre-PR
+and `lint-full` 11.8 s on 44 files, both over the 3 s push budget, so both run in CI and the pre-PR
 check. On native Windows Git Bash, process-spawn overhead pushes `scripts/check-affected.sh`
 to 191-328 s and `reference-verify` to 44-67 s. Change-scoped tests stay in CI: `--tests` adds
 1.0 s on a change that selects no suite, 90.7 s on a one-file script edit and 145.7 s on the
