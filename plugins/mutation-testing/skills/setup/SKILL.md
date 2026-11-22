@@ -41,7 +41,7 @@ override of earlier releases, holds the same keys in a `yaml` block. While it ex
 - Every `check`, `apply` and audit run prints one warning line naming the old file, the new
   location and the command that moves it:
   `WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local`.
-  With both present, the line ends with ` (docs/conventions/mutation-testing.local.yaml won)`
+  With both present, the line ends with a space and `(docs/conventions/mutation-testing.local.yaml won)`
   after `apply local`, so it also says the YAML file won.
 
 [Moving the old personal file](#moving-the-old-personal-file) is the one way to clear the warning.
