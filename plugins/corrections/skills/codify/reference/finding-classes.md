@@ -179,8 +179,9 @@ directory, a test project), name it.
 - **`action-guard`**: `/harness-config:audit-automation-gaps hooks` when that plugin is enabled,
   presenting the proposal as a candidate; otherwise the proposal records the candidate with its
   frequency, incident history and the enforcement already covering it.
-- **`automated-review`**: a `REVIEW.md` line, for a rule only a reviewer applies or a change to how
-  severe a finding is. Say that no check catches it.
+- **`automated-review`**: a line in the review-criteria file the ladder's `automated-review` rung
+  names, for a rule only a reviewer applies or a change to how severe a finding is. Say that no
+  check catches it.
 - **`instruction`**: a `CLAUDE.md`, `AGENTS.md` or rules-file line, placed by section 3.
 
 ## Record line

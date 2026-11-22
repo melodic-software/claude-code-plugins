@@ -171,7 +171,11 @@ When the pair comes from a domain glossary change (a term renamed, a word moved 
 `Avoid:` line, or a verb moved into the parentheses of an entity's `Actions:` line, usually handed
 over by `/domain-driven-design:ubiquitous-language`), code names
 follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
-glossary edit. The report groups hits by layer:
+glossary edit. When `/domain-driven-design:ubiquitous-language` is among the available skills, the
+sweep also matches the term inside identifiers the way that skill's glossary contract counts a
+term ("Counting a term"), so `addLearner` is found for `learner`; when it is not, the report says the identifier-part pass
+did not run. Ordinary renames keep the `\b` anchor ("Word-boundary trap"). The report groups hits
+by layer:
 
 - **Code and identifiers**: renamed in one reviewed change. Occurrences in config, comments and
   string literals are swept here like any other form; declarations of types, functions, variables
@@ -200,10 +204,9 @@ glossary edit. The report groups hits by layer:
 
 ## Next
 
-`/docs-naming:audit-file-names`
-
-For a whole tree measured against a casing rule rather than one pair swept after
-a rename someone already made.
+- A whole tree to measure against a casing rule, not one pair swept after a rename:
+  `/docs-naming:audit-file-names`.
+- The sweep edited code or config and the build must still pass: `/toolchain:check`.
 
 ## Gotchas
 
