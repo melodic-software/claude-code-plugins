@@ -14,6 +14,10 @@ interrogation, and **"neither applies" is a valid answer** that closes it for th
 whatever the acceptance-criteria format resolves to, and with no convention file present at all;
 it is a coverage check, not a format.
 
+Ask it in the first round that is not an intake round ([`lookups.md`](lookups.md) "The intake
+round") once any criterion is known, from the request or an answer. It needs no fact from the code
+or a lookup, so a round that holds or defers every other question still asks it.
+
 It is **not** a `Q<N>` decision. Never write it into the open-question register, never mark it
 `blocked`, and never route it to `### Deferred questions`. The register gates the contract, and a
 coverage check parked there would hold a lock hostage to a question that carries no decision. It
