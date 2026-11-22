@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "Round 1 includes a question recommending /planning:wayfind chart for the four unknown areas, worded so the user can accept or decline it, and the other round-1 questions go out in the same message; wayfind is not invoked"
+expected_outcome: "Round 1 offers /planning:wayfind chart for the four unknown areas (in an intake round, as the one-line Suggested next: routing line), worded so the user can accept or decline it, and the other round-1 questions go out in the same message; wayfind is not invoked"
 ---
 
 /planning:interview I want to move our clinic booking app from a single clinic to a group of clinics. Honestly I don't know yet how patient records should be shared between clinics, how billing would split across them, whether staff sign in once or per clinic, or how to migrate the existing appointments. I'm here and will answer your questions.

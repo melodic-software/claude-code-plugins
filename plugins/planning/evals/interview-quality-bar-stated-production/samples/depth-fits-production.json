@@ -3,12 +3,20 @@
     {
       "answer": "Q1: Which accounting systems must the first release support?\nMy recommendation: **the two most-used by current customers**.\nQ2: When one customer's export fails, retry and alert, or skip and report?\nMy recommendation: **retry three times, then alert** - month-end close depends on it.",
       "why": "scoping plus a failure-handling question"
+    },
+    {
+      "answer": "### Round 2\nScope check: 5 of 27 questions registered\nLater: credential storage per accounting system, rollback of a bad export\n\n❓ Q3: **Which accounting systems must the first release export to?**\n\nContext:\n- Finance staff re-key invoices into their accounting systems by hand (user, round 1).\n\nWithheld: which systems your customers use; only you can say.\n\nAlternatives:\n- (a) The one system most customers use. Ships first, but leaves the rest re-keying (judgment; origin: new (ours))\n- (b) Every system a customer names. Covers everyone, but multiplies the integrations (judgment; origin: new (ours))\n\n---\n\n❓ Q4: **When one customer's nightly export fails, should it retry and then alert support?**\n\nContext:\n- Customers rely on the export for their month-end close (user, round 1).\n- Support fields questions when an invoice is missing (user, round 1).\n\n➡️ My recommendation: **Yes, retry three times, then alert support**. A silent failure leaves an invoice missing at close, and support is who hears about it (verified, user, round 1: support fields missing-invoice questions).\n\nAlternatives:\n- (a) No, skip and list the failure in a morning report. Simpler, but the gap can reach the close (judgment; origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "round 2 in the full layout: a scoping question and a failure-handling question"
     }
   ],
   "fail": [
     {
       "answer": "Q1: Which accounting systems?\nQ2: CSV or JSON?\nQ3: What time should it run?",
       "why": "scoping only, no production concern for a stated production service"
+    },
+    {
+      "answer": "### Round 2\nScope check: 5 of 27 questions registered\nLater: failure handling and alerts, credential storage per accounting system, rollback of a bad export\n\n❓ Q3: **Which accounting systems must the first release export to?**\n\nContext:\n- Finance staff re-key invoices into their accounting systems by hand (user, round 1).\n\nWithheld: which systems your customers use; only you can say.\n\nAlternatives:\n- (a) The one system most customers use. Ships first, but leaves the rest re-keying (judgment; origin: new (ours))\n- (b) Every system a customer names. Covers everyone, but multiplies the integrations (judgment; origin: new (ours))\n\n---\n\n❓ Q4: **Should the export run at 02:00 in each customer's time zone?**\n\nContext:\n- The service runs nightly (user, round 1).\n\n➡️ My recommendation: **Yes, 02:00 local**. It finishes before the customer's workday (verified, user, round 1: the export runs nightly).\n\nAlternatives:\n- (a) No, one fixed UTC time. Simpler, but lands mid-day for some customers (judgment; origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "the same round with scoping questions only; failure handling is named only on the Later: line"
     }
   ]
 }

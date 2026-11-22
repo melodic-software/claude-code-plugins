@@ -7,6 +7,10 @@
     {
       "answer": "**Round 2** (one question per message, as you asked)\nLater: amount format, which roles can export, how a large export completes.\n\n❓ Q6: **Should one export cover one calendar month across all customer accounts?**\nContext:\n- Finance closes its books on the calendar month (your notes).\n\n➡️ My recommendation: **Yes, one calendar month, all accounts**\nOrigin: new (ours)\nBasis: verified, your notes\n\nAlternatives:\n- (a) Any date range. Flexible, but ranges that cross a month end stop matching the books (origin: new (ours))\n\nIs there something else that would change these recommendations?",
       "why": "single pacing, one question on the date range"
+    },
+    {
+      "answer": "### Round 2\nScope check: 7 of 27 questions registered\n\n❓ Q4: **What should one export include?**\n\nContext:\n- Finance closes its books on the calendar month (user, round 2).\n\n➡️ My recommendation: **One calendar month across all customer accounts**. Books close on the month, so the month is the export's unit (verified, user, round 2: finance closes its books on the calendar month).\n\nAlternatives:\n- (a) Any date range the user picks. Flexible, but finance never asks for one (judgment; origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "the date range is named in the recommendation, not the title"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "Decided so far: Q4 (large exports): background build, mechanism at planning. Q5 (scope): one calendar month.\n\n❓ Q6: **Which date puts an invoice into a calendar month's export?**\nContext:\n- Finance closes its books on the calendar month, and an invoice has issue, due and paid dates (your notes).\n\n➡️ My recommendation: **Yes**\nOrigin: new (ours)\nBasis: verified, your notes\n\nAlternatives:\n- (a) The other way round (origin: new (ours))\n\nIs there something else that would change these recommendations?",
       "why": "which date places an invoice in a month is a sub-decision, not the date range one export covers"
+    },
+    {
+      "answer": "### Round 2\nScope check: 7 of 27 questions registered\n\n❓ Q4: **How should a large file reach finance?**\n\nContext:\n- One calendar month of invoices for the largest customer account is about 40,000 rows (user, round 2).\n- The page's other downloads build the file inside the web request, which times out after 30 seconds (user, round 2).\n\n➡️ My recommendation: **Build it as a job and offer the file when it finishes**. A 40,000-row build would outrun the 30-second limit (verified, user, round 2: the request times out after 30 seconds).\n\nAlternatives:\n- (a) Build it inside the request. Simple, but it times out for the largest account (user, round 2; origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "no date-range question; only another question's Context quotes the planted fact naming one calendar month"
     }
   ]
 }

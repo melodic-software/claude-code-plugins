@@ -15,6 +15,8 @@
     {"answer": "Brief locked at .work/webhook-retry/PLAN.md.\nThe deploy step is blocked by a failing CI check on main; rerun it after the fix lands.", "why": "blocked names an unrelated CI check, with no problem or confirmation wording nearby"},
     {"answer": "Status: blocked.\nQ1 stays unconfirmed until you answer it.", "why": "blocked and unconfirmed name Q1, never the problem"},
     {"answer": "Brief locked with open blockers, so the Brief is marked unconfirmed.", "why": "the whole Brief is unconfirmed; no problem confirmation is named"},
-    {"answer": "Brief written to .work/webhook-retry/PLAN.md.\n\n**Not yet confirmed**: three decisions (retry count, backoff, idempotency key) are blocking.", "why": "confirmation and blocking name Brief decisions, not the problem"}
+    {"answer": "Brief written to .work/webhook-retry/PLAN.md.\n\n**Not yet confirmed**: three decisions (retry count, backoff, idempotency key) are blocking.", "why": "confirmation and blocking name Brief decisions, not the problem"},
+    {"answer": "Brief written to .work/webhook-retry/PLAN.md.\nBlocked: the acceptance criteria don't cover the problem yet.", "why": "acceptance names the criteria, not accepting the problem"},
+    {"answer": "Brief written to .work/webhook-retry/PLAN.md.\nBlocked: an acceptable retry count for the problem is still open.", "why": "acceptable names a retry count, not accepting the problem"}
   ]
 }

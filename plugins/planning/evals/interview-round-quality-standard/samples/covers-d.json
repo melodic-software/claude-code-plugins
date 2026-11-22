@@ -15,6 +15,10 @@
     {
       "answer": "### Round 2\n\nScope check: 13 of 27 questions registered\n\n❓ Q13: **How should the file be produced, given the page's downloads build inside a web request that times out after 30 seconds?**\n",
       "why": "asks how a large export reaches the person, worded as \"inside a web request\" and \"times out\""
+    },
+    {
+      "answer": "### Round 2\nScope check: 7 of 27 questions registered\n\n❓ Q7: **How should a month's file reach finance?**\n\nContext:\n- The largest account's month is the biggest file finance asks for (user, round 2).\n\n➡️ My recommendation: **Build it in the background and offer a download when it is ready**. The page's other downloads would not finish a file that size (verified, user, round 2: in-request downloads stop after 30 seconds).\n\nAlternatives:\n- (a) Build it while the person waits. Simple, but the largest account's file would not finish (judgment; origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "the large-export mechanism is named in the recommendation, not the title"
     }
   ],
   "fail": [
@@ -37,6 +41,10 @@
     {
       "answer": "Decided so far: Q4 (large exports): background build, mechanism at planning. Q5 (scope): one calendar month.\n\n❓ Q6: **Who may start an export and download the finished file?**\nContext:\n- Support staff can see invoice lists but not payment details (your notes).\n\n➡️ My recommendation: **Yes**\nOrigin: new (ours)\nBasis: verified, your notes\n\nAlternatives:\n- (a) The other way round (origin: new (ours))\n\nIs there something else that would change these recommendations?",
       "why": "a question on who may export that mentions the finished file is not D"
+    },
+    {
+      "answer": "### Round 2\nScope check: 7 of 27 questions registered\nLater: delivery within the 30-second request limit\n\n❓ Q4: **Should one export cover a whole calendar month across all customer accounts?**\n\nContext:\n- Finance closes its books on the calendar month (user, round 2).\n- One calendar month for the largest customer account alone is about 40,000 rows (user, round 2).\n- Today's other downloads build the file inside the web request, which times out after 30 seconds (user, round 2).\n\n➡️ My recommendation: **Yes, one calendar month, all accounts**. Books close on the month (verified, user, round 2: finance closes its books on the calendar month).\n\nAlternatives:\n- (a) Any date range. Flexible, but finance never asks for one (judgment; origin: new (ours))\n\nIs there something else that would change these recommendations?",
+      "why": "no large-export question, as in saved reply rq-f5; only the date-range question's Context quotes the 40,000-row and in-request timeout facts"
     }
   ]
 }

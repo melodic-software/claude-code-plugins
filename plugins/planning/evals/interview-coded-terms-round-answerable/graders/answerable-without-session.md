@@ -18,10 +18,15 @@ PASS only if all of these hold:
    substitute (for example "merge robot" for the pr-merge lane, or "latest version" for the head
    SHA) is not.
 3. The unanswered rerun-cap question is shown again with its context, recommendation, basis and
-   alternatives, not as a one-line reminder. In this check and the FAIL line below, a question
-   whose recommendation is withheld meets "recommendation and basis" with a `Withheld:` line that
-   names the evidence that would settle it; it still needs its context and alternatives.
+   alternatives, not as a one-line reminder. In this check and the FAIL line below, "basis" is
+   either the evidence label and source that end the recommendation's reason (for example
+   "(verified, the ledger, line 16: reruns fire on every new head SHA)"), or a `Basis:` line; the
+   default detail level prints no `Basis:` line, so the reason's closing label and source alone
+   meet it. A question whose recommendation is withheld meets "recommendation and basis" with a
+   `Withheld:` line that names the evidence that would settle it; it still needs its context and
+   alternatives.
 
 FAIL if any question needs the ledger or the session to be understood, if a technical term was
 replaced by a metaphor or lay wording, if the rerun-cap question is restated without its
-alternatives or basis, or if the reply asks no question.
+alternatives or without a basis (no evidence label and source ending its reason and no `Basis:`
+line), or if the reply asks no question.

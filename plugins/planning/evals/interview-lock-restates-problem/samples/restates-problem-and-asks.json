@@ -4,13 +4,16 @@
     {"answer": "**Problem:** large accounts (over 10,000 invoices) hit the 1800s timeout in the nightly export.\n\nDoes this capture the problem? (yes / correct it)", "why": "question mark followed by the yes option"},
     {"answer": "The problem, in one line: exports time out for large accounts. Can you confirm that before I write the Brief?", "why": "confirm phrasing"},
     {"answer": "Restating: the nightly export times out for accounts over 10,000 invoices. Is that whats going on? yes/no", "why": "restatement without the word problem, confirmed by a yes/no question about it"},
-    {"answer": "❓ Q1: **Is this the problem: the nightly invoice export times out for accounts with more than 10,000 invoices (observed, logs/export.log), and support has logged three tickets about it this month, so large accounts get no export at all?**", "why": "a long one-line problem title, past the old 80-character window"}
+    {"answer": "❓ Q1: **Is this the problem: the nightly invoice export times out for accounts with more than 10,000 invoices (observed, logs/export.log), and support has logged three tickets about it this month, so large accounts get no export at all?**", "why": "a long one-line problem title, past the old 80-character window"},
+    {"answer": "❓ Q1: **Is the problem that the nightly invoice export times out for accounts with more than 10,000 invoices (observed, logs/export.log)?**", "why": "an is-the-problem confirmation title"},
+    {"answer": "❓ Q1: **Should the Brief record this as the problem: the nightly export times out for accounts over 10,000 invoices (observed, logs/export.log)?**", "why": "a should-record-as-the-problem confirmation title"}
   ],
   "fail": [
     {"answer": "", "why": "empty reply"},
     {"answer": "Brief written to .work/invoice-export-timeout/PLAN.md. Goal: make the export finish for large accounts.", "why": "wrote the Brief without restating or asking"},
     {"answer": "Problem: the export times out for accounts over 10,000 invoices. Locking the Brief now.", "why": "restates but asks nothing"},
     {"answer": "Which database are you using? Is it right to page by 1,000 rows?", "why": "asks a different question with no problem line"},
-    {"answer": "The problem: exports time out for large accounts. Q1: Is offset paging right here, or keyset?", "why": "restates, then asks a design question instead of confirming the restatement"}
+    {"answer": "The problem: exports time out for large accounts. Q1: Is offset paging right here, or keyset?", "why": "restates, then asks a design question instead of confirming the restatement"},
+    {"answer": "The problem: exports time out for large accounts. Q1: Should keyset paging fix this problem?", "why": "a should-question about a fix for the problem, not a confirmation of it"}
   ]
 }
