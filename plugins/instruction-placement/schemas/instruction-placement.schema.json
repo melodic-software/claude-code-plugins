@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/instruction-placement/schemas/instruction-placement.schema.json",
   "title": "Instruction-placement team config",
   "description": "Schema for instruction-placement.yaml in a repository's convention home (default docs/conventions): the declined findings that /instruction-placement:audit, delta and realign read and realign writes, listed in plugins/instruction-placement/reference/consumer-config.md. Entry format: the finding-suppression contract.",
   "type": "object",
