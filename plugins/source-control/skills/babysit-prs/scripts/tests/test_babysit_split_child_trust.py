@@ -175,7 +175,10 @@ class FakeGitHub:
             answer = {"ref": f"refs/heads/{branch}", "object": self.tips[branch]}
             return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         if args[:2] == ["api", "graphql"]:
-            if f"query={ve.OWN_AGENT_ISSUE_QUERY}" in args:
+            if any(
+                f"query={query}" in args
+                for query in (ve.OWN_AGENT_ISSUE_QUERY, ve.BRIEFED_ISSUE_QUERY)
+            ):
                 payload = {"data": {"repository": {"issue": {}}}}
                 return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
             assert any(a == f"query={ve.SPLIT_CHILD_QUERY}" for a in args), args
