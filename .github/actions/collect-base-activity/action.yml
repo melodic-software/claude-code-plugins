@@ -200,7 +200,7 @@ runs:
         # the copy at <at>, where the runner leaves it. Sets check_wrappers
         # (their paths at <at>) and check_prompt.
         stage_checks() {
-          local dir=$1 at=$2 check script flags wrapper config
+          local dir=$1 at=$2 check script flags wrapper config part
           check_wrappers=()
           [[ $at =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the checks directory or workspace has a name a rule cannot carry"
@@ -219,6 +219,14 @@ runs:
           if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
             mkdir -p "$dir/plugins/skill-quality"
             cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"
+          fi
+          # check-affected.sh runs the comment-lint hook from this copy, which
+          # sources and reads files across these three directories.
+          if [ -d "$BASE_PATH/plugins/code-tidying/git-hooks" ]; then
+            mkdir -p "$dir/plugins/code-tidying"
+            for part in git-hooks lib scripts; do
+              cp -R "$BASE_PATH/plugins/code-tidying/$part" "$dir/plugins/code-tidying/"
+            done
           fi
           for check in "${checks[@]}"; do
             script=${check%% *}

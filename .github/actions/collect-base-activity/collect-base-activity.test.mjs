@@ -371,6 +371,28 @@ test("a listed check's copy carries the base's skill-quality scripts", () => {
   }
 });
 
+test("a listed check's copy carries the base's code-tidying comment-lint files", () => {
+  const tidying = path.join(base, "plugins", "code-tidying");
+  const files = {
+    "git-hooks/comment-lint.sh": "echo base hook\n",
+    "lib/git-hooks/check-lib.sh": "echo base lib\n",
+    "scripts/comment-settings.sh": "echo base settings\n",
+  };
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(tidying, rel)), { recursive: true });
+    writeFileSync(path.join(tidying, rel), body);
+  }
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    for (const [rel, body] of Object.entries(files)) {
+      assert.equal(readFileSync(path.join(checksDir, "plugins", "code-tidying", rel), "utf8"), body, rel);
+    }
+  } finally {
+    rmSync(tidying, { recursive: true });
+  }
+});
+
 // A skill that commits runs its checks, fixes and re-runs them before it
 // commits, since the checks read the working tree (#8319 review).
 test("a committing skill with checks is told to commit after the checks and their fixes", () => {
