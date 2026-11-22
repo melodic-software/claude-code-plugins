@@ -9,12 +9,14 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration, targets
-and modes arrive as `/disk-hygiene:clean` arguments, and the only tunable is the native
-`userConfig` toggle, so `apply` is pure guidance and writes nothing.
+reports, `apply` resolves. Targets and modes arrive as `/disk-hygiene:clean` arguments. The
+tunables are two `userConfig` options, the `disk_hygiene_enabled` toggle and `policy_file`,
+plus the standing policy layers. `apply` writes only when it moves an old policy file (step 7),
+and only after a yes.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-points at each remediation. Both are non-interactive, never prompt when the action is given.
+points at each remediation. Neither prompts, except for the yes `apply` asks before step 7
+moves a file.
 
 ## `check` (read-only)
 
@@ -180,6 +182,15 @@ fails closed like every other guard-relevant unknown in this plugin.
 6. **Plugin registration**. INFO: confirm the plugin is enabled for this project
    with `claude plugin list` rather than parsing settings files; read its output fields in
    [plugin list](https://code.claude.com/docs/en/plugins/cli-reference#plugin-list).
+7. **Old policy files**. Run the read-only migration check with the step-2 interpreter, adding
+   `--user-policy "<path>"` only when `${user_config.policy_file}` reads as a path:
+   `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/policy_migration.py" check --project-dir "${CLAUDE_PROJECT_DIR}"`.
+   WARN for each file it lists: `~/.claude/disk-hygiene.json` and
+   `<project>/.claude/disk-hygiene.json` are old locations. The clean engine still reads each
+   one while no new file supplies its layer, and warns on every scan. Name the old file and the
+   `new` file it moves to. A row with `new_exists: true` is not moved again: `finish` deletes the
+   old file when the new one resolves the same, and otherwise the user merges it by hand and
+   reruns `apply`. No row is a PASS.
 
 ## `apply` (idempotent)
 
@@ -210,10 +221,27 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
 
+- old policy files (step 7): show the check's rows as the preview (each old file, the new file,
+  and whether `policy_file` gets set) and ask one yes for the set. Without a yes, write nothing.
+  With it, in order:
+  1. `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/policy_migration.py" move --yes --project-dir "${CLAUDE_PROJECT_DIR}"`,
+     with the same `--user-policy` as the check. It writes each new file (the user file
+     copied as it is, the project file as YAML) and leaves the old files in place. Done when
+     each row's `result` reads `written` or `refused: ...`.
+  2. When a row has `set_option: true`, set `policy_file` to that row's `new` path through the
+     headless route in the plugin-reconfiguration convention (above), and print what it reports.
+     Done when the command reports the value saved; on a refusal, stop before step 3.
+  3. `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/policy_migration.py" finish --yes --project-dir "${CLAUDE_PROJECT_DIR}" --user-policy "<new user path>"`.
+     It checks that each new file resolves the same policy as its old file, then deletes the
+     old file. It never deletes a file it refused. Done when every row's `result` reads
+     `old file deleted` or `refused: ...`.
+  Report each row's `result`. A refused row keeps its old file, and the engine keeps reading it.
+
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
 ## What this skill does not do
 
 - Run an audit or cleanup, that is `/disk-hygiene:clean`.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs` directly. `policy_file`
+  is set only through Claude Code's own configure route.
 - Install any tool or runtime, during either `check` or `apply`, guidance only.

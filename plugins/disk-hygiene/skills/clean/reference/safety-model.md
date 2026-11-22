@@ -1052,9 +1052,10 @@ The Windows handle probe itself reports an access-denied open as `needs-elevatio
 re-check must repeat it, and skips any path it cannot re-prove. The manual lane's other rules still apply: one path at a time, no
 container-wide deletion, and a fresh approval for a permanent fallback.
 
-Only the user-global file or an explicit `--policy` can set `uac-prompt`. A project file lives in a
-repository the operator may not control, so the loader rejects `uac-prompt` there and accepts only
-`never`. When layers disagree, the last layer that sets the field wins.
+Only the file the `policy_file` option names (or the old `~/.claude/disk-hygiene.json` read in its
+place) or an explicit `--policy` can set `uac-prompt`. The team and personal files, and the old
+`<project>/.claude/disk-hygiene.json`, live in a repository the operator may not control, so the
+loader rejects `uac-prompt` there and accepts only `never`. When layers disagree, the last layer that sets the field wins.
 
 **What the guard does not see.** Neither guard surface denies the launch. The engine gate fires only
 on commands that name the engine, and the belt's PowerShell lane flags deletion spellings on the
