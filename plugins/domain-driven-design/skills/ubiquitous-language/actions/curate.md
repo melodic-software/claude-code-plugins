@@ -75,7 +75,7 @@ and line, in these groups:
   differ from the model's; a hit matching the entry's `Shown to users as:` wording is not drift.
 - **Stored values and migrations** (an enum persisted in a database, a schema value): never edited;
   each is a decision. Either migrate in expand, migrate and contract phases, or keep the stored name
-  behind an explicit mapping, and record the choice with `/architecture:record-decision`.
+  behind an explicit mapping, and record the choice with `/architecture:adr`.
   - **Pointer**: [Parallel Change](https://martinfowler.com/bliki/ParallelChange.html)
 
 ## 6. Report

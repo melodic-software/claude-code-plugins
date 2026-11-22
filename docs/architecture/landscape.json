@@ -124,7 +124,7 @@
     {"from":"claude-code-plugins","to":"jendrikseipp/vulture","type":"cites","relation":"external","count":3,"files":["plugins/code-tidying/skills/audit-dead-code/SKILL.md","plugins/code-tidying/skills/audit-dead-code/context/adjudication.md","plugins/code-tidying/skills/audit-dead-code/context/lanes.md"]},
     {"from":"claude-code-plugins","to":"jest-community/eslint-plugin-jest","type":"cites","relation":"external","count":2,"files":["plugins/corrections/skills/codify/reference/finding-classes.md","plugins/testing/skills/setup/SKILL.md"]},
     {"from":"claude-code-plugins","to":"jlfwong/speedscope","type":"cites","relation":"external","count":1,"files":["plugins/debugging/skills/analyze-profile/reference/formats/other-formats.md"]},
-    {"from":"claude-code-plugins","to":"joelparkerhenderson/architecture-decision-record","type":"cites","relation":"external","count":1,"files":["plugins/architecture/skills/record-decision/SKILL.md"]},
+    {"from":"claude-code-plugins","to":"joelparkerhenderson/architecture-decision-record","type":"cites","relation":"external","count":1,"files":["plugins/architecture/skills/adr/SKILL.md"]},
     {"from":"claude-code-plugins","to":"johnousterhout/aposd-vs-clean-code","type":"cites","relation":"external","count":2,"files":["plugins/code-tidying/skills/remove-comments/actions/audit.md","plugins/code-tidying/skills/remove-comments/reference/sources.md"]},
     {"from":"claude-code-plugins","to":"joshpuckett/dialkit","type":"cites","relation":"external","count":1,"files":["plugins/prototype/context/control-panel.md"]},
     {"from":"claude-code-plugins","to":"k1LoW/git-wt","type":"cites","relation":"external","count":1,"files":["docs/adr/0031-name-the-worktree-root-git-config-key-as-a-capability-section.md"]},
