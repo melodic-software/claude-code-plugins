@@ -1,5 +1,13 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.7.1] - 2026-11-22
+
+Docs-only, no schema shape change: a record sets `tool-pin` only for a tool whose version the
+repository owns itself (a manifest, lockfile, or version input or env its own workflow sets), and
+omits it when the version comes from a shared default, since a copy drifts. This replaces "a pin
+typically mirrors the repo's own CI pin" in the README "Command prerequisites" text and the schema
+description (melodic-software/claude-code-plugins#17311).
+
 ## [1.7.0] - 2026-11-22
 
 Location change, additive for readers: records move from `.claude/ecosystems/` to the convention

@@ -211,7 +211,11 @@ command only where the probe fails. A resolver applies them in this order:
 
 A resolver compares no version or checksum: a record that needs one build of a tool writes a probe
 that tells that build apart, against the pin the repo already keeps for CI. `tool-pin` stays a
-drift warning. A resolver never installs a declared prerequisite, in any run; the `hint` is display
+drift warning, and a record sets it only for a tool whose version the repository owns itself: a
+manifest or lockfile in the repository, or a version input or env its own workflow sets. Omit it
+when the version comes from a shared default, such as a composite action's input default the
+repository passes no version to, or a file synced from another repository: a copy drifts from its
+source. A resolver never installs a declared prerequisite, in any run; the `hint` is display
 text it shows and never runs. Declaring a runtime package here, rather than installing it inside a
 command string (an `npm ci` in `test-cmd`), keeps an unattended run from installing anything.
 
