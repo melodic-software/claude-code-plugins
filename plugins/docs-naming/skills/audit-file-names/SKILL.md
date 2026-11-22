@@ -12,19 +12,22 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never
-combined into a single invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+
+Run each command below as its own Bash call, one command per call, and send all of them in
+parallel in one message. A worktree-isolated session screens each call on its own, so separate
+calls pass where one compound command is refused, and calls sent together cost one turn rather
+than one per command. Keep any bound in the command's own pipe: a cap applied after the output
+returns bounds nothing ([Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an
+unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Repository root, `git rev-parse --show-toplevel`
-
-The pipe is the bound and belongs in the command. A read-time cap comes too late for whatever the
-command has already returned inline. What a result returns inline, and when it arrives as a saved
-file instead, is [Tools reference § Output
-limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure as an unknown value and carry on.
 
 ## Purpose
 

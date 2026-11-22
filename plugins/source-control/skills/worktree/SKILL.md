@@ -12,8 +12,18 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+
+Run each command below as its own Bash call, one command per call, and send all of them in
+parallel in one message. A worktree-isolated session screens each call on its own, so separate
+calls pass where one compound command is refused, and calls sent together cost one turn rather
+than one per command. Keep any bound in the command's own pipe: a cap applied after the output
+returns bounds nothing ([Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an
+unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Worktree inventory, `git worktree list | head -30`
@@ -21,14 +31,8 @@ invocation:
 - Git common dir (differs from the git dir when in a linked worktree).
   `git rev-parse --git-common-dir`
 
-The pipe is the bound and belongs in the command: a read-time cap ("read only the first 30
-entries") comes too late for whatever the command has already returned inline. What a result returns
-inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body calls, not a pre-compute, so this skill stays invocable from inside a worktree
-([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation"). The Bash shapes an isolated session accepts at
-body time and in subagents are in [reference/gather-block.md](reference/gather-block.md),
+Body calls keep this skill invocable from inside a worktree. The Bash shapes an isolated session
+accepts at body time and in subagents are in [reference/gather-block.md](reference/gather-block.md),
 "Accepted command shapes for body-time and subagent Bash".
 
 The refusal that record names is documented isolation enforcement, so the constraint is durable. Our rules: treat a

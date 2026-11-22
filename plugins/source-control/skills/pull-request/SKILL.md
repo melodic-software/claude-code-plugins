@@ -12,16 +12,26 @@ metadata:
 
 ## Repository context. Gather first
 
-The read actions `view`, `list`, `review-comments` and `review-venue`, `comments --ci`, `conflicts --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
-**individual** Bash calls, one command per call, never combined into a single invocation:
+The read actions `view`, `list`, `review-comments` and `review-venue`, `comments --ci`, `conflicts --ci`, `dependency --ci` and `ci --ci` skip this section. Every other action gathers these.
+
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+
+Run each command below as its own Bash call, one command per call, and send all of them in
+parallel in one message. A worktree-isolated session screens each call on its own, so separate
+calls pass where one compound command is refused, and calls sent together cost one turn rather
+than one per command. Keep any bound in the command's own pipe: a cap applied after the output
+returns bounds nothing ([Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an
+unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines
+([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+
+<!-- END GENERATED: gather-block -->
 
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -5`
 - Working tree status, `git status --porcelain`
 - Changed files (staged+unstaged), `git diff --name-only HEAD`
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep them
-separate body calls, not pre-computed, so the skill stays invocable from inside a worktree: the composition record is the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation).
 **Pointer**: when an isolated session refuses a git command, fetch [How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) live.
 
 ## Purpose
