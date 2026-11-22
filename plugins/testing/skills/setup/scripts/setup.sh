@@ -143,8 +143,6 @@ old_plan() {
     notes="  not copied: $new is not gitignored; add the line $HOME_REL/**/*.local.* to .gitignore first"$'\n'
     return
   fi
-  # A user-global file shares its new location with the repository's old
-  # personal file, which the readers stop reading once that location exists.
   local repo_old=""
   if [[ -n "${HOME:-}" ]]; then
     case "$old" in
