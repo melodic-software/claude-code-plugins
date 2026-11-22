@@ -149,7 +149,7 @@ test("stageSpec refuses a spec that is a symbolic link", (t) => {
   assert.throws(() => stageSpec(path.join(dir, "Spec.tla"), into, ALLOWED), /not a regular file/);
 });
 
-test("childEnv keeps only PATH, LANG, LC_ALL and a fresh HOME and TMPDIR", () => {
+test("childEnv keeps only PATH, LANG, LC_ALL and a fresh HOME, TMPDIR, TEMP and TMP", () => {
   const saved = { ...process.env };
   try {
     process.env.GH_TOKEN = "secret";
@@ -160,6 +160,8 @@ test("childEnv keeps only PATH, LANG, LC_ALL and a fresh HOME and TMPDIR", () =>
     const env = childEnv("/tmp/home", { LC_ALL: "C.UTF-8" });
     assert.equal(env.HOME, "/tmp/home");
     assert.equal(env.TMPDIR, "/tmp/home");
+    assert.equal(env.TEMP, "/tmp/home");
+    assert.equal(env.TMP, "/tmp/home");
     assert.equal(env.PATH, "/usr/bin");
     assert.equal(env.LC_ALL, "C.UTF-8");
     for (const name of ["GH_TOKEN", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS"])
