@@ -58,7 +58,7 @@ file the dual-read window below still reads) may extend or tighten only, never w
 run **names the contributing layer**. The remaining keys, `thresholds`, `observation_window`, and
 `delta_noise_budget`, take the ordinary refinement form, where a later layer's value simply wins.
 
-The split is not stylistic. A gitignored personal override that emptied the protected set, or
+A gitignored personal override that emptied the protected set, or
 suppressed a finding the team never accepted, would recreate exactly the hole that disqualified
 `userConfig`.
 Thresholds, the observation window, and the delta noise budget carry no such hazard: a personal
