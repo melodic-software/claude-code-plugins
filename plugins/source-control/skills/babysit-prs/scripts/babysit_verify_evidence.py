@@ -85,9 +85,9 @@ failed read, a list cut short or no such run keeps the FAIL.
   counted FAIL there and every counted pass at the head record the same
   linked issues and, for each pass, a trusted person recorded an owner
   decision on one of them from the last such FAIL's creation to the pass
-  run's creation: a spec comment (`_spec_comments`) created then, or a body
-  a trusted person last edited then, that links an owner-decisions row and
-  quotes the owner (`merge_policy.decision_gaps`; `_spec_amended`). Any
+  run's creation: a spec comment (`_spec_comments`) created then that links
+  an owner-decisions row and quotes the owner (`merge_policy.decision_gaps`;
+  `_spec_amended`). Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -4990,10 +4990,9 @@ class Reader:
         issues as each FAIL, and for each pass a trusted person
         (`_trusted_actor`) recorded an owner decision on one of those issues
         after the last FAIL's creation, up to the pass run's creation: a spec
-        comment (`_spec_comments`) created then, or the issue body as last
-        edited then (ACTIONS_ISSUE_QUERY), that links an owner-decisions row
-        and quotes the owner (`merge_policy.decision_gaps`). A trusted
-        change without that link amends nothing. The pass judged an amended
+        comment (`_spec_comments`) created then that links an owner-decisions
+        row and quotes the owner (`merge_policy.decision_gaps`). A trusted
+        comment without that link, and any issue body edit, amends nothing. The pass judged an amended
         spec the FAIL never read, which the same change cannot carry; a
         relink stays `_superseded`'s. A record, time or read that fails is
         False."""
@@ -5035,17 +5034,6 @@ class Reader:
                     if (c.get("databaseId"), c.get("updatedAt")) in trusted
                     and decided(c.get("body"))
                 ]
-                edited = live[n].get("lastEditedAt")
-                if edited is None or postmerge._time(edited) <= last:
-                    continue
-                node = json_object(
-                    self._graphql(ACTIONS_ISSUE_QUERY, n, "spec issue").get("issue")
-                )
-                editor = json_object(node.get("editor"))
-                if self._trusted_actor(
-                    editor.get("__typename"), editor.get("databaseId")
-                ) and decided(node.get("body")):
-                    amended.append(postmerge._time(node.get("lastEditedAt")))
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
                 if _linked_numbers(record) != issues:

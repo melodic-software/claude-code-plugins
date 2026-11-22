@@ -1735,8 +1735,9 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
     created after the comment. The amendment counts only when it links an
     owner-decisions row and quotes the owner (owner decision, option B), so
     the pass judged an owner-decided spec and clears the FAIL
-    (`_spec_amended`); an amendment without that link, an untrusted one or
-    a pass created before it keep `verify:earlier-fail`."""
+    (`_spec_amended`); an amendment without that link, an untrusted one, an
+    issue body edit (which may carry a decision the FAIL already read) or a
+    pass created before it keep `verify:earlier-fail`."""
 
     STRANGER = {"__typename": "User", "login": "stranger", "databaseId": 999}
     ROW = (
@@ -1784,18 +1785,16 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
         return fake
 
     @classmethod
-    def body_edited(
-        cls, body: str | None = None, editor: dict[str, Any] = HUMAN
-    ) -> FakeGitHub:
+    def body_edited(cls, editor: dict[str, Any] = HUMAN) -> FakeGitHub:
         """The same FAIL and pass, with issue 7's body last edited at
-        RELINK_AT by `editor` to `body` (DECIDED by default)."""
+        RELINK_AT by `editor` to DECIDED."""
         fake = AFixedBodyClearsABodyOnlyFailOnTheSameChange.body_fail(
             [NOTE_ON_A_FILE], relink_answer()
         )
         fake.closing_edited[7] = RELINK_AT
         fake.issue_bodies[7] = {
             "title": "t",
-            "body": cls.DECIDED if body is None else body,
+            "body": cls.DECIDED,
             "lastEditedAt": RELINK_AT,
             "author": HUMAN,
             "editor": editor,
@@ -1818,8 +1817,8 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
         self.assertIsNone(evidence.refusal)
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
 
-    def test_a_trusted_issue_body_edit_linking_a_decision_clears_it(self) -> None:
-        self.assertIsNone(read(self.body_edited()).refusal)
+    def test_a_trusted_issue_body_edit_linking_a_decision_keeps_it(self) -> None:
+        self.assertEqual(read(self.body_edited()).refusal, "verify:earlier-fail")
 
     def test_a_trusted_amendment_without_a_decision_link_keeps_it(self) -> None:
         for label, body in (
@@ -1828,16 +1827,9 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
             ("quote, no row link", 'verbatim: "amend item 1"'),
             ("link inside an HTML comment", f'<!-- {self.ROW} --> verbatim: "x"'),
         ):
-            with self.subTest(f"comment, {label}"):
+            with self.subTest(label):
                 fake = self.amended(body=body)
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
-            with self.subTest(f"issue body, {label}"):
-                fake = self.body_edited(body=body)
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
-
-    def test_an_issue_body_an_outsider_last_edited_keeps_it(self) -> None:
-        fake = self.body_edited(editor=self.STRANGER)
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_an_untrusted_comment_keeps_it(self) -> None:
         for label, author in (
