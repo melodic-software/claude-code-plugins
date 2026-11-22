@@ -130,13 +130,39 @@ test("a folded line that reads like a file header moves no file in the manifest"
   assert.ok(!partsOf(data, 1).join("").split("\n").some((line) => line.startsWith("diff --git a/evil")));
 });
 
-test("a single file over the budget is named, and leaves no chunk and no output", () => {
+test("a file with a hunk over the budget is named, and leaves no chunk and no output", () => {
   const { status, data, outputs, stdout } = run(file("small.mjs", 5) + file("huge.lock", 400) + file("big.json", 400));
   assert.equal(status, 1);
   assert.equal(outputs, "");
   assert.match(stdout, /^::error::.*huge\.lock.*big\.json/m);
   assert.doesNotMatch(stdout, /small\.mjs/);
   assert.deepEqual(readdirSync(path.join(data, "diff")), []);
+});
+
+const hunked = (name, count, addedLineBytes) =>
+  `diff --git a/${name} b/${name}\nindex 1111111..2222222 100644\n--- a/${name}\n+++ b/${name}\n${Array.from({ length: count }, (_, i) => `@@ -${i * 10 + 1},0 +${i * 10 + 1} @@\n+${"y".repeat(addedLineBytes - 2)}\n`).join("")}`;
+const withoutRepeatedHeaders = (text, header) => header + text.split(header).join("");
+
+test("a single file over the budget is judged in pieces, each under its header, with the manifest naming each piece", () => {
+  const patch = file("small.mjs", 5) + hunked("big.md", 6, 50);
+  const { status, data, outputs, stdout } = run(patch, { PART_BYTES: "400" });
+  assert.equal(status, 0, stdout);
+  assert.doesNotMatch(stdout, /::error::/);
+  assert.equal(outputs, "chunks=3\n");
+  const chunks = [1, 2, 3].map((k) => partsOf(data, k).join(""));
+  const header = "diff --git a/big.md b/big.md\nindex 1111111..2222222 100644\n--- a/big.md\n+++ b/big.md\n";
+  assert.ok(chunks.every((text) => Buffer.byteLength(text) <= 300));
+  assert.ok(chunks[1].startsWith(header) && chunks[2].startsWith(header));
+  assert.equal(file("small.mjs", 5) + withoutRepeatedHeaders(chunks.join("").slice(file("small.mjs", 5).length), header), patch);
+  assert.equal(
+    manifestOf(data),
+    [
+      "chunk 1 diff/chunk-1/part-001.patch modified small.mjs",
+      "chunk 2 diff/chunk-2/part-001.patch piece 1 of 2 modified big.md",
+      "chunk 3 diff/chunk-3/part-001.patch piece 2 of 2 modified big.md",
+      "",
+    ].join("\n"),
+  );
 });
 
 test("a diff that needs more chunks than the job has slots stops and says so", () => {
@@ -168,6 +194,18 @@ test("under the workflow's limits a 3 MB diff is judged in as many chunks as it 
   for (const k of [1, 10, 12]) assert.ok(partsOf(data, k).join("").startsWith(`diff --git a/src/file-${k}.mjs `), `chunk ${k}`);
   assert.equal(Array.from({ length: 12 }, (_, i) => partsOf(data, i + 1).join("")).join(""), patch);
   assert.match(manifestOf(data), /^chunk 12 diff\/chunk-12\/part-001\.patch modified src\/file-12\.mjs$/m);
+});
+
+test("under the workflow's limits one 334 KB file in many hunks is judged in two pieces, with no stop", () => {
+  const patch = hunked("docs/upstream/record.md", 12, 27900);
+  assert.ok(Buffer.byteLength(patch) > 334000);
+  const { status, data, outputs, stdout } = run(patch, LIMITS);
+  assert.equal(status, 0, stdout);
+  assert.doesNotMatch(stdout, /::error::/);
+  assert.equal(outputs, "chunks=2\n");
+  assert.equal(manifestOf(data), "chunk 1 diff/chunk-1/part-001.patch piece 1 of 2 modified docs/upstream/record.md\nchunk 2 diff/chunk-2/part-001.patch piece 2 of 2 modified docs/upstream/record.md\n");
+  const header = patch.slice(0, patch.indexOf("@@"));
+  assert.equal(withoutRepeatedHeaders(unfold(partsOf(data, 1).join("") + partsOf(data, 2).join("")), header), patch);
 });
 
 test("a diff past the ceiling stops, naming its size and the ceiling", () => {

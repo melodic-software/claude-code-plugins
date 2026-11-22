@@ -276,18 +276,34 @@ test("an oversize diff splits into chunks under the cap at file boundaries, in o
   assert.deepEqual(split(a + b + c, 180, 4).chunks, { "chunk-1.patch": a + b + c });
 });
 
-test("a single file over the cap is too large and writes nothing, however small its hunks", () => {
+test("a single file over the cap is cut at its hunks into pieces, each under the file's header", () => {
   const [h1, h2, h3] = [hunkPatch(1, 30), hunkPatch(5, 30), hunkPatch(9, 30)];
   assert.equal(BIG.length, 43);
-  // 43 + 3 * 30 = 133 is over 110: each file stays whole, so it fits no chunk.
-  const result = split(BIG + h1 + h2 + h3, 110, 4);
-  assert.equal(result.status, 3);
-  assert.deepEqual(result.chunks, {});
-  assert.match(result.stderr, /a file is larger than one chunk/);
-  // Beside a small file it is still too large; at 133 it is one whole chunk.
+  const result = split(BIG + h1 + h2 + h3, 110, 4, 15000);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.chunks, { "chunk-1.patch": BIG + h1 + h2, "chunk-2.patch": BIG + h3 });
+  assert.equal(result.manifest, "chunk 1 piece 1 of 2 modified big\nchunk 2 piece 2 of 2 modified big\n");
   const small = filePatch("s", 40);
-  assert.equal(split(BIG + h1 + h2 + h3 + small, 120, 4).status, 3);
-  assert.deepEqual(split(BIG + h1 + h2 + h3 + small, 133, 4).chunks, { "chunk-1.patch": BIG + h1 + h2 + h3, "chunk-2.patch": small });
+  const beside = split(BIG + h1 + h2 + h3 + small, 120, 4, 15000);
+  assert.deepEqual(beside.chunks, { "chunk-1.patch": BIG + h1 + h2, "chunk-2.patch": BIG + h3 + small });
+  assert.equal(beside.manifest, "chunk 1 piece 1 of 2 modified big\nchunk 2 piece 2 of 2 modified big\nchunk 2 modified s\n");
+  const whole = split(BIG + h1 + h2 + h3 + small, 133, 4, 15000);
+  assert.deepEqual(whole.chunks, { "chunk-1.patch": BIG + h1 + h2 + h3, "chunk-2.patch": small });
+  assert.equal(whole.manifest, "chunk 1 modified big\nchunk 2 modified s\n");
+  const over = split(BIG + h1 + h2 + h3, 80, 2);
+  assert.equal(over.status, 3);
+  assert.deepEqual(over.chunks, {});
+  assert.match(over.stderr, /the diff needs 3 chunks, more than 2/);
+  assert.deepEqual(split(BIG + h1 + h2 + h3, 80, 3).chunks, { "chunk-1.patch": BIG + h1, "chunk-2.patch": BIG + h2, "chunk-3.patch": BIG + h3 });
+  assert.deepEqual(split(BIG + h1 + h2 + h3 + small, 120, 4, undefined, 1).chunks, { "chunk-1.patch": BIG + h1 + h2, "chunk-2.patch": BIG + h3, "chunk-3.patch": small });
+});
+
+test("a hunk over the cap with its file's header is too large and writes nothing", () => {
+  const hunk = split(BIG + hunkPatch(1, 30) + hunkPatch(5, 80) + filePatch("s", 40), 110, 4);
+  assert.equal(hunk.status, 3);
+  assert.deepEqual(hunk.chunks, {});
+  assert.match(hunk.stderr, /^split-diff: a file has a hunk larger than one chunk of 110 bytes: modified big$/m);
+  assert.equal(split(BIG + hunkPatch(1, 80), 110, 4).status, 3);
 });
 
 test("a chunk of exactly the cap, and exactly the most chunks, still split", () => {
@@ -313,15 +329,12 @@ test("with a file cap a chunk also ends at that many files, and without one only
   assert.match(over.stderr, /3 chunks/);
 });
 
-test("more chunks than the most, or a file larger than one chunk, is too large and writes nothing", () => {
+test("more chunks than the most is too large and writes nothing", () => {
   const [a, b, c] = [filePatch("a", 100), filePatch("b", 100), filePatch("c", 100)];
   const over = split(a + b + c, 100, 2);
   assert.equal(over.status, 3);
   assert.deepEqual(over.chunks, {});
   assert.match(over.stderr, /3 chunks/);
-  const hunk = split(BIG + hunkPatch(1, 30) + hunkPatch(5, 80), 110, 4);
-  assert.equal(hunk.status, 3);
-  assert.deepEqual(hunk.chunks, {});
   // An empty diff is no chunk at all.
   assert.deepEqual(split("", 100, 2), { status: 0, chunks: {}, stderr: "" });
 });
@@ -410,15 +423,14 @@ test("a diff the review cannot read whole stops green and names its reason for t
     assert.equal(tooLarge.output, `stop=too-large\nclaude-security-review-stop=too-large\nclaude-security-review-head=${SHA_A}\n`, job);
     assert.deepEqual(tooLarge.parts, [], job);
     assert.match(tooLarge.stdout, /^::notice title=pr-review-main stop::reason=too-large lane=claude-security-review pr=7; /m, job);
-    // One file over the cap in many small hunks is still too large: a file
-    // is never split at its hunks.
     const hunks = Array.from({ length: 12 }, (_, i) => `@@ -${i * 10 + 1} +${i * 10 + 1} @@\n+line ${i}\n`).join("");
     const oneFile = `diff --git a/x b/x\n--- a/x\n+++ b/x\n${hunks}`;
     assert.ok(Buffer.byteLength(oneFile) > 300 && hunks.length / 12 < 30, job);
     const manyHunks = runDiff(oneFile, { job });
     assert.equal(manyHunks.status, 0, job);
-    assert.equal(manyHunks.output, `stop=too-large\nclaude-security-review-stop=too-large\nclaude-security-review-head=${SHA_A}\n`, job);
-    assert.deepEqual(manyHunks.parts, [], job);
+    assert.doesNotMatch(manyHunks.output, /stop=/, job);
+    assert.match(manyHunks.output, /^chunks=2$/m, job);
+    assert.deepEqual(manyHunks.parts, ["chunk-1", "chunk-1/part-001.patch", "chunk-2", "chunk-2/part-001.patch"], job);
     // Five 200-byte files need five 300-byte chunks, one more than the four.
     const files = ["a", "b", "c", "d", "e"].map((name) => filePatch(name, 200));
     const tooMany = runDiff(files.join(""), { job });
