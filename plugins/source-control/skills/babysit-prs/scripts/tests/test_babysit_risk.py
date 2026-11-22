@@ -1657,6 +1657,37 @@ class PersonReasonsTests(unittest.TestCase):
                 result = score(_input(files=(_file(path, has_patch=False),)))
                 self.assertFalse(holds(result), result.reasons)
 
+    def test_a_no_patch_text_file_the_git_diff_showed_does_not_hold(self):
+        path = "docs/upstream/large.md"
+        changed = dataclasses.replace(_file(path, has_patch=False), diff_read=True)
+        result = score(_input(files=(changed,)))
+        self.assertIn(f"no-patch:{path}", _codes(result))
+        self.assertNotIn(f"unreviewed-patch:{path}", _codes(result))
+        self.assertFalse(holds(result), result.reasons)
+
+    def test_a_no_patch_text_file_no_review_read_still_holds(self):
+        path = "docs/upstream/large.md"
+        for diff_read in (False, None, "true", 1):
+            with self.subTest(diff_read=diff_read):
+                changed = dataclasses.replace(
+                    _file(path, has_patch=False), diff_read=diff_read
+                )
+                result = score(_input(files=(changed,)))
+                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                self.assertIn(f"unreviewed-patch:{path}", persons)
+                self.assertNotIn(f"no-patch:{path}", _codes(result))
+
+    def test_a_path_listed_twice_holds_unless_both_entries_were_read(self):
+        path = "docs/upstream/large.md"
+        unread = _file(path, has_patch=False)
+        read = dataclasses.replace(unread, diff_read=True)
+        for files in ((read, unread), (unread, read)):
+            with self.subTest([f.diff_read for f in files]):
+                result = score(_input(files=files))
+                self.assertIn(f"unreviewed-patch:{path}", _codes(result))
+        result = score(_input(files=(read, read)))
+        self.assertNotIn(f"unreviewed-patch:{path}", _codes(result))
+
     def test_a_no_patch_file_with_no_unread_content_is_a_mergeable_med(self):
         # The files API lists a pure rename and an empty file as it lists a
         # binary one; the blob ids tell them apart.
