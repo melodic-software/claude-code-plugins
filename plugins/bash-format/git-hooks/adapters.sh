@@ -103,10 +103,10 @@ bf__rcdir() {
   return 0
 }
 bf__sources() {
-  local probe opts=()
+  local probe opts=() text="${CHECKS_TMP:?}/probe"
   bf_large "$(bf_lines <"$1")" && opts=(--extended-analysis=false)
-  probe="$(sed 's/#[[:space:]]*shellcheck/#_/g' -- "$1" |
-    (unset SHELLCHECK_OPTS && "$RT_BIN" --norc ${opts[@]+"${opts[@]}"} -s bash -f gcc -S info -) 2>&1)"
+  sed 's/#[[:space:]]*shellcheck/#_/g' -- "$1" >"$text" || return 0
+  probe="$( (unset SHELLCHECK_OPTS && "$RT_BIN" --norc ${opts[@]+"${opts[@]}"} -s bash -f gcc -S info -) <"$text" 2>&1)"
   (($? <= 1)) || return 0
   grep -q -e '\[SC109[01]\]' -e ': error: ' <<<"$probe"
 }
