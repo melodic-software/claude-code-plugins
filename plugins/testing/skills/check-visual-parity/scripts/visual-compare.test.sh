@@ -156,7 +156,8 @@ repo() {
   git -C "$1" init -q -b main
 }
 TEAM=docs/conventions/testing.yaml
-PERSONAL=.claude/testing.local.yaml
+PERSONAL=docs/conventions/testing.local.yaml
+OLD_PERSONAL=.claude/testing.local.yaml
 UG="$HOME/.claude/testing.yaml"
 R="$T/repo"
 
@@ -177,12 +178,29 @@ assert_contains "with no origin the report says the working-tree file was read" 
 layer "$R/$PERSONAL" 0
 run config --repo "$R"
 assert_eq "team 2, personal override 0: the personal override lowers it" "pixel_tolerance=0 source=personal-override reason=" "$out"
+assert_not_contains "the new personal file alone draws no old-location warning" "$err" "old location"
 rm -f "$R/$PERSONAL"
+
+layer "$R/$OLD_PERSONAL" 1 "old laptop"
+run config --repo "$R"
+assert_eq "the old personal file alone still applies" "pixel_tolerance=1 source=personal-override reason=old laptop" "$out"
+assert_contains "with one warning naming it and the new location" "$err" \
+  "visual-compare: warning: $R/$OLD_PERSONAL is an old location, still read for now; move it to $R/$PERSONAL"
+layer "$R/$OLD_PERSONAL" 0
+layer "$R/$PERSONAL" 1 "new laptop"
+run config --repo "$R"
+assert_eq "both personal files: the new one wins over the old one's lower value" \
+  "pixel_tolerance=1 source=personal-override reason=new laptop" "$out"
+assert_contains "with one warning naming both" "$err" \
+  "visual-compare: warning: $R/$PERSONAL and $R/$OLD_PERSONAL both exist; using $R/$PERSONAL, ignoring the old file"
+rm -f "$R/$PERSONAL" "$R/$OLD_PERSONAL"
 
 layer "$UG" 5 "home machine"
 run config --repo "$R"
 assert_contains "user-global 5 over team 2 prints 2" "$out" "pixel_tolerance=2 source=team"
 assert_contains "and reports the raise as ignored" "$err" "ignored"
+assert_contains "the old user-global file draws a warning naming where to move it" "$err" \
+  "visual-compare: warning: $UG is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $R/$PERSONAL"
 layer "$UG" 1 "home fonts differ"
 run config --repo "$R"
 assert_eq "user-global 1 over team 2 decides" "pixel_tolerance=1 source=user-global reason=home fonts differ" "$out"
@@ -257,7 +275,6 @@ assert_eq "and exit 0" 0 "$rc"
 # A symlinked personal override is skipped with a warning.
 layer "$R/$TEAM" 2 "team reason"
 layer "$T/elsewhere.yaml" 0
-mkdir -p "$R/.claude"
 ln -s "$T/elsewhere.yaml" "$R/$PERSONAL"
 run config --repo "$R"
 assert_contains "a symlinked personal override is skipped" "$out" "pixel_tolerance=2 source=team"

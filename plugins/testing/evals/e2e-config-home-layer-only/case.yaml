@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-config-home-layer-only
+description: 'Dual-read window, new layer only: recording comes from docs/conventions/testing/e2e.md and no old-location warning is printed, since no old file exists. home-source reads the reply; meets-expectations (llm) checks the value, its source and the absent warning. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Reports recording video from docs/conventions/testing/e2e.md and no old-location warning.'
+execution:
+  prompt: '/testing:run-e2e the login flow. The convention-home command exits 1. docs/conventions/testing/e2e.md holds `recording: video`; there is no docs/conventions/testing/e2e.local.md, and no file under .claude/testing/ or ~/.claude/testing/. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say which recording value the run uses, which file supplied it, and each warning the run prints about config file locations, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: home-source
+    type: regex
+    pattern: '^(?=[\s\S]*docs/conventions/testing/e2e\.md)(?=[\s\S]*\bvideo\b)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: docs/conventions/testing/e2e.md holds recording: video, the convention-home command exits 1, and no old file exists under .claude/testing/ or ~/.claude/testing/. PASS only if the reply (1) reports recording as video, (2) names docs/conventions/testing/e2e.md as the file that supplied it, and (3) reports no old-location warning, saying none is printed or naming none. FAIL if it reports a warning that names a .claude/testing/ or ~/.claude/testing/ file as found, or gives recording any other value or source.'

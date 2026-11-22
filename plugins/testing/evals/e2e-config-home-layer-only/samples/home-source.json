@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "recording is video, from the team file docs/conventions/testing/e2e.md. No old file exists, so no old-location warning is printed.",
+      "why": "names the home file and the value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "recording is video, from .claude/testing/e2e.md.",
+      "why": "names the old file, not the home file"
+    },
+    {
+      "answer": "docs/conventions/testing/e2e.md is read; recording stays off by default.",
+      "why": "wrong value"
+    }
+  ]
+}

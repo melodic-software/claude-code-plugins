@@ -255,6 +255,26 @@ run Edit "$REPO/legacy/old.test.ts" "$DROP_EXPECT"
 assert_empty "a paths.exclude path is silent" "$out"
 block_off
 
+CONV="$REPO/docs/conventions"
+mkdir -p "$CONV"
+BLOCK=$'rules:\n  test-weaken-block: error'
+WARN=$'rules:\n  test-weaken-block: warn'
+for f in "$CONV/testing.yaml" "$CONV/testing.local.yaml" "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"; do
+  printf '%s\n' "$BLOCK" >"$f"
+  run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP"
+  assert_deny "block rule in ${f#"$REPO/"} alone: an added skip is denied" "$out"
+  rm -f "$f"
+done
+for pair in testing.yaml testing.local.yaml; do
+  printf '%s\n' "$WARN" >"$CONV/$pair"
+  printf '%s\n' "$BLOCK" >"$REPO/.claude/$pair"
+  run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP"
+  assert_no_decision "$pair at warn in docs/conventions beside error in .claude: the new file wins" "$out"
+  assert_contains "and the added skip is still named" "$out" "test.skip('adds zero'"
+  rm -f "$CONV/$pair" "$REPO/.claude/$pair"
+done
+rm -rf "$REPO/docs"
+
 # A fragment that cannot be lexed on its own says nothing.
 run Edit "$REPO/src/sum.test.ts" "$(edit_input $'const s = `abc\n  expect(sum(2, 2)).toBe(4);' 'const s = `abc')"
 assert_empty "an unjudgeable fragment is silent" "$out"

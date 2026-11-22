@@ -320,14 +320,17 @@ file_findings_floor: medium" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
 M="$T/oldpaths"
 mkdir -p "$M/.claude/testing" "$M/docs/conventions" "$HOME/.claude"
 git -C "$M" init -q
-printf '# team\npaths:\n  exclude: [old]\nrules:\n  rule-weak-oracle: warn\n' >"$M/.claude/testing.yaml"
 printf 'rules:\n  rule-weak-oracle: off\n' >"$M/docs/conventions/testing.yaml"
-printf 'recording: video\n' >"$M/.claude/testing/e2e.md"
-printf 'adapters:\n  disable: [py-unittest]\ne2e_driver: run\n' >"$HOME/.claude/testing.yaml"
 run_m() {
   rc=0
   out="$(bash "$SETUP" "$@" --root "$M" 2>&1)" || rc=$?
 }
+run_m check
+assert_contains "with only the new team layer, check reports no old file" "$out" "== old paths ==
+no testing config file at an old path"
+printf '# team\npaths:\n  exclude: [old]\nrules:\n  rule-weak-oracle: warn\n' >"$M/.claude/testing.yaml"
+printf 'recording: video\n' >"$M/.claude/testing/e2e.md"
+printf 'adapters:\n  disable: [py-unittest]\ne2e_driver: run\n' >"$HOME/.claude/testing.yaml"
 run_m check
 assert_contains "check names the old team file and its new location" "$out" "$M/.claude/testing.yaml
   move to: $M/docs/conventions/testing.yaml"

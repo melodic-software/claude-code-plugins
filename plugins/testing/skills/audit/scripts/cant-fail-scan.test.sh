@@ -2380,6 +2380,7 @@ mkdir -p "$CFG_HOME/.claude"
 printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG_HOME/.claude/testing.yaml"
 cfg_scan
 assert_finding_count "the user-global layer applies" 2
+assert_contains "and draws the old-location warning" "$out" "/.claude/testing.yaml is an old location, still read for now: there is no user-global file layer"
 rm -f "$CFG_HOME/.claude/testing.yaml"
 # docs/conventions/testing.yaml, alone, is the team layer; its run-e2e keys
 # never stop the scan.
@@ -2403,6 +2404,35 @@ cfg_scan
 assert_exit "a testing.yaml holding the pixel_tolerance map scans" 0 "$rc"
 assert_finding_count "and its scan keys apply" 2
 assert_not_contains "and the map draws no warning" "$out" "adapter-load"
+assert_not_contains "the new team layer alone draws no old-location warning" "$out" "old location"
+OFF_WEAK=$'rules:\n  rule-weak-oracle: off'
+EXCL_GO=$'paths:\n  exclude: [src/sum_test.go]'
+printf '%s\n' "$EXCL_GO" >"$CFG/.claude/testing.yaml"
+rm -f "$CFG/docs/conventions/testing.yaml"
+cfg_scan
+assert_finding_count "the old team file alone applies" 2
+assert_contains "with a warning naming the new location" "$out" "/.claude/testing.yaml is an old location, still read for now; move it to docs/conventions/testing.yaml"
+printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.yaml"
+cfg_scan
+assert_finding_count "both team files: the new weak-oracle off applies, the old Go exclude does not" 2
+assert_contains "with a warning naming both" "$out" "/docs/conventions/testing.yaml and "
+assert_contains "and the ignored .claude file" "$out" "/.claude/testing.yaml both exist; using "
+rm -f "$CFG/.claude/testing.yaml" "$CFG/docs/conventions/testing.yaml"
+printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.local.yaml"
+cfg_scan
+assert_finding_count "the new personal layer alone applies" 2
+assert_not_contains "and draws no warning" "$out" "resolve-config: warning"
+rm -f "$CFG/docs/conventions/testing.local.yaml"
+printf '%s\n' "$EXCL_GO" >"$CFG/.claude/testing.local.yaml"
+cfg_scan
+assert_finding_count "the old personal file alone applies" 2
+assert_contains "with a warning naming the new location" "$out" "/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
+printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.local.yaml"
+cfg_scan
+assert_finding_count "both personal files: the new weak-oracle off applies, the old Go exclude does not" 2
+assert_contains "with a warning naming both" "$out" "/docs/conventions/testing.local.yaml and "
+assert_contains "and the ignored old file" "$out" "/.claude/testing.local.yaml both exist; using "
+rm -f "$CFG/.claude/testing.local.yaml"
 rm -rf "$CFG/docs"
 
 # --- project context: owning project, CI membership and kind (C#) -------------
