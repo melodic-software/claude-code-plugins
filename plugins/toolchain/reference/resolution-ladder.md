@@ -163,7 +163,7 @@ out of a CI workflow file. A malformed record degrades to the stated and inferre
   choose between them: run none, report the key's cell as unresolved, and name every candidate with
   its file below the table.
 - **Install nothing, write nothing.** Install no dependency or tool, write no
-  `docs/conventions/ecosystems/` file, and offer no `/toolchain:setup` persist. To make the next
+  `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` file, and offer no `/toolchain:setup` persist. To make the next
   unattended run resolve a key, a person records it with `/toolchain:setup apply <ecosystem>`, or merges a
   lane's record pull request.
 

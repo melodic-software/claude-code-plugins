@@ -117,7 +117,7 @@ done
 if [[ -z "$CLAUDE_BIN" ]]; then
   for c in "$(dirname "${BASH_SOURCE[0]}")/../../../node_modules/.bin/claude" \
     "$(command -v claude 2>/dev/null || true)"; do
-    [[ -n "$c" && -x "$c" ]] && {
+    [[ -n "$c" && -x "$c" ]] && "$c" --version >/dev/null 2>&1 && {
       CLAUDE_BIN="$c"
       break
     }
