@@ -31,7 +31,9 @@ Subcommands (standard library only; every input is a file the caller produced):
       `overlap.py self-check` declares report-only mode: `items` is empty, the
       would-be items are in `unfiled`, and there is no `overflow`. With `--ci`,
       a broken or degraded extraction files no inventory item when the binary
-      source is unavailable (no native build), or when there is no previous
+      source is unavailable and was no native build (an npm launcher, or no
+      executable found; a native build whose bundle cannot be read still
+      files), or when there is no previous
       summary and that alone keeps a degraded run from `revalidate`;
       `ci_skip` then names the skip, else it is null.
 
@@ -71,6 +73,10 @@ FACT_CHARS = 300
 MAX_ITEMS = 10
 KEY_LINE = "Drift key: "
 BINARY_UNAVAILABLE = "binary source unavailable: "
+# inventory.py's pick_binary: a native build is a single file over this size,
+# and auto-detection names it so in the binary source's `selected_by`.
+NATIVE_SELECTED_BY = "auto-detected native build"
+NATIVE_MIN_BYTES = 20_000_000
 
 
 class InputError(Exception):
@@ -157,6 +163,8 @@ def shape_error(kind: str, data: Any) -> str | None:
             bad.append("candidates")
         if not _strs(data.get("unresolved_descriptions")):
             bad.append("unresolved_descriptions")
+        if not _opt(data.get("native_build"), bool):
+            bad.append("native_build")
     elif kind == "detect":
         # Required, not optional: a summary with a detect block becomes the
         # candidate baseline, so `{}` would mark every later candidate new.
@@ -279,6 +287,22 @@ def surface_record(klass: str, regs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def native_build(binary: Any) -> bool | None:
+    """Whether the binary source was a native build, whether or not its bundle
+    could be read; None without a binary source. A launcher, or no executable
+    found at all, is False."""
+    if not isinstance(binary, dict):
+        return None
+    if binary.get("selected_by") == NATIVE_SELECTED_BY:
+        return True
+    size = binary.get("size")
+    return (
+        isinstance(size, int)
+        and not isinstance(size, bool)
+        and size > NATIVE_MIN_BYTES
+    )
+
+
 def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
     if not isinstance(inventory, dict) or inventory.get("schema") != 1:
         raise InputError("inventory is not a schema-1 inventory.py extraction")
@@ -370,6 +394,9 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         "unresolved_descriptions": sorted({n for n in unresolved if isinstance(n, str)})
         if isinstance(unresolved, list)
         else None,
+        # Whether the executable read was a native build, even one whose
+        # bundle did not extract; None when the inventory has no binary source.
+        "native_build": native_build(binary),
     }
 
 
@@ -618,11 +645,15 @@ def ci_skip_reason(
 
     A CI runner has no native build when it installs Claude Code from npm, and
     keeps no previous summary between runs. Neither is a break in the
-    extraction. A broken extraction of a native build still files.
+    extraction. A broken extraction of a native build still files, including
+    one whose bundle could not be read: only a summary that records no native
+    build (`native_build` false) skips for an unavailable binary source.
     """
     if inventory["verdict"] not in ("broken", "degraded"):
         return None
-    if any(p.startswith(BINARY_UNAVAILABLE) for p in inventory["problems"]):
+    if cur.get("native_build") is False and any(
+        p.startswith(BINARY_UNAVAILABLE) for p in inventory["problems"]
+    ):
         return "native drift not run in CI: no native build"
     no_changes = {k: [] for k in ("added", "removed", "renamed")}
     if (

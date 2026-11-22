@@ -543,6 +543,72 @@ class DiffItemsTests(unittest.TestCase):
             report["ci_skip"], "native drift not run in CI: no native build"
         )
         self.assertIsNone(drift(cur, None, None, None, 1)["ci_skip"])
+        self.assertIs(cur["native_build"], False)
+
+    def test_ci_skips_an_npm_launcher_read_as_the_binary(self):
+        cur = native_drift.summarize(
+            {
+                "schema": 1,
+                "sources": {
+                    "binary": {
+                        "available": False,
+                        "selected_by": "auto-detected (small file - likely an npm "
+                        "launcher, not a native build)",
+                        "size": 4_096,
+                        "error": "no embedded JS bundle found - unsupported build layout",
+                    }
+                },
+            },
+            None,
+        )
+        report = drift(cur, None, None, None, 1, ci=True)
+        self.assertEqual(report["items"], [])
+        self.assertEqual(
+            report["ci_skip"], "native drift not run in CI: no native build"
+        )
+
+    def test_ci_files_a_native_build_whose_bundle_cannot_be_read(self):
+        for binary in (
+            {
+                "available": False,
+                "selected_by": "auto-detected native build",
+                "size": 250_000_000,
+                "error": "no embedded JS bundle found - unsupported build layout",
+            },
+            {
+                "available": False,
+                "selected_by": "auto-detected native build",
+                "size": 250_000_000,
+                "error": "parser reader broken: missing package",
+            },
+            {
+                "available": False,
+                "selected_by": "explicit --binary",
+                "size": 250_000_000,
+                "error": "largest candidate bundle is only 12 bytes",
+            },
+        ):
+            with self.subTest(binary=binary):
+                cur = native_drift.summarize(
+                    {"schema": 1, "sources": {"binary": binary}}, None
+                )
+                self.assertIs(cur["native_build"], True)
+                self.assertIsNone(native_drift.shape_error("summary", cur))
+                report = drift(cur, None, None, None, 1, ci=True)
+                self.assertIsNone(report["ci_skip"])
+                self.assertEqual(
+                    self.kinds(report),
+                    [
+                        (
+                            "inventory-broken",
+                            "native-drift:inventory-broken:unknown:inventory",
+                        )
+                    ],
+                )
+                self.assertEqual(
+                    report["items"][0]["facts"][0],
+                    native_drift.BINARY_UNAVAILABLE + binary["error"],
+                )
 
     def test_ci_baseline_files_no_version_only_degraded_item(self):
         report = drift(self.cur, None, None, None, 3, ci=True)

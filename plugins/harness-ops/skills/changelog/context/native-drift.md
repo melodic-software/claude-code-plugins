@@ -49,7 +49,9 @@ neither is a broken extraction. When either one is why the self-check failed, `d
 `ci_skip` to "native drift not run in CI: no native build" or "native drift not run in CI: no
 baseline" and lists no `inventory-broken` or `inventory-degraded` item. Record that reason in the
 report. A broken extraction of a native build, or a degraded one for any cause besides the missing
-baseline, still files.
+baseline, still files. That includes a native build whose bundle cannot be read: the summary's
+`native_build` records whether the executable read was one, so the no-native-build skip applies only
+to an npm launcher or to no executable found.
 
 The parser reader installs its pinned packages on first use into the plugin's data directory (the
 inventory's fallback, the directory `${CLAUDE_PLUGIN_DATA}` names).
