@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: se-old-personal-file-dual-read
+description: 'Old personal file only. warns-old-file grades the warning line naming the old file and the new location; old-values-apply (llm) checks the old file still supplies operators and the warning names the move; no-write and no-edit grade read-only. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network]
+runs: 3
+expected_outcome: 'The old .claude/mutation-testing.local.md still supplies operators narrow, and one WARN line names it, the new location docs/conventions/mutation-testing.local.yaml and /mutation-testing:setup apply local. Nothing is written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup check'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'warns-old-file'
+    type: 'regex'
+    pattern: 'WARN[^\n]{0,200}\.claude/mutation-testing\.local\.md[^\n]{0,200}docs/conventions/mutation-testing\.local\.yaml'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'old-values-apply'
+    type: 'llm'
+    criteria: 'PASS only if the reply reports the operator set as narrow, supplied by the old personal file .claude/mutation-testing.local.md, and names /mutation-testing:setup apply local as the way to move it to docs/conventions/mutation-testing.local.yaml. FAIL if it reports operators as default, calls the old file ignored or retired, or omits the move.'
+    focus: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'

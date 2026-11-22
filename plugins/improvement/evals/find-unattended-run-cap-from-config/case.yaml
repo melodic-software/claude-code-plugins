@@ -25,7 +25,7 @@ graders:
   - name: reads-team-layer
     type: tool_used
     tool: 'Read'
-    input_match: '\.claude[\\/]+improvement\.md'
+    input_match: 'docs[\\/]+conventions[\\/]+improvement\.yaml'
     min: 1
   - name: files-one-item-from-config
     type: llm

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| churn_window | 30 days ago | team (docs/conventions/improvement.yaml) |", "why": "value then layer" },
+    { "answer": "Team file docs/conventions/improvement.yaml sets churn_window to 30 days ago.", "why": "layer then value" }
+  ],
+  "fail": [
+    { "answer": "| churn_window | 90 days ago | default |", "why": "bundled default, team file not read" },
+    { "answer": "The churn window is 30 days ago.", "why": "no layer named" }
+  ]
+}

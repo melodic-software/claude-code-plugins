@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| churn_window | 30 days ago | .claude/improvement.md (old team file) |", "why": "value then old layer" },
+    { "answer": "From .claude/improvement.md (old location): churn_window = 30 days ago.", "why": "old layer then value" }
+  ],
+  "fail": [
+    { "answer": "| churn_window | 90 days ago | default |", "why": "old value dropped" },
+    { "answer": "The churn window is 30 days ago.", "why": "no layer named" }
+  ]
+}

@@ -79,7 +79,8 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:council [--yes] [--unattended]`**. Council review: a panel of configured members (provider, model,
   brief, effort), chosen for the change by ordered rules over its paths, size tier and merge
   risk, writes one ranked findings report in fanout's shape. Claude members run as
-  `brief-reviewer`; Codex members run through `scripts/codex-review.sh`. A member that cannot run
+  `brief-reviewer`; Codex and Antigravity members run `external-agents review codex` or `antigravity`, the command the
+  `external-agents` plugin puts on the Bash `PATH`, and are skipped when it is not enabled. A member that cannot run
   as configured is reported, never replaced. One round by default; above one
   (`council_max_rounds`), `/review:fanout fix` runs between rounds and later rounds review only
   what it changed. Opt-in for lanes through `council_lanes`. Posts nothing.
@@ -223,7 +224,7 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
   `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions.
   A command neither source names is reported unresolved; the agent ships no default command.
 - **Graceful degrade.** Optional orchestrator plugins. `pr-review-toolkit` and `code-review` from
-  the official marketplace, and `codex` from the OpenAI Codex marketplace. They add adversarial breadth
+  the official marketplace, and Codex through this marketplace's `external-agents` plugin. They add adversarial breadth
   when installed; every path works without them. Claude Code's bundled `/code-review` command and
   the managed Code Review GitHub App service are two further surfaces, distinct from the
   `code-review` marketplace plugin despite the shared name. **`/review` is one of them, not this

@@ -2923,6 +2923,16 @@ listed human or the lanes App, and no run's patch stopped over the scan job's si
 (`scan-refused-patch`) since a listed human last added `agent-ready`. A filing short of any of these reads `verify:untrusted-spec`, and a
 failed read `verify:unreadable`. github-actions[bot] never counts as an own-agent identity, even if
 the list names it, and comments still count only when a listed human wrote them.
+A lanes App filing intake briefed and no one vetoed is spec too (the owner's standing rule,
+[owner-decisions L318](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318)):
+the newest `<!-- issue-admission-record -->` comment the lanes App posted, by its account id,
+canonical and never edited, names the issue's current title and body by sha256
+(`.github/scripts/lib/admission-record.mjs`), its labels read whole carry no hold state
+(`needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec`) and no
+`provenance: untrusted`, and its body has no `hold:` line (`briefedIssue` in `admit.mjs`). The
+merge gate reads the same facts again at each judgment (`briefed_issue`), and a Work status hold
+on the issue still stops a lane merge (`issue_hold_refusal`). A marker in anyone else's comment,
+an edit after the record, or a hold keeps the body out of the spec.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull
@@ -3775,9 +3785,12 @@ reader rejects a key that is not a complexity and a value that is not a profile,
 listing the issue labels each state collapses from, and `order`. An issue's labels collapse,
 without case, to the first state in `order` one of whose labels it carries, or the last state,
 `needs-triage`, when it carries none. A field value counts under the issue-dimensions setter
-rule, and also, for every state but `agent-ready`, when its latest setter is one of `bot-setters`:
-github-actions[bot] (the job token) and the `melodic-` Apps of the trusted-actor list; a `melodic-`
-entry counts only while that list holds it as a bot with the same id and login. Third-party
+rule, and also, for every state but `agent-ready`, when its latest setter is a bot setter. With
+`bot-setters` set, the bot setters are its entries, each counting only while the trusted-actor list
+holds it as a bot with the same id and login (github-actions[bot] needs no entry there); without
+it, they are github-actions[bot] (the job token, 41898282) and every `kind: bot` entry of the
+trusted-actor list whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`,
+read from that list when the field is read. This repository sets no `bot-setters`. Third-party
 bots never count, and `agent-ready` counts only from a listed human or the lanes App. A counted
 option no entry maps fails the read with `unmapped-status`. The config reader rejects two options
 for one state, a state with no label, a label listed twice, an `order` that does not list every

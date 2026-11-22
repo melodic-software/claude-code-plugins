@@ -4,7 +4,7 @@
 # run-plugin-tests.sh discovers only *.test.sh, so without this wrapper the
 # module's own suite would never run in CI. The cases live in the .mjs file;
 # this only locates node, runs it, and forwards the exit status.
-# test-scope: plugins/review/skills/council/adapters/claude.yaml plugins/review/skills/council/adapters/codex.yaml
+# test-scope: plugins/review/skills/council/adapters/claude.yaml plugins/review/skills/council/adapters/codex.yaml plugins/review/skills/council/adapters/antigravity.yaml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

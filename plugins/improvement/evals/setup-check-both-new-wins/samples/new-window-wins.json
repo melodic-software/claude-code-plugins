@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| churn_window | 30 days ago | team (docs/conventions/improvement.yaml) |", "why": "new value then new file" },
+    { "answer": "docs/conventions/improvement.yaml wins the team layer: churn_window is 30 days ago.", "why": "new file then new value" }
+  ],
+  "fail": [
+    { "answer": "| churn_window | 180 days ago | .claude/improvement.md |", "why": "old file won" },
+    { "answer": "The churn window is 30 days ago.", "why": "no layer named" }
+  ]
+}

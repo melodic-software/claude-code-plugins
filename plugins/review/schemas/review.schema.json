@@ -81,7 +81,7 @@
       "default": "off"
     },
     "council_members": {
-      "description": "The council's member catalog, keyed by member id. Each member names a provider (claude, codex) and optionally a model (an alias, <provider>/flagship, or a provider model id), a shipped brief (correctness, design, adversarial) and an effort. Unset: three claude members on opus, briefed correctness, design and adversarial. A member its provider's adapter cannot run as written is skipped with the reason, never replaced.",
+      "description": "The council's member catalog, keyed by member id. Each member names a provider (claude, codex, antigravity) and optionally a model (an alias, <provider>/flagship, or a provider model id), a shipped brief (correctness, design, adversarial) and an effort. Unset: three claude members on opus, briefed correctness, design and adversarial. A member its provider's adapter cannot run as written is skipped with the reason, never replaced.",
       "type": "object",
       "propertyNames": { "pattern": "^[a-z0-9-]+$" },
       "additionalProperties": {

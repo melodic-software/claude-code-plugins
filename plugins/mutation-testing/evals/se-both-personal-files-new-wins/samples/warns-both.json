@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local (docs/conventions/mutation-testing.local.yaml won)",
+      "why": "names both, says the new file won"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "WARN: old personal override .claude/mutation-testing.local.md",
+      "why": "new file not named"
+    },
+    {
+      "answer": "WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local",
+      "why": "the old-file-only line, without saying the new file won"
+    }
+  ]
+}

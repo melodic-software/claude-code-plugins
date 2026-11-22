@@ -81,7 +81,13 @@ failed read, a list cut short or no such run keeps the FAIL.
   body change alone) and, for each counted pass at the head,
   a trusted person edited the body from the last such FAIL's creation to the
   pass run's creation and only trusted people edited the body or connected
-  or disconnected an issue up to its completion (`_body_fixed`). Any
+  or disconnected an issue up to its completion (`_body_fixed`), or every
+  counted FAIL there and every counted pass at the head record the same
+  linked issues and, for each pass, a trusted person recorded an owner
+  decision on one of them from the last such FAIL's creation to the pass
+  run's creation: a spec comment (`_spec_comments`) created then that links
+  an owner-decisions row and quotes the owner (`merge_policy.decision_gaps`;
+  `_spec_amended`). Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -121,7 +127,10 @@ failed read, a list cut short or no such run keeps the FAIL.
   exactly one `source: <producer>` label, a listed human or the lanes App
   sized it small or medium (`counted_size`), and no run's patch stopped over
   the scan job's cap since a listed human last added agent-ready
-  (`patch_cap_stopped`), else `verify:untrusted-spec`. A
+  (`patch_cap_stopped`), or is an issue the lanes App filed whose newest
+  admission record names its current title and body and that carries no
+  hold label and no `hold:` body line (`briefed_issue`), else
+  `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -815,6 +824,24 @@ OWN_AGENT_ISSUE_QUERY = (
     "labels(first:100){totalCount nodes{name}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
+BRIEFED_ISSUE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){title body author{...actor} "
+    "labels(first:100){totalCount nodes{name}} "
+    "comments(first:100){totalCount pageInfo{hasNextPage endCursor} "
+    "nodes{databaseId createdAt updatedAt lastEditedAt body author{...actor} "
+    "editor{...actor}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+ADMISSION_RECORD_MARKER = "<!-- issue-admission-record -->"
+HEX64_RE = re.compile(r"[0-9a-f]{64}")
+UNTRUSTED_PROVENANCE_LABEL = "provenance: untrusted"
+BRIEF_HOLD_RE = re.compile(
+    "(?:^|(?<=[\n\r\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]))["
+    + "".join(c for c in JS_SPACE if c not in "\r\n")
+    + "]*hold:",
+    re.IGNORECASE | re.ASCII,
+)
 SIZE_FIELD_KEY = "models.issue-dimensions.fields.size"
 AGENT_READY_LABEL = "agent-ready"
 PATCH_CAP_STOP_LINE = (
@@ -1012,6 +1039,100 @@ def own_agent_filing(issue: Any, ids: frozenset[int]) -> bool:
         and is_json_array(nodes)
         and labels.get("totalCount") == len(nodes)
         and one_source_label([json_object(n).get("name") for n in nodes])
+    )
+
+
+def admission_record(comments: list[Any], app_id: int) -> dict[str, Any] | None:
+    """lib/admission-record.mjs readAdmissionRecord over GraphQL comment
+    nodes: the newest record the lanes App (a Bot whose id is `app_id`)
+    posted, or None. An App comment opening with the marker that is not a
+    canonical, never edited record raises ValueError. Pure."""
+    found: list[tuple[float, dict[str, Any]]] = []
+    for comment in map(json_object, comments):
+        author = json_object(comment.get("author"))
+        text = comment.get("body")
+        if (
+            author.get("__typename") != "Bot"
+            or author.get("databaseId") != app_id
+            or not isinstance(text, str)
+            or not text.startswith(ADMISSION_RECORD_MARKER)
+        ):
+            continue
+        try:
+            parsed = json.loads(text[len(ADMISSION_RECORD_MARKER) + 1 :])
+        except ValueError:
+            parsed = None
+        record = json_object(parsed)
+        actor = record.get("actor_id")
+        canonical = ADMISSION_RECORD_MARKER + "\n" + json.dumps(
+            {
+                "v": 1,
+                "actor_id": actor,
+                "title_sha256": record.get("title_sha256"),
+                "body_sha256": record.get("body_sha256"),
+            },
+            separators=(",", ":"),
+        )
+        at = _event_time(comment.get("createdAt"))
+        edited = comment.get("lastEditedAt")
+        if (
+            record.get("v") != 1
+            or type(record.get("v")) is not int
+            or type(actor) is not int
+            or abs(actor) > MAX_SAFE_INTEGER
+            or not all(
+                isinstance(record.get(key), str)
+                and HEX64_RE.fullmatch(record[key]) is not None
+                for key in ("title_sha256", "body_sha256")
+            )
+            or canonical != text
+            or at is None
+            or (edited is not None and edited != comment.get("createdAt"))
+        ):
+            raise ValueError("an admission record is not one as written")
+        found.append((at, record))
+    return max(found, key=lambda item: item[0])[1] if found else None
+
+
+def briefed_issue(issue: Any, app_id: int | None) -> bool:
+    """admit.mjs briefedIssue over `issue` (as `BRIEFED_ISSUE_QUERY` reads
+    it): the lanes App (`app_id`) filed it, its newest admission record
+    (`admission_record`) names its current title and body by sha256, its
+    labels read whole hold no `HOLD_STATES` state nor
+    `UNTRUSTED_PROVENANCE_LABEL`, and its body has no `hold:` line
+    (`BRIEF_HOLD_RE`). Pure."""
+    issue = json_object(issue)
+    author = json_object(issue.get("author"))
+    labels = json_object(issue.get("labels"))
+    nodes = labels.get("nodes")
+    if (
+        app_id is None
+        or author.get("__typename") != "Bot"
+        or author.get("databaseId") != app_id
+        or not is_json_array(nodes)
+        or labels.get("totalCount") != len(nodes)
+    ):
+        return False
+    held = {name.lower() for name in (*merge_policy.HOLD_STATES, UNTRUSTED_PROVENANCE_LABEL)}
+    body = issue.get("body") if isinstance(issue.get("body"), str) else ""
+    title = issue.get("title") if isinstance(issue.get("title"), str) else ""
+    if any(str(json_object(n).get("name")).lower() in held for n in nodes) or (
+        BRIEF_HOLD_RE.search(body) is not None
+    ):
+        return False
+    comments = json_object(issue.get("comments")).get("nodes")
+    try:
+        record = admission_record(comments if is_json_array(comments) else [], app_id)
+    except ValueError:
+        return False
+
+    def digest(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+
+    return (
+        record is not None
+        and record["title_sha256"] == digest(title)
+        and record["body_sha256"] == digest(body)
     )
 
 
@@ -1934,6 +2055,9 @@ class Reader:
     _own_agents: tuple[Any, datetime] | None = None
     _size_field: tuple[Any, datetime] | None = None
     _own_agent_issues: dict[int, tuple[Any, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
+    _briefed_issues: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
     _sizes: dict[int, tuple[str | None, tuple[datetime, ...]]] = field(
@@ -3384,6 +3508,43 @@ class Reader:
             and not self._patch_capped(number)
         )
 
+    def _briefed(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which the lanes App wrote,
+        is one intake briefed and no one holds (`briefed_issue`), read live
+        once per Reader under the Actions token with every comment page, as
+        resolve-pr.mjs reads them. A failed or short read raises
+        `_Unreadable`."""
+        number = issue.get("number")
+        app_id = self._lane_app_id()
+        if (
+            type(number) is not int
+            or app_id is None
+            or issue.get("author_type") != "Bot"
+            or issue.get("author_id") != app_id
+        ):
+            return False
+        if number not in self._briefed_issues:
+            with run_cache.track() as taken:
+                run_cache.note(run_cache.now())
+                env = self._env()
+                node = json_object(
+                    self._graphql(
+                        BRIEFED_ISSUE_QUERY, number, "briefed issue", env=env
+                    ).get("issue")
+                )
+                comments = self._whole_comments(
+                    number, node.get("comments"), "the issue", env=env
+                )
+                nodes = json_object(comments).get("nodes")
+                if not is_json_array(nodes) or len(nodes) != comments.get("totalCount"):
+                    raise _Unreadable(f"#{number}: the issue's comments could not be read")
+                node = node | {"comments": comments}
+            self._briefed_issues[number] = (briefed_issue(node, app_id), tuple(taken))
+        briefed, read_at = self._briefed_issues[number]
+        for at in read_at:
+            run_cache.note(at)
+        return briefed
+
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
         wrote, is the upstream-drift workflow's (`drift_issue`) and the pull
@@ -3529,8 +3690,9 @@ class Reader:
         recurring issue naming its schedule row (`_recurring`), or the
         upstream-drift workflow's issue for a pull request `pr` that at
         `head` only modifies its upstream's pages (`_drift`), a main-red
-        incident the monitoring lane filed (`_incident`), or an own-agent
-        filing admission admits (`_own_agent`)."""
+        incident the monitoring lane filed (`_incident`), an own-agent
+        filing admission admits (`_own_agent`), or a lanes App filing intake
+        briefed and no one holds (`_briefed`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -3550,6 +3712,7 @@ class Reader:
             or self._recurring(issue)
             or self._incident(issue)
             or self._own_agent(issue)
+            or self._briefed(issue)
             for issue in issues
         )
 
@@ -4392,6 +4555,7 @@ class Reader:
                         number, sha, fail_artifacts, passes, judged_at=head
                     )
                     or self._body_fixed(number, sha, fail_artifacts, passes)
+                    or self._spec_amended(number, sha, fail_artifacts, passes)
                 ),
             )
         ):
@@ -4966,6 +5130,73 @@ class Reader:
                         number, last, postmerge._time(self._updated.get(run_id))
                     )
                 ):
+                    return False
+        except (_Unreadable, postmerge.PostMergeReadError):
+            return False
+        return True
+
+    def _spec_amended(
+        self,
+        number: int,
+        sha: str,
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]],
+        passes: list[tuple[int, str, Any]],
+    ) -> bool:
+        """Every counted FAIL at `sha` records this pull request, head and
+        verdict, each counted pass at the head records the same linked
+        issues as each FAIL, and for each pass a trusted person
+        (`_trusted_actor`) recorded an owner decision on one of those issues
+        after the last FAIL's creation, up to the pass run's creation: a spec
+        comment (`_spec_comments`) created then that links an owner-decisions
+        row and quotes the owner (`merge_policy.decision_gaps`). A trusted
+        comment without that link, and any issue body edit, amends nothing. The pass judged an amended
+        spec the FAIL never read, which the same change cannot carry; a
+        relink stays `_superseded`'s. A record, time or read that fails is
+        False."""
+        fails = fail_artifacts.get(sha, [])
+        if not passes or not fails:
+            return False
+
+        def decided(text: Any) -> bool:
+            return not merge_policy.decision_gaps(text)
+
+        try:
+            judged: set[frozenset[int]] = set()
+            for run_id, name, artifact in fails:
+                record = self._record(run_id, name, artifact)
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or record.get("verdict") != "fail"
+                ):
+                    return False
+                judged.add(_linked_numbers(record))
+            if len(judged) != 1:
+                return False
+            issues = next(iter(judged))
+            created = [self._fresh_created(r) for r, _, _ in fails]
+            if None in created:
+                return False
+            last = max(c for c in created if c)
+            live = self._live_issues.get(number)
+            if live is None:
+                live = self._live_issues[number] = self._closing_issues(number)
+            amended = []
+            for n in issues & set(live):
+                nodes = json_array(json_object(live[n].get("comments")).get("nodes"))
+                trusted = self._spec_comments(nodes)
+                amended += [
+                    postmerge._time(c.get("createdAt"))
+                    for c in map(json_object, nodes)
+                    if (c.get("databaseId"), c.get("updatedAt")) in trusted
+                    and decided(c.get("body"))
+                ]
+            for run_id, name, artifact in passes:
+                record = self._record(run_id, name, artifact)
+                if _linked_numbers(record) != issues:
+                    return False
+                begun = self._fresh_created(run_id)
+                if begun is None or not any(last < at <= begun for at in amended):
                     return False
         except (_Unreadable, postmerge.PostMergeReadError):
             return False

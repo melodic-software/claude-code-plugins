@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/mutation-testing.local.yaml",
+            "content": "operators: narrow\n"
+          }
+        }
+      ],
+      "why": "a Write call"
+    }
+  ]
+}
