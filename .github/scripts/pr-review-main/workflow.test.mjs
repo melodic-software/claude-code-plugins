@@ -491,6 +491,8 @@ test("each chunk's prompt names the manifest file and holds none of its paths, a
       assert.ok(text.includes(`These parts are chunk ${k} of 2`), `${job} chunk ${k}`);
       assert.ok(text.includes(`  - \`${two.after.data}/diff/chunk-${k}/part-001.patch\``), `${job} chunk ${k}`);
       assert.match(text, /names both paths/, `${job} chunk ${k}`);
+      assert.match(text, /cut at its hunks into pieces in different chunks, each under the file's own diff --git header/, `${job} chunk ${k}`);
+      assert.ok(text.includes("`piece <i> of <n>`"), `${job} chunk ${k}`);
       assert.doesNotMatch(text, /not yours to judge/, `${job} chunk ${k}`);
       // The prompt names the file and frames it as data; the paths, which
       // the pull request's author chose, stay out of the prompt itself.

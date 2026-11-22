@@ -259,11 +259,13 @@ jobs:
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
       # so nothing in the PR runs; the patch is a data file. chunk-diff.sh cuts
-      # it into chunks of whole files, and each chunk into parts one Read
-      # returns whole, in as many chunks as the diff takes, up to the ceiling
-      # chunk-diff.sh sets, with a judge step below for each. A file over one
-      # chunk, or a diff over the ceiling, fails the step by name: no verdict,
-      # so no fail on size alone.
+      # it into chunks of whole files, a file over one chunk cut at its hunks
+      # into pieces, and each chunk into parts one Read returns whole, in as
+      # many chunks as the diff takes, up to the ceiling chunk-diff.sh sets,
+      # with a judge step below for each. A file with a hunk over one chunk,
+      # or a diff over the ceiling, fails the step by name: no verdict, so no
+      # fail on size alone. The cut:
+      # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-verify/chunk-diff.sh
       - name: Write the diff
         id: diff
         if: steps.agree.outcome == 'success'
