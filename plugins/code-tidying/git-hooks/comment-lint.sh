@@ -18,7 +18,8 @@ code-tidying comment-lint: fail a comment a change adds outside the comment post
   comment-lint.sh --worktree    the uncommitted changes against HEAD, untracked files included
 
 Reads the team file <home>/code-tidying.yaml: comment_lint (off, the default, report or
-block) and comment_lint_allow (extended regular expressions a comment may match).
+block), comment_lint_allow (extended regular expressions a comment may match) and
+comment_adr_dir (the decision-record folder, default docs/adr).
 comment_posture comes from the team file and the personal override; a userConfig
 posture never reaches a git hook. explanatory (and strict, balanced, conservative)
 runs nothing; auto and aggressive read as necessary.
@@ -29,8 +30,10 @@ lines match a generated-marker.ere line (sync-managed, @generated, or a whole-fi
 the file's name, or POSIX and Bash token rules for a shell script. Findings print as
 <path>:<line>: <message> on stderr; block exits 1, report exits 0. A file the comment
 reader fails on is named on stderr while the other files are still judged, and blocks
-like any tool failure. A missing python3, or a python3 that cannot import pygments,
-follows checks.skipmissing (tool names python3 and pygments).
+like any tool failure. An ADR pointer's record is looked up in comment_adr_dir where
+the file's text is read: the index, the work tree with --worktree, or the pushed tips.
+A missing python3, or a python3 that cannot import pygments, follows
+checks.skipmissing (tool names python3 and pygments).
 EOF
   exit 0
 fi
@@ -114,9 +117,29 @@ while IFS= read -r -d '' f; do
 done < <(checks_files)
 [[ -s "$CHECKS_TMP/paths" ]] || exit 0
 
+records="$CHECKS_TMP/records"
+adr_dir="$(setting comment_adr_dir)"
+[[ -n "$adr_dir" && "$adr_dir" != unset ]] || adr_dir=docs/adr
+adr_records() {
+  local l
+  if [[ "$CHECKS_MODE" == pre-push ]]; then
+    while read -r _ l; do
+      git ls-tree -r -z --name-only "$l" -- ":(literal)$adr_dir" 2>/dev/null
+    done <"$CHECKS_TMP/push-ranges"
+  elif [[ "$CHECKS_MODE" == worktree ]]; then
+    git ls-files -co --exclude-standard -z -- ":(literal)$adr_dir"
+  else
+    git ls-files -z -- ":(literal)$adr_dir"
+  fi
+}
+while IFS= read -r -d '' f; do
+  [[ "$CHECKS_MODE" != worktree || -f "$f" ]] || continue
+  mkdir -p "$records/${f%/*}" && : >"$records/$f"
+done < <(adr_records)
+
 checks_changed_lines
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing

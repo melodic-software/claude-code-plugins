@@ -129,16 +129,9 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: inputs.dispatcher-run-id != ''
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         if: inputs.dispatcher-run-id != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -219,16 +212,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -473,16 +459,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -589,16 +568,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -697,16 +669,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -850,16 +815,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -963,16 +921,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1254,16 +1205,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1414,16 +1358,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1596,16 +1533,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1716,16 +1646,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1825,16 +1748,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1988,7 +1904,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: start
           role: pr-unblock
@@ -2002,7 +1918,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: skipped
           lane: adjudicate-feedback
@@ -2049,16 +1965,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2135,7 +2044,7 @@ jobs:
       - name: Check the API key
         id: key
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: key
           role: pr-unblock
@@ -2146,7 +2055,7 @@ jobs:
       - name: Check the subscription token
         id: sub
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: subscription
           role: pr-unblock
@@ -2156,7 +2065,7 @@ jobs:
       - name: Check the fallback token
         id: fb
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: fallback
           role: pr-unblock
@@ -2166,7 +2075,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -2205,7 +2114,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2255,7 +2164,7 @@ jobs:
       - name: Record disputed thread 0's leg
         if: always() && steps.judge-0.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-0.outcome }}
           execution-file: ${{ steps.judge-0.outputs.execution-file }}
@@ -2275,7 +2184,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-0.outputs.handoff }}
@@ -2286,7 +2195,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2337,7 +2246,7 @@ jobs:
       - name: Record disputed thread 0's leg on the subscription
         if: always() && steps.judge-0-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-0-subscription.outcome }}
           execution-file: ${{ steps.judge-0-subscription.outputs.execution-file }}
@@ -2358,7 +2267,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           state: ${{ steps.next-0.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
@@ -2369,7 +2278,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2419,7 +2328,7 @@ jobs:
       - name: Record disputed thread 0's leg on the fallback token
         if: always() && steps.judge-0-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-0-fallback.outcome }}
           execution-file: ${{ steps.judge-0-fallback.outputs.execution-file }}
@@ -2460,7 +2369,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2510,7 +2419,7 @@ jobs:
       - name: Record disputed thread 1's leg
         if: always() && steps.judge-1.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-1.outcome }}
           execution-file: ${{ steps.judge-1.outputs.execution-file }}
@@ -2530,7 +2439,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-1.outputs.handoff }}
@@ -2541,7 +2450,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2592,7 +2501,7 @@ jobs:
       - name: Record disputed thread 1's leg on the subscription
         if: always() && steps.judge-1-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-1-subscription.outcome }}
           execution-file: ${{ steps.judge-1-subscription.outputs.execution-file }}
@@ -2613,7 +2522,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           state: ${{ steps.next-1.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
@@ -2624,7 +2533,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2674,7 +2583,7 @@ jobs:
       - name: Record disputed thread 1's leg on the fallback token
         if: always() && steps.judge-1-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-1-fallback.outcome }}
           execution-file: ${{ steps.judge-1-fallback.outputs.execution-file }}
@@ -2715,7 +2624,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2765,7 +2674,7 @@ jobs:
       - name: Record disputed thread 2's leg
         if: always() && steps.judge-2.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -2785,7 +2694,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-2.outputs.handoff }}
@@ -2796,7 +2705,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2847,7 +2756,7 @@ jobs:
       - name: Record disputed thread 2's leg on the subscription
         if: always() && steps.judge-2-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-2-subscription.outcome }}
           execution-file: ${{ steps.judge-2-subscription.outputs.execution-file }}
@@ -2868,7 +2777,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           state: ${{ steps.next-2.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
@@ -2879,7 +2788,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2929,7 +2838,7 @@ jobs:
       - name: Record disputed thread 2's leg on the fallback token
         if: always() && steps.judge-2-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.judge-2-fallback.outcome }}
           execution-file: ${{ steps.judge-2-fallback.outputs.execution-file }}
@@ -3195,16 +3104,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -3393,16 +3295,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -3498,16 +3393,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -3606,16 +3494,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -3813,16 +3694,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4009,16 +3883,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4113,16 +3980,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4221,16 +4081,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4332,16 +4185,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4524,16 +4370,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4631,16 +4470,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4765,16 +4597,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -4912,16 +4737,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -5112,16 +4930,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

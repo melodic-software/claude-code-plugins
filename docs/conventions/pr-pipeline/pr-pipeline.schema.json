@@ -757,14 +757,14 @@
         "applied-by": { "required": ["patch"] },
         "prepare": { "not": { "const": "ci-context" } }
       },
-      "description": "Only the read runner stages a skill's edit tools, for a skill with applied-by.patch and no prepare: ci-context, so only that skill takes checks, self-checks, verify-scripts and web-access. Anywhere else they would do nothing, so they are refused."
+      "description": "Only the read runner stages a skill's edit tools, for a skill with applied-by.patch and no prepare: ci-context, so only that skill takes checks, verify-scripts and web-access. Anywhere else they would do nothing, so they are refused."
     },
     "verify-runner": {
       "anyOf": [
         { "$ref": "#/$defs/edit-runner" },
         { "required": ["prepare"], "properties": { "prepare": { "const": "ci-context" } } }
       ],
-      "description": "verify-scripts are staged where checks are, and under prepare: ci-context too, where the skill is told to run a listed script only from its base copy."
+      "description": "verify-scripts and self-checks are staged where checks are, and under prepare: ci-context too, where the skill is told to run a listed script or check only from its base copy."
     },
     "leaf": {
       "type": "object",
@@ -789,7 +789,7 @@
           "properties": { "effect": { "const": "read" }, "gating": { "const": "advisory" } }
         },
         "checks": { "$ref": "#/$defs/edit-runner" },
-        "self-checks": { "$ref": "#/$defs/edit-runner" },
+        "self-checks": { "$ref": "#/$defs/verify-runner" },
         "verify-scripts": { "$ref": "#/$defs/verify-runner" },
         "tidy": {
           "required": ["effect", "applied-by"],

@@ -77,7 +77,7 @@ Partners stop losing events when their endpoint fails for a short time.
 ### ADR verdicts
 - Q1 attempt count: no ADR; no real alternative weighed
 - Q2 backoff schedule: no ADR; no real alternative weighed
-- Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the record-decision skill judged it easy to reverse
+- Q3 failed-delivery storage: no ADR; a Postgres table was weighed against a Redis stream, and the adr skill judged it easy to reverse
 - Q4 alert channel: no ADR; a process decision
 
 ### Deferred questions

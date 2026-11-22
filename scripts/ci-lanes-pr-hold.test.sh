@@ -457,7 +457,7 @@ tip_step="$(awk -v tip="      - name: Resolve main's tip" -v name="      - name:
   on { buf = buf $0 "\n" }' "$WORKFLOW")"
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$base_step" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$base_step" == *"&& steps.tip.outputs.sha != '' }}"* &&
-  "$tip_step" == *"id: tip"* && "$tip_step" == *'TIP_BRANCH: ${{ github.event.repository.default_branch }}'* &&
+  "$tip_step" == *"id: tip"* && "$tip_step" == *'branch: ${{ github.event.repository.default_branch }}'* &&
   "$base_step" == *"persist-credentials: false"* ]]; then
   ok "the reader's checkout is the default branch tip, with no credential kept"
 else

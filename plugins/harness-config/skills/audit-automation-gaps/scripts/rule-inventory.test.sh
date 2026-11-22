@@ -124,7 +124,31 @@ done
 assert_line "C: settings absent named" "$out" "- settings: .claude/settings.json absent"
 assert_line "C: declared absent named" "$out" "- declared: docs/conventions/harness-config.yaml absent, so no declared rows"
 assert_line "C: no ecosystem record named" "$out" "- ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
-assert_line "C: review absent named" "$out" "- review: REVIEW.md absent"
+assert_line "C: review absent named" "$out" "- review: no REVIEW.md, CODING_STANDARDS.md or docs/review/README.md"
+
+R="$TMP/review-criteria"
+new_repo "$R"
+mkdir -p "$R/docs/review"
+printf -- '- Flag a retry loop with no cap.\n' >"$R/REVIEW.md"
+printf -- '- Name each exported function for what it returns.\n' >"$R/CODING_STANDARDS.md"
+cat >"$R/docs/review/README.md" <<'EOF'
+# Review criteria
+
+| Concern | File |
+|---|---|
+| Hooks | [hooks.md](hooks.md) |
+| Upstream | [guide](https://example.com/guide.md) |
+EOF
+printf -- '- A hook that blocks names the rule it enforces.\n' >"$R/docs/review/hooks.md"
+printf -- '- Not linked from the index, so not read.\n' >"$R/docs/review/orphan.md"
+commit_all "$R"
+rows="$(bash "$GEN" --root "$R" --rows)"
+assert_line "R: REVIEW.md row" "$rows" "$(printf 'Flag a retry loop with no cap.\tREVIEW.md:1\tautomated-review\t4')"
+assert_line "R: CODING_STANDARDS.md row" "$rows" "$(printf 'Name each exported function for what it returns.\tCODING_STANDARDS.md:1\tautomated-review\t4')"
+assert_line "R: linked criteria file row" "$rows" "$(printf 'A hook that blocks names the rule it enforces.\tdocs/review/hooks.md:1\tautomated-review\t4')"
+assert_no "R: unlinked file not read" "$rows" "docs/review/orphan.md"
+assert_eq "R: three review rows" 3 "$(grep -c $'\tautomated-review\t' <<<"$rows")"
+assert_line "R: files read named" "$(bash "$GEN" --root "$R")" "- review: 4 review-criteria file(s) read"
 
 D="$TMP/records"
 new_repo "$D"

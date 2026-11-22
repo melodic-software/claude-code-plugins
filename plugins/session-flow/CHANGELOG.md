@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.20.2] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
 ## [9.20.1] - 2026-11-21
 
 ### Changed

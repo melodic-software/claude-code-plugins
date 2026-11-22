@@ -1,8 +1,8 @@
 {
-  "skill": "architecture:record-decision",
+  "skill": "architecture:adr",
   "plugin": "architecture",
-  "skill_dir": "plugins/architecture/skills/record-decision",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are improve (design interview that may produce a decision worth recording) and map-landscape (a record of systems, not decisions). record-decision writes an ADR into the repo's existing convention retires a record a new decision reverses, audits records against the code, and skips indexes, template migration and status lifecycle.",
+  "skill_dir": "plugins/architecture/skills/adr",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are improve (design interview that may produce a decision worth recording) and map-landscape (a record of systems, not decisions). adr writes an ADR into the repo's existing convention retires a record a new decision reverses, audits records against the code, and skips indexes, template migration and status lifecycle.",
   "competitors": [
     "architecture:improve",
     "architecture:map-landscape"

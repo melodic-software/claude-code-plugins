@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -26,51 +25,20 @@ const stepsOf = (block) =>
     .split(/\n(?=      - name: )/)
     .slice(1)
     .map((b) => ({ name: /^      - name: (.*)$/m.exec(b)[1], block: b }));
-const runScript = (block) => {
-  const lines = /\n {8}run: \|\n([\s\S]*)$/.exec(block)[1].split("\n");
-  const end = lines.findIndex((line) => line !== "" && !line.startsWith(" ".repeat(10)));
-  return (end < 0 ? lines : lines.slice(0, end)).map((line) => line.slice(10)).join("\n");
-};
-
-const HEAD = "1".repeat(40);
-const TAG = "2".repeat(40);
-
-function tipOutputs(job, listing) {
-  const dir = tempDir("main-tip-");
-  const bin = join(dir, "bin");
-  mkdirSync(bin);
-  writeFileSync(join(dir, "listing"), listing);
-  writeFileSync(join(bin, "git"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\ncat "${dir}/listing"\n`);
-  chmodSync(join(bin, "git"), 0o755);
-  const output = join(dir, "output");
-  writeFileSync(output, "");
-  const tip = stepsOf(jobBlock(job)).find((s) => s.name === "Resolve main's tip");
-  assert.ok(tip, `${job}: tip step`);
-  const run = spawnSync("bash", ["-e", "-o", "pipefail", "-c", runScript(tip.block)], {
-    encoding: "utf8",
-    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_REPOSITORY: REPO, TIP_BRANCH: "main", GITHUB_OUTPUT: output },
-  });
-  assert.equal(run.status, 0, run.stderr);
-  return { output: readFileSync(output, "utf8"), args: readFileSync(join(dir, "args"), "utf8") };
-}
-
-test("each job's tip step lists the tag too and passes carry-tip only while no tag is named main", () => {
+test("each job's tip step is the resolve-branch-tip action on main", () => {
   for (const job of JOBS) {
-    const plain = tipOutputs(job, `${HEAD}\trefs/heads/main\n`);
-    assert.equal(plain.output, `sha=${HEAD}\ncarry-tip=${HEAD}\n`, `${job}: no tag`);
-    assert.match(plain.args, /ls-remote https:\/\/github\.com\/melodic-software\/claude-code-plugins\.git refs\/heads\/main refs\/tags\/main\n$/, job);
-    assert.equal(tipOutputs(job, `${HEAD}\trefs/heads/main\n${TAG}\trefs/tags/main\n`).output, `sha=${HEAD}\n`, `${job}: a tag named main`);
-    assert.equal(tipOutputs(job, `${HEAD}\trefs/heads/main\n${TAG}\trefs/tags/main^{}\n`).output, `sha=${HEAD}\n`, `${job}: a peeled tag named main`);
-    assert.equal(tipOutputs(job, `${HEAD}\trefs/heads/main\n${TAG}\trefs/tags/v1-main\n`).output, `sha=${HEAD}\ncarry-tip=${HEAD}\n`, `${job}: a tag only ending in main`);
+    const tip = stepsOf(jobBlock(job)).find((s) => s.name === "Resolve main's tip");
+    assert.ok(tip, `${job}: tip step`);
+    assert.match(tip.block, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40} # v\d+\.\d+\.\d+\n {8}with:\n {10}branch: main$/m, job);
   }
 });
 
-test("every onMain reader step of the three jobs gets the job's carry-tip", () => {
+test("every onMain reader step of the three jobs gets the job's unambiguous tip", () => {
   for (const job of JOBS) {
     const readers = stepsOf(jobBlock(job)).filter((s) => READERS.test(s.block));
     assert.ok(readers.length >= 2, `${job}: readers found`);
     for (const reader of readers) {
-      assert.ok(reader.block.includes("\n          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}\n"), `${job}: ${reader.name}`);
+      assert.ok(reader.block.includes("\n          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}\n"), `${job}: ${reader.name}`);
     }
   }
 });
@@ -91,11 +59,11 @@ async function sweep(env, processes) {
   return { answers, refs: calls.filter((url) => url.includes("/git/ref/")).length, compares: calls.filter((url) => url.includes("/compare/")).length };
 }
 
-test("a sweep's four reader processes read the 404 tag once each and main once, and with carry-tip no ref, deciding the same", async () => {
+test("a sweep's four reader processes read the 404 tag once each and main once, and with PR_MERGE_MAIN_TIP no ref, deciding the same", async () => {
   const before = await sweep({}, 4);
   assert.equal(before.refs, 5, "four unshared tag reads and one shared tip read");
   const after = await sweep({ PR_MERGE_MAIN_TIP: TIP }, 4);
-  assert.equal(after.refs, 0, "no ref read with carry-tip");
+  assert.equal(after.refs, 0, "no ref read with PR_MERGE_MAIN_TIP");
   assert.deepEqual(after.answers, before.answers);
   assert.deepEqual(before.answers, [true, false, true, false, true, false, true, false]);
   assert.equal(before.compares, 2, "each head compared once for the job");

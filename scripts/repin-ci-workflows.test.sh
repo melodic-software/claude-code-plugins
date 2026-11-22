@@ -155,6 +155,29 @@ git_test_config "$scratch/left" commit -qm notes
 run 1 'apply fails when the old SHA remains outside the set' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/left"
 contains 'the failure names the file' 'still appears after the rewrite in: tests/notes.md'
 
+mk_repo "$scratch/link"
+mkdir -p "$scratch/link/.github/scripts"
+echo "// https://github.com/melodic-software/ci-workflows/blob/${OLD}/.github/actions/run-claude-cli/lane.cjs" \
+  >"$scratch/link/.github/scripts/probe.mjs"
+git_test_config "$scratch/link" add .github/scripts
+git_test_config "$scratch/link" commit -qm link
+run 0 'apply moves a ci-workflows blob link outside the workflows' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/link"
+LAST_OUTPUT="$(cat "$scratch/link/.github/scripts/probe.mjs")"
+contains 'the script link moves' "ci-workflows/blob/${NEW}/.github/actions/run-claude-cli/lane.cjs"
+LAST_OUTPUT="$(git_test_config "$scratch/link" status --porcelain)"
+if [[ "$(LC_ALL=C sort <<<"$LAST_OUTPUT")" == " M .github/scripts/probe.mjs"$'\n'" M .github/workflows/lane.yml"$'\n'" M docs/conventions/pr-pipeline/pr-run-activity.md" ]]; then
+  ok 'the linked script is the one change beyond the workflow and the doc'
+else
+  bad 'the linked script is the one change beyond the workflow and the doc' "$LAST_OUTPUT"
+fi
+
+mk_repo "$scratch/history"
+echo "- cites [lane.cjs](https://github.com/melodic-software/ci-workflows/blob/${OLD}/lane.cjs)" >"$scratch/history/CHANGELOG.md"
+git_test_config "$scratch/history" add CHANGELOG.md
+git_test_config "$scratch/history" commit -qm history
+run 1 'apply leaves a changelog link to the old SHA and fails' apply "$OLD" v0.74.0 "$NEW" v0.75.0 --root "$scratch/history"
+contains 'the failure names the changelog' 'still appears after the rewrite in: CHANGELOG.md'
+
 mk_repo "$scratch/model"
 mkdir -p "$scratch/model/.claude/skills/formal-lanes/model"
 echo "\\* checked against ${OLD}" >"$scratch/model/.claude/skills/formal-lanes/model/Lanes.tla"

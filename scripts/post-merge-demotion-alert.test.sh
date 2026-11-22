@@ -106,11 +106,11 @@ want_dropin='        uses: melodic-software/ci-workflows/.github/actions/apply-c
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control'
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-if [[ "$uses" == $'actions/checkout\nmelodic-software/ci-workflows/.github/actions/apply-claude-managed-settings\n./.base/.github/actions/log-api-budget' &&
+if [[ "$uses" == $'melodic-software/ci-workflows/.github/actions/resolve-branch-tip\nactions/checkout\nmelodic-software/ci-workflows/.github/actions/apply-claude-managed-settings\n./.base/.github/actions/log-api-budget' &&
   "$dropin" =~ ^${want_dropin}$ &&
-  "$first_step" == *"- name: Resolve main's tip"* && "$first_step" == *"id: tip"* && "$first_step" == *"TIP_BRANCH: main"* &&
+  "$first_step" == *"- name: Resolve main's tip"* && "$first_step" == *"id: tip"* && "$first_step" == *"branch: main"* &&
   "$checkout" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$checkout" == *"persist-credentials: false"* ]]; then
-  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but the pinned settings drop-in and that checkout's log-api-budget"
+  ok "the file-demotion-issue job checks out main's tip without credentials and runs no other action but the pinned tip resolver, the pinned settings drop-in and that checkout's log-api-budget"
 else
   fail "the file-demotion-issue job runs an action other than one credential-less checkout of main's tip SHA, the pinned settings drop-in and its log-api-budget: '$uses'"
 fi
