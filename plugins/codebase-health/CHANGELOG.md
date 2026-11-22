@@ -3,6 +3,14 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-11-22
+
+### Changed
+
+- The audit-dimension config now resolves through the config-cascade layers. The order is: the bundled dimensions, a new `dimensions_file` `userConfig` option naming a Markdown file of your dimensions for every repository, the team `docs/conventions/codebase-health.md` (or your bound convention home), then the gitignored `codebase-health.local.md` beside it. `/codebase-health:setup apply` writes the team file there, not under `.claude/` ([#18010](https://github.com/melodic-software/claude-code-plugins/issues/18010)).
+- `~/.claude/codebase-health.md`, `.claude/codebase-health.md` and `.claude/codebase-health.local.md` are still read while they exist, wherever the new location does not supply that layer. Each run prints one warning naming the old file, its new location and `/codebase-health:setup apply`. The two repository files are retirement records `codebase-health-r001` and `codebase-health-r002` in the new `retirements.yaml`, checked by the bundled `lib/check-retirements.sh`.
+- `/codebase-health:setup check` names each old file. When the new location also exists, it lists the old file's dimensions that do not apply. `apply` shows a preview, and after your yes moves the old file's dimensions to the new location, checks they resolve the same, then deletes the old file. Dimensions from `~/.claude/codebase-health.md` move to a file the `dimensions_file` option names. The old file is deleted on a later `apply` in a fresh session, once the option resolves the same dimensions.
+
 ## [0.15.2] - 2026-11-21
 
 ### Changed

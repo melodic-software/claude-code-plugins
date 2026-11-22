@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.13] - 2026-11-22
+
+### Changed
+
+- **The lane-stop-gate arm record now lasts 31 days, up from 7.** Before this change, a lane that ran past day 7 lost its arm record, and every later stop went through without the gate. One constant, `GATE_ARM_TTL_DAYS` in `hooks/lane-stop-gate-lib.sh`, now sets the lifetime for both the gate's TTL check and the arm helper's cleanup sweep, so the two can no longer drift apart (#17834).
+
 ## [5.2.12] - 2026-11-21
 
 ### Changed
