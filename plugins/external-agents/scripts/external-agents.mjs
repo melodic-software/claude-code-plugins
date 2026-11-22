@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { cancel, EXIT, result, review, run, status } from "./lib/runner.mjs";
+import { models } from "./lib/models.mjs";
 import { update } from "./lib/update.mjs";
 
 const USAGE = `usage: external-agents <command> [options]
@@ -12,6 +13,7 @@ const USAGE = `usage: external-agents <command> [options]
   result <job>
   cancel <job>
   update <product>
+  models <product>   (JSON: the installed CLI's models and effort levels)
 
 exit codes: 0 ok, 1 failed, 2 usage, 3 blocked by the mode, 4 CLI unavailable or skipped
 `;
@@ -23,6 +25,7 @@ const OPTIONS = {
   result: {},
   cancel: {},
   update: {},
+  models: {},
 };
 
 function parse(command, rest) {
@@ -74,6 +77,7 @@ export async function main(argv) {
     command === "run" ? await run({ product: first, use: options.use, mode: options.mode, model: options.model, effort: options.effort, resume: options.resume, last: options.last, prompt: text })
     : command === "review" ? await review({ product: first, base: options.base, model: options.model, effort: options.effort, brief: text, council: options.council })
     : command === "update" ? await update({ product: first })
+    : command === "models" ? await models({ product: first })
     : { status, result, cancel }[command]({ jobId: first });
   process.stdout.write(outcome.stdout);
   process.stderr.write(outcome.stderr);

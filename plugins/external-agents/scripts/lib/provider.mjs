@@ -11,6 +11,7 @@ const COMMANDS = ["run", "resume", "review"];
 const REVIEW_KIND = ["native", "diff_file"];
 const UNAVAILABLE = ["auth", "usage-limit"];
 const HELP_NAME = /^[a-z0-9][a-z0-9-]*$/;
+const MODEL_FORMATS = ["tab_lines", "codex_catalog"];
 const PREFACE_TOKENS = ["{base}", "{merge_base}", "{file_count}", "{files}"];
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -18,7 +19,7 @@ const isText = (v) => typeof v === "string" && v !== "";
 const isStrings = (v) => Array.isArray(v) && v.every((s) => typeof s === "string");
 const isStringMap = (v) => isMap(v) && Object.values(v).every((s) => typeof s === "string");
 
-const TOP = ["schema", "product", "docs_index", "config_reference", "help","binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
+const TOP = ["schema", "product", "docs_index", "config_reference", "help", "models", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
 const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface"];
 const OUTPUT = {
   jsonl_events: {
@@ -57,6 +58,14 @@ export function validateProvider(record) {
   for (const [name, args] of Object.entries(isMap(record.help) ? record.help : {})) {
     need(HELP_NAME.test(name), `help.${name}`, "expected a lowercase file name");
     need(isStrings(args) && args.length > 0, `help.${name}`, "expected a list of arguments");
+  }
+
+  if (record.models !== undefined) {
+    known(record.models, ["args", "format", "effort_help"], "models");
+    need(isStrings(record.models?.args) && record.models.args.length > 0, "models.args", "expected the arguments that list the models");
+    need(MODEL_FORMATS.includes(record.models?.format), "models.format", `expected one of ${MODEL_FORMATS.join(", ")}`);
+    optional(record.models?.effort_help, (v) => Object.hasOwn(record.help ?? {}, v) && isText(record.effort_flag), "models.effort_help", "expected a help entry name, with effort_flag set");
+    need(!Object.hasOwn(record.help ?? {}, "models"), "help.models", "the models file is reserved for the models.args output");
   }
 
   known(record.version, ["args", "sources", "markers"], "version");

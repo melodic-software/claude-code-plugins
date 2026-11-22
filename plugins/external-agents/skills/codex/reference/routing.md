@@ -9,6 +9,7 @@ multi-agent run uses is `/multi-agent:route`'s config, not this skill's.
 When the user asks which Codex model or effort to use, or `update` prints `routing: due`, read the
 pages below live and answer from them, citing the section:
 
+- The models and effort levels this Codex version offers: `external-agents models codex` (JSON).
 - Index of the Codex docs, to find a page that moved:
   [llms.txt](https://learn.chatgpt.com/docs/llms.txt).
 - Which models are current and recommended:

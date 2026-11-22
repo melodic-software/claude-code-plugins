@@ -5,6 +5,11 @@ const argv = process.argv.slice(2);
 const stdin = argv.at(-1) === "-" ? readFileSync(0, "utf8") : null;
 appendFileSync(scenario.record, `${JSON.stringify({ argv, stdin })}\n`);
 
+const answer = scenario.answers?.[argv.join(" ")];
+if (answer) {
+  process.stdout.write(answer.stdout ?? "");
+  process.exit(answer.exit ?? 0);
+}
 if (argv[0] === "login") process.exit(scenario.login_exit ?? 0);
 if (argv[0] === "--version") {
   process.stdout.write(scenario.version ?? "codex-cli 0.0.1\n");

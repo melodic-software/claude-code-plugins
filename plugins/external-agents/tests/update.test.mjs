@@ -7,6 +7,7 @@ import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { openBreaker, readBreaker } from "../scripts/lib/breaker.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
+import { effortChoices, models } from "../scripts/lib/models.mjs";
 import { configKeys, update, versionSource } from "../scripts/lib/update.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +24,7 @@ const RELEASES = "https://api.github.com/repos/openai/codex/releases/latest";
 const noon = Date.UTC(2026, 10, 21, 12, 0, 0);
 
 const realHelp = { "--help": join(helpDir, "codex.txt"), "exec --help": join(helpDir, "exec.txt"), "exec review --help": join(helpDir, "exec-review.txt") };
+const catalog = readFileSync(join(fixtures, "codex-models.json"), "utf8");
 const referenceText = 'key: "approval_policy",\nkey: "sandbox_mode",\nkey: "model_reasoning_effort",\n';
 
 function web({ latest = "rust-v0.168.0", docs = 200, reference = referenceText } = {}) {
@@ -49,7 +51,7 @@ function world(scenario = {}, { local } = {}) {
   mkdirSync(dataDir);
   if (local) writeFileSync(join(cwd, "docs", "conventions", "external-agents.local.yaml"), local);
   const file = join(root, "scenario.json");
-  writeFileSync(file, JSON.stringify({ record: join(root, "calls.jsonl"), version: "codex-cli 0.168.0\n", help: realHelp, ...scenario }));
+  writeFileSync(file, JSON.stringify({ record: join(root, "calls.jsonl"), version: "codex-cli 0.168.0\n", help: realHelp, answers: { "debug models": { stdout: catalog } }, ...scenario }));
   return { opts: { product: "codex", cwd, dataDir, binary: fakeCodex, now: () => noon, env: { ...process.env, FAKE_SCENARIO: file } }, dataDir };
 }
 const lines = (got) => got.stdout.split("\n");
@@ -75,6 +77,7 @@ describe("update", () => {
     for (const [name, source] of [["codex", "codex.txt"], ["exec", "exec.txt"], ["exec-review", "exec-review.txt"]]) {
       assert.equal(readFileSync(join(facts, `${name}.txt`), "utf8"), readFileSync(join(helpDir, source), "utf8"), name);
     }
+    assert.equal(readFileSync(join(facts, "models.txt"), "utf8"), catalog, "the model list is cached beside the help");
     assert.ok(net.calls.some((c) => c.url === DOCS && c.method === "HEAD"), "the docs index is HEAD-checked");
   });
 
@@ -105,6 +108,13 @@ describe("update", () => {
     const w = world();
     const got = await update({ ...w.opts, fetch: web({ reference: new Error("getaddrinfo ENOTFOUND") }).fetch });
     assert.ok(lines(got).includes(`config keys: unverified: approval_policy, sandbox_mode, model_reasoning_effort are not in the CLI help, and ${REFERENCE} could not be read (getaddrinfo ENOTFOUND)`), got.stdout);
+  });
+
+  test("a model list command that fails is named under cli facts", async () => {
+    const w = world({ answers: { "debug models": { exit: 2 } } });
+    const got = await update({ ...w.opts, fetch: web().fetch });
+    assert.equal(lines(got)[0], "codex: ready (check: cli facts)");
+    assert.ok(lines(got).includes(`cli facts: ${join(w.dataDir, "cli-facts", "codex", "0.168.0")} (models: debug models exited 2)`), got.stdout);
   });
 
   test("an unreachable docs index is reported", async () => {
@@ -230,5 +240,103 @@ describe("the update command", () => {
     const got = spawnSync(process.execPath, [join(here, "..", "bin", "external-agents"), "update"], { encoding: "utf8", cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
     assert.equal(got.status, 2);
     assert.match(got.stdout, /^external-agents: refused: invalid product/);
+  });
+});
+
+const fakeAgy = { path: process.execPath, args: [join(fixtures, "fake-agy.mjs")], shell: false };
+const agyHelp = "Usage: agy [options]\n  --effort                        Reasoning effort (low|medium|high)\n  --model                         Model\n";
+const agyModels = "model-x-high\tModel X (High)\nmodel-x-low\tModel X (Low)\n";
+
+function agyWorld(answers = {}) {
+  const root = join(scratch, `w${(count += 1)}`);
+  const cwd = join(root, "cwd");
+  mkdirSync(cwd, { recursive: true });
+  const file = join(root, "scenario.json");
+  writeFileSync(file, JSON.stringify({ record: join(root, "calls.jsonl"), answers: { "--help": { stdout: agyHelp }, models: { stdout: agyModels }, ...answers } }));
+  const calls = () => readFileSync(join(root, "calls.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l).argv.join(" "));
+  return { opts: { product: "antigravity", cwd, dataDir: join(root, "data"), binary: fakeAgy, now: () => noon, env: { ...process.env, FAKE_SCENARIO: file } }, calls };
+}
+
+describe("models", () => {
+  test("agy's models and the effort choices its help lists are one JSON document, with each source named", async () => {
+    const got = await models(agyWorld().opts);
+    assert.equal(got.code, 0);
+    assert.deepEqual(JSON.parse(got.stdout), {
+      schema: 1,
+      product: "antigravity",
+      status: "ok",
+      cli: { name: "agy", version: "1.0.0" },
+      unset_model: "cli-default",
+      models: [{ id: "model-x-high", name: "Model X (High)" }, { id: "model-x-low", name: "Model X (Low)" }],
+      models_source: "agy models",
+      efforts: ["low", "medium", "high"],
+      efforts_source: "agy --help (--effort)",
+      docs_index: "https://antigravity.google/docs/cli",
+    });
+  });
+
+  test("a second call reads the cache for the installed version and asks the CLI only for its version", async () => {
+    const w = agyWorld();
+    await models(w.opts);
+    const before = w.calls().length;
+    await models(w.opts);
+    assert.deepEqual(w.calls().slice(before), ["--version"]);
+  });
+
+  test("help whose effort line lists no readable choices is failed, exit 1, naming the command", async () => {
+    const got = await models(agyWorld({ "--help": { stdout: "  --effort=<level>  Reasoning effort: low, medium, high\n" } }).opts);
+    assert.equal(got.code, 1);
+    assert.deepEqual(JSON.parse(got.stdout), { schema: 1, product: "antigravity", status: "failed", reason: "agy --help lists no --effort choices this record can read" });
+  });
+
+  test("an empty cached file is asked for again", async () => {
+    const w = agyWorld();
+    const dir = join(w.opts.dataDir, "cli-facts", "antigravity", "1.0.0");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "agy.txt"), "");
+    const doc = JSON.parse((await models(w.opts)).stdout);
+    assert.deepEqual(doc.efforts, ["low", "medium", "high"]);
+    assert.ok(w.calls().includes("--help"));
+  });
+
+  test("Codex's catalog gives each listed model its own effort levels and default, and leaves hidden models out", async () => {
+    const got = await models(world().opts);
+    const doc = JSON.parse(got.stdout);
+    assert.equal(got.code, 0);
+    assert.deepEqual(doc.models, [{ id: "model-a", name: "Model A", efforts: ["low", "high"], default_effort: "low" }]);
+    assert.equal(doc.models_source, "codex debug models");
+    assert.equal(doc.cli.version, "0.168.0");
+    assert.ok(!("efforts" in doc));
+  });
+
+  test("a missing CLI is unavailable, exit 4, still JSON, and nothing is cached", async () => {
+    const w = world();
+    const empty = join(w.opts.cwd, "empty-path");
+    mkdirSync(empty);
+    const got = await models({ ...w.opts, binary: undefined, env: { PATH: empty, PATHEXT: ".EXE" } });
+    const doc = JSON.parse(got.stdout);
+    assert.equal(got.code, 4);
+    assert.equal(doc.status, "unavailable");
+    assert.match(doc.reason, /^codex not found/);
+    assert.ok(!existsSync(join(w.dataDir, "cli-facts")));
+  });
+
+  test("a model list the record cannot read is failed, exit 1, naming the command", async () => {
+    const got = await models(world({ answers: { "debug models": { stdout: "not json" } } }).opts);
+    assert.equal(got.code, 1);
+    assert.match(JSON.parse(got.stdout).reason, /^codex debug models printed output this record cannot read/);
+  });
+
+  test("effort choices come only from the effort flag's own line", () => {
+    assert.deepEqual(effortChoices(agyHelp, "--effort"), ["low", "medium", "high"]);
+    assert.equal(effortChoices("  --effort-mode   pick (a|b)\n", "--effort"), null);
+    assert.equal(effortChoices("  --effort   no list here\n", "--effort"), null);
+  });
+
+  test("an unknown product is refused with exit 2, as JSON", () => {
+    const { CLAUDE_PLUGIN_DATA: _unset, ...bare } = process.env;
+    const got = spawnSync(process.execPath, [join(here, "..", "bin", "external-agents"), "models", "nope"], { encoding: "utf8", cwd: scratch, env: { ...bare, CLAUDE_PLUGIN_DATA: join(scratch, "external-agents-cli-data") } });
+    assert.equal(got.status, 2);
+    assert.deepEqual([JSON.parse(got.stdout).product, JSON.parse(got.stdout).status], ["nope", "refused"]);
   });
 });
