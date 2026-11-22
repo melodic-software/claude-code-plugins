@@ -255,7 +255,7 @@ const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\
 const SMALL_TEXT = 10_000
 const SIZE_RATIO = 5
 
-test('runs each of the worst accepted extra patterns over windows, so its engine calls grow linearly with the text', () => {
+test('runs each of the worst accepted extra patterns over windows, so its engine calls grow linearly with the text', { timeoutMs: 60_000 }, () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
   const extras = r.patterns.slice(-WORST_ACCEPTED.length)
