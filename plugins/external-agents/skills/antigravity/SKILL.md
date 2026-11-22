@@ -87,10 +87,10 @@ process tree; stopping the background Bash task alone may leave agy running.
   after a refusal and may still answer well; the command records the run `blocked-by-mode`, exits
   `3` and prints the answer. Relay the answer, name the refused actions from the first line, and
   never report a task done.
-- **`--unsandboxed auto` lifts the fence for the whole run.** In auto mode agy's own review can run
-  a command outside the sandbox, with the disk and network access that brings
-  ([Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox#cli-permissions-integration)),
-  and `--add-dir` does not bound such a command. Never ask agy, fenced or not, to push, open or
+- **`--unsandboxed auto` lifts the fence for the whole run.** Treat the run as able to reach the
+  disk and network beyond the worktree, unbounded by `--add-dir`; how agy decides on such a
+  command is in
+  [Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox#cli-permissions-integration). Never ask agy, fenced or not, to push, open or
   merge pull requests, or run `gh` or `az`; Claude Code stays the only actor for those.
 - **A refused out-of-sandbox command is `blocked-by-mode`, not a reason to opt out.** Relay the
   refused command. Rerun with `--unsandboxed auto` only when the task truly needs it (the
@@ -98,7 +98,7 @@ process tree; stopping the background Bash task alone may leave agy running.
 - **Read the auto-mode notice as the command words it.** On an `--unsandboxed auto` run the
   command checks agy's own log for the run behind agy's auto-mode warning
   ([observation](https://github.com/melodic-software/claude-code-plugins/issues/18213)). A notice
-  ending `its log shows the mode was applied` means auto mode ran; `notice: the CLI warned: --mode
+  containing `its log shows the mode was applied` means auto mode ran; `notice: the CLI warned: --mode
   auto is not available` alone means the run fell back. Either way, check that the task's files
   exist before reporting it done.
 - **Run a build or test that writes output on WSL, not Windows**: on Windows, a write task's

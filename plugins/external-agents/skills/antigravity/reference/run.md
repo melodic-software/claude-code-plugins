@@ -44,13 +44,14 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
   agy's `denied_actions` field. The prompt gets a preface saying so, so name the files to read.
 - **write** (fence `sandbox`, the default) runs `--mode accept-edits` with a per-run settings file
   that turns on agy's terminal sandbox, lets sandboxed commands proceed, and turns off access
-  beyond the workspace and the `--add-dir` directories. A command that asks to leave the sandbox
-  is refused, and the run is recorded `blocked-by-mode`. What each setting does is agy's to state:
+  beyond the workspace and the `--add-dir` directories. The command records each action agy
+  reports refusing, and records the run `blocked-by-mode`. Before relying on what the mode or a
+  setting allows, read
   [Execution modes § Auto-approve edits with accept-edits mode](https://antigravity.google/docs/cli/modes#auto-approve-edits-with-accept-edits-mode) and
   [Terminal sandbox § CLI configuration](https://antigravity.google/docs/sandbox#cli-configuration).
-- **write with `--unsandboxed auto`** (fence `unsandboxed auto`) runs `--mode auto`, whose
-  out-of-sandbox commands agy decides on itself
-  ([Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox#cli-permissions-integration)).
+- **write with `--unsandboxed auto`** (fence `unsandboxed auto`) runs `--mode auto`. Before
+  relying on what it lets agy run outside the sandbox, read
+  [Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox#cli-permissions-integration).
   Its limits are in the hub's gotchas.
 
 ### First stdout line
