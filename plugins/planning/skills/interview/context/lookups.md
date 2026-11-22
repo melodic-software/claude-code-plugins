@@ -40,10 +40,10 @@ The problem questions of [`problem-framing.md`](../../../context/problem-framing
 questions, asked in this round in discovery shape:
 
 - A request that names a solution and no problem: its problem question is the rethink-or-accept
-  question of "Prescribed solution" there. Its Context states the problem worked back out with its
-  evidence rating (`(inferred, user, round 1)`, or `observed` with the artifact that shows it),
-  and its title asks whether to rethink the approach against that problem or accept the named
-  solution. This is how "an attended run always asks" is met under the intake round, never by a
+  question of "Prescribed solution" there, asked open: its title asks what problem the work
+  solves, its Context names the prescribed solution and states no inferred problem for the user
+  to confirm, and its `Discovery:` line says the answer decides whether to rethink the approach
+  against that problem or accept the named solution. This is how "an attended run always asks" is met under the intake round, never by a
   second question.
 - A stated problem whose evidence is only `reported`: one question asks the user to confirm the
   restated problem and to give the last concrete instance, what it cost and who hit it, as

@@ -175,7 +175,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
      foggy → a *Not-yet-specified* bullet. Tell the user once that "I don't know" is a full
      answer.
    - **Set ready questions aside.** A sharp question that already has a recommendation and
-     waits on no other decision is not map material: hold it for the one round step 2 asks.
+     is ready by [`${CLAUDE_PLUGIN_ROOT}/context/frontier.md`](../../context/frontier.md) is not map material: hold it for the one round step 2 asks.
      Only what stays open after that round becomes an item.
    - **No-fog bail-out:** if the survey leaves *both* halves of the trigger unmet (every
      uncertainty is already sharp, or the whole effort fits one session), the effort skips the
@@ -237,7 +237,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    ([`context/map-anatomy.md`](context/map-anatomy.md) "Prototype item body"). The type label sets the
    routing target (the type table in work step 5). Then, in a second pass once every item has
    its real id, wire `blocked-by` edges and write any cross-reference between items. Wire an edge
-   only where one decision genuinely gates another; never invent edges to impose order. A settled
+   only where one decision gates another by [`${CLAUDE_PLUGIN_ROOT}/context/frontier.md`](../../context/frontier.md); never invent edges to impose order. A settled
    answer that already selects an outside service receiving user data gets its data-sharing item
    here (work step 6).
 5. **Materialize the mode** on each item at creation: `<human-gated>` only for an intent or vision
