@@ -195,7 +195,7 @@ The owners an agent may merge for and the AI review check names come from the
 repository: unset, the script names no owner and no check, so it always holds.
 
 ```bash
-REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>" --write) || exit 1
 SETTINGS=$(python3 "<skill-dir>/../babysit-prs/scripts/babysit_merge_settings.py" show) || exit 1
 jq -e --arg o "${REPO%%/*}" 'any(.unattended_merge_owners[]; ascii_downcase == ($o | ascii_downcase))' \
   <<<"$SETTINGS" >/dev/null \

@@ -16,7 +16,7 @@ reported. `<checkout>` is the checkout of the PR's repository the session works 
 defines it, so neither the repository nor the branch depends on the shell's directory.
 
 ```bash
-REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>" --write) || exit 1
 export GH_REPO="$REPO"
 BRANCH=$(git -C "<checkout>" branch --show-current)
 PR_NUMBER=$(gh pr view "$BRANCH" -R "$REPO" --json number -q '.number' 2>/dev/null)
