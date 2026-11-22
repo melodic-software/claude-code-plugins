@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8] - 2026-11-22
+
+### Changed
+
+- Named `shape` as the on-demand skill in the README triggering section and rewrapped the shape paragraph.
+
 ## [0.11.7] - 2026-11-21
 
 ### Changed

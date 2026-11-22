@@ -3,6 +3,13 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5] - 2026-11-22
+
+### Fixed
+
+- A profile that excludes an always-on `optional` member is now rejected, as one that excludes an always-on `plugins` member already was. To keep such a member off, move the line to a `remove` line in your own `always-on.yaml`.
+- A `remove` line in a profile file now drops an inherited `optional` member, not only an inherited `plugins` member.
+
 ## [0.9.4] - 2026-11-21
 
 ### Changed

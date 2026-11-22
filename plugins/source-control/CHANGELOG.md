@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.5.0] - 2026-11-22
+
+### Changed
+
+- The babysit merge gate also trusts an issue the lanes App filed whose intake-triage verdict comment, posted and last edited by the lanes App's account id, holds nothing because the issue is ready or admission moved it, and stamps the issue's current title and body by sha256 (`triage_briefed`), with the same veto set as the admission-record rule, matching pr-verify's `briefedIssue`.
+
 ## [13.4.1] - 2026-11-22
 
 ### Fixed
