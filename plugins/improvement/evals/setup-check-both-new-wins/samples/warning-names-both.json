@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "WARN: .claude/improvement.md and docs/conventions/improvement.yaml both supply the team layer; docs/conventions/improvement.yaml wins. Run /improvement:setup apply to move the rest.", "why": "names both" }
+  ],
+  "fail": [
+    { "answer": "WARN: .claude/improvement.md is an old location.", "why": "new file not named" },
+    { "answer": "INFO: .claude/improvement.md and docs/conventions/improvement.yaml both exist; the new one wins.", "why": "no warning" }
+  ]
+}

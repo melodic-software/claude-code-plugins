@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: setup-check-both-new-wins
+description: 'Bare /improvement:setup runs the read-only check on a repository holding both team files: the new docs/conventions/improvement.yaml (churn_window 30 days ago) and the old .claude/improvement.md (churn_window 180 days ago, find_size_band small). The new file wins the team layer, so the effective window is 30 days from improvement.yaml (new-window-wins); the warning names both files (warning-names-both) and lists find_size_band as an old key that does not apply (lists-unapplied-key), so no old setting is dropped silently. It neither writes nor edits (no-write, no-edit). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Write Edit so the write graders can fail.'
+tags: [setup, check, config-cascade, dual-read, no-network]
+expected_outcome: 'A PASS/FAIL/WARN/INFO report in which the effective churn_window is 30 days ago from docs/conventions/improvement.yaml, a WARN names both .claude/improvement.md and docs/conventions/improvement.yaml and says the new file wins, and find_size_band (set only in the old file) is listed as not applied. Nothing is written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/improvement:setup'
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: new-window-wins
+    type: regex
+    pattern: '(?<!1)30 days(?: ago)?[^\n]{0,200}?(?<![.\w])improvement\.yaml|(?<![.\w])improvement\.yaml[^\n]{0,200}?(?<!1)30 days'
+    target: last_message
+    arm: both
+  - name: warning-names-both
+    type: regex
+    pattern: '(?=[\s\S]*\bWARN)(?=[\s\S]*(?<![~\w/])\.claude/improvement\.md)[\s\S]*docs/conventions/improvement\.yaml'
+    target: last_message
+    arm: both
+  - name: lists-unapplied-key
+    type: regex
+    pattern: 'find_size_band[^\n]{0,200}?(?:not appl|does not apply|doesn''t apply|ignored|unapplied|not used|overridden|shadowed)|(?:not appl|does not apply|doesn''t apply|ignored|unapplied|not used|overridden|shadowed)[^\n]{0,200}?find_size_band'
+    flags: 'i'
+    target: last_message
+    arm: both

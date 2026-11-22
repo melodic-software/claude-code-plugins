@@ -9,7 +9,7 @@ measured against a stated standard, as one small PR, ready or draft by the repos
 |---|---|
 | `/improvement:improve` | Improve-one-thing. Point it at any target (a symbol, file, feature, skill, doc, or process) with an optional focus such as performance, naming, or currency with current upstream guidance. It finds one gap against the repo's written standards (and upstream guidance when the focus asks for it), ships the smallest complete fix as one PR (ready or draft by the repository's open-state rule) within the [PR scope budget](reference/pr-scope-budget.md), and hands larger changes to planning. With no arguments it reads the conversation and confirms target and focus with you first. Runnable unattended on a schedule. |
 | `/improvement:find` | Evidence-first improvement finder. Point it at a repo, a feature, a concept, or a process surface, with a vague or specific prompt, and it produces a ranked, evidence-cited list of improvement candidates led by the highest value-to-effort, deliberates on the picked candidate through an interview, and hands off to the planning pipeline. Runnable unattended as a tech-debt-sweep routine. |
-| `/improvement:setup` | Verifies or writes the `.claude/improvement.md` config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across all three layers; `apply` interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
+| `/improvement:setup` | Verifies or writes the config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across every layer and names any old-location file; `apply` moves an old file's settings to the new location after a yes, then interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
 
 ## Install
 
@@ -40,12 +40,16 @@ already does.
 ## Configuration
 
 Zero config is a fully working state: Tier 0 repo-native evidence needs nothing declared. To tune
-churn analysis or declare Tier 2 MCP telemetry sources, run `/improvement:setup`. It manages the
-`.claude/improvement.md` cascade. The resolution order is `~/.claude/improvement.md` (user-global), then
-the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` personal override. The key contract lives in
+churn analysis or declare Tier 2 MCP telemetry sources, run `/improvement:setup`. Settings resolve
+lowest first from the bundled default, the plugin's `userConfig` options (per person, set with
+`/plugin configure improvement@<marketplace>`), the team `docs/conventions/improvement.yaml`,
+then the gitignored `docs/conventions/improvement.local.yaml`, per
+[config locations](reference/config-locations.md). The key contract lives in
 [reference/config.md](reference/config.md).
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+The old files `~/.claude/improvement.md`, `.claude/improvement.md` and
+`.claude/improvement.local.md` are still read while they exist, with a warning on each run;
+`/improvement:setup apply` moves their settings to the new locations and deletes them.
 
 ## Running it as a standing routine
 
@@ -83,7 +87,7 @@ Tuning — edit these lines as you observe real runs:
 ```
 
 Cadence and time of day belong to the scheduler. The cap, scope, size band and dismissed-candidate
-handling resolve from the prompt, then `.claude/improvement.md`, then the bundled default (see
+handling resolve from the prompt, then the config cascade, then the bundled default (see
 [skills/find/context/unattended.md](skills/find/context/unattended.md) and
 [reference/config.md](reference/config.md)). The open cap is the exception: the prompt cannot raise
 it, and personal settings can only lower it.
@@ -151,3 +155,48 @@ pushes a branch and opens a pull request, so its job needs `contents: write` and
 `/loop` is session-scoped only: it repeats a prompt inside one session and dies with it. It suits
 repeating a check during a working session, but it is not a standing schedule. A recurring unattended sweep needs
 a Routine or a cron workflow, which fire fresh sessions on a standing cadence.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `churn_window` | string | *(none)* | Your git log --since window for the hotspot recipe, such as 90 days ago. A repository's docs/conventions/improvement.yaml overrides it. Unset: 90 days ago. |
+| `churn_exclude` | string (multiple) | *(none)* | Extra ERE patterns, one per entry, left out of churn counting in every repository. Unioned with the repository's own patterns. |
+| `churn_exclude_defaults` | boolean | *(none)* | false drops the lockfiles, generated output, snapshots and vendored trees resolved from each repository, leaving only declared patterns. Unset: true. |
+| `find_open_item_cap` | number<br>*min 0* | *(none)* | Lowers the cap on open items per source label that unattended /improvement:find files under. Applies only when below the repository's cap. 0 stops unattended filing. |
+| `find_run_item_cap` | number<br>*min 1* | *(none)* | Where the adaptive per-run filing cap starts. Unset: 3. |
+| `find_run_item_cap_floor` | number<br>*min 1* | *(none)* | Lowest value the per-run filing cap adapts to. Unset: 1. |
+| `find_run_item_cap_ceiling` | number<br>*min 1* | *(none)* | Highest value the per-run filing cap adapts to. Unset: 5. |
+| `find_size_band` | string | *(none)* | Candidate sizes an unattended run ranks: all, small, medium or large. Unset: all. |
+| `find_scope` | string | *(none)* | What an unattended run scans: repo, or a target /improvement:find accepts. Unset: repo. |
+| `find_suppress_dismissed` | boolean | *(none)* | Whether an unattended run leaves out candidates an operator dismissed before. Unset: true. |
+| `evidence_sources_file` | file | *(none)* | A YAML file of yours whose evidence_sources key declares Tier 2 telemetry sources (MCP server, kind, scope, hints) for every repository. A repository's own declarations merge over it per source name. |
+
+### How to set these
+
+Set the options above for `improvement@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->

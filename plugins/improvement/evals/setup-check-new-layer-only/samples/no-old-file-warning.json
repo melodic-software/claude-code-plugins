@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| Old files | INFO: none found |", "why": "no old file" },
+    { "answer": "INFO: no .claude/improvement.md or .claude/improvement.local.md exists.", "why": "old paths named as absent, no WARN" }
+  ],
+  "fail": [
+    { "answer": "WARN: read .claude/improvement.md (old location); move it to docs/conventions/improvement.yaml with /improvement:setup apply.", "why": "warns about an old file that does not exist" },
+    { "answer": "| .claude/improvement.local.md | WARN: old location |", "why": "old file row as WARN" }
+  ]
+}
