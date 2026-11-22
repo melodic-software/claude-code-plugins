@@ -1345,6 +1345,14 @@ assert_not_contains "cap 08: no octal arithmetic error" "$(cat "$errfile")" "val
 assert_not_contains "cap 08: the install is not stopped" "$(cat "$errfile")" "warning"
 assert_file_exists "cap 08: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
 
+npm_log="$TEST_TMPDIR/npm-noslash.log"
+out=$(cd "$SCRIPT_DIR" && PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" WORKTREE_CREATE_NPM_SEED=0 \
+  bash worktree-create.sh --name feat/deps-noslash --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps-noslash" --repo-dir "$deps_repo" 2>/dev/null)
+assert_exit "no slash in the helper path: creation succeeds" 0 "$?"
+assert_eq "no slash in the helper path: npm ci runs" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
+assert_file_exists "no slash in the helper path: node_modules lands in the worktree" "$out/node_modules/.bin/markdownlint-cli2"
+
 if compgen -G "$TEST_TMPDIR/wtroot-deps-fail/.npm-seed/*/.complete" >/dev/null; then
   fail "failed install: no finished seed is kept" "no .complete" "a .complete exists"
 else

@@ -50,18 +50,20 @@
 
 set -uo pipefail
 
+HELPER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || { echo "error: cannot resolve the helper's directory" >&2; exit 4; }
+
 # shellcheck source=lib/worktree-facts.sh
-source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+source "$HELPER_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
 
 PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
-source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
+source "$HELPER_DIR/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
 # Lexical path collapse, shared inside this plugin with the worktree gates and
 # the claim helper. Sourced for worktree_path_normalize alone: the file defines
 # functions only and pulls in no library of its own.
 # shellcheck source=../hooks/worktree-path-lib.sh
-source "${BASH_SOURCE[0]%/*}/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
+source "$HELPER_DIR/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
 # windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
@@ -731,7 +733,7 @@ read_branch_naming() {
   local records key value naming="" default_type=""
   [[ -f "$toplevel/$CONVENTION_YAML_REL" ]] || return 0
   # shellcheck source=../lib/convention-key.sh
-  source "${BASH_SOURCE[0]%/*}/../lib/convention-key.sh" || {
+  source "$HELPER_DIR/../lib/convention-key.sh" || {
     printf '%s: cannot load lib/convention-key.sh; keeping the branch name verbatim\n' "$PROG" >&2
     return 0
   }
@@ -1048,7 +1050,7 @@ reuse_refuse() {
 # reuse_existing_target — return the worktree at $worktree_path when this
 # session may claim it, else refuse. Never returns.
 reuse_existing_target() {
-  local top i idx=-1 reason held_branch old_sid claim="${BASH_SOURCE[0]%/*}/worktree-claim.sh"
+  local top i idx=-1 reason held_branch old_sid claim="$HELPER_DIR/worktree-claim.sh"
   # git's own spelling of the target's top level is the one `worktree list`
   # prints, on every platform. Whole-path equality, never a prefix test: a
   # registered feat-login-form must not answer for feat-login.
@@ -1385,7 +1387,7 @@ if [[ -f "$settings_src" ]]; then
   fi
 fi
 
-bash "${BASH_SOURCE[0]%/*}/provision-prerequisites.sh" --cap "${WORKTREE_CREATE_DEPS_CAP_SECONDS:-45}" \
+bash "$HELPER_DIR/provision-prerequisites.sh" --cap "${WORKTREE_CREATE_DEPS_CAP_SECONDS:-45}" \
   --seed-root "$(dirname "$worktree_path")/.npm-seed" "$worktree_path" </dev/null >&2
 
 if ((branch_exists)); then

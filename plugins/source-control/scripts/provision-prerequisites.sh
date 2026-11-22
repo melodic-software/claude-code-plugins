@@ -12,8 +12,11 @@ seed_root=""
 tree=""
 while (($#)); do
   case "$1" in
-  --cap) cap="${2:-}" && shift 2 ;;
-  --seed-root) seed_root="${2:-}" && shift 2 ;;
+  --cap | --seed-root)
+    (($# >= 2)) || { printf '%s: %s needs a value\n' "$PROG" "$1" >&2 && exit 2; }
+    if [[ "$1" == --cap ]]; then cap="$2"; else seed_root="$2"; fi
+    shift 2
+    ;;
   -*) printf '%s: unknown option %s\n' "$PROG" "$1" >&2 && exit 2 ;;
   *) [[ -z "$tree" ]] || { printf '%s: one tree only\n' "$PROG" >&2 && exit 2; }; tree="$1" && shift ;;
   esac
@@ -74,7 +77,7 @@ if (raw) {
 }
 const h = crypto.createHash("sha256");
 h.update(process.argv.slice(2).join(" ") + "\0");
-for (const f of ["package-lock.json", "package.json", ".npmrc"]) h.update(f + "\0").update(read(f) || "").update("\0");
+for (const f of ["package-lock.json", "npm-shrinkwrap.json", "package.json", ".npmrc"]) h.update(f + "\0").update(read(f) || "").update("\0");
 h.update([process.versions.modules, process.platform, process.arch].join("-"));
 for (const k of Object.keys(process.env).sort())
   if (k === "NODE_ENV" || /^npm_config_/i.test(k)) h.update("\0" + k + "=" + process.env[k]);

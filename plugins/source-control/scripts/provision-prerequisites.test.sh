@@ -165,11 +165,28 @@ if command -v flock >/dev/null 2>&1 && cp -al --help >/dev/null 2>&1; then
   else
     fail "seed: both trees hard-link the same file" "same inode" "different files"
   fi
+
+  seeds="$TEST_TMPDIR/seeds-shrinkwrap"
+  log="$TEST_TMPDIR/npm-shrinkwrap.log"
+  one=$(tree shrinkwrap-one)
+  two=$(tree shrinkwrap-two)
+  printf '{"a":1}\n' >"$one/npm-shrinkwrap.json"
+  printf '{"a":2}\n' >"$two/npm-shrinkwrap.json"
+  PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$log" bash "$STEP" --seed-root "$seeds" "$one" 2>/dev/null
+  PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$log" bash "$STEP" --seed-root "$seeds" "$two" 2>/dev/null
+  assert_eq "seed: a different npm-shrinkwrap.json builds its own seed" "2" "$(wc -l <"$log" | tr -d ' ')"
 else
   skip_case "flock or a hard-linking cp -al is unavailable; the shared seed is not used here"
 fi
 
 bash "$STEP" >/dev/null 2>&1
 assert_exit "step: no tree is a usage error" 2 "$?"
+
+t=$(tree flag-last)
+for flag in --cap --seed-root; do
+  timeout 10 bash "$STEP" "$t" "$flag" >/dev/null 2>"$TEST_TMPDIR/err-flag-last.txt"
+  assert_exit "step: $flag with no value is a usage error" 2 "$?"
+  assert_contains "step: $flag with no value is named" "$(cat "$TEST_TMPDIR/err-flag-last.txt")" "$flag needs a value"
+done
 
 [[ $FAILED -eq 0 ]] || exit 1
