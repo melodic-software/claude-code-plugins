@@ -123,21 +123,27 @@ evidence about either read.
 
 ## Never run plugin CLI writes concurrently: the sweep stays serial
 
-The user sweep runs one `claude plugin update` at a time on purpose, and so does every other
-mutating plugin CLI call this skill makes. Concurrent calls lose each other's registry writes, and
-the lost call still exits 0 and prints success, so neither the exit code nor the CLI's output shows
-the loss. A sweep that ran in parallel would report plugins as updated while
-`installed_plugins.json` still pins their old versions.
+The user sweep runs one `claude plugin update` at a time, and so does every other mutating plugin
+CLI call this skill makes. Before Claude Code 2.1.330, concurrent calls lose each other's registry
+writes, and the lost call still exits 0 and prints success, so neither the exit code nor the CLI's
+output shows the loss. On 2.1.330 the same probe loses nothing. The sweep stays serial because a
+machine can still run an older CLI; running it in parallel is a separate decision (issue #6309).
 
-Probe (Claude Code 2.1.310, Linux, 2026-10-26): a scratch `CLAUDE_CONFIG_DIR` and a local git
-marketplace of 12 plugins, all installed at 1.0.0 at user scope; the marketplace moved to 2.0.0,
-then N distinct `claude plugin update <id> -s user` calls were launched at once, repeated 10
-times. Every call exited 0 and copied 2.0.0 into the cache. The registry lost 36 of 80 updates at
-N=8 (every repetition lost some) and 11 of 40 at N=4 (8 of 10 repetitions). The serial control
-lost none. Concurrent `claude plugin uninstall -s project` calls lose writes the same way.
-Results and method: issue #6309.
-**Recheck trigger:** a Claude Code release note that adds locking or atomic writes to the plugin
-registry, or a `plugin update` that takes several plugins in one call. Re-run the probe then.
+Probe: a scratch `CLAUDE_CONFIG_DIR` and a local git marketplace of 12 plugins, all installed at
+1.0.0 at user scope; the marketplace moved to 2.0.0, then N distinct
+`claude plugin update <id> -s user` calls were launched at once, repeated 10 times, and every call
+exited 0.
+
+- Claude Code 2.1.310 (Linux, 2026-10-26): the registry lost 36 of 80 updates at N=8 (every
+  repetition lost some) and 11 of 40 at N=4 (8 of 10 repetitions); the serial control lost none.
+  Concurrent `claude plugin uninstall -s project` calls lost writes the same way. Issue #6309.
+- Claude Code 2.1.330 (Linux, 2026-11-21): no loss. `update -s user` lost 0 of 80 at N=8 and 0 of
+  120 at N=12; concurrent `install -s user` and `uninstall -s user` at N=8 lost 0 of 80 each.
+  `uninstall -s project` was not re-probed. Issue #17827.
+
+**Recheck trigger:** Claude Code changelog item 2.1.330-027, a later release note that touches
+plugin registry writes, or a `plugin update` that takes several plugins in one call. Re-run the
+probe then.
 
 ## Dual-scope divergence is normal, not a defect
 
