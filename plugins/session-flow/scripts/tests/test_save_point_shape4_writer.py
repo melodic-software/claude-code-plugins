@@ -426,6 +426,181 @@ def test_validate_fails_a_closed_file_whose_hop_file_names_another_predecessor(
     assert "not found beside this file" in out(result)
 
 
+def standing_hop(
+    repo: Path,
+    tmp_path: Path,
+    previous: Path | None = None,
+    *,
+    k: int = 1,
+    flag: bool = True,
+    values: dict[str, str] | None = None,
+) -> Path:
+    made = run(
+        *new_args(
+            repo,
+            tmp_path,
+            *(["--previous", str(previous)] if previous else ["--no-previous"]),
+            *(["--standing-rules"] if flag else []),
+            sid=SIDS[k - 1],
+            now=f"2026-09-0{k}T10:00:00Z",
+            shape="4",
+        )
+    )
+    assert made.returncode == 0, err(made)
+    path = Path(out(made).strip())
+    filled = fill(path, tmp_path, values)
+    assert filled.returncode == 0, err(filled) + out(filled)
+    return path
+
+
+def standing_file(path: Path, root: Path | None = None) -> Path:
+    return path.parent / "archive" / (root or path).stem / "standing-rules.md"
+
+
+def directive(path: Path) -> str:
+    prompt = body(path, "Resume prompt")
+    return next(line for line in prompt.splitlines() if line.startswith("Read @"))
+
+
+def test_standing_rules_leave_the_hot_file_and_load_first(tmp_path):
+    held = rules(40_000)
+    path = standing_hop(make_repo(tmp_path), tmp_path, values={"rules": held})
+    standing = standing_file(path)
+    rel = f"archive/{path.stem}/standing-rules.md"
+    assert body(path, "Current rules") == f"- Standing rules: {rel}#Current rules"
+    assert body(path, "Standing preferences") == (
+        f"- Standing rules: {rel}#Standing preferences"
+    )
+    assert body(standing, "Current rules") == held
+    assert len(path.read_bytes()) <= CAP
+    assert directive(path).startswith(
+        f"Read @{standing.resolve().as_posix()} then @{path.resolve().as_posix()}, "
+    )
+    result = validate(path)
+    assert result.returncode == 0, out(result)
+    read = run("read", str(path), "--section", "Current rules")
+    assert out(read).strip("\n") == held
+
+
+def test_standing_rules_carry_to_the_next_hop_without_the_flag(tmp_path):
+    repo = make_repo(tmp_path)
+    first = standing_hop(repo, tmp_path)
+    second = standing_hop(
+        repo,
+        tmp_path,
+        first,
+        k=2,
+        flag=False,
+        values={"rules-new": "- [R3] Report every red check."},
+    )
+    assert f"standing_rules: archive/{first.stem}/standing-rules.md\n" in (
+        second.read_text(encoding="utf-8")
+    )
+    held = body(standing_file(second, first), "Current rules")
+    assert "[R1] The thing must stay green." in held
+    assert "[R3] Report every red check." in held
+    archived = hop_file(second.parent, first.name, 2, SIDS[1]).read_text(
+        encoding="utf-8"
+    )
+    assert "- [R2] Never push to main." in archived
+    assert "[R3]" not in archived
+    for path in (first, second):
+        result = validate(path)
+        assert result.returncode == 0, out(result)
+
+
+def test_standing_rules_a_dropped_rule_fails_validation(tmp_path):
+    repo = make_repo(tmp_path)
+    first = standing_hop(repo, tmp_path)
+    second = standing_hop(repo, tmp_path, first, k=2, flag=False)
+    standing = standing_file(second, first)
+    text = standing.read_text(encoding="utf-8")
+    standing.write_text(
+        text.replace("- [R1] The thing must stay green.\n", ""), encoding="utf-8"
+    )
+    result = validate(second)
+    assert result.returncode == 1, out(result)
+    assert any(
+        "[R1]" in line and line.startswith("FAIL: ")
+        for line in out(result).splitlines()
+    ), out(result)
+
+
+def test_standing_rules_a_missing_file_fails_validation(tmp_path):
+    path = standing_hop(make_repo(tmp_path), tmp_path)
+    standing_file(path).unlink()
+    result = validate(path)
+    assert result.returncode == 1, out(result)
+    assert "standing rules: " in out(result)
+
+
+def test_standing_rules_amend_retires_a_rule_from_the_standing_file(tmp_path):
+    path = standing_hop(make_repo(tmp_path), tmp_path)
+    payload = tmp_path / "amend.json"
+    payload.write_text(
+        json.dumps({"retire": [{"ref": "[R2]", "reason": "moved to AGENTS.md"}]}),
+        encoding="utf-8",
+    )
+    result = run(
+        "amend", str(path), "--json", str(payload), "--now", "2026-09-01T11:00:00Z"
+    )
+    assert result.returncode == 0, err(result)
+    assert "[R2]" not in body(standing_file(path), "Current rules")
+    assert body(path, "Current rules").startswith("- Standing rules: archive/")
+    own = hop_file(path.parent, path.name, 1, SIDS[0])
+    assert "- [R2] Never push to main." in own.read_text(encoding="utf-8")
+    assert validate(path).returncode == 0, out(validate(path))
+
+
+def test_standing_rules_over_one_read_page_direct_a_paged_read(tmp_path):
+    path = standing_hop(
+        make_repo(tmp_path), tmp_path, values={"rules": rules(READ_CAP + 2_000)}
+    )
+    assert len(standing_file(path).read_bytes()) > READ_CAP
+    assert len(path.read_bytes()) <= CAP
+    assert (
+        " in pages with the Read tool's offset and limit (over one Read page) then @"
+        in directive(path)
+    )
+    result = validate(path)
+    assert result.returncode == 0, out(result)
+
+
+def test_standing_rules_refuse_to_fill_a_fork(tmp_path):
+    repo = make_repo(tmp_path)
+    first = standing_hop(repo, tmp_path)
+    standing_hop(repo, tmp_path, first, k=2, flag=False)
+    made = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(first),
+            sid=SIDS[2],
+            now="2026-09-03T10:00:00Z",
+            shape="4",
+        )
+    )
+    assert made.returncode == 0, err(made)
+    filled = fill(Path(out(made).strip()), tmp_path)
+    assert filled.returncode == 1, err(filled)
+    assert "also follows" in err(filled)
+
+
+def test_standing_rules_refuse_a_shape3_hop(tmp_path):
+    made = run(
+        *new_args(
+            make_repo(tmp_path),
+            tmp_path,
+            "--no-previous",
+            "--standing-rules",
+            shape="3",
+        )
+    )
+    assert made.returncode == 2, err(made)
+    assert "shape-4 chain" in err(made)
+
+
 def test_fill_on_a_filled_file_refuses_and_names_amend(tmp_path):
     path = hop(make_repo(tmp_path), tmp_path)
     before = path.read_bytes()
