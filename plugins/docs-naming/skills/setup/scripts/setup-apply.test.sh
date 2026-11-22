@@ -6,7 +6,7 @@
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_OPTION_FILE_NAMES
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -184,6 +184,42 @@ missing="$(jq -r '
   - (.file_names | keys) | join(" ")
 ' "$TEMPLATE")"
 assert_eq "the bundled template declares every key of the contract" "" "$missing"
+
+uhome="$TEST_TMPDIR/uhome"
+mkdir -p "$uhome/.claude"
+out="$(bash "$SUT" --user-config-value --home "$uhome")"
+assert_contains "user value: no old file, nothing to copy" "$out" "nothing to copy: no old user file under $uhome/.claude"
+printf '{"schema": 1, "file_names": {"regex": "^old$", "exempt_basenames": ["OLD.md"]}}\n' >"$uhome/.claude/docs-naming.json"
+printf '{"schema": 1, "file_names": {"regex": "^retired$", "sweep_exclude": ["docs/r/**"]}}\n' >"$uhome/.claude/docs-hygiene.json"
+before_new="$(cat "$uhome/.claude/docs-naming.json")"
+out="$(bash "$SUT" --user-config-value --home "$uhome")"
+assert_contains "user value: the docs-naming file's keys are listed" "$out" "from: $uhome/.claude/docs-naming.json adds regex, exempt_basenames"
+assert_contains "user value: the docs-hygiene file adds only what is missing" "$out" "from: $uhome/.claude/docs-hygiene.json adds sweep_exclude"
+assert_contains "user value: keys not in effect today are flagged" "$out" "adds sweep_exclude (not in effect today: $uhome/.claude/docs-naming.json is read instead"
+out_wrapped="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"schema": 1, "file_names": {"regex": "^mine$"}}')"
+assert_eq "user value: a whole old file pasted into the option is read as its file_names" "^mine$" "$(sed -n 's/^value: //p' <<<"$out_wrapped" | jq -r '.regex')"
+assert_eq "user value: docs-naming.json wins a shared key" "^old$" "$(sed -n 's/^value: //p' <<<"$out" | jq -r '.regex')"
+assert_eq "user value: every key is carried" "exempt_basenames regex sweep_exclude" "$(sed -n 's/^value: //p' <<<"$out" | jq -r 'keys | join(" ")')"
+assert_eq "user value: values.json holds the value as one string" "^old$" "$(sed -n 's/^values.json: //p' <<<"$out" | jq -r '.file_names | fromjson | .regex')"
+assert_eq "user value: the old file is left in place" "$before_new" "$(cat "$uhome/.claude/docs-naming.json")"
+out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$"}')"
+assert_eq "user value: the option's own key wins" "^mine$" "$(sed -n 's/^value: //p' <<<"$out" | jq -r '.regex')"
+assert_contains "user value: a key the option sets is not listed" "$out" "from: $uhome/.claude/docs-naming.json adds exempt_basenames"
+out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$", "exempt_basenames": ["A.md"], "sweep_exclude": []}')"
+assert_contains "user value: an old list entry the option's list lacks is listed" "$out" "from: $uhome/.claude/docs-naming.json adds entries to exempt_basenames"
+assert_eq "user value: the old list entry is appended after the option's own" '["A.md","OLD.md"]' "$(sed -n 's/^value: //p' <<<"$out" | jq -c '.exempt_basenames')"
+assert_eq "user value: a list missing an old entry is not called copied" "0" "$(grep -c 'already copied' <<<"$out")"
+out="$(bash "$SUT" --user-config-value --home "$uhome" --user-config '{"regex": "^mine$", "exempt_basenames": ["A.md", "OLD.md"], "sweep_exclude": ["docs/r/**"]}')"
+assert_contains "user value: nothing left to copy is said" "$out" "already copied"
+assert_eq "user value: an entry already carried is not repeated" '["A.md","OLD.md"]' "$(sed -n 's/^value: //p' <<<"$out" | jq -c '.exempt_basenames')"
+assert_eq "user value: an option that is not one object exits 2" "2" "$(
+  bash "$SUT" --user-config-value --home "$uhome" --user-config '[1]' >/dev/null 2>&1
+  printf '%s' "$?"
+)"
+assert_eq "user value: it takes no pair" "2" "$(
+  bash "$SUT" --user-config-value --home "$uhome" 'rule=lower-kebab' >/dev/null 2>&1
+  printf '%s' "$?"
+)"
 
 printf '\nPASS=%d FAIL=%d\n' "$((CASES - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]] || exit 1

@@ -6,7 +6,7 @@
 # redirect `git init` / `git config` into the caller's repository.
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_OPTION_FILE_NAMES
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -205,6 +205,16 @@ adds="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TE
 
 assert_contains "a personal tier still claims a file no team tier covers" "$adds" \
   "notes/n.md:plain:personal-frozen:report"
+
+rm "$home9/.claude/docs-naming.json"
+opt="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" \
+  --user-config '{"tiers": [{"name": "option-frozen", "paths": ["notes/**"], "forms": "none"}]}' | view)"
+assert_contains "a --user-config tier reaches the resolver and claims an unclaimed file" "$opt" \
+  "notes/n.md:plain:option-frozen:report"
+opt="$(HOME="$home9" PATH="$jq9:$PATH" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" \
+  --user-config '{"tiers": [{"name": "option-loose", "paths": ["docs/adr/deep/**"], "forms": "all"}]}' | view)"
+assert_eq "a --user-config tier cannot loosen a team tier" "0" \
+  "$(printf '%s\n' "$opt" | grep -c '^docs/adr/deep/0003-deep.md:.*:option-loose:' || true)"
 
 # --- per-site exclusions -----------------------------------------------------
 
