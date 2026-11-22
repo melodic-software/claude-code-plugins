@@ -99,6 +99,17 @@ async page => {
     await until(() => rows.nth(0).getAttribute("aria-current"), (v) => v === "true");
     ok("clicking marker 1 selects row 1, as clicking the row does", (await rows.nth(0).getAttribute("aria-current")) === "true");
     ok("and keeps note 1's variant with its box drawn", (await shownVariant()) === "A" && (await box("selected", ROW)).on, await shownVariant());
+
+    await page.click("#view-sep");
+    const name = await rows.nth(1).locator(".name").boundingBox();
+    await page.mouse.move(name.x + 4, name.y + 4);
+    await page.mouse.down();
+    await frame.evaluate(() => parent.postMessage({ type: "named", names: [] }, "*"));
+    await page.waitForTimeout(200);
+    await page.mouse.up();
+    await until(() => rows.nth(1).getAttribute("aria-current"), (v) => v === "true");
+    ok("a click on row 2 selects it and shows its actions when the list re-renders mid-press",
+      (await rows.nth(1).getAttribute("aria-current")) === "true" && await rows.nth(1).locator('[data-key^="edit-"]').isVisible());
   } catch (err) {
     R.push("ERROR " + String(err && err.message || err).slice(0, 300));
   }
