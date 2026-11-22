@@ -1,25 +1,35 @@
 #!/usr/bin/env bash
-# /code-metrics:setup check: inspect and verify, write nothing.
-#
-#   setup-check.sh [--repo-root <dir>] [--home <dir>]
-#
-# Prints a PASS/FAIL/WARN/INFO table: the interpreter, each configuration
-# layer (present or absent; parseable in the YAML subset; the team file's
-# tracked-file guard), the resolved references with the layer that supplied
-# each, every collector adapter (a probe, then one measure run on a bundled
-# fixture: PASS with the version and the measure, FAIL when the probe passes
-# and the measure does not run, WARN when no fixture can exercise it, or
-# `missing` with its install hint), and any resolver warnings. Exit 0 when no
-# row is FAIL, 1 when one is; 2 on a usage or environment error. Nothing is
-# installed and nothing is written outside a temporary directory.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 SCRIPTS="$PLUGIN_ROOT/scripts"
 
+usage() {
+  cat <<'EOF'
+/code-metrics:setup check: inspect and verify, write nothing.
+
+  setup-check.sh [--repo-root <dir>] [--home <dir>] [--user-file <f>]
+
+--user-file takes the config_file userConfig option's value, the file that
+holds the userConfig layer; empty or unsubstituted means unset.
+
+Prints a PASS/FAIL/WARN/INFO table: the interpreter, each configuration
+layer (present or absent; parseable in the YAML subset; the team file's
+tracked-file guard), each old file the dual-read window still reads and its
+new location, the resolved references with the layer that supplied each,
+every collector adapter (a probe, then one measure run on a bundled fixture:
+PASS with the version and the measure, FAIL when the probe passes and the
+measure does not run, WARN when no fixture can exercise it, or `missing`
+with its install hint), and any resolver warnings. Exit 0 when no row is
+FAIL, 1 when one is; 2 on a usage or environment error. Nothing is installed
+and nothing is written outside a temporary directory.
+EOF
+}
+
 REPO_ROOT=""
 HOME_DIR="${CODE_METRICS_HOME:-${HOME:-/}}"
+USER_OPTION="${CODE_METRICS_USER_FILE:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --repo-root)
@@ -38,8 +48,16 @@ while [[ $# -gt 0 ]]; do
     HOME_DIR="$2"
     shift 2
     ;;
+  --user-file)
+    [[ $# -ge 2 ]] || {
+      echo "setup-check.sh: --user-file needs a value" >&2
+      exit 2
+    }
+    USER_OPTION="$2"
+    shift 2
+    ;;
   --help | -h)
-    sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    usage
     exit 0
     ;;
   *)
@@ -98,13 +116,58 @@ check_layer() {
   elif git -C "$REPO_ROOT" check-ignore -q "$rel" 2>/dev/null; then
     row PASS "layer $name ignored" "the personal override is gitignored"
   else
-    row WARN "layer $name ignored" "the personal override is NOT gitignored; recommended consumer .gitignore line: .claude/**/*.local.* (the plugin never edits your .gitignore)"
+    local line="docs/conventions/**/*.local.*"
+    [[ "$rel" == .claude/* ]] && line=".claude/**/*.local.*"
+    row WARN "layer $name ignored" "the personal override is NOT gitignored; recommended consumer .gitignore line: $line (the plugin never edits your .gitignore)"
   fi
 }
-check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a
+parses() {
+  "${PY[@]}" "$SCRIPTS/yaml_subset.py" "$1" >/dev/null 2>&1
+}
+dual_read_rows() {
+  local name="$1" location="$2" what="$3" tracked="$4" old="$5" new="$6" where="$7"
+  if [[ -f "$old" && -n "$new" && -f "$new" && ! "$old" -ef "$new" ]]; then
+    if parses "$new"; then
+      row WARN "$location" "$old is the old $what and is not read because $new exists; delete it once its keys are there"
+      check_layer "$name" "$new" "$tracked"
+    else
+      row WARN "$location" "$old is the old $what, still read because $new is outside the YAML subset; fix $new, then delete the old file"
+      check_layer "$name" "$old" "$tracked"
+      check_layer "$name" "$new" "$tracked"
+    fi
+  elif [[ -f "$old" && ! "$old" -ef "$new" ]]; then
+    row WARN "$location" "$old is the old $what, still read during the dual-read window; /code-metrics:setup apply --copy-old copies its keys to $where"
+    check_layer "$name" "$old" "$tracked"
+  elif [[ -n "$new" ]]; then
+    check_layer "$name" "$new" "$tracked"
+  fi
+}
+old_user="$HOME_DIR/.claude/code-metrics.yaml"
+old_local="$REPO_ROOT/.claude/code-metrics.local.yaml"
+personal_file="$REPO_ROOT/docs/conventions/code-metrics.local.yaml"
+user_warn="$(mktemp)"
+user_file="$("${PY[@]}" -I -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("cm_resolve_config", sys.argv[1])
+resolver = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(resolver)
+warnings = []
+print(resolver.user_file(sys.argv[2], sys.argv[3], warnings) or "")
+for warning in warnings:
+    print(warning, file=sys.stderr)
+' "$SCRIPTS/resolve-config.py" "$USER_OPTION" "$HOME_DIR" 2>"$user_warn")"
+user_where="$user_file"
+if [[ -s "$user_warn" ]]; then
+  row WARN "layer userConfig" "$(tr '\n' ' ' <"$user_warn")"
+elif [[ -z "$user_file" ]]; then
+  row INFO "layer userConfig" "unset: the config_file option names no file; set it in /config to keep your own settings for every repository"
+fi
+rm -f "$user_warn"
+[[ -n "$user_where" ]] || user_where="the file the config_file userConfig option names (set it in /config)"
+dual_read_rows userConfig "layer user-global location" "user-global file" n/a "$old_user" "$user_file" "$user_where"
 team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
 retired_file="$REPO_ROOT/.claude/code-metrics.yaml"
-if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metrics.yaml" ]]; then
+if [[ -f "$retired_file" && ! "$retired_file" -ef "$old_user" ]]; then
   if [[ -f "$team_file" ]]; then
     row WARN "layer team location" "$retired_file is the retired team file and is not read; delete it"
   else
@@ -112,7 +175,7 @@ if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metric
   fi
 fi
 check_layer "team" "$team_file" yes
-check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
+dual_read_rows local "layer local location" "personal override" no "$old_local" "$personal_file" "$personal_file"
 
 # The resolver reads an ecosystem record only for a lane in the resolved
 # `lanes` mapping whose id matches its LANE_ID pattern, so the configuration
@@ -122,7 +185,7 @@ RESOLVED="$(mktemp)"
 LIVE="$(mktemp -d)"
 trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
 resolved_ok=0
-"${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err" && resolved_ok=1
+"${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" --user-file "$USER_OPTION" >"$RESOLVED" 2>"$RESOLVED.err" && resolved_ok=1
 
 ecos=()
 lanes=()

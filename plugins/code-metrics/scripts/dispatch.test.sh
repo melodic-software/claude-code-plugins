@@ -5,6 +5,7 @@
 # nothing executable is committed). The adapters themselves (scc.py,
 # line-counter.py) and report.py are exercised through the dispatcher.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
+# test-scope: .claude/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -474,6 +475,66 @@ assert_doc "ecosystem globs redefine the bash lane" "$out" \
   'any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and not any(r["file"]=="plain.sh" for r in d["measures"])'
 assert_doc "lanes.dotnet.enabled false opts the lane out" "$out" \
   'not any(r["lane"]=="dotnet" for r in d["run"]) and not any(r["file"]=="C.cs" for r in d["measures"])'
+
+# 10b. The personal layer: docs/conventions/code-metrics.local.yaml beats the
+#      team file; the old .claude/code-metrics.local.yaml applies only while it
+#      is absent, and each run names the old file on stderr (the dual-read
+#      window: https://github.com/melodic-software/claude-code-plugins/issues/18001).
+personal="$repo/docs/conventions/code-metrics.local.yaml"
+old_personal="$repo/.claude/code-metrics.local.yaml"
+file_lines_is() {
+  printf 'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==%s and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="local"' "$1"
+}
+stderr_has() {
+  case "$(cat "$err_file")" in
+  *"$2"*) pass "$1" ;;
+  *) fail "$1" "stderr contains: $2" "$(head -c 600 "$err_file")" ;;
+  esac
+}
+err_file="$(mktemp)"
+printf 'size:\n  file_lines: 3\n' >"$personal"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "the new personal file alone supplies the reference" "$out" "$(file_lines_is 3)"
+if grep -q 'old personal override' "$err_file"; then
+  fail "the new personal file alone prints no old-path warning" "no old personal override warning" "$(head -c 600 "$err_file")"
+else
+  pass "the new personal file alone prints no old-path warning"
+fi
+rm -f "$personal"
+printf 'size:\n  file_lines: 4\n' >"$old_personal"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "an old personal file alone still applies" "$out" "$(file_lines_is 4)"
+stderr_has "an old personal file alone is named with its new location" "/.claude/code-metrics.local.yaml is the old personal override, still read as the personal layer; move it to "
+stderr_has "the old-path warning names the new location" "/docs/conventions/code-metrics.local.yaml (/code-metrics:setup apply --copy-old)"
+printf 'size:\n  file_lines: 3\n' >"$personal"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "with both personal files the new one wins" "$out" "$(file_lines_is 3)"
+stderr_has "with both personal files the warning names both" "/.claude/code-metrics.local.yaml is the old personal override and is not read because "
+stderr_has "the both-files warning names the new file" "/docs/conventions/code-metrics.local.yaml exists"
+rm -f "$personal" "$old_personal"
+printf 'scope:\n  exclude: ["gen/**"]\n' >"$repo/docs/conventions/code-metrics.yaml"
+reference_is() {
+  printf 'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==%s and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="%s"' "$1" "$2"
+}
+user_file="$home/cfg/code-metrics.yaml"
+old_user="$home/.claude/code-metrics.yaml"
+mkdir -p "$home/cfg" "$home/.claude"
+printf 'size:\n  file_lines: 6\n' >"$user_file"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --user-file "$user_file" 2>"$err_file")"
+assert_doc "the option's file alone supplies the userConfig layer" "$out" "$(reference_is 6 userConfig)"
+if grep -q 'old user-global file' "$err_file"; then
+  fail "the option's file alone prints no old-path warning" "no old user-global file warning" "$(head -c 600 "$err_file")"
+else
+  pass "the option's file alone prints no old-path warning"
+fi
+printf 'size:\n  file_lines: 7\n' >"$old_user"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "an old user-global file alone still applies as userConfig" "$out" "$(reference_is 7 userConfig)"
+stderr_has "an old user-global file alone is named with the option" "$old_user is the old user-global file, still read as the userConfig layer; move it to the file the config_file userConfig option names (set it in /config)"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --user-file "$user_file" 2>"$err_file")"
+assert_doc "with both user files the option's file wins" "$out" "$(reference_is 6 userConfig)"
+stderr_has "with both user files the warning names both" "$old_user is the old user-global file and is not read because $user_file exists"
+rm -f "$err_file"
 rm -rf "$repo" "$home"
 
 # 11. --config with a pre-resolved document: the collector override narrows the

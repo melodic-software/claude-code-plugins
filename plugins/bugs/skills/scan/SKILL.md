@@ -32,7 +32,9 @@ and how injected commands run at
 Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/docs/conventions/bugs.yaml" 2>/dev/null || echo "absent — bundled default lanes apply"`
 
 Consumer gotchas:
-!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" || echo "(consumer gotchas unavailable)"`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" --user-file '${user_config.gotchas_file}' || echo "(consumer gotchas unavailable)"`
+
+Personal gotchas file (`gotchas_file`): `${user_config.gotchas_file}`
 
 ## Variables
 
@@ -106,7 +108,8 @@ whole pipeline below, Steps 1 to 7, with its root anchored. What differs here:
 
 - **Config per repository.** `lanes`, `filing_posture`, the verification level and the consumer
   gotchas all come from that repository: run `read-verification.sh` (Step 4) and
-  `concat-gotchas.sh` with `CLAUDE_PROJECT_DIR=<root>`. The pre-computed lines above describe
+  `concat-gotchas.sh --user-file "<value>"` with `CLAUDE_PROJECT_DIR=<root>`, `<value>` being
+  `${user_config.gotchas_file}` as this text shows it (empty when unexpanded). The pre-computed lines above describe
   this checkout only. The budget, stop condition and gate caps hold per repository.
 - **State per repository, under plugin data.** This skill's state is its persisted reports, kept
   under `${CLAUDE_PLUGIN_DATA}`, not a working-docs root. `<project-slug>` comes from that
@@ -429,9 +432,13 @@ verified, say so and name the lane and rung, so the next run rotates on.
 - **Never declare `type: review-findings` on a scan report.** That frontmatter alone routes a report
   into the `/review:fanout` fix relay; a scan report is intake.
 - **Consumer gotchas extend these.** The pre-computed block holds the `## Gotchas` sections of the
-  bugs config layers (user-global, team, personal override) in layer order; apply them to this
-  invocation. A missing layer is absent, not an error. A generalizable line belongs in this
-  shipped skill via an issue, not in the consumer file.
+  bugs config layers (the `gotchas_file` option's file, team, personal override) in layer order;
+  apply them to this invocation. A missing layer is absent, not an error. When the personal
+  gotchas file line names a file but the block shows no `userConfig` block for it, Read that
+  file's `## Gotchas` section and apply it as the first layer. Relay each `Warning:`
+  line under the block to the user: it names an old config path and the `/bugs:setup apply` that
+  moves it. A generalizable line belongs in this shipped skill via an issue, not in the consumer
+  file.
 
 ## Reference index. Load on demand
 

@@ -16,7 +16,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLayers } from "../../../lib/config-cascade.mjs";
-import { LEVELS, baseReader, isSha, projectRootOf, resolveDigestConfig, triggers } from "../../../lib/review-digest.mjs";
+import { LEVELS, addSetting, baseReader, isSha, projectRootOf, resolveDigestConfig, triggers } from "../../../lib/review-digest.mjs";
 import { findRoot, personalOverrideApplies } from "../../../lib/view-settings.mjs";
 
 const PLUGIN = "reviewer-media";
@@ -165,10 +165,11 @@ function deltaOf(root, from, to) {
 // ------------------------------------------------------------ CLI
 
 function parseArgs(argv) {
-  const opts = { requested: false, producerUnavailable: false, shown: null, policy: null, blastRadius: "" };
+  const opts = { requested: false, producerUnavailable: false, shown: null, policy: null, blastRadius: "", settings: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const [flag, next] = [argv[i], argv[i + 1]];
     if (flag === "--requested") opts.requested = true;
+    else if (flag === "--setting" && addSetting(opts.settings, next)) i += 1;
     else if (flag === "--producer-unavailable") opts.producerUnavailable = true;
     else if (flag === "--shown" && (next === "" || isSha(next))) [opts.shown, i] = [next || null, i + 1];
     else if (flag === "--policy" && POLICIES.includes(next)) [opts.policy, i] = [next, i + 1];
@@ -181,7 +182,7 @@ function parseArgs(argv) {
 function main(argv) {
   const opts = parseArgs(argv);
   if (!opts) {
-    process.stderr.write(`usage: decide.mjs [--requested] [--producer-unavailable] [--shown <sha>] [--policy ${POLICIES.join("|")}] [--blast-radius ${LEVELS.join("|")}] < facts.json\n`);
+    process.stderr.write(`usage: decide.mjs [--requested] [--producer-unavailable] [--shown <sha>] [--policy ${POLICIES.join("|")}] [--blast-radius ${LEVELS.join("|")}] [--setting <digest option>=<value> ...] < facts.json\n`);
     return 2;
   }
   let facts;
@@ -198,7 +199,7 @@ function main(argv) {
   const root = findRoot();
   const { config, warnings } = resolveConfig(root, facts.baseRefOid);
   if (opts.policy) config.policy = { value: opts.policy, source: "argument" };
-  const digest = resolveDigestConfig(facts.baseRefOid);
+  const digest = resolveDigestConfig(facts.baseRefOid, opts.settings);
   warnings.push(...digest.warnings);
   const triggersOf = (f, whole) => triggers(f, whole ? opts.blastRadius : "", digest.config).triggers;
   const delta = opts.shown && opts.shown !== facts.headRefOid ? deltaOf(root, opts.shown, facts.headRefOid) : null;

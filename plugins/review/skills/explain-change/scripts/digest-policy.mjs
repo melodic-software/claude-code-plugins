@@ -24,7 +24,7 @@ import { SECRET_PATTERNS, findSecret, publishGate as sharedGate } from "../../..
 import { findRoot, gateExplicit, resolveMedium as resolveViewMedium } from "../../../lib/view-settings.mjs";
 import { mediumOf, reportLines } from "../../../lib/view-registry.mjs";
 
-import { POLICIES, LEVELS, isSha, decide, resolveDigestConfig } from "../../../lib/review-digest.mjs";
+import { POLICIES, LEVELS, addSetting, isSha, decide, resolveDigestConfig } from "../../../lib/review-digest.mjs";
 
 export { DEFAULTS, CONFIG_PATHS, MAX_RISK_PATHS, MAX_GLOB_LENGTH, parseYamlLayer, resolveDigestConfig, globMatcher, decide } from "../../../lib/review-digest.mjs";
 /**
@@ -86,10 +86,11 @@ function gateMain(argv) {
 }
 
 function parseArgs(argv) {
-  const opts = { policy: null, event: "review", blastRadius: "", requested: false, option: null };
+  const opts = { policy: null, event: "review", blastRadius: "", requested: false, option: null, settings: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const [flag, next] = [argv[i], argv[i + 1]];
     if (flag === "--requested") opts.requested = true;
+    else if (flag === "--setting" && addSetting(opts.settings, next)) i += 1;
     else if (flag === "--policy" && POLICIES.includes(next)) [opts.policy, i] = [next, i + 1];
     else if (flag === "--event" && ["ready", "review"].includes(next)) [opts.event, i] = [next, i + 1];
     else if (flag === "--option" && next !== undefined) [opts.option, i] = [next, i + 1];
@@ -104,7 +105,7 @@ function main(argv) {
   const opts = parseArgs(argv);
   if (!opts) {
     process.stderr.write(
-      "usage: digest-policy.mjs [--event ready|review] [--blast-radius LOW|MEDIUM|HIGH|CRITICAL] [--policy off|offer|always] [--requested] [--option <medium>] < facts.json\n",
+      "usage: digest-policy.mjs [--event ready|review] [--blast-radius LOW|MEDIUM|HIGH|CRITICAL] [--policy off|offer|always] [--requested] [--option <medium>] [--setting <digest option>=<value> ...] < facts.json\n",
     );
     return 2;
   }
@@ -119,7 +120,7 @@ function main(argv) {
     process.stderr.write("digest-policy: facts must be a JSON object\n");
     return 2;
   }
-  const { config, warnings } = resolveDigestConfig(facts.baseRefOid);
+  const { config, warnings } = resolveDigestConfig(facts.baseRefOid, opts.settings);
   const policy = opts.policy ? { value: opts.policy, source: "argument" } : config.digest_policy;
   const result = decide(facts, { ...opts, policy: policy.value }, config);
   const medium = resolveMedium(opts.option, facts.baseRefOid);
