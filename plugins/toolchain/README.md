@@ -21,7 +21,7 @@ restatement here.
 
 Command resolution follows the marketplace-wide ecosystem-commands convention
 (`docs/contracts/ecosystem-commands/README.md`; schema `ecosystem.schema.json`):
-your repo's tracked `.claude/ecosystems/<ecosystem>.yaml` files are authoritative
+your repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` files are authoritative
 when present; otherwise an attended run infers commands from your build files or
 asks. The plugin ships no default command. An unattended run (`--unattended`, a
 headless or lane run, or one that cannot tell whether a person is present) runs
@@ -39,7 +39,7 @@ go to your project's own tree.
 
 ## Configuration
 
-Ecosystem command surfaces live in tracked `.claude/ecosystems/*.yaml` files;
+Ecosystem command surfaces live in tracked `docs/conventions/ecosystems/*.yaml` files;
 `/toolchain:setup apply` interviews for and persists them (`/toolchain:setup check`
 reports the effective configuration).
 

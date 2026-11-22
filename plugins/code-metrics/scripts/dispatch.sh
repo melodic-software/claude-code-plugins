@@ -31,7 +31,7 @@
 # lists. `--user-file <f>` (or CODE_METRICS_USER_FILE) takes the config_file
 # userConfig option's value; CODE_METRICS_HOME overrides the home directory
 # the old user-global file is read from during the dual-read window.
-# The consumer's .claude/ecosystems/<lane>.yaml files resolve there too.
+# The consumer's docs/conventions/ecosystems/<lane>.yaml files resolve there too.
 # `--config` takes a
 # pre-resolved JSON document (the resolver's output) instead. Either way the
 # resolved document supplies the references, `scope.exclude`, the per-lane

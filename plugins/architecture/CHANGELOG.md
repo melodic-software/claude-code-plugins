@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.1] - 2026-11-22
+
+### Changed
+
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
 ## [6.0.0] - 2026-11-22
 
 ### Added

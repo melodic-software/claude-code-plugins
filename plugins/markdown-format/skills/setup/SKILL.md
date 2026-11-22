@@ -45,7 +45,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Markdown formatting and linting are two concerns. The hooks run only
 the plugin's shipped markdownlint-cli2 adapter, where a markdownlint config governs the file, and
 otherwise nothing; they never run a command from the repository's markdown record
-(`.claude/ecosystems/markdown.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+(`docs/conventions/ecosystems/markdown.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
 (`apply install-git-hooks`); the record is written by `/toolchain:setup apply markdown`, never
 here. Rules come from the repository's own markdownlint config, and the tunables are the native

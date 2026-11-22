@@ -7,7 +7,7 @@
   ],
   "fail": [
     {
-      "answer": [".claude/ecosystems/typescript.yaml"],
+      "answer": ["docs/conventions/ecosystems/typescript.yaml"],
       "why": "guessed a test-cmd and wrote it"
     }
   ]

@@ -33,7 +33,7 @@ Beyond the global HARD/SOFT lists:
 
 ## Verification commands
 
-The consuming project's own lint, format-check and test commands for the changed scripts, read from its ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`), its project instructions, or its CI config. When none names a command for a changed script's language, report that check as unresolved and skip it; the lane ships no command to run in its place.
+The consuming project's own lint, format-check and test commands for the changed scripts, read from its ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`), its project instructions, or its CI config. When none names a command for a changed script's language, report that check as unresolved and skip it; the lane ships no command to run in its place.
 
 ## Conventional Commits type
 

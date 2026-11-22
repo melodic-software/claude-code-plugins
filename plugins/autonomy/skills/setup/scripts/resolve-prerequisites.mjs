@@ -292,9 +292,25 @@ function probeDependencyManifests(repoRoot) {
   return probeOutcome("absent", { probe_class: "repo-file", path: "package.json", detail: "no dependency/build manifest found" });
 }
 
+const ECOSYSTEM_DIRS = ["docs/conventions/ecosystems", ".claude/ecosystems"];
+
 function probeEcosystems(repoRoot) {
-  const dir = join(repoRoot, ".claude", "ecosystems");
-  const entries = listDir(dir);
+  const dirOf = new Map();
+  const listed = [];
+  const shadowed = [];
+  for (const d of ECOSYSTEM_DIRS) {
+    const names = listDir(join(repoRoot, d));
+    if (names === null) continue;
+    listed.push(d);
+    for (const name of names) {
+      if (!dirOf.has(name)) dirOf.set(name, d);
+      else shadowed.push(`${d}/${name} is not read: ${dirOf.get(name)}/${name} takes its place`);
+    }
+  }
+  const withShadowed = (detail) => [detail, ...shadowed].join("; ");
+  const entries = listed.length === 0 ? null : [...dirOf.keys()].sort();
+  const teamDir = entries?.find((name) => name.endsWith(".yaml") && !name.endsWith(".local.yaml"));
+  const rel = teamDir ? dirOf.get(teamDir) : (listed[0] ?? ECOSYSTEM_DIRS[0]);
   if (entries === null) {
     // Fallback: inference from build files (never bundled defaults).
     const inferred = probeDependencyManifests(repoRoot);
@@ -308,7 +324,7 @@ function probeEcosystems(repoRoot) {
     }
     return probeOutcome("absent", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
+      path: rel,
       detail: "absent; build-file inference also negative",
     });
   }
@@ -321,22 +337,22 @@ function probeEcosystems(repoRoot) {
   if (teamFiles.length === 0 && localOnly.length > 0) {
     return probeOutcome("unresolvable", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems/*.local.yaml",
-      detail: "uncommitted personal layer only; scheduled runs cannot establish",
+      path: `${rel}/*.local.yaml`,
+      detail: withShadowed("uncommitted personal layer only; scheduled runs cannot establish"),
       rung: "uncommitted",
     });
   }
 
   const configured = teamFiles.filter(
-    (name) => readEnabledFlag(readFileSync(join(dir, name), "utf8")) !== false,
+    (name) => readEnabledFlag(readFileSync(join(repoRoot, dirOf.get(name), name), "utf8")) !== false,
   ).length;
   const disabled = teamFiles.length - configured;
 
   if (configured > 0) {
     return probeOutcome("present", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
-      detail: `${configured} enabled ecosystem file(s)`,
+      path: rel,
+      detail: withShadowed(`${configured} enabled ecosystem file(s)`),
       rung: "consumer-authored",
     });
   }
@@ -344,13 +360,13 @@ function probeEcosystems(repoRoot) {
   if (disabled > 0) {
     return probeOutcome("absent", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
-      detail: "ecosystem files present but enabled: false (not configured)",
+      path: rel,
+      detail: withShadowed("ecosystem files present but enabled: false (not configured)"),
       rung: "consumer-authored",
     });
   }
 
-  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: ".claude/ecosystems", detail: "no ecosystem yaml files" });
+  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: rel, detail: withShadowed("no ecosystem yaml files") });
 }
 
 function probeSourceTree(repoRoot) {

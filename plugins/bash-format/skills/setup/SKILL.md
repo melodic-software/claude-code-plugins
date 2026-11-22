@@ -50,7 +50,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Shell formatting and linting are two concerns. The hooks run only the
 plugin's shipped adapter for each, where that tool's own config governs the file, and otherwise
-nothing; they never run a command from the repository's bash record (`.claude/ecosystems/bash.yaml`),
+nothing; they never run a command from the repository's bash record (`docs/conventions/ecosystems/bash.yaml`),
 which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
 `/toolchain:setup apply bash`, never here. The tunables are the native `userConfig` options (the

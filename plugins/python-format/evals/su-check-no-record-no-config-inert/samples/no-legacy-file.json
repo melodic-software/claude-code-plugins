@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/ecosystems/python.yaml"
+      ],
+      "why": "wrote the python record at the legacy path"
+    }
+  ]
+}

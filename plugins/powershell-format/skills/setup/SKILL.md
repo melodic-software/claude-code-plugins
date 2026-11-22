@@ -28,7 +28,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. PowerShell formatting and linting are two concerns, each with its own
 git-hook entry. The hooks run only the plugin's shipped PSScriptAnalyzer adapter, where a
 `PSScriptAnalyzerSettings.psd1` governs the file, and otherwise nothing; they never run a command
-from the repository's powershell record (`.claude/ecosystems/powershell.yaml`), which
+from the repository's powershell record (`docs/conventions/ecosystems/powershell.yaml`), which
 `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
 `/toolchain:setup apply powershell`, never here. Rules come from the repository's own settings

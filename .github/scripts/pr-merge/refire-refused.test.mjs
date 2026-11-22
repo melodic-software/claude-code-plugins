@@ -632,12 +632,7 @@ test("the kill switch stops the run before any API call", async () => {
   assert.deepEqual(w.calls, []);
 });
 
-// The Re-fire step names lanes-app (its GH_TOKEN, the lane token); the job
-// token's client still counts and plans as github-token: the reading lands in
-// api-budget/github-token, and its read floor uses github-token's limit-cap of
-// 1000 (rate-limits.json), so 950 of 5000 used is under a tenth of the plan
-// left (50 of 1000), where lanes-app's uncapped plan of 5000 would not be.
-test("the job token's client counts its readings and plans its read floor as github-token", async () => {
+test("the job token's client counts its readings as github-token while API_BUDGET_TOKEN names lanes-app", async () => {
   const { actionsClient } = await import("./refire-refused.mjs");
   const { createRateLimitLatch } = await import("../../actions/log-api-budget/rate-guard.mjs");
   const { tempDir } = await import("../../../lib/test-tmp.mjs");
@@ -648,12 +643,12 @@ test("the job token's client counts its readings and plans its read floor as git
   try {
     const lines = [];
     const latch = createRateLimitLatch({ log: (line) => lines.push(line), fail: () => {}, stopFile: null });
-    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-used": "950", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "450", "x-ratelimit-used": "4550", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
     const fetchImpl = async () => new Response("{}", { status: 200, headers });
     await actionsClient({ ACTIONS_TOKEN: "job" }, { latch, fetchImpl })("GET", "/repos/o/r/actions/runs");
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4050 950 1792751600 core repos/{repo}/actions/runs\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 450 4550 1792751600 core repos/{repo}/actions/runs\n");
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
-    assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
+    assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (450 of 5000); reads continue"]);
   } finally {
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key];

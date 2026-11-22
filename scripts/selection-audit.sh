@@ -210,6 +210,19 @@ select_one() {
   [[ "$rc" -eq 0 ]] || echo "not checked: selector exit $rc" >>"$out/sel/$key.err"
 }
 
+select_chunk() {
+  local out="$1" chunk="$2" rc=0 line limit=900
+  ((AUDIT_DEADLINE == 0)) || limit=$((AUDIT_DEADLINE + AUDIT_SELECT_GRACE - $(date +%s)))
+  if ((limit > 0)); then
+    ((limit >= 30)) || limit=30
+    timeout "$limit" bash "$SELECTOR" "$AUDIT_UNMAPPED_FLAG" --each-from "$chunk" --each-out "$out/sel" \
+      >/dev/null 2>"$out/logs/select-${chunk##*/}.log" || rc=$?
+  fi
+  while IFS= read -r line; do
+    [[ "$rc" -eq 0 && -f "$out/sel/${line%%:*}.out" && -f "$out/sel/${line%%:*}.err" ]] || select_one "$out" "$line"
+  done <"$chunk"
+}
+
 cmd_trace() {
   local shard="0/1" jobs=3 budget=0 out="" strict=0 i n
   local -a suites=()
@@ -257,7 +270,7 @@ cmd_trace() {
   fi
   export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5)) AUDIT_UNMAPPED_FLAG AUDIT_PYTHON
   ((budget > 0)) && AUDIT_DEADLINE=$(($(date +%s) + budget * 3 / 5))
-  export -f trace_one select_one reads
+  export -f trace_one select_one select_chunk reads
   export ROOT SELECTOR
 
   local k=0 s
@@ -266,11 +279,12 @@ cmd_trace() {
     k=$((k + 1))
   done | xargs -d '\n' -P "$jobs" -I{} bash -c "trace_one \"\$1\" \"\$2\"" _ "$out" {}
 
-  # One selector call per distinct file, shared by every suite that read it.
   local f
   cat "$out"/reads/* 2>/dev/null | sort -u >"$out/files"
-  awk '{ printf "%06d:%s\n", NR - 1, $0 }' "$out/files" |
-    xargs -d '\n' -P "$jobs" -I{} bash -c "select_one \"\$1\" \"\$2\"" _ "$out" {}
+  mkdir -p "$out/chunks" || exit 2
+  awk -v dir="$out/chunks" '{ printf "%06d:%s\n", NR - 1, $0 > (dir "/" sprintf("%05d", int((NR - 1) / 250))) }' "$out/files"
+  find "$out/chunks" -type f | sort |
+    xargs -d '\n' -r -P "$jobs" -I{} bash -c "select_chunk \"\$1\" \"\$2\"" _ "$out" {}
 
   # edges.tsv: suite, file it read. selected.tsv: file, suite a change to it
   # selects. verdicts.tsv: file, the selector's answer in words.
