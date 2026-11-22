@@ -131,7 +131,7 @@ on:
           suite runs the target's suite as above. compare runs the target's
           deterministic cases that case or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
-          harness, on the API key only, and posts the eval-pair record on a
+          harness, with-plugin arm only, on the API key only, and posts the eval-pair record on a
           PASS; runs, allow-tools and the inputs after them do not apply.
         required: false
         type: choice
@@ -186,12 +186,12 @@ jobs:
   check-key-credit:
     name: Check Key Credit
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.mode != 'compare'
+      vars.CLAUDE_EVALS_DISABLED == 'false' && ((github.event_name == 'workflow_dispatch' && inputs.mode != 'compare'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
       || (github.event_name == 'workflow_run'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
-      && github.event.workflow_run.head_repository.full_name == github.repository)
+      && github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -2158,7 +2158,8 @@ jobs:
   compare-prepare:
     name: Compare Prepare
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
+      vars.CLAUDE_EVALS_DISABLED == 'false'
+      && github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
       && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2353,6 +2354,7 @@ jobs:
       edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.before-sha256 }}
       max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      ablation: none
       lane: eval-compare
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
@@ -2377,6 +2379,7 @@ jobs:
       edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.after-sha256 }}
       max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      ablation: none
       lane: eval-compare
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}

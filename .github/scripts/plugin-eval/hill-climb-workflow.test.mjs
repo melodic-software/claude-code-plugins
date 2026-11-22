@@ -237,7 +237,7 @@ test("the verdict fails and names the gate when win-test.py cannot read a pass f
 
 test("the gate admits only a listed human's first attempt on the default branch", () => {
   const gate = jobs(main)["check-inputs"];
-  assert.match(gate, /if: github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\) && github\.run_attempt == '1'\n/);
+  assert.match(gate, /if: vars\.CLAUDE_EVALS_DISABLED == 'false' && github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\) && github\.run_attempt == '1'\n/);
   const who = step(gate, "Check who started the run");
   assert.match(who, /check-trusted-trigger/);
   assert.match(who, /require-kind: human/);
@@ -245,4 +245,18 @@ test("the gate admits only a listed human's first attempt on the default branch"
   assert.match(step(gate, "Check the run may spend"), /\[ "\$WHO" = true \] \|\| stop untrusted-dispatcher/);
   assert.match(main, /^on:\n {2}workflow_dispatch:\n/m);
   assert.match(pass, /^on:\n {2}workflow_call:\n/m);
+});
+
+test("every eval entry job runs only while CLAUDE_EVALS_DISABLED is exactly false, so an unset or mistyped switch keeps evals off", () => {
+  const evals = read("pr-run-plugin-evals.yml");
+  const head = (text, name) => text.slice(text.indexOf(`\n  ${name}:\n`), text.indexOf(`\n  ${name}:\n`) + 600);
+  const gated = [
+    [evals, "check-key-credit"],
+    [evals, "compare-prepare"],
+    [main, "check-inputs"],
+    [pass, "check-key-credit"],
+  ];
+  for (const [text, name] of gated) {
+    assert.match(head(text, name), /\n {4}if: (?:>-\n {6})?vars\.CLAUDE_EVALS_DISABLED == 'false'/, name);
+  }
 });
