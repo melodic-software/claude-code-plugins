@@ -529,6 +529,41 @@ class DiffItemsTests(unittest.TestCase):
         self.assertIn("not kept as the baseline", facts[1])
         self.assertIn("unknown", facts[-1])
 
+    def test_ci_without_a_native_build_files_no_inventory_item(self):
+        cur = native_drift.summarize(
+            {
+                "schema": 1,
+                "sources": {"binary": {"available": False, "reason": "npm launcher"}},
+            },
+            None,
+        )
+        report = drift(cur, None, None, None, 1, ci=True)
+        self.assertEqual(report["items"], [])
+        self.assertEqual(
+            report["ci_skip"], "native drift not run in CI: no native build"
+        )
+        self.assertIsNone(drift(cur, None, None, None, 1)["ci_skip"])
+
+    def test_ci_baseline_files_no_version_only_degraded_item(self):
+        report = drift(self.cur, None, None, None, 3, ci=True)
+        self.assertEqual(report["items"], [])
+        self.assertEqual(report["ci_skip"], "native drift not run in CI: no baseline")
+
+    def test_ci_still_files_a_broken_extraction_of_a_native_build(self):
+        report = drift(self.cur, None, None, None, 1, ci=True)
+        self.assertIsNone(report["ci_skip"])
+        self.assertEqual(
+            self.kinds(report),
+            [("inventory-broken", "native-drift:inventory-broken:2.1.285:inventory")],
+        )
+        lane = dict(self.cur)
+        lane["integrity"] = dict(
+            self.cur["integrity"], advisories=[DRIFT_ADVISORY, "bundled_skills: floor"]
+        )
+        degraded = drift(lane, None, None, None, 3, ci=True)
+        self.assertIsNone(degraded["ci_skip"])
+        self.assertEqual([i["kind"] for i in degraded["items"]], ["inventory-degraded"])
+
     def test_a_newly_unresolved_description_is_an_item(self):
         def with_unresolved(*names):
             integrity = {
@@ -626,6 +661,7 @@ class CliTests(unittest.TestCase):
             report = json.loads(Path(out).read_text(encoding="utf-8"))
             self.assertFalse(report["store_present"])
             self.assertEqual(report["inventory"]["verdict"], "revalidate")
+            self.assertIsNone(report["ci_skip"])
             # No store is overlap self-check's report-only mode: nothing to file.
             self.assertTrue(report["report_only"])
             self.assertEqual((report["items"], report["overflow"]), ([], None))
@@ -652,6 +688,22 @@ class CliTests(unittest.TestCase):
             self.assertEqual(
                 ([i["kind"] for i in report["items"]], report["unfiled"]),
                 (["revalidate"], []),
+            )
+
+    def test_ci_flag_reaches_the_diff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            summary, out = (str(Path(tmp) / n) for n in ("s.json", "d.json"))
+            Path(summary).write_text(
+                json.dumps(native_drift.summarize(inventory(), None)), encoding="utf-8"
+            )
+            code = self.run_main(
+                "diff", "--current", summary, "--self-check-exit", "3",
+                "--ci", "--out", out,
+            )  # fmt: skip
+            self.assertEqual(code, 0)
+            report = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(
+                report["ci_skip"], "native drift not run in CI: no baseline"
             )
 
     def run_main_err(self, *argv) -> tuple[int, str]:
