@@ -3,6 +3,17 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.0] - 2026-11-22
+
+### Added
+
+- **`/instruction-placement:setup apply migrate-config`.** Moves each old suppression file to its new location behind a preview and a yes, checks the new location resolves the same entries, then deletes the old file. `setup check` reports each old file it finds.
+
+### Changed
+
+- **Declined findings live at the config-cascade layers.** The team layer is now `<home>/instruction-placement.yaml` (default home `docs/conventions`), checked against the new `schemas/instruction-placement.schema.json`, and the personal override is `<home>/instruction-placement.local.yaml`. `audit`, `delta` and `realign` read these, `realign` writes a decline to the team file, and the audit's scan set excludes both. There is no user-global file layer and no `userConfig` option for a decline ([#18012](https://github.com/melodic-software/claude-code-plugins/issues/18012)).
+- **Old paths are still read, with a warning.** While `.claude/instruction-placement.md`, `.claude/instruction-placement.local.md` or `~/.claude/instruction-placement.md` exists, it is read for its layer when no new file supplies that layer, and every run prints one warning naming the old file, the new location and the command that moves it. When the new file exists too, the new file wins and the warning lists the ids only the old file carries.
+
 ## [1.9.3] - 2026-11-21
 
 ### Changed

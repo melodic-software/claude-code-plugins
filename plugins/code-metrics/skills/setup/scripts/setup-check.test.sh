@@ -46,7 +46,13 @@ trap 'rm -rf "$home" "$repo"' EXIT
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 rc=$?
 assert_eq "no config exits 0" 0 "$rc"
-assert_contains "user-global layer absent" "$out" "INFO  layer user-global"
+assert_contains "the userConfig layer is named" "$out" "INFO  layer userConfig"
+if grep -q "layer user-global" <<<"$out"; then
+  fail "no old user-global file, no user-global row" "no layer user-global row" "$(printf '%s' "$out" | head -c 600)"
+else
+  pass "no old user-global file, no user-global row"
+fi
+assert_row "the personal layer is the docs file" "$out" "INFO  layer local +absent \($repo/docs/conventions/code-metrics.local.yaml\)"
 assert_contains "team layer absent" "$out" "INFO  layer team"
 assert_row "bundled default reference" "$out" "reference file_lines +1000 \(layer: bundled default\)"
 adapters="$(find "$PLUGIN_ROOT/scripts/collectors" -maxdepth 1 -name '*.py' ! -name 'test_*' ! -name 'adapter_paths.py' | wc -l | tr -d ' ')"
@@ -80,7 +86,7 @@ mkdir -p "$home_repo/.claude"
 printf 'size:\n  file_lines: 430\n' >"$home_repo/.claude/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$home_repo" --home "$home_repo")"
 rm -rf "$home_repo"
-assert_row "a home-root user-global file is read" "$out" "reference file_lines +430 \(layer: user-global\)"
+assert_row "a home-root user-global file is read" "$out" "reference file_lines +430 \(layer: userConfig\)"
 if grep -q "layer team location" <<<"$out"; then
   fail "a home-root user-global file is not called retired" "no layer team location row" "$(printf '%s' "$out" | head -c 600)"
 else
@@ -100,14 +106,67 @@ rc=$?
 assert_eq "ignored team file exits 1" 1 "$rc"
 assert_contains "ignored team file fails" "$out" "FAIL  layer team tracked"
 assert_contains "unignored personal override warns with the gitignore line" "$out" ".claude/**/*.local.*"
+assert_row "an old personal file alone is read and named" "$out" "WARN  layer local location +$repo/.claude/code-metrics.local.yaml is the old personal override, still read"
+assert_row "an old personal file alone supplies its values" "$out" "reference file_lines +7 \(layer: local\)"
 rm -f "$repo/.gitignore"
+printf 'size:\n  file_lines: 8\n' >"$repo/docs/conventions/code-metrics.local.yaml"
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "with both personal files the new one wins" "$out" "reference file_lines +8 \(layer: local\)"
+assert_row "with both personal files the warning names both" "$out" "WARN  layer local location +$repo/.claude/code-metrics.local.yaml is the old personal override and is not read because $repo/docs/conventions/code-metrics.local.yaml exists"
+assert_contains "the new personal file warns with its gitignore line" "$out" "docs/conventions/**/*.local.*"
+printf 'size: { file_lines: 1 }\n' >"$repo/docs/conventions/code-metrics.local.yaml"
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "a new personal file outside the subset leaves the old one read" "$out" "WARN  layer local location +$repo/.claude/code-metrics.local.yaml is the old personal override, still read because $repo/docs/conventions/code-metrics.local.yaml is outside the YAML subset"
+assert_row "the old personal file read in its place is parse-checked" "$out" "PASS  layer local +$repo/.claude/code-metrics.local.yaml parses"
+assert_row "the new personal file outside the subset fails" "$out" "FAIL  layer local +$repo/docs/conventions/code-metrics.local.yaml is outside the YAML subset"
+assert_row "the old personal file supplies its values" "$out" "reference file_lines +7 \(layer: local\)"
+printf 'size:\n  file_lines: 8\n' >"$repo/docs/conventions/code-metrics.local.yaml"
+rm -f "$repo/.claude/code-metrics.local.yaml"
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "the new personal file alone is read" "$out" "reference file_lines +8 \(layer: local\)"
+if grep -q "layer local location" <<<"$out"; then
+  fail "the new personal file alone gets no old-path row" "no layer local location row" "$(printf '%s' "$out" | head -c 600)"
+else
+  pass "the new personal file alone gets no old-path row"
+fi
+rm -f "$repo/docs/conventions/code-metrics.local.yaml"
+mkdir -p "$home/.claude"
+printf 'complexity:\n  cyclomatic:\n    reference: 11\n' >"$home/.claude/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "an old user-global file alone is named" "$out" "WARN  layer user-global location +$home/.claude/code-metrics.yaml is the old user-global file, still read"
+assert_contains "an old user-global file points at the option" "$out" "copies its keys to the file the config_file userConfig option names (set it in /config)"
+assert_row "an old user-global file supplies the userConfig layer" "$out" "reference cyclomatic +11 \(layer: userConfig\)"
+assert_row "the option unset is named" "$out" "INFO  layer userConfig +unset: the config_file option names no file"
+user_file="$home/cfg/code-metrics.yaml"
+printf -v tilde_user_file '%s/cfg/code-metrics.yaml' '~'
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home" --user-file "$tilde_user_file")"
+assert_row "an option naming a missing file leaves the old file read" "$out" "reference cyclomatic +11 \(layer: userConfig\)"
+assert_contains "the old-file row names the option's file" "$out" "copies its keys to $user_file"
+mkdir -p "$home/cfg"
+printf 'complexity:\n  cyclomatic:\n    reference: 13\n' >"$user_file"
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home" --user-file "$tilde_user_file")"
+assert_row "with both user files the option's file wins" "$out" "reference cyclomatic +13 \(layer: userConfig\)"
+assert_row "with both user files the warning names both" "$out" "WARN  layer user-global location +$home/.claude/code-metrics.yaml is the old user-global file and is not read because $user_file exists"
+assert_row "the option's file is parse-checked" "$out" "PASS  layer userConfig +$user_file parses"
+rm -f "$home/.claude/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home" --user-file "$user_file")"
+assert_row "the option's file alone supplies its values" "$out" "reference cyclomatic +13 \(layer: userConfig\)"
+if grep -q "layer user-global location" <<<"$out"; then
+  fail "the option's file alone gets no old-path row" "no layer user-global location row" "$(printf '%s' "$out" | head -c 600)"
+else
+  pass "the option's file alone gets no old-path row"
+fi
+out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home" --user-file "cfg/code-metrics.yaml")"
+assert_row "a relative option is a warning" "$out" "WARN  layer userConfig +the config_file option 'cfg/code-metrics.yaml' is not an absolute path"
+assert_row "a relative option supplies no layer" "$out" "reference cyclomatic +20 \(layer: bundled default\)"
+rm -rf "$home/cfg"
 
 mkdir -p "$home/.claude"
 printf 'lanes:\n  typescript: { enabled: true }\n' >"$home/.claude/code-metrics.yaml"
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 rc=$?
 assert_eq "bad layer exits 1" 1 "$rc"
-assert_contains "bad layer names the construct" "$out" "FAIL  layer user-global"
+assert_contains "bad layer names the construct" "$out" "FAIL  layer userConfig"
 assert_contains "bad layer names the line" "$out" "line 2"
 
 fake="$(mktemp -d)"

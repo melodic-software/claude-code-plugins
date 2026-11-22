@@ -29,6 +29,7 @@ cost-figures run cost-figures
 changed-skills run changed-skills
 comment-hygiene run comment-hygiene
 comment-lint run comment-lint
+vocabulary run vocabulary
 size-check run size-check
 
 # Not run by scripts/check-affected.sh. The reason names where the gate comes from
@@ -100,4 +101,3 @@ summary-reader-parity ci-only whole-repo scanner, bash scripts/check-summary-rea
 test-plan-corpus ci-only whole-repo scanner, the inline plan check in its workflow step
 test-tmp-cleanup ci-only whole-repo scanner, scripts/check-test-tmp-cleanup.sh --check
 userconfig-argv ci-only whole-repo scanner, scripts/check-hook-userconfig-argv.sh
-vocabulary ci-only whole-repo scanner, python3 -I scripts/check-vocabulary.py
