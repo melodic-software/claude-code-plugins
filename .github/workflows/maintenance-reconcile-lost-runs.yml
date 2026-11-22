@@ -58,8 +58,8 @@ name: Maintenance Reconcile Lost Runs
 # It does nothing while githubstatus.com shows Actions as anything but
 # operational, or the page cannot be read, so it adds no load mid-incident. At
 # most 3 re-runs are in flight at once, auto-merge PRs first, beside at most
-# 12 re-runs a pass of hosted reviews the defer gate stopped, each once its
-# window's reset is a minute past, and its writes
+# 12 re-runs a pass of hosted reviews and pr-verify runs a defer gate stopped,
+# each once its window's reset is a minute past, and its writes
 # are at least a second apart. A lost pull_request review or refine lane run is listed in
 # the run summary for a person: those lanes, or the lanes token broker, refuse
 # a re-run github-actions[bot] starts. No model, and no PR code is checked out.

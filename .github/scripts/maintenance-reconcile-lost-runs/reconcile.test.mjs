@@ -20,7 +20,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2859,6 +2859,87 @@ test("the defer band starts at most DEFER_MAX re-runs a pass, a head's two lanes
   assert.equal(outputs[`record-${DEFER_MAX + 1}`], "");
   assert.equal(outputs.clean, "");
   assert.ok(log.mock.calls.some((c) => c.arguments[0] === `reconcile: #${DEFER_MAX / 2 + 1}: its deferred reviews wait, only 0 of ${DEFER_MAX} recovery places left this pass`));
+});
+
+const deferredVerify = (id, reset = RESET_S) => ({
+  ...verifyRun(id, { conclusion: "success", created: "2026-10-19T19:40:00Z" }),
+  jobs: [
+    {
+      id: 7001,
+      name: "Check Intent",
+      status: "completed",
+      conclusion: "success",
+      steps: [
+        { name: "Set up job", status: "completed", conclusion: "success" },
+        { name: "Resolve the pull request", status: "completed", conclusion: "success" },
+        { name: "Note the hold", status: "completed", conclusion: "skipped" },
+        { name: "Check the trigger", status: "completed", conclusion: "success" },
+        { name: "Check the token budget", status: "completed", conclusion: "success" },
+        { name: DEFER_STEP, status: "completed", conclusion: "success" },
+        { name: "Assert the gate and the resolver agree", status: "completed", conclusion: "skipped" },
+        { name: "Complete job", status: "completed", conclusion: "success" },
+      ],
+      notes: [{ annotation_level: "notice", title: "pr-verify", message: `deferred: the GITHUB_TOKEN window is projected to run short (cause=defer reset=${reset})` }],
+    },
+  ],
+});
+
+test("a deferred verify run waits until RATE_RESET_GRACE_MS past the reset its notice names, then is re-run once, recorded", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const before = await reconcile({ pulls: [], runs: [deferredVerify(371)], carry: null, now: RESET_S * 1000 + 60_000 });
+  assert.equal(before.code, 0);
+  assert.deepEqual(before.reruns, [], "inside the grace, so the one re-run is not spent in the window that deferred it");
+  assert.equal(before.outputs.clean, "", "the next tick runs, not paced");
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: lane run 371 (.github/workflows/pr-verify.yml) was deferred on the GITHUB_TOKEN budget; waiting for the rate-limit reset at 2026-10-19T20:10:00.000Z"));
+  assert.deepEqual([before.settled.jobs[0].deferred, before.settled.jobs[0].reset], [true, Date.parse("2026-10-19T20:10:00Z")], "the deferral and its reset are carried");
+  const after = await reconcile({ pulls: [], runs: [deferredVerify(371)], carry: null, now: RESET_S * 1000 + 61_000 });
+  assert.deepEqual(after.reruns, [371]);
+  assert.deepEqual(records(after.outputs), [`reconcile-rerun-371-2-${MAIN_TIP}`, "", ""]);
+  const carried = await reconcile({ pulls: [], runs: [deferredVerify(371)], carry: JSON.stringify(before.settled), now: RESET_S * 1000 + 61_000 });
+  assert.deepEqual(heldReads(carried.calls, 371), [], "a carried deferral is not read again");
+  assert.deepEqual(carried.reruns, [371]);
+});
+
+test("a deferred verify run whose notice names no reset is read again next pass, not re-run", async () => {
+  const unnoted = deferredVerify(372);
+  unnoted.jobs[0].notes = [{ annotation_level: "notice", message: "api calls: 12" }];
+  const { code, reruns, settled } = await reconcile({ pulls: [], runs: [unnoted], carry: null, now: RESET_S * 1000 + 61_000 });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(settled.runs, [], "not settled, so the next pass reads it");
+});
+
+test("a deferred verify run takes the defer band, so it goes beside a full set of re-run places", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [windowsLost(1), windowsLost(2), windowsLost(3), deferredVerify(371)];
+  const { code, reruns, outputs } = await reconcile({ pulls: [1, 2, 3].map((n) => pr(n)), runs, env: SWITCHES_OFF, now: RESET_S * 1000 + 61_000 });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [401, 402, 403, 371]);
+  assert.ok(Object.values(outputs).includes(`reconcile-rerun-371-2-${MAIN_TIP}`), "its record is named");
+  assert.ok(!log.mock.calls.some((c) => String(c.arguments[0]).includes("lane run 371 (.github/workflows/pr-verify.yml): deferred")));
+});
+
+test("a deferred verify run shares DEFER_MAX with deferred reviews, and waits with no clean when the band is full", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const heads = Array.from({ length: DEFER_MAX / 2 }, (_, i) => i + 1);
+  const runs = [...heads.flatMap((n) => bothDeferred(n)), deferredVerify(371)];
+  const { code, reruns, outputs } = await reconcile({ pulls: heads.map((n) => pr(n)), runs, env: SWITCHES_OFF, now: RESET_S * 1000 + 61_000 });
+  assert.equal(code, 0);
+  assert.equal(reruns.length, DEFER_MAX);
+  assert.ok(!reruns.includes(371));
+  assert.equal(outputs.clean, "");
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === `reconcile: lane run 371 (.github/workflows/pr-verify.yml): its deferred run waits, only 0 of ${DEFER_MAX} recovery places left this pass`));
+});
+
+test("pr-verify's deferral step prints the notice the reconciler reads, and runs only on a defer stop", () => {
+  const text = readFileSync(new URL(`../../../${VERIFY}`, import.meta.url), "utf8");
+  const step = new RegExp(`^ {6}- name: ${DEFER_STEP}\\n((?: {8}.*\\n)+)`, "m").exec(text)?.[1];
+  assert.ok(step, `${VERIFY} names the step ${DEFER_STEP}`);
+  assert.match(step, /^ {8}if: steps\.defer\.outputs\.cause == 'defer'$/m);
+  assert.match(step, /^ {10}RESET: \$\{\{ steps\.defer\.outputs\.reset \}\}$/m);
+  const line = /echo "(::notice title=pr-verify::.*)"$/m.exec(step)?.[1];
+  assert.equal(DEFER_NOTE.exec(line.replace("${RESET}", "1800000000"))?.[1], "1800000000");
+  assert.doesNotMatch(line, /::held: /, "a deferral is not a GitHub fault's hold");
 });
 
 test("the workflow has one scanned upload step for each record the plan can name", () => {
