@@ -977,5 +977,130 @@ class TheGateAndPrVerifyAgreeOnABrief(unittest.TestCase):
         self.assertEqual(js, [True, False, False, False, False, False, False, False])
 
 
+MOVED = (
+    "The latest triage verdict holds nothing: admission moved the issue to "
+    "`needs-owner-decision`; its comment says why."
+)
+
+
+def verdict_comment(
+    author: dict[str, Any] = APP,
+    line: str = MOVED,
+    title: str = BRIEF_TITLE,
+    body: str | None = BRIEF_BODY,
+    editor: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The lanes App's intake-triage verdict comment as GraphQL answers it,
+    its last line stamping `title` and `body` (none when `body` is None)."""
+
+    def digest(text: str) -> str:
+        return ve.hashlib.sha256(text.encode()).hexdigest()
+
+    lines = ["<!-- intake-triage verdict -->", line]
+    if body is not None:
+        lines.append(
+            f"<!-- intake-triage judged title_sha256:{digest(title)} body_sha256:{digest(body)} -->"
+        )
+    return {
+        "createdAt": BEFORE,
+        "lastEditedAt": AFTER if editor else None,
+        "body": "\n".join(lines),
+        "author": author,
+        "editor": editor,
+    }
+
+
+class ATriageVerdictBriefsAFilingNoOneHolds(unittest.TestCase):
+    """The owner's standing rule read as intake-triage's own verdict (#18107;
+    architecture PR 167): the lanes App's verdict that held nothing, stamped
+    with the current title and body, briefs a lanes App filing."""
+
+    def test_a_verdict_briefed_filing_is_trusted(self) -> None:
+        ready = "The latest triage verdict holds nothing: the issue is at `status: ready`."
+        for why, comments in {
+            "admission moved it": [verdict_comment()],
+            "at ready": [verdict_comment(line=ready)],
+            "edited by the App": [verdict_comment(editor=APP)],
+        }.items():
+            with self.subTest(why):
+                self.assertIs(brief(briefed=comments), True)
+
+    def test_an_unbriefed_held_or_foreign_verdict_is_refused(self) -> None:
+        held = f"{BRIEF_BODY}Hold: wait for the owner\n"
+        for why, kwargs in {
+            "no verdict": {"briefed": []},
+            "a verdict for older text": {"body": f"{BRIEF_BODY}More.\n", "briefed": [verdict_comment()]},
+            "unstamped": {"briefed": [verdict_comment(body=None)]},
+            "triage held it": {
+                "briefed": [verdict_comment(line="The triage verdict left this issue at `needs-owner-decision`:")]
+            },
+            "a person's hold": {
+                "briefed": [
+                    verdict_comment(
+                        line="The latest triage verdict holds nothing: a person set the Work status to `needs-human`, which holds the issue."
+                    )
+                ]
+            },
+            "admission did not finish": {
+                "briefed": [
+                    verdict_comment(
+                        line="The latest triage verdict holds nothing: admission did not finish, so the issue's status is not settled."
+                    )
+                ]
+            },
+            "vetoed needs-human": {"labels": ["needs-human"], "briefed": [verdict_comment()]},
+            "vetoed hold: line": {"body": held, "briefed": [verdict_comment(body=held)]},
+            "by a listed human": {"briefed": [verdict_comment(author=HUMAN)]},
+            "by github-actions": {"briefed": [verdict_comment(author=ACTIONS)]},
+            "by another bot": {"briefed": [verdict_comment(author=OTHER_BOT)]},
+            "last edited by a human": {"briefed": [verdict_comment(editor=HUMAN)]},
+            "a later App verdict than the one edited": {
+                "briefed": [verdict_comment(body=None), verdict_comment()]
+            },
+            "a malformed App admission record": {
+                "briefed": [
+                    record_comment() | {"body": f"{ve.ADMISSION_RECORD_MARKER}\n{{}}"},
+                    verdict_comment(),
+                ]
+            },
+        }.items():
+            with self.subTest(why):
+                self.assertIs(brief(**kwargs), False)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheGateAndPrVerifyAgreeOnATriageVerdict(unittest.TestCase):
+    def test_triage_briefed_matches_admit_triage_briefed(self) -> None:
+        held = "The triage verdict left this issue at `needs-owner-decision`:"
+        comments = {
+            "briefed": [verdict_comment()],
+            "none": [],
+            "older text": [verdict_comment(body="old")],
+            "unstamped": [verdict_comment(body=None)],
+            "held": [verdict_comment(line=held)],
+            "human": [verdict_comment(author=HUMAN)],
+            "actions": [verdict_comment(author=ACTIONS)],
+            "human edit": [verdict_comment(editor=HUMAN)],
+            "app edit": [verdict_comment(editor=APP)],
+        }
+        script = (
+            f"import {{ triageBriefed }} from {json.dumps(ADMIT.as_uri())};"
+            f" const all = {json.dumps(comments)};"
+            f" const text = {json.dumps({'title': BRIEF_TITLE, 'body': BRIEF_BODY})};"
+            f" console.log(JSON.stringify(Object.values(all).map((c) => triageBriefed(c, {APP_ID}, text))));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        for (why, nodes), expected in zip(comments.items(), js, strict=True):
+            with self.subTest(why):
+                self.assertIs(ve.triage_briefed(nodes, APP_ID, BRIEF_TITLE, BRIEF_BODY), expected)
+        self.assertEqual(js, [True, False, False, False, False, False, False, False, True])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2933,6 +2933,17 @@ canonical and never edited, names the issue's current title and body by sha256
 merge gate reads the same facts again at each judgment (`briefed_issue`), and a Work status hold
 on the issue still stops a lane merge (`issue_hold_refusal`). A marker in anyone else's comment,
 an edit after the record, or a hold keeps the body out of the spec.
+Intake-triage's own verdict briefs such a filing too, under the same vetoes
+([#18107](https://github.com/melodic-software/claude-code-plugins/issues/18107),
+[architecture PR 167](https://github.com/melodic-software/architecture/pull/167)): the first
+`<!-- intake-triage verdict -->` comment the lanes App posted, by its account id and last edited by
+no other account, says the verdict holds nothing because the issue is at `status: ready` or
+admission moved it, and its last line stamps the issue's current title and body by sha256
+(`triageBriefed` in `admit.mjs`). apply-verdict writes that stamp only on such a verdict whose body
+was not edited after the triage run judged it. A verdict triage held, one a person's Work status
+holds, one admission did not finish, or one waiting on a blocked-by edge briefs nothing, and
+admission still refuses the filing for a person: the verdict decides only spec trust here and in the
+merge gate.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull

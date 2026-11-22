@@ -128,7 +128,8 @@ failed read, a list cut short or no such run keeps the FAIL.
   sized it small or medium (`counted_size`), and no run's patch stopped over
   the scan job's cap since a listed human last added agent-ready
   (`patch_cap_stopped`), or is an issue the lanes App filed whose newest
-  admission record names its current title and body and that carries no
+  admission record or ready intake-triage verdict names its current title
+  and body and that carries no
   hold label and no `hold:` body line (`briefed_issue`), else
   `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
@@ -834,6 +835,12 @@ BRIEFED_ISSUE_QUERY = (
     f"{ACTOR_FRAGMENT}"
 )
 ADMISSION_RECORD_MARKER = "<!-- issue-admission-record -->"
+VERDICT_MARKER = "<!-- intake-triage verdict -->"
+VERDICT_CLEAR = "The latest triage verdict holds nothing: "
+VERDICT_CLEAR_OUTCOMES = ("the issue is at `", "admission moved the issue to `")
+JUDGED_RE = re.compile(
+    r"<!-- intake-triage judged title_sha256:([0-9a-f]{64}) body_sha256:([0-9a-f]{64}) -->"
+)
 HEX64_RE = re.compile(r"[0-9a-f]{64}")
 UNTRUSTED_PROVENANCE_LABEL = "provenance: untrusted"
 BRIEF_HOLD_RE = re.compile(
@@ -1097,7 +1104,9 @@ def admission_record(comments: list[Any], app_id: int) -> dict[str, Any] | None:
 def briefed_issue(issue: Any, app_id: int | None) -> bool:
     """admit.mjs briefedIssue over `issue` (as `BRIEFED_ISSUE_QUERY` reads
     it): the lanes App (`app_id`) filed it, its newest admission record
-    (`admission_record`) names its current title and body by sha256, its
+    (`admission_record`) or intake-triage's verdict (`triage_briefed`) names
+    its current title and body by sha256 (a malformed App record counts
+    neither), its
     labels read whole hold no `HOLD_STATES` state nor
     `UNTRUSTED_PROVENANCE_LABEL`, and its body has no `hold:` line
     (`BRIEF_HOLD_RE`). Pure."""
@@ -1133,6 +1142,43 @@ def briefed_issue(issue: Any, app_id: int | None) -> bool:
         record is not None
         and record["title_sha256"] == digest(title)
         and record["body_sha256"] == digest(body)
+    ) or triage_briefed(comments if is_json_array(comments) else [], app_id, title, body)
+
+
+def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> bool:
+    """admit.mjs triageBriefed over GraphQL comment nodes: the first lanes App
+    (`app_id`) comment opening with `VERDICT_MARKER`, last edited by none or
+    the App, whose second line opens with `VERDICT_CLEAR` and one of
+    `VERDICT_CLEAR_OUTCOMES`, and whose last line (`JUDGED_RE`) names `title`
+    and `body` by sha256. Pure."""
+
+    def app(actor: Any) -> bool:
+        actor = json_object(actor)
+        return actor.get("__typename") == "Bot" and actor.get("databaseId") == app_id
+
+    own = next(
+        (
+            comment
+            for comment in map(json_object, comments)
+            if app(comment.get("author"))
+            and isinstance(comment.get("body"), str)
+            and comment["body"].startswith(VERDICT_MARKER + "\n")
+        ),
+        None,
+    )
+    if own is None or (own.get("lastEditedAt") is not None and not app(own.get("editor"))):
+        return False
+    lines = own["body"].split("\n")
+    stamp = JUDGED_RE.fullmatch(lines[-1])
+
+    def digest(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+
+    return (
+        any(lines[1].startswith(VERDICT_CLEAR + outcome) for outcome in VERDICT_CLEAR_OUTCOMES)
+        and stamp is not None
+        and stamp[1] == digest(title)
+        and stamp[2] == digest(body)
     )
 
 

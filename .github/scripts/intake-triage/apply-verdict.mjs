@@ -99,7 +99,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { ADMISSION_STATUS_READS, admit, authorTrust, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, admit, authorTrust, CLEAR_ADMITTED, CLEAR_READY, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, judgedLine, loadRules, noteUnrunnable, ownVerdict, specOf, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_CLEAR, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
@@ -782,7 +782,9 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const edgeForbidden = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
     try {
-      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden, raisedLine(verdict.flags, comment.updated_at, own?.body));
+      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden, raisedLine(verdict.flags, comment.updated_at, own?.body), () =>
+        judgedText(github, repository, number, comment.updated_at),
+      );
     } catch (error) {
       reasonsError = String(error?.message ?? error);
     }
@@ -1008,6 +1010,18 @@ const settled = (admission) =>
         ? WAITS
         : null;
 
+// The triage-verdict brief, https://github.com/melodic-software/architecture/pull/167.
+export async function judgedText(github, repository, number, judgedAt) {
+  try {
+    const spec = await specOf(github, repository, number);
+    const judged = Date.parse(judgedAt);
+    const edited = spec.lastEditedAt == null ? null : Date.parse(spec.lastEditedAt);
+    return typeof spec.title === "string" && Number.isFinite(judged) && (edited === null || edited <= judged) ? { title: spec.title, body: spec.body } : null;
+  } catch {
+    return null;
+  }
+}
+
 // One lanes App comment, edited in place, says why the verdict holds the
 // issue; a later ready verdict marks it settled, naming the status admission
 // left. None is posted for a ready verdict that stays ready and never held,
@@ -1017,17 +1031,19 @@ const settled = (admission) =>
 // or did not finish gets the record a later run reads.
 // A missing edge GitHub answered 403 for names the permission (refused); a
 // 429 or 5xx does not, since the sweep's re-run writes it.
-async function sayReasons(github, repository, base, comments, appId, plan, admission, refused, raised = []) {
+async function sayReasons(github, repository, base, comments, appId, plan, admission, refused, raised = [], judge = async () => null) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
   const admissionSaid = admission?.outcome === "refused" && !HOLDS.has(after);
   if (plan.ready && !own && (after === null || admissionSaid) && plan.refused.length === 0) {
     return;
   }
+  const judged = plan.ready && (after === null || admission?.outcome === "refused") ? await judge() : null;
+  const stamp = judged ? `\n${judgedLine(judged)}` : "";
   const body = plan.ready
-    ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
+    ? `${VERDICT_MARKER}\n${VERDICT_CLEAR}${
         admission?.outcome === "refused"
-          ? `admission moved the issue to \`${after}\`; its comment says why.`
+          ? `${CLEAR_ADMITTED}${after}\`; its comment says why.`
           : admission?.outcome === "held"
             ? `a person set the Work status to \`${after}\`, which holds the issue.`
             : after === WAITS
@@ -1036,8 +1052,8 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
               }`
             : after
               ? "admission did not finish, so the issue's status is not settled."
-            : `the issue is at \`${READY}\`.`
-      }${plan.refused.length ? `\n\n${refusedNote(plan.refused)}` : ""}`
+            : `${CLEAR_READY}${READY}\`.`
+      }${plan.refused.length ? `\n\n${refusedNote(plan.refused)}` : ""}${stamp}`
     : [
         VERDICT_MARKER,
         `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,
