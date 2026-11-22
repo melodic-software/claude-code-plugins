@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.5.0] - 2026-11-22
+
+### Changed
+
+- The babysit merge gate also trusts an issue the lanes App filed whose intake-triage verdict comment, posted and last edited by the lanes App's account id, holds nothing because the issue is ready or admission moved it, and stamps the issue's current title and body by sha256 (`triage_briefed`), with the same veto set as the admission-record rule, matching pr-verify's `briefedIssue`.
+
+## [13.4.1] - 2026-11-22
+
+### Fixed
+
+- `target-repo.sh` takes `--write`, which the create, ready and merge phases pass: it refuses with exit 1 a resolved repository GitHub reports you cannot push to, so a clone of someone else's public repository never receives your pull request or ready flip. Inside GitHub Actions the check is skipped, so CI lanes whose token cannot push keep filing; an absent `permissions` field passes, and read-only callers (logs, annotations, polling) are unchanged.
+
 ## [13.4.0] - 2026-11-22
 
 ### Changed

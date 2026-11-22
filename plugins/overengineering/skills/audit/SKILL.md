@@ -103,7 +103,7 @@ whole skill, "Before the walk" through "The report", with its root anchored, und
 scope, `--unattended` and focus hint. What differs here:
 
 - **Config and evidence per repository.** The branch and shallow-clone calls, the consumer's
-  `.claude/overengineering.md`, the evidence-availability probes and every forge control (branch
+  config files (`consumer-config.md` "Layers and merge semantics"), the evidence-availability probes and every forge control (branch
   protection, forge apps) belong to that repository: its origin `owner/name`, never this checkout's.
 - **One findings artifact per repository.** The artifact is the findings-file state that
   "Writes stay per repository" there keeps per repository, so its home is composed under that
@@ -138,15 +138,18 @@ scope, `--unattended` and focus hint. What differs here:
    delete is refused, try no other route: name the refusal and every probe path still on disk, and
    stop before walking.
 2. **Resolve consumer configuration**: protected categories, threshold overrides, observation window
-   and suppression entries from the consuming repo's `.claude/overengineering.md` through the
-   config-cascade layering, per `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`. All layers
-   absent is valid: bundled defaults apply, and the run says so. Name a personal layer that
-   materially shapes output.
+   and suppression entries from the consuming repo's `<home>/overengineering.yaml` and
+   `<home>/overengineering.local.yaml` through the config-cascade layering, per
+   `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`. Every file layer absent is valid: bundled
+   defaults apply, and the run says so. Name a personal layer that materially shapes output. An old
+   file that page's "Old paths: the dual-read window" lists is still read as it says, and the run
+   prints that section's warning for each one it finds.
 3. **Load the prior artifact** if present. Write `Status: OPEN` on a finding not seen before and
    carry every other status forward verbatim; never advance, downgrade or clear one.
 4. **Assess evidence availability** per tier (§2), naming the probe for each, the shallow-clone probe
    included. This leads the report, ahead of any finding (§8).
-5. **Exclude** the consumer's `.claude/overengineering.md` from the scan set.
+5. **Exclude** every config file `consumer-config.md` names from the scan set: both new files and
+   each old-path file present, applied or not.
 
 ## The walk
 

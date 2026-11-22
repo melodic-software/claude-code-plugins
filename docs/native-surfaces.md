@@ -644,11 +644,11 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 - **Evidence:**
   - `code-review` present in the extraction as bundled-skill
   - aliases: review
-  - native description: Review the current diff or a PR for bugs and cleanups
+  - native description: Review the current diff, or a PR number/branch/path target, for correctness bugs (plus broken CLAUDE.md rules and cleanups where the model's recipe covers them; see /simplify) at the effort level given first, before any target (…: from few high-confidence findings to many, some uncertain); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply them to the working tree after the review. Pass --max-findings <n> to report up to n findings, or --max-findings all for every finding. The choice stays until you pass --max-findings default.
   - our description: CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists
   - the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces
-- **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
-- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-09-11)
+- **Observation:** extraction: extracted from binary v2.1.330 on 2026-11-22 (the /harness-ops:inventory extraction of the installed native build; integrity degraded: the bundled_skills, builtin_tools and builtin_plugins lanes are floors) (2026-11-22)
+- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-11-22)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -661,13 +661,13 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 - **Evidence:**
   - `code-review` present in the extraction as bundled-skill
   - aliases: review
-  - native description: Review the current diff, or a PR number/branch/path target, for correctness bugs (plus reuse/simplification/efficiency cleanups where the model's review recipe covers them) at the given effort level (low/medium: fewer, high-confidence findings; high→max: broader coverage, may include uncertain findings…); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply the findings to the working tree after the review.…
-  - argument hint: […] [--fix] [--comment] [<pr#>|<branch>|<path>]
-  - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
-  - detect: origin discovered, score 0.5822, invocable_by model+user, recommended integration route-or-wrap
-  - docs cross-check (commands reference, 2026-09-29): documented
-- **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
-- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode (verified 2026-09-29)
+  - native description: Review the current diff, or a PR number/branch/path target, for correctness bugs (plus broken CLAUDE.md rules and cleanups where the model's recipe covers them; see /simplify) at the effort level given first, before any target (…: from few high-confidence findings to many, some uncertain); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply them to the working tree after the review. Pass --max-findings <n> to report up to n findings, or --max-findings all for every finding. The choice stays until you pass --max-findings default.
+  - argument hint: […|ultra] [--fix] [--comment] [<pr#>|<branch>|<path>] [--max-findings <n>|all]
+  - invocation mode (2026-11-22, Claude Code 2.1.330): model-invocable and user-invocable
+  - detect (2026-11-22, Claude Code 2.1.330): not among the discovered candidates at the default threshold and top-k
+  - docs cross-check (commands reference, 2026-11-22): documented
+- **Observation:** extraction: extracted from binary v2.1.330 on 2026-11-22 (the /harness-ops:inventory extraction of the installed native build; integrity degraded: the bundled_skills, builtin_tools and builtin_plugins lanes are floors) (2026-11-22)
+- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode (verified 2026-11-22)
 - **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

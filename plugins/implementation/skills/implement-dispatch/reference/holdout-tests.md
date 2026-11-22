@@ -58,7 +58,7 @@ special-case.
    deny would also stop the orchestrator, which reads and writes the slice, and a subagent
    definition's tool restriction cannot scope a deny to one path. The rules stop Claude's file tools
    and the shell file commands Claude Code recognizes, not a script that reads or writes files
-   itself (`python -c`, `node -e`), so the hash recheck in step 4 stays the gate.
+   itself, so the hash recheck in step 4 stays the gate.
 
    - **Pointer**: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) in
      the permissions page, for the path syntax and what a deny does not cover;
@@ -76,21 +76,21 @@ special-case.
    throwaway worktree, never into a worker's. It removes the throwaway worktree after the verdict.
 
    The phase diff is worker-authored, and a test runner executes configuration it finds in the
-   tree: a new `conftest.py` hook can force a pass, a pytest ini can add options, a `pretest`
-   script runs before the tests, a Jest or Vitest config can name setup files. So the run command
-   takes its configuration from the holdout directory and invokes the runner binary directly,
-   never through a package script. For example, `pytest --noconftest -c <holdout>/pytest.ini
-   --rootdir <holdout> -p no:cacheprovider`, `vitest run --config <holdout>/vitest.config.ts`, or
-   `jest --config <holdout>/jest.config.js`. A runner configuration or test setup file the phase
+   tree: a new setup hook can force a pass, a configuration file can add options or name setup
+   files, and a package script can run before the tests. So the run command takes its
+   configuration from the holdout directory and invokes the runner binary directly, never through
+   a package script. Before step 1, find the runner by the steps in the plugin's
+   [ecosystem resolution](../../../reference/ecosystem-resolution.md) page. An attended run takes
+   from the runner's own documentation the flags that point it at the holdout configuration and
+   stop it loading configuration from the tree. An unattended run stays within that page's unattended limits: it runs the holdout command,
+   flags included, only when the record holds it, the repository states it, or its files imply
+   it, and logs it as assumed with that source. Flags that only the runner's documentation supplies
+   do not qualify. When the runner or those flags do not resolve, leave the option off for the
+   phase, log a `DEVIATIONS.md` discovery, and report it unresolved. A runner configuration or test setup file the phase
    diff adds or changes without sanction is a verifier FAIL under the rule SKILL.md, Dispatch
    cadence item 1.13, quotes; a sanctioned one is still a finding. The throwaway worktree is not
    holdout-only: SKILL.md, Phase boundaries, creates it whenever the phase diff touches a test or
    check file, so the verifier can re-run the check with those paths restored from base.
-
-   - **Pointer**: the runners' own flag references:
-     [pytest command-line flags](https://docs.pytest.org/en/stable/reference/reference.html#command-line-flags),
-     [Vitest CLI](https://vitest.dev/guide/cli),
-     [Jest CLI](https://jestjs.io/docs/cli).
 
 5. **Feed back the criterion, not the test.** A holdout FAIL fails its criterion. The re-brief
    names the criterion and the observed behavior, never the test's source or its expected

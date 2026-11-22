@@ -1,0 +1,8 @@
+{
+  "pass": [
+    { "answer": "| Retired conventions | FAIL | harness-config-r001: .claude/audit-pass.local.md (migrate) |", "why": "names the record" }
+  ],
+  "fail": [
+    { "answer": "| Retired conventions | FAIL | .claude/audit-pass.local.md (migrate) |", "why": "no record id" }
+  ]
+}

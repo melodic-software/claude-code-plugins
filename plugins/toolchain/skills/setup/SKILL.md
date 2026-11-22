@@ -13,12 +13,12 @@ repository): `check` reports what is configured, `apply` writes it. The tracked 
 `.claude/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint` resolve commands
 deterministically from rung 1 of the ladder
 ([`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md))
-instead of inferring or falling back to bundled defaults every run. This skill is the ladder's
+instead of inferring every run or reporting a key unresolved. This skill is the ladder's
 **writer** for rungs 2 and 3 (infer-and-persist, ask-and-persist).
 
-Idempotent: re-running reads the existing files and offers updates rather than overwriting blind. The
-plugin ships working bundled portable defaults (rung 4), so an unconfigured ecosystem is **INFO** (the
-default resolves), never FAIL.
+Idempotent: re-running reads the existing files and offers updates rather than overwriting blind. An
+unconfigured ecosystem is **INFO**, never FAIL: an attended run infers or asks for its commands, and a
+key nothing resolves reads `skip (unresolved: ...)`.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then writes.
 `apply <ecosystem>` scopes the whole run to that one ecosystem; when a named ecosystem's inference is
@@ -36,9 +36,8 @@ directory; configuration lives in the consumer's tracked files.
 
 ## `check` (read-only)
 
-The bundled portable defaults and the contract schema are the single source of truth for the file
-shape (`${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/`, `ecosystem.schema.json`). **Read the ladder
-first**, then report a PASS/FAIL/INFO table; modify nothing.
+The contract schema (`ecosystem.schema.json`) is the single source of truth for the file shape.
+**Read the ladder first**, then report a PASS/FAIL/INFO table; modify nothing.
 
 1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
    report the ecosystem and its resolved command surface
@@ -51,8 +50,8 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
    the report to just that file.
 2. **Unconfigured ecosystems.** INFO: detect which ecosystems the repo has that are *not* yet
    configured (see the inference signals under `apply`), and note that `/toolchain:check` /
-   `/toolchain:lint` resolve those through inference then the bundled portable defaults. The
-   remediation is `apply` to persist a command surface.
+   `/toolchain:lint` resolve those through inference, and report a key nothing resolves as
+   unresolved. The remediation is `apply` to persist a command surface.
 
 ## `apply` (idempotent)
 
@@ -70,26 +69,33 @@ user confirming. If `$ARGUMENTS` names one ecosystem, scope the whole run to jus
 
 ### 2. Infer candidates from the repo before asking
 
-Detect which ecosystems apply from what actually exists, and draft each one's command surface. Seed
-the draft from the bundled portable default at
-[`${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`](${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/),
-then specialize it to the repo.
+Detect which ecosystems apply from what actually exists, and draft each one's command surface from
+inference only: the repo's records, instructions, build files, tool configs and CI. The plugin ships
+no default file to seed a draft from; a key nothing implies goes to the interview, never to a
+command the plugin picks.
+
+A drafted command that runs a tool through a package runner (`npx`, `pnpm dlx`, `yarn dlx`, `bunx`,
+`uvx`) names the package the project's manifest declares, never a shorter name the runner could
+resolve to someone else's package (`@biomejs/biome`, not `biome`), and passes the runner's
+no-download option where it has one (`npx --no`). A recorded command runs on later unattended runs
+too, so a bare name here would fetch and run an undeclared package on every one of them.
 
 When the repo has its own task runner or wrapper scripts (a task file, a manifest's scripts block,
 a scripts directory its docs or CI call), draft each command key from the matching task or script
-before the bundled default, in any ecosystem. Draft `test-changed-cmd` from the repo's own test
+first, in any ecosystem. Draft `test-changed-cmd` from the repo's own test
 runner's way of selecting tests for changed files, over `<files>`; when the repo has no such
 selection, look it up with `/discovery:research` for the runner the repo uses, and leave the key
-out when none exists. Never put a per-stack selector into a bundled default.
+out when none exists.
 
 - **dotnet**. `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else
   nearest project). Note any repo-specific trap in `notes` (e.g. the xUnit v3 `--nologo` pin).
-- **python**. `pyproject.toml`/`uv.lock`. Prefer `uv run …` when `uv.lock` exists, else plain
-  `ruff`/`pytest`. Set `project-discovery` to the `pyproject.toml` roots.
+- **python**. `pyproject.toml`/`uv.lock`. Draft from the tools the project's config and
+  dependencies name, run through `uv run …` when `uv.lock` exists. Set `project-discovery` to the
+  `pyproject.toml` roots.
 - **typescript**. `package.json`/`tsconfig*.json`. Pick `check-cmd`/`fix-cmd` (format-only) and `code-fix-cmd` (semantic lint autofixes) from the
   configured linter (`biome.json` → Biome format vs check --write; eslint config → ESLint).
-- **bash** / **powershell**. Shell/PowerShell files present; keep the bundled check/fix commands
-  unless the repo documents its own.
+- **bash** / **powershell**. Shell/PowerShell files present; draft the check/fix commands the repo
+  documents or its linter and formatter configs imply, and ask for the rest.
 - **markdown**, a markdownlint config present.
 - **yaml**. `.github/workflows/` present (lint-only surface. `/toolchain:lint` runs it,
   `/toolchain:check` does not).
@@ -150,5 +156,5 @@ configuration and changes nothing.
 - Write machine-local state. Configuration lives in the consumer's tracked files, never in the plugin
   directory or the plugin data directory.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Ship or edit the bundled portable defaults. Those are the plugin's rung-4 fallback, never written
-  into a consumer repo except as the seed for a file this interview produces.
+- Draft a command from a plugin default. Every drafted command comes from the repository or from the
+  person's answer.

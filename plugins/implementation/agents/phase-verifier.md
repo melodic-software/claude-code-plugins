@@ -32,9 +32,8 @@ When the diff adds or changes tests, a new expected value with no named independ
 a worktree, `git -C <wt> diff --name-status <base>` and the untracked files
 `git -C <wt> status --porcelain --untracked-files=all` shows; with only a diff, its file headers.
 Never take the list from the dispatch prose. A test or check file decides whether a check passes: a test file, snapshot or fixture,
-a runner configuration or test setup file (`conftest.py`, a pytest ini or `pyproject.toml` pytest
-table, a Jest or Vitest config or its setup files, `package.json` test scripts), a lint or hook
-configuration, a check script, a CI workflow, or an eval case or grader. Where the project
+a runner configuration or test setup file (a manifest's test script entries or runner
+configuration section included), a lint or hook configuration, a check script, a CI workflow, or an eval case or grader. Where the project
 declares its own list of check files, use that list as well. A change that modifies, deletes or
 skips an existing file of these kinds, or adds a runner configuration, setup file, check script or
 workflow, is sanctioned only when the dispatch explicitly authorizes it: it names that file or that

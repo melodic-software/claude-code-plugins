@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "WARN: read .claude/codebase-health.md (old location) as the team layer; move it to docs/conventions/codebase-health.md with /codebase-health:setup apply.", "why": "old file, new location and command" }
+  ],
+  "fail": [
+    { "answer": "WARN: .claude/codebase-health.md is an old location; move it to docs/conventions/codebase-health.md.", "why": "no setup command" },
+    { "answer": "INFO: .claude/codebase-health.md moves to docs/conventions/codebase-health.md via /codebase-health:setup apply.", "why": "no warning" }
+  ]
+}

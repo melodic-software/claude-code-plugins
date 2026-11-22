@@ -2,6 +2,9 @@
   "pass": [
     {
       "answer": "| user-global `~/.claude/bugs.md` | absent |\n| team `docs/conventions/bugs.yaml` | tracked |\n| personal override `.claude/bugs.local.md` | ignored |"
+    },
+    {
+      "answer": "| `gotchas_file` | unset |\n| team `docs/conventions/bugs.yaml` | tracked |\n| personal override `.claude/bugs.local.md` (old path) | ignored |"
     }
   ],
   "fail": [
@@ -10,6 +13,9 @@
     },
     {
       "answer": "user-global absent; personal override present."
+    },
+    {
+      "answer": "output_dir (native userConfig) is unset. Team `docs/conventions/bugs.yaml` is tracked; the personal override opts out."
     }
   ]
 }

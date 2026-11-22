@@ -555,12 +555,14 @@ def _main_lane(
     bound when a counted main-run review created after `after` names the
     pinned head (`_main_bound`) and the recorded counts were read, else unbound as
     `lane-source-changed`, or as `main-review-stop:<reason>` when no verdict
-    binds and the report-review-counts job posted a designed stop on the head. The security lane's blocking count is the most of
-    the main-run reviews' CRITICAL findings at this tree, any its
-    pull_request review left open (`_carried_blocking`), and the most any
-    main-run review recorded on another head of this pull request
-    (`_recorded_critical`), so a finding any of them reported holds, bound
-    or not."""
+    binds and the report-review-counts job posted a designed stop on the head. Bound, the security lane's blocking count is the
+    most of the main-run reviews' CRITICAL findings at this tree and any its
+    pull_request review left open (`_carried_blocking`): a CRITICAL an
+    earlier head's main-run review recorded clears once this head's own
+    review records none, since a main-run finding has no thread to resolve.
+    Unbound, it also holds the most any main-run review recorded on any
+    head (`_recorded_critical`), so an unreviewed head, a whitespace push
+    included, never clears one."""
     try:
         found = _main_bound(lane, head, records, context, after)
     except Exception:  # noqa: BLE001 - any doubt is unbound
@@ -579,7 +581,7 @@ def _main_lane(
         held = max(left or 0, recorded or 0)
         return LaneEvidence(lane, False, reason, None, False, held or None)
     findings, critical = found
-    blocking = max(critical, left or 0, recorded)
+    blocking = max(critical, left or 0)
     return LaneEvidence(lane, True, None, max(findings, blocking), False, blocking)
 
 
@@ -597,10 +599,10 @@ def _head_stop(lane: str, context: Mapping[str, Any] | None) -> str | None:
 
 def _recorded_critical(lane: str, context: Mapping[str, Any] | None) -> int | None:
     """The most CRITICAL findings a main-run review recorded for `lane` on any
-    head of this pull request (`main_context["carried_critical"]`), so a
-    later tree's clean review, a whitespace push included, never clears one
-    an earlier tree's review found. None when it was not read: the lane
-    then does not bind."""
+    head of this pull request (`main_context["carried_critical"]`). It holds
+    the lane until a main-run review binds the pinned head, so a push no
+    review has covered never clears one an earlier tree's review found.
+    None when it was not read: the lane then does not bind."""
     found = context.get("carried_critical") if isinstance(context, Mapping) else None
     value = found.get(lane) if isinstance(found, Mapping) else None
     return value if _count(value) else None

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
-import { admissionSettled } from "./admit.mjs";
+import { admissionSettled, judgedLine, triageBriefed } from "./admit.mjs";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2045,6 +2045,56 @@ describe("run", () => {
     const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
     assert.ok(posted?.body.body.startsWith(`${VERDICT_MARKER}\n`), posted?.body.body);
     assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
+  });
+
+  // https://github.com/melodic-software/architecture/pull/167
+  describe("the judged-text stamp", () => {
+    const TEXT = { title: "Fix line 3", body: "## Done when\n\n- [ ] Line 3 says nineteen." };
+    const APP_FILED = { outcome: "refused", reasons: ["the lanes App filed it"], status: NEEDS_DECISION };
+    const posted = async (admission, spec = { ...TEXT, lastEditedAt: null }) => {
+      const fake = fakeGitHub({ comments: [laneComment()] });
+      const github = (method, path, body, ...rest) =>
+        method === "POST" && path === "/graphql" && body?.variables?.number === 7
+          ? spec === null
+            ? Promise.reject(new Error("the read failed"))
+            : Promise.resolve({ data: { repository: { issue: { ...spec, author: null, editor: null, comments: { totalCount: 0, nodes: [] } } } } })
+          : fake.github(method, path, body, ...rest);
+      await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, admitIssue: async () => admission, log: () => {} });
+      return writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments")?.body.body;
+    };
+    const asNode = (body) => ({ body, author: { __typename: "Bot", databaseId: LANES_APP }, lastEditedAt: null, editor: null });
+
+    test("a verdict admission refused ends with the judged text's hashes, which brief that text and no other", async () => {
+      const body = await posted(APP_FILED);
+      assert.equal(body.split("\n").at(-1), judgedLine(TEXT), body);
+      assert.match(body, /^<!-- intake-triage verdict -->\nThe latest triage verdict holds nothing: admission moved the issue to `needs-owner-decision`/);
+      assert.equal(triageBriefed([asNode(body)], LANES_APP, TEXT), true);
+      assert.equal(triageBriefed([asNode(body)], LANES_APP, { ...TEXT, body: `${TEXT.body}\n- [ ] More.` }), false);
+    });
+
+    test("a body edited at the verdict's time is stamped, and one edited after it is not", async () => {
+      assert.equal((await posted(APP_FILED, { ...TEXT, lastEditedAt: "2026-10-22T12:05:00Z" })).split("\n").at(-1), judgedLine(TEXT));
+      const later = await posted(APP_FILED, { ...TEXT, lastEditedAt: "2026-10-22T12:06:00Z" });
+      assert.ok(later.startsWith(`${VERDICT_MARKER}\n`), later);
+      assert.ok(!later.includes("intake-triage judged"), later);
+    });
+
+    test("a failed read still posts the verdict, with no stamp", async () => {
+      const body = await posted(APP_FILED, null);
+      assert.ok(body.startsWith(`${VERDICT_MARKER}\n`), body);
+      assert.ok(!body.includes("intake-triage judged"), body);
+    });
+
+    test("a verdict a person's hold or an unfinished admission left is not stamped", async () => {
+      for (const admission of [
+        { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" },
+        { outcome: "error", reasons: ["admission failed"] },
+      ]) {
+        const body = await posted(admission);
+        assert.ok(body?.startsWith(`${VERDICT_MARKER}\n`), body);
+        assert.ok(!body.includes("intake-triage judged"), body);
+      }
+    });
   });
 
   // Admission's own comment already says why it parked the issue at

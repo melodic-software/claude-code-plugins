@@ -136,12 +136,12 @@ Either way the commit checkpoint follows the last green check.
 - **Separate structural from behavioral commits**. A rename/extract gets its own commit, separate from new features (Tidy First: "make the change easy, then make the easy change")
 - **Commit before running a simplify pass**. Your working code is a known-good commit to return to. If simplification introduces a bad change, revert cleanly
 - **Stage specific files**. `git add <file>`, never `git add -A` or `git add .`
-- **Fix the finding, never silence it**. Do not add a lint or type-checker suppression (`eslint-disable`, `# noqa`, `# type: ignore`, `#pragma warning disable` and the like) to turn a check green. The one exception is a false positive you have shown to be one: its suppression line names the rule id, where the tool's syntax can name one, and states why the finding is wrong there. A project's own instructions override this rule where they say otherwise
+- **Fix the finding, never silence it**. Do not add a lint or type-checker suppression to turn a check green. The one exception is a false positive you have shown to be one: its suppression line names the rule id, where the tool's syntax can name one, and states why the finding is wrong there. A project's own instructions override this rule where they say otherwise
 - **Follow the consuming project's commit-message convention** (check its `CLAUDE.md` / rules; Conventional Commits is a common default). On squash-merge workflows, feature-branch messages matter less than the final squash subject
 
 ### Dependency direction
 
-When implementing across components, respect the project's own dependency direction. Implement the depended-upon components before the ones that depend on them, so each compiles against something that already exists. In a layered .NET/Clean-Architecture app, for example, that means inner Core/Domain types before outer Application/Infrastructure; a project with a different structure applies the same principle to its own layout.
+When implementing across components, respect the project's own dependency direction. Implement the depended-upon components before the ones that depend on them, so each compiles against something that already exists.
 
 ## Step 3: Divergence Detection
 
@@ -160,7 +160,7 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 
 | You just | For example | It points to |
 |---|---|---|
-| Weakened a type so the type checker would pass | A `# type: ignore[...]` on the new line, a parameter widened to `object`, a property taken out of a schema's `required` list | A boundary in the wrong place |
+| Weakened a type so the type checker would pass | A type-checker suppression on the new line, a parameter widened to `object`, a property taken out of a schema's `required` list | A boundary in the wrong place |
 | Made a caller work by having it lean on a module's internals | A script that parses another script's log text instead of reading its exit code | A boundary in the wrong place |
 | Added a lock or a retry to settle a race or an ordering bug that would not exist if another component owned the state | Two workers in one wave appending to `DEVIATIONS.md` behind a lockfile, where the race would not exist if the orchestrator owned the file | State owned by the wrong component |
 | Hit one cause a second time | Two or more `DEVIATIONS.md` entries that trace to one cause, or a workaround about to be copied to a second file | A problem the plan cannot absorb |

@@ -17,4 +17,4 @@ graders:
     arm: both
   - name: meets-expectations
     type: llm
-    criteria: 'The run checks a .NET repository whose tracked .claude/ecosystems/dotnet.yaml declares its own commands. It meets the legacy expectations: "Resolves commands via the ladder with the consumer''s `.claude/ecosystems/dotnet.yaml` taking precedence (rung 1)" "Uses the bundled portable default only as the rung-4 fallback when no consumer file is present" "Runs the consumer''s declared test-cmd, not the bundled default''s".'
+    criteria: 'The run checks a .NET repository whose tracked .claude/ecosystems/dotnet.yaml declares its own commands. It meets the legacy expectations: "Resolves commands via the ladder with the consumer''s `.claude/ecosystems/dotnet.yaml` taking precedence (rung 1)" "Runs the consumer''s declared test-cmd, not a plain `dotnet test` or `dotnet build` of its own".'

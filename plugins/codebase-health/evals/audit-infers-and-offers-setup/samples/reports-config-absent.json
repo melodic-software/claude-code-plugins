@@ -10,6 +10,14 @@
       "answer": "No tracked config found; inferred README.md as the documentation set."
     },
     {
+      "answer": "No `docs/conventions/codebase-health.md` config was found, so I inferred the targets from the repo.",
+      "why": "absence at the new team location"
+    },
+    {
+      "answer": "There was no `docs/conventions/codebase-health.md`, so I used the generic documentation defaults.",
+      "why": "new location named with no trailing verb"
+    },
+    {
       "answer": "**Scope:** `--docs-only` against the only doc file, `README.md`. There was no `.claude/rules/` and no `.claude/codebase-health.md`, so I used the generic documentation defaults.",
       "why": "smoke-1 reply: absence named with no trailing verb"
     },

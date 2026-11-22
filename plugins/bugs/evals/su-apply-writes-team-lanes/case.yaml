@@ -43,7 +43,7 @@ graders:
     criteria: "The run must verify the written file by re-reading it and by git check-ignore. PASS only if, after docs/conventions/bugs.yaml is written (by the Write tool or a shell write such as a heredoc), the trace shows that file re-read (a Read, cat or a YAML parse of it) and git check-ignore run on docs/conventions/bugs.yaml, either in a later call or later in the same shell command as the write, and the final reply reports what those showed. A check-ignore or read that ran only before the write does not count. FAIL if no such file was written, or nothing re-checks it after the write."
   - name: recommends-ignore-line
     type: regex
-    pattern: '\.claude/\*\*/\*\.local\.\*'
+    pattern: 'docs/conventions/\*\*/\*\.local\.\*'
     target: last_message
   - name: says-commit-it
     type: regex

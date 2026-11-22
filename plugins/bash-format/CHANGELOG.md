@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.3] - 2026-11-22
+
+### Fixed
+
+- The pre-push full lint of identical scripts in two directories now lints them once on every run. The probe for sourced files fed the script to ShellCheck through a pipe, so a ShellCheck that exited before reading all of it broke the pipe, the probe counted as failed, and each copy was linted separately.
+
 ## [2.3.2] - 2026-11-21
 
 ### Changed

@@ -1600,9 +1600,12 @@ the rules that only tighten in
   completed, successful run names the pinned head, with the most findings, and the most CRITICAL
   ones, that any counted review of that tree reported, so a re-run, a failed run or an empty
   commit never clears one. The security lane also keeps any CRITICAL finding its pull_request review left
-  open, and the most CRITICAL findings any `pr-review-main: claude-security-review` check run
-  records on any head of the pull request (its commits and the heads force pushes replaced), so a
-  whitespace push whose new tree reviews clean cannot re-roll one away. Check runs were chosen
+  open. Until a counted verdict binds the pinned head, it also holds the most CRITICAL findings
+  any `pr-review-main: claude-security-review` check run records on any head of the pull request
+  (its commits and the heads force pushes replaced), so a push no review has covered, a
+  whitespace push included, cannot clear one. Once the pinned head's own main-run review binds
+  with no CRITICAL finding, an earlier head's CRITICAL stops holding: a main-run finding has no
+  thread to resolve (owner decision, 2026-11-21). Check runs were chosen
   over a comment because the checks API has no delete: a pull_request workflow's token can delete
   an artifact or a comment, not a check run, and a forged one can only add a hold. A count that
   cannot be read leaves the lane unbound. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
@@ -2933,6 +2936,17 @@ canonical and never edited, names the issue's current title and body by sha256
 merge gate reads the same facts again at each judgment (`briefed_issue`), and a Work status hold
 on the issue still stops a lane merge (`issue_hold_refusal`). A marker in anyone else's comment,
 an edit after the record, or a hold keeps the body out of the spec.
+Intake-triage's own verdict briefs such a filing too, under the same vetoes
+([#18107](https://github.com/melodic-software/claude-code-plugins/issues/18107),
+[architecture PR 167](https://github.com/melodic-software/architecture/pull/167)): the first
+`<!-- intake-triage verdict -->` comment the lanes App posted, by its account id and last edited by
+no other account, says the verdict holds nothing because the issue is at `status: ready` or
+admission moved it, and its last line stamps the issue's current title and body by sha256
+(`triageBriefed` in `admit.mjs`). apply-verdict writes that stamp only on such a verdict whose body
+was not edited after the triage run judged it. A verdict triage held, one a person's Work status
+holds, one admission did not finish, or one waiting on a blocked-by edge briefs nothing, and
+admission still refuses the filing for a person: the verdict decides only spec trust here and in the
+merge gate.
 The monitoring lane's main-red incident is its own spec too: when github-actions[bot] wrote it and
 nobody else last edited it, its title is `Restore the failing required checks on main` (`issues.mjs`
 `FILING`) and its first body line is the marker for `incident:main-red`, it counts for a pull

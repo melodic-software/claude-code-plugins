@@ -55,7 +55,7 @@ function world(scenario = {}, { local, team } = {}) {
     cwd,
     dataDir,
     set,
-    calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []),
+    calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []),
   };
 }
 const launched = (w, verb = "exec") => w.calls().filter((c) => c.argv[0] === verb);
@@ -194,6 +194,24 @@ describe("run", () => {
     assert.deepEqual(cliArgs(job).slice(8), ["-m", "my-model", "-p", "work", "-c", 'model_reasoning_effort="high"', "-"]);
   });
 
+  test("a per-run model and effort override config, keep the sandbox and approval policy, and are recorded on the job", async () => {
+    const w = world({ stdout: clean, final: "done" }, { local: "schema: 1\ncodex:\n  model: my-model\n  effort: low\n" });
+    const { job } = await run({ ...w.opts, use: "task", model: "other-model", effort: "xhigh", prompt: "fix it" });
+    assert.deepEqual(cliArgs(job).slice(4), ["--sandbox", "workspace-write", "-c", 'approval_policy="never"', "-m", "other-model", "-c", 'model_reasoning_effort="xhigh"', "-"]);
+    assert.equal(job.model, "other-model");
+    assert.equal(job.effort, "xhigh");
+    const shown = status({ ...w.opts, jobId: job.id }).stdout;
+    assert.match(shown, /^model: other-model$/m);
+    assert.match(shown, /^effort: xhigh$/m);
+  });
+
+  test("a per-run effort that is not a plain word is refused before anything starts", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const got = await run({ ...w.opts, use: "task", effort: 'high" -c x="y', prompt: "fix it" });
+    assert.match(got.stdout, /^codex: refused: effort .* is not a plain word/);
+    assert.deepEqual(launched(w), []);
+  });
+
   test("config is read from the convention home the repository's pointer region binds", async () => {
     const w = world({ stdout: clean, final: "done" }, { local: "schema: 1\ncodex:\n  model: from-the-default-home\n" });
     gitRepo(w.cwd, { "a.txt": "two\n" });
@@ -311,6 +329,15 @@ describe("review", () => {
     assert.equal(got.stdout, "codex: skipped (codex.council.enabled is false)\n");
     assert.equal(launched(w).length, 0);
     assert.match((await review({ ...w.opts, base: "main" })).stdout, /^codex: ran/);
+  });
+
+  test("a per-run effort overrides config on a review and is recorded on the job", async () => {
+    const w = world({ stdout: clean, final: "No findings." }, { local: "schema: 1\ncodex:\n  effort: low\n" });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    const { job } = await review({ ...w.opts, base: "main", effort: "xhigh" });
+    assert.deepEqual(cliArgs(job).slice(-2), ["-c", 'model_reasoning_effort="xhigh"']);
+    assert.ok(!cliArgs(job).includes('model_reasoning_effort="low"'));
+    assert.equal(job.effort, "xhigh");
   });
 
   test("a review without a brief passes --base and no prompt argument", async () => {
@@ -445,6 +472,14 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     assert.equal(got.job.thread_id, "conv-1");
     assert.equal(got.stdout, "antigravity: ok\nit is slow because\n");
     assert.equal(readFileSync(got.job.final_message_path, "utf8"), "it is slow because");
+  });
+
+  test("a per-run effort reaches agy as --effort", async () => {
+    const w = world({ envelope: { status: "SUCCESS", response: "ok", conversation_id: "conv-1" } });
+    const got = await run(agy(w, { use: "investigate", effort: "high", prompt: "why?" }));
+    const args = cliArgs(got.job);
+    assert.deepEqual(args.slice(args.indexOf("--model"), -1), ["--model", "m1", "--effort", "high"]);
+    assert.equal(got.job.effort, "high");
   });
 
   test("a non-empty denied_actions array is blocked-by-mode", async () => {

@@ -46,7 +46,7 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=274
+EXPECTED_CASES=283
 
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
@@ -726,6 +726,34 @@ mkdir -p "$NONREPO/docs/conventions"
 printf '%s\n' 'thresholds:' '  ai_vocabulary: 555' >"$NONREPO/docs/conventions/ai-slop.yaml"
 out="$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$DETECT" --show-config 2>&1)"
 assert_not_contains "a non-repo root: its YAML is not a team layer" "$out" "$NONREPO/docs/conventions/ai-slop.yaml"
+
+DUALREPO="$TEST_TMPDIR/dual-read-repo"
+DUALHOME="$TEST_TMPDIR/dual-read-home"
+mkdir -p "$DUALREPO/docs/conventions" "$DUALHOME/.claude"
+make_repo "$DUALREPO"
+DUALTEAM="$DUALREPO/docs/conventions/ai-slop.yaml"
+DUALLOCAL="$DUALREPO/docs/conventions/ai-slop.local.yaml"
+DUALOLD="$DUALHOME/.claude/ai-slop.json"
+printf '%s\n' 'thresholds:' '  ai_vocabulary: 5' '  copulative_avoidance: 6' >"$DUALTEAM"
+printf '%s\n' 'thresholds:' '  ai_vocabulary: 11' >"$DUALLOCAL"
+out="$(CLAUDE_PROJECT_DIR="$DUALREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "new layer only: the personal override supplies its value" "$out" "threshold_ai_vocabulary=11 (rule rule-ai-vocabulary) [layer: $DUALLOCAL]"
+assert_not_contains "new layer only: no old-path warning" "$out" "old path"
+
+rm "$DUALLOCAL"
+printf '%s\n' '{ "thresholds": { "ai_vocabulary": 22 } }' >"$DUALOLD"
+out="$(HOME="$DUALHOME" CLAUDE_PROJECT_DIR="$DUALREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "old file only: its value applies in the personal layer's place" "$out" "threshold_ai_vocabulary=22 (rule rule-ai-vocabulary) [layer: $DUALOLD]"
+assert_contains "old file only: the team file still supplies the key the old file left" "$out" "threshold_copulative_avoidance=6 (rule rule-copulative-avoidance) [layer: $DUALTEAM]"
+assert_contains "old file only: the warning names the old file, the new location and setup" "$out" "Warning: $DUALOLD is an old path, still read as the personal layer until it moves; /ai-slop:setup apply moves it to $DUALLOCAL and deletes it"
+err="$(HOME="$DUALHOME" CLAUDE_PROJECT_DIR="$DUALREPO" bash "$DETECT" "$CLEAN" 2>&1 >/dev/null)"
+assert_eq "old file only: a scan prints the warning once, on stderr" "$(printf '%s\n' "$err" | grep -c "is an old path")" "1"
+
+printf '%s\n' 'thresholds:' '  ai_vocabulary: 11' >"$DUALLOCAL"
+out="$(HOME="$DUALHOME" CLAUDE_PROJECT_DIR="$DUALREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "both present: the personal override wins" "$out" "threshold_ai_vocabulary=11 (rule rule-ai-vocabulary) [layer: $DUALLOCAL]"
+assert_eq "both present: the old file is not a listed layer" "$(printf '%s\n' "$out" | grep -cxF "  $DUALOLD")" "0"
+assert_contains "both present: the warning names both files and setup" "$out" "Warning: $DUALOLD is an old path and not read, since $DUALLOCAL supplies the personal layer; /ai-slop:setup apply moves its settings into $DUALLOCAL and deletes it"
 
 # A threshold is config text: a newline and tabs in it must not forge a density
 # row whose file field reaches an array subscript or a path. A YAML scalar holds

@@ -207,7 +207,9 @@ old file it finds, naming where to move it. `.claude/testing.yaml` goes to
 `docs/conventions/testing.local.yaml`; once that new file exists, the resolver ignores the old one.
 Each setting in `~/.claude/testing.yaml` goes to its `userConfig` option, and a setting with no
 option goes to `docs/conventions/testing.local.yaml`. A `userConfig` value other than its default
-wins over the old file. The other scripts and skills move in their own changes
+wins over the old file. `/testing:setup check` names each old file, including the `.claude/testing/`
+ones, and previews copying its keys to the new location. After you say yes,
+`/testing:setup apply` copies them and leaves the old file in place. The other scripts and skills move in their own changes
 ([#17999](https://github.com/melodic-software/claude-code-plugins/issues/17999)). Reading the block costs the same as reading the file; the measured p50 and p95 are in the
 [latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Old-file dimensions that do not apply: api-contracts.", "why": "phrase then dimension" },
+    { "answer": "| api-contracts | .claude/codebase-health.md | not applied: the new team file wins |", "why": "dimension then phrase" }
+  ],
+  "fail": [
+    { "answer": "| api-contracts | .claude/codebase-health.md | team |", "why": "old dimension reported as live" },
+    { "answer": "The old file declares documentation and api-contracts.", "why": "no unapplied marker" }
+  ]
+}

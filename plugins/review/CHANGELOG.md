@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.7.0] - 2026-11-22
+
+### Added
+
+- **Review-digest options.** The review plugin has six new options: `digest_policy`, `digest_max_files`, `digest_max_changed_lines`, `digest_blast_radius`, `digest_risk_paths` and `digest_opt_in_label`. The two list options each take a JSON list. Together they are the per-user layer of the review-digest settings that `/review:explain-change` and `/review:reviewer-media` read. The personal override is now `docs/conventions/review-digest.local.yaml` ([#18006](https://github.com/melodic-software/claude-code-plugins/issues/18006)).
+- **`/review:setup` moves the old digest files.** `check` names each old file it finds and where each of its settings goes. `apply` previews the move and acts only after a yes. It adds the old personal settings that `docs/conventions/review-digest.local.yaml` lacks, keeps the ones that file already sets, checks that each moved value resolves the same, and then deletes `.claude/review-digest.local.json`. For `~/.claude/review-digest.json` it lists each option still unset. Once every old setting is covered by an option, it deletes the file after a yes.
+
+### Deprecated
+
+- **`~/.claude/review-digest.json` and `.claude/review-digest.local.json`.** Both files are still read while they exist, each just below the layer that replaces it, so a new layer wins on each key it sets. Each run prints one warning per old file that names `/review:setup apply`. A later release stops reading them.
+
 ## [10.6.1] - 2026-11-22
 
 ### Fixed

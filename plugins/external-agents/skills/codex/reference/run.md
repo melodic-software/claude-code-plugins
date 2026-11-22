@@ -3,16 +3,18 @@
 ## Run
 
 ```bash
-external-agents run codex --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--resume <thread-id>|--last]
+external-agents run codex --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--effort <level>] [--resume <thread-id>|--last]
 ```
 
 - **Pick the use from the request.** `task` when Codex should change files; `investigate` when it
   should only read and answer. The use's configured mode (`codex.uses.<use>.mode`, bundled values
   in the plugin's `defaults.json`) is both the default and the ceiling. Pass `--mode read-only` to
   run a task without writes; `--mode write` never lifts a read-only ceiling.
-- **Model and effort.** Pass `--model` only when the user names one for this run. Otherwise pass
-  nothing: `codex.model` and `codex.effort` from config apply when set, and Codex's own
-  configuration and default apply when not. Choosing one: [routing.md](routing.md).
+- **Model and effort.** By default pass neither: `codex.model` and `codex.effort` from config
+  apply when set, and Codex's own default applies when not. Pass `--model` or `--effort` for one
+  run when the user names one, or when a heavy whole-task delegation calls for a different choice
+  and the sources in [routing.md](routing.md) support it. Name the override and its basis in
+  the reply.
 - **Resume** continues a Codex thread this plugin started. `--resume <thread-id>` takes a
   `thread_id` from `external-agents status <job>`; a thread that is not in this repository's job
   files is refused. `--last` resumes this plugin's newest job with a thread in this repository,
@@ -34,7 +36,7 @@ stderr carries `job: <id>` and any `notice:` lines (mode ceiling, config problem
 ## Review
 
 ```bash
-external-agents review codex --base <ref> [--brief-file <file>] [--model <model>]
+external-agents review codex --base <ref> [--brief-file <file>] [--model <model>] [--effort <level>]
 ```
 
 - Always read-only, whatever any config says. `<ref>` must be a commit that shares history with

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "docs/conventions/codebase-health.md wins the team layer; .claude/codebase-health.md is not read.", "why": "new file then wins" },
+    { "answer": "Both team files exist and the new one wins: docs/conventions/codebase-health.md.", "why": "wins then new file" }
+  ],
+  "fail": [
+    { "answer": ".claude/codebase-health.md wins the team layer over docs/conventions/codebase-health.md.", "why": "old file wins" },
+    { "answer": "docs/conventions/codebase-health.md and .claude/codebase-health.md both exist.", "why": "no winner named" }
+  ]
+}
