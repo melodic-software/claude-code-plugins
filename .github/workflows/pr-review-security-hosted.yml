@@ -316,7 +316,7 @@ jobs:
         **/CODEOWNERS
         docs/conventions/pr-pipeline.yaml
         **/.gitmodules
-        plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
+        plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py

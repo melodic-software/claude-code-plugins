@@ -287,7 +287,7 @@ class EveryConsumerFailsClosedWhenUnset(unittest.TestCase):
         code = (
             "import json, babysit_merge_settings as s\n"
             "s.managed_settings_files = lambda platform=None: []\n"
-            "import babysit_merge as m, babysit_review_evidence as r, babysit_risk as k, babysit_merge_policy as p\n"
+            "import babysit_merge as m, babysit_review_evidence as r, diff_risk as k, babysit_merge_policy as p\n"
             "print(json.dumps({\n"
             " 'checks': m.AI_REVIEW_CHECKS, 'lanes': r.LANES, 'callers': sorted(r.REVIEW_CALLERS),\n"
             " 'app': p.LANES_APP_LOGIN, 'row': bool(p.DECISION_ROW.search("

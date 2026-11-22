@@ -18,8 +18,8 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-import babysit_risk
-from babysit_risk import (
+import diff_risk
+from diff_risk import (
     AGENT_SURFACE_CODE,
     COST_CODE,
     COST_FINDING_CODE,
@@ -32,7 +32,7 @@ from babysit_risk import (
     person_reasons,
     score,
 )
-from test_babysit_risk import _codes, _file, _input
+from test_diff_risk import _codes, _file, _input
 
 WORKFLOW = ".github/workflows/nightly.yml"
 PIPELINE = "conventions/pr-pipeline.yaml"
@@ -1347,7 +1347,7 @@ class WorkflowPrivilegeHolds(_Finding):
                 self.assertNotHeld(result, SECRET_EXPOSURE_CODE)
 
 
-@unittest.skipUnless(babysit_risk._yaml(), "PyYAML is not installed")
+@unittest.skipUnless(diff_risk._yaml(), "PyYAML is not installed")
 class RenamedJobPairing(_Finding):
     """With PyYAML a renamed job pairs with its old id only when the rest of
     its body is the same, and each old job pairs once."""
@@ -1375,7 +1375,7 @@ class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
     """The same holds where PyYAML is not installed: the raw-text reading."""
 
     def setUp(self):
-        patcher = mock.patch.object(babysit_risk, "_yaml", return_value=None)
+        patcher = mock.patch.object(diff_risk, "_yaml", return_value=None)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -1399,7 +1399,7 @@ class NodePropertyReadingIsLinear(unittest.TestCase):
     scalar openers in one pass, so a long line of them is read in linear time."""
 
     def test_node_properties_are_stripped_from_the_end_only(self):
-        strip = babysit_risk._strip_node_properties
+        strip = diff_risk._strip_node_properties
         self.assertEqual(strip("key: &a !!str "), "key: ")
         self.assertEqual(strip("- !t"), "- ")
         self.assertEqual(strip("key: &a value "), "key: &a value ")
@@ -1407,7 +1407,7 @@ class NodePropertyReadingIsLinear(unittest.TestCase):
         self.assertEqual(strip("key:!t "), "key:!t ")
 
     def test_block_scalar_openers(self):
-        opens = babysit_risk._opens_block_scalar
+        opens = diff_risk._opens_block_scalar
         for line in ("key: |", "- >-", "key: &a |", "  run: !t &a |2+  ", "x !a- |", " |"):
             self.assertTrue(opens(line), line)
         for line in ("key: a |", "key:|", "|", "key: &a", "key: | x", "&a |"):
@@ -1417,10 +1417,10 @@ class NodePropertyReadingIsLinear(unittest.TestCase):
         lines = (" " + "! " * 20000 + "'x", "a" + " !-" * 20000 + " x", "a:" + " &a" * 20000 + " |")
         start = time.perf_counter()
         for line in lines:
-            babysit_risk._uncommented(line, "")
-            babysit_risk._opens_block_scalar(line)
+            diff_risk._uncommented(line, "")
+            diff_risk._opens_block_scalar(line)
         self.assertLess(time.perf_counter() - start, 1)
-        with mock.patch.object(babysit_risk, "_yaml", return_value=None):
+        with mock.patch.object(diff_risk, "_yaml", return_value=None):
             start = time.perf_counter()
             score(_input(files=(_file(WORKFLOW, patch=_patch(*("+" + line for line in lines))),)))
             self.assertLess(time.perf_counter() - start, 2)

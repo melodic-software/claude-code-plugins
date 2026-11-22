@@ -84,7 +84,7 @@
 //   naming each one still armed because its disarm failed.
 // - pr-merge's gate would not hold it on its risk score: `evidence
 //   --lane-reviews --rung <the room's rung>` runs the gate's scorer
-//   (babysit_risk.score, holding) over the inputs the gate builds, the
+//   (diff_risk.score, holding) over the inputs the gate builds, the
 //   review lanes' evidence bound to the head included. So an open CRITICAL
 //   security finding or a review not bound to the head (whether or not the
 //   lane applied its hold label), a symlink, submodule or other non-regular
@@ -783,10 +783,11 @@ export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-
 // cost and trust holds stay a person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
-// or a risk hold it marks `reviewsPerson` (babysit_risk.person_reasons),
+// or a risk hold it marks `reviewsPerson` (diff_risk.person_reasons),
 // `lane` for every other refusal, which gets the comment and no label, and
 // null for an unread answer, which the next run reads again. An answer
 // without its flag is a person's, as any doubt holds.
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 export function verifyClears(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || evidence.head !== head) {
     return null;
@@ -879,8 +880,9 @@ const personReasons = (body, head, label) => refusalReasons(body, true, head, la
 // take its label off. A cost, risk or verifier reason, a label a person set
 // with no refusal, or a comment at another head is not one, except that with
 // `pathHolds` false a risk reason whose every code is a path hold
-// (babysit_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
+// (diff_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
 // `review-path:`) is one too.
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
 const PATH_HOLD_CODE = /^(high-path:(?!\*\*$)|review-path:)\S/;
 const pathOnlyRisk = (line) =>

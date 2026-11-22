@@ -7819,7 +7819,7 @@ class ForeignPaths(unittest.TestCase):
 class AuthorReviewedPaths(unittest.TestCase):
     """Owner direction 2026-10-27: a trusted person's own pull request's
     `gate` paths only their own commits touched, on a head pr-verify passed,
-    clear on a clean security review (`babysit_risk.RiskInput.author_reviewed`);
+    clear on a clean security review (`diff_risk.RiskInput.author_reviewed`);
     the lanes App's, a bot's, a `trust` path and a lane's fix never do."""
 
     GATE = ".github/scripts/pr-merge/who.mjs"

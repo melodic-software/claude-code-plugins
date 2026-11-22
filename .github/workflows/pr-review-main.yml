@@ -998,8 +998,9 @@ jobs:
           PART_BYTES: "15000"
           PART_LINES: "1000"
           # Read may cut a long line short, so a longer diff line continues
-          # on lines that start `\ continued: ` (babysit_risk LONG_LINE_BYTES,
+          # on lines that start `\ continued: ` (diff_risk LONG_LINE_BYTES,
           # which the binder holds each verdict's longest line to).
+          # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
@@ -1953,8 +1954,9 @@ jobs:
           PART_BYTES: "15000"
           PART_LINES: "1000"
           # Read may cut a long line short, so a longer diff line continues
-          # on lines that start `\ continued: ` (babysit_risk LONG_LINE_BYTES,
+          # on lines that start `\ continued: ` (diff_risk LONG_LINE_BYTES,
           # which the binder holds each verdict's longest line to).
+          # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
@@ -2881,8 +2883,9 @@ jobs:
           PART_BYTES: "15000"
           PART_LINES: "1000"
           # Read may cut a long line short, so a longer diff line continues
-          # on lines that start `\ continued: ` (babysit_risk LONG_LINE_BYTES,
+          # on lines that start `\ continued: ` (diff_risk LONG_LINE_BYTES,
           # which the binder holds each verdict's longest line to).
+          # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
