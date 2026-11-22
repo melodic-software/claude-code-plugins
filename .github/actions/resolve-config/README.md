@@ -146,8 +146,9 @@ known; an option no entry maps fails the step (`unmapped-dimension`); an applyin
 ([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). `dimensions.mjs`
 reads them; beside it, `issue-status.mjs` collapses an issue's labels to its
 `models.issue-status` state and reads its Work status field under the same setter rule plus
-the bot setters (`statusBotSetters`: github-actions[bot] and the trusted list's `melodic-` bots
-but the lanes App) for every state but agent-ready, failing on an option no entry maps
+the bot setters (`statusBotSetters`: the listed `bot-setters` entries when the config sets them,
+else github-actions[bot] and the trusted list's `melodic-` bots but the lanes App) for every state
+but agent-ready, failing on an option no entry maps
 (`unmapped-status`); a slot's `labels` and `labels-absent` predicates read it on an `issues` event, as above. `resolve-config.mjs`'s `fieldEvents` reads an issue's
 field events with actor, time and values, and `fieldSetters` folds them to each field's latest
 setter. `write-status.mjs` holds the state writer (`statusWriter`, whose `set` and

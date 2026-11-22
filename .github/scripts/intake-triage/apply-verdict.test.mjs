@@ -2135,6 +2135,24 @@ describe("run", () => {
     }
   });
 
+  test("an explicit bot-setters list hands over a listed non-melodic bot's Work status, and not a derived-only melodic- bot's", async () => {
+    const field = String(STATUS_CONFIG["field-id"]);
+    const dir = tempDir("apply-verdict-setters-");
+    const listPath = path.join(dir, "trusted-actors.json");
+    const list = JSON.parse(readFileSync(TRUSTED, "utf8"));
+    list.actors.push({ id: 4242, login: "melodic-derived[bot]", kind: "bot" });
+    writeFileSync(listPath, JSON.stringify(list));
+    const config = { ...STATUS_CONFIG, "bot-setters": [{ id: 209825114, login: "claude[bot]" }] };
+    for (const [setter, handed] of [[209825114, true], [4242, false], [41898282, false]]) {
+      const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
+      const github = withFields(fake.github, { 7: { state: "confirmed", setter } });
+      const fields = async () => ({ [field]: setter });
+      await run({ env: { ...ENV, TRUSTED_ACTORS_PATH: listPath }, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: config, log: () => {} });
+      const [written] = fake.calls.filter(({ method }) => method === "STATUS");
+      assert.equal(Boolean(written.fields[field]), handed, String(setter));
+    }
+  });
+
   // A born-triaged issue filed with the agent-ready label and no Work status:
   // the label starts no run, so the ready verdict writes ready and admission
   // decides it. An issue whose field already holds agent-ready gets no write.

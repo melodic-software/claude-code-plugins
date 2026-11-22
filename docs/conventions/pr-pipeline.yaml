@@ -1096,7 +1096,8 @@ models:
   # human or the lanes App, or, for every state but agent-ready, a bot setter:
   # the job GITHUB_TOKEN (github-actions[bot], 41898282) and every kind bot
   # actor of trusted-actors.json whose login starts with melodic-, other than
-  # melodic-automation-lanes[bot], read from that list at read time.
+  # melodic-automation-lanes[bot], read from that list at read time, since
+  # this block sets no bot-setters list.
   # Third-party bots (claude[bot], cursor[bot], cursoragent, dependabot[bot])
   # never count, and agent-ready counts only from a listed
   # human or the lanes App. Any other value reads as none, and an issue with

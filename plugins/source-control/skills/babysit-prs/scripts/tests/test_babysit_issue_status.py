@@ -256,6 +256,34 @@ class StatusCase(unittest.TestCase):
 
 
 class TheFieldReader(StatusCase):
+    def test_an_explicit_bot_setters_list_replaces_the_derived_one(self) -> None:
+        actors = [
+            *ACTORS,
+            {"id": 61, "login": "other-bot[bot]", "kind": "bot"},
+            {"id": 71, "login": "melodic-derived[bot]", "kind": "bot"},
+        ]
+        self.gh.rest[TRUSTED] = {
+            "type": "file",
+            "encoding": "base64",
+            "content": base64.b64encode(
+                json.dumps({"version": 1, "actors": actors}).encode()
+            ).decode(),
+        }
+        config = dataclasses.replace(
+            live_config(), bot_setters=((61, "other-bot[bot]"),)
+        )
+        for who, want in (
+            (setter(61, "other-bot"), "needs-human"),
+            (setter(71, "melodic-derived"), None),
+            (setter(288071998, "melodic-ai"), None),
+        ):
+            with self.subTest(who=who):
+                self.assertEqual(self.read(answer("needs-human", who), config), want)
+        self.assertEqual(
+            self.read(answer("needs-human", setter(71, "melodic-derived"))),
+            "needs-human",
+        )
+
     def test_each_parity_case_gives_the_rules_state(self) -> None:
         for case in PARITY:
             with self.subTest(case=case):
@@ -428,10 +456,51 @@ class TheConfigBlock(unittest.TestCase):
             policy.status_bot_setters(()), ((41898282, "github-actions[bot]"),)
         )
 
+    def test_an_explicit_list_keeps_each_entry_the_actors_hold_as_that_bot(
+        self,
+    ) -> None:
+        actors = (
+            (61, "other-bot[bot]", "bot"),
+            (71, "melodic-derived[bot]", "bot"),
+            (81, "melodic-moved[bot]", "bot"),
+            (91, "melodic-person", "human"),
+        )
+        explicit = (
+            (41898282, "github-actions[bot]"),
+            (61, "other-bot[bot]"),
+            (81, "melodic-old-name[bot]"),
+            (91, "melodic-person"),
+            (99, "melodic-unlisted[bot]"),
+        )
+        self.assertEqual(
+            policy.status_bot_setters(actors, explicit),
+            ((41898282, "github-actions[bot]"), (61, "other-bot[bot]")),
+        )
+        self.assertEqual(policy.status_bot_setters(actors, ()), ())
+
+    def test_a_block_with_bot_setters_parses_them_and_one_without_derives(
+        self,
+    ) -> None:
+        listed = SMALL.replace(
+            "    field-id: 48484079\n",
+            "    field-id: 48484079\n    bot-setters:\n"
+            "      - id: 61\n        login: \"other-bot[bot]\"\n",
+        )
+        self.assertEqual(
+            policy._issue_status_config(listed).bot_setters,  # type: ignore[union-attr]
+            ((61, "other-bot[bot]"),),
+        )
+        self.assertIsNone(policy._issue_status_config(SMALL).bot_setters)  # type: ignore[union-attr]
+        self.assertTrue(
+            policy._issue_status_config(  # type: ignore[union-attr]
+                listed.replace('        login: "other-bot[bot]"\n', "")
+            ).error
+        )
+
     def test_the_live_block_style_setters_parse(self) -> None:
         status = live_config()
         self.assertEqual(status.field_id, FIELD)
-        self.assertNotIn("bot-setters", LIVE)
+        self.assertIsNone(status.bot_setters)
         self.assertIn(("86380005", "needs-human"), status.options)
         self.assertEqual(
             dict(status.labels)["needs-owner-decision"],

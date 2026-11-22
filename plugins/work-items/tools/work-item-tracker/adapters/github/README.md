@@ -695,21 +695,22 @@ tracker:
 - `trusted_actors`: a repo-relative path to the trust list, `{version: 1, actors: [{id, login,
   kind}]}`, every id a positive whole number.
 - `model`: a repo-relative path to a YAML file whose `models.issue-status` block gives `field-id`
-  and `options` (option id to state), and may give `ready-state`, the state only a person's value
-  counts for (absent or empty: `agent-ready`).
+  and `options` (option id to state), and may give `bot-setters` (`{id, login}` entries) and
+  `ready-state`, the state only a person's value counts for (absent or empty: `agent-ready`).
 - `lanes_app`: the lanes App's login, which counts for every state while the trust list holds it.
 
 Both files are read from each item repository's default branch. A Work status field event counts
 when a listed `human` or the lanes App wrote it, for any state, or when a bot setter wrote any
-state but the `ready-state`. The bot setters are `github-actions[bot]` (id 41898282) and every
-`kind: bot` entry of the trust list whose login starts with `melodic-`, other than
-`melodic-automation-lanes[bot]`; a `bot-setters` key in the model is not read. The newest counted event decides; a
+state but the `ready-state`. With `bot-setters` set, the bot setters are its entries that are
+`github-actions[bot]` (id 41898282) or that the trust list holds as `kind: bot` with the same id
+and login; without it, they are `github-actions[bot]` and every `kind: bot` entry of the trust
+list whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`. The newest counted event decides; a
 counted removal reads null, and with no counted event the item reads null. The read takes the
 newest 100 field events and 25 field values per issue.
 
 | Exit | When |
 |---|---|
-| `3` | The key is malformed or a member is missing, a file is absent, the trust list is not version 1 or holds a non-positive or non-whole id, or the model's `field-id` or `options` is invalid. |
+| `3` | The key is malformed or a member is missing, a file is absent, the trust list is not version 1 or holds a non-positive or non-whole id, or the model's `field-id`, `options` or `bot-setters` is invalid. |
 | `1` | 25 field values fill the page; the 100-event window is full, the field holds a value, and no event counts; or a counted state is one `options` does not map. |
 
 Without the key, or with no binding, the read is the plain field value.

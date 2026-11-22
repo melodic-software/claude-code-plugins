@@ -47,8 +47,18 @@ const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
 // The lanes App counts through trustedOption already, agent-ready included.
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
-export function statusBotSetters(trustedActors) {
+export function statusBotSetters(trustedActors, config) {
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
+  const explicit = config?.["bot-setters"];
+  if (Array.isArray(explicit)) {
+    return explicit
+      .filter(
+        ({ id, login }) =>
+          (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||
+          actors.some((actor) => actor?.id === id && actor?.login === login && actor?.kind === "bot"),
+      )
+      .map(({ id, login }) => ({ id, login }));
+  }
   const melodic = actors.filter(
     (actor) => actor?.kind === "bot" && typeof actor.login === "string" && actor.login.startsWith("melodic-") && actor.login !== LANES_APP_LOGIN,
   );
@@ -88,7 +98,7 @@ export function issueStatusSetter(facts, config, trustedActors) {
       "unmapped-status",
       `issue field ${fieldId} (Work status) holds option ${option}, which models.issue-status does not map`,
     );
-  const bots = statusBotSetters(trustedActors);
+  const bots = statusBotSetters(trustedActors, config);
   const botSetter = (id) => bots.some((entry) => entry.id === id);
   const row = facts.fieldValues.find((value) => value.field === fieldId);
   if (Array.isArray(facts.fieldEvents)) {
@@ -176,6 +186,23 @@ export function checkStatus(config, dimensions) {
   const dimensionFields = Object.values(dimensions?.fields ?? {}).map((field) => field["field-id"]);
   if (dimensionFields.includes(config["field-id"])) {
     reject(".field-id is a models.issue-dimensions field");
+  }
+  const setters = config["bot-setters"] ?? [];
+  const ids = setters.map((entry) => entry.id);
+  const repeated = ids.find((id, i) => ids.indexOf(id) !== i);
+  if (repeated !== undefined) {
+    reject(`.bot-setters lists id ${repeated} twice`);
+  }
+  for (const { id, login } of setters) {
+    if (login === ACTIONS_BOT.login || id === ACTIONS_BOT.id) {
+      if (login !== ACTIONS_BOT.login || id !== ACTIONS_BOT.id) {
+        reject(`.bot-setters names ${login} (${id}); github-actions[bot] is ${ACTIONS_BOT.id}`);
+      }
+      continue;
+    }
+    if (login === LANES_APP_LOGIN || !/^melodic-.+\[bot\]$/.test(login)) {
+      reject(`.bot-setters names ${login}, which is neither github-actions[bot] nor a melodic- bot other than the lanes App`);
+    }
   }
   const since = config["field-events-since"];
   if (since !== undefined && (typeof since !== "string" || Number.isNaN(Date.parse(since)) || new Date(since).toISOString().replace(".000Z", "Z") !== since)) {

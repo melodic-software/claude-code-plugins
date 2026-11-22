@@ -515,6 +515,13 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
             raise ValueError("options must map option ids to states")
         if len(set(states)) != len(states):
             raise ValueError("options map two option ids to one state")
+        setters = (
+            listed("bot-setters.", ("id", "login"))
+            if any(k == "bot-setters" or k.startswith("bot-setters.") for k in rows)
+            else None
+        )
+        if setters is not None and not all(ident(s["id"]) for s in setters):
+            raise ValueError("a bot-setters id is not an id")
         if {k.rsplit(".", 1)[0] for k in items("labels.")} - set(states):
             raise ValueError("labels names a state no option maps")
         labels = tuple(
@@ -550,6 +557,9 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
         order,
         hold_states=holds,
         ready_state=ready,
+        bot_setters=None
+        if setters is None
+        else tuple((int(s["id"]), s["login"]) for s in setters),
     )
 
 
@@ -992,7 +1002,8 @@ class IssueStatusConfig:
     id with its state, each state's labels, and the collapse order. `error` names a malformed block, which
     `issue_status` refuses to read. `hold_states` and `ready_state` are the
     block's `hold-states` and `ready-state`, else `HOLD_STATES` and
-    `READY_STATE`."""
+    `READY_STATE`. `bot_setters` is the block's `bot-setters` (id, login)
+    pairs, None when it has none."""
 
     field_id: int
     options: tuple[tuple[str, str], ...]
@@ -1001,6 +1012,7 @@ class IssueStatusConfig:
     error: str | None = None
     hold_states: tuple[str, ...] = HOLD_STATES
     ready_state: str = READY_STATE
+    bot_setters: tuple[tuple[int, str], ...] | None = None
 
 
 ISSUE_STATUS_KEY = "models.issue-status"
@@ -1590,6 +1602,9 @@ def _cached_issue_status(value: Any) -> IssueStatusConfig | None:
         value.get("error"),
         tuple(holds) if texts(holds) else (),
         value.get("ready_state"),
+        None
+        if value.get("bot_setters") is None
+        else pairs(value.get("bot_setters"), int, text),
     )
     if (
         type(status.field_id) is not int
@@ -3161,10 +3176,17 @@ FIELD_EVENT_WINDOW = 100
 
 def status_bot_setters(
     actors: Iterable[tuple[int, Any, Any]],
+    explicit: tuple[tuple[int, str], ...] | None = None,
 ) -> tuple[tuple[int, str], ...]:
-    """The Work status bot setters as (id, login): github-actions[bot], then
-    each `kind` bot of `actors` (`trusted_listing`) whose login starts with
-    `melodic-`, other than `STATUS_LANES_APP`, in list order."""
+    """The Work status bot setters as (id, login). With `explicit` (the
+    block's `bot-setters`), each entry that is `ACTIONS_BOT` or that `actors`
+    (`trusted_listing`) lists as a bot with the same id and login; without
+    it, github-actions[bot], then each `kind` bot of `actors` whose login
+    starts with `melodic-`, other than `STATUS_LANES_APP`, in list order."""
+    actors = tuple(actors)
+    if explicit is not None:
+        bots = {(i, login) for i, login, kind in actors if kind == "bot"}
+        return tuple(e for e in explicit if e == ACTIONS_BOT or e in bots)
     return (ACTIONS_BOT,) + tuple(
         (i, login)
         for i, login, kind in actors
@@ -3181,8 +3203,8 @@ def issue_status(
     """The state the newest counted Work status event on issue `number` left
     (`config`), or None when that event removed the value or no event counts.
     An event counts when a listed human or the lanes App on the trusted list
-    at `ref` wrote it, or a `status_bot_setters` account of that list wrote
-    any state but `config.ready_state`. Unlike
+    at `ref` wrote it, or a `status_bot_setters` account (`config.bot_setters`
+    or that list's) wrote any state but `config.ready_state`. Unlike
     issue-status.mjs issueStatus, which reads the newest event's setter, an
     uncounted later change or removal leaves a counted state standing.
     Raises `PolicyReadError` on a malformed `config`, a failed or malformed
@@ -3221,7 +3243,7 @@ def issue_status(
         for i, login, kind in actors
         if kind == "human" or (LANES_APP_LOGIN and login == LANES_APP_LOGIN)
     }
-    bots = {i for i, _ in status_bot_setters(actors)}
+    bots = {i for i, _ in status_bot_setters(actors, config.bot_setters)}
     # An uncounted event neither sets nor clears a counted state: the newest
     # counted one decides, whatever came after it.
     for event in ours_newest_first:

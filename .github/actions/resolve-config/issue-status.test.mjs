@@ -158,8 +158,56 @@ test("read: a bot-setter's option no entry maps fails closed, and a bot-setter w
   assert.equal(issueStatus([{ field: 15462270, option: 27053568 }], ACTIONS_BOT), null);
 });
 
-test("check: the live config passes", () => {
+const rejectsSetters = (setters, text) =>
+  assert.throws(
+    () => checkStatus({ ...CONFIG, "bot-setters": setters }, undefined),
+    (error) => error instanceof Rejection && error.code === "undefined-status" && error.message.includes(text),
+    text,
+  );
+
+test("check: the live bot-setters pass, and so does a config with none", () => {
   checkStatus(CONFIG, undefined);
+  checkStatus({ ...CONFIG, "bot-setters": undefined }, undefined);
+});
+
+test("check: a third-party bot, the lanes App, a wrong id or login, and a repeated id are rejected", () => {
+  const actions = { id: ACTIONS_BOT, login: "github-actions[bot]" };
+  rejectsSetters([actions, { id: CLAUDE_BOT, login: "claude[bot]" }], "claude[bot]");
+  rejectsSetters([{ id: 49699333, login: "dependabot[bot]" }], "dependabot[bot]");
+  rejectsSetters([{ id: 199161495, login: "cursoragent" }], "cursoragent");
+  rejectsSetters([{ id: LANES_APP, login: "melodic-automation-lanes[bot]" }], "other than the lanes App");
+  rejectsSetters([{ id: 1, login: "github-actions[bot]" }], "github-actions[bot] is 41898282");
+  rejectsSetters([{ id: ACTIONS_BOT, login: "melodic-ai[bot]" }], "github-actions[bot] is 41898282");
+  rejectsSetters([actions, { id: MELODIC_AI, login: "melodic-ai[bot]" }, { id: MELODIC_AI, login: "melodic-ai[bot]" }], `id ${MELODIC_AI} twice`);
+});
+
+test("bot setters: an explicit bot-setters list replaces the derived one, each entry counting while the list holds it as that bot", () => {
+  const list = {
+    version: 1,
+    actors: [
+      { id: 61, login: "other-bot[bot]", kind: "bot" },
+      { id: 71, login: "melodic-derived[bot]", kind: "bot" },
+      { id: 81, login: "melodic-moved[bot]", kind: "bot" },
+    ],
+  };
+  const config = {
+    ...CONFIG,
+    "bot-setters": [
+      { id: 41898282, login: "github-actions[bot]" },
+      { id: 61, login: "other-bot[bot]" },
+      { id: 81, login: "melodic-old-name[bot]" },
+      { id: 91, login: "melodic-unlisted[bot]" },
+    ],
+  };
+  assert.deepEqual(statusBotSetters(list, config), [
+    { id: 41898282, login: "github-actions[bot]" },
+    { id: 61, login: "other-bot[bot]" },
+  ]);
+  const row = [{ field: FIELD, option: OPTIONS["needs-human"] }];
+  for (const [setter, state] of [[61, "needs-human"], [41898282, "needs-human"], [71, null], [81, null], [91, null]]) {
+    assert.equal(readStatus({ fieldValues: row, fieldSetters: { [FIELD]: setter } }, config, list), state, String(setter));
+  }
+  assert.deepEqual(statusBotSetters(list, { ...CONFIG, "bot-setters": [] }), []);
 });
 
 test("bot setters: github-actions[bot], then the listed melodic- bots but the lanes App, in list order", () => {

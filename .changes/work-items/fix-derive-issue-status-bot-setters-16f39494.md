@@ -2,4 +2,4 @@
 bump: patch
 ---
 
-`get-statuses` under Work status trust now derives the bot setters from the trust list instead of the model's `bot-setters`: github-actions[bot] plus every `kind: bot` entry whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`. The model no longer needs a `bot-setters` key, and one left in place is not read.
+`get-statuses` under Work status trust derives the bot setters from the trust list when the model sets no `bot-setters`: github-actions[bot] plus every `kind: bot` entry whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`. A model that sets `bot-setters` keeps that explicit list, each entry counting while the trust list holds it as that bot.
