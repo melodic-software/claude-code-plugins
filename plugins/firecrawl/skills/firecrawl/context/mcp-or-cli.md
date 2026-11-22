@@ -21,8 +21,8 @@ are read enter the conversation.
 
 ## Running both
 
-This plugin keeps the MCP server and the CLI installed together on purpose: each serves one of the
-jobs above. Firecrawl's own position on running both is in
+This plugin ships neither the MCP server nor the CLI. When a session has both, keep both: each
+serves one of the jobs above. Firecrawl's own position on running both is in
 [Firecrawl skills for Claude Code](https://www.firecrawl.dev/blog/firecrawl-skills-claude-code-16-powers).
 If the two conflict in a session, report it with the call that failed.
 
