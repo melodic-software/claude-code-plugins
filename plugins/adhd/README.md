@@ -19,8 +19,8 @@ brain reads: working memory is small, knowing is not doing, starting is the
 hardest step, time reads as uniform, and dopamine is scarce. It shapes output
 to lead with a concrete next action, number multi-step work, restate state
 across turns, cap and rank lists at five, size work as Small, Medium or Large
-with what makes it that size, make finished work visible, keep an error tone flat, and drop preamble, recap,
-and closing pleasantries.
+with what makes it that size, make finished work visible, keep an error tone
+flat, and drop preamble, recap, and closing pleasantries.
 
 It knows when **not** to compress: an "explain / walk me through" request runs
 full-length, a destructive action gets a confirmation first (safety over
@@ -54,7 +54,7 @@ medium and what decided it.
 
 ## Triggering: on-demand, session-standing once invoked
 
-The skill is on-demand by design. It does **not** auto-fire on every message.
+`shape` is on-demand by design. It does **not** auto-fire on every message.
 It surfaces when you ask for it in plain language ("ADHD-friendly",
 "action-first", "give me the structured version", "cut the preamble") or when
 you invoke `/adhd:shape` directly.
