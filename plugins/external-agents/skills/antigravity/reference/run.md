@@ -16,7 +16,7 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
 - **Model and effort.** By default pass neither: `antigravity.model` and `antigravity.effort` from config
   apply when set, and agy's own default applies when not. Pass `--model` or `--effort` for one
   run when the user names one, or when a heavy whole-task delegation calls for a different choice
-  and the sources in [routing.md](routing.md) support it. The levels this agy offers are in `models.txt` and `agy.txt` in the `cli facts:` folder. Name the override and its basis in
+  and the sources in [routing.md](routing.md) support it. The models and levels this agy offers: `external-agents models antigravity`. Name the override and its basis in
   the reply.
 - **Resume** continues an agy conversation this plugin started. `--resume <thread-id>` takes a
   `thread_id` from `external-agents status <job>`; a thread that is not in this repository's job

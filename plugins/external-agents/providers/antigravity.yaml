@@ -3,7 +3,10 @@ product: antigravity
 docs_index: https://antigravity.google/docs/cli
 help:
   agy: [--help]
-  models: [models]
+models:
+  args: [models]
+  format: tab_lines
+  effort_help: agy
 binary:
   name: agy
   candidates:

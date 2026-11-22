@@ -21,7 +21,7 @@ One line per check; act on each:
 | `codex: ready` | Ready; the breaker is closed. `ready (check: ...)` names checks below that need a look |
 | `codex: unavailable: ...` | Relay it: it says what to install or log in to. Stop |
 | `version:`, `login:` | Report them when the user asked about readiness |
-| `cli facts: <path>` | Codex's own help for this version. Read these files for any flag or subcommand question |
+| `cli facts: <path>` | Codex's own help for this version, and `models.txt` (`codex debug models`). Read these files for any flag or subcommand question; for models and effort levels run `external-agents models codex` |
 | `version check:` | A newer release: tell the user once |
 | `docs index:` | `unreachable`: say the routing pointers could not be checked |
 | `routing: due; re-read the routing pointers` | Do the routing refresh below |

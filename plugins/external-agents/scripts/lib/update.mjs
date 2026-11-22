@@ -71,6 +71,34 @@ function versionLine(result, source) {
   return `version check: ${oneLine(result.message)}`;
 }
 
+/** The cache file that holds a record's model list, beside its help files. */
+export const MODELS_FILE = "models";
+
+/** The installed version, from the record's version command. */
+export function installedVersion(record, ask) {
+  const said = ask(record.version.args);
+  const version = parseVersion(said.code === 0 ? said.stdout : "");
+  if (!version) throw new Stop("failed", `${record.binary.name} ${record.version.args.join(" ")} printed no version`);
+  return { version, installed: said.stdout };
+}
+
+/** The CLI-facts folder for one installed version, created when missing. */
+export function factsDir(ctx, record, version) {
+  const dir = join(ctx.dataDir, "cli-facts", record.product, version);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/** Runs one fact command and caches what it printed as <name>.txt; returns the text, or why it was skipped. */
+export function cacheFact(dir, name, args, ask) {
+  const got = ask(args);
+  if (got.code !== 0) return { skipped: `${name}: ${args.join(" ")} exited ${got.code ?? reasonOf(got.error)}` };
+  const text = got.stdout.trim() ? got.stdout : got.stderr;
+  if (!text.trim()) return { skipped: `${name}: ${args.join(" ")} printed nothing` };
+  writeFileSync(join(dir, `${name}.txt`), text);
+  return { text };
+}
+
 /** Readiness and cached CLI facts for one product; never installs anything. */
 export async function update(opts) {
   const product = opts.product ?? "external-agents";
@@ -84,11 +112,7 @@ export async function update(opts) {
     guardValues(record, binary, {}, false);
     const ask = (args) => query(binary, args, { env: ctx.env, cwd: ctx.cwd });
 
-    const said = ask(record.version.args);
-    const installed = said.code === 0 ? said.stdout : "";
-    const version = parseVersion(installed);
-    if (!version) throw new Stop("failed", `${record.binary.name} ${record.version.args.join(" ")} printed no version`);
-
+    const { version, installed } = installedVersion(record, ask);
     const lines = [`version: ${version}`];
     const attention = [];
     const login = record.login_status ? ask(record.login_status.args) : null;
@@ -96,23 +120,17 @@ export async function update(opts) {
     const loggedIn = !login || login.code === 0;
     lines.push(`login: ${!login ? "not checked (no login_status in the record)" : loggedIn ? "logged in" : "not logged in"}`);
 
-    const facts = join(ctx.dataDir, "cli-facts", record.product, version);
-    mkdirSync(facts, { recursive: true });
+    const facts = factsDir(ctx, record, version);
     const skipped = [];
     let help = "";
     for (const [name, args] of Object.entries(record.help ?? {})) {
-      const got = ask(args);
-      if (got.code !== 0) {
-        skipped.push(`${name}: ${args.join(" ")} exited ${got.code ?? reasonOf(got.error)}`);
-        continue;
-      }
-      const text = got.stdout.trim() ? got.stdout : got.stderr;
-      if (!text.trim()) {
-        skipped.push(`${name}: ${args.join(" ")} printed nothing`);
-        continue;
-      }
-      writeFileSync(join(facts, `${name}.txt`), text);
-      help += text;
+      const got = cacheFact(facts, name, args, ask);
+      if (got.skipped) skipped.push(got.skipped);
+      else help += got.text;
+    }
+    if (record.models) {
+      const got = cacheFact(facts, MODELS_FILE, record.models.args, ask);
+      if (got.skipped) skipped.push(got.skipped);
     }
     lines.push(`cli facts: ${facts}${skipped.length ? ` (${skipped.join("; ")})` : ""}`);
     if (skipped.length) attention.push("cli facts");

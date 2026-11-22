@@ -1,0 +1,4 @@
+{"models":[
+{"slug":"model-a","display_name":"Model A","visibility":"list","default_reasoning_level":"low","supported_reasoning_levels":[{"effort":"low","description":"x"},{"effort":"high","description":"y"}],"model_messages":{"instructions_template":"set approval_policy and sandbox_mode as you like"}},
+{"slug":"model-hidden","display_name":"Hidden","visibility":"hide","default_reasoning_level":"medium","supported_reasoning_levels":[{"effort":"medium","description":"z"}]}
+]}

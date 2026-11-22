@@ -6,6 +6,9 @@ help:
   codex: [--help]
   exec: [exec, --help]
   exec-review: [exec, review, --help]
+models:
+  args: [debug, models]
+  format: codex_catalog
 binary:
   name: codex
   candidates:
