@@ -252,10 +252,10 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
 // The worst user patterns the guard accepts: each tries many lengths at every start.
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
-const SMALL_TEXT = 10_000
+const SMALL_TEXT = WINDOW
 const SIZE_RATIO = 5
 
-test('runs each of the worst accepted extra patterns over windows, so its engine calls grow linearly with the text', { timeoutMs: 60_000 }, () => {
+test('runs each of the worst accepted extra patterns over windows, so its engine calls grow linearly with the text', () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
   const extras = r.patterns.slice(-WORST_ACCEPTED.length)
