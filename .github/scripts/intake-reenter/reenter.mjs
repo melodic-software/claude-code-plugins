@@ -31,12 +31,18 @@
 //   dispatches nothing. A release that left the field empty then sets it to
 //   needs-triage, and intake is dispatched;
 //
-// A decision on an issue that carries `needs-human` changes nothing: only a
-// listed human releases that hold (docs/contracts/loop-lane/README.md, the
-// label table), and their release re-enters an issue at
-// `needs-owner-decision` (owner decision on #10735). At `status: confirmed`
-// it re-enters nothing, so the decision is posted again after it. Nor does
-// anything on an issue whose own labels hold a routing label
+// A decision on an issue that carries `needs-human`, on its label or its Work
+// status field, re-enters nothing: only a listed human releases that hold
+// (docs/contracts/loop-lane/README.md, the label table), and their release
+// re-enters an issue at `needs-owner-decision` (owner decision on #10735). At
+// `status: confirmed` a label removal re-enters nothing, so the decision is
+// posted again after it. The run instead posts one reply saying how the hold
+// is released (HOLD_MARKER, once per issue). A listed human's comment whose
+// first line opens with "decision recorded" in any other case or punctuation
+// gets one reply naming the exact first line (FORM_MARKER, once per issue),
+// unless it answered the issue anyway
+// (https://github.com/melodic-software/claude-code-plugins/issues/18251).
+// Nothing changes on an issue whose own labels hold a routing label
 // (check-born-triaged.mjs routingLabel): intake skips it;
 //
 // then, on a comment or a needs-human removal, it sets the Work status field
@@ -101,6 +107,17 @@ const FIELD_ACTIONS = new Set(["field_added", "field_removed"]);
 const INFO_HOLDS = new Set([NEEDS_HUMAN, NEEDS_DECISION, "needs-spec"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
+
+export const HOLD_MARKER = "<!-- intake-reenter:needs-human-decision -->";
+export const FORM_MARKER = "<!-- intake-reenter:decision-form -->";
+const HOW_FIELD = "a listed human changes the issue's Work status field from needs-human to needs-triage, or clears it";
+const HOW_LABEL = `a listed human removes the \`${NEEDS_HUMAN}\` label`;
+const HOW_LABEL_CONFIRMED = `${HOW_LABEL} and then posts the decision again, since a label removal re-enters no issue at \`${CONFIRMED}\``;
+const holdReply = (how) =>
+  `${HOLD_MARKER}\n\`${NEEDS_HUMAN}\` holds this issue, so a recorded decision does not send it back to intake triage. The hold stays until ${how}; that release sends the issue to intake, which reads the decision.`;
+const FORM_REPLY = `${FORM_MARKER}\nThis comment did not send the issue back to intake triage: only a comment by a listed human whose first line is exactly \`**Decision recorded.**\` does. Post the decision again with that first line.`;
+const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
+const LOOSE_DECISION = /^[^\p{L}\p{N}]*decision recorded/iu;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 const openIssue = (issue) => !issue.pull_request && issue.state === "open";
@@ -321,6 +338,40 @@ async function releaseField({ client, repository, base, issue, humans, lanesAppI
   return 0;
 }
 
+async function replyOnce({ client, repository, base, issue, marker, body, log, what }) {
+  if (await ownComment({ github: client, repository, pull: issue.number, marker })) {
+    log(`intake-reenter: ${what}; the reply is already on the issue, so nothing changed`);
+    return 0;
+  }
+  await client("POST", `${base}/comments`, { body });
+  log(`intake-reenter: ${what}; posted the reply, changed nothing else`);
+  return 0;
+}
+
+const holdHow = (own) => (own.includes(NEEDS_HUMAN) ? (own.includes(CONFIRMED) ? HOW_LABEL_CONFIRMED : HOW_LABEL) : HOW_FIELD);
+
+const replyHeld = ({ own, ...rest }) =>
+  replyOnce({ ...rest, marker: HOLD_MARKER, body: holdReply(holdHow(own)), what: `${NEEDS_HUMAN} holds the issue, so a decision re-enters nothing` });
+
+async function replyUnanswered({ client, repository, base, issue, comment, humans, ids, labels, own, log }) {
+  const user = comment.user ?? {};
+  if (user.type === "User" && humans.has(user.id) && comment.performed_via_github_app == null) {
+    const exact = isDecisionComment({ comment, lastEditedAt: null, lastEditorId: null }, humans);
+    if (!exact && LOOSE_DECISION.test(firstLine(comment.body))) {
+      return replyOnce({ client, repository, base, issue, log, marker: FORM_MARKER, body: FORM_REPLY, what: "a decision whose first line is not exactly **Decision recorded.** re-enters nothing" });
+    }
+    if (exact && labels.includes(NEEDS_HUMAN)) {
+      const { kept } = await selectTrustedIssueComments({ github: client, repository, issueNumber: issue.number, ids });
+      const item = kept.find((one) => one.comment.id === comment.id);
+      if (item && isDecisionComment(item, humans)) {
+        return replyHeld({ client, repository, base, issue, own, log });
+      }
+    }
+  }
+  log("intake-reenter: not an answer to a parked issue; nothing changed");
+  return 0;
+}
+
 const dispatch = (client, repository, issue) =>
   client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
     ref: "main",
@@ -404,8 +455,7 @@ export async function main({ env = process.env, github, log = console.log, statu
       }
       kind = await classify({ github: client, repository, issue, comment, humans, ids, lanesAppId, labels });
       if (!kind) {
-        log("intake-reenter: not an answer to a parked issue; nothing changed");
-        return 0;
+        return await replyUnanswered({ client, repository, base, issue, comment, humans, ids, labels, own, log });
       }
       // A reply sets needs-triage, so it must not overwrite a hold only the
       // field holds beside the needs-info it answers; a hold label stays on.
@@ -415,12 +465,7 @@ export async function main({ env = process.env, github, log = console.log, statu
         return 0;
       }
       if (kind !== "info" && labels.includes(NEEDS_HUMAN)) {
-        const next =
-          kind === "decision"
-            ? `a listed human's removal of ${NEEDS_HUMAN} sends it back to triage`
-            : `a listed human removes ${NEEDS_HUMAN} and posts the decision again, since a removal re-enters no issue at ${CONFIRMED}`;
-        log(`intake-reenter: ${NEEDS_HUMAN} holds the issue, so a decision changes nothing; ${next}`);
-        return 0;
+        return await replyHeld({ client, repository, base, issue, own, log });
       }
     }
     const [names, prior] = ANSWERED[kind];

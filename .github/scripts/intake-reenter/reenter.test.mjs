@@ -6,7 +6,9 @@
 // Work status field to needs-triage; it dispatches intake-triage.yml once with the issue number
 // only when the issue's author is one intake admits on open (a listed human
 // or the lanes App). A decision on an issue that carries `needs-human`
-// changes nothing, and a listed human's removal of `needs-human` re-enters an
+// re-enters nothing and gets one reply saying how the hold is released
+// (https://github.com/melodic-software/claude-code-plugins/issues/18251), and
+// a listed human's removal of `needs-human` re-enters an
 // issue at `needs-owner-decision` (owner decision on #10735). A decision on
 // a `status: confirmed` issue whose only status that is, with no
 // `agent-ready`, re-enters it whether admission parked it or a person
@@ -185,13 +187,91 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
 
 const PARKED = { id: 9, user: LANES_APP, body: "<!-- intake-triage admission -->\nNot admitted to the issue lane: no trusted-human acceptance criteria." };
 
-test("a decision on an issue that carries needs-human keeps it and changes nothing", async () => {
-  for (const labels of [["needs-human", "needs-owner-decision"], ["needs-human", "status: confirmed"]]) {
+const HOLD_REPLY = "<!-- intake-reenter:needs-human-decision -->";
+const FORM_REPLY = "<!-- intake-reenter:decision-form -->";
+const COMMENTS = `/repos/${REPO}/issues/${NUMBER}/comments`;
+const heldOnField = (hold) => [fieldNode("IssueFieldAddedEvent", LANES_APP, { value: hold })];
+const onlyReply = (w, marker, why) => {
+  assert.deepEqual(
+    w.writes.map(([method, path]) => `${method} ${path}`),
+    [`POST ${COMMENTS}`],
+    why,
+  );
+  const body = w.writes[0][2].body;
+  assert.ok(body.startsWith(`${marker}\n`), `${why}: the reply opens with ${marker}`);
+  return body;
+};
+
+test("a decision on an issue that carries needs-human keeps it, replies once how the label is lifted, and changes nothing else", async () => {
+  for (const [labels, how] of [
+    [["needs-human", "needs-owner-decision"], /removes the `needs-human` label/],
+    [["needs-human", "status: confirmed"], /removes the `needs-human` label and then posts the decision again/],
+  ]) {
     const w = world({ labels, comments: [PARKED, { id: 1, user: OWNER, body: DECISION }] });
     assert.equal(await run(w, 1), 0);
-    assert.deepEqual(w.labels(), labels, labels.join());
-    assert.deepEqual(w.writes, [], labels.join());
+    assert.deepEqual(w.labels(), [...labels].sort(), labels.join());
+    assert.match(onlyReply(w, HOLD_REPLY, labels.join()), how, labels.join());
+    assert.equal(await run(w, 1), 0, `${labels.join()}: re-run`);
+    assert.equal(w.writes.length, 1, `${labels.join()}: a re-run adds no second reply`);
   }
+});
+
+test("a decision on a field-only needs-human hold with no labels replies once how the field releases it, whatever later decisions come", async () => {
+  const w = world({ labels: [], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes: heldOnField("needs-human") });
+  assert.equal(await run(w, 1), 0);
+  const body = onlyReply(w, HOLD_REPLY, "first decision");
+  assert.match(body, /changes the issue's Work status field from needs-human to needs-triage, or clears it/);
+  assert.equal(w.field(), "needs-human", "the hold stands");
+  assert.equal(w.dispatches().length, 0);
+  assert.equal(await run(w, 1), 0, "re-run");
+  w.comments().push({ id: 2, user: OWNER, body: "**Decision recorded.**\n\nOption 2 after all.", performed_via_github_app: null, node_id: "IC_2", issue_url: `https://api.github.com/repos/${REPO}/issues/${NUMBER}` });
+  assert.equal(await run(w, 2), 0, "a second decision");
+  assert.equal(w.writes.length, 1, "neither a re-run nor a second decision adds a reply");
+  assert.equal(w.field(), "needs-human");
+});
+
+test("a stranger's decision, or a listed human's plain comment, on a needs-human issue gets no reply", async () => {
+  for (const [name, user, body] of [
+    ["stranger", STRANGER, DECISION],
+    ["plain comment", OWNER, "Looking at this."],
+  ]) {
+    const w = world({ labels: [], comments: [{ id: 1, user, body }], fieldNodes: heldOnField("needs-human") });
+    assert.equal(await run(w, 1), 0, name);
+    assert.deepEqual(w.writes, [], name);
+  }
+});
+
+test("a listed human's decision in another form replies once with the exact first line, and the exact form re-enters instead", async () => {
+  for (const body of ["Decision recorded (owner, 2026-11-22): option 1.", "**Decision recorded**\n\nOption 1.", "decision recorded: option 1", "## Decision Recorded.\n\nOption 1."]) {
+    const w = world({ labels: [], comments: [{ id: 1, user: OWNER, body }], fieldNodes: heldOnField("needs-owner-decision") });
+    assert.equal(await run(w, 1), 0, body);
+    assert.match(onlyReply(w, FORM_REPLY, body), /first line is exactly `\*\*Decision recorded\.\*\*`/, body);
+    assert.equal(w.field(), "needs-owner-decision", `${body}: the hold stands`);
+    assert.equal(await run(w, 1), 0, `${body}: re-run`);
+    assert.equal(w.writes.length, 1, `${body}: a re-run adds no second reply`);
+  }
+  const exact = world({ labels: [], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes: heldOnField("needs-owner-decision") });
+  assert.equal(await run(exact, 1), 0);
+  expectTriage(exact, []);
+  expectDispatched(exact);
+  assert.ok(!exact.comments().some((c) => c.body.startsWith(FORM_REPLY)), "the exact form gets no form reply");
+});
+
+test("a decision in another form gets no reply from a stranger, below the first line, or where it answered a needs-info hold", async () => {
+  for (const [name, setup] of [
+    ["stranger", { labels: [], comments: [{ id: 1, user: STRANGER, body: "Decision recorded (owner): option 1." }] }],
+    ["below the first line", { labels: [], comments: [{ id: 1, user: OWNER, body: "Thinking.\nDecision recorded: option 1." }] }],
+    ["an App-posted comment", { labels: [], comments: [{ id: 1, user: OWNER, body: "Decision recorded: option 1.", performed_via_github_app: { slug: "x" } }] }],
+  ]) {
+    const w = world({ ...setup, fieldNodes: heldOnField("needs-owner-decision") });
+    assert.equal(await run(w, 1), 0, name);
+    assert.deepEqual(w.writes, [], name);
+  }
+  const info = world({ labels: ["needs-reporter-info"], comments: [{ id: 1, user: OWNER, body: "Decision recorded: it is the Windows host." }] });
+  assert.equal(await run(info, 1), 0);
+  expectTriage(info, []);
+  expectDispatched(info);
+  assert.ok(!info.comments().some((c) => c.body.startsWith(FORM_REPLY)), "a reply that answered needs-info gets no form reply");
 });
 
 test("a listed human's decision on an issue admission parked at status: confirmed sends it back to triage", async () => {
@@ -341,7 +421,6 @@ const quiet = [
     { labels: ["needs-owner-decision"], comments: [{ id: 1, user: OWNER, body: "Thinking.\n**Decision recorded.**" }] },
   ],
   ["an unlisted person's decision", { labels: ["needs-owner-decision"], comments: [{ id: 1, user: STRANGER, body: DECISION }] }],
-  ["an issue without the status label", { labels: ["needs-human"], comments: [{ id: 1, user: OWNER, body: DECISION }] }],
   ["a closed issue", { labels: ["needs-owner-decision"], state: "closed", comments: [{ id: 1, user: OWNER, body: DECISION }] }],
   ["a pull request", { labels: ["needs-owner-decision"], pullRequest: true, comments: [{ id: 1, user: OWNER, body: DECISION }] }],
   ["a stranger's reply on a needs-info issue", { labels: ["needs-reporter-info"], author: AUTHOR, comments: [{ id: 1, user: STRANGER, body: "Me too." }] }],
@@ -442,10 +521,11 @@ test("a failed Work status read lifts nothing on the comment path or the needs-h
   assert.equal(lifted.dispatches().length, 0);
 });
 
-test("a hold in the Work status field the labels lack stops a decision", async () => {
+test("a hold in the Work status field the labels lack stops a decision, which gets only the hold reply", async () => {
   const w = world({ labels: ["status: confirmed"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-human" } }), 0);
-  assert.deepEqual(w.writes, []);
+  assert.match(onlyReply(w, HOLD_REPLY, "field hold"), /Work status field from needs-human/);
+  assert.deepEqual(w.labels(), ["status: confirmed"]);
 });
 
 // With no status label, the field decides: a decision answers its
@@ -464,7 +544,6 @@ test("an issue with no status label is judged by its Work status field", async (
 
 // An issue whose hold exists only on the field: a listed human's reply or
 // decision answers it; a second run reads the field at needs-triage and stops.
-const heldOnField = (hold) => [fieldNode("IssueFieldAddedEvent", LANES_APP, { value: hold })];
 test("a field-only hold is answered once, with no label written", async () => {
   for (const [hold, body] of [
     ["needs-reporter-info", "It is the Windows host."],
@@ -512,7 +591,6 @@ const statuslessQuiet = [
   ["agent-ready", ["agent-ready"], OWNER, DECISION],
   ["status: ready with agent-ready", ["status: ready", "agent-ready"], OWNER, DECISION],
   ["status: ready", ["status: ready"], OWNER, DECISION],
-  ["needs-human", ["needs-human"], OWNER, DECISION],
   ["needs-triage", ["needs-triage"], OWNER, DECISION],
   ["admission-deferred", ["admission-deferred"], OWNER, DECISION],
   ["an unlisted person's decision", [], STRANGER, DECISION],
@@ -781,32 +859,18 @@ test("a plain needs-human lift and a comment on a parked issue still start the j
   assert.equal(reenterGate({ event: "issues", label: "priority: low", labels: [] }), false);
 });
 
-// The script takes a comment at needs-decision or confirmed only when its first
-// line, leading whitespace trimmed, starts `**Decision recorded.**`; any other
-// comment there starts no runner. needs-info takes any comment.
-test("a comment at needs-decision or confirmed starts the job only with the decision marker", () => {
+test("a comment starts the job when it says decision recorded in any form, on any labels", () => {
   const comment = (labels, body) => reenterGate({ event: "issue_comment", comment: { type: "User", body }, labels });
-  for (const status of ["needs-owner-decision", "status: confirmed"]) {
-    assert.equal(comment([status], DECISION), true, status);
-    assert.equal(comment([status], "  \n**Decision recorded.**\n\nOption 1."), true, `${status}, leading whitespace`);
-    assert.equal(comment([status], "Thanks, looking."), false, status);
-    assert.equal(comment([status], "Decision recorded."), false, `${status}, no bold`);
-    assert.equal(comment([status, "needs-reporter-info"], "An answer."), true, `${status} beside needs-info`);
+  for (const labels of [[], ["needs-owner-decision"], ["status: confirmed"], ["needs-human"], ["needs-human", "status: confirmed"], ["priority: medium", "host-run"]]) {
+    assert.equal(comment(labels, DECISION), true, `${labels.join()}: exact`);
+    assert.equal(comment(labels, "  \n**Decision recorded.**\n\nOption 1."), true, `${labels.join()}: leading whitespace`);
+    assert.equal(comment(labels, "Decision recorded (owner, 2026-11-22): option 1."), true, `${labels.join()}: another form`);
+    assert.equal(comment(labels, "DECISION RECORDED: option 1"), true, `${labels.join()}: upper case`);
+    assert.equal(comment(labels, "Thanks, looking."), false, `${labels.join()}: plain comment`);
+    assert.equal(comment(labels, "Hub decision on the lane's intent stop: option 1."), false, `${labels.join()}: no such phrase`);
   }
   assert.equal(comment(["needs-reporter-info"], "An answer."), true);
-});
-
-test("a decision on an issue with no parked status starts the job unless it is ready or held", () => {
-  const comment = (labels, body = DECISION) => reenterGate({ event: "issue_comment", comment: { type: "User", body }, labels });
-  assert.equal(comment([]), true);
-  assert.equal(comment(["priority: medium", "host-run"]), true);
-  assert.equal(comment([], "Thanks, looking."), false, "no marker");
-  assert.equal(comment([], "Decision recorded."), false, "no bold");
   assert.equal(reenterGate({ event: "issue_comment", comment: { type: "Bot", body: DECISION }, labels: [] }), false, "a bot");
-  for (const label of ["status: ready", "agent-ready", "needs-human", "needs-triage", "admission-deferred"]) {
-    assert.equal(comment([label]), false, label);
-  }
-  assert.equal(comment(["status: ready", "agent-ready"]), false, "status: ready with agent-ready");
 });
 
 test("a status: confirmed removal starts no job, a bot's or a person's", () => {
@@ -1068,12 +1132,12 @@ test("a reply from the author or a listed human removes needs-reporter-info; a s
   assert.deepEqual(stranger.writes, []);
 });
 
-test("a decision beside needs-human changes nothing under the new name", async () => {
+test("a decision beside needs-human changes no label under the new name and only replies", async () => {
   const labels = ["needs-human", "needs-owner-decision"];
   const w = world({ labels, comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await run(w, 1), 0);
   assert.deepEqual(w.labels(), labels);
-  assert.deepEqual(w.writes, []);
+  onlyReply(w, HOLD_REPLY, "needs-human beside needs-owner-decision");
 });
 
 test("a listed human lifting needs-human re-enters needs-owner-decision and leaves needs-reporter-info parked", async () => {
