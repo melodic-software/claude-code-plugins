@@ -736,9 +736,11 @@ describe("which executable runs", () => {
 });
 
 describe("provider record", () => {
-  test("the bundled codex record and the antigravity draft both validate", () => {
+  test("the bundled codex and antigravity records validate, and the agy tests run on the shipped record", () => {
     assert.deepEqual(validateProvider(codex), []);
-    assert.deepEqual(validateProvider(loadProvider("antigravity", fixtures)), []);
+    assert.deepEqual(validateProvider(loadProvider("antigravity")), []);
+    const copy = (root) => readFileSync(join(root, "providers", "antigravity.yaml"), "utf8");
+    assert.equal(copy(fixtures), copy(join(here, "..")), "tests/fixtures/providers/antigravity.yaml must match providers/antigravity.yaml");
   });
 
   test("a misspelled key is named wherever it sits", () => {

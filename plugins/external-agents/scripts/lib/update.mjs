@@ -94,7 +94,7 @@ export async function update(opts) {
     const login = record.login_status ? ask(record.login_status.args) : null;
     if (login && login.code === null) throw new Stop("failed", `could not check the login state: ${reasonOf(login.error ?? "the query was stopped")}`);
     const loggedIn = !login || login.code === 0;
-    lines.push(`login: ${loggedIn ? "logged in" : "not logged in"}`);
+    lines.push(`login: ${!login ? "not checked (no login_status in the record)" : loggedIn ? "logged in" : "not logged in"}`);
 
     const facts = join(ctx.dataDir, "cli-facts", record.product, version);
     mkdirSync(facts, { recursive: true });

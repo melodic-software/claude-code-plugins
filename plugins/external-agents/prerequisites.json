@@ -41,6 +41,31 @@
       "install": {
         "docs": "https://github.com/openai/codex"
       }
+    },
+    {
+      "id": "agy",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "agy"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+(?:\\.[0-9]+)+)",
+          "min": "0",
+          "latest": "github:google-antigravity/antigravity-cli"
+        }
+      },
+      "degrade": "Without the Antigravity CLI (agy), Antigravity runs are reported unavailable and council's Antigravity member is skipped; other CLIs are unaffected.",
+      "install": {
+        "docs": "https://antigravity.google/docs/install"
+      }
     }
   ]
 }
