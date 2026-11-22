@@ -508,7 +508,7 @@ export function readScanRefusal(dir, attempt) {
 export const SCAN_REFUSALS = {
   patch: "The scan job refused the run's output, so nothing was published: too-large: the patch was over its 262144-byte cap. The run's log names its size.",
   output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
-  fault: "The scan job could not finish, or the patch did not apply to the head it scans, so nothing was published. The run's log names which; neither says anything about a credential.",
+  fault: "The patch did not apply to the head the scan job scans, so nothing was published. The run's log names it; that says nothing about a credential.",
 };
 
 // The scan job's collect-refused output, as collect-patch.sh's exit 3 sets it.

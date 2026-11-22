@@ -2911,13 +2911,19 @@ jobs:
       # timeout included), fails it with no rotation; every upload and
       # summary after it needs clean == 'true'. A pattern block writes only
       # the rule, the scanned file name or a fixed placeholder, and the line
-      # number to this step's summary, never any of the match. Those two faults find no
-      # credential, so they set refused=fault, which retries, once the patch's
-      # text was judged with no binary hunk's bytes unread, or when the run
-      # left no patch; any other fault holds, and a timeout sets no output, so
-      # it holds too. A 5xx from the gate's two API calls retries in the step,
-      # so a blip does not hold an unjudged patch for a person; a rate-limit
-      # status does not. The one broad label, a
+      # number to this step's summary, never any of the match. A text-only
+      # patch that does not apply finds no credential once its text was
+      # judged, so it sets refused=fault, which retries; a scan that does not
+      # finish holds, with a patch or none, and a timeout sets no output, so it
+      # holds too. The gate's two API reads (getBranch, getContent) go through
+      # patiently(): an HttpError, a 403 or 429 included, is read again up to
+      # GATE_READ_TRIES times, each after the reset or retry-after the answer
+      # names, else one minute (GitHub's rule:
+      # https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately),
+      # while the waits fit rate-limit-wait-seconds;
+      # the step waits, so no lane restart comes before the reset. Once the
+      # tries or the waits are spent, the read's error ends the scan
+      # unfinished, and it holds. The one broad label, a
       # password or secret assignment, is a warning naming the kind of
       # source, never a path.
       - name: Scan the outputs for credentials
@@ -2953,28 +2959,31 @@ jobs:
                 fs.writeFileSync(CALLS_FILE, `${++calls}\n`);
               } catch {}
             };
-            // A read a rate limit refused is sent once more after the reset
-            // its answer names, when the waits, summed, fit WAIT_SECONDS (at
-            // most rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue,
-            // which rate-guard.test.mjs pins this cap to, inside the step's
-            // timeout): the model's output is finished, and failing here
-            // drops it.
+            // A gate read that fails with an HttpError is sent again, up to
+            // GATE_READ_TRIES sends in all, each after the reset or
+            // retry-after its answer names, else one minute, when the waits,
+            // summed, fit WAIT_SECONDS (at most rate-guard.mjs's
+            // WAIT_BUDGET_SECONDS.workResolveIssue, which rate-guard.test.mjs
+            // pins this cap to, inside the step's timeout): the model's
+            // output is finished, and failing here drops it. The step itself
+            // waits, so no lane restart can come before the reset.
+            const GATE_READ_TRIES = 3;
             let waitLeft = Math.min(/^\d{1,4}$/.test(WAIT_SECONDS ?? '') ? Number(WAIT_SECONDS) : 0, 1200) * 1000;
             const patiently = async (call) => {
-              sent();
-              try {
-                return await call();
-              } catch (error) {
-                const headers = error?.response?.headers ?? {};
-                const after = /^\d+$/.test(headers['retry-after'] ?? '') ? Number(headers['retry-after']) * 1000 : null;
-                const reset = headers['x-ratelimit-remaining'] === '0' && /^\d+$/.test(headers['x-ratelimit-reset'] ?? '') ? Number(headers['x-ratelimit-reset']) * 1000 - Date.now() : null;
-                const wait = Math.max(0, after ?? reset ?? -1) + 1000;
-                if (![403, 429].includes(error?.status) || (after ?? reset) === null || wait > waitLeft) throw error;
-                waitLeft -= wait;
-                core.notice(`leak-scan: a read hit GitHub's rate limit; waiting ${Math.ceil(wait / 1000)} s for its reset, then reading once more`);
-                await new Promise((resolve) => setTimeout(resolve, wait));
+              for (let tries = 1; ; tries++) {
                 sent();
-                return await call();
+                try {
+                  return await call();
+                } catch (error) {
+                  const headers = error?.response?.headers ?? {};
+                  const after = /^\d+$/.test(headers['retry-after'] ?? '') ? Number(headers['retry-after']) * 1000 : null;
+                  const reset = headers['x-ratelimit-remaining'] === '0' && /^\d+$/.test(headers['x-ratelimit-reset'] ?? '') ? Number(headers['x-ratelimit-reset']) * 1000 - Date.now() : null;
+                  const wait = Math.max(0, after ?? reset ?? 59000) + 1000;
+                  if (error?.name !== 'HttpError' || tries >= GATE_READ_TRIES || wait > waitLeft) throw error;
+                  waitLeft -= wait;
+                  core.notice(`leak-scan: a gate read failed (HTTP ${error.status}); waiting ${Math.ceil(wait / 1000)} s, then reading again (try ${tries + 1} of ${GATE_READ_TRIES})`);
+                  await new Promise((resolve) => setTimeout(resolve, wait));
+                }
               }
             };
             // A regular file's bytes, a link's target text; anything else holds none.
@@ -2990,7 +2999,6 @@ jobs:
             };
             let hit = null;
             let scratch = null;
-            let judged = false;
             let binary = false;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
@@ -3100,7 +3108,6 @@ jobs:
               judge('the outcome', outcome);
               judge('lane.json', lane);
               judge('the patch', patch, true);
-              judged = true;
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte
               // the text scan above read; a binary hunk blocks.
@@ -3133,14 +3140,15 @@ jobs:
                 for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);
               }
             } catch (error) {
-              // A throw after a hit never replaces it: the hit still holds.
-              hit ??= { label: `no finished scan (${error.name})`, credential: false, fault: true };
+              // A throw after a hit never replaces it: the hit still holds. A
+              // scan that never finished is no fault: it holds.
+              hit ??= { label: `no finished scan (${error.name})`, credential: false };
             } finally {
               if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
-              if (hit.fault && !binary && (judged || !read(PATCH_FILE))) core.setOutput('refused', 'fault');
+              if (hit.fault && !binary) core.setOutput('refused', 'fault');
               if (hit.fingerprint && process.env.GITHUB_STEP_SUMMARY) {
                 try {
                   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### leak-scan blocked the outputs\n\n${hit.fingerprint}\n`);

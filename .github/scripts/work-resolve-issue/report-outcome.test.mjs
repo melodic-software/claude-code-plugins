@@ -5533,6 +5533,29 @@ test("a scan fault retries with no person, up to limits.stop-retries, and every 
   assert.deepEqual(spent.addLabels ?? [], []);
 });
 
+test("a spent gate-read retry holds as scan-refused-output with class security-risk, never retry-spent or fail", () => {
+  const dir = tempDir("scan-refused-");
+  try {
+    writeFileSync(join(dir, "scan-refused-1.txt"), "output\n");
+    assert.equal(readScanRefusal(dir, "1"), "output");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(STOP_ROUTES["scan-refused-output"].route, "hold");
+  assert.equal(STOP_ROUTES["scan-refused-output"].class, "security-risk");
+  const outcome = { ...readOutcome("/nonexistent/work-outcome.json"), stop: "scan-refused-output", reason: SCAN_REFUSALS.output };
+  const plan = decide({ issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "555", outcome });
+  for (const [name, final] of [
+    ["the plan", plan],
+    ["past the retry cap", capRetries(plan, 5, { "stop-retries": 2 })],
+  ]) {
+    assert.equal(final.action, "hand-back", name);
+    assert.equal(final.stop, "scan-refused-output", name);
+    assert.equal(final.status, "needs-human", name);
+    assert.notEqual(final.stop, "retry-spent", name);
+  }
+});
+
 test("scan markers: only fault, or fault beside patch, reads as fault; anything else beside either reads as output", () => {
   for (const [base, rungUp, want] of [
     ["fault", "", "fault"],
