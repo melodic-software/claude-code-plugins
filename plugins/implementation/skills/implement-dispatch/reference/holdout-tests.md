@@ -80,12 +80,13 @@ special-case.
    files, and a package script can run before the tests. So the run command takes its
    configuration from the holdout directory and invokes the runner binary directly, never through
    a package script. Before step 1, find the runner by the steps in the plugin's
-   [ecosystem resolution](../../../reference/ecosystem-resolution.md) page, and take from the
-   runner's own documentation the flags that point it at the holdout configuration and stop it
-   loading configuration from the tree. An unattended run logs the composed command as assumed,
-   naming the source of the runner and that documentation as the source of the flags. When the
-   runner or those flags do not resolve, leave the option off for the phase, log a `DEVIATIONS.md`
-   discovery, and report it unresolved. A runner configuration or test setup file the phase
+   [ecosystem resolution](../../../reference/ecosystem-resolution.md) page. An attended run takes
+   from the runner's own documentation the flags that point it at the holdout configuration and
+   stop it loading configuration from the tree. An unattended run stays within that page's unattended limits: it runs the holdout command,
+   flags included, only when the record holds it, the repository states it, or its files imply
+   it, and logs it as assumed with that source. Flags that only the runner's documentation supplies
+   do not qualify. When the runner or those flags do not resolve, leave the option off for the
+   phase, log a `DEVIATIONS.md` discovery, and report it unresolved. A runner configuration or test setup file the phase
    diff adds or changes without sanction is a verifier FAIL under the rule SKILL.md, Dispatch
    cadence item 1.13, quotes; a sanctioned one is still a finding. The throwaway worktree is not
    holdout-only: SKILL.md, Phase boundaries, creates it whenever the phase diff touches a test or
