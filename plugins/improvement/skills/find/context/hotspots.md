@@ -68,10 +68,10 @@ Raw churn is dominated by mechanical files that say nothing about improvement va
 generated or minified output, snapshots, vendored trees. The plugin ships no list of them. Build
 Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
 
-1. **Declared patterns:** `churn_exclude`, unioned across the `.claude/improvement.md` config
-   cascade (team file, `.claude/improvement.local.md` gitignored personal override,
-   `~/.claude/improvement.md` user-global), which also sets the churn window. These are already
-   EREs: use them as written. Key contract: `../../../reference/config.md`.
+1. **Declared patterns:** `churn_exclude`, unioned across the config cascade (`userConfig`, the
+   team `<home>/improvement.yaml`, the gitignored personal `<home>/improvement.local.yaml`, and
+   any old file its dual-read window still reads), which also sets the churn window. These are
+   already EREs: use them as written. Key contract: `../../../reference/config.md`.
 2. **The repository's own mechanical files**, unless `churn_exclude_defaults` is `false`: resolve
    them through the plugin's copy of the ecosystem-resolution steps,
    [`reference/ecosystem-resolution.md`](../../../reference/ecosystem-resolution.md). Read the

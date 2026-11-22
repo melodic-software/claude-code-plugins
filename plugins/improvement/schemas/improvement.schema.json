@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/improvement/schemas/improvement.schema.json",
+  "title": "Improvement team config",
+  "description": "Schema for <home>/improvement.yaml and <home>/improvement.local.yaml: the keys /improvement:find and /improvement:setup read through the four config-cascade layers. Key contract and merge semantics: plugins/improvement/reference/config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "churn_window": {
+      "description": "The hotspot recipe's change-frequency window, a value git log --since accepts.",
+      "type": "string",
+      "minLength": 1,
+      "default": "90 days ago"
+    },
+    "churn_exclude": {
+      "description": "Extra ERE patterns excluded from churn counting. Unioned across layers.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": []
+    },
+    "churn_exclude_defaults": {
+      "description": "false drops the mechanical-file exclusions resolved from the repository, leaving only declared patterns.",
+      "type": "boolean",
+      "default": true
+    },
+    "find_open_item_cap": {
+      "description": "Per source label: unattended /improvement:find files nothing while the open items carrying it number at or above this. The personal file can only lower it.",
+      "type": "integer",
+      "minimum": 0,
+      "default": 5
+    },
+    "find_run_item_cap": {
+      "description": "Where the adaptive per-run filing cap starts.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 3
+    },
+    "find_run_item_cap_floor": {
+      "description": "Lowest value the per-run filing cap adapts to.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+    },
+    "find_run_item_cap_ceiling": {
+      "description": "Highest value the per-run filing cap adapts to.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 5
+    },
+    "find_size_band": {
+      "description": "The candidate sizes an unattended run ranks.",
+      "enum": ["all", "small", "medium", "large"],
+      "default": "all"
+    },
+    "find_scope": {
+      "description": "What an unattended run scans: repo, or a target /improvement:find accepts.",
+      "type": "string",
+      "minLength": 1,
+      "default": "repo"
+    },
+    "find_suppress_dismissed": {
+      "description": "Whether an unattended run suppresses candidates an operator dismissed before.",
+      "type": "boolean",
+      "default": true
+    },
+    "evidence_sources": {
+      "description": "Tier 2 application-telemetry declarations, one entry per source name. A null or empty entry in a later layer removes the inherited source.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "null" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mcp_server"],
+            "properties": {
+              "mcp_server": { "type": "string", "minLength": 1, "description": "The MCP server as named in the consumer's own MCP configuration." },
+              "kind": { "enum": ["metrics", "logs", "errors", "traces", "events"] },
+              "scope": { "type": "string", "description": "The product surface the source covers." },
+              "hints": { "type": "string", "description": "Where to start: key queries, dashboards, or tables worth reading first." }
+            }
+          }
+        ]
+      },
+      "default": {}
+    }
+  }
+}

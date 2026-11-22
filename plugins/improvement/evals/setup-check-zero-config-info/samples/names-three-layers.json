@@ -1,11 +1,11 @@
 {
   "pass": [
-    { "answer": "| Layer | Path | Status |\n|---|---|---|\n| user-global | ~/.claude/improvement.md | INFO: absent |\n| team | .claude/improvement.md | INFO: absent |\n| personal override | .claude/improvement.local.md | INFO: absent |", "why": "table of all three" },
-    { "answer": "No layer exists: not ~/.claude/improvement.md, not .claude/improvement.md, not .claude/improvement.local.md.", "why": "paths only" }
+    { "answer": "| Layer | Path | Status |\n|---|---|---|\n| userConfig | plugin options | INFO: none set |\n| team | docs/conventions/improvement.yaml | INFO: absent |\n| personal | docs/conventions/improvement.local.yaml | INFO: absent |", "why": "table of all three" },
+    { "answer": "No layer exists: no userConfig option is set, and neither improvement.yaml nor improvement.local.yaml is present.", "why": "paths only" }
   ],
   "fail": [
-    { "answer": "INFO: .claude/improvement.md is absent, so bundled defaults apply.", "why": "team layer only" },
-    { "answer": "INFO: no team file and no personal override.", "why": "user-global layer missing" },
-    { "answer": "INFO: ~/.claude/improvement.md and .claude/improvement.local.md are absent.", "why": "team layer missing" }
+    { "answer": "INFO: docs/conventions/improvement.yaml is absent, so bundled defaults apply.", "why": "team layer only" },
+    { "answer": "INFO: no team file and no personal file.", "why": "userConfig layer missing" },
+    { "answer": "INFO: no userConfig option is set and docs/conventions/improvement.local.yaml is absent.", "why": "team layer missing" }
   ]
 }
