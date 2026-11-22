@@ -9,6 +9,6 @@ expected_outcome: 'The reply prints the effective configuration with a source fo
 
 /instruction-placement:setup check: why is it calling our **/*.md rule over-broad?
 
-The repository tracks 1,000 files, 880 of them Markdown, and `.claude/rules/prose.md` uses `paths: **/*.md`. The plugin has no `user_config` values set and the repository has no `.claude/instruction-placement.md`. The root `CLAUDE.md` is the single line `@AGENTS.md`, the root `AGENTS.md` carries an index block that matches both rules, and `git`, `jq` and the Claude Code CLI are on `PATH`.
+The repository tracks 1,000 files, 880 of them Markdown, and `.claude/rules/prose.md` uses `paths: **/*.md`. The plugin has no `user_config` values set and the repository has no `docs/conventions/instruction-placement.yaml` and no file at an old suppression path. The root `CLAUDE.md` is the single line `@AGENTS.md`, the root `AGENTS.md` carries an index block that matches both rules, and `git`, `jq` and the Claude Code CLI are on `PATH`.
 
 Treat the state above as what this run's reads and scripts return. The repository is not checked out in this session, so run nothing against it: say what the run does, in order, and give its report.

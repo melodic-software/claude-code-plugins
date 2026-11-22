@@ -303,7 +303,16 @@ OUT="$(run --topic t1 --show-config)"
 assert_contains "--show-config attributes a configured ceiling to its layer" "$OUT" \
   "corpus_fetch_ceiling=90 (from $CONV/attribution.yaml)"
 assert_contains "--show-config names the ledger for the topic" "$OUT" "$LEDGER"
+OUT="$(run --user-config budgets.corpus_fetch_ceiling=40 --show-config)"
+assert_contains "the team file beats a userConfig ceiling" "$OUT" \
+  "corpus_fetch_ceiling=90 (from $CONV/attribution.yaml)"
 rm -f "$CONV/attribution.yaml"
+OUT="$(run --user-config budgets.corpus_fetch_ceiling=40 --show-config)"
+assert_contains "a userConfig ceiling is read and attributed" "$OUT" "corpus_fetch_ceiling=40 (from userConfig)"
+OUT="$(run --user-config "budgets.corpus_fetch_ceiling=\${user_config.budgets_corpus_fetch_ceiling}" --show-config)"
+assert_contains "an unsubstituted userConfig value is unset" "$OUT" "corpus_fetch_ceiling=200 (bundled default)"
+OUT="$(run --user-config stamp_expiry_days=9 --show-config)"
+assert_exit "a repository key passed as userConfig is refused" "$?" "2"
 
 # The script alone, with no lib.sh beside it: the --show-config probe reads
 # "detector unavailable", never an empty configuration.

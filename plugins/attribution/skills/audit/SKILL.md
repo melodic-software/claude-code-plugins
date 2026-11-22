@@ -230,7 +230,10 @@ reported and routed to the human, and its finding names the generator's input as
 
 **`${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh --topic <topic-slug>` keeps that ledger:** `init`
 (creates it under a sweep id, or reports that it exists on a resume), `close <file>`, `spend <n>`,
-`cache-add`, `cache-check`, and `status`, which lists the closed files a resume skips. It checks an entry's shape and the spend's arithmetic, and nothing
+`cache-add`, `cache-check`, and `status`, which lists the closed files a resume skips. Add
+`--user-config budgets.corpus_fetch_ceiling=<value>` to every call, `<value>` being
+`${user_config.budgets_corpus_fetch_ceiling}`; leave the flag off when that reads empty or
+unsubstituted, and never put a `${user_config.*}` string in a shell command. It checks an entry's shape and the spend's arithmetic, and nothing
 more. It cannot tell whether a disposition is right or whether every finding in a file is
 accounted for, so each field stays the run's own claim.
 
@@ -306,12 +309,33 @@ form, nothing in this skill changes. What differs here:
 ## Configuration
 
 `<home>/attribution.yaml` and `<home>/attribution.local.yaml` per the config-cascade convention,
-over the user-global `~/.claude/attribution.json`; keys and layers are
+over this plugin's `userConfig` options; keys and layers are
 documented in the plugin README, and `/attribution:setup` manages the YAML files. Each detector's `--show-config` names the
 layer supplying every effective value. The accuracy dials (`nomination_passes`,
 `judge_lens_diversity`, `review_agents`, `deep_research_on_exhaustion`) and the budgets are
 tunable per repo; the gates bind fix eligibility and release readiness only, and never filter
 what the report shows.
+
+The per-user keys also take a `userConfig` value, the layer below the team file. A value that
+reads empty or unsubstituted is unset:
+
+| Key | `userConfig` value |
+|---|---|
+| `budgets.searches_per_candidate` | `${user_config.budgets_searches_per_candidate}` |
+| `budgets.fetches_per_candidate` | `${user_config.budgets_fetches_per_candidate}` |
+| `budgets.corpus_fetch_ceiling` | `${user_config.budgets_corpus_fetch_ceiling}` |
+| `judge_samples` | `${user_config.judge_samples}` |
+| `accuracy.nomination_passes` | `${user_config.accuracy_nomination_passes}` |
+| `accuracy.judge_lens_diversity` | `${user_config.accuracy_judge_lens_diversity}` |
+| `accuracy.review_agents` | `${user_config.accuracy_review_agents}` |
+| `accuracy.deep_research_on_exhaustion` | `${user_config.accuracy_deep_research_on_exhaustion}` |
+
+The old user-global `~/.claude/attribution.json` is still read, below `userConfig`, until
+`/attribution:setup apply` moves it; each detector that reads config names it on stderr while it
+exists. Report that
+line once in the run's limits section. For a key you read yourself, the order is the old file,
+`userConfig`, the team file, then the personal override, a later layer winning; `--show-config`
+lists the file layers.
 
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 

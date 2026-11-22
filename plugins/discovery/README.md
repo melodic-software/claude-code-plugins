@@ -154,15 +154,11 @@ config layers for the agent's role replaces that pin on the spawn: `retrieval` f
 `worker` for `researcher` and `intent-tracer`, `verifier` for `research-verifier`. Set it on the
 `research` workload to move these agents and the `research-sweep` stages without moving other
 plugins' agents in that role, for example
-`roles.worker.workloads.research.model: sonnet` in `.claude/multi-agent.local.yaml`. Layers and
+`roles.worker.workloads.research.model: sonnet` in `docs/conventions/multi-agent.local.yaml`. Layers and
 keys: the multi-agent plugin's `reference/config.md`. A layer value of `inherit` keeps the pin,
 because a spawn's `model` takes an alias only
 ([sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). With no such layer, or without `multi-agent`, the
 pins apply. The rule: `reference/parent-contract.md`, "The worker's model is the parent's call".
-
-The multi-agent plugin still reads `.claude/multi-agent.local.yaml` until it migrates
-([#17998](https://github.com/melodic-software/claude-code-plugins/issues/17998)); then the file
-moves where [config locations](reference/config-locations.md) says.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
