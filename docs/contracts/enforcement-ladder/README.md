@@ -116,7 +116,9 @@ reader meets it and put an example of the mistake beside it.
    the repository root, and the file its rows route the concern to) when the repository has one,
    else in a repository-owned `CODING_STANDARDS.md`, else in `REVIEW.md`. Skip a file a
    standards-sync bot owns (its commits are that bot's): the next sync overwrites a rule written
-   there.
+   there. When every candidate is skipped, write nothing in this repository and report the rule as
+   a proposal for the repository the bot copies `REVIEW.md` from, named when the file's sync
+   commits show it.
 2. **`instruction`**: a lesson for the agent or person writing the code, in a `CLAUDE.md` or
    `AGENTS.md` line, or in a rules file under `.claude/rules/` (a path-scoped rule loads when a
    covered file is read).
