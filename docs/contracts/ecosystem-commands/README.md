@@ -57,7 +57,7 @@ resolution the extensibility contract specifies for tracked rich config, and the
 vendor-defaults-plus-drop-in-overrides shape the UAPI configuration-files specification
 standardizes). Recommended consumer `.gitignore` line: the recursive `docs/conventions/**/*.local.*`.
 
-The drop-in folder form is deliberate: each ecosystem is an independent slice with its own lifecycle,
+The drop-in folder form is deliberate because each ecosystem is an independent slice with its own lifecycle,
 so adding one is a new file, retiring one is a deletion, and a toolchain change is a single-file diff.
 
 ## Location (recorded deviations)

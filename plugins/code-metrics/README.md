@@ -5,7 +5,7 @@ from. Lines per file, cyclomatic and cognitive complexity, Halstead difficulty, 
 coverage per function with CRAP, and type debt, each as a read-only audit that reads source
 files and existing build artifacts, runs an external collector only when one already resolves,
 and prints a report whose references carry their provenance. It never runs tests, never edits
-code, never installs a tool, and never renders a keep-or-retire verdict: a reference here is a
+code, never installs a tool, and never renders a keep-or-retire verdict. A reference here is a
 value to count against, not a bar.
 
 ## The skills

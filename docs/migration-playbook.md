@@ -304,7 +304,7 @@ or the shape of what it emits. A skill is an explicit **skip** when it is pure-r
 from a knowledge corpus with no decision contract, such as `playbooks:fable-5` or `tdd`). A **hook**
 plugin is a skip only in the case its rationale actually describes: deterministic, silent-always-on,
 guarded by `.test.sh`, **no skill carrying a judgment-bearing contract**. The condition is the
-absence of that contract, not the invocation mode. Stating it by invocation mode does not work: a
+absence of that contract, not the invocation mode. Stating it by invocation mode does not work, because a
 `setup` skill sets `disable-model-invocation: true`, so "no model-invoked skill" is satisfied by a
 plugin that ships one, admitting as a skip the very plugin the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
 silently regress, which is precisely the contract the skip exists to excuse the absence of. The
