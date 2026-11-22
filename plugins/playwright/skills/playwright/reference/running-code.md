@@ -327,8 +327,8 @@ async page => {
   finished transition left the list and a keyframe entrance that fills both stayed; the spinner
   kept running; the init script held the entrance paused at about 17ms where an unheld load showed
   it finished; and the observer reported its timing in the fresh context. A `run-code` call that
-  returned with the clock still paused came back, and later calls in that session returned, so the
-  `finally` restores the page rather than unblocking the call. **As of**:
+  installed the clock, navigated, called `pauseAt` and returned without resuming came back, and a
+  later `eval` and click in that session returned too. **As of**:
   2026-11-22. **Recheck trigger**: the frontmatter `upstream-version` moves, or either page changes
   what it covers.
 

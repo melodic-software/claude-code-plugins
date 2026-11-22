@@ -154,7 +154,8 @@ line before the `open`, then clear it afterwards if later sessions should use th
 
 Measured outcomes. Claim: the sizes below are what each combination actually produces.
 Basis: ffprobe on the resulting `.webm` for each row, and a frame read from the padded row.
-As of 2026-11-22, every row re-measured on `@playwright/cli` 0.1.25 with the same results.
+As of 2026-11-22, every row re-measured on `@playwright/cli` 0.1.25 with the same results, in the
+headless-shell Chromium build.
 Recheck when the frontmatter `upstream-version` moves, or when a
 recording comes back at a size this table does not predict.
 
