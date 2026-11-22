@@ -93,9 +93,11 @@ call and routes to its finding-suppression convention, not to a marker this plug
 ## Configuration
 
 The audit detectors read `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, `<home>`
-being the bound convention home, else `docs/conventions`, over the user-global
-`~/.claude/attribution.json` ([config locations](reference/config-locations.md) lists where plugin
-config belongs; this user-global read is a declared deviation until it migrates). The old JSON files
+being the bound convention home, else `docs/conventions`, over this plugin's `userConfig` options
+([config locations](reference/config-locations.md) lists where plugin config belongs). The
+user-global `~/.claude/attribution.json` is retired: while it exists it is still read, below
+`userConfig`, and every detector that reads config names it on stderr with the move to make.
+`/attribution:setup apply` moves its settings and then deletes it. The old JSON files
 of the same names under `.claude/` are not read;
 `/attribution:setup` reports them and carries their keys into the YAML, which it writes. In YAML,
 quote a glob that starts with `*` (`- "**/vendor/**"`); a file that does not parse is named on
@@ -141,6 +143,53 @@ runs: `strict` forces the review pass, and `light` and `off` skip the review pas
 and fix mode's semantic-diff check. They are read by `lib/read-verification.sh` from
 `<home>/attribution.yaml` at the default branch only, never the personal or user-global layer, so a
 branch cannot lower them ([verification level](../../docs/contracts/verification-level/README.md)).
+
+The per-user spend and depth dials, `budgets.*`, `judge_samples` and `accuracy.*`, are also
+`userConfig` options, each named for its key with `.` written `_`. A team file or personal
+override that sets the same key wins. Each option is empty by default, which leaves the shipped
+default in place. Every other key is a repository convention and has no option.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `budgets_searches_per_candidate` | number<br>*min 0* | *(none)* | Web searches the audit may run for one candidate. Empty: 3. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `budgets_fetches_per_candidate` | number<br>*min 0* | *(none)* | Page fetches the audit may run for one candidate. Empty: 5. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `budgets_corpus_fetch_ceiling` | number<br>*min 0* | *(none)* | Page fetches allowed across one whole audit or sweep. Empty: 200. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `judge_samples` | number<br>*min 1* | *(none)* | Blind judges per candidate. Empty: 3; a value below 3 is raised to 3 for any finding that could become fix-eligible. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `accuracy_nomination_passes` | number<br>*min 1* | *(none)* | Nomination dispatches per run. Empty: 2. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `accuracy_judge_lens_diversity` | boolean | *(none)* | Give each judge a different lens. Empty: true. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `accuracy_review_agents` | number<br>*min 0* | *(none)* | Adversarial reviewers per copy-rubric STANDS verdict, 0 for none. Empty: 1. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+| `accuracy_deep_research_on_exhaustion` | boolean | *(none)* | Let a budget-exhausted candidate escalate to /discovery:research when that plugin is installed. Empty: false. A repository's attribution.yaml or attribution.local.yaml overrides it. |
+
+### How to set these
+
+Set the options above for `attribution@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
 
 ## Prerequisites
 

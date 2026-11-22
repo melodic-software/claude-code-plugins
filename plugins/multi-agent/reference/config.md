@@ -11,13 +11,21 @@ this page owns the keys.
 | Layer | Path |
 |---|---|
 | Bundled | `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml` |
-| User-global | `~/.claude/multi-agent.yaml` |
+| `userConfig` (`user-config`) | the file the `role_map_file` option names; unset means no user layer |
 | Team | `<home>/multi-agent.yaml`, `<home>` being the convention home the repository binds, else `docs/conventions` |
-| Personal override | `.claude/multi-agent.local.yaml` (gitignored) |
+| Personal override | `<home>/multi-agent.local.yaml` (gitignored by `<home>/**/*.local.*`) |
 
-The resolver still reads the user-global and personal override paths above until it migrates
-([#17998](https://github.com/melodic-software/claude-code-plugins/issues/17998)); then the files
-move where [config locations](config-locations.md) says.
+The user layer is a nested map of the same keys as the team file, which no
+scalar `userConfig` option can hold, so the plugin's one `role_map_file`
+option (type `file`) names a file that keeps it, and `/config` sets it.
+
+**Old paths, read during the migration window.** While no new file supplies
+the user layer, `~/.claude/multi-agent.yaml` still does, named `user-global`
+in `source`; while `<home>/multi-agent.local.yaml` is absent,
+`.claude/multi-agent.local.yaml` still supplies the personal override. Every
+run names each old file it finds, read or not, in `notes`, with its new
+location and `/multi-agent:setup apply --migrate`, which moves the file after a
+preview and a yes and then deletes it. A later change removes these reads.
 
 Later layers win per key. Team and personal override are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
@@ -28,7 +36,8 @@ resolver no longer reads the old team locations, the config block in
 `/multi-agent:setup check` names each one it finds. While the team YAML is
 absent, the first `/multi-agent:setup apply --layer team` write copies the keys
 of one of them, the block when there is one, into the new YAML and leaves the
-old file in place. Every layer declares `schema: 1`; a layer that does not
+old file in place; `/multi-agent:setup apply --migrate` moves
+`.claude/multi-agent.yaml` into the YAML and deletes it. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
 around it still apply. The format is a YAML subset: nested mappings, scalars,
 comments. No lists. `/multi-agent:setup apply` writes a layer after a preview
@@ -50,7 +59,7 @@ and an explicit yes.
 `verification` is not part of the role map. It sets whether `/multi-agent:audit-defaults` runs
 its skeptic panel: `light` and `off` skip it and report every finding `unverified`, so no diff is
 proposed. It is read from the team file at the default branch only, through
-`lib/read-verification.sh`; the resolver ignores it in every layer, and the user-global and
+`lib/read-verification.sh`; the resolver ignores it in every layer, and the user and
 personal files cannot set it. A skill entry beats the plugin value
 ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 
@@ -141,7 +150,7 @@ changes nothing.
 
 Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier
 fan-outs. Set it on the layer whose scope you mean: the personal override for one
-checkout, the user-global file for every repository on one machine.
+checkout, the user file for every repository you work in.
 
 Before a fan-out wider than about four workers, run one worker as a pilot and
 confirm plan usage remains for the rest: a usage limit reached mid-fan-out

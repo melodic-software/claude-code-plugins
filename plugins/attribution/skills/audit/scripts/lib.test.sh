@@ -145,6 +145,54 @@ cfg_layers_init "$ROOT"
 cfg_list list excluded_paths
 assert_eq "a quoted key and a quoted glob are read" "$(printf '%s|' "${list[@]}")|$CFG_SOURCE" "**/fixtures/**||$YAML_TEAM"
 
+reset
+assert_eq "a malformed userConfig pair is refused" "$(cfg_user_config judge_samples && echo ok || echo refused)" "refused"
+assert_eq "a repository key has no userConfig option" "$(cfg_user_config stamp_expiry_days=9 && echo ok || echo refused)" "refused"
+cfg_user_config "judge_samples="
+cfg_user_config "accuracy.review_agents=\${user_config.accuracy_review_agents}"
+assert_eq "an empty or unsubstituted userConfig value is unset" "${#CFG_USER_CONFIG[@]}" "0"
+
+cfg_user_config "budgets.corpus_fetch_ceiling=70"
+printf '%s\n' 'stamp_expiry_days: 60' >"$YAML_TEAM"
+err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
+assert_eq "no old file prints no warning" "$err" ""
+cfg_layers_init "$ROOT"
+assert_eq "userConfig comes before the team layer" "$(layers)" "userConfig"$'\n'"$YAML_TEAM"
+cfg_scalar v budgets.corpus_fetch_ceiling '^[0-9]+$'
+assert_eq "a userConfig value is read and names its layer" "$v|$CFG_SOURCE" "70|userConfig"
+cfg_scalar v stamp_expiry_days
+assert_eq "the team file is read beside userConfig" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
+printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 80' >"$YAML_LOCAL"
+cfg_layers_init "$ROOT"
+cfg_scalar v budgets.corpus_fetch_ceiling '^[0-9]+$'
+assert_eq "the personal override refines userConfig" "$v|$CFG_SOURCE" "80|$YAML_LOCAL"
+CFG_USER_CONFIG=()
+
+reset
+printf '%s\n' '{"stamp_expiry_days": 30, "budgets": {"corpus_fetch_ceiling": 50}}' >"$USER_JSON"
+err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
+assert_eq "the old file prints one warning" "$(printf '%s\n' "$err" | grep -c 'retired location')" "1"
+assert_eq "the warning names the old file and the setup command" \
+  "$([[ "$err" == *"$USER_JSON"* && "$err" == *"/attribution:setup apply"* ]] && echo named || echo "$err")" "named"
+cfg_layers_init "$ROOT" 2>/dev/null
+cfg_scalar v stamp_expiry_days
+assert_eq "an old-file value still applies" "$v|$CFG_SOURCE" "30|$USER_JSON"
+cfg_scalar v budgets.corpus_fetch_ceiling
+assert_eq "an old-file per-user value still applies" "$v|$CFG_SOURCE" "50|$USER_JSON"
+
+cfg_user_config "budgets.corpus_fetch_ceiling=90"
+printf '%s\n' 'stamp_expiry_days: 60' >"$YAML_TEAM"
+err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
+assert_eq "with both present the warning names the old file and the new homes" \
+  "$([[ "$err" == *"$USER_JSON"* && "$err" == *"userConfig"* && "$err" == *"$YAML_TEAM"* ]] && echo named || echo "$err")" "named"
+cfg_layers_init "$ROOT" 2>/dev/null
+assert_eq "the old file sits below userConfig" "$(layers)" "$USER_JSON"$'\n'"userConfig"$'\n'"$YAML_TEAM"
+cfg_scalar v budgets.corpus_fetch_ceiling
+assert_eq "userConfig beats the old file" "$v|$CFG_SOURCE" "90|userConfig"
+cfg_scalar v stamp_expiry_days
+assert_eq "the team file beats the old file" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
+CFG_USER_CONFIG=()
+
 # --- The bound convention home ----------------------------------------------------
 
 reset
