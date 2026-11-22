@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
-expected_outcome: "A decision record creates no container, so no container close will ever delete the dossier branch. Map close runs the dossier-branch step itself: before posting the closing comment it calls /work-items:track dossier-branches for map #800, without --unattended since the user is present, and the closing comment carries that step's report. The decisions go to /architecture:record-decision or the repository's ADR convention. The reply neither keeps the branch waiting for a container nor deletes it outside that step."
+expected_outcome: "A decision record creates no container, so no container close will ever delete the dossier branch. Map close runs the dossier-branch step itself: before posting the closing comment it calls /work-items:track dossier-branches for map #800, without --unattended since the user is present, and the closing comment carries that step's report. The decisions go to /architecture:adr or the repository's ADR convention. The reply neither keeps the branch waiting for a container nor deletes it outside that step."
 ---
 
 /planning:wayfind work 'Map: session token storage' (#800). Destination: a decision record. Every item is closed, the frontier and Not-yet-specified are empty, and the map has a dossier branch, dossier/800-session-token-storage. I'm here to answer. Close the map and hand it on.

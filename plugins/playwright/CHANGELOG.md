@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.3] - 2026-11-22
+
+### Changed
+
+- `/playwright:playwright` is synced to `@playwright/cli` 0.1.25. The sessions reference now attaches to the user's own browser through the extension with a named session, keeps the user's tabs on detach, and points at upstream's extension section before any tab cleanup.
+
 ## [2.1.2] - 2026-11-22
 
 ### Fixed

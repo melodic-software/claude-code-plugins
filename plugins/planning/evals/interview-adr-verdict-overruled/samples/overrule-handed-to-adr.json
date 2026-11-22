@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "You overruled the Q3 verdict, so I'm handing it to /architecture:record-decision: failed deliveries are stored in a Postgres table; the Redis stream was the alternative weighed; rationale: one store to back up and query. The rest is confirmed; writing the Brief next.",
+      "answer": "You overruled the Q3 verdict, so I'm handing it to /architecture:adr: failed deliveries are stored in a Postgres table; the Redis stream was the alternative weighed; rationale: one store to back up and query. The rest is confirmed; writing the Brief next.",
       "why": "hands Q3 to the ADR skill with the decision and its alternative"
     },
     {

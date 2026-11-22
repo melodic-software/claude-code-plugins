@@ -17,7 +17,7 @@ The skills of `plugins/architecture`. Each one is driven with `<plugin-dir>` set
 - `map-flow`: Trace one C# entry point into a sequence diagram with a citation on every hop.
 - `map-landscape`: Chart a repository and the systems it references as a C4 system landscape and portfolio table.
 - `principles`: Define the module-design terms architecture findings use.
-- `record-decision`: Record an architecture decision in the repository's existing ADR convention.
+- `adr`: Record, audit and prune architecture decisions in the repository's existing ADR convention.
 - `setup`: Verify and converge the architecture plugin's consumer configuration. No plain-words entry.
 
 ## Sub-features

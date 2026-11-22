@@ -186,7 +186,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 
 ## Next
 
-- The schema settles a decision worth keeping: `/architecture:record-decision`.
+- The schema settles a decision worth keeping: `/architecture:adr`.
 - The schema needs a data-model change decided: `/planning:design data`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 

@@ -153,7 +153,7 @@ class-B moves, and reports.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.
 4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, hand each ADR
-   candidate it listed to `/architecture:record-decision` per [ADR candidates](#postures), write
+   candidate it listed to `/architecture:adr` per [ADR candidates](#postures), write
    the findings file ([actions/remove.md](actions/remove.md#findings-file)) from the rows it
    listed, less the reshape flags whose move you applied and plus one for each move whose gate
    failed, then report.
@@ -199,7 +199,7 @@ the signature is proposed for deletion, never deleted.
 repository's own deliberate decisions and names the alternative it was chosen over is an ADR
 candidate as well as a reshape flag; one that names no alternative is a reshape flag only. The
 run that triages it lists it in the report. In an interactive run with the `architecture` plugin
-enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:record-decision`
+enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:adr`
 via the Skill tool for each listed candidate, with the decision, the alternative and the comment's
 text; that skill owns and applies the admission test. Otherwise
 (unattended, `report` mode, or no `architecture` plugin) the candidate stays listed.
@@ -270,7 +270,7 @@ an UNPROVABLE file yields proposals only.
 - The findings file's rows (reshape flags, open root-cause work, lint-rule proposals):
   `/review:fanout fix`, then `/implementation:implement` or `/debugging:debug` for a root cause and
   `/architecture:improve` for a reshape that needs a design decision.
-- ADR candidates listed but not recorded: `/architecture:record-decision` with each one.
+- ADR candidates listed but not recorded: `/architecture:adr` with each one.
 
 ## Gotchas
 

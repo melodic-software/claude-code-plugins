@@ -15,8 +15,9 @@
 # WHY. Two branches that each compute "highest plus one" against the same base
 # both merge, and the repository gains a second record under one number. The
 # existing pairs stay: renumbering breaks every inbound link, and the duplicate
-# is a fact about the repository's history (the architecture:record-decision
-# skill's gotchas state the same posture). This gate stops the next pair. A
+# is a fact about the repository's history (the same posture as
+# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/architecture/skills/adr/SKILL.md#gotchas).
+# This gate stops the next pair. A
 # baseline keyed on file names rather than numbers means a third record on a
 # baselined number still fails.
 #

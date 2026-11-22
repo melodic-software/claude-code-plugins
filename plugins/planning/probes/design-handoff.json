@@ -8,7 +8,7 @@
     "planning:plan",
     "session-flow:handoff",
     "review:quality-gate",
-    "architecture:record-decision"
+    "architecture:adr"
   ],
   "queries": [
     {

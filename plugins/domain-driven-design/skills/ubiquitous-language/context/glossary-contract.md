@@ -56,7 +56,7 @@ Shown to users as: bill
 - **Business rules:** an entry says what the concept is, never what may or must happen to it ("an
   invoice over 10,000 needs a second approver" is a rule, not a definition). The rule lives in code (a type, a
   validation) and a test that names it; the reason for the rule goes in an architecture decision
-  record when it passes `/architecture:record-decision`'s admission test.
+  record when it passes `/architecture:adr`'s admission test.
 - **Grouping:** when the terms fall into clear clusters, put each cluster under its own subheading;
   a small or uniform set stays one list.
 

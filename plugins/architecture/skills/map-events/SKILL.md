@@ -123,7 +123,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
 
 - Trace one entry point up to the broker: `/architecture:map-flow <entry>`.
 - The question is which deployables bind the broker: `/architecture:map-containers`.
-- The view settles a decision worth keeping: `/architecture:record-decision`.
+- The view settles a decision worth keeping: `/architecture:adr`.
 - An orphan or a new message needs its contract decided: `/planning:design integration`.
 
 ## Gotchas
