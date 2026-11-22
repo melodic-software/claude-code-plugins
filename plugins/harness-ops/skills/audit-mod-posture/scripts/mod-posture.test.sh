@@ -62,6 +62,7 @@ plugin "$P/silent" silent '{"modules":["./register.js"]}'
 plugin "$P/localmod" localmod '{"modules":["./register.js"]}'
 plugin "$P/twoscope" twoscope '{"modules":["./register.js"]}'
 plugin "$P/zz-noid" zz-noid '{"modules":["./register.js"]}'
+plugin "$P/nouns" nouns '{"modules":["./register.js"]}'
 
 proj_real="$(cd "$FIX/proj" && pwd -P)"
 other_real="$(cd "$FIX/other proj" && pwd -P)"
@@ -78,7 +79,8 @@ jq -n --arg p "$P" --arg proj "$proj_real" --arg other "$other_real" '[
   {id:"localmod@mk", scope:"local", enabled:true, installPath:"\($p)/localmod", projectPath:$proj},
   {id:"twoscope@mk", scope:"user", enabled:true, installPath:"\($p)/twoscope"},
   {id:"twoscope@mk", scope:"project", enabled:true, installPath:"\($p)/twoscope", projectPath:$proj},
-  {id:null, scope:"user", enabled:true, installPath:"\($p)/zz-noid"}
+  {id:null, scope:"user", enabled:true, installPath:"\($p)/zz-noid"},
+  {id:"nouns@mk", scope:"user", enabled:true, installPath:"\($p)/nouns"}
 ]' >"$FIX/list.json"
 
 # validate fixtures, keyed by plugin directory name.
@@ -96,7 +98,8 @@ validate_json mod-a true \
 validate_json inline true './register.js hooks: prompt.submit, session.append' './register.js calls: $.http.fetch'
 validate_json hostile false \
   './register.js hooks: tool.check, tool.call{x=a b SECRETHOOK1}, ignore.previous instructions SECRETHOOK2' \
-  './register.js calls: $.fs.write, rm -rf SECRETCALL1, $.env.get(SECRETCALL2)'
+  './register.js calls: $.fs.write, rm -rf SECRETCALL1, $.env.get(SECRETCALL2)' \
+  './register.js adds to $: okNoun, bad noun SECRETNOUN1'
 validate_json elsewhere true './register.js hooks: tool.call'
 validate_json spaced true \
   './a b.js hooks: tool.call{tool=mcp__plugin_context-usage_context-usage__status}, prompt.submit' \
@@ -105,6 +108,12 @@ validate_json silent false
 validate_json localmod true './register.js hooks: session.start'
 validate_json twoscope true './register.js hooks: session.start'
 validate_json zz-noid true './register.js hooks: tool.call'
+validate_json nouns true \
+  './register.js hooks: engine.create' \
+  './register.js calls: nothing on $' \
+  './register.js adds to $: probeNoun' \
+  './register.js withholds from $: process (in the user or builtin tier, the fold refuses this and unloads the module)' \
+  './register.js replaces on $: store (the fold refuses this and unloads the module)'
 
 cat >"$FIX/bin/claude" <<'EOF'
 #!/usr/bin/env bash
@@ -187,7 +196,11 @@ count_rows() { printf '%s\n' "$OUT" | awk -F'\t' -v id="$1" '$1 == id' | wc -l |
 run_mp --overview "$FIX/overview.md" --builtin-json "$FIX/inventory.json"
 assert_eq "exits 0" 0 "$RC"
 assert_eq "dated header" "# mod-posture inventory 2026-10-17" "$(printf '%s\n' "$OUT" | head -1)"
-assert_eq "column header" $'id\ttier\tenabled\tcan_disable\thooks\tcalls\tsource' "$(printf '%s\n' "$OUT" | sed -n 2p)"
+assert_eq "column header" $'id\ttier\tenabled\tcan_disable\thooks\tcalls\tsource\tnouns' "$(printf '%s\n' "$OUT" | sed -n 2p)"
+assert_eq "adds, withholds and replaces lines fill the nouns column, notes dropped" \
+  "add:probeNoun,withhold:process,replace:store" "$(field nouns@mk 8)"
+assert_eq "calls: nothing on \$ reads as no calls" "-" "$(field nouns@mk 6)"
+assert_eq "a mod with no noun lines reads -" "-" "$(field mod-a@mk 8)"
 assert_eq "hooks.json modules: the mod is listed with its hooks: line" \
   "tool.call,session.start,command.run{command=mod-a}" "$(field mod-a@mk 5)"
 assert_eq "calls drop the (via ...) annotation" '$.fs.read,$.process.run,$.ui.log' "$(field mod-a@mk 6)"
@@ -203,8 +216,8 @@ assert_eq "user and project entries on one path: the narrower scope names the ti
 assert_eq "another project's entry on a user path does not change the tier" user "$(field mod-a@mk 2)"
 assert_eq "path only another project enables is skipped" 0 "$(count_rows elsewhere@mk)"
 assert_contains "skipped path is counted in a footer" "$OUT" "# not read: installed tier: 1 install path(s) only other projects enable, skipped"
-assert_eq "validate failure reads unknown" "unknown unknown validate-failed" \
-  "$(field broken@mk 5) $(field broken@mk 6) $(field broken@mk 7)"
+assert_eq "validate failure reads unknown" "unknown unknown validate-failed unknown" \
+  "$(field broken@mk 5) $(field broken@mk 6) $(field broken@mk 7) $(field broken@mk 8)"
 
 # --- Grammar filter ------------------------------------------------------------------------
 assert_eq "id outside the grammar prints redacted-id" 1 \
@@ -217,17 +230,18 @@ assert_eq "hook names outside the grammar print redacted, keeping a valid event"
 assert_eq "call names outside the grammar print redacted" '$.fs.write,redacted' "$(field redacted-id 6)"
 assert_eq "validate with success false is marked" validate-errors "$(field redacted-id 7)"
 assert_eq "managed tier can_disable reads unknown" unknown "$(field redacted-id 4)"
-assert_contains "withheld names are counted in a footer" "$OUT" "# not read: names: 4 hook or call name(s) outside the grammar withheld"
+assert_eq "noun names outside the grammar print redacted" "add:okNoun,add:redacted" "$(field redacted-id 8)"
+assert_contains "withheld names are counted in a footer" "$OUT" "# not read: names: 5 hook, call or noun name(s) outside the grammar withheld"
 assert_eq "module path with a space keeps its hooks; a long filter keeps its event" \
   "tool.call{redacted},prompt.submit" "$(field spaced@mk 5)"
 assert_eq "module path with a space keeps its calls" '$.process.run' "$(field spaced@mk 6)"
-assert_eq "validate errors with no notes read unknown, not none" "unknown unknown validate-errors" \
-  "$(field silent@mk 5) $(field silent@mk 6) $(field silent@mk 7)"
+assert_eq "validate errors with no notes read unknown, not none" "unknown unknown validate-errors unknown" \
+  "$(field silent@mk 5) $(field silent@mk 6) $(field silent@mk 7) $(field silent@mk 8)"
 
 # --- Built-in tier -------------------------------------------------------------------------
 assert_eq "built-in row: tier, setting overrides default, can_disable from the table" \
-  "builtin off yes ui.render,tool.call unknown builtin-lane" \
-  "$(for n in 2 3 4 5 6 7; do printf '%s ' "$(field cc-plugin-diff@builtin $n)"; done | sed 's/ $//')"
+  "builtin off yes ui.render,tool.call unknown builtin-lane unknown" \
+  "$(for n in 2 3 4 5 6 7 8; do printf '%s ' "$(field cc-plugin-diff@builtin $n)"; done | sed 's/ $//')"
 assert_eq "You can't in the table reads can_disable no" no "$(field cc-plugin-sec-default@builtin 4)"
 assert_eq "enabled_setting true turns an off-by-default built-in on" on "$(field cc-plugin-you-should-know@builtin 3)"
 assert_eq "empty hook_events reads -" "-" "$(field cc-plugin-you-should-know@builtin 5)"
@@ -318,6 +332,48 @@ assert_contains "managed-mcp.json does not override managed prependPlugins omitt
   "# guard: not-seated (managed prependPlugins omits the guard)"
 rm -f -- "$M" "$MCP"
 
+U="$HOME/.claude/settings.json"
+cp -- "$U" "$FIX/user-settings.orig"
+run_mp --no-fetch
+assert_contains "no defaultMode anywhere: not unasked" "$OUT" "# claude-written mods: not-unasked (defaultMode unset)"
+assert_contains "the one-session overrides are named in a footer" "$OUT" \
+  "# not read: claude-written mods: --permission-mode, --dangerously-skip-permissions and --settings are not read"
+printf '{"env":{"T":"SECRETSETTINGS2"},"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$U"
+cp -- "$U" "$FIX/user-bypass.txt"
+run_mp --no-fetch
+assert_contains "user bypassPermissions with no managed settings loads unasked" "$OUT" \
+  "# claude-written mods: load-unasked (defaultMode bypassPermissions in user settings; disableSideloadFlags unset)"
+printf '{"disableSideloadFlags":true}\n' >"$M"
+run_mp --no-fetch
+assert_contains "managed disableSideloadFlags true blocks it" "$OUT" \
+  "# claude-written mods: not-unasked (managed disableSideloadFlags true)"
+printf '{"permissions":{"defaultMode":"dontAsk"}}\n' >"$M"
+run_mp --no-fetch
+assert_contains "managed defaultMode wins over user" "$OUT" "# claude-written mods: not-unasked (defaultMode dontAsk)"
+printf '{"permissions":{"defaultMode":"auto"},"disableSideloadFlags":false}\n' >"$M"
+run_mp --no-fetch
+assert_contains "managed auto with the flag false loads unasked" "$OUT" \
+  "# claude-written mods: load-unasked (defaultMode auto in managed settings; disableSideloadFlags false)"
+printf 'not json\n' >"$M"
+run_mp --no-fetch
+assert_contains "unparsable managed settings leave it unknown" "$OUT" \
+  "# claude-written mods: unknown (managed settings not read)"
+rm -f -- "$M"
+printf '{"permissions":{"defaultMode":"default"}}\n' >"$U"
+mkdir -p "$FIX/proj/.claude"
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$FIX/proj/.claude/settings.json"
+run_mp --no-fetch
+assert_contains "project settings cannot set bypassPermissions" "$OUT" "# claude-written mods: not-unasked (defaultMode default)"
+rm -rf -- "${FIX:?}/proj/.claude"
+printf '{"permissions":{"defaultMode":"SECRETMODE1"}}\n' >"$U"
+cp -- "$U" "$FIX/user-mode-other.txt"
+run_mp --no-fetch
+assert_contains "a mode outside the known set prints other" "$OUT" "# claude-written mods: not-unasked (defaultMode other)"
+printf 'not json\n' >"$U"
+run_mp --no-fetch
+assert_contains "unparsable user settings leave it unknown" "$OUT" "# claude-written mods: unknown (user settings unreadable)"
+cp -- "$FIX/user-settings.orig" "$U"
+
 # --- Guard only ----------------------------------------------------------------------------
 : >"$FIX/argv.log"
 STUB_ARGV_LOG="$FIX/argv.log" run_mp --guard-only
@@ -391,7 +447,7 @@ fi
 
 # --- Planted secrets never reach stdout or stderr of any run ---------------------------------
 planted="$(grep -rhoE 'SECRET[A-Z0-9_]*' "$FIX" | LC_ALL=C sort -u)"
-assert_eq "all 19 planted secret tokens were collected" 19 "$(printf '%s\n' "$planted" | grep -c .)"
+assert_eq "all 22 planted secret tokens were collected" 22 "$(printf '%s\n' "$planted" | grep -c .)"
 while IFS= read -r secret; do
   [[ -n "$secret" ]] && assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
 done <<<"$planted"
