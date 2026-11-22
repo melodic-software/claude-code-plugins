@@ -1,9 +1,9 @@
 ---
-description: "Unattended find whose personal config tries to raise the open cap. Narration: a scaffolded personal file, docs/conventions/improvement.local.yaml, sets find_open_item_cap to 9, no team layer exists, and the prompt gives five open items carrying the source label as facts and switches writes and filing off. The reply asks nothing (no-ask-tool), writes and edits nothing in the repository (no-repo-write, no-edit), reads the personal layer (reads-personal-layer), and files nothing because the cap stays 5 (personal-value-does-not-raise-cap, llm). Real filing is unmeasured. Needs --scaffold and --allow-tools Write Edit so the write graders can fail."
+description: "Unattended find whose personal config tries to raise the open cap. Narration: a scaffolded personal file, docs/conventions/improvement.local.yaml, sets find_open_item_cap to 9, no team layer exists, and the prompt gives five open items carrying the source label as facts and switches writes and filing off. The reply asks nothing (no-ask-tool), writes and edits nothing in the repository (no-repo-write, no-edit), reads the personal layer (reads-personal-layer), and files nothing because the cap stays 5 (personal-value-does-not-raise-cap, llm). Real filing is unmeasured. Needs --scaffold and --allow-tools Bash Write Edit: Bash for the git root and tracked or ignored checks, Write and Edit so the write graders can fail."
 tags: [find, unattended, narration, no-network]
 max_turns: 25
 timeout_seconds: 900
-allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, AskUserQuestion]
+allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit, AskUserQuestion]
 expected_outcome: "The run asks nothing, keeps the open cap at the default 5 despite the personal value of 9, and files nothing because five open items already carry the label."
 ---
 

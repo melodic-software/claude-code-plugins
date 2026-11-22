@@ -64,8 +64,7 @@
     "find_size_band": {
       "type": "string",
       "title": "Unattended size band",
-      "description": "Candidate sizes an unattended run ranks: all, small, medium or large. Unset: all.",
-      "options": ["all", "small", "medium", "large"]
+      "description": "Candidate sizes an unattended run ranks: all, small, medium or large. Unset: all."
     },
     "find_scope": {
       "type": "string",

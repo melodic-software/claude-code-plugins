@@ -1,8 +1,3 @@
-# Retired consumer-facing conventions for the improvement plugin.
-# Append-only: records are never deleted and their detection fields are never
-# edited once published (demote with `status: report-only` instead). Schema and
-# helper contract: docs/contracts/retired-conventions/README.md in the
-# consuming marketplace; evaluated by lib/check-retirements.sh from setup.
 ---
 id: improvement-r001
 retired: 2026-11-22
