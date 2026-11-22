@@ -7,6 +7,10 @@ graders:
     type: file_exists
     path: 'docs/conventions/ecosystems/*.yaml'
     exists: false
+  - name: nothing-written-legacy
+    type: file_exists
+    path: '.claude/ecosystems/*.yaml'
+    exists: false
   - name: uv-specialized
     type: regex
     pattern: '\buv run (?:pytest|ruff|python -m pytest)\b'

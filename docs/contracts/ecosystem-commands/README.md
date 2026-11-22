@@ -229,12 +229,14 @@ lane membership without running a verb:
 
 | Plugin | Keys | Use |
 |---|---|---|
-| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset stops the run with exit 2 and `/code-metrics:setup check` shows FAIL, where this contract says plugins should fail soft. |
+| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset is ignored with a warning, and `/code-metrics:setup check` shows FAIL for it. |
 
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<lane>.yaml` and
-no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: an ecosystem
-file outside the supported YAML subset stops the run with exit 2
-(`plugins/code-metrics/scripts/resolve-config.py:467-472`) instead of failing soft. Parseable but
+no other ecosystem-commands key. It fails soft, as the tolerant-reader paragraph above asks: an
+ecosystem file outside the supported YAML subset is warned about and read as absent
+(`plugins/code-metrics/scripts/resolve-config.py:132-141`, `:478-483`), and
+`/code-metrics:setup check` reports it as FAIL
+(`plugins/code-metrics/skills/setup/scripts/setup-check.sh:227-228`). Parseable but
 schema-invalid content is not validated. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
 merge form", the paragraph on consumer ecosystems files. **Recheck:** when that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
 

@@ -23,6 +23,10 @@ graders:
     type: 'file_exists'
     path: '**/docs/conventions/ecosystems/spelling.yaml'
     exists: false
+  - name: 'no-legacy-file'
+    type: 'file_exists'
+    path: '**/.claude/ecosystems/spelling.yaml'
+    exists: false
   - name: 'no-write'
     type: 'tool_used'
     tool: 'Write'

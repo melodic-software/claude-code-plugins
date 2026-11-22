@@ -19,6 +19,10 @@ graders:
     type: 'file_exists'
     path: '**/docs/conventions/ecosystems/markdown.yaml'
     exists: false
+  - name: 'no-legacy-file'
+    type: 'file_exists'
+    path: '**/.claude/ecosystems/markdown.yaml'
+    exists: false
   - name: 'no-file-2'
     type: 'file_exists'
     path: '**/.markdownlint*'

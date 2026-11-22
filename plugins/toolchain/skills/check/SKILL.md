@@ -23,7 +23,7 @@ Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not
 
 Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when enabled) and verification agents compose it for detection and command resolution instead of keeping their own tables.
 
-Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` first, then infers from its build files, then asks. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
+Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` (or the legacy `.claude/ecosystems/` file for a name absent there) first, then infers from its build files, then asks. The plugin ships no default command: a key nothing resolves is reported unresolved and runs nothing.
 
 ## Arguments
 

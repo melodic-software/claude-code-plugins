@@ -10,7 +10,9 @@ first and read the legacy `.claude/ecosystems/` file of the same name when it is
 repository not yet moved keeps its commands; with both present the new file wins and a warning names
 both ("Legacy location"). Migration: `git mv .claude/ecosystems docs/conventions/ecosystems`, or
 `/toolchain:setup apply`, and change the `.gitignore` line to `docs/conventions/**/*.local.*`. The
-legacy read ends in the next major version. No schema change.
+legacy read ends in the next major version. No schema change. The Consumers section drops the
+fail-hard divergence 1.3.1 recorded for `code-metrics`: its resolver reads an ecosystem file outside
+the YAML subset as absent, with a warning.
 
 ## [1.6.0] - 2026-11-17
 

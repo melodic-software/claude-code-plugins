@@ -11,6 +11,14 @@ graders:
     type: file_exists
     path: docs/conventions/ecosystems/python*.yaml
     exists: false
+  - name: no-legacy-typescript-file
+    type: file_exists
+    path: .claude/ecosystems/typescript.yaml
+    exists: false
+  - name: no-legacy-python-file
+    type: file_exists
+    path: .claude/ecosystems/python*.yaml
+    exists: false
   - name: names-test-ci
     type: regex
     pattern: '\btest:ci\b'

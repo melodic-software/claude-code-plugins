@@ -70,8 +70,11 @@ success).
 
 For each `$REPO_ROOT/docs/conventions/ecosystems/<ecosystem>.yaml` that already exists, load it
 and present a short summary. Propose moving each legacy `$REPO_ROOT/.claude/ecosystems/` file
-there with `git mv`, content unchanged, `.local.yaml` files included; with a file of the same name
-at both, show the difference and keep the `docs/conventions/` one unless the person says otherwise. The interview proposes changes against that baseline; nothing is dropped without the
+there, content unchanged, `.local.yaml` files included: a tracked file with `git mv`, an untracked
+one (a personal `.local.yaml` the old `.claude/**/*.local.*` ignore line kept out of git) with a
+plain move, and only once `git check-ignore` shows the new path ignored (else recommend the
+`docs/conventions/**/*.local.*` line of step 5 first). With a file of the same name at both, show
+the difference and keep the `docs/conventions/` one unless the person says otherwise. The interview proposes changes against that baseline; nothing is dropped without the
 user confirming. If `$ARGUMENTS` names one ecosystem, scope the whole run to just that file.
 
 ### 2. Infer candidates from the repo before asking

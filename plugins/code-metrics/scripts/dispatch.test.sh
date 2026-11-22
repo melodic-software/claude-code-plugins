@@ -5,6 +5,7 @@
 # nothing executable is committed). The adapters themselves (scc.py,
 # line-counter.py) and report.py are exercised through the dispatcher.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
+# test-scope: plugins/code-metrics/scripts/yaml_subset.py
 # test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
