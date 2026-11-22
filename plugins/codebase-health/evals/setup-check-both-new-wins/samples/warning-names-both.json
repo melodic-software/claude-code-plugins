@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "WARN: .claude/codebase-health.md and docs/conventions/codebase-health.md both supply the team layer; docs/conventions/codebase-health.md wins. Run /codebase-health:setup apply to move the rest.", "why": "names both and the command" }
+  ],
+  "fail": [
+    { "answer": "WARN: .claude/codebase-health.md is an old location. Run /codebase-health:setup apply.", "why": "new file not named" },
+    { "answer": "INFO: .claude/codebase-health.md and docs/conventions/codebase-health.md both exist; the new one wins. Run /codebase-health:setup apply.", "why": "no warning" },
+    { "answer": "WARN: .claude/codebase-health.md and docs/conventions/codebase-health.md both supply the team layer; the new one wins.", "why": "no setup command" }
+  ]
+}

@@ -18,7 +18,7 @@ to run, whether or not its plugin is installed, without invoking it.
 | Skill | What it does |
 |---|---|
 | `/codebase-health:audit` | Runs the audit. Prime conventions, fan out claim-extraction per file, independently validate, severity-rate, and report read-only; remediation is delegated to the implementation/verification lanes. |
-| `/codebase-health:setup` | `check` inspects the tracked `.claude/codebase-health.md` config read-only across its merge layers; `apply` interviews the user, infers targets from the layout, and writes the config. |
+| `/codebase-health:setup` | `check` inspects the audit-dimension config read-only across its layers and names any old-location file; `apply` moves an old file after a yes, interviews the user, infers targets from the layout, and writes the team file `<home>/codebase-health.md`. |
 
 ## The audit
 
@@ -58,16 +58,22 @@ it>)`, and any notice. A `terminal` result drops the offer. The tracked team fil
 new home; a `terminal` or `file` value in one still keeps the view local when no other setting
 decides, and a publishing value there is ignored.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
-
 ## Configurable audit dimensions
 
 What the audit reads and how it verifies claims is **not baked in**. It comes from the consuming
-repo's tracked config, resolved additively across three layers:
+repo's config, resolved additively across the
+[config-cascade layers](reference/config.md#layers-and-resolution-order), where `<home>` is the
+repository's convention home (default `docs/conventions`):
 
-1. `~/.claude/codebase-health.md`. User-global base (optional)
-2. `.claude/codebase-health.md`. Team config (tracked)
-3. `.claude/codebase-health.local.md`. Personal override (gitignored)
+1. The file the `dimensions_file` option names: your own dimensions for every repository (optional)
+2. `<home>/codebase-health.md`: team config (tracked)
+3. `<home>/codebase-health.local.md`: personal override (gitignored)
+
+The old files `~/.claude/codebase-health.md`, `.claude/codebase-health.md` and
+`.claude/codebase-health.local.md` are still read while they exist, wherever the new location does
+not supply that layer, and each run prints one warning naming the old file, its new location and
+`/codebase-health:setup apply`, which moves it after a preview and your yes, then deletes it
+([Old locations](reference/config.md#old-locations-dual-read-window)).
 
 Each dimension declares `primary-sources` (globs where claims live), `verification-sources` (globs
 where claims are checked against ground truth), and `example-claims` (concrete `{ claim, verify-via }`
@@ -81,11 +87,12 @@ hardcodes a repo's layout.
 
 ```shell
 /codebase-health:setup check   # inspect the effective config read-only (default)
-/codebase-health:setup apply   # interview + write .claude/codebase-health.md (re-runnable)
+/codebase-health:setup apply   # move old files, interview + write <home>/codebase-health.md (re-runnable)
 ```
 
-Add the recursive `.claude/**/*.local.*` line to your `.gitignore` so personal overrides stay out of version control while
-team config stays tracked.
+Add the recursive `<home>/**/*.local.*` line (`docs/conventions/**/*.local.*` for the default home)
+to your `.gitignore` so personal overrides stay out of version control while team config stays
+tracked.
 
 ## Consumer conventions
 
@@ -102,10 +109,12 @@ verified non-issue. Nothing project-specific is baked into the plugin.
 
 ## Configuration
 
-One `userConfig` option, `medium`: your own default for the rendered-view offer (default `auto`),
-read by the shared medium resolver above. Audit targets flow through the tracked
-`.claude/codebase-health.md` config file above (written by `/codebase-health:setup apply`). No
-hooks, no MCP servers, no bundled scripts beyond the shared `lib/` copies (medium resolver, prerequisites check, verification reader), no network
+Two `userConfig` options: `medium`, your own default for the rendered-view offer (default `auto`),
+read by the shared medium resolver above; and `dimensions_file`, the audit-dimension file applied
+in every repository. Audit targets flow through the tracked `<home>/codebase-health.md` config file
+above (written by `/codebase-health:setup apply`). No hooks, no MCP servers, no bundled scripts
+beyond the shared `lib/` copies (medium resolver, prerequisites check, verification reader,
+convention-home resolver, retirement check), no network
 calls of its own (Phase 2 may use whatever documentation-research tools your setup provides). State:
 the audit reads and writes only the consumer's own files under the scope you give it.
 
@@ -127,6 +136,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | Where the audit's optional rendered view goes, read by the shared medium resolver. auto (default): the view is offered and visualization:visualize picks the medium; terminal: no offer; file: local, never published; artifact or hosted: passed to visualization:visualize. |
+| `dimensions_file` | file | *(none)* | A Markdown file of yours declaring audit dimensions (primary-sources, verification-sources, example-claims) for every repository, in the setup template's format. A repository's own codebase-health.md merges over it per dimension. |
 
 ### How to set these
 

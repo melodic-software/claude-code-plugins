@@ -1,6 +1,6 @@
 {
   "name": "codebase-health",
-  "description": "Repo-wide drift audit between docs, config, code, and architecture: verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings, and reports read-only, delegating remediation to the implementation/verification lanes. Audit dimensions are configurable through a tracked .claude/codebase-health.md config file written by the setup skill.",
+  "description": "Repo-wide drift audit between docs, config, code, and architecture: verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings, and reports read-only, delegating remediation to the implementation/verification lanes. Audit dimensions are configurable through a tracked codebase-health.md in the repository's convention home, written by the setup skill.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -27,6 +27,11 @@
       "description": "Where the audit's optional rendered view goes, read by the shared medium resolver. auto (default): the view is offered and visualization:visualize picks the medium; terminal: no offer; file: local, never published; artifact or hosted: passed to visualization:visualize.",
       "default": "auto",
       "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    },
+    "dimensions_file": {
+      "type": "file",
+      "title": "Audit dimensions file",
+      "description": "A Markdown file of yours declaring audit dimensions (primary-sources, verification-sources, example-claims) for every repository, in the setup template's format. A repository's own codebase-health.md merges over it per dimension."
     }
   }
 }

@@ -28,7 +28,7 @@ graders:
     arm: 'both'
   - name: config-not-created
     type: file_exists
-    path: '.claude/codebase-health.md'
+    path: 'docs/conventions/codebase-health.md'
     exists: false
   - name: no-plugin-dir-write
     type: tool_used

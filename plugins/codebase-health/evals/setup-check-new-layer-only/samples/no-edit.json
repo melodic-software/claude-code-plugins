@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "docs/conventions/codebase-health.md" } }], "why": "read-only run" },
+    { "answer": [], "why": "no tool calls" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Read", "input": { "file_path": "docs/conventions/codebase-health.md" } }, { "tool": "Edit", "input": { "file_path": "docs/conventions/codebase-health.md", "old_string": "- `docs/**/*.md`\n", "new_string": "" } }], "why": "called Edit" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "docs/conventions/codebase-health.md", "old_string": "api-contracts", "new_string": "contracts" } }], "why": "only an Edit call" }
+  ]
+}
