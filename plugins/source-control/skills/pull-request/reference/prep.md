@@ -13,7 +13,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 | Class | Which files | What it owes | Where it runs |
 |---|---|---|---|
-| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then the comment pass (`code-tidying:remove-comments`), then `verification:confirm` | §1.2 to §1.5 |
+| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then the comment pass (`code-tidying:remove-comments`), then the §1.5 changed-files check, which runs no test suite | §1.2 to §1.5 |
 | `markdown` | `.md` files | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
 | `renames` | any `R` line in the name-status output | a `docs-hygiene:rename-references` audit | §1.2.1 |
 | `skills` | `plugins/*/skills/**`, `plugins/*/agents/**` | `skill-quality:check` over each changed skill | §1.2.1 |

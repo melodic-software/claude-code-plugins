@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh
+# test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/lib/verification/*.sh plugins/guardrails/lib/git-hooks-test-helpers.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
@@ -344,7 +345,14 @@ expect "a jq that fails while reading the verifiers' output fails the push, nami
   "$(push_unchecked '-r .hookSpecificOutput.additionalContext' refs/heads/main "$tip" "$pushed")"
 # A verifier run that exits non-zero fails the push too: a plugin copy whose
 # dispatcher exits 3.
-cp -R "$PLUGIN" "$WORK/broken"
+plugin_copy() {
+  mkdir -p "$1/hooks" "$1/git-hooks"
+  ln -s "$PLUGIN/lib" "$1/lib"
+  ln -s "$CHECK" "$1/git-hooks/reference-verify.sh"
+  for f in "$PLUGIN"/hooks/*; do ln -s "$f" "$1/hooks/${f##*/}"; done
+}
+plugin_copy "$WORK/broken"
+rm "$WORK/broken/hooks/run-guards.sh"
 printf 'exit 3\n' >"$WORK/broken/hooks/run-guards.sh"
 err="$(cd "$REPO" && printf 'refs/heads/main %s refs/heads/main %s\n' "$tip" "$pushed" |
   bash "$WORK/broken/git-hooks/reference-verify.sh" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
@@ -517,7 +525,7 @@ git -C "$REPO" checkout -q main
 # so they are not judged, and a file it added is not judged whole. The lines the
 # merge resolution or the branch's own commits add still are. A plugin copy
 # whose dispatcher logs each file it is handed counts the verifier runs.
-cp -R "$PLUGIN" "$WORK/counting"
+plugin_copy "$WORK/counting"
 mv "$WORK/counting/hooks/run-guards.sh" "$WORK/counting/hooks/run-guards-real.sh"
 cat >"$WORK/counting/hooks/run-guards.sh" <<'EOF'
 #!/usr/bin/env bash
