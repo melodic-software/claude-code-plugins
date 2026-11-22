@@ -649,7 +649,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "68a8e1087285efdae51d408be2e5d551399de6c98cf1c4e8142a5d3633dd3317"
+  "c691a060155fba1998680f1a5b6f37830b0a3a333bfdb3bdb22f8f7e771e5228"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
@@ -812,7 +812,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "c2124e154de0b15dc2aec0c4f43fc1a277a8bec3a56846d6a3fc7cd3f3d73cd6"
+  "ac1a9be7d6b5b2b517954fae534f70a91dd68172e60eb2f28b62968226e729f5"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
