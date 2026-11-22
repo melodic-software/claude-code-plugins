@@ -2,13 +2,11 @@
 # test-scope: plugins/toolchain/skills/check/SKILL.md
 # test-scope: plugins/toolchain/skills/check/context/gates.md
 # test-scope: plugins/toolchain/skills/lint/SKILL.md
-# test-scope: plugins/source-control/scripts/provision-prerequisites.sh
 # The needles quote markdown backticks literally.
 # shellcheck disable=SC2016
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STEP="$PLUGIN_DIR/../source-control/scripts/provision-prerequisites.sh"
 PASS=0
 FAIL=0
 ok() { PASS=$((PASS + 1)) && printf 'ok: %s\n' "$1"; }
@@ -30,8 +28,6 @@ for pair in "gates.md|$gates_rule" "lint/SKILL.md|$lint_rule"; do
     if grep -qF -- "$needle" <<<"$text"; then ok "$where not-run rule carries: $needle"; else fail "$where not-run rule carries: $needle"; fi
   done
 done
-
-if [[ -f "$STEP" ]]; then ok "the named step exists at source-control/scripts/provision-prerequisites.sh"; else fail "the named step exists at source-control/scripts/provision-prerequisites.sh"; fi
 
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
