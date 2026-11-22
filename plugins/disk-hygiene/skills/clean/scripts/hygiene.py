@@ -1188,6 +1188,14 @@ def old_policy_paths(project_dir: Path | None) -> dict[str, Path]:
     return paths
 
 
+def remove_old_policy_file(path: Path, project_dir: Path | None) -> None:
+    if path.absolute() not in {
+        old.absolute() for old in old_policy_paths(project_dir).values()
+    }:
+        raise HygieneError(f"not an old policy file: {path}")
+    path.unlink()
+
+
 def standing_policy_paths(
     project_dir: Path | None,
     user_policy: str | None = None,

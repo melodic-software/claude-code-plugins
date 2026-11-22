@@ -189,7 +189,7 @@ def move(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def finish(
-    rows: list[dict[str, Any]], user_policy: str | None
+    rows: list[dict[str, Any]], user_policy: str | None, project_dir: Path | None
 ) -> list[dict[str, Any]]:
     option = hygiene.user_policy_path(user_policy, [])
     done = []
@@ -215,8 +215,11 @@ def finish(
             if not same:
                 outcome["result"] = "refused: the new file resolves differently"
             else:
-                old.unlink()
-                outcome["result"] = "old file deleted"
+                try:
+                    hygiene.remove_old_policy_file(old, project_dir)
+                    outcome["result"] = "old file deleted"
+                except (OSError, hygiene.HygieneError) as exc:
+                    outcome["result"] = f"refused: {exc}"
         done.append(outcome)
     return done
 
@@ -242,7 +245,7 @@ def main(argv: list[str]) -> int:
     if args.step == "move":
         rows = move(rows)
     elif args.step == "finish":
-        rows = finish(rows, args.user_policy)
+        rows = finish(rows, args.user_policy, project)
     print(json.dumps({"step": args.step, "files": rows}, indent=2))
     refused = any(str(row.get("result", "")).startswith("refused") for row in rows)
     return 1 if refused else 0

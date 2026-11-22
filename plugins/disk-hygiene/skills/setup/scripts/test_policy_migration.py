@@ -127,6 +127,16 @@ class PolicyMigrationTests(unittest.TestCase):
         self.run_step("finish", "--yes")
         self.assertTrue(self.old_team.is_file())
 
+    def test_the_engine_removes_only_an_old_policy_file(self) -> None:
+        other = self.project / ".claude" / "settings.json"
+        other.write_text("{}", encoding="utf-8")
+        for path, project in ((other, self.project), (self.old_team, None)):
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.remove_old_policy_file(path, project)
+            self.assertTrue(path.is_file())
+        hygiene.remove_old_policy_file(self.old_team, self.project)
+        self.assertFalse(self.old_team.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
