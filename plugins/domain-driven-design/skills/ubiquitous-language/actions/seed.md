@@ -14,11 +14,13 @@ where several names for one concept already exist and nobody has written them do
    project-specific domain concepts; drop framework, tooling and generic programming words, and
    everyday words in their ordinary sense that remove no ambiguity.
 3. Group names that look like one concept (`Order`, `Purchase`, `Checkout` for the same record),
-   with the count and a `file:line` example of each. Group an entity's states under the entity.
-4. Present the candidates as one numbered list, each with a proposed canonical term (the name the
-   code uses most, unless the docs and copy agree on another), a one-line definition drawn from how
-   the code uses it, and the other names as proposed `Avoid:` words. Mark the definition as inferred
-   from the code.
+   with the count of each, as the contract's
+   [Counting a term](../context/glossary-contract.md#counting-a-term) says, and a `file:line`
+   example. Group an entity's states under the entity.
+4. Present the candidates as one numbered list, each with a proposed canonical term (the name with
+   the highest step 3 count, unless the docs and copy agree on another), a one-line definition
+   drawn from how the code uses it, and the other names as proposed `Avoid:` words. Mark the
+   definition as inferred from the code.
 5. The person accepts, edits or rejects each item; an accept-all reply accepts the list as shown.
    Unattended, or with no answer, write nothing and report the list.
 6. Write only accepted entries, in the contract's fallback shape at the location the ladder proposes

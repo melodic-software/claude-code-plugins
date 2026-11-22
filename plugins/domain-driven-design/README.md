@@ -6,7 +6,7 @@ workflow.
 
 | Skill | What it does |
 |---|---|
-| `/domain-driven-design:ubiquitous-language` | Owns the consuming project's ubiquitous-language glossary. `locate` finds it, `lookup` reads terms for other skills (the one read path every reader uses), `seed` proposes a first glossary from the code with a person accepting each term, `curate` resolves terms and records canonical language and rejected synonyms, and `audit` checks entries and finds rejected words in code, copy and error messages. It never discovers boundaries itself and never rewrites code or copy. |
+| `/domain-driven-design:ubiquitous-language` | Owns the consuming project's ubiquitous-language glossary. `locate` finds it, `lookup` reads terms for other skills (the one read path every reader uses), `seed` proposes a first glossary from the code with a person accepting each term, `curate` resolves terms and records canonical language and rejected synonyms, `audit` checks entries and finds rejected words in code, copy and error messages, and `prune` removes or merges the entries a person accepts. It never discovers boundaries itself and never rewrites code or copy. |
 
 Deferred: `context-mapping` and `aggregate-design` join this plugin when those
 practices materialize as skills.
