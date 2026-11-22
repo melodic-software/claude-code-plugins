@@ -13,7 +13,7 @@ Subcommands (standard library only; every input is a file the caller produced):
 
   diff --current <summary.json> [--previous <summary.json>] [--store <records.json>]
        [--detect <detect.json>] --self-check-exit <0|1|3> [--max-items <n>]
-       [--out <drift.json>]
+       [--ci] [--out <drift.json>]
       Compare two summaries, evaluate each extraction-evidence store row against
       the current summary, and emit the drift report with its `items`: one per
       work item to file, each carrying a stable dedupe `key`
@@ -29,7 +29,13 @@ Subcommands (standard library only; every input is a file the caller produced):
       `quote` is the facts block a filed body carries. When `--store` names no file, the
       run is report-only (`report_only: true`), the same condition under which
       `overlap.py self-check` declares report-only mode: `items` is empty, the
-      would-be items are in `unfiled`, and there is no `overflow`.
+      would-be items are in `unfiled`, and there is no `overflow`. With `--ci`,
+      a broken or degraded extraction files no inventory item when the binary
+      source is unavailable and was no native build (an npm launcher, or no
+      executable found; a native build whose bundle cannot be read still
+      files), or when there is no previous
+      summary and that alone keeps a degraded run from `revalidate`;
+      `ci_skip` then names the skip, else it is null.
 
   has-key --key <key> --body <body.txt>
       Whether a filed item's body holds the dedupe line for <key>: a line that,
@@ -66,6 +72,12 @@ DESCRIPTION_CHARS = 300
 FACT_CHARS = 300
 MAX_ITEMS = 10
 KEY_LINE = "Drift key: "
+BINARY_UNAVAILABLE = "binary source unavailable: "
+# inventory.py's pick_binary: a native build is a single file over this size,
+# and auto-detection names it so in the binary source's `selected_by`.
+# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/inventory/scripts/inventory.py
+NATIVE_SELECTED_BY = "auto-detected native build"
+NATIVE_MIN_BYTES = 20_000_000
 
 
 class InputError(Exception):
@@ -152,6 +164,8 @@ def shape_error(kind: str, data: Any) -> str | None:
             bad.append("candidates")
         if not _strs(data.get("unresolved_descriptions")):
             bad.append("unresolved_descriptions")
+        if not _opt(data.get("native_build"), bool):
+            bad.append("native_build")
     elif kind == "detect":
         # Required, not optional: a summary with a detect block becomes the
         # candidate baseline, so `{}` would mark every later candidate new.
@@ -274,6 +288,22 @@ def surface_record(klass: str, regs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def native_build(binary: Any) -> bool | None:
+    """Whether the binary source was a native build, whether or not its bundle
+    could be read; None without a binary source. A launcher, or no executable
+    found at all, is False."""
+    if not isinstance(binary, dict):
+        return None
+    if binary.get("selected_by") == NATIVE_SELECTED_BY:
+        return True
+    size = binary.get("size")
+    return (
+        isinstance(size, int)
+        and not isinstance(size, bool)
+        and size > NATIVE_MIN_BYTES
+    )
+
+
 def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
     if not isinstance(inventory, dict) or inventory.get("schema") != 1:
         raise InputError("inventory is not a schema-1 inventory.py extraction")
@@ -335,7 +365,7 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
     if isinstance(binary, dict) and binary.get("available") is False:
         why = binary.get("error") or binary.get("reason")
         why = why if isinstance(why, str) else "no reason given"
-        problems.append(f"binary source unavailable: {why}")
+        problems.append(BINARY_UNAVAILABLE + why)
     lanes = integrity.get("lanes") if isinstance(integrity.get("lanes"), dict) else {}
     undetermined = integrity.get("undetermined")
     unresolved = (
@@ -365,6 +395,10 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         "unresolved_descriptions": sorted({n for n in unresolved if isinstance(n, str)})
         if isinstance(unresolved, list)
         else None,
+        # Whether the executable read was a native build, even one whose
+        # bundle did not extract; None when the inventory has no binary source.
+        # The CI skip reads it: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/native-drift.md#run
+        "native_build": native_build(binary),
     }
 
 
@@ -603,6 +637,36 @@ def inventory_verdict(
     }
 
 
+def ci_skip_reason(
+    cur: dict[str, Any],
+    prev: dict[str, Any] | None,
+    self_check_exit: int,
+    inventory: dict[str, Any],
+) -> str | None:
+    """Why a CI run files no inventory item, or None when it files one.
+
+    A CI runner has no native build when it installs Claude Code from npm, and
+    keeps no previous summary between runs. Neither is a break in the
+    extraction. A broken extraction of a native build still files, including
+    one whose bundle could not be read: only a summary that records no native
+    build (`native_build` false) skips for an unavailable binary source.
+    """
+    if inventory["verdict"] not in ("broken", "degraded"):
+        return None
+    if cur.get("native_build") is False and any(
+        p.startswith(BINARY_UNAVAILABLE) for p in inventory["problems"]
+    ):
+        return "native drift not run in CI: no native build"
+    no_changes = {k: [] for k in ("added", "removed", "renamed")}
+    if (
+        prev is None
+        and inventory_verdict(cur, self_check_exit, no_changes)["verdict"]
+        == "revalidate"
+    ):
+        return "native drift not run in CI: no baseline"
+    return None
+
+
 def diff(
     cur: dict[str, Any],
     prev: dict[str, Any] | None,
@@ -612,6 +676,7 @@ def diff(
     max_items: int = MAX_ITEMS,
     *,
     report_only: bool,
+    ci: bool = False,
 ) -> dict[str, Any]:
     surface = diff_surfaces(prev, cur) if prev else None
     renames = {r["from"]: r["to"] for r in (surface or {}).get("renamed", [])}
@@ -726,7 +791,8 @@ def diff(
         )
 
     inventory = inventory_verdict(cur, self_check_exit, surface)
-    if inventory["verdict"] != "ok":
+    skip_reason = ci_skip_reason(cur, prev, self_check_exit, inventory) if ci else None
+    if inventory["verdict"] != "ok" and skip_reason is None:
         kind = (
             "revalidate"
             if inventory["verdict"] == "revalidate"
@@ -798,6 +864,7 @@ def diff(
         "report_only": report_only,
         "unfiled": unfiled,
         "inventory": inventory,
+        "ci_skip": skip_reason,
         "items": items,
         "max_items": max_items,
         "overflow": overflow,
@@ -834,6 +901,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--detect")
     d.add_argument("--self-check-exit", type=int, required=True, choices=(0, 1, 3))
     d.add_argument("--max-items", type=int, default=MAX_ITEMS)
+    d.add_argument("--ci", action="store_true")
     d.add_argument("--out")
     k = sub.add_parser("has-key")
     k.add_argument("--key", required=True)
@@ -861,6 +929,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.self_check_exit,
                 args.max_items,
                 report_only=store is None,
+                ci=args.ci,
             )
         write(payload, args.out)
     except InputError as exc:

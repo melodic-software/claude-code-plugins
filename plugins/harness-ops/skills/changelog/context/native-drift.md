@@ -43,6 +43,16 @@ and records nothing. Read its output:
 - Anything else: the readers agree; report "compare guard: no divergence". Any other problem it
   prints is the first self-check's too, and filed from there.
 
+Under `apply --ci` ([ci-mode.md](ci-mode.md)), add `--ci` to the `diff` command. A runner that
+installs Claude Code from npm has no native build, and no runner keeps `<prev>` between runs;
+neither is a broken extraction. When either one is why the self-check failed, `diff` sets
+`ci_skip` to "native drift not run in CI: no native build" or "native drift not run in CI: no
+baseline" and lists no `inventory-broken` or `inventory-degraded` item. Record that reason in the
+report. A broken extraction of a native build, or a degraded one for any cause besides the missing
+baseline, still files. That includes a native build whose bundle cannot be read: the summary's
+`native_build` records whether the executable read was one, so the no-native-build skip applies only
+to an npm launcher or to no executable found.
+
 The parser reader installs its pinned packages on first use into the plugin's data directory (the
 inventory's fallback, the directory `${CLAUDE_PLUGIN_DATA}` names).
 
@@ -94,7 +104,7 @@ From `<ws>/drift.json`, one section each, empty ones stated as "none":
 | `recheck` | A store row's trigger fired: its surface was removed or renamed since `<prev>`, its class changed, or its markers (hidden, gated, model-invocation-disabled) differ from the row. A marker the row also lists in `native.docs_markers` is not compared: its basis is the docs, and the extraction does not set it | `harness-ops/audit-native-overlap: recheck <surface> row for <component>` |
 | `unresolved-description` | A name in the extraction's `integrity.undetermined.description_unresolved` that `<prev>` did not list (every listed name when there is no `<prev>` or it recorded no list: each is a standing gap, deduped by key); detect scores that surface on its name, user-facing name and search hint only | `harness-ops/inventory: resolve the <surface> description the extraction left unresolved` |
 | `revalidate` | The self-check is degraded only because the CLI moved past `VALIDATED_AGAINST`, every lane is ok, and no surface changed since `<prev>` | `harness-ops/inventory: revalidate the extraction against Claude Code <version>` |
-| `inventory-degraded`, `inventory-broken` | Any other degraded or broken self-check, including a baseline run. Its facts lead with the extraction's problems, among them why the binary source was unavailable, which leaves `<version>` as `unknown` | `harness-ops/inventory: extraction <status> on Claude Code <version>` |
+| `inventory-degraded`, `inventory-broken` | Any other degraded or broken self-check, including a baseline run, unless `ci_skip` is set. Its facts lead with the extraction's problems, among them why the binary source was unavailable, which leaves `<version>` as `unknown` | `harness-ops/inventory: extraction <status> on Claude Code <version>` |
 | `batch-overflow` (the report's `overflow`, not in `items`) | `items` holds more than `max_items` entries (default 10, `--max-items`) | `harness-ops/changelog: <count> native-drift items exceed the batch cap on Claude Code <version>` |
 
 A `revalidate` body says the proposal plainly: re-run the inventory evals against the new build,
