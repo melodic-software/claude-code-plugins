@@ -17,15 +17,8 @@ const CHECK_JOB = "check-broker";
 const TIP_REF = "${{ github.event.repository.default_branch }}";
 const TIP_STEP_REF = "${{ steps.tip.outputs.sha }}";
 const TIP_BRANCHES = new Set(["main", TIP_REF]);
-const TIP_RUN = [
-  'until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
-  "    awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
-  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
-  '  sleep "$((RANDOM % (2 * i + 1)))"',
-  "done",
-  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
-  "",
-].join("\n");
+const TIP_USES =
+  /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40}$/;
 const REPOSITORY = "melodic-software/claude-code-plugins";
 // A job-level `uses:` naming one of this repository's workflows, in local
 // (`./`) or remote (`owner/repo/...@ref`) form.
@@ -309,23 +302,19 @@ function carrierPassesOf(doc) {
 
 const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
 
-// A checkout of the tip step's SHA is the default branch tip only when the step
-// is the canonical script on main or the default branch, and neither it nor the
-// checkout is conditional or may fail soft: an empty ref checks out the event's.
 function isTipCheckout(values, index) {
   const checkout = values[index];
   const tipIndex = values.findIndex((value) => value?.id === "tip");
   const tip = values[tipIndex];
-  const env = tip?.env ?? {};
   return (
     checkout.with?.ref === TIP_STEP_REF &&
     tipIndex !== -1 &&
     tipIndex < index &&
-    tip.uses === undefined &&
-    tip.run === TIP_RUN &&
-    Object.keys(env).sort().join() === "GIT_TERMINAL_PROMPT,TIP_BRANCH" &&
-    TIP_BRANCHES.has(env.TIP_BRANCH) &&
-    String(env.GIT_TERMINAL_PROMPT) === "0" &&
+    TIP_USES.test(String(tip.uses ?? "")) &&
+    tip.run === undefined &&
+    tip.env === undefined &&
+    Object.keys(tip.with ?? {}).join() === "branch" &&
+    TIP_BRANCHES.has(tip.with.branch) &&
     [tip, checkout].every(
       (step) => step.if === undefined && step["continue-on-error"] === undefined,
     )
