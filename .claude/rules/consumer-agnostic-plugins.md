@@ -9,8 +9,3 @@ paths:
 Before changing what a plugin ships, read
 [Hardcoded consumer specifics](../../docs/plugin-philosophy.md#hardcoded-consumer-specifics), the
 doctrine owner for this rule.
-
-A change driven by one consumer's setup (a user's deny rule, a machine path, an organization's
-repository names) lands in that consumer's config layers, never in the plugin. A consumer turning a
-feature off is no reason to remove it from the plugin: the plugin keeps the option and its default,
-and the consumer's own settings hold their choice.
