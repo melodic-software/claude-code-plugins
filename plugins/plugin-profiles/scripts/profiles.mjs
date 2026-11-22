@@ -119,6 +119,7 @@ import {
   restoreEdits,
   restoredHashOf,
   restoringRecord,
+  rollbackRecord,
   saveRecord,
   stillWritten,
   swapRecord,
@@ -566,11 +567,11 @@ function commit(p, opts, where, finishing = null) {
   try {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
+    const ours = recordText(record);
     if (finishing) {
-      swapRecord(finishing.path, recordText(record), finishing.text);
-      if (finishing.path !== p.recPath) deleteRecord(p.recPath);
-    } else if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
-    else deleteRecord(p.recPath);
+      swapRecord(finishing.path, ours, finishing.text);
+      if (finishing.path !== p.recPath) rollbackRecord(p.recPath, ours, null);
+    } else rollbackRecord(p.recPath, ours, p.recFound === p.recPath ? p.previous : null);
     throw error;
   }
   if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);
@@ -703,7 +704,7 @@ function profileGate(name, opts, where, env, verb) {
   return { p, gate, lines };
 }
 
-/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
+/** Writes the session file for name, or for inline --with JSON, which Windows PowerShell 5.1 would strip the quotes from, and returns what claude is started with; launch and start share it. */
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };
@@ -729,16 +730,32 @@ function launchSettings(name, opts, where, env, io) {
     }
     for (const line of lines) io.err(line);
   } else if (own && !opts.with.trim().startsWith("{")) result.file = resolve(opts.with);
+  else if (own) {
+    const text = JSON.stringify(own);
+    result.file = sessionFile(where, "with", text);
+    if (!opts.dryRun) {
+      replaceFile(result.file, `${text}\n`);
+      sweepSessions(where, result.file);
+    }
+  }
   if (result.file) result.settingsArgs.push("--settings", result.file);
-  else if (own) result.settingsArgs.push("--settings", JSON.stringify(own));
   return result;
+}
+
+const psQuoted = (word) => (/^[A-Za-z0-9_%+=:./\\-]+$/.test(word) ? word : `'${word.replace(/'/g, "''")}'`);
+
+/** The line a person runs to start claude with argv's settings and without the cleared variables: env -u on POSIX, Remove-Item in PowerShell on Windows, which has no env. */
+export function launchCommand(argv, platform = process.platform) {
+  if (platform !== "win32") return argv.map(quoted).join(" ");
+  const claude = argv.slice(argv.indexOf("claude"));
+  return `Remove-Item ${CLEARED.map((v) => `Env:${v}`).join(", ")} -ErrorAction Ignore; ${claude.map(psQuoted).join(" ")}`;
 }
 
 function launch(opts, where, env, io) {
   const name = opts.name ?? ownProfile(where, env);
   const { settingsArgs, ...rest } = launchSettings(name, opts, where, env, io);
   const result = { ...rest, argv: ["env", ...CLEARED.flatMap((v) => ["-u", v]), "claude", ...settingsArgs] };
-  result.command = result.argv.map(quoted).join(" ");
+  result.command = launchCommand(result.argv);
   if (opts.json) {
     io.out(JSON.stringify(result, null, 2));
     return 0;
