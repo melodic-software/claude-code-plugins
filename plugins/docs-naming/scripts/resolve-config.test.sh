@@ -5,7 +5,7 @@
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_OPTION_FILE_NAMES
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -96,9 +96,10 @@ assert_eq "personal override: nearest wins on regex" "^personal$" "$(resolve "$r
 root="$(new_root)"
 write_team "$root" '{"rule": "team-rule", "regex": "^team$"}'
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "user-rule", "regex": "^user$"}'
-assert_eq "team beats user-global on rule" "team-rule" "$(resolve "$root" | jq -r '.file_names.rule')"
-assert_eq "team beats user-global on regex" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
-assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bundled,user-global,team"
+assert_eq "team beats the old user file on rule" "team-rule" "$(resolve "$root" 2>/dev/null | jq -r '.file_names.rule')"
+assert_eq "team beats the old user file on regex" "^team$" "$(resolve "$root" 2>/dev/null | jq -r '.file_names.regex')"
+assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bundled,userConfig,team"
+assert_eq "team beats the userConfig option on rule" "team-rule" "$(resolve "$root" --user-config '{"rule": "option-rule"}' 2>/dev/null | jq -r '.file_names.rule')"
 
 # 4. On an additive key the team layer REPLACES the bundled default, and a
 #    personal layer only adds to what the team decided.
@@ -131,27 +132,27 @@ out="$(resolve "$root" | jq -c '.file_names.generated')"
 assert_eq "team-only: the personal override's regenerator is ignored" "[]" "$out"
 assert_contains "team-only: the personal override's declaration is reported inert" "$(layers "$root")" "!inert:generated	personal-override"
 
-# 7. The same holds for the user-global layer.
 root="$(new_root)"
+assert_eq "team-only: the option's regenerator is ignored" "[]" "$(resolve "$root" --user-config '{"generated": [{"path": "y", "regenerate": "true"}]}' | jq -c '.file_names.generated')"
+assert_contains "team-only: the option's declaration is reported inert" "$(layers "$root" --user-config '{"generated": [{"path": "y", "regenerate": "true"}]}')" "!inert:generated	userConfig"
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"generated": [{"path": "y", "regenerate": "true"}]}'
-assert_eq "team-only: the user-global regenerator is ignored" "[]" "$(resolve "$root" | jq -c '.file_names.generated')"
-assert_contains "team-only: the user-global declaration is reported inert" "$(layers "$root")" "!inert:generated	user-global"
+assert_eq "team-only: an old user file's regenerator is ignored" "[]" "$(resolve "$root" 2>/dev/null | jq -c '.file_names.generated')"
+assert_contains "team-only: an old user file's declaration is reported inert" "$(layers "$root")" "!inert:generated	userConfig"
 
 # 8. A team layer DOES supply `generated`.
 root="$(new_root)"
 write_team "$root" '{"generated": [{"path": "build/out.json", "regenerate": "make out"}]}'
 assert_eq "team layer supplies the regenerator" "build/out.json" "$(resolve "$root" | jq -r '.file_names.generated[0].path')"
 
-# 9. A malformed user-global JSON layer is fatal and names the file.
 root="$(new_root)"
 mkdir -p "$(home_of "$root")/.claude"
 printf '{not json' >"$(home_of "$root")/.claude/docs-naming.json"
 err="$(resolve "$root" 2>&1 >/dev/null)"
-assert_eq "malformed user-global layer exits 2" "2" "$(
+assert_eq "malformed old user file exits 2" "2" "$(
   resolve "$root" >/dev/null 2>&1
   printf '%s' "$?"
 )"
-assert_contains "malformed user-global layer is named" "$err" "$(home_of "$root")/.claude/docs-naming.json"
+assert_contains "malformed old user file is named" "$err" "$(home_of "$root")/.claude/docs-naming.json"
 
 # 9b. A malformed team JSON at the old location is not read, so it fails nothing.
 root="$(new_root)"
@@ -204,7 +205,8 @@ root="$(new_root)"
 write_team "$root" '{"rule": "lower-kebab"}'
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "paths: the team YAML is present" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
-assert_contains "paths: the user-global layer is absent" "$out" "user-global	$(home_of "$root")/.claude/docs-naming.json	absent"
+assert_contains "paths: the userConfig option is absent" "$out" "userConfig	file_names	absent"
+assert_lacks "paths: no old user file row when none exists" "$out" "legacy"
 assert_contains "paths: the personal override is absent, at its YAML path" "$out" "personal-override	$root/docs/conventions/docs-naming.local.yaml	absent"
 
 # 15. With no --root the resolver takes the git toplevel of the working
@@ -234,7 +236,7 @@ tiers="$(resolve "$root" | jq -c '.file_names.tiers')"
 assert_contains "a team tier is stamped team" "$tiers" '"name":"t-team"'
 assert_contains "and carries its layer" "$tiers" '"_layer":"team"'
 assert_contains "a personal tier is still appended" "$tiers" '"name":"t-personal"'
-assert_contains "and is stamped with the layer that added it" "$tiers" '"_layer":"user-global"'
+assert_contains "and is stamped with the layer that added it" "$tiers" '"_layer":"userConfig"'
 
 # Config-cascade step 2: a home or non-repo root has no team layer or personal override, and
 # the user-global file is read once, never again as team.
@@ -242,10 +244,10 @@ home="$TEST_TMPDIR/hroot/home"
 mkdir -p "$home/.claude"
 write_layer "$home/.claude/docs-naming.json" '{"rule": "home-rule", "generated": [{"path": "y", "regenerate": "true"}]}'
 out="$(bash "$SUT" resolve --root "$home" --home "$home")"
-assert_eq "home root: the user-global file supplies its nearest-wins key" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
-assert_eq "home root: a team-only key in the user-global file is not read as team" "null" "$(printf '%s' "$out" | jq -c '[.file_names.generated[].path] | index("y")')"
+assert_eq "home root: the old user file supplies its nearest-wins key" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
+assert_eq "home root: a team-only key in the old user file is not read as team" "null" "$(printf '%s' "$out" | jq -c '[.file_names.generated[].path] | index("y")')"
 out="$(bash "$SUT" layers --root "$home" --home "$home")"
-assert_contains "home root: provenance names the user-global layer once" "$out" "rule	bundled,user-global
+assert_contains "home root: provenance names the userConfig layer once" "$out" "rule	bundled,userConfig
 "
 assert_lacks "home root: provenance never names the team layer" "$out" ",team"
 out="$(bash "$SUT" paths --root "$home" --home "$home")"
@@ -280,15 +282,69 @@ root="$(new_root)"
 write_layer "$(home_of "$root")/.claude/docs-hygiene.json" '{"regex": "^retired$"}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
 err="$(cat "$TEST_TMPDIR/err")"
-assert_eq "retired name: the user-global layer is still read" "^retired$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_contains "retired name: resolve warns and names the file" "$err" "WARN: reading $(home_of "$root")/.claude/docs-hygiene.json, the retired name; rename it to $(home_of "$root")/.claude/docs-naming.json"
+assert_eq "retired name: the old user file is still read" "^retired$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "retired name: resolve warns and names the file" "$err" "WARN: reading $(home_of "$root")/.claude/docs-hygiene.json from an old location; move its keys into the docs-naming plugin's file_names userConfig option"
+assert_eq "retired name: resolve prints one warning" "1" "$(grep -c 'WARN' "$TEST_TMPDIR/err")"
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
-assert_contains "retired name: paths reports the user-global layer as legacy" "$out" "user-global	$(home_of "$root")/.claude/docs-hygiene.json	legacy"
+assert_contains "retired name: paths reports the old user file as legacy" "$out" "userConfig	$(home_of "$root")/.claude/docs-hygiene.json	legacy"
 assert_eq "retired name: layers stays quiet on stderr" "" "$(layers "$root" 2>&1 >/dev/null)"
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"regex": "^current$"}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
-assert_eq "retired name: the new name wins when both exist" "^current$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_lacks "retired name: no warning once the new-name file exists" "$(cat "$TEST_TMPDIR/err")" "docs-hygiene.json"
+assert_eq "retired name: docs-naming.json wins when both old files exist" "^current$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "retired name: the warning names the docs-hygiene file as not read" "$(cat "$TEST_TMPDIR/err")" "and $(home_of "$root")/.claude/docs-hygiene.json is not read while it exists"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+assert_contains "retired name: paths reports docs-naming.json as read" "$out" "userConfig	$(home_of "$root")/.claude/docs-naming.json	legacy"
+assert_contains "retired name: paths reports docs-hygiene.json as unread" "$out" "userConfig	$(home_of "$root")/.claude/docs-hygiene.json	legacy-unread"
+
+root="$(new_root)"
+out="$(resolve "$root" --user-config '{"regex": "^option$", "exempt_basenames": ["NOTES.md"]}' 2>"$TEST_TMPDIR/err")"
+assert_eq "option only: the option supplies a nearest-wins key" "^option$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "option only: the option adds to an additive key" "$(printf '%s' "$out" | jq -c '.file_names.exempt_basenames')" '"NOTES.md"'
+assert_contains "option only: the bundled entries stay" "$(printf '%s' "$out" | jq -c '.file_names.exempt_basenames')" '"README.md"'
+assert_eq "option only: resolve is quiet on stderr" "" "$(cat "$TEST_TMPDIR/err")"
+assert_contains "option only: provenance names userConfig" "$(layers "$root" --user-config '{"regex": "^option$"}')" "regex	bundled,userConfig"
+assert_contains "option only: paths reports the option present" "$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")" --user-config '{"regex": "^option$"}')" "userConfig	file_names	present"
+out="$(CLAUDE_PLUGIN_OPTION_FILE_NAMES='{"regex": "^from-env$"}' resolve "$root")"
+assert_eq "option only: the hook environment variable supplies the option" "^from-env$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+out="$(CLAUDE_PLUGIN_OPTION_FILE_NAMES='{"regex": "^from-env$"}' resolve "$root" --user-config '{"regex": "^from-flag$"}')"
+assert_eq "option only: the flag beats the environment variable" "^from-flag$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+for unset_value in '' '   ' "\${user_config.file_names}"; do
+  out="$(resolve "$root" --user-config "$unset_value" 2>"$TEST_TMPDIR/err")"
+  assert_eq "option unset ($unset_value): the bundled regex stands" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+  assert_eq "option unset ($unset_value): resolve is quiet on stderr" "" "$(cat "$TEST_TMPDIR/err")"
+  assert_contains "option unset ($unset_value): paths reports it absent" "$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")" --user-config "$unset_value")" "userConfig	file_names	absent"
+done
+
+root="$(new_root)"
+write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"regex": "^old$", "sweep_exclude": ["docs/old/**"]}'
+out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
+assert_eq "old file only: its nearest-wins value applies" "^old$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "old file only: its additive value applies" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/old/**"'
+assert_contains "old file only: the warning names the old file" "$(cat "$TEST_TMPDIR/err")" "WARN: reading $(home_of "$root")/.claude/docs-naming.json from an old location"
+assert_contains "old file only: the warning names the new location" "$(cat "$TEST_TMPDIR/err")" "file_names userConfig option"
+assert_eq "old file only: one warning" "1" "$(grep -c 'WARN' "$TEST_TMPDIR/err")"
+out="$(resolve "$root" --user-config '{"regex": "^option$"}' 2>"$TEST_TMPDIR/err")"
+assert_eq "both: the option wins" "^option$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_lacks "both: the old file is not merged in" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" "docs/old/**"
+assert_contains "both: the warning names the option" "$(cat "$TEST_TMPDIR/err")" "the docs-naming plugin's file_names userConfig option is set"
+assert_contains "both: the warning names the old file" "$(cat "$TEST_TMPDIR/err")" "$(home_of "$root")/.claude/docs-naming.json at an old location is not read"
+assert_eq "both: one warning" "1" "$(grep -c 'WARN' "$TEST_TMPDIR/err")"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")" --user-config '{"regex": "^option$"}')"
+assert_contains "both: paths reports the option present" "$out" "userConfig	file_names	present"
+assert_contains "both: paths reports the old file unread" "$out" "userConfig	$(home_of "$root")/.claude/docs-naming.json	legacy-unread"
+out="$(resolve "$root" --user-config '["not", "an object"]' 2>"$TEST_TMPDIR/err")"
+assert_eq "invalid option: resolve still exits 0" "0" "$?"
+assert_eq "invalid option: the option is ignored and the old file still applies" "^old$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "invalid option: the warning names the option and its value" "$(cat "$TEST_TMPDIR/err")" 'is not one JSON object and is ignored: ["not", "an object"]'
+assert_contains "invalid option: the old file is still named" "$(cat "$TEST_TMPDIR/err")" "WARN: reading $(home_of "$root")/.claude/docs-naming.json from an old location"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")" --user-config '{not json')"
+assert_contains "invalid option: paths reports it invalid" "$out" "userConfig	file_names	invalid"
+assert_contains "invalid option: paths reports the old file read" "$out" "userConfig	$(home_of "$root")/.claude/docs-naming.json	legacy"
+out="$(resolve "$root" --user-config '{"schema": 1, "file_names": {"regex": "^pasted$"}}' 2>/dev/null)"
+assert_eq "a whole old file pasted into the option is read as its file_names" "^pasted$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+rm "$(home_of "$root")/.claude/docs-naming.json"
+out="$(resolve "$root" --user-config '["not", "an object"]' 2>/dev/null)"
+assert_eq "invalid option with no old file: the bundled regex stands" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 
 # The team and personal override files at the retired docs-hygiene name are not read at
 # all, and resolve says nothing about them.
@@ -352,11 +408,11 @@ exempt_basenames:
 write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'exempt_basenames:
   - "MINE.md"'
 lay="$(layers "$root")"
-assert_contains "provenance: a nearest-wins key lists user-global then team" "$lay" "regex	bundled,user-global,team"
-assert_contains "provenance: the user-global rule survives where the team sets none" "$lay" "rule	bundled,user-global"
+assert_contains "provenance: a nearest-wins key lists userConfig then team" "$lay" "regex	bundled,userConfig,team"
+assert_contains "provenance: the userConfig rule survives where the team sets none" "$lay" "rule	bundled,userConfig"
 assert_contains "provenance: an additive key lists team then the personal override" "$lay" "exempt_basenames	bundled,team,personal-override"
-assert_contains "provenance: an additive key the user-global sets" "$lay" "exempt_extensions	bundled,user-global"
-assert_eq "provenance: the team basenames replace the default, the personal override adds" "TEAM.md MINE.md" "$(resolve "$root" | jq -r '.file_names.exempt_basenames | join(" ")')"
+assert_contains "provenance: an additive key the userConfig layer sets" "$lay" "exempt_extensions	bundled,userConfig"
+assert_eq "provenance: the team basenames replace the default, the personal override adds" "TEAM.md MINE.md" "$(resolve "$root" 2>/dev/null | jq -r '.file_names.exempt_basenames | join(" ")')"
 
 # Value fidelity: root objects, tiers stamped with their layer, an explicit empty
 # list replacing a non-empty default, and a null redirect_map.

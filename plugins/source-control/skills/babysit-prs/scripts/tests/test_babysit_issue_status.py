@@ -1,13 +1,13 @@
 # test-scope: .github/actions/resolve-config/issue-status.mjs .github/actions/resolve-config/dimensions.mjs docs/conventions/pr-pipeline.yaml plugins/source-control/lib/yaml-subset.awk .github/actions/resolve-config/package.json
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py
 """The Work status field (`models.issue-status`) as a hold source for the
 pr-merge lane, the capped-close park and the post-merge demotion record.
 
 Expected states come from the rule `docs/conventions/pr-pipeline.yaml` states
 above `models.issue-status`: a listed human or the lanes App counts for every
-state; a `bot-setters` account for every state but agent-ready,
-github-actions[bot] always and a `melodic-` bot only while trusted-actors.json
-lists it as a bot with the same id and login; anything else reads as none, and
+state; github-actions[bot] and each `melodic-` bot trusted-actors.json lists
+but the lanes App for every state but agent-ready; anything else reads as none, and
 a counted value no option maps fails the read. The hold states are
 read-status.mjs HOLD_STATES. GraphQL answers follow the shapes
 resolve-config.mjs FIELD_EVENTS and the work-items get-statuses.sh adapter
@@ -80,8 +80,6 @@ FIELD = 48484079
 MAIN = "c" * 40
 TRUSTED = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref={MAIN}"
 
-# The trusted-actor list the cases read: a person, the lanes App, a melodic-
-# bot the config lists with the same id, and one listed under another id.
 HUMAN_ID = 1001
 LANES_ID = 2002
 ACTORS = [
@@ -95,9 +93,6 @@ SMALL = """\
 models:
   issue-status:
     field-id: 48484079
-    bot-setters:
-      - id: 41898282
-        login: "github-actions[bot]"
     options:
       "84879216": needs-triage
       "84879219": needs-spec
@@ -261,6 +256,34 @@ class StatusCase(unittest.TestCase):
 
 
 class TheFieldReader(StatusCase):
+    def test_an_explicit_bot_setters_list_replaces_the_derived_one(self) -> None:
+        actors = [
+            *ACTORS,
+            {"id": 61, "login": "other-bot[bot]", "kind": "bot"},
+            {"id": 71, "login": "melodic-derived[bot]", "kind": "bot"},
+        ]
+        self.gh.rest[TRUSTED] = {
+            "type": "file",
+            "encoding": "base64",
+            "content": base64.b64encode(
+                json.dumps({"version": 1, "actors": actors}).encode()
+            ).decode(),
+        }
+        config = dataclasses.replace(
+            live_config(), bot_setters=((61, "other-bot[bot]"),)
+        )
+        for who, want in (
+            (setter(61, "other-bot"), "needs-human"),
+            (setter(71, "melodic-derived"), None),
+            (setter(288071998, "melodic-ai"), None),
+        ):
+            with self.subTest(who=who):
+                self.assertEqual(self.read(answer("needs-human", who), config), want)
+        self.assertEqual(
+            self.read(answer("needs-human", setter(71, "melodic-derived"))),
+            "needs-human",
+        )
+
     def test_each_parity_case_gives_the_rules_state(self) -> None:
         for case in PARITY:
             with self.subTest(case=case):
@@ -293,9 +316,6 @@ class TheFieldReader(StatusCase):
             ).as_uri(),
             "config": {
                 "field-id": config.field_id,
-                "bot-setters": [
-                    {"id": i, "login": login} for i, login in config.bot_setters
-                ],
                 "options": dict(config.options),
             },
             "trusted": {"actors": ACTORS},
@@ -410,12 +430,77 @@ class TheConfigBlock(unittest.TestCase):
     def setUp(self) -> None:
         policy._ISSUE_STATUS.clear()
 
+    def test_the_bot_setters_are_github_actions_then_the_listed_melodic_bots(
+        self,
+    ) -> None:
+        actors = (
+            (11, "person", "human"),
+            (21, "melodic-one[bot]", "bot"),
+            (209825114, "claude[bot]", "bot"),
+            (LANES_ID, "melodic-automation-lanes[bot]", "bot"),
+            (31, "melodic-person", "human"),
+            (199161495, "cursoragent", "bot"),
+            (41, "not-melodic-x[bot]", "bot"),
+            (51, "melodic-two[bot]", "bot"),
+            (61, None, "bot"),
+        )
+        self.assertEqual(
+            policy.status_bot_setters(actors),
+            (
+                (41898282, "github-actions[bot]"),
+                (21, "melodic-one[bot]"),
+                (51, "melodic-two[bot]"),
+            ),
+        )
+        self.assertEqual(
+            policy.status_bot_setters(()), ((41898282, "github-actions[bot]"),)
+        )
+
+    def test_an_explicit_list_keeps_each_entry_the_actors_hold_as_that_bot(
+        self,
+    ) -> None:
+        actors = (
+            (61, "other-bot[bot]", "bot"),
+            (71, "melodic-derived[bot]", "bot"),
+            (81, "melodic-moved[bot]", "bot"),
+            (91, "melodic-person", "human"),
+        )
+        explicit = (
+            (41898282, "github-actions[bot]"),
+            (61, "other-bot[bot]"),
+            (81, "melodic-old-name[bot]"),
+            (91, "melodic-person"),
+            (99, "melodic-unlisted[bot]"),
+        )
+        self.assertEqual(
+            policy.status_bot_setters(actors, explicit),
+            ((41898282, "github-actions[bot]"), (61, "other-bot[bot]")),
+        )
+        self.assertEqual(policy.status_bot_setters(actors, ()), ())
+
+    def test_a_block_with_bot_setters_parses_them_and_one_without_derives(
+        self,
+    ) -> None:
+        listed = SMALL.replace(
+            "    field-id: 48484079\n",
+            "    field-id: 48484079\n    bot-setters:\n"
+            "      - id: 61\n        login: \"other-bot[bot]\"\n",
+        )
+        self.assertEqual(
+            policy._issue_status_config(listed).bot_setters,  # type: ignore[union-attr]
+            ((61, "other-bot[bot]"),),
+        )
+        self.assertIsNone(policy._issue_status_config(SMALL).bot_setters)  # type: ignore[union-attr]
+        self.assertTrue(
+            policy._issue_status_config(  # type: ignore[union-attr]
+                listed.replace('        login: "other-bot[bot]"\n', "")
+            ).error
+        )
+
     def test_the_live_block_style_setters_parse(self) -> None:
         status = live_config()
         self.assertEqual(status.field_id, FIELD)
-        self.assertIn((41898282, "github-actions[bot]"), status.bot_setters)
-        self.assertIn((337859524, "melodic-release[bot]"), status.bot_setters)
-        self.assertEqual(len(status.bot_setters), 7)
+        self.assertIsNone(status.bot_setters)
         self.assertIn(("86380005", "needs-human"), status.options)
         self.assertEqual(
             dict(status.labels)["needs-owner-decision"],
@@ -426,8 +511,8 @@ class TheConfigBlock(unittest.TestCase):
     def test_a_malformed_block_is_an_error_that_refuses(self) -> None:
         for name, text in (
             (
-                "setter without login",
-                SMALL.replace('        login: "github-actions[bot]"\n', ""),
+                "a non-numeric option id",
+                SMALL.replace('"84879216": needs-triage', '"x": needs-triage'),
             ),
             ("order missing a state", SMALL.replace("      - ready\n", "")),
             (
@@ -540,7 +625,7 @@ class TheConfigBlock(unittest.TestCase):
         )
         saved = json.loads(json.dumps(dataclasses.asdict(config)))
         self.assertEqual(policy._cached_config(saved), config)
-        saved["issue_status"]["bot_setters"][0][0] = "41898282"
+        saved["issue_status"]["options"][0][0] = 84879216
         self.assertIsNone(policy._cached_config(saved))
         none = json.loads(
             json.dumps(

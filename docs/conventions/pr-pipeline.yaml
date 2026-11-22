@@ -1093,32 +1093,19 @@ models:
   # option's name on GitHub. Collapsing an issue's labels takes the first
   # state in order one of whose labels it carries; one with none takes the
   # last, needs-triage. A value counts when its latest setter is a listed
-  # human or the lanes App, or, for every state
-  # but agent-ready, one of bot-setters: the job GITHUB_TOKEN
-  # (github-actions[bot]) and the melodic- Apps of trusted-actors.json; a
-  # melodic- entry counts only while that list holds it as a bot with the same
-  # id and login. Third-party bots (claude[bot], cursor[bot], cursoragent,
-  # dependabot[bot]) never count, and agent-ready counts only from a listed
+  # human or the lanes App, or, for every state but agent-ready, a bot setter:
+  # the job GITHUB_TOKEN (github-actions[bot], 41898282) and every kind bot
+  # actor of trusted-actors.json whose login starts with melodic-, other than
+  # melodic-automation-lanes[bot], read from that list at read time, since
+  # this block sets no bot-setters list.
+  # Third-party bots (claude[bot], cursor[bot], cursoragent, dependabot[bot])
+  # never count, and agent-ready counts only from a listed
   # human or the lanes App. Any other value reads as none, and an issue with
   # no counted value keeps its labels; a counted value no option maps fails
-  # the read.
+  # the read
+  # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#models).
   issue-status:
     field-id: 48484079
-    bot-setters:
-      - id: 41898282
-        login: "github-actions[bot]"
-      - id: 300666570
-        login: "melodic-standards-sync[bot]"
-      - id: 288071998
-        login: "melodic-ai[bot]"
-      - id: 296023097
-        login: "melodic-software-github-iac[bot]"
-      - id: 300690090
-        login: "melodic-ci-runner-host[bot]"
-      - id: 302525172
-        login: "melodic-ci-runner-observer[bot]"
-      - id: 337859524
-        login: "melodic-release[bot]"
     # Bot field events before this time are label mirrors and never count as history.
     field-events-since: "2026-11-07T09:45:00Z"
     options:

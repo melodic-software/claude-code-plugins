@@ -3785,9 +3785,12 @@ reader rejects a key that is not a complexity and a value that is not a profile,
 listing the issue labels each state collapses from, and `order`. An issue's labels collapse,
 without case, to the first state in `order` one of whose labels it carries, or the last state,
 `needs-triage`, when it carries none. A field value counts under the issue-dimensions setter
-rule, and also, for every state but `agent-ready`, when its latest setter is one of `bot-setters`:
-github-actions[bot] (the job token) and the `melodic-` Apps of the trusted-actor list; a `melodic-`
-entry counts only while that list holds it as a bot with the same id and login. Third-party
+rule, and also, for every state but `agent-ready`, when its latest setter is a bot setter. With
+`bot-setters` set, the bot setters are its entries, each counting only while the trusted-actor list
+holds it as a bot with the same id and login (github-actions[bot] needs no entry there); without
+it, they are github-actions[bot] (the job token, 41898282) and every `kind: bot` entry of the
+trusted-actor list whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`,
+read from that list when the field is read. This repository sets no `bot-setters`. Third-party
 bots never count, and `agent-ready` counts only from a listed human or the lanes App. A counted
 option no entry maps fails the read with `unmapped-status`. The config reader rejects two options
 for one state, a state with no label, a label listed twice, an `order` that does not list every

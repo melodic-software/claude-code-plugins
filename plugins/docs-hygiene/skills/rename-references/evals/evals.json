@@ -353,11 +353,11 @@
       "id": 29,
       "name": "setext-alternative-is-multiline-enabled-in-the-survey",
       "prompt": "During the Phase 2 survey I enabled `multiline: true` only for Form 7, the way the survey step lists it. Is Form 14 going to work?",
-      "expected_output": "No. Form 14's Setext alternative contains a literal \\n, and ripgrep's single-line default rejects that outright -- it errors with `the literal \"\\n\" is not allowed in a regex` rather than simply matching nothing. The survey step lists Form 14's Setext alternative alongside Form 7 as requiring multiline for exactly this reason; run without it the pattern is not executable at all, the survey silently loses the form, and a container's landing-page title survives as Form-2 residue that container mode excludes from Certain.",
+      "expected_output": "No. Form 14's Setext alternative contains a literal \\n, and ripgrep's single-line default rejects that outright, so Grep reports the rejected pattern rather than simply matching nothing. The survey step lists Form 14's Setext alternative alongside Form 7 as requiring multiline for exactly this reason; run without it the pattern is not executable at all, a survey that reads only matches loses the form, and a container's landing-page title survives as Form-2 residue that container mode excludes from Certain.",
       "files": [],
       "expectations": [
         "Multiline is identified as required for Form 14's Setext alternative, not only Form 7",
-        "The failure mode is a regex error rather than a silent under-match",
+        "The failure mode is a rejected pattern that Grep reports, not a silent under-match",
         "The consequence named is a stale landing-page title reported as completion"
       ]
     },
