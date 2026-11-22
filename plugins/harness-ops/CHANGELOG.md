@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.9] - 2026-11-22
+
+### Changed
+
+- `plugins` skill: the concurrent plugin CLI gotcha records the Claude Code 2.1.330 probe beside
+  the 2.1.310 one, and names changelog item 2.1.330-027 in its recheck trigger. The sweep stays
+  serial.
+
 ## [10.5.8] - 2026-11-21
 
 ### Changed
