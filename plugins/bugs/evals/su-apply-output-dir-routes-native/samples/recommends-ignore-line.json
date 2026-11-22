@@ -1,15 +1,18 @@
 {
   "pass": [
     {
-      "answer": "Add `.claude/**/*.local.*` to .gitignore."
+      "answer": "Add `docs/conventions/**/*.local.*` to .gitignore."
     },
     {
-      "answer": "```gitignore\n.claude/**/*.local.*\n```"
+      "answer": "```gitignore\ndocs/conventions/**/*.local.*\n```"
     }
   ],
   "fail": [
     {
-      "answer": "Add `.claude/bugs.local.md` to .gitignore."
+      "answer": "Add `docs/conventions/bugs.local.md` to .gitignore."
+    },
+    {
+      "answer": "Add `.claude/**/*.local.*` to .gitignore."
     },
     {
       "answer": "Ignore `*.local.md`."

@@ -1,0 +1,9 @@
+---
+id: bugs-r001
+retired: 2026-11-22
+plugin_version: 0.26.0
+kind: file
+path: .claude/bugs.local.md
+action: migrate
+successor: "the personal override is now docs/conventions/bugs.local.md, same format: when that file does not exist, write the old content to it; when it exists, add only the gotchas and keys it lacks so the new file wins; confirm docs/conventions/bugs.local.md is gitignored, check concat-gotchas.sh shows every old gotcha under the new file, then clean"
+note: "old personal override path; bugs still reads it while docs/conventions/bugs.local.md is absent, and warns on every run"

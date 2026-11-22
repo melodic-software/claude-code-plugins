@@ -11,6 +11,11 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **The `bugs` row reads `userConfig` and `docs/conventions/bugs.local.md`.** Its per-person
+  gotchas come from the file the `gotchas_file` option names, and its personal override moves from
+  `.claude/bugs.local.md` (retirement record `bugs-r001`). Both old files are read while the new
+  file for their layer is absent, with a warning on every run, until a later change removes the
+  read. The layering axis is unchanged, so `contract_version` stays.
 - **The `docs-naming` row reads `userConfig`, not `~/.claude/docs-naming.json`.** Its per-person
   layer is the `file_names` option; the old user files are read only while it is unset or invalid,
   with a warning, until a later change removes the read. The layering axis is unchanged, so
