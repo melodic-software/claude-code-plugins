@@ -11,6 +11,10 @@
     {
       "answer": "❓ Q10: **Should this be built for Loqate and delivery addresses only, with no layer for swapping providers?**\n\n➡️ My recommendation: **Yes: build for Loqate and delivery addresses only.** No second provider appears anywhere.",
       "why": "the yes-accepts form of the intent question: yes accepts the recommendation that no second provider is expected"
+    },
+    {
+      "answer": "❓ Q12: **Should the check be one Loqate call inside the checkout area, with no provider-neutral layer in front of it?**",
+      "why": "build it specific now or generalize it, which the judge rubric accepts"
     }
   ],
   "fail": [
@@ -33,6 +37,10 @@
     {
       "answer": "Q4: Should the check run only on delivery addresses at launch, with no billing address check yet?",
       "why": "a scope question in the yes-accepts form, but it asks nothing about a second provider or variant"
+    },
+    {
+      "answer": "We will keep it provider-neutral later. Should the Pay button stay disabled?",
+      "why": "names a provider-neutral design in a statement, then asks a different question"
     }
   ]
 }
