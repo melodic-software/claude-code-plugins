@@ -1,5 +1,5 @@
 ---
-description: "Configure the ai-slop plugin for a consumer repository: exemption paths for documents that legitimately need em dashes, excluded paths, AI-vocabulary word-list tuning, and per-rule thresholds, written to the team layer docs/conventions/ai-slop.yaml with the user's confirmation. Use when: 'set up ai-slop', 'configure slop detection', 'exempt this doc from the em-dash rule', 'tune the slop thresholds'."
+description: "Configure the ai-slop plugin for a consumer repository: exemption paths for documents that legitimately need em dashes, excluded paths, AI-vocabulary word-list tuning, and per-rule thresholds, written to the team layer docs/conventions/ai-slop.yaml with the user's confirmation; also moves an old ~/.claude/ai-slop.json into the personal override. Use when: 'set up ai-slop', 'configure slop detection', 'exempt this doc from the em-dash rule', 'tune the slop thresholds'."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -37,6 +37,12 @@ JSON team file and no YAML, offer to carry its values into
 `<home>/ai-slop.yaml` (the JSON `_comment` text becomes YAML comments) and leave the JSON file
 for the repository to delete.
 
+The old user-global file `~/.claude/ai-slop.json` is still read, in the personal layer's place,
+while `<home>/ai-slop.local.yaml` is absent; each detector run prints one warning naming it.
+Every key is a convention for one repository's markdown, so its new home is the personal
+override, not a `userConfig` option. `apply` moves it there (see [Move the old user-global
+file](#move-the-old-user-global-file)).
+
 ## Keys
 
 | Key | Type | Meaning |
@@ -69,7 +75,10 @@ Report the current state and change nothing:
    match nothing, a `disabled_rules` slug that names no shipped rule, a `phrase_add` fragment
    that is not a valid ERE (the detector skips it with a stderr note; surface it here as
    drift), or a `phrase_remove` fragment matching no shipped phrase.
-3. End with what `apply` would change, if anything was flagged.
+3. Name the old `~/.claude/ai-slop.json` when the `--show-config` output carries its `Warning:`
+   line, and say whether it is read. When the personal override already exists, the old file is
+   not read: list each key it sets, since none of them applies.
+4. End with what `apply` would change, if anything was flagged.
 
 ## apply
 
@@ -78,11 +87,42 @@ Everything `check` does, then the confirmed write:
 1. Interview the user for what they want changed. For em-dash exemptions, ask for the documents
    that genuinely require em dashes; the default posture is that most work does not.
 2. Write only the team layer (`<home>/ai-slop.yaml`), showing the diff and getting explicit
-   confirmation before writing. Never write the personal override on the user's behalf; name it
-   as an option the user edits themselves.
+   confirmation before writing. Never write the personal override on the user's behalf, apart from
+   the move below; name it as an option the user edits themselves.
 3. Re-run `--show-config` via Bash (the pre-computed output predates the write) and report the
    new effective state. Then run the tracked-file pair on
    the written team file: `git check-ignore -v <home>/ai-slop.yaml` reports no match (a match is
    FAIL with the pattern) and `git ls-files --error-unmatch <home>/ai-slop.yaml` exits 0
    (non-zero right after a fresh write means "written but untracked: commit it to share with the
    team", never success).
+4. When `check` named the old `~/.claude/ai-slop.json`, run the move below.
+
+### Move the old user-global file
+
+The one write this skill makes to the personal override, and only after the user's yes:
+
+1. Run the move from inside the repository whose override should hold the settings; at a home or
+   non-repository root, say so and stop. Read `~/.claude/ai-slop.json` with one Read of that
+   literal path. When it is not valid JSON, name the file, write nothing, and stop. Its
+   `_comment` text becomes YAML comments, as for the JSON team file, since the schema has no
+   `_comment` key.
+2. Run `git check-ignore -v <home>/ai-slop.local.yaml`. With no match, write nothing: name the
+   ignore line `<home>/**/*.local.*` the repository needs first, so the personal file never
+   reaches the index.
+3. Preview the YAML the personal override would hold: the old file's keys, plus the existing
+   override's keys when it exists, where the override's value wins each key both set. Name each
+   old key that loses that way. Say that the old file applied in every repository and the
+   override applies only here, so another repository that relied on it needs its own override.
+   Ask for a yes.
+4. On a yes, write the override, then re-run `--show-config` via Bash and check each previewed
+   key by the line that reports it. A `vocab_add`, `vocab_remove`, `phrase_add` or
+   `phrase_remove` key: each word or fragment is present in (add) or absent from (remove) the
+   `vocab=` or `model_phrases=` line, and that line names the override as its `add` or `remove`
+   layer. A `rule_allowed_paths` slug: its globs appear on its line, and the override is among
+   the layers named. Every other key: its line shows the previewed value with
+   `[layer: <home>/ai-slop.local.yaml]`. The output must carry no `Warning:` line still reading
+   the old file. On any difference, restore the
+   override's previous content (or remove the file this step created), keep the old file, and
+   report the difference.
+5. When the values match, delete `~/.claude/ai-slop.json`, so one home holds the settings, and
+   report the effective state.
