@@ -261,9 +261,22 @@ test("the notes are posted as file comments on the judged head, once", async () 
     [{ pr: 42, path: "plugins/x/a.py", commit_id: HEAD, subject_type: "file" }],
   );
   // A re-run finds its own note at that head and posts nothing.
-  const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, path: api.created[0].path, body: api.created[0].body }] });
+  const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, original_commit_id: HEAD, path: api.created[0].path, body: api.created[0].body }] });
   assert.equal(await postNotes({ api: again, verdict, appId: APP, log: () => {} }), true);
   assert.deepEqual(again.created, []);
+});
+
+test("a note carried forward from an earlier head does not block the new head's note", async () => {
+  const verdict = readVerdict(NAME, verdictText());
+  const first = fakeApi();
+  await postNotes({ api: first, verdict, appId: APP, log: () => {} });
+  const earlier = "c".repeat(40);
+  const api = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, original_commit_id: earlier, path: first.created[0].path, body: first.created[0].body }] });
+  assert.equal(await postNotes({ api, verdict, appId: APP, log: () => {} }), true);
+  assert.deepEqual(
+    api.created.map((c) => c.path),
+    ["plugins/x/a.py"],
+  );
 });
 
 test("a retry after a partial post posts only the comments still missing", async () => {
@@ -276,7 +289,7 @@ test("a retry after a partial post posts only the comments still missing", async
   );
   // The second POST failed: only the first file's comment is on the PR.
   const [first] = full.created;
-  const retry = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, path: first.path, body: first.body }] });
+  const retry = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, original_commit_id: HEAD, path: first.path, body: first.body }] });
   assert.equal(await postNotes({ api: retry, verdict, appId: APP, log: () => {} }), true);
   assert.deepEqual(
     retry.created.map((c) => c.path),
@@ -293,7 +306,7 @@ test("a later fail at the head posts again on a path whose note there sits in a 
   const verdict = readVerdict(NAME, verdictText({ notes: ["plugins/x/a.py: one", "plugins/x/b.md: two"] }));
   const first = fakeApi();
   await postNotes({ api: first, verdict, appId: APP, log: () => {} });
-  const comments = first.created.map((c, i) => ({ id: 100 + i, user: { id: ACTIONS_BOT }, commit_id: HEAD, path: c.path, body: c.body }));
+  const comments = first.created.map((c, i) => ({ id: 100 + i, user: { id: ACTIONS_BOT }, commit_id: HEAD, original_commit_id: HEAD, path: c.path, body: c.body }));
   const thread = (id, commentId, isResolved) => ({ id, isResolved, comments: { totalCount: 1, nodes: [{ databaseId: commentId }] } });
   const again = fakeApi({ reviewComments: comments, threads: [thread("PRRT_a", 100, true), thread("PRRT_b", 101, false)] });
   assert.equal(await postNotes({ api: again, verdict, appId: APP, log: () => {} }), true);
