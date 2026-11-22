@@ -179,7 +179,8 @@ class FakeGitHub:
                 f"query={query}" in args
                 for query in (ve.OWN_AGENT_ISSUE_QUERY, ve.BRIEFED_ISSUE_QUERY)
             ):
-                payload = {"data": {"repository": {"issue": {}}}}
+                empty = {"comments": {"totalCount": 0, "nodes": []}}
+                payload = {"data": {"repository": {"issue": empty}}}
                 return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
             assert any(a == f"query={ve.SPLIT_CHILD_QUERY}" for a in args), args
             if self.fail:

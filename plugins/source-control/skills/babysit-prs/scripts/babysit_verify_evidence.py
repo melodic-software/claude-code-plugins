@@ -822,7 +822,7 @@ BRIEFED_ISSUE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){title body author{...actor} "
     "labels(first:100){totalCount nodes{name}} "
-    "comments(last:100){nodes{createdAt lastEditedAt body author{...actor}}}}}}"
+    f"comments(first:100){{{COMMENT_FIELDS}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
 ADMISSION_RECORD_MARKER = "<!-- issue-admission-record -->"
@@ -3503,7 +3503,8 @@ class Reader:
     def _briefed(self, issue: dict[str, Any]) -> bool:
         """Whether recorded linked issue `issue`, which the lanes App wrote,
         is one intake briefed and no one holds (`briefed_issue`), read live
-        once per Reader under the Actions token. A failed read raises
+        once per Reader under the Actions token with every comment page, as
+        resolve-pr.mjs reads them. A failed or short read raises
         `_Unreadable`."""
         number = issue.get("number")
         app_id = self._lane_app_id()
@@ -3517,9 +3518,19 @@ class Reader:
         if number not in self._briefed_issues:
             with run_cache.track() as taken:
                 run_cache.note(run_cache.now())
-                node = self._graphql(
-                    BRIEFED_ISSUE_QUERY, number, "briefed issue", env=self._env()
-                ).get("issue")
+                env = self._env()
+                node = json_object(
+                    self._graphql(
+                        BRIEFED_ISSUE_QUERY, number, "briefed issue", env=env
+                    ).get("issue")
+                )
+                comments = self._whole_comments(
+                    number, node.get("comments"), "the issue", env=env
+                )
+                nodes = json_object(comments).get("nodes")
+                if not is_json_array(nodes) or len(nodes) != comments.get("totalCount"):
+                    raise _Unreadable(f"#{number}: the issue's comments could not be read")
+                node = node | {"comments": comments}
             self._briefed_issues[number] = (briefed_issue(node, app_id), tuple(taken))
         briefed, read_at = self._briefed_issues[number]
         for at in read_at:

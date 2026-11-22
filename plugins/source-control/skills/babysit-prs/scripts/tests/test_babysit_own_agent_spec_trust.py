@@ -140,6 +140,16 @@ class FakeGitHub:
         self.reads: dict[str, int] = {}
         self.tokens: dict[str, Any] = {}
 
+    def comment_page(self, start: int) -> dict[str, Any]:
+        """The briefed comments from `start`, 100 to a page, the cursor the
+        next page's start."""
+        end = start + 100
+        return {
+            "totalCount": len(self.briefed),
+            "pageInfo": {"hasNextPage": end < len(self.briefed), "endCursor": str(end)},
+            "nodes": self.briefed[start:end],
+        }
+
     def served(
         self, name: str, args: list[str], kwargs: dict[str, Any], answer: Any
     ) -> Any:
@@ -173,9 +183,15 @@ class FakeGitHub:
                 answer = {"data": {"repository": {"issue": self.issue}}}
                 return self.served("issue", args, kwargs, answer)
             if f"query={ve.BRIEFED_ISSUE_QUERY}" in args:
-                issue = self.issue | {"comments": {"nodes": self.briefed}}
+                page = self.comment_page(0)
+                issue = self.issue | {"comments": page}
                 answer = {"data": {"repository": {"issue": issue}}}
                 return self.served("briefed", args, kwargs, answer)
+            if f"query={ve.COMMENT_PAGE_QUERY}" in args:
+                after = next(a for a in args if a.startswith("after="))
+                page = self.comment_page(int(after.removeprefix("after=")))
+                answer = {"data": {"repository": {"issue": {"number": ISSUE, "comments": page}}}}
+                return self.served("comment-page", args, kwargs, answer)
             if f"query={ve.merge_policy.ISSUE_STATUS_QUERY}" in args:
                 nodes = {"timelineItems": {"nodes": self.events}}
                 answer = {"data": {"repository": {"issue": nodes}}}
@@ -896,6 +912,21 @@ class ABriefedFilingNoOneHoldsIsTrusted(unittest.TestCase):
         }.items():
             with self.subTest(why):
                 self.assertIs(brief(**kwargs), False)
+
+    def test_a_record_150_comments_back_still_counts(self) -> None:
+        chatter = {"createdAt": AFTER, "lastEditedAt": None, "body": "ok", "author": APP}
+        self.assertIs(brief(briefed=[record_comment(), *[chatter] * 150]), True)
+
+    def test_a_record_on_the_second_page_counts(self) -> None:
+        chatter = {"createdAt": BEFORE, "lastEditedAt": None, "body": "ok", "author": APP}
+        last = record_comment(at=AFTER)
+        self.assertIs(brief(briefed=[*[chatter] * 150, last]), True)
+
+    def test_a_comment_list_that_stays_short_is_unreadable(self) -> None:
+        fake_short = [record_comment()] * 2
+        with mock.patch.object(FakeGitHub, "comment_page", lambda self, start: {"totalCount": 5, "pageInfo": {"hasNextPage": False}, "nodes": fake_short}):
+            with self.assertRaises(ve._Unreadable):
+                brief()
 
     def test_a_malformed_app_record_refuses(self) -> None:
         bad = record_comment() | {"body": f"{ve.ADMISSION_RECORD_MARKER}\n{{}}"}
