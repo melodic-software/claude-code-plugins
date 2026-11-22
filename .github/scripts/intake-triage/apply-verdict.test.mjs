@@ -2123,6 +2123,18 @@ describe("run", () => {
     assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
   });
 
+  test("a Work status github-actions[bot] set is handed over, and one a bot the trusted list does not derive set is not", async () => {
+    const field = String(STATUS_CONFIG["field-id"]);
+    for (const [setter, handed] of [[41898282, true], [288071998, false], [209825114, false]]) {
+      const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
+      const github = withFields(fake.github, { 7: { state: "confirmed", setter } });
+      const fields = async () => ({ [field]: setter });
+      await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, log: () => {} });
+      const [written] = fake.calls.filter(({ method }) => method === "STATUS");
+      assert.equal(Boolean(written.fields[field]), handed, String(setter));
+    }
+  });
+
   // A born-triaged issue filed with the agent-ready label and no Work status:
   // the label starts no run, so the ready verdict writes ready and admission
   // decides it. An issue whose field already holds agent-ready gets no write.
