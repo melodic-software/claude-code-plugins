@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## [11.7.1] - 2026-11-22
+
+### Changed
+
+- The unattended-merge paragraph states that a CRITICAL an earlier head's
+  main-run security review recorded stops holding once the pinned head's own
+  main-run security review binds with no CRITICAL finding; until then it holds,
+  so a push no review has covered cannot clear it.
+
 ## [11.7.0] - 2026-11-22
 
 ### Changed

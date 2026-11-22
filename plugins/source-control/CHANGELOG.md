@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.5.1] - 2026-11-22
+
+### Fixed
+
+- `ready --skip` breaks a closing keyword in the recorded reason on every bash: the guard's regex had an empty alternative that some bash builds reject, so the keyword reached the comment intact.
+
+- The babysit merge-risk rater no longer holds a pull request on a CRITICAL
+  security finding an earlier head's main-run review recorded once the current
+  head's own main-run security review binds with no CRITICAL finding. A head no
+  main-run review has covered, a whitespace push included, still holds it, and a
+  pull_request-lane CRITICAL whose thread is still open still holds.
+
 ## [13.5.0] - 2026-11-22
 
 ### Changed
