@@ -106,6 +106,11 @@ while [[ $# -gt 0 ]]; do
     [[ $# -gt 0 ]] || die "--root needs a directory"
     ROOT="$1"
     ;;
+  --user-config)
+    shift
+    [[ $# -gt 0 ]] || die "--user-config needs a value"
+    export CLAUDE_PLUGIN_OPTION_FILE_NAMES="$1"
+    ;;
   --dry-run)
     DRY_RUN=1
     ;;

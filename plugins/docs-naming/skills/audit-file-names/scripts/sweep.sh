@@ -84,6 +84,11 @@ while [[ $# -gt 0 ]]; do
     [[ $# -gt 0 ]] || die "--pairs needs a file or -"
     PAIRS_FILE="$1"
     ;;
+  --user-config)
+    shift
+    [[ $# -gt 0 ]] || die "--user-config needs a value"
+    export CLAUDE_PLUGIN_OPTION_FILE_NAMES="$1"
+    ;;
   -h | --help)
     usage
     exit 0
@@ -148,7 +153,7 @@ while [[ "$i" -lt "$tier_count" ]]; do
   # the one that cannot silently loosen anything.
   tlayer="$(cfg ".file_names.tiers[$i]._layer")"
   case "$tlayer" in
-  user-global | personal-override) tauth=0 ;;
+  user-global | userConfig | personal-override) tauth=0 ;;
   *) tauth=1 ;;
   esac
   matched=0

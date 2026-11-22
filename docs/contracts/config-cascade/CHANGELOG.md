@@ -17,6 +17,10 @@ No contract change.
   still read, with a warning, until `/instruction-placement:setup apply migrate-config` moves them
   (#18012). It leaves the not-yet-migrated list. The layering axis is unchanged, so
   `contract_version` stays.
+- **The `docs-naming` row reads `userConfig`, not `~/.claude/docs-naming.json`.** Its per-person
+  layer is the `file_names` option; the old user files are read only while it is unset or invalid,
+  with a warning, until a later change removes the read. The layering axis is unchanged, so
+  `contract_version` stays.
 - **`locations.md` lists where plugin config lives.** One editable page of the four layers, the
   `.local` naming and the paths outside the contract, pointing at this README's sections. Plugins
   that teach a config location carry a generated copy at `reference/config-locations.md`. The

@@ -114,10 +114,19 @@ it, the recipe's own sweep over the tracked files does the same job.
 Report the script's five output rows as it wrote them. `DRIFTED` above zero is
 surfaced with the sites it named, not folded into a total.
 
+Every `apply-rename.sh` call, the recipe's included, takes `--user-config` with
+this plugin's `file_names` option, `${user_config.file_names}`, as one
+single-quoted argument (escape any single quote in it). An empty value or the
+literal `${user_config.…}` placeholder means unset.
+
+- **Pointer**: when checking where a saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
+
 When a run of several findings ends, run the closing pass once:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/apply-rename.sh --regenerate-only --root <repo>
+${CLAUDE_SKILL_DIR}/scripts/apply-rename.sh --regenerate-only --root <repo> --user-config '<option>'
 ```
 
 A generated record is rebuilt per finding only when the plan recorded a site

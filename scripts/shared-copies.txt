@@ -927,6 +927,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/desktop-notification/ref
 docs/contracts/plugin-reconfiguration/README.md plugins/discipline/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/disk-hygiene/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/docs-hygiene/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/docs-naming/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/education/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/eol-normalizer/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/go-format/reference/plugin-reconfiguration.md

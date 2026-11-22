@@ -10,15 +10,30 @@ shell: bash
 ## Purpose
 
 Every value the file-name skills act on comes from one consumer surface,
-layered as user-global (`docs-naming.json` under `~/.claude/`), team
-(`docs/conventions/docs-naming.yaml`, tracked, validated by
-`${CLAUDE_PLUGIN_ROOT}/schemas/docs-naming.schema.json`), and personal override
-(`docs/conventions/docs-naming.local.yaml`). The convention home is
-`docs/conventions` unless the repository's `AGENTS.md` or `CLAUDE.md` binds
-another. All three absent is a valid state: every key has a bundled default, and
-the defaults are this marketplace's own values, except `generated`, which is empty.
-The old team and personal override JSON files under `.claude/` are not read; `check` names
-each, and `apply` seeds an absent team YAML from the old team file.
+layered as `userConfig` (this plugin's `file_names` option, one JSON object of
+`file_names` keys), team (`docs/conventions/docs-naming.yaml`, tracked,
+validated by `${CLAUDE_PLUGIN_ROOT}/schemas/docs-naming.schema.json`), and
+personal override (`docs/conventions/docs-naming.local.yaml`). The convention
+home is `docs/conventions` unless the repository's `AGENTS.md` or `CLAUDE.md`
+binds another. All three absent is a valid state: every key has a bundled
+default, and the defaults are this marketplace's own values, except `generated`,
+which is empty. The old team and personal override JSON files under `.claude/`
+are not read; `check` names each, and `apply` seeds an absent team YAML from the
+old team file.
+
+The old user files, `~/.claude/docs-naming.json` and
+`~/.claude/docs-hygiene.json`, are still read in the option's place while the
+option is unset or invalid (the first that exists), each run warns about them,
+and `apply` previews copying their keys into the option.
+
+The option's current value is `${user_config.file_names}`. Pass it to both
+scripts as `--user-config '<that value>'` on every call, one single-quoted
+argument (escape any single quote in it). An empty value or the literal
+`${user_config.…}` placeholder means unset.
+
+- **Pointer**: when checking where a saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
 
 This skill is the check-centric setup for that surface: `check` inspects and
 verifies, `apply` persists, and neither installs anything. Keys, defaults, layer
@@ -35,20 +50,23 @@ one key at a time, recommendation first, walking the annotated template
 Run it and present the table as printed:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/setup-check.sh
+${CLAUDE_SKILL_DIR}/scripts/setup-check.sh --user-config '<option>'
 ```
 
 Rows, each PASS, FAIL, WARN, or INFO:
 
 1. **jq**, **git**: the prerequisites. A missing `jq` is FAIL and stops the
    table, because every skill in this plugin reads the concern file with it.
-2. **layer user-global / team / personal-override**: absent (INFO), or present with its
-   path, or WARN when the user-global file still carries the retired
-   `docs-hygiene` name (it is read, and the row names it). A present file that
-   does not parse, or a user-global layer that declares an unknown schema,
-   surfaces at the **resolve** row with the file named. **old team file** and
-   **old personal override file**: WARN per unread JSON file under `.claude/`, naming the
-   next step (`apply` seeds an absent team YAML, else copy by hand; then delete).
+2. **layer userConfig / team / personal-override**: absent (INFO), or present
+   (the team and personal override rows name the file). The userConfig row is
+   WARN when the option is not one JSON object, which is ignored. A present file
+   that does not parse, or an old user file that declares an unknown schema,
+   surfaces at the **resolve** row with the file named. **old user file**: WARN
+   per file at an old user path, saying whether it is read and that `apply`
+   previews copying its keys into the option. **old team file** and **old
+   personal override file**: WARN per unread JSON file under `.claude/`, naming
+   the next step (`apply` seeds an absent team YAML, else copy by hand; then
+   delete).
 3. **key shape**: every key carries the type the contract declares.
 4. **rule**, **regex**, **regex quoting**: the casing rule is one this version
    implements, the regex compiles under `grep -E`, and it carries no single
@@ -80,10 +98,9 @@ never green.
 
 Both records here, `docs-naming-r001` (`.claude/docs-hygiene.json`) and
 `docs-naming-r002` (`.claude/docs-hygiene.local.json`), are `report-only`: INFO,
-no cleanup, since neither file is read; the old-file rows name the next step. The user-global
-`~/.claude/docs-hygiene.json` sits outside the repository and has no record; the
-layer row reports it as WARN with the same remedy: rename it to
-`docs-naming.json` in the same directory.
+no cleanup, since neither file is read; the old-file rows name the next step. The old
+user files under `~/.claude/` sit outside the repository and have no record; the
+**old user file** rows report them, and `apply` step 5 handles them.
 
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
@@ -123,7 +140,36 @@ This plugin still reads, or reports as retired, the `.claude/` paths named here;
    confirms the result, run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`.
    Re-run detection last and report the final state.
-5. **Verify.** Re-run `check` and report the persisted values from its table,
+5. **Copy old user files into the option.** When `check` printed an **old user
+   file** row, run:
+
+   ```bash
+   ${CLAUDE_SKILL_DIR}/scripts/setup-apply.sh --user-config-value --user-config '<option>'
+   ```
+
+   It writes nothing. It prints a `from:` line per old file naming the keys it
+   would add (keys the option does not already set, and the additive keys whose
+   list in the option lacks some of the old file's entries, which it appends;
+   `docs-naming.json` before `docs-hygiene.json`), the merged `value:`, and a
+   `values.json:` line.
+   Show that preview and ask whether to copy. On a yes, the operator saves it
+   through Claude Code's native flow, `/plugin configure docs-naming@<marketplace>`
+   interactively; this skill never writes user settings or `pluginConfigs`, and
+   never uninstalls to reconfigure. Read
+   [The routes](../../reference/plugin-reconfiguration.md#the-routes) and
+   [Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries)
+   and print what they give: the preferred `claude plugin configure` command in
+   full first, with the `values.json:` text as its `values.json`, then the
+   fallback route, its behavior on an already-installed plugin and the scope to
+   pass. Leave the old file in place; the operator deletes it once a
+   **fresh-session** `check` shows the option set and no key missing. Report
+   only an observed value.
+
+   - **Pointer**: for the headless command's flags and how it reports a saved
+     or refused value, fetch
+     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+     live.
+6. **Verify.** Re-run `check` and report the persisted values from its table,
    never from the write alone. A WARN saying the file is untracked means "commit
    it to share it", never success.
 
@@ -142,7 +188,10 @@ supplied any value differing from the bundled default.
 
 ## What this skill does NOT do
 
-- Write the user-global layer or the personal override. Those are the operator's own files.
+- Write the personal override, the `file_names` option, user settings, or
+  `pluginConfigs`. Those are the operator's own; step 5 hands the option's value
+  to Claude Code's native flow.
+- Delete or edit an old user file.
 - Edit the consumer's `.gitignore`. It recommends one line.
 - Install anything, or fetch a regenerator a `generated` entry names.
 - Run an audit, a rename, or a gate emission. Those skills read the same
