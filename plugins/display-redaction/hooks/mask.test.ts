@@ -258,7 +258,7 @@ const LARGE_TEXT = SIZE_RATIO * SMALL_TEXT
 const GROWTH_BOUND = 2 * SIZE_RATIO
 const SLACK_MS = 10
 const MIN_PASSES = 2
-const MAX_PASSES = 15
+const MAX_PASSES = 5
 
 const excessOverLinear = (cost: (n: number) => number) => {
   let quietestSmall = Infinity
@@ -286,8 +286,8 @@ test('excessOverLinear flags a quadratic cost, even when a loaded small run in o
   expect(excessOverLinear(slowedBy(quadraticCost, [3, 1]))).toBeGreaterThanOrEqual(SLACK_MS)
 })
 
-test('excessOverLinear passes a linear cost whose large runs stay slowed for six passes before a quiet one', () => {
-  const slowdowns = [...Array.from({ length: 6 }, () => [1, 4]).flat(), 1, 1]
+test('excessOverLinear passes a linear cost whose large runs stay slowed for three passes before a quiet one', () => {
+  const slowdowns = [...Array.from({ length: 3 }, () => [1, 4]).flat(), 1, 1]
   expect(excessOverLinear(slowedBy(linearCost, slowdowns))).toBeLessThan(SLACK_MS)
 })
 
