@@ -85,6 +85,10 @@ writes output files under the `-o` path only.
 
 The four-part records live in [context/native-web-tools.md](context/native-web-tools.md).
 
+**The Firecrawl MCP tools.** When `mcp__firecrawl__*` tools are connected, use them for one page or
+one search read in full, and this skill's CLI for crawls, batches and large results:
+[context/mcp-or-cli.md](context/mcp-or-cli.md).
+
 ## Core pattern. Write to disk, Read selectively
 
 Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template. See the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable. Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
