@@ -1152,9 +1152,9 @@ def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> b
     `VERDICT_CLEAR_OUTCOMES`, and whose last line (`JUDGED_RE`) names `title`
     and `body` by sha256. Pure.
 
-    The owner's standing rule and its triage-verdict reading:
-    https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318,
-    https://github.com/melodic-software/architecture/pull/167."""
+    The owner's standing rule and its triage-verdict reading: row L318 of
+    `docs/owner-decisions.md` in the org's architecture repository, and that
+    repository's pull request 167."""
 
     def app(actor: Any) -> bool:
         actor = json_object(actor)
