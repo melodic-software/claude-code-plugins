@@ -14,6 +14,9 @@ import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { cancel, dataDirFor, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
 import { assertNoBypass, clean, cliArgs, completed, events, fakeAgy, fakeCmd, fixture, fixtures, gitRepo, launched, opened, said, scratch, THREAD, world } from "./support/world.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const codex = loadProvider("codex");
 

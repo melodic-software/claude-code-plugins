@@ -6,9 +6,6 @@ import { dirname, join } from "node:path";
 import { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
-process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
-process.env.GIT_CONFIG_NOSYSTEM = "1";
-
 export const tests = dirname(dirname(fileURLToPath(import.meta.url)));
 export const fixtures = join(tests, "fixtures");
 export const fixture = (name) => readFileSync(join(fixtures, name), "utf8");

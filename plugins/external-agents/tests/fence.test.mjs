@@ -6,6 +6,9 @@ import { describe, test } from "node:test";
 import { review, run, status } from "../scripts/lib/runner.mjs";
 import { assertNoBypass, clean, cliArgs, fakeAgy, fixtures, gitRepo, scratch, tests, world } from "./support/world.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 describe("write fences and extra writable directories", () => {
   const agyWrite = "schema: 1\nantigravity:\n  uses:\n    task:\n      mode: write\n";
   const agy = (w, extra) => ({ ...w.opts, product: "antigravity", providersRoot: fixtures, binary: fakeAgy, model: "m1", use: "task", mode: "write", prompt: "fix it", ...extra });
