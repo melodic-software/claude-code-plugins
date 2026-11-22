@@ -419,11 +419,15 @@ ends with one home per value, never two. Run it in `apply` after `check`, once p
      instead in the same answer. Its keys apply in every repository the operator works in, so the
      preview also says the old file is kept until the operator says it may go (in that answer, or
      once the other repositories have moved).
-   - The move never changes a resolved value. The old user-global file is the lowest layer, and
-     the personal YAML wins over team, so a key any layer above the old file already sets
-     (the target, or for a personal target the tracked team YAML) is shown with both values and
-     not carried; the resolved value stays unless the operator picks the old one in the same
-     answer. Name any key the schema does not declare; it is not carried.
+   - The move never changes a resolved value. Before the preview, resolve each key across the
+     layers read today ([config-resolution.md](../../../reference/config-resolution.md); for
+     `branch_issue_pattern`, `parse-branch-issue.sh <sample-branch> --explain` from `REPO_ROOT`)
+     and record the value and the layer that supplies it. Carry a key only when the old file is
+     that layer; nothing above it sets the key, so the target supplies the same value. Every other
+     key is shown with both values and not carried: one a higher layer supplies, and every key of
+     an old personal override that is not read because the personal YAML exists. The operator may
+     pick the old value in the same answer.
+     Name any key the schema does not declare; it is not carried.
 2. **Ask once, then write.** One confirmation covers the whole preview. Without a yes, write
    nothing; the file stays, still read and still warned about. Before writing the personal YAML,
    the `docs/conventions/**/*.local.*` ignore rule must match the nested sentinel from step 6; a
@@ -431,13 +435,11 @@ ends with one home per value, never two. Run it in `apply` after `check`, once p
    shape of step 5 (a bullet list becomes a YAML sequence, a regex is single-quoted), carrying
    every key the new file already holds, and run step 6's verification for the layer written; a
    failed verification stops the move and keeps the old file.
-3. **Check the values match.** Before writing, record each key's resolved value across all layers
-   (config-resolution.md), and for `branch_issue_pattern` the number
-   `parse-branch-issue.sh <sample-branch> --explain` prints from `REPO_ROOT`. After writing, read
-   each moved key back from the new file (`convention-key.sh value`, or `local-value`, `list` and
-   `local-list`) and compare it with the old value, then resolve every key again, with the old file
-   set aside, and compare with the recorded value, except a key the operator chose to change. A
-   mismatch stops the move: report it and keep the old file.
+3. **Check the values match.** Read each moved key back from the new file (`convention-key.sh
+   value`, or `local-value`, `list` and `local-list`) and compare it with the old value, then
+   resolve every key again and compare with the value recorded in step 1, except a key the
+   operator chose to change. A mismatch restores the target to its content before the write
+   (removing it if the move created it), reports the mismatch, and keeps the old file.
 4. **Delete the old file** only after every key matched, and, for `~/.claude/source-control.md`,
    only when the operator said it may go; report its path. Re-run
    `old-files` last; a moved file no longer appears.
