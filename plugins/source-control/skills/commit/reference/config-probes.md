@@ -12,11 +12,11 @@ instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/t
 These are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies
 to the `## Pre-computed context` block does not apply here.
 
-## Why probes 2 and 3 omit `--exclude-standard`
+## Why probes 2 to 4 omit `--exclude-standard`
 
-Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
-personal override is expected to be gitignored, and an untracked team file has to be *seen* before it
-can be reported as untracked.
+Probes 2 to 4 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
+personal override and its old location are expected to be gitignored, and an untracked team file
+has to be *seen* before it can be reported as untracked.
 
 ## Why probe 2 exists, and what a nonzero exit means
 
@@ -43,8 +43,8 @@ invocable from inside a worktree. The composition record is the
 
 **Every repo-scoped probe anchors at the repository root**, via the `:/` magic pathspec, never at
 the session's current directory. A session started in a subdirectory would otherwise look for
-`<cwd>/docs/conventions/source-control.yaml` and `<cwd>/.claude/source-control.local.md` and report
-both repo-scoped layers absent, silently dropping the team convention
+`<cwd>/docs/conventions/source-control.yaml` and `<cwd>/docs/conventions/source-control.local.yaml`
+and report both repo-scoped layers absent, silently dropping the team convention
 and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. Never
 substitute a resolved root path into a probe instead: a repository root containing `$(…)`, a
 backtick, or a double quote is *not* made safe by wrapping the substituted text in double quotes
@@ -53,5 +53,3 @@ substitutes the root at all. This matches the root-resolution requirement
 [`config-resolution.md`](../../../reference/config-resolution.md)
 already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
 anchors itself the same way.
-
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.

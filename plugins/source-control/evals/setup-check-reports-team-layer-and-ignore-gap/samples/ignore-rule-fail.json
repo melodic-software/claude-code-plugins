@@ -1,16 +1,16 @@
 {
   "pass": [
     {
-      "answer": "| Personal override ignore rule | FAIL | no repository .gitignore covers `.claude/**/*.local.*`; run `apply` |"
+      "answer": "| Personal override ignore rule | FAIL | no repository .gitignore covers `docs/conventions/**/*.local.*`; run `apply` |"
     },
     {
-      "answer": "FAIL: the recursive `.claude/**/*.local.*` rule is missing.",
+      "answer": "FAIL: the recursive `docs/conventions/**/*.local.*` rule is missing.",
       "why": "FAIL first"
     }
   ],
   "fail": [
     {
-      "answer": "| Personal override ignore rule | PASS | `.gitignore:1:.claude/**/*.local.*` |",
+      "answer": "| Personal override ignore rule | PASS | `.gitignore:1:docs/conventions/**/*.local.*` |",
       "why": "wrong: reports the rule present"
     },
     {

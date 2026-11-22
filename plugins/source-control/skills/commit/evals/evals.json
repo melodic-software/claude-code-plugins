@@ -93,8 +93,8 @@
       "id": 8,
       "name": "personal-override-overrides-team-convention-per-key",
       "prompt": "Commit the null-user fix in src/api/me.js.",
-      "expected_output": "Resolves the convention across all three layers before drafting. The personal override .claude/source-control.local.md declares only subject_pattern (a ticket-prefix regex), so the drafted subject matches the ticket-prefix shape rather than the team file's Conventional Commits value; the team file's trailer_policy: none still applies, because the personal override does not declare that key and per-key override never drops the base layer wholesale. The personal override is not treated as the whole config.",
-      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
+      "expected_output": "Resolves the convention across both layers before drafting. The personal override docs/conventions/source-control.local.yaml declares only subject_pattern (a ticket-prefix regex), so the drafted subject matches the ticket-prefix shape rather than the team file's Conventional Commits value; the team file's trailer_policy: none still applies, because the personal override does not declare that key and per-key override never drops the base layer wholesale. The personal override is not treated as the whole config.",
+      "files": ["docs/conventions/source-control.yaml", "docs/conventions/source-control.local.yaml"],
       "expectations": [
         "Reads the personal override and the team file, not the team file alone",
         "Drafts a subject matching the personal override's ticket-prefix subject_pattern, not the team file's Conventional Commits pattern",
@@ -107,7 +107,7 @@
       "name": "inherited-type-list-drops-for-an-effective-custom-pattern",
       "prompt": "Commit the null-user fix in src/api/me.js.",
       "expected_output": "The team file declares Conventional Commits plus the bundled 11-type type_list; the personal override overrides subject_pattern with a ticket-prefix regex and says nothing about type_list. type_list is bound to the effective subject_pattern rather than merged per key on its own, so it is dropped: the drafted subject matches the ticket-prefix pattern and is not pre-checked against a Conventional-Commits type vocabulary the effective pattern does not use.",
-      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
+      "files": ["docs/conventions/source-control.yaml", "docs/conventions/source-control.local.yaml"],
       "expectations": [
         "Drafts a subject matching the personal override's ticket-prefix subject_pattern",
         "Drops the team layer's type_list because the effective subject_pattern is not Conventional-Commits-shaped",

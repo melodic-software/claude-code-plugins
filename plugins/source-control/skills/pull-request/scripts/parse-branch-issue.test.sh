@@ -98,6 +98,8 @@ yaml_layer() {
 }
 
 TEAM_YAML_REL="docs/conventions/source-control.yaml"
+PERSONAL_YAML_REL="docs/conventions/source-control.local.yaml"
+OLD_LOCATION_NOTE='^parse-branch-issue: old location '
 
 # `track <file>` stages a file the case wrote inside its repo, since the team
 # YAML is a config layer only when git tracks it. Outside a git repo it does nothing.
@@ -132,7 +134,7 @@ run_cfg() {
       bash "$PARSER" "$branch" "$pattern" 2>"$errfile")
   fi
   rc=$?
-  err=$(<"$errfile")
+  err=$(grep -v -- "$OLD_LOCATION_NOTE" "$errfile")
   local err_ok=1
   if [[ "$err_check" == "empty" ]]; then
     [[ -z "$err" ]] || err_ok=0
@@ -538,7 +540,7 @@ new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
 run_explain "the personal override still beats the team YAML" "feat/12-add-widget-1234" "12" \
-  '\.claude/source-control\.local\.md$'
+  'old personal override \.claude/source-control\.local\.md$'
 
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '(['
@@ -565,6 +567,102 @@ run_cfg "an untracked team YAML is ignored, and a tracked retired file is not re
 
 new_case
 run_explain "the default is the named layer when nothing is configured" "feat/42-x" "42" 'default$'
+
+SETUP_NOTE='/source-control:setup apply'
+
+write_personal_yaml() {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "branch_issue_pattern: '$2'" >"$1"
+}
+
+old_note_count_is() {
+  local desc="$1" want="$2" got
+  got=$(grep -c -- "$OLD_LOCATION_NOTE" "${FIXTURES}/stderr")
+  if [[ "$got" -eq "$want" ]]; then
+    echo "PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $desc (got $got old-location notes, wanted $want)"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+old_note_matches() {
+  local desc="$1" ere="$2"
+  if grep -Eq -- "${OLD_LOCATION_NOTE}.*${ere}" "${FIXTURES}/stderr"; then
+    echo "PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $desc (no old-location note matches '${ere}': $(<"${FIXTURES}/stderr"))"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+new_case
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[^/]+/([0-9]+)-'
+run_cfg "new layers only: the personal YAML beats the team YAML" \
+  "feat/12-add-widget-1234" "" - "12" 0 empty
+old_note_count_is "new layers only: no old-location note" 0
+run_explain "the personal YAML is the named layer" "feat/12-add-widget-1234" "12" \
+  'docs/conventions/source-control\.local\.yaml$'
+
+new_case
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+mkdir -p "${CASE_REPO}/docs/conventions"
+printf '%s\n' 'trailer_policy: none' >"${CASE_REPO}/$PERSONAL_YAML_REL"
+run_cfg "a personal YAML without the key falls through to the team YAML" \
+  "feat/12-add-widget-1234" "" - "1234" 0 empty
+
+new_case
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '(['
+run_cfg "an invalid personal YAML pattern stops resolution" \
+  "feat/12-add-widget-1234" "" - "" 1 "invalid ERE.*${STOPPED}"
+
+new_case
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[^/]+/([0-9]+)-'
+printf '%s\n' 'branch_issue_pattern: a' >>"${CASE_REPO}/$PERSONAL_YAML_REL"
+run_cfg "a personal YAML the shared reader rejects stops resolution" \
+  "feat/12-add-widget-1234" "" - "" 1 "source-control\.local\.yaml could not be parsed.*${STOPPED}"
+
+new_case
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
+run_cfg "old personal override only: its value applies" "feat/12-add-widget-1234" "" - "12" 0 empty
+old_note_count_is "old personal override only: one note per run" 1
+old_note_matches "old personal override only: the note names the file, its new location and setup" \
+  "\.claude/source-control\.local\.md: still read.*source-control\.local\.yaml.*${SETUP_NOTE}"
+
+new_case
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
+write_personal_yaml "${CASE_REPO}/$PERSONAL_YAML_REL" '^[a-z]+/([0-9]+)-add'
+layer "${CASE_REPO}/.claude/source-control.local.md" '^[a-z]+/[0-9]+-add-widget-([0-9]+)$'
+run_cfg "both personal files: the YAML wins" "feat/7-add-widget-1234" "" - "7" 0 empty
+old_note_count_is "both personal files: one note per run" 1
+old_note_matches "both personal files: the note names both files and setup" \
+  "\.claude/source-control\.local\.md: not read, since docs/conventions/source-control\.local\.yaml.*${SETUP_NOTE}"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+run_cfg "old user-global only: its value applies" "feat/12-add-widget-1234" "" - "1234" 0 empty
+old_note_count_is "old user-global only: one note per run" 1
+old_note_matches "old user-global only: the note names the file, both new locations and setup" \
+  "home\.[^ ]*/\.claude/source-control\.md: still read.*source-control\.yaml \(team\) or .*source-control\.local\.yaml \(personal\).*${SETUP_NOTE}"
+run_explain "the old user-global file is the named layer" "feat/12-add-widget-1234" "1234" \
+  'old user-global'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '^[^/]+/([0-9]+)-'
+run_cfg "old user-global beside the team YAML: the team wins" "feat/12-add-widget-1234" "" - "12" 0 empty
+old_note_count_is "old user-global beside the team YAML: the note still prints once" 1
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
+run_cfg "both old files: the old personal override wins over the old user-global" \
+  "feat/12-add-widget-1234" "" - "12" 0 empty
+old_note_count_is "both old files: one note for each" 2
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

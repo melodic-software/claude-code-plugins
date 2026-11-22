@@ -80,8 +80,8 @@
       "id": 7,
       "name": "check-renders-effective-merge-with-winning-layer",
       "prompt": "/source-control:setup check",
-      "expected_output": "Reports one effective-configuration table across all three layers — a row per key with its resolved value and which layer supplied it — rather than the tracked team file's values alone. The personal override's trailer_policy: none wins that key; the team file supplies the rest. Also reports a per-layer presence line, and reports the personal override's gitignore status as a PASS when it is ignored rather than as the team file's hard-STOP condition.",
-      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
+      "expected_output": "Reports one effective-configuration table across both layers (team docs/conventions/source-control.yaml and personal override docs/conventions/source-control.local.yaml) — a row per key with its resolved value and which layer supplied it — rather than the tracked team file's values alone. The personal override's trailer_policy: none wins that key; the team file supplies the rest. Also reports a per-layer presence line, and reports the personal override's gitignore status as a PASS when it is ignored rather than as the team file's hard-STOP condition.",
+      "files": ["docs/conventions/source-control.yaml", "docs/conventions/source-control.local.yaml"],
       "expectations": [
         "Reports the effective merged configuration, not one layer's values presented as the whole convention",
         "Names which layer supplied each resolved key (the personal override wins trailer_policy; the team file supplies subject_pattern)",
@@ -93,14 +93,14 @@
       "id": 8,
       "name": "routes-personal-request-to-personal-override-not-team-file",
       "prompt": "/source-control:setup apply\n\nI personally want ticket-prefixed subjects like WEB-123: fix the thing on this repo, but don't change what the team uses.",
-      "expected_output": "Writes .claude/source-control.local.md, not the tracked team docs/conventions/source-control.yaml, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the personal override is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive .claude/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
+      "expected_output": "Writes YAML to docs/conventions/source-control.local.yaml (never .claude/source-control.local.md), not the tracked team docs/conventions/source-control.yaml, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the personal override is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive docs/conventions/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
       "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
-        "Writes the personal override path, leaving the tracked team file unmodified",
+        "Writes the personal override path docs/conventions/source-control.local.yaml in YAML shape, leaving the tracked team file unmodified",
         "States which layer it selected before writing",
         "Writes only the differing keys instead of restating every key from the team layer",
         "Treats a git check-ignore match on the personal override as success, and never stages the personal override with git add",
-        "When the personal override is not ignored, recommends the recursive .claude/**/*.local.* gitignore line instead of editing the consumer's .gitignore",
+        "When the personal override is not ignored, recommends the recursive docs/conventions/**/*.local.* gitignore line instead of editing the consumer's .gitignore",
         "Reports the resulting effective merge across layers rather than only the keys just written"
       ]
     },
@@ -108,13 +108,13 @@
       "id": 9,
       "name": "user-global-write-runs-no-repo-git-checks",
       "prompt": "/source-control:setup apply layer=user subject_pattern=Conventional Commits",
-      "expected_output": "Writes ~/.claude/source-control.md and runs no git command against it — git check-ignore, git status, and git add all target the repository worktree and would produce a meaningless or confidently wrong verdict on a path outside it (including when the home directory is itself a git repository). Confirms the file exists with the intended content, reports the path, and does not claim the value is staged or committed.",
+      "expected_output": "Refuses layer=user before writing anything: there is no user-global layer, so ~/.claude/source-control.md is neither created nor modified, and no git command runs against it. The refusal says a value meant for every repository goes in each repository's team file (layer=team, docs/conventions/source-control.yaml) or, for one person, its personal override (layer=local, docs/conventions/source-control.local.yaml). It does not silently write the team or local layer in place of the refused one, and does not claim any value was written, staged, or committed.",
       "files": [],
       "expectations": [
-        "Writes the user-global path rather than a repo path",
-        "Runs no git check-ignore, git status, or git add against the user-global file",
-        "Does not report the user-global write as staged or awaiting a commit",
-        "Reports the resulting effective merge, noting that an existing team file or personal override still overrides these values per key"
+        "Refuses layer=user and writes no file, leaving ~/.claude/source-control.md uncreated and unmodified",
+        "Points to layer=team or layer=local in each repository that needs the value",
+        "Runs no git check-ignore, git status, or git add against ~/.claude/source-control.md",
+        "Does not substitute a team or local write for the refused layer, and does not report any write as staged or awaiting a commit"
       ]
     },
     {
@@ -135,7 +135,7 @@
       "name": "non-interactive-update-preserves-unrequested-personal-override-keys",
       "prompt": "/source-control:setup apply layer=local subject_pattern=^[A-Z]+-\\d+: .+",
       "expected_output": "The personal override already declares trailer_policy: none, which this invocation says nothing about. The skill reads the target layer before rewriting it and carries that key through unchanged, replacing only subject_pattern (and the pr_title_pattern derived from it). It does not treat a rewrite as a fresh file, which would silently drop the active personal trailer override and change commit behavior the user never asked to change.",
-      "files": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"],
+      "files": ["docs/conventions/source-control.yaml", "docs/conventions/source-control.local.yaml"],
       "expectations": [
         "Reads the existing personal override before rewriting it rather than composing the file from the invocation alone",
         "Preserves the personal override's existing trailer_policy: none, which the invocation did not mention",
@@ -236,27 +236,27 @@
     {
       "id": 19,
       "name": "check-reports-missing-personal-override-ignore-without-personal-override-file",
-      "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no .claude/source-control.local.md. .gitignore does not mention .claude/**/*.local.*.",
-      "expected_output": "Reports FAIL on the personal-override ignore rule even though no personal override file exists: the rule must be in place before the first personal override is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- .claude/nested/personal-override.local.md, not the flat personal override path.",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no docs/conventions/source-control.local.yaml. .gitignore does not mention docs/conventions/**/*.local.*.",
+      "expected_output": "Reports FAIL on the personal-override ignore rule even though no personal override file exists: the rule must be in place before the first personal override is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive docs/conventions/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- docs/conventions/nested/personal-override.local.yaml, not the flat personal override path.",
       "files": [],
       "expectations": [
         "Probes the ignore rule without requiring the personal override file to exist",
-        "Probes a nested sentinel (.claude/nested/personal-override.local.md) rather than the flat personal override path",
+        "Probes a nested sentinel (docs/conventions/nested/personal-override.local.yaml) rather than the flat personal override path",
         "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
-        "Missing .claude/**/*.local.* rule is FAIL, not INFO",
+        "Missing docs/conventions/**/*.local.* rule is FAIL, not INFO",
         "Remediation is apply writing the ignore line at team-layer bind"
       ]
     },
     {
       "id": 20,
       "name": "check-does-not-accept-leftover-nonrecursive-ignore-as-the-recursive-rule",
-      "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no .claude/source-control.local.md. .gitignore contains .claude/*.local.* and does not contain .claude/**/*.local.*.",
-      "expected_output": "Reports FAIL on the personal-override ignore rule. The leftover .claude/*.local.* line matches the flat personal override path, so probing .claude/source-control.local.md would have passed; the nested sentinel .claude/nested/personal-override.local.md does not match that line, so check still FAILs and names apply as the remediation (append .claude/**/*.local.* at team-layer bind).",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team docs/conventions/source-control.yaml and no docs/conventions/source-control.local.yaml. .gitignore contains docs/conventions/*.local.* and does not contain docs/conventions/**/*.local.*.",
+      "expected_output": "Reports FAIL on the personal-override ignore rule. The leftover docs/conventions/*.local.* line matches the flat personal override path, so probing docs/conventions/source-control.local.yaml would have passed; the nested sentinel docs/conventions/nested/personal-override.local.yaml does not match that line, so check still FAILs and names apply as the remediation (append docs/conventions/**/*.local.* at team-layer bind).",
       "files": [],
       "expectations": [
-        "A leftover .claude/*.local.* rule is not treated as the recursive personal override ignore rule",
-        "The presence probe uses .claude/nested/personal-override.local.md",
-        "Missing .claude/**/*.local.* is FAIL even when .claude/*.local.* is present",
+        "A leftover docs/conventions/*.local.* rule is not treated as the recursive personal override ignore rule",
+        "The presence probe uses docs/conventions/nested/personal-override.local.yaml",
+        "Missing docs/conventions/**/*.local.* is FAIL even when docs/conventions/*.local.* is present",
         "Remediation is apply appending the recursive line at team-layer bind"
       ]
     },
@@ -278,12 +278,13 @@
       "id": 22,
       "name": "check-at-home-root-reports-team-and-personal-override-not-applicable",
       "prompt": "/source-control:setup check\n\nThe session's project root is the operator's home directory, which contains ~/.claude/source-control.md and no repository of its own.",
-      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal override as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves user-global only and never presents ~/.claude/source-control.md as the team layer. The effective-configuration table shows user-global as the only winning layer, and the git tracked/ignored probes are not run.",
+      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal override as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves only the old user-global file ~/.claude/source-control.md and never presents it as the team layer. The effective-configuration table shows that old file as the only winning source, and a WARN names it as an old location with its new location (a repository's docs/conventions/source-control.yaml, or docs/conventions/source-control.local.yaml for one person) and apply, run from the repository that should hold the config, as the move. The git tracked/ignored probes are not run.",
       "files": [],
       "expectations": [
         "Reports team and personal override as not applicable and names the reason: project root is the home directory (or an ancestor of it)",
-        "Resolves user-global only and does not read ~/.claude/source-control.md a second time as the team layer",
-        "Shows user-global as the only layer that can win in the effective-configuration table",
+        "Resolves only the old user-global file and does not read ~/.claude/source-control.md a second time as the team layer",
+        "Shows the old user-global file as the only source that can win in the effective-configuration table",
+        "WARNs that ~/.claude/source-control.md is an old location, naming its new location in a repository and apply from that repository as the remediation",
         "Runs no git ls-files, git check-ignore, or trackedness probe against the home directory"
       ]
     },
@@ -291,13 +292,13 @@
       "id": 23,
       "name": "apply-at-home-root-refuses-team-and-local-but-writes-user",
       "prompt": "/source-control:setup apply layer=team subject_pattern=Conventional Commits\n\nThe session's project root is the operator's home directory. Afterwards the operator re-runs with layer=user.",
-      "expected_output": "layer=team refuses before writing anything: at home the team path sits in the operator's home directory, so a team write would edit the operator's personal config under a team label. The refusal names the reason (`project root is the home directory (or an ancestor of it)`) and offers layer=user. layer=local refuses for the same reason. The re-run with layer=user writes ~/.claude/source-control.md, runs no git command against it, and reports the resulting effective merge.",
+      "expected_output": "layer=team refuses before writing anything: at home the team path sits in the operator's home directory, so a team write would edit the operator's personal config under a team label. The refusal names the reason (`project root is the home directory (or an ancestor of it)`) and says to run apply from the repository that should hold the config; it does not offer layer=user. layer=local refuses for the same reason. The re-run with layer=user is refused too: there is no user-global layer, so it points to layer=team or layer=local in each repository, writes nothing (~/.claude/source-control.md is neither created nor modified), and runs no git command against it.",
       "files": [],
       "expectations": [
         "Refuses layer=team at a home project root without writing any file",
-        "Names the reason (project root is the home directory or an ancestor of it) and offers layer=user",
+        "Names the reason (project root is the home directory or an ancestor of it), says to run apply from the repository that should hold the config, and does not offer layer=user",
         "layer=local is refused for the same reason",
-        "layer=user writes ~/.claude/source-control.md and runs no git check-ignore, git status, or git add against it"
+        "layer=user is refused, pointing to layer=team or layer=local in each repository; ~/.claude/source-control.md is not written and no git check-ignore, git status, or git add runs against it"
       ]
     }
   ]

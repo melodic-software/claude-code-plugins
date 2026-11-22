@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git check-ignore -v .claude/multi-agent.local.yaml"
+            "command": "git check-ignore --no-index -v -- docs/conventions/nested/personal-override.local.yaml"
           }
         }
       ],
@@ -29,7 +29,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "printf '.claude/**/*.local.*\\n' >> .gitignore"
+            "command": "printf 'docs/conventions/**/*.local.*\\n' >> .gitignore"
           }
         }
       ],
@@ -40,7 +40,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "echo '.claude/**/*.local.*' | tee -a .gitignore"
+            "command": "echo 'docs/conventions/**/*.local.*' | tee -a .gitignore"
           }
         }
       ],
