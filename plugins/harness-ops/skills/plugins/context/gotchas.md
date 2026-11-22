@@ -124,10 +124,10 @@ evidence about either read.
 ## Never run plugin CLI writes concurrently: the sweep stays serial
 
 The user sweep runs one `claude plugin update` at a time, and so does every other mutating plugin
-CLI call this skill makes. Before Claude Code 2.1.330, concurrent calls lose each other's registry
-writes, and the lost call still exits 0 and prints success, so neither the exit code nor the CLI's
-output shows the loss. On 2.1.330 the same probe loses nothing. The sweep stays serial because a
-machine can still run an older CLI; running it in parallel is a separate decision (issue #6309).
+CLI call this skill makes. The basis is the probe below: on 2.1.310 concurrent calls lost each
+other's registry writes while every call exited 0 and printed success, so neither the exit code nor
+the output showed the loss; on 2.1.330 they lost none. The sweep stays serial because a machine can
+run an older CLI; running it in parallel is a separate decision (issue #6309).
 
 Probe: a scratch `CLAUDE_CONFIG_DIR` and a local git marketplace of 12 plugins, all installed at
 1.0.0 at user scope; the marketplace moved to 2.0.0, then N distinct
