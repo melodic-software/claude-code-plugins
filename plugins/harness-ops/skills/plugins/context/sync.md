@@ -126,9 +126,9 @@ the run directory, which the digest names.
 
 ## Concurrency
 
-The `claude plugin` CLI does not serialize concurrent writes, so this skill keeps its own mutating
-calls serial (see [gotchas.md](gotchas.md), "Never run plugin CLI writes concurrently: the sweep
-stays serial"). There is no separate lock this skill manages.
+This skill keeps its own mutating `claude plugin` calls serial, on the concurrency probe recorded in
+[gotchas.md](gotchas.md), "Never run plugin CLI writes concurrently: the sweep stays serial". There
+is no separate lock this skill manages.
 
 **The re-read boundary is the step, not the individual mutation.** Re-run `fleet-state.sh`
 immediately before each mutating step rather than mutating off a snapshot taken several steps ago; a
