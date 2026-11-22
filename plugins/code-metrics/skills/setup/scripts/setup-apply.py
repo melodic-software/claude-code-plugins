@@ -482,11 +482,18 @@ def copy_old(root: str, home: str, user_option: str | None, preview: bool) -> in
         print(f"written: {target}")
     if not preview:
         for old in (old_user, old_local):
-            if os.path.isfile(old):
+            if not os.path.isfile(old):
+                continue
+            if old == old_user and not user_target:
                 print(
-                    f"left in place: {old}; delete it once check shows the values "
-                    "you expect"
+                    f"left in place: {old}; keep it until the config_file option "
+                    "is set and --copy-old has copied its keys"
                 )
+                continue
+            print(
+                f"left in place: {old}; delete it once check shows the values "
+                "you expect"
+            )
     return 0
 
 

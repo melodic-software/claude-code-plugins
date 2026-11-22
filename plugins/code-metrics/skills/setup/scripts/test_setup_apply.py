@@ -399,6 +399,13 @@ class SetupApplyTests(unittest.TestCase):
             self.assertIn(
                 "set the option in /config, then rerun --copy-old", result.stdout
             )
+            old_user = home / ".claude" / "code-metrics.yaml"
+            self.assertIn(
+                f"left in place: {old_user}; keep it until the config_file option "
+                "is set and --copy-old has copied its keys",
+                result.stdout,
+            )
+            self.assertNotIn(f"left in place: {old_user}; delete it", result.stdout)
             self.assertEqual(
                 yaml_subset.parse(personal.read_text(encoding="utf-8")),
                 {"size": {"file_lines": 650}},

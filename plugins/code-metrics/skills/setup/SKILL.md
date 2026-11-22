@@ -123,7 +123,8 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    `docs/conventions/**/*.local.*` line when git does not ignore that file. A key the target
    already sets is kept. On an explicit yes, run the same command without `--preview`, which
    writes the targets and leaves the old files in place for the operator to delete once `check`
-   shows the values they expect. Without a yes, write nothing.
+   shows the values they expect; while the option is unset, the old user-global file stays until
+   the option is set and a rerun has copied its keys. Without a yes, write nothing.
 5. **Verify.** Re-run `check`; report the persisted values from its table, never from the write
    alone. The tracked-file pair decides the outcome: a WARN `written but untracked` means "commit
    it to share with the team", never success; an ignored team file is FAIL and the operator's
