@@ -62,11 +62,11 @@ class PolicyMigrationTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def run_step(self, *argv: str) -> tuple[int, dict]:
+    def run_step(self, *argv: str, project: Path | None = None) -> tuple[int, dict]:
         out = io.StringIO()
         with redirect_stdout(out):
             code = policy_migration.main(
-                [*argv, "--project-dir", str(self.project)]
+                [*argv, "--project-dir", str(project or self.project)]
             )
         return code, json.loads(out.getvalue())
 
@@ -126,6 +126,44 @@ class PolicyMigrationTests(unittest.TestCase):
         self.assertEqual("version: 1\n", self.new_team.read_text(encoding="utf-8"))
         self.run_step("finish", "--yes")
         self.assertTrue(self.old_team.is_file())
+
+    def test_a_home_project_dir_moves_only_the_user_file(self) -> None:
+        self.old_user.write_text(json.dumps(TEAM_POLICY), encoding="utf-8")
+        code, report = self.run_step(
+            "move", "--yes", "--user-target", str(self.new_user), project=self.home
+        )
+        self.assertEqual(0, code)
+        self.assertEqual(["userConfig"], [row["layer"] for row in report["files"]])
+        self.assertFalse((self.home / "docs").exists())
+        code, _ = self.run_step(
+            "finish", "--yes", "--user-policy", str(self.new_user), project=self.home
+        )
+        self.assertEqual(0, code)
+        self.assertFalse(self.old_user.exists())
+        policy = hygiene.load_policy(None, self.home, str(self.new_user))
+        self.assertEqual([], policy["policy_warnings"])
+
+    def test_a_team_row_through_a_symlink_is_refused(self) -> None:
+        outside = self.project.parent / "outside"
+        outside.mkdir()
+        (self.project / "docs").mkdir()
+        (self.project / "docs" / "conventions").symlink_to(outside)
+        code, report = self.run_step("move", "--yes")
+        self.assertEqual(1, code)
+        team = [row for row in report["files"] if row["layer"] == "team"][0]
+        self.assertIn("outside", team["result"])
+        self.assertEqual([], list(outside.iterdir()))
+        (self.project / "docs" / "conventions").unlink()
+        source = outside / "source.json"
+        source.write_text(json.dumps(TEAM_POLICY), encoding="utf-8")
+        self.old_team.unlink()
+        self.old_team.symlink_to(source)
+        for step in ("move", "finish"):
+            code, report = self.run_step(step, "--yes")
+            team = [row for row in report["files"] if row["layer"] == "team"][0]
+            self.assertIn("is a symlink", team["result"])
+        self.assertFalse(self.new_team.exists())
+        self.assertTrue(self.old_team.is_symlink())
 
     def test_the_engine_removes_only_an_old_policy_file(self) -> None:
         other = self.project / ".claude" / "settings.json"

@@ -221,8 +221,9 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
 
-- old policy files (step 7): show the check's rows as the preview (each old file, the new file,
-  and whether `policy_file` gets set) and ask one yes for the set. Without a yes, write nothing.
+- old policy files (step 7): show the check's rows as the preview (each old file, the new file
+  with its `new_resolved` path, and whether `policy_file` gets set) and ask one yes for the set. A
+  project row through a symlink or resolving outside the project is already `refused`. Without a yes, write nothing.
   With it, in order:
   1. `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/policy_migration.py" move --yes --project-dir "${CLAUDE_PROJECT_DIR}"`,
      with the same `--user-policy` as the check. It writes each new file (the user file

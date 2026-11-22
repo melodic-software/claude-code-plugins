@@ -71,25 +71,49 @@ def plan(
         Path(user_target).expanduser() if user_target else default_user_target()
     )
     targets = {"userConfig": user_new}
-    if project_dir is not None:
+    if project_dir is not None and not is_home(project_dir, old):
         targets["team"] = (
             hygiene.convention_home(project_dir) / hygiene.TEAM_POLICY_NAME
         )
     rows = []
-    for layer, old_path in old.items():
-        new_path = targets[layer]
+    for layer, new_path in targets.items():
+        old_path = old[layer]
         if not old_path.is_file() or same_file(old_path, new_path):
             continue
-        rows.append(
-            {
-                "layer": layer,
-                "old": str(old_path),
-                "new": str(new_path),
-                "new_exists": new_path.is_file(),
-                "set_option": layer == "userConfig" and option is None,
-            }
-        )
+        row = {
+            "layer": layer,
+            "old": str(old_path),
+            "new": str(new_path),
+            "new_resolved": str(new_path.resolve()),
+            "new_exists": new_path.is_file(),
+            "set_option": layer == "userConfig" and option is None,
+        }
+        if layer == "team" and project_dir is not None:
+            unsafe = outside_project(old_path, new_path, project_dir)
+            if unsafe:
+                row["result"] = f"refused: {unsafe}"
+        rows.append(row)
     return rows
+
+
+def is_home(project_dir: Path, old: dict[str, Path]) -> bool:
+    return (
+        project_dir.resolve() == Path.home().resolve()
+        or old["team"].absolute() == old["userConfig"].absolute()
+        or same_file(old["team"], old["userConfig"])
+    )
+
+
+def outside_project(old: Path, new: Path, project_dir: Path) -> str | None:
+    root = project_dir.resolve()
+    if old.is_symlink():
+        return f"{old} is a symlink"
+    if new.is_symlink():
+        return f"{new} is a symlink"
+    for path in (old.resolve(), new.parent.resolve()):
+        if not path.is_relative_to(root):
+            return f"{path} resolves outside {root}"
+    return None
 
 
 def _yaml_scalar(value: Any) -> str:
@@ -171,7 +195,9 @@ def move(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for row in rows:
         old, new = Path(row["old"]), Path(row["new"])
         outcome = dict(row)
-        if row["new_exists"]:
+        if "result" in row:
+            pass
+        elif row["new_exists"]:
             outcome["result"] = "refused: the new file exists; merge by hand"
         else:
             try:
@@ -196,7 +222,9 @@ def finish(
     for row in rows:
         old, new = Path(row["old"]), Path(row["new"])
         outcome = dict(row)
-        if not new.is_file():
+        if "result" in row:
+            pass
+        elif not new.is_file():
             outcome["result"] = "refused: the new file does not exist; run move"
         elif same_file(old, new) or old.resolve() == new.resolve():
             outcome["result"] = "refused: the new file is the old file"
