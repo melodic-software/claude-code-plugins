@@ -1,5 +1,6 @@
-# Fixture: the user-global layer (~/.claude/code-metrics.yaml). Sets two
-# references that the team layer then overrides one of.
+# Fixture: the old user-global file (~/.claude/code-metrics.yaml). Sets two
+# references that the team layer then overrides one of. Dual-read window:
+# https://github.com/melodic-software/claude-code-plugins/issues/18001
 complexity:
   cyclomatic:
     reference: 10

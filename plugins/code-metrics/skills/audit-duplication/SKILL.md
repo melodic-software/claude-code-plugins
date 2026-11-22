@@ -44,6 +44,10 @@ continues. This plugin never installs, downloads, or `npx`-fetches a detector.
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --keep --all   # the document, also kept as the next run's trend baseline
 ```
 
+Append `--user-file '${user_config.config_file}'` to every script call, exactly as written:
+it names the file holding your userConfig layer, and an empty or unsubstituted value means none
+(`${CLAUDE_PLUGIN_ROOT}/reference/config.md`).
+
 A target form (`--repo <repo>` and the others) runs the script once per repository, as
 `${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says, and never passes the form to the
 script. Each run finds clones within its own repository and keeps its own trend baseline, and
@@ -115,8 +119,8 @@ your notes and compare by hand.
 
 ## Configuration
 
-Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, personal override; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
+Everything tunable resolves through the code-metrics layers (team
+`docs/conventions/code-metrics.yaml`, personal override `docs/conventions/code-metrics.local.yaml`; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 `duplication.min_tokens` (default 50), `duplication.min_lines` (default 5),
 `duplication.ignore` (globs handed to the detector's own ignore option), `duplication.max_size`
 (default `1mb`, binary units; a larger file is left out of the scan and reported), `duplication.max_lines`

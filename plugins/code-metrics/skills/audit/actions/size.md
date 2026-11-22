@@ -129,8 +129,8 @@ here is in scope, unlike the long file met in passing under "Acting on a long fi
 
 ## Configuration
 
-Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, personal override; per-key override; keys in `<plugin-root>/reference/config.md`): the reference
+Everything tunable resolves through the code-metrics layers (team
+`docs/conventions/code-metrics.yaml`, personal override `docs/conventions/code-metrics.local.yaml`; per-key override; keys in `<plugin-root>/reference/config.md`): the reference
 (`size.file_lines`), the check rule (`size.check`, above), the mode (`size.mode`: `file-lines`, or `iso-8.2.115`, which adds a
 `function_lines` measure comparing each function's non-empty lines against
 `size.function_lines_pct` of the file's, from a collector that reports function ranges such as
