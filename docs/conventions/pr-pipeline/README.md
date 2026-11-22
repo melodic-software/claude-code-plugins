@@ -822,11 +822,12 @@ Each leaf declares:
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
   `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (one
   without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing, except
-  `verify-scripts` under `prepare: ci-context`, which the read runner stages as a base copy the
+  `verify-scripts` and `self-checks` under `prepare: ci-context`, which the read runner stages as a base copy the
   skill is told to run in place of the checkout's; its Bash, Edit and Write stay open, so review
   of the patch is the control.
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
-  through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
+  through the same wrapper before it commits or hands its change on, also under `prepare:
+  ci-context` (fix-ci) and in a patch skill with `prepare: review-threads` (address-feedback). Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
   report. A script in both lists fails red.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
