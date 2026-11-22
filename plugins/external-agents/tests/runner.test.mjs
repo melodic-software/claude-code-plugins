@@ -331,6 +331,15 @@ describe("review", () => {
     assert.match((await review({ ...w.opts, base: "main" })).stdout, /^codex: ran/);
   });
 
+  test("a per-run effort overrides config on a review and is recorded on the job", async () => {
+    const w = world({ stdout: clean, final: "No findings." }, { local: "schema: 1\ncodex:\n  effort: low\n" });
+    gitRepo(w.cwd, { "a.txt": "two\n" });
+    const { job } = await review({ ...w.opts, base: "main", effort: "xhigh" });
+    assert.deepEqual(cliArgs(job).slice(-2), ["-c", 'model_reasoning_effort="xhigh"']);
+    assert.ok(!cliArgs(job).includes('model_reasoning_effort="low"'));
+    assert.equal(job.effort, "xhigh");
+  });
+
   test("a review without a brief passes --base and no prompt argument", async () => {
     const w = world({ stdout: clean, final: "No findings." });
     gitRepo(w.cwd, { "a.txt": "two\n" });
