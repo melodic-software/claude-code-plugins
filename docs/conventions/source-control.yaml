@@ -2,10 +2,6 @@
 # Team layer for the source-control plugin's YAML settings.
 # Resolution: plugins/source-control/reference/config-resolution.md.
 #
-# No pr_body_required_sections key: /source-control:pull-request takes the body sections from
-# https://github.com/melodic-software/.github/blob/main/.github/PULL_REQUEST_TEMPLATE.md, whose four
-# sections the `check-contract` composite in .github/workflows/pr-require-checks.yml checks.
-#
 # subject_pattern is the commit-subject convention, enforced by the guardrails commit-msg hook and
 # block-convention-violation guard (docs/contracts/commit-convention/README.md). Its types are the
 # standards components/pr-convention-policy/policy.json `title.allowedTypes`, the scope is optional,

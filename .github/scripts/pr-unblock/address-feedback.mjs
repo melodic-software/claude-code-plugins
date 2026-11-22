@@ -1640,8 +1640,6 @@ export function refreshableSections(body, names = []) {
     .map(({ heading, text }) => ({ heading, text }));
 }
 
-// GitHub's order for a file several folders may hold:
-// https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file
 const TEMPLATE_DIRS = [".github", "", "docs"];
 const TEMPLATE_NAME = "pull_request_template.md";
 
