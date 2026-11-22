@@ -15,11 +15,12 @@ github_repo_of() {
 }
 
 usage() {
-  echo "usage: target-repo.sh [--dir <checkout>]" >&2
+  echo "usage: target-repo.sh [--dir <checkout>] [--write]" >&2
   exit 2
 }
 
 DIR=.
+WRITE=
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --dir)
@@ -27,12 +28,27 @@ while [[ $# -gt 0 ]]; do
     DIR="$2"
     shift 2
     ;;
+  --write)
+    WRITE=1
+    shift
+    ;;
   *) usage ;;
   esac
 done
 cd "$DIR" || exit 1
 
 found() {
+  if [[ -n "$WRITE" && "${GITHUB_ACTIONS:-}" != true ]]; then
+    local push
+    push=$(gh api "repos/$1" --jq '.permissions.push' | tr -d '\r') || {
+      echo "target-repo: could not read repository $1 from GitHub; see gh's error above." >&2
+      exit 1
+    }
+    if [[ "$push" == false ]]; then
+      echo "target-repo: you cannot push to $1, so a write there would land on a repository that is not yours. Run from a checkout of your own repository, or set GH_REPO to it." >&2
+      exit 1
+    fi
+  fi
   echo "target repository: $1" >&2
   echo "$1"
   exit 0

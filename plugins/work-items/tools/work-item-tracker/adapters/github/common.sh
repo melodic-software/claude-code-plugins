@@ -178,15 +178,16 @@ wit_run_gh_native() {
 }
 
 wit_resolve_repo() {
-  local explicit="${1:-}" out err rc errfile
-  if [[ -n "$explicit" ]]; then
+  local explicit="${1:-}" mode="${2:-}" out err rc errfile
+  if [[ -n "$explicit" && "$mode" != write ]]; then
     printf '%s\n' "$explicit"
     return 0
   fi
   errfile="$(mktemp)"
   # shellcheck source=target-repo.sh
   out="$(
-    set --
+    [[ -n "$explicit" ]] && export GH_REPO="$explicit"
+    if [[ "$mode" == write ]]; then set -- --write; else set --; fi
     . "$WIT_GH_ADAPTER_DIR/target-repo.sh" 2>"$errfile"
   )"
   rc=$?
@@ -194,7 +195,7 @@ wit_resolve_repo() {
   rm -f "$errfile"
   [[ -n "$err" ]] && printf '%s\n' "$err" >&2
   if ((rc != 0)); then
-    [[ "$err" == *"target-repo: the remotes name"* ]] && exit 3
+    [[ "$err" == *"target-repo: the remotes name"* || "$err" == *"target-repo: you cannot push to"* ]] && exit 3
     exit "$(wit_map_gh_error "$err")"
   fi
   wit_run_gh read api "repos/$(printf '%s' "$out" | wit_strip_cr)" --jq .full_name

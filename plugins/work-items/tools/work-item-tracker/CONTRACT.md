@@ -201,7 +201,10 @@ value (named by file, key and value; the personal override when it set the value
   recorded `upstream` as gh's default); then the remote `gh repo set-default` recorded; then the
   one GitHub repository the remotes name. Remotes naming two or more GitHub repositories, none a
   pushable fork of another, with no default recorded exit `3` with the
-  `gh repo set-default <owner>/<repo>` fix, instead of letting gh pick one by remote name. Each
+  `gh repo set-default <owner>/<repo>` fix, instead of letting gh pick one by remote name. Creating
+  an item, with or without `--repo`, also exits `3` when GitHub reports you cannot push to the
+  repository, so someone else's repository never receives your items (skipped inside GitHub
+  Actions, where a lane's token may file issues without push access). Each
   resolution prints `target repository: <owner>/<repo>` on stderr. `/work-items:setup check`
   reports the same cases before any write. Verbs that need a repo context accept an explicit
   `--repo <owner>/<repo>` override (conformance, cross-repo tooling). Pointer:

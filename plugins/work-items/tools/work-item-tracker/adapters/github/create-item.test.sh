@@ -4,7 +4,7 @@ set -uo pipefail
 # In a CI job the adapter wraps its gh calls and records into the job's
 # RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -71,6 +71,7 @@ issue)
   ;;
 api)
   case "$*" in
+  *"--jq .permissions.push") [[ "$2" == repos/up/r ]] && echo false || echo true ;;
   *"--method POST"*) printf '42\n' ;;
   *"/labels?"*) printf '%b' "${GH_STUB_LABELS-type: bug\ntype: feature\ntype: task\n}" ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
@@ -231,7 +232,18 @@ EOF
   GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --parent github:o/r#1 --repo o/r >/dev/null 2>&1
   assert_eq "create-item --parent on a refused gh 2.94 create → usage error" "2" "$?"
 
-  rm -rf "$STUB" "$PROJECT"
+  THEIRS="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$THEIRS" init -q
+  git -C "$THEIRS" remote add origin https://github.com/up/r
+  : >"$STUB/calls.log"
+  (cd "$THEIRS" && CLAUDE_PROJECT_DIR="$THEIRS" GH_STUB_DIR="$STUB" GH_STUB_VERSION=2.45.0 PATH="$STUB:$PATH" bash "$S" --title t >/dev/null 2>&1)
+  assert_eq "create-item in a clone you cannot push to → exit 3" "3" "$?"
+  assert_not_contains "create-item in a clone you cannot push to files nothing" "$(<"$STUB/calls.log")" "--method POST"
+  GH_STUB_VERSION=2.45.0 run_create --title t --repo up/r >/dev/null 2>&1
+  assert_eq "create-item --repo naming a repository you cannot push to → exit 3" "3" "$?"
+  assert_not_contains "create-item --repo naming a repository you cannot push to files nothing" "$(<"$STUB/calls.log")" "--method POST"
+
+  rm -rf "$STUB" "$PROJECT" "$THEIRS"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1
