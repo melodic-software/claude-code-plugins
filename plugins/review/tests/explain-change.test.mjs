@@ -298,7 +298,7 @@ describe("cascade layers resolve through the CLI", () => {
     result = run(facts);
     assert.equal(result.action, "offer");
     assert.match(result.policy.source, /^personal-override /);
-    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(result.warnings.filter((w) => !/ is retired but still read: /.test(w)), []);
   });
   test("the argument beats every layer", () => {
     const result = run(facts, ["--policy", "off"]);
@@ -330,7 +330,7 @@ describe("cascade layers resolve through the CLI", () => {
     git("add", ".claude/review-digest.json");
     commit();
     const result = run(facts);
-    assert.doesNotMatch(result.warnings.join("\n"), /\.claude\/review-digest\.json/);
+    assert.doesNotMatch(result.warnings.filter((w) => !/ is retired but still read: /.test(w)).join("\n"), /\.claude\/review-digest\.json/);
     assert.equal(result.config.max_files.value, 2);
     assert.match(result.config.max_files.source, /^team .*review-digest\.yaml$/);
   });
@@ -352,6 +352,166 @@ describe("cascade layers resolve through the CLI", () => {
   test("bad usage exits 2", () => {
     const out = spawnSync(process.execPath, [POLICY, "--policy", "sometimes"], { input: "{}", encoding: "utf8" });
     assert.equal(out.status, 2);
+  });
+});
+
+describe("the config-cascade layers and the retired files", () => {
+  const home = join(scratch, "home-cascade");
+  const repo = join(scratch, "repo-cascade");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  mkdirSync(join(repo, ".claude"), { recursive: true });
+  mkdirSync(join(repo, "docs/conventions"), { recursive: true });
+  const { git, commit } = gitRepo(repo);
+  writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
+  git("add", ".gitignore");
+  commit();
+  const run = runPolicy(home, repo);
+  const facts = { ...quiet, baseRefOid: "MAIN" };
+  const retiredUser = join(home, ".claude/review-digest.json");
+  const retiredPersonal = join(repo, ".claude/review-digest.local.json");
+  const personal = join(repo, "docs/conventions/review-digest.local.yaml");
+  const retiredLines = (result) => result.warnings.filter((w) => / is retired but still read: /.test(w));
+  const clean = () => {
+    for (const p of [retiredUser, retiredPersonal, personal]) rmSync(p, { force: true });
+  };
+
+  test("new layers only: the options and the personal YAML file apply with no warning", () => {
+    clean();
+    let result = run(facts, ["--setting", "digest_max_files=0", "--setting", 'digest_risk_paths=["src/**"]']);
+    assert.deepEqual(result.config.max_files, { value: 0, source: "userConfig" });
+    assert.deepEqual(result.config.risk_paths, { value: ["src/**"], source: "userConfig" });
+    assert.deepEqual(result.triggers, ["files", "risk-path"]);
+    assert.deepEqual(result.warnings, []);
+    writeFileSync(personal, "max_files: 4\n");
+    result = run(facts, ["--setting", "digest_max_files=0"]);
+    assert.equal(result.config.max_files.value, 4);
+    assert.match(result.config.max_files.source, /^personal-override .*docs\/conventions\/review-digest\.local\.yaml$/);
+    assert.deepEqual(result.warnings, []);
+  });
+  test("an empty or unsubstituted option is unset, and an invalid one is named and ignored", () => {
+    clean();
+    const result = run(facts, ["--setting", "digest_max_files=", "--setting", "digest_opt_in_label=${user_config.digest_opt_in_label}", "--setting", "digest_blast_radius=HIGH"]);
+    assert.equal(result.config.max_files.source, "default");
+    assert.equal(result.config.opt_in_label.source, "default");
+    assert.equal(result.config.blast_radius.source, "default");
+    assert.deepEqual(result.warnings, ["userConfig: invalid blast_radius; key ignored"]);
+  });
+  test("old files only: their values apply and each prints one warning naming the setup", () => {
+    clean();
+    writeFileSync(retiredUser, '{"max_files": 0}');
+    writeFileSync(retiredPersonal, '{"digest_policy": "off"}');
+    const result = run(facts);
+    assert.match(result.config.max_files.source, /^user-global /);
+    assert.match(result.policy.source, /^personal-override .*\.claude\/review-digest\.local\.json$/);
+    const lines = retiredLines(result);
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /review-digest\.json is retired but still read: run \/review:setup apply to move its settings to the review plugin's digest options$/);
+    assert.match(lines[1], /\.claude\/review-digest\.local\.json is retired but still read: run \/review:setup apply to move its settings to docs\/conventions\/review-digest\.local\.yaml$/);
+  });
+  test("both present: the new layer wins on each key it sets, the old file fills the rest, and the warning names both", () => {
+    clean();
+    writeFileSync(retiredUser, '{"max_files": 0, "opt_in_label": "mine"}');
+    writeFileSync(retiredPersonal, '{"digest_policy": "off", "max_changed_lines": 7}');
+    writeFileSync(personal, "digest_policy: always\n");
+    const result = run(facts, ["--setting", "digest_max_files=3"]);
+    assert.deepEqual(result.config.max_files, { value: 3, source: "userConfig" });
+    assert.match(result.config.opt_in_label.source, /^user-global /);
+    assert.equal(result.policy.value, "always");
+    assert.match(result.policy.source, /review-digest\.local\.yaml$/);
+    assert.equal(result.config.max_changed_lines.value, 7);
+    const lines = retiredLines(result);
+    assert.match(lines[0], /review-digest\.json is retired .*; the options already set \(digest_max_files\) win over it$/);
+    assert.match(lines[1], /review-digest\.local\.json is retired .*review-digest\.local\.yaml, which is present and wins over it on each key it sets$/);
+  });
+  test("a malformed old file still names the setup", () => {
+    clean();
+    writeFileSync(retiredUser, "{nope");
+    const result = run(facts);
+    assert.match(result.warnings.join("\n"), /user-global .*layer ignored/);
+    assert.equal(retiredLines(result).length, 1);
+    clean();
+  });
+  test("a --setting naming no digest option exits 2", () => {
+    const out = spawnSync(process.execPath, [POLICY, "--setting", "medium=file"], { input: "{}", encoding: "utf8" });
+    assert.equal(out.status, 2);
+  });
+});
+
+describe("setup moves the retired digest files", () => {
+  const MIGRATE = join(PLUGIN, "skills/setup/scripts/digest-migrate.mjs");
+  const home = join(scratch, "home-migrate");
+  const repo = join(scratch, "repo-migrate");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  mkdirSync(join(repo, ".claude"), { recursive: true });
+  const { git, commit } = gitRepo(repo);
+  writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
+  git("add", ".gitignore");
+  commit();
+  const retiredUser = join(home, ".claude/review-digest.json");
+  const retiredPersonal = join(repo, ".claude/review-digest.local.json");
+  const personal = join(repo, "docs/conventions/review-digest.local.yaml");
+  const migrate = (...args) =>
+    spawnSync(process.execPath, [MIGRATE, ...args], { encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: repo } });
+
+  test("check names each old file and where each setting goes", () => {
+    writeFileSync(retiredUser, '{"max_files": 3, "risk_paths": ["a/**"]}');
+    writeFileSync(retiredPersonal, '{"digest_policy": "off", "risk_paths": ["**/x/**"]}');
+    const out = migrate("check", "--setting", "digest_max_files=3");
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /review-digest\.json: max_files -> digest_max_files: already set/);
+    assert.match(out.stdout, /review-digest\.json: risk_paths -> digest_risk_paths: set the review plugin's digest_risk_paths option to \["a\/\*\*"\]/);
+    assert.match(out.stdout, /\.claude\/review-digest\.local\.json: moves digest_policy, risk_paths to docs\/conventions\/review-digest\.local\.yaml$/m);
+  });
+  test("personal previews, then on --yes writes the YAML file, checks it resolves the same, and deletes the old file", () => {
+    let out = migrate("personal");
+    assert.equal(out.status, 3);
+    assert.match(out.stdout, /would write docs\/conventions\/review-digest\.local\.yaml/);
+    assert.equal(existsSync(personal), false);
+    out = migrate("personal", "--yes");
+    assert.equal(out.status, 0, out.stdout);
+    assert.equal(existsSync(retiredPersonal), false);
+    assert.deepEqual({ ...parseYamlLayer(readFileSync(personal, "utf8"), "p", "p", []) }, { digest_policy: "off", risk_paths: ["**/x/**"] });
+  });
+  test("personal adds the keys the existing file lacks and keeps the ones it sets, which win", () => {
+    writeFileSync(retiredPersonal, '{"max_files": 1, "digest_policy": "always"}');
+    const out = migrate("personal", "--yes");
+    assert.equal(out.status, 0, out.stdout);
+    assert.match(out.stdout, /already sets digest_policy, which wins and is kept/);
+    assert.equal(existsSync(retiredPersonal), false);
+    assert.deepEqual({ ...parseYamlLayer(readFileSync(personal, "utf8"), "p", "p", []) }, { digest_policy: "off", risk_paths: ["**/x/**"], max_files: 1 });
+  });
+  test("user lists the options to set, then deletes the old file only on --yes once each is set", () => {
+    let out = migrate("user", "--setting", "digest_max_files=5");
+    assert.equal(out.status, 4);
+    assert.match(out.stdout, /risk_paths: set digest_risk_paths to \["a\/\*\*"\]/);
+    assert.doesNotMatch(out.stdout, /max_files/, "a set option already wins over the old value");
+    const both = ["--setting", "digest_max_files=5", "--setting", 'digest_risk_paths=["a/**"]'];
+    out = migrate("user", ...both);
+    assert.equal(out.status, 3);
+    assert.equal(existsSync(retiredUser), true);
+    out = migrate("user", ...both, "--yes");
+    assert.equal(out.status, 0, out.stdout);
+    assert.equal(existsSync(retiredUser), false);
+    assert.match(migrate("check").stdout, /^INFO review-digest: no retired file$/m);
+  });
+  test("an old file with an unknown key is refused, never moved with the key dropped", () => {
+    writeFileSync(retiredUser, '{"palette": "red"}');
+    const out = migrate("user", "--yes");
+    assert.equal(out.status, 1);
+    assert.match(out.stdout, /unknown or invalid keys palette/);
+    assert.equal(existsSync(retiredUser), true);
+    rmSync(retiredUser);
+  });
+  test("a tracked old personal file, which the digest never reads, is not moved", () => {
+    rmSync(personal);
+    writeFileSync(retiredPersonal, '{"digest_policy": "off"}');
+    git("add", "-f", ".claude/review-digest.local.json");
+    commit();
+    assert.match(migrate("check").stdout, /^INFO \.claude\/review-digest\.local\.json: not read \(.*tracked in git.*\), so not moved$/m);
+    const out = migrate("personal", "--yes");
+    assert.equal(out.status, 1);
+    assert.equal(existsSync(retiredPersonal), true);
+    assert.equal(existsSync(personal), false);
   });
 });
 

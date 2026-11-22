@@ -50,23 +50,30 @@ Layers resolve per the
 [config-cascade convention](../contracts/config-cascade/README.md), per-key override, a later layer replacing
 an earlier one key by key:
 
-1. user-global `~/.claude/review-digest.json`
+1. `userConfig`: the review plugin's options `digest_policy`, `digest_max_files`,
+   `digest_max_changed_lines`, `digest_blast_radius` and `digest_risk_paths` (each a JSON list),
+   and `digest_opt_in_label`. An empty option is unset, so an empty `opt_in_label` needs a file.
 2. team: `docs/conventions/review-digest.yaml`, the only team file. An invalid value in it falls to
    the layer below.
-3. personal override `.claude/review-digest.local.json`
+3. personal override `docs/conventions/review-digest.local.yaml`, the same keys as the team file.
 
-   A plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../contracts/config-cascade/locations.md) says.
+The old files `~/.claude/review-digest.json` and `.claude/review-digest.local.json` are still read
+while they exist, each just below the layer that replaces it, so the new layer wins on each key it
+sets. Every run warns once per old file and names `/review:setup apply`, which moves the old file's
+settings to its new home, checks they resolve the same, and deletes it. A later release stops
+reading the old paths.
 
-The result names the layer that supplied each value (`team <commit>:<path>`, `user-global <path>`,
-`personal-override <path>`, or `default`). Quote glob values in the YAML file (`"**/hooks/**"`),
-since a plain `*` opens an alias.
+The result names the layer that supplied each value (`team <commit>:<path>`, `userConfig`,
+`personal-override <path>`, `user-global <path>` for the old per-user file, or `default`). Quote
+glob values in the YAML files (`"**/hooks/**"`), since a plain `*` opens an alias.
 
 The team layer, and the rendered-views team file, are read from the pull request's base commit
 (`baseRefOid`), never the working tree, so a checked-out pull request cannot configure its own
 digest. When that commit is not in the clone, the team layer is skipped with a warning. The
-personal override applies only when untracked, in any letter case, and is refused when `.claude` or the
-personal override is a symlink, or when `.claude` is itself a tracked entry (a submodule or a tracked file) or
-holds a `.git`; one that is not gitignored is reported and still applied.
+personal override applies only when untracked, in any letter case, and is refused when the file or
+a directory on its path is a symlink, or when such a directory is itself a tracked entry (a
+submodule or a tracked file) or holds a `.git`; one that is not gitignored is reported and still
+applied.
 
 An explicit `--policy` argument beats every layer. An unknown key is inert, and an invalid value
 is reported and ignored. Lists replace whole. No key is policy-floor: each one only decides when a

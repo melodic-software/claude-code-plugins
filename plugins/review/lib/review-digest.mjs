@@ -21,6 +21,7 @@ export const DEFAULTS = Object.freeze({
 /** The config files themselves: a change to one always fires risk-path, whatever risk_paths says. */
 export const CONFIG_PATHS = Object.freeze([
   "docs/conventions/review-digest.yaml",
+  "docs/conventions/review-digest.local.yaml",
   ".claude/review-digest.local.json",
   "docs/conventions/rendered-views.yaml",
   "docs/conventions/rendered-views.local.yaml",
@@ -28,6 +29,18 @@ export const CONFIG_PATHS = Object.freeze([
 ]);
 /** The team file, validated by plugins/review/schemas/review-digest.schema.json. */
 const TEAM_YAML = "docs/conventions/review-digest.yaml";
+export const PERSONAL_YAML = "docs/conventions/review-digest.local.yaml";
+export const RETIRED_USER = "review-digest.json";
+export const RETIRED_PERSONAL = ".claude/review-digest.local.json";
+export const SETUP_COMMAND = "/review:setup apply";
+export const OPTION_NAMES = Object.freeze({
+  digest_policy: "digest_policy",
+  max_files: "digest_max_files",
+  max_changed_lines: "digest_max_changed_lines",
+  blast_radius: "digest_blast_radius",
+  risk_paths: "digest_risk_paths",
+  opt_in_label: "digest_opt_in_label",
+});
 const YAML_PARSER = fileURLToPath(new URL("./yaml-subset.awk", import.meta.url));
 export const POLICIES = ["off", "offer", "always"];
 export const LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
@@ -46,6 +59,7 @@ const VALID = {
   risk_paths: isGlobs,
   opt_in_label: (v) => typeof v === "string",
 };
+export const isValidSetting = (key, value) => Object.hasOwn(VALID, key) && VALID[key](value);
 
 // ------------------------------------------------------------ layers
 
@@ -95,19 +109,44 @@ export function projectRootOf(root) {
   return root && !within(real(homedir()), real(root)) && git(root, ["rev-parse", "--is-inside-work-tree"]) ? root : null;
 }
 
-function layerPaths(root, userFile, teamFiles, personalOverrideFile) {
-  const home = real(homedir());
-  const user = join(home, ".claude", userFile);
+function layerPaths(root) {
+  const retiredUser = join(real(homedir()), ".claude", RETIRED_USER);
   if (!projectRootOf(root)) {
-    return { user, root: null, team: [], personalOverride: null };
+    return { retiredUser, root: null, retiredPersonal: null, personal: null };
   }
-  const notUser = (p) => real(p) !== real(user);
-  return {
-    user,
-    root,
-    team: teamFiles.filter((f) => notUser(join(root, f))),
-    personalOverride: notUser(join(root, personalOverrideFile)) ? join(root, personalOverrideFile) : null,
-  };
+  const notUser = (p) => (real(p) !== real(retiredUser) ? p : null);
+  return { retiredUser, root, retiredPersonal: notUser(join(root, RETIRED_PERSONAL)), personal: join(root, PERSONAL_YAML) };
+}
+
+/**
+ * The digest options as the skill passed them, keyed by convention key: an empty value or an
+ * unrendered `${user_config.` placeholder is unset. A count reads as a whole number and a list as
+ * JSON; anything else stays a string for the key check to name.
+ */
+export function userConfigLayer(options) {
+  const value = Object.create(null);
+  for (const [key, name] of Object.entries(OPTION_NAMES)) {
+    const raw = options[name];
+    if (typeof raw !== "string" || raw === "" || raw.startsWith("${user_config.")) continue;
+    if (COUNT_KEYS.includes(key)) value[key] = /^(0|[1-9]\d*)$/.test(raw) ? Number(raw) : raw;
+    else if (key === "blast_radius" || key === "risk_paths") {
+      try {
+        value[key] = JSON.parse(raw);
+      } catch {
+        value[key] = raw;
+      }
+    } else value[key] = raw;
+  }
+  return value;
+}
+
+/** One `--setting <option>=<value>` argument into `options`; false when it names no digest option. */
+export function addSetting(options, arg) {
+  const eq = typeof arg === "string" ? arg.indexOf("=") : -1;
+  const name = eq > 0 ? arg.slice(0, eq) : "";
+  if (!Object.values(OPTION_NAMES).includes(name)) return false;
+  options[name] = arg.slice(eq + 1);
+  return true;
 }
 
 function readJsonLayer(path, label, warnings) {
@@ -170,39 +209,50 @@ function readTeamDigest(base, yamlPath, warnings) {
 }
 
 /** The review-digest surface, per-key over the shipped defaults. */
-export function resolveDigestConfig(baseOid) {
+export function resolveDigestConfig(baseOid, options = {}) {
   const warnings = [];
   const config = {};
   for (const [key, value] of Object.entries(DEFAULTS)) config[key] = { value, source: "default" };
-  const paths = layerPaths(findRoot(), "review-digest.json", [TEAM_YAML], ".claude/review-digest.local.json");
+  const paths = layerPaths(findRoot());
   const layers = [];
-  if (existsSync(paths.user)) {
-    const value = readJsonLayer(paths.user, "user-global", warnings);
-    if (value) layers.push({ label: "user-global", path: paths.user, value });
+  const retired = [];
+  const user = userConfigLayer(options);
+  if (existsSync(paths.retiredUser)) {
+    const value = readJsonLayer(paths.retiredUser, "user-global", warnings);
+    if (value) layers.push({ label: "user-global", path: paths.retiredUser, value });
+    const set = Object.keys(user).map((key) => OPTION_NAMES[key]);
+    retired.push(`user-global ${paths.retiredUser} is retired but still read: run ${SETUP_COMMAND} to move its settings to the review plugin's digest options${set.length ? `; the options already set (${set.join(", ")}) win over it` : ""}`);
   }
+  if (Object.keys(user).length) layers.push({ label: "userConfig", path: "", value: user });
   if (paths.root) {
-    if (paths.team.length) {
-      const base = baseReader(paths.root, baseOid, warnings);
-      const team = readTeamDigest(base, TEAM_YAML, warnings);
-      if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
+    const base = baseReader(paths.root, baseOid, warnings);
+    const team = readTeamDigest(base, TEAM_YAML, warnings);
+    if (team) layers.push({ label: "team", path: `${base.ref}:${team.path}`, value: team.value });
+    const personal = existsSync(paths.personal) && personalOverrideApplies(paths.root, paths.personal, warnings);
+    if (paths.retiredPersonal && existsSync(paths.retiredPersonal) && personalOverrideApplies(paths.root, paths.retiredPersonal, warnings)) {
+      const value = readJsonLayer(paths.retiredPersonal, "personal-override", warnings);
+      if (value) layers.push({ label: "personal-override", path: paths.retiredPersonal, value });
+      retired.push(`personal-override ${paths.retiredPersonal} is retired but still read: run ${SETUP_COMMAND} to move its settings to ${PERSONAL_YAML}${personal ? ", which is present and wins over it on each key it sets" : ""}`);
     }
-    if (paths.personalOverride && existsSync(paths.personalOverride) && personalOverrideApplies(paths.root, paths.personalOverride, warnings)) {
-      const value = readJsonLayer(paths.personalOverride, "personal-override", warnings);
-      if (value) layers.push({ label: "personal-override", path: paths.personalOverride, value });
+    if (personal) {
+      const value = parseYamlLayer(readFileSync(paths.personal, "utf8"), "personal-override", paths.personal, warnings);
+      if (value) layers.push({ label: "personal-override", path: paths.personal, value });
     }
   }
   for (const layer of layers) {
+    const where = layer.path ? `${layer.label} ${layer.path}` : layer.label;
     for (const [key, value] of Object.entries(layer.value)) {
       if (key === "$schema") continue;
       if (!Object.hasOwn(VALID, key)) {
-        warnings.push(`${layer.label} ${layer.path}: unknown key ${key} is inert`);
+        warnings.push(`${where}: unknown key ${key} is inert`);
       } else if (!VALID[key](value)) {
-        warnings.push(`${layer.label} ${layer.path}: invalid ${key}; key ignored`);
+        warnings.push(`${where}: invalid ${key}; key ignored`);
       } else {
-        config[key] = { value, source: `${layer.label} ${layer.path}` };
+        config[key] = { value, source: where };
       }
     }
   }
+  warnings.push(...retired);
   return { config, warnings };
 }
 

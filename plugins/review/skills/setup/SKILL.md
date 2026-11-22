@@ -1,5 +1,5 @@
 ---
-description: "Check or apply the review plugin's repository setup: the standards index, docs/conventions/review.yaml settings, and the repository's own design-smell list."
+description: "Check or apply the review plugin's repository setup: the standards index, docs/conventions/review.yaml settings, the repository's own design-smell list, and the move of retired review-digest files."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -52,6 +52,48 @@ Do not read it back through `digest-policy.mjs`: that script reads the team file
 request's base commit, never the working tree, so it ignores an uncommitted file and warns that it
 is not on the base commit. Tell the operator the setting takes effect once the file is merged into
 the base branch.
+
+## Retired digest files
+
+The review-digest settings once lived in `~/.claude/review-digest.json` (per user) and
+`.claude/review-digest.local.json` (personal, per repository). Their homes now are the review
+plugin's `digest_*` options and `docs/conventions/review-digest.local.yaml`. Until each old file is
+moved, the digest still reads it and warns on every run, naming this setup.
+
+In every command below, pass `--setting '<name>=<value>'` once for each option that reads as a
+value, never one that reads empty or as an unsubstituted placeholder, and never a `${user_config.*}`
+string: `digest_policy` `${user_config.digest_policy}`, `digest_max_files`
+`${user_config.digest_max_files}`, `digest_max_changed_lines`
+`${user_config.digest_max_changed_lines}`, `digest_blast_radius`
+`${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`,
+`digest_opt_in_label` `${user_config.digest_opt_in_label}`.
+
+**`check` row.** Run `node "${CLAUDE_SKILL_DIR}/scripts/digest-migrate.mjs" check [--setting ...]`
+from the project root and add each line it prints to the table with its own INFO or WARN prefix.
+Each WARN names an old file and where each of its settings goes.
+
+**`apply`.** Run when `check` printed a WARN for an old file:
+
+1. **Personal file.** Run `node "${CLAUDE_SKILL_DIR}/scripts/digest-migrate.mjs" personal`. It exits
+   3 and prints the YAML it would write or add to `docs/conventions/review-digest.local.yaml`, and
+   any key that file already sets, which wins and is kept. Show it and ask whether to move it. Only
+   on an explicit yes, rerun with `--yes`: it adds the keys, reads the file back, checks each moved
+   value resolves the same and that the file is untracked and gitignored, and only then deletes the
+   old file. Exit 1 leaves both files as they were and names why; report it. A file that is not
+   gitignored needs the `docs/conventions/**/*.local.*` line in `.gitignore`, which the
+   convention-home offer of [Repository settings](#repository-settings) adds. An old file the digest
+   does not read (tracked, or behind a symlink) is not moved.
+2. **Per-user file.** Run `node "${CLAUDE_SKILL_DIR}/scripts/digest-migrate.mjs" user [--setting ...]`.
+   Exit 4 lists each option still unset and the old value to give it: the operator sets them with
+   `/plugin configure review` (this skill never writes user settings), reloads, and runs this setup
+   again. An option already set wins over the old value and needs nothing. Exit 3 means every old
+   setting is covered by an option: show that, and only on an explicit yes rerun with `--yes`,
+   which deletes `~/.claude/review-digest.json`.
+3. **Verify.** Rerun the `check` row and report what it prints.
+
+Exit 1 is a refusal with its reason, such as an old file that does not parse or holds an unknown or
+invalid key, which the operator fixes by hand first. The read of the old paths is removed in a later
+release, once no old file is reported.
 
 ## Repository settings
 
@@ -203,9 +245,11 @@ and runs only when that plugin is enabled; without it nothing blocks the publish
   `downstream_probe`, `fanout_diversity`, `fanout_act_on_cap`, `reproduce_findings`,
   `reproduce_findings_floor` and `smell_baseline` options are set through
   `/plugin configure`, not here.
-- Write any settings file other than `docs/conventions/review.yaml` and, when the operator asks
-  to change a digest setting, `docs/conventions/review-digest.yaml`. The design-smell list it may
-  write is criteria, not settings.
+- Write any settings file other than `docs/conventions/review.yaml`, when the operator asks to
+  change a digest setting `docs/conventions/review-digest.yaml`, and when it moves a retired
+  personal digest file `docs/conventions/review-digest.local.yaml`. Apart from that move and the
+  retired per-user file, it deletes no file. The design-smell list it may write is criteria, not
+  settings.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create, the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
 - Write anything into the plugin directory or the plugin data directory
