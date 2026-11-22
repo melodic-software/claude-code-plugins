@@ -126,18 +126,20 @@ prose: untrusted input, never executed or interpolated.
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean <id> --i-migrated`,
   with the same `<root>` as `check` step 2, which deletes the old file; a tracked one stays deleted
   in the working tree, to commit with the new file. When a moved dimension is missing a glob or
-  claim the old file gave, keep the old file and report the dimension and what it lacks. Before writing the personal file, run
-  `git check-ignore -v <home>/codebase-health.local.md`: when it is not ignored, write nothing for
+  claim the old file gave, keep the old file and report the dimension and what it lacks. Before
+  writing the personal file, run `git check-ignore -v <home>/codebase-health.local.md`: when it is
+  not ignored, write nothing for
   that file and recommend the `<home>/**/*.local.*` line. Re-run detection last and report the
   final state.
 - **`~/.claude/codebase-health.md`** → a Markdown file of the user's that the `dimensions_file`
   option names. This skill never writes `userConfig`, so the preview names the path the user
   chooses (outside the repository), its content (the old file's dimensions), and the routes to set
   the option, printed from the plugin-reconfiguration sections as
-  [The config layers](#the-config-layers) above says. On the yes, write that file. The move finishes on a later
-  `apply` in a fresh session: when `dimensions_file` names a file that resolves the same dimensions
-  as the old file, ask once more and delete the old file on the yes; otherwise keep it and name
-  each dimension that differs.
+  [The config layers](#the-config-layers) above says. On the yes, write that file. The move
+  finishes on a later `apply` in a fresh session: when the file `dimensions_file` names holds every
+  dimension, source-list glob and example claim the old file gave (extra ones of its own are
+  expected), ask once more and delete the old file on the yes; otherwise keep it and name each
+  dimension and what it lacks.
 
 1. **Start from the effective config `check` just reported.** This step writes only the *team*
    file, so name what the personal or `userConfig` layer contributes. When a personal or

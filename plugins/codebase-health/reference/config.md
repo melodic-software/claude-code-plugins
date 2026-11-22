@@ -7,7 +7,7 @@ merge. The surface resolves through the layers of the marketplace's
 the team file. Every layer is optional: with none, the audit infers its targets from the repository
 each run.
 
-The `verification` keys in `<home>/codebase-health.yaml` are a separate surface, listed in the
+The `verification` keys in `<home>/codebase-health.yaml` are separate settings, listed in the
 plugin README's Configuration section.
 
 ## Layers and resolution order
@@ -50,8 +50,8 @@ no skill writes `pluginConfigs` or user settings.
 ## Old locations (dual-read window)
 
 Before this surface adopted these layers it read three other files. While one of them exists, it
-is still read, and a run that finds one prints **one** warning line naming each old file found,
-the location to move it to, and `/codebase-health:setup apply`, which moves it:
+is still read, and a run that finds one prints **one** warning line, status token `WARN`, naming
+each old file found, the location to move it to, and `/codebase-health:setup apply`, which moves it:
 
 | Old path | Read as | Moves to |
 |---|---|---|
