@@ -102,7 +102,9 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
   - `none`: no required sections. The draft emits no section scaffold and the pre-create gate
     requires nothing.
 
-  Absent everywhere → `briefing`. A keyword is matched exactly, in lower case. See
+  Absent everywhere → the `##` headings of the repository's pull request template, else of the
+  owner's default template in its `.github` repository, else `briefing`; the `create` reference
+  (§2.4.1) owns where each template is read. A keyword is matched exactly, in lower case. See
   [`docs/contracts/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pr-body-convention/README.md)
   for the default's rationale and the convention's full contract. Like `type_list`, and unlike the
   scalar `subject_pattern`, this key is a **closed list**: a winning layer's list is taken whole,
@@ -110,7 +112,7 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
   value, per "Merge semantics" below). `none` is a **resolved value, not an absence**, exactly like
   `trailer_policy` and `pr_body_attribution`: a layer declaring `none` replaces a lower layer's list
   (a team file requiring `Summary`/`Test plan` is overridden to zero sections by a personal override's
-  `none`), while a key absent from every layer still falls through to `briefing`. `briefing` and
+  `none`), while a key absent from every layer still falls through to the templates and then `briefing`. `briefing` and
   `summary-test-plan` are resolved values too: a layer declaring one replaces a lower layer's list
   or keyword whole.
 - `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
