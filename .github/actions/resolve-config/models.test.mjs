@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // The `models` block: schema, cross-checks, resolution, the arguments and
 // settings a profile becomes, and what the live config gives every model run.
 // The live expectations are written by hand: --model opus and 75 turns for a
