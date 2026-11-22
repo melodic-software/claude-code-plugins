@@ -3,6 +3,7 @@
 // come from the contract (pr-run-activity.md, "Skill activities" and
 // "prepare: merge-base"): a writing skill gets the signed-commit tool and the
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
+// test-scope: .github/actions/resolve-config/package.json .github/scripts/apply-patch/* plugins/skill-quality/*
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
