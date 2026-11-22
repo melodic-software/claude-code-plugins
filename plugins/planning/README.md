@@ -1,6 +1,6 @@
 # planning
 
-A Claude Code plugin for the **pre-implementation planning pipeline**: everything
+A Claude Code plugin for the **pre-implementation planning pipeline**, covering everything
 between a rough idea and approved, executable work. Ten pipeline skills covering
 charting a too-big, foggy effort as a map of decision items, divergence, product intent, the
 engineering contract (including hand-off of a decision another person holds), contract
@@ -22,7 +22,7 @@ where artifacts land in the consuming repo.
 | `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a fresh-context `plan-reviewer` stress-test, run by default on MEDIUM-or-higher plans and on request and set per mode by `plan_stress_test`, and a user approval gate, persisted to PLAN.md. |
 | `/planning:setup` | Configuration | `check` inspects the standards index read-only; `apply` interviews the consumer and bootstraps the standards index (idempotent; re-run to reconfigure). |
 
-The pipeline composes end-to-end. `wayfind` charts the fog upstream when an effort
+The pipeline composes end-to-end. `wayfind` charts the undecided questions upstream when an effort
 is too big to hold at once, then `brainstorm → interview → design →
 design-handoff → plan`, the interview calling `prd` when product intent is unsettled, with `devils-advocate` attacking the plan before
 approval, while `/domain-driven-design:ubiquitous-language curate` is invoked whenever

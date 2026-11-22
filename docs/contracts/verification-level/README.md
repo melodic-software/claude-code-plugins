@@ -91,7 +91,7 @@ every run.
 | `/verification:confirm` | the fresh-context verifier for the Stage 2 verdict ("Independence of the verdict") |
 | `/implementation:implement-dispatch` | the phase verifier and the post-phase source commit verifier (Gates, Phase boundaries) |
 | `/discovery:research`, `/discovery:explore`, `/discovery:trace-intent` | the sibling verifier (parent contract, "The sibling verifier, stated once"); `strict` widens research's grading to every row and claim |
-| every `/discipline` corrector on the shared method but `/discipline:scrutinize-dont-coast`, and `/discipline:sweep-all` | the fresh-context confirmation of a clean audit on load-bearing work (shared method, step 2), the fresh-context re-derivation (step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
+| every `/discipline` corrector on the shared method but `/discipline:scrutinize-dont-coast`, and `/discipline:sweep-all` | the fresh-context confirmation of a clean audit on critical work (shared method, step 2), the fresh-context re-derivation (step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
 | `/education:quiz-me` | the fresh-context answer-key pass |
 | `/planning:plan` | the plan-reviewer dispatch in Step 3; `strict` dispatches it for every plan, which `plan_stress_test`'s `auto` otherwise skips on LOW plans |
 | `/session-flow:orchestrate`, `/session-flow:workflow`, `/session-flow:retro` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, without which Stage 10 is not done; retro's single-pass analysis and scoring under `retro_lenses: 1` |
@@ -119,7 +119,7 @@ every run.
 | `/architecture:improve` | the deepening lens's Phase 1.5 reproduction, the product: `light` presents those claims `unverified`; the conventions lens is not governed |
 | `/multi-agent:audit-defaults` | the `drift-audit` workflow's skeptic panel, the product: `light` reports every finding `unverified` and proposes no diff |
 | `/playbooks:fable-5` | the fresh-context verifier gate (orchestration chapter, "Fresh-context verification"); the self-review floor runs at every level, and `strict` drops the mechanical-batch exemption |
-| `/plugin-quality:audit` | the adversarial re-examination seam, the product: `light` labels the findings `unverified`; `standard` keeps its `high`-effort gate and `strict` runs it at every effort |
+| `/plugin-quality:audit` | the adversarial re-examination step, the product: `light` labels the findings `unverified`; `standard` keeps its `high`-effort gate and `strict` runs it at every effort |
 | `/songwriting:co-write`, `/songwriting:diagnose` | the hard gate's skeptic refutation row; `standard` keeps it skippable by the writer's named reason, and `strict` runs it on every batch; the rubric's counted passes run at every level |
 | `/work-items:work` | the bug path's step 2 capture check, a fresh-context subagent per reproduction capture; `light` leaves the runs unconfirmed |
 | `/codebase-health:audit` | the Phase 2 separate false-positive validator; `strict` dispatches it after an inline Phase 1 too, and `light` reports the findings `unverified` |
