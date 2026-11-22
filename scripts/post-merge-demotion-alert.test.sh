@@ -650,6 +650,16 @@ else
   fail "open record patched: log='$LOG'"
 fi
 
+ISSUE_COMMENTS[7]="[$(comment 'github-actions[bot]' "Main is green at \`$OTHER\`, a later commit: https://github.com/o/r/actions/runs/4100")]"
+files "a later red main at a new commit files a fresh record beside the one close-cleared closed at an earlier commit" schedule "$FULL" schedule \
+  "[$(issue 7 "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->" '' closed completed)]"
+if grep -qE '^PATCH repos/o/r/issues/7$|^POST repos/o/r/issues/7/comments$' <<<"$LOG"; then
+  fail "the closed record was reopened or commented on: log='$LOG'"
+else
+  ok "the record close-cleared closed stays closed and uncommented"
+fi
+unset 'ISSUE_COMMENTS[7]'
+
 ATTEMPT=3 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
   [[ "$(post_fields)" == "body=re-run passed: $RUN_URL/attempts/3" ]] && ! grep -q '^PATCH' <<<"$LOG"; then
@@ -2527,10 +2537,11 @@ else
 fi
 inputs="$(awk '/^  workflow_dispatch:$/ { on = 1; next } on && /^[a-z]/ { exit } on' "$WORKFLOW")"
 if [[ "$inputs" == *$'\n      run-id:\n'* && "$inputs" == *$'\n      head-sha:\n'* &&
-  "$(grep -c '^      [a-z-]*:$' <<<"$inputs")" -eq 2 ]]; then
-  ok "workflow_dispatch takes two inputs, run-id and head-sha"
+  "$inputs" == *$'\n      close-cleared:\n'*$'\n        type: string\n        default: \'\''* &&
+  "$(grep -c '^      [a-z-]*:$' <<<"$inputs")" -eq 3 ]]; then
+  ok "workflow_dispatch takes run-id and head-sha, or close-cleared (empty by default)"
 else
-  fail "workflow_dispatch inputs are not exactly run-id and head-sha: '$inputs'"
+  fail "workflow_dispatch inputs are not exactly run-id, head-sha and close-cleared: '$inputs'"
 fi
 
 mkdir -p "$TMP_ROOT/bin-read"
@@ -2784,8 +2795,8 @@ CLEAR_AT=2026-10-17T16:26:00Z
 # The step reads now from date: pin it, so the windows it walks stay the same.
 mkdir -p "$TMP_ROOT/closebin"
 printf '#!/usr/bin/env bash\nif [[ "$*" == "-u +%%s" ]]; then echo 1793577600; else exec %q "$@"; fi\n' \
-  "$(command -v date)" >"$TMP_ROOT/closebin/date"
-chmod +x "$TMP_ROOT/closebin/date"
+  "$(command -v date)" >"$TMP_ROOT/closebin/date" # portability-ok: writes a stub file named date, runs no date -d
+chmod +x "$TMP_ROOT/closebin/date" # portability-ok: a path ending in date, runs no date -d
 # run_close <issues-json> [lastEditedAt]; GREEN is the green-run listing
 # (default one dispatch at CLEAR_AT), ANCESTRY the record SHA's compare status,
 # ON_MAIN the run head's compare against main's tip, POLICY_FILE the

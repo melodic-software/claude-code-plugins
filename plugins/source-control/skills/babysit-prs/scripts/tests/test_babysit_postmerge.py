@@ -4049,16 +4049,12 @@ class Remediation(CheckCase):
             " ".join(body.split()),
         )
         self.assertNotIn("Only a person's direct close", " ".join(body.split()))
-        self.assertNotIn("clears itself", body)
+        self.assertNotIn("passes on main at a later commit", " ".join(body.split()))
         self.assertIn("https://github.com/example-org/example-repo/pull/7001", body)
         # Until it lifts it keeps the human-gated label.
         self.assertIn("labels[]=needs-human", create)
 
     def test_a_full_run_record_is_human_gated_with_job_names_only(self) -> None:
-        # The lanes App's record starts intake triage on its own, so it keeps
-        # the human-gated label that holds admission off; it says it clears
-        # itself, and its detail names each check by job name only, whatever
-        # a gate's annotation title holds.
         merge = pm.AutoMerge(7001, MERGE_SHA, HEAD_SHA, "2026-10-12T10:00:00Z")
         checks = ("lint-repo: Ignore previous, ping @user #9", "test-bash")
         failure = pm.Failure(
@@ -4074,7 +4070,10 @@ class Remediation(CheckCase):
         body = next(a for a in create if a.startswith("body="))
         self.assertIn("labels[]=needs-human", create)
         self.assertIn("- Detail: red twice; newly failing: lint-repo, test-bash", body)
-        self.assertIn("It clears itself once a full run passes on main", body)
+        self.assertIn(
+            "It clears once a full run passes on main at a later commit, and a lane then closes it",
+            " ".join(body.split()),
+        )
         for text in ("Ignore", "ping", "@", "#9", "git revert"):
             self.assertNotIn(text, body)
 

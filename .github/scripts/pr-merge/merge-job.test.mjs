@@ -75,6 +75,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Send a red full run to the demotion alert",
       "Scan the upload for credentials",
       "Record the alert sent",
+      "Send a proven recovery to close-cleared",
       "Log the API budget at the end",
     ],
   );
@@ -1987,9 +1988,9 @@ test("a rate-limited first read stops the step red before the re-run, naming the
   assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
 });
 
-test("dispatch-post-merge-runs's rate-limited output also carries the cover, re-run and alert steps' stops", () => {
+test("dispatch-post-merge-runs's rate-limited output also carries the cover, re-run, close and alert steps' stops", () => {
   const header = `${jobBlock("dispatch-post-merge-runs").split("\n    steps:\n")[0]}\n`;
-  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.cover\.outputs\.stop \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
+  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.cover\.outputs\.stop \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.close\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
 test("the re-run step refuses a run id that is not a number", () => {
@@ -2318,12 +2319,92 @@ test("the alert send runs after the re-run while the lane is live, and stops aft
     /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
   );
   const names = list.map((s) => s.name);
-  assert.deepEqual(names.slice(-4), [
+  assert.deepEqual(names.slice(-5), [
     "Send a red full run to the demotion alert",
     SCAN,
     "Record the alert sent",
+    "Send a proven recovery to close-cleared",
     "Log the API budget at the end",
   ]);
+});
+
+const runCloseSend = (answer) => {
+  const dir = tempDir("pr-merge-close-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "gh"),
+      `#!/usr/bin/env bash
+inc=; args=()
+for a in "$@"; do if [ "$a" = -i ]; then inc=1; else args+=("$a"); fi; done
+echo "\${args[*]}" >>"${dir}/calls"
+case "${answer}" in
+  ok) [ -z "$inc" ] || printf 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;
+  limited) [ -z "$inc" ] || printf '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1 ;;
+  *) [ -z "$inc" ] || printf 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "gh: Server Error (HTTP 502)" >&2; exit 1 ;;
+esac
+`,
+    );
+    chmodSync(join(bin, "gh"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Send a proven recovery to close-cleared", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "output"), REPO: "o/r" },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    return { status: result.status, out: result.stdout + result.stderr, output: read("output"), calls: read("calls").split("\n").filter(Boolean) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("a recovery the check proves on an open record sends close-cleared, and a closed one sends nothing", () => {
+  const list = earlySteps();
+  const check = step("Check earlier lane merges", list);
+  const filter = /jq -e '([^']+)' \\\n\s+"\$RUNNER_TEMP\/demotion-recoveries\.json"/.exec(check);
+  assert.ok(filter, "the check step reads the recoveries file");
+  const ran = /\n {10}if \[ -z "\$code" \]; then\n([\s\S]*?)\n {10}fi\n/.exec(check);
+  assert.ok(
+    ran && ran[1].includes('echo "close-cleared=true" >>"$GITHUB_OUTPUT"'),
+    "only a check that ran this tick sets close-cleared: a reused report proves nothing new",
+  );
+  const sha = "a".repeat(40);
+  const proves = (keys) => {
+    const dir = tempDir("pr-merge-recoveries-");
+    try {
+      const file = join(dir, "r.json");
+      writeFileSync(file, JSON.stringify({ version: 1, repo: "o/r", recoveries: Object.fromEntries(keys.map((k) => [k, "2026-10-12T11:00:00Z"])) }));
+      return spawnSync("jq", ["-e", filter[1], file]).status === 0;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  assert.equal(proves([`9|2026-10-12T10:00:00Z|OPEN||${sha}`]), true, "an open record");
+  assert.equal(proves([`9|2026-10-12T10:00:00Z|CLOSED|2026-10-12T12:00:00Z|${sha}`]), false, "a record already closed");
+  assert.equal(proves([]), false, "no recovery");
+
+  const send = step("Send a proven recovery to close-cleared", list);
+  assert.match(
+    send,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.close-cleared == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n {10}&& steps\.alert\.outputs\.rate-limited != 'true'\n/,
+  );
+  assert.match(jobBlock("dispatch-post-merge-runs"), /\n {6}issues: read #/, "the job's token keeps issues: read; the close is close-cleared's");
+
+  const sent = runCloseSend("ok");
+  assert.equal(sent.status, 0, sent.out);
+  assert.deepEqual(sent.calls, [
+    "api -X POST repos/o/r/actions/workflows/post-merge-file-demotion-issues.yml/dispatches -f ref=main -f inputs[close-cleared]=true",
+  ]);
+  const failed = runCloseSend("x");
+  assert.equal(failed.status, 0, failed.out);
+  assert.match(failed.out, /::warning::could not send the proven recoveries to close-cleared/);
+  assert.doesNotMatch(failed.output, /rate-limited/);
+  const limited = runCloseSend("limited");
+  assert.equal(limited.status, 1, limited.out);
+  assert.match(limited.output, /^rate-limited=true$/m);
+  assert.match(limited.output, /^stop=/m);
 });
 
 // The scheduled job's cover read, run with .base at this checkout (the rate
@@ -2401,6 +2482,7 @@ const spending = [
   "Record the re-run",
   "Send a red full run to the demotion alert",
   "Record the alert sent",
+  "Send a proven recovery to close-cleared",
 ];
 test("the kill switch and report-only stop the scheduled job's cover read, dispatch and alert send", () => {
   const list = earlySteps();

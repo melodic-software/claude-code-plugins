@@ -316,7 +316,8 @@ trust control (below). The post-merge demotion alert
 follows the record rules [#11022](https://github.com/melodic-software/claude-code-plugins/issues/11022)
 set and the pr-pipeline "Demotion issue" rule
 ([the local babysit lane](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) states: a
-red-main record carries no label and clears once main is green at a later commit; a canary,
+red-main record carries no label, clears once main is green at a later commit, and is then closed
+by the alert's `close-cleared` job; a canary,
 revert or read-back record, which a green main does not clear, keeps `needs-human` only until it
 lifts on its own lane-verifiable condition, when the alert's `close-cleared` job closes it and
 removes the label; a fix or quarantine issue intake triage did not receive gets a marker comment
