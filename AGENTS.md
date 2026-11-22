@@ -197,6 +197,7 @@ already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
+| `.claude/rules/consumer-agnostic-plugins.md` | `plugins/**` | Shipped plugin behavior stays consumer-agnostic: a value or preference of one user, machine, organization, repository or folder lives in that consumer's own config layers, and one consumer's setting never removes an option other consumers can turn on; read before changing what a plugin ships |
 | `.claude/rules/cost-claims.md` | `plugins/*/skills/**, plugins/*/agents/**, plugins/*/reference/**, docs/**/*.md, prompts/**` | Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labeled vendor-reported, and a skill that prices its own runs may state its dated, measured run costs |
 | `.claude/rules/eval-case-transcripts.md` | `plugins/*/evals/**, plugins/*/skills/*/evals/**` | Eval cases in this public repository never hold a raw session or product transcript; a one-to-one rewrite with every identifying detail changed is allowed after the identifying-details review |
 | `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**` | Mods: before adding or changing a hooks module, load the built-in `plugin-authoring` skill and follow the mod-authoring convention, which points at the upstream mods pages and ADR 0052 |
