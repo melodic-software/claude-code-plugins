@@ -15,7 +15,11 @@ for each string, over the caller plus every called file once per call job.
 A caller at or above failing-figure minus margin in
 .github/workflow-template-size.json is a finding. The figure is the estimate of
 the first commit GitHub refused with "Maximum object size exceeded", an
-empirical reference, not a documented GitHub limit.
+empirical reference, not a documented GitHub limit. Before the callers, the
+config's calibration caller is estimated at its good and failing commits, read
+from git history: the good one must stay under the fail line, the failing one
+at or over it and within tolerance of failing-figure. A miss is a finding; a
+commit the history lacks exits 2, so the check needs a full-history checkout.
 
 Output follows the check-script contract (scripts/README.md, "The check-script
 contract"): one path:line: finding per caller on stderr, each passing caller's

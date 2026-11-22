@@ -1,5 +1,11 @@
 {
   "failing-figure": 10581308,
   "margin": 5000,
-  "reason": "failing-figure is the estimated template memory of pr-unblock.yml at the #17516 merge, the first commit GitHub refused with \"Maximum object size exceeded\"; the last good commit c13006c388 estimates 10569716. It is an empirical reference, not a documented GitHub limit. scripts/check-workflow-template-size.sh fails a caller at or above failing-figure minus margin."
+  "calibration": {
+    "caller": "pr-unblock.yml",
+    "good": "c13006c388e389043fad51311f15071ac99aec8c",
+    "failing": "bcc9c540763721caf76cac60b9491147c10ed657",
+    "tolerance": 100
+  },
+  "reason": "failing-figure is the estimated template memory of pr-unblock.yml at the #17516 merge (calibration.failing), the first commit GitHub refused with \"Maximum object size exceeded\"; the last good commit (calibration.good) estimates 10569716. It is an empirical reference, not a documented GitHub limit. scripts/check-workflow-template-size.sh fails a caller at or above failing-figure minus margin, after checking that the estimator still puts the good commit under that line and the failing commit over it, within tolerance of failing-figure."
 }

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -67,10 +68,49 @@ export function readConfig(root) {
   if (!whole(config.margin) || config.margin >= figure) {
     throw new Error(`${CONFIG}: margin must be a whole number below failing-figure`);
   }
+  const calibration = config.calibration;
+  if (calibration !== undefined) {
+    const sha = (value) => typeof value === "string" && /^[0-9a-f]{40}$/.test(value);
+    if (
+      calibration === null ||
+      typeof calibration.caller !== "string" ||
+      !sha(calibration.good) ||
+      !sha(calibration.failing) ||
+      !whole(calibration.tolerance)
+    ) {
+      throw new Error(`${CONFIG}: calibration needs a caller, full good and failing commit SHAs and a whole tolerance`);
+    }
+  }
   return config;
 }
 
 export const failLine = (config) => config["failing-figure"] - config.margin;
+
+export function calibrate(yaml, root, config) {
+  const { caller, good, failing, tolerance } = config.calibration;
+  const at = (sha) => (name) => {
+    try {
+      return execFileSync("git", ["-C", root, "show", `${sha}:${WORKFLOWS}/${name}`], {
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch {
+      throw new Error(`cannot read ${WORKFLOWS}/${name} at ${sha}; the check needs the repository's full history`);
+    }
+  };
+  const line = failLine(config);
+  const figure = config["failing-figure"];
+  const goodBytes = estimate(yaml, caller, at(good)).bytes;
+  const failingBytes = estimate(yaml, caller, at(failing)).bytes;
+  const findings = [];
+  if (goodBytes >= line) findings.push(`the good commit ${good} estimates ${goodBytes}, not under the fail line ${line}`);
+  if (failingBytes < line) findings.push(`the failing commit ${failing} estimates ${failingBytes}, under the fail line ${line}`);
+  if (Math.abs(failingBytes - figure) > tolerance) {
+    findings.push(`the failing commit ${failing} estimates ${failingBytes}, more than ${tolerance} from failing-figure ${figure}`);
+  }
+  return { goodBytes, failingBytes, findings };
+}
 
 function main() {
   const usage = `usage: ${NAME}.sh [--check]`;
@@ -97,6 +137,20 @@ function main() {
       const read = (name) => readFileSync(path.join(dir, name), "utf8");
       const findings = [];
       const passes = [];
+      if (config.calibration) {
+        let calibration;
+        try {
+          calibration = calibrate(yaml, root, config);
+        } catch (error) {
+          fail(error.message);
+        }
+        for (const finding of calibration.findings) findings.push(`${CONFIG}:1: calibration: ${finding}`);
+        if (calibration.findings.length === 0) {
+          process.stdout.write(
+            `${CONFIG}: calibration good ${config.calibration.good.slice(0, 10)} ${calibration.goodBytes} bytes, failing ${config.calibration.failing.slice(0, 10)} ${calibration.failingBytes} bytes\n`,
+          );
+        }
+      }
       for (const name of readdirSync(dir).filter((file) => /\.ya?ml$/.test(file)).sort()) {
         let result;
         try {

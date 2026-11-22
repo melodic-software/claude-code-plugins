@@ -1,24 +1,35 @@
 // test-scope: .github/workflow-template-size.json .github/standards/runner-policy/package.json
-// test-scope: scripts/fixtures/workflow-template-size/*
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { gunzipSync } from "node:zlib";
 import { tempDir } from "../lib/test-tmp.mjs";
-import { costOf, estimate, failLine, loadYaml, readConfig } from "./check-workflow-template-size.mjs";
+import { calibrate, costOf, estimate, failLine, loadYaml, readConfig } from "./check-workflow-template-size.mjs";
 
 const REPO = path.resolve(import.meta.dirname, "..");
-const FIXTURES = path.join(REPO, "scripts/fixtures/workflow-template-size");
-const TOLERANCE = 100;
 const yaml = await loadYaml(REPO);
 
 const fromMap = (files) => (name) => {
   if (!(name in files)) throw new Error(`no ${name}`);
   return files[name];
 };
-const fromFixture = (label) => (name) => gunzipSync(readFileSync(path.join(FIXTURES, label, `${name}.gz`))).toString("utf8");
+
+const git = (root, ...args) =>
+  execFileSync("git", ["-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], {
+    encoding: "utf8",
+  }).trim();
+
+const commitEach = (root, sets) => {
+  git(root, "init", "-q");
+  return sets.map((files) => {
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, ".github/workflows", name), text);
+    git(root, "add", ".github/workflows");
+    git(root, "commit", "-q", "--allow-empty", "-m", "set");
+    return git(root, "rev-parse", "HEAD");
+  });
+};
 
 describe("costOf", () => {
   test("charges a string 24 + 26 bytes plus 2 per character, keys included", () => {
@@ -76,23 +87,48 @@ describe("estimate", () => {
   });
 });
 
-describe("the known figures", () => {
-  const config = readConfig(REPO);
-  const good = estimate(yaml, "pr-unblock.yml", fromFixture("c13006c388"));
-  const failing = estimate(yaml, "pr-unblock.yml", fromFixture("bcc9c54076"));
-
-  test(`reproduces the last good commit's 10,569,716 within ${TOLERANCE} bytes`, () => {
-    assert.ok(Math.abs(good.bytes - 10_569_716) <= TOLERANCE, `estimated ${good.bytes}`);
-    assert.equal(good.calls, 27);
+describe("calibrate", () => {
+  const reusable = "on: workflow_call\njobs:\n  x:\n    runs-on: ubuntu-24.04\n";
+  const caller = (calls) =>
+    `on: push\njobs:\n${Array.from({ length: calls }, (_, i) => `  j${i}:\n    uses: ./.github/workflows/r.yml\n`).join("")}`;
+  const bytes = (calls) => costOf(yaml, caller(calls)) + calls * costOf(yaml, reusable);
+  const setup = () => {
+    const root = tempDir("template-size-history-");
+    const [good, failing] = commitEach(root, [
+      { "c.yml": caller(2), "r.yml": reusable },
+      { "c.yml": caller(3), "r.yml": reusable },
+    ]);
+    return { root, good, failing };
+  };
+  const config = (good, failing, { figure = bytes(3), margin = bytes(3) - bytes(2) - 1, tolerance = 0 } = {}) => ({
+    "failing-figure": figure,
+    margin,
+    calibration: { caller: "c.yml", good, failing, tolerance },
   });
 
-  test(`reproduces the #17516 commit's 10,581,308 within ${TOLERANCE} bytes`, () => {
-    assert.ok(Math.abs(failing.bytes - 10_581_308) <= TOLERANCE, `estimated ${failing.bytes}`);
+  test("reads each commit's files from git and finds nothing when they straddle the fail line", () => {
+    const { root, good, failing } = setup();
+    const result = calibrate(yaml, root, config(good, failing));
+    assert.deepEqual(result, { goodBytes: bytes(2), failingBytes: bytes(3), findings: [] });
   });
 
-  test("passes the last good commit and fails the #17516 commit under the committed config", () => {
-    assert.ok(good.bytes < failLine(config), `good ${good.bytes} against ${failLine(config)}`);
-    assert.ok(failing.bytes >= failLine(config), `failing ${failing.bytes} against ${failLine(config)}`);
+  test("names a good commit at the fail line and a failing commit under it", () => {
+    const { root, good, failing } = setup();
+    const result = calibrate(yaml, root, config(failing, good, { figure: bytes(2) + 1, margin: 0, tolerance: bytes(3) }));
+    assert.equal(result.findings.length, 2);
+    assert.match(result.findings[0], /good commit .* not under the fail line/);
+    assert.match(result.findings[1], /failing commit .* under the fail line/);
+  });
+
+  test("names a failing commit whose estimate left failing-figure's tolerance", () => {
+    const { root, good, failing } = setup();
+    const result = calibrate(yaml, root, config(good, failing, { figure: bytes(3) + 5, margin: bytes(3) - bytes(2) + 4, tolerance: 4 }));
+    assert.deepEqual(result.findings, [`the failing commit ${failing} estimates ${bytes(3)}, more than 4 from failing-figure ${bytes(3) + 5}`]);
+  });
+
+  test("fails, never skips, when a commit is not in the history", () => {
+    const { root, good } = setup();
+    assert.throws(() => calibrate(yaml, root, config(good, "0".repeat(40))), /needs the repository's full history/);
   });
 });
 
@@ -112,6 +148,11 @@ describe("readConfig", () => {
   test("refuses a margin that is not a whole number below the figure", () => {
     assert.throws(() => readConfig(write({ "failing-figure": 1000, margin: 1000, reason: "r" })), /margin/);
     assert.throws(() => readConfig(write({ "failing-figure": 1000, margin: "5", reason: "r" })), /margin/);
+  });
+
+  test("refuses a calibration without full commit SHAs", () => {
+    const calibration = { caller: "c.yml", good: "c13006c388", failing: "b".repeat(40), tolerance: 0 };
+    assert.throws(() => readConfig(write({ "failing-figure": 1000, margin: 10, calibration, reason: "r" })), /calibration/);
   });
 
   test("refuses a figure that is not a positive whole number", () => {
