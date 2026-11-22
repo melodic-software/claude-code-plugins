@@ -4221,9 +4221,15 @@ jobs:
           case "$rc" in
           0) ;;
           1)
-            while IFS=$'\t' read -r suite file verdict; do
-              echo "::error file=$suite,title=Undeclared suite read::$suite reads $file, and a change to $file does not select it ($verdict). Declare the read in a test-scope line of the suite (scripts/affected-tests.sh R8)."
-            done <"$RUNNER_TEMP/selection-audit/gaps.tsv"
+            awk -F'\t' '
+              !($1 in n) { order[++suites] = $1 }
+              { files[$1] = files[$1] (n[$1]++ ? ", " : "") $2 }
+              END {
+                for (i = 1; i <= suites; i++) {
+                  s = order[i]
+                  printf "::error file=%s,title=Undeclared suite reads (%d)::%s reads %d file(s) whose change does not select it: %s. Declare them in a test-scope line of the suite (scripts/affected-tests.sh R8).\n", s, n[s], s, n[s], files[s]
+                }
+              }' "$RUNNER_TEMP/selection-audit/gaps.tsv"
             awk -F'\t' '$2 == "not-traced" { printf "::error file=%s,title=Suite not traced::%s was not traced inside the budget, so it is not checked.\n", $1, $1 }' \
               "$RUNNER_TEMP/selection-audit/suites.tsv"
             grep -q $'\tnot checked' "$RUNNER_TEMP/selection-audit/verdicts.tsv" &&
