@@ -9,7 +9,7 @@
 # that message.
 # Non-zero exit on any FAIL.
 
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO GITHUB_ACTIONS
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -130,6 +130,8 @@ checkw "a write passes when GitHub returns no permissions field" "$SINGLE" \
   "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPERMS=acme/tool
 checkw "a write stops when the permission read fails" "$SINGLE" \
   "" 1 "could not read repository acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" "STUB_API_FAIL=HTTP 503"
+checkw "a write inside GitHub Actions skips the push check" "$SINGLE" \
+  "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPUSH=acme/tool GITHUB_ACTIONS=true
 check "a read of a repository the caller cannot push to still resolves" "$SINGLE" \
   "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPUSH=acme/tool
 usage_err=$(bash "$RESOLVER" --bogus 2>&1)

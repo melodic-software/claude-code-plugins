@@ -64,7 +64,7 @@ triangular flow).
 
 A phase that writes (create, ready, merge) passes `--write`: the script then also refuses, with
 exit 1, a resolved repository GitHub reports you cannot push to (`.permissions.push` false), so
-a clone of someone else's public repository never receives your pull request or flip. An absent
+a clone of someone else's public repository never receives your pull request or flip. Inside GitHub Actions (`GITHUB_ACTIONS=true`) the check is skipped, since a lane acts on the repository it checked out and its token may not hold push. An absent
 `permissions` field passes. Read-only callers (logs, annotations, polling) omit the flag.
 
 - **Pointer**: [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default),

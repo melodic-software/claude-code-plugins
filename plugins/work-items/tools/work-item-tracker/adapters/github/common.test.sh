@@ -6,7 +6,7 @@
 set -uo pipefail
 # In a CI job the adapter wraps its gh calls and records into the job's
 # RUNNER_TEMP; the stubs here answer the unwrapped calls.
-unset RUNNER_TEMP
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT

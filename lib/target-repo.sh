@@ -38,7 +38,7 @@ done
 cd "$DIR" || exit 1
 
 found() {
-  if [[ -n "$WRITE" ]]; then
+  if [[ -n "$WRITE" && "${GITHUB_ACTIONS:-}" != true ]]; then
     local push
     push=$(gh api "repos/$1" --jq '.permissions.push' | tr -d '\r') || {
       echo "target-repo: could not read repository $1 from GitHub; see gh's error above." >&2
