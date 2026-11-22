@@ -278,7 +278,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md"' EXIT
+trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md" "$out.cl"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -523,6 +523,39 @@ if ((${#changed[@]} == 0)); then
 else
   run_check comment-hygiene "bash scripts/check-comment-hygiene.sh $merge_base ${changed[*]}" \
     bash "$tools/scripts/check-comment-hygiene.sh" "$merge_base" "${changed[@]}"
+fi
+
+comment_lint=plugins/code-tidying/git-hooks/comment-lint.sh
+comment_lint_merge_base_diff() {
+  local d="$out.cl" f home head
+  head="$(git rev-parse HEAD)" &&
+    git -c init.defaultBranch=lint init --quiet --template= "$d" &&
+    printf '%s\n' "$(cd "$(git rev-parse --git-common-dir)/objects" && pwd -P)" >"$d/.git/objects/info/alternates" &&
+    git -C "$d" update-ref --no-deref HEAD "$merge_base" &&
+    git -C "$d" read-tree "$head" || return 2
+  copy_from_merge_base() {
+    if git cat-file -e "$merge_base:$1" 2>/dev/null; then
+      mkdir -p "$d/$(dirname "$1")" && git show "$merge_base:$1" >"$d/$1"
+    fi
+  }
+  copy_from_merge_base AGENTS.md && copy_from_merge_base CLAUDE.md || return 2
+  home="$(bash "$tools/plugins/code-tidying/lib/resolve-convention-home.sh" --root "$d" --ref "$merge_base" 2>/dev/null)" || home=""
+  [[ -n "$home" && "$home" != /* && "$home" != *..* ]] || home=docs/conventions
+  for f in code-tidying.yaml code-tidying.local.yaml; do
+    copy_from_merge_base "${home%/}/$f" || return 2
+  done
+  (cd "$d" && AI_AGENT=ci sh "$tools/$comment_lint")
+}
+if ((${#changed[@]} == 0)); then
+  skip comment-lint "no changed files"
+elif [[ ! -f "$tools/$comment_lint" ]]; then
+  skip comment-lint "no $comment_lint beside this script"
+elif ! python3 -c 'import pygments' >/dev/null 2>&1; then
+  skip comment-lint "python3 with pygments not installed"
+else
+  run_check comment-lint \
+    "AI_AGENT=ci sh $comment_lint --worktree for uncommitted edits, else scripts/check-comment-lint.sh with HEAD_SHA, BASE_REF and GITHUB_EVENT_NAME=pull_request" \
+    comment_lint_merge_base_diff
 fi
 
 # machine-specific-paths: the scan the workflow's check-machine-paths composite
