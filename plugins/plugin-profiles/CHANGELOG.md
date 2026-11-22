@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.7] - 2026-11-22
+
+### Fixed
+
+- An apply whose settings write fails now undoes its record only while the record file still holds the one it wrote, so a second apply that saved its record in between keeps it, and `clear` and `reset` can still undo that apply.
+
 ## [0.9.6] - 2026-11-22
 
 ### Fixed
