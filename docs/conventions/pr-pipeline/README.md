@@ -1441,7 +1441,7 @@ the rules that only tighten in
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **Narrow path floor.** A set of globs, each with a class: `babysit_risk.FLOOR_CLASSES`, the paths
+- **Narrow path floor.** A set of globs, each with a class: `diff_risk.FLOOR_CLASSES`, the paths
   every consumer shares, joined to the repository's `merge.diff-check.floor-paths` rows
   (`glob`, `class`, and on a `gate` row an optional `author-lift: false`, which keeps the row with a
   person). A row can add to the floor and never drop or loosen a built-in row, and a row the loader
@@ -1459,7 +1459,7 @@ the rules that only tighten in
     values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
     `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`,
     `**/.gitmodules`, and the code that computes the author lift and the hold tables:
-    `babysit_merge.py`, `babysit_merge_policy.py`, `babysit_risk.py` and
+    `babysit_merge.py`, `babysit_merge_policy.py`, `diff_risk.py` and
     `babysit_review_evidence.py`, which compute the security review's clear condition,
     `.github/scripts/pr-merge/merge-holds.mjs`, `scripts/sync-hold-floor.py`, which writes the
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
@@ -1481,7 +1481,7 @@ the rules that only tighten in
     `pr-dispatch-feedback.yml` among them: a logic edit inside scopes it already holds trips no
     patch hold, so a model verdict alone never clears it. 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
-    `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
+    `diff_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
     gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
     only is off the gate: the main-run review binds it, and a gained write scope, trigger, secret
     or model leg holds by its patch. Also what changes
@@ -1496,11 +1496,11 @@ the rules that only tighten in
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
     requests merge without a person's review), on a head pr-verify passed
-    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.Floor.author_review`). A lanes App
+    (`babysit_merge_policy.author_reviewed_paths`, `diff_risk.Floor.author_review`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
     lane changing its own powers is still merged by a person. The review's own surface above
-    never takes this lift (`babysit_risk._NO_AUTHOR_LIFT` and every workflow row), so it always
+    never takes this lift (`diff_risk._NO_AUTHOR_LIFT` and every workflow row), so it always
     waits for a person. The token-scope files and the lift
     and hold-table code and the scripts that apply the holds are `trust`, never `gate`, so they
     never take this lift: agents commit as the trusted owner, so a pull request that widens a lane
@@ -1518,7 +1518,7 @@ the rules that only tighten in
     they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs` and
     `protected-paths.mjs` in `apply-patch/`, and `.github/scripts/lib/run-main.mjs`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
-    `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
+    `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `diff_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
     binds to the head with no open finding, then merges with no person; ci-status leaves it to
     the gate. A lane source is a
@@ -1527,7 +1527,7 @@ the rules that only tighten in
     changes one binds its reviews only from main (see "Main-run review" below). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
     secret: a top-level `.yml` other than the two review callers and the floor workflows
-    (`babysit_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
+    (`diff_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
     `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem or that stem in Title Case. A deleted
     workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
@@ -1579,7 +1579,7 @@ the rules that only tighten in
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
   (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
   leg, which reviews every chunk again. Read may cut a long line short, so a diff line over 1800
-  bytes (`babysit_risk.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
+  bytes (`diff_risk.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
   inside a UTF-8 character, as pr-verify's `chunk-diff.sh` folds; the prompt says each such line
   is the rest of the line before it and adds no line to the file's numbering. Every byte reaches a
   whole Read, and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
@@ -1998,7 +1998,7 @@ naming the score, the reasons and the head. While `merge.report-only` is false, 
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal when a holding reason is one only a person clears
-(`babysit_risk.person_reasons`: a CRITICAL security finding, bound or not, a
+(`diff_risk.person_reasons`: a CRITICAL security finding, bound or not, a
 trusted-actor widening, a cost hold, or a listing past the files API's cap; [when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner));
 any other reason, such as review evidence not bound to the head, keeps its comment and is judged
 again each run. An escalation
@@ -2117,7 +2117,7 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
-`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.Floor.high`), read on the files the head changes at each
+`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `diff_risk.Floor.high`), read on the files the head changes at each
 run, unless a person on the trusted-actor list approved that head, or an earlier head it carries to, as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
@@ -2129,7 +2129,7 @@ after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed
 `issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
 issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
-gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
+gate's risk score (`diff_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
 review, the trust gate and the cost review all hold; and `evidence --lane-queue` finds the merge
@@ -2304,14 +2304,14 @@ back to them:
 The approval lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
 reads the same approvals and stops holding the pull request on the hold path, and the gate's risk
 score (`evidence --lane-reviews`, `lane_risk_refusal`) drops its `high-path:` reasons for a path
-on `babysit_risk.Floor.high` or in `merge.diff-check.denied-paths` on the same approvals
+on `diff_risk.Floor.high` or in `merge.diff-check.denied-paths` on the same approvals
 (`babysit_merge_policy.path_lifters` and `carried_lifters`, which `test_merge_holds_sync.py`
 holds equal to `pathLifters`, `liftsOf` and `baseMergeCarry`), so its other checks decide. The
 approval lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
 trust-gate, manifest, file-cap or review-lane hold, and a review list or trusted-actor list that
 does not read lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
-(`babysit_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
+(`diff_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:` and that carries an owner-decisions row link and a

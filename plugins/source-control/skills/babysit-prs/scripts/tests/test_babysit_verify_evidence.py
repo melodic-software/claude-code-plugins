@@ -7035,7 +7035,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.lanes = unattended.UNBOUND
         self.queued = [unattended.PR]
         self._lane_evidence = mock.Mock(return_value=(self.lanes, self.comments))
-        with mock.patch.object(merge.babysit_risk, "score") as score:
+        with mock.patch.object(merge.diff_risk, "score") as score:
             code, out = self.lane()
         self.assert_no_merge(code)
         self._lane_evidence.assert_not_called()

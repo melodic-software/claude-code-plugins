@@ -1,7 +1,7 @@
 # test-scope: docs/conventions/source-control.yaml .github/workflows/*
 """Table tests for the unattended-merge diff risk scorer.
 
-`babysit_risk.score` is a pure function, so every case builds a `RiskInput` and
+`diff_risk.score` is a pure function, so every case builds a `RiskInput` and
 reads the `RiskResult`; no network seam is involved. Expected reason codes and
 severities come from the plan's scorer contract (reason-code list, HIGH floor,
 200-line and 8-file limits, C2 re-check rules), never from running the scorer.
@@ -25,9 +25,9 @@ os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy
-import babysit_risk
+import diff_risk
 import babysit_tracker_binding
-from babysit_risk import (
+from diff_risk import (
     ChangedFile,
     LaneEvidence,
     Reason,
@@ -48,7 +48,7 @@ PIPELINE = (
     pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml"
 )
 ROWS = babysit_merge_policy.floor_paths_in(PIPELINE.read_text(encoding="utf-8"))
-FLOOR = babysit_risk.floor_for(ROWS)
+FLOOR = diff_risk.floor_for(ROWS)
 
 
 def _file(
@@ -323,7 +323,7 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
             (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
             (".github/scripts/pr-merge/clear-escalations.mjs", ".github/scripts/pr-merge/clear-escalations.mjs"),
-            ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"),
+            ("plugins/source-control/skills/babysit-prs/scripts/diff_risk.py", "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"),
             (".github/workflows/pr-require-checks.yml", ".github/workflows/pr-require-checks.yml"),
@@ -536,7 +536,7 @@ class _OverBudget(BaseException):
 
 
 def _glob_work(pattern, path, cap=None):
-    """Lines of babysit_risk.py that glob_match(pattern, path) runs, counted
+    """Lines of diff_risk.py that glob_match(pattern, path) runs, counted
     under sys.settrace rather than timed, so runner load cannot fail it.
     Past `cap` the trace raises, so a blow-up fails at once."""
     count = 0
@@ -550,12 +550,12 @@ def _glob_work(pattern, path, cap=None):
         return local
 
     def calls(frame, event, arg):
-        return local if frame.f_code.co_filename == babysit_risk.__file__ else None
+        return local if frame.f_code.co_filename == diff_risk.__file__ else None
 
     previous = sys.gettrace()
     sys.settrace(calls)
     try:
-        matched = babysit_risk.glob_match(pattern, path)
+        matched = diff_risk.glob_match(pattern, path)
     finally:
         sys.settrace(previous)
     return matched, count
@@ -1216,7 +1216,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-merge/clear-escalations.mjs",
             ".github/scripts/pr-merge/gate-check.mjs",
             ".github/scripts/pr-merge/who.mjs",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py",
             "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
             "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
             ".github/workflows/pr-require-checks.yml",
@@ -1262,11 +1262,11 @@ class LanePathFloorTests(unittest.TestCase):
                 )
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
                 self.assertTrue(
-                    any(babysit_risk.is_path_hold(r) for r in result.reasons)
+                    any(diff_risk.is_path_hold(r) for r in result.reasons)
                 )
                 live = score(_lane_input((_file(path),), lanes=unreviewed))
                 self.assertFalse(
-                    any(babysit_risk.is_path_hold(r) for r in live.reasons)
+                    any(diff_risk.is_path_hold(r) for r in live.reasons)
                 )
                 self.assertNotEqual(live.skipped, ())
 
@@ -1551,7 +1551,7 @@ class PersonReasonsTests(unittest.TestCase):
         )
         reasons = [Reason(code, Risk.HIGH, "d") for code in person + lane]
         self.assertEqual(
-            tuple(r.code for r in babysit_risk.person_reasons(reasons)), person
+            tuple(r.code for r in diff_risk.person_reasons(reasons)), person
         )
 
     def test_a_floor_denied_or_aliasing_path_holds_with_no_person_reason(self):
@@ -1569,14 +1569,14 @@ class PersonReasonsTests(unittest.TestCase):
                     _codes(result),
                 )
                 self.assertTrue(holds(result))
-                self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
+                self.assertEqual(diff_risk.person_reasons(holding(result)), [])
 
     def test_a_trusted_actor_widening_holds_for_a_person(self):
         after = _actors(_KYLE, _BOT, '{ "id": 3, "login": "new", "kind": "bot" }')
         widened = _edit(ACTORS, BASE_ACTORS, after)
         result = score(_input(files=(widened,), high_floor=False))
         self.assertEqual(
-            [r.code for r in babysit_risk.person_reasons(holding(result))],
+            [r.code for r in diff_risk.person_reasons(holding(result))],
             ["trust-gate:trusted-actors"],
         )
 
@@ -1588,11 +1588,11 @@ class PersonReasonsTests(unittest.TestCase):
             return score(_input(lanes=(_lane("claude-review"), lane)))
 
         self.assertEqual(
-            [r.code for r in babysit_risk.person_reasons(holding(security(1)))],
+            [r.code for r in diff_risk.person_reasons(holding(security(1)))],
             ["security-finding"],
         )
         important = security(0)
-        self.assertEqual(babysit_risk.person_reasons(important.reasons), [])
+        self.assertEqual(diff_risk.person_reasons(important.reasons), [])
         self.assertFalse(holds(important))
 
     def test_an_unbound_review_holds_for_the_lanes_and_a_finding_for_a_person(self):
@@ -1600,7 +1600,7 @@ class PersonReasonsTests(unittest.TestCase):
             _input(lanes=(_lane("claude-review", bound=False), BOTH_LANES_CLEAN[1]))
         )
         self.assertTrue(holds(unbound))
-        self.assertEqual(babysit_risk.person_reasons(holding(unbound)), [])
+        self.assertEqual(diff_risk.person_reasons(holding(unbound)), [])
         finding = score(
             _input(
                 lanes=(
@@ -1610,7 +1610,7 @@ class PersonReasonsTests(unittest.TestCase):
             )
         )
         self.assertEqual(
-            [r.code for r in babysit_risk.person_reasons(holding(finding))],
+            [r.code for r in diff_risk.person_reasons(holding(finding))],
             ["security-finding"],
         )
 
@@ -1620,7 +1620,7 @@ class PersonReasonsTests(unittest.TestCase):
         # bound through the binder in CarriedBlockingTests there).
         lane = LaneEvidence("claude-security-review", False, "no-run", None, False, 2)
         result = score(_input(lanes=(BOTH_LANES_CLEAN[0], lane)))
-        codes = [r.code for r in babysit_risk.person_reasons(holding(result))]
+        codes = [r.code for r in diff_risk.person_reasons(holding(result))]
         self.assertEqual(codes, ["security-finding"])
 
     def test_a_size_reason_holds_nothing_so_no_one_is_needed(self):
@@ -1641,7 +1641,7 @@ class PersonReasonsTests(unittest.TestCase):
         self.assertTrue({"lines-over", "files-over"} <= codes, codes)
         self.assertTrue(any(c.startswith("no-patch:") for c in codes), codes)
         self.assertFalse(holds(result), result.reasons)
-        self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
+        self.assertEqual(diff_risk.person_reasons(holding(result)), [])
 
     def test_a_file_no_review_could_read_holds_for_a_person(self):
         # git calls a script with an early NUL byte binary, so the files API
@@ -1649,7 +1649,7 @@ class PersonReasonsTests(unittest.TestCase):
         for path in (".github/scripts/pr-unblock/x.mjs", "scripts/x.sh", "data.bin"):
             with self.subTest(path):
                 result = score(_input(files=(_file(path, has_patch=False),)))
-                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                persons = [r.code for r in diff_risk.person_reasons(holding(result))]
                 self.assertIn(f"unreviewed-patch:{path}", persons)
                 self.assertNotIn(f"no-patch:{path}", _codes(result))
         for path in ("docs/a.PNG", "fonts/x.woff2", "paper.pdf"):
@@ -1673,7 +1673,7 @@ class PersonReasonsTests(unittest.TestCase):
                     _file(path, has_patch=False), diff_read=diff_read
                 )
                 result = score(_input(files=(changed,)))
-                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                persons = [r.code for r in diff_risk.person_reasons(holding(result))]
                 self.assertIn(f"unreviewed-patch:{path}", persons)
                 self.assertNotIn(f"no-patch:{path}", _codes(result))
 
@@ -1726,14 +1726,14 @@ class PersonReasonsTests(unittest.TestCase):
                 "empty added",
                 dataclasses.replace(
                     _file("scripts/x.sh", status="added", **no_patch),
-                    blob=babysit_risk.EMPTY_BLOB,
+                    blob=diff_risk.EMPTY_BLOB,
                 ),
             ),
             (
                 "empty removed",
                 dataclasses.replace(
                     _file("scripts/x.sh", status="removed", **no_patch),
-                    blob=babysit_risk.EMPTY_BLOB,
+                    blob=diff_risk.EMPTY_BLOB,
                 ),
             ),
             (
@@ -1773,7 +1773,7 @@ class PersonReasonsTests(unittest.TestCase):
         ):  # fmt: skip
             with self.subTest(name):
                 result = score(_input(files=(changed,)))
-                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                persons = [r.code for r in diff_risk.person_reasons(holding(result))]
                 self.assertIn("unreviewed-patch:scripts/new.sh", persons)
                 self.assertNotIn("no-patch:scripts/new.sh", _codes(result))
 
@@ -1787,19 +1787,19 @@ class PersonReasonsTests(unittest.TestCase):
         for files in ((clean, unread), (unread, clean)):
             with self.subTest([f.blob for f in files]):
                 result = score(_input(files=files))
-                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                persons = [r.code for r in diff_risk.person_reasons(holding(result))]
                 self.assertIn("unreviewed-patch:scripts/x.sh", persons)
                 self.assertNotIn("no-patch:scripts/x.sh", _codes(result))
 
     def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
         capped = score(_input(files_complete=False, files_capped=True))
         self.assertEqual(
-            [r.code for r in babysit_risk.person_reasons(holding(capped))],
+            [r.code for r in diff_risk.person_reasons(holding(capped))],
             ["files-capped"],
         )
         unread = score(_input(files_complete=False))
         self.assertTrue(holds(unread))
-        self.assertEqual(babysit_risk.person_reasons(holding(unread)), [])
+        self.assertEqual(diff_risk.person_reasons(holding(unread)), [])
 
 
 class SecurityBlockingTests(unittest.TestCase):
@@ -2009,7 +2009,7 @@ _REPO = pathlib.Path(__file__).resolve().parents[6]
 def _credentialed(text: str) -> bool:
     """Whether workflow text holds a credential beyond its job's GITHUB_TOKEN
     (owner decision Q11 (A)): a secret other than GITHUB_TOKEN, a lane token,
-    or an OIDC token, read independently of babysit_risk."""
+    or an OIDC token, read independently of diff_risk."""
     import re
 
     import yaml
@@ -2049,10 +2049,10 @@ class SecretRefReadsExpressions(unittest.TestCase):
             "${{ secrets.X }}",
         ):
             with self.subTest(line=line):
-                self.assertTrue(babysit_risk._SECRET_REF.search(line))
+                self.assertTrue(diff_risk._SECRET_REF.search(line))
 
 
-@unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
+@unittest.skipUnless(diff_risk._yaml(), "PyYAML not installed")
 class CredentialedWorkflowsAreGate(unittest.TestCase):
     """Owner decision Q11 (A), 2026-10-28: the workflow `gate` class keeps
     only the review workflows, ci-status, those that hold a credential beyond
@@ -2095,12 +2095,12 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         self.assertTrue(holds(result))
         self.assertNotIn(f"review-path:{path}", _codes(result))
         # Named by file, so trimming its permissions keeps it gated.
-        self.assertTrue(babysit_risk.gated_workflow("pr-require-checks", "on: push\n"))
+        self.assertTrue(diff_risk.gated_workflow("pr-require-checks", "on: push\n"))
 
     def test_actions_write_moves_an_ungated_workflow_into_the_gate(self):
         # It can dispatch a gated credentialed workflow.
         text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
-        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        self.assertFalse(diff_risk.gated_workflow("x", text))
         for added in (
             "    permissions:\n      actions: write\n",
             "    permissions:\n      actions: write # dispatch y.yml\n",
@@ -2110,20 +2110,20 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "    permissions: write-all\n",
         ):
             with self.subTest(added):
-                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                self.assertTrue(diff_risk.gated_workflow("x", text + added))
                 top = text.replace("jobs:", added.replace("    ", "", 1) + "jobs:")
-                self.assertTrue(babysit_risk.gated_workflow("x", top))
+                self.assertTrue(diff_risk.gated_workflow("x", top))
         for plain in (
             "    permissions:\n      actions: read\n",
             "    permissions:\n      contents: write\n",
             "    permissions:\n      # actions: write\n",
         ):
             with self.subTest(plain):
-                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+                self.assertFalse(diff_risk.gated_workflow("x", text + plain))
 
     def test_a_secret_moves_an_ungated_workflow_into_the_gate(self):
         text = "name: x\non: push\npermissions:\n  contents: write\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ${{ secrets.GITHUB_TOKEN }}\n"
-        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        self.assertFalse(diff_risk.gated_workflow("x", text))
         for added in (
             "      - run: echo ${{ secrets.DEPLOY_KEY }}\n",
             "      - run: echo ${{ toJSON(secrets) }}\n",
@@ -2142,7 +2142,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "    permissions:\n      id-token: write\n",
         ):
             with self.subTest(added):
-                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                self.assertTrue(diff_risk.gated_workflow("x", text + added))
         # The job token itself, or the word inside a string or a name, is not.
         for plain in (
             "      - run: echo ${{ secrets['github_token'] }}\n",
@@ -2150,10 +2150,10 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "    if: ${{ contains(x, 'test-windows-secrets') }}\n",
         ):
             with self.subTest(plain):
-                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+                self.assertFalse(diff_risk.gated_workflow("x", text + plain))
         # A comment or a quoted path naming one is no credential.
         self.assertFalse(
-            babysit_risk.gated_workflow(
+            diff_risk.gated_workflow(
                 "x",
                 text
                 + "  # secrets.DEPLOY_KEY\n      - run: echo '.github/actions/request-lane-token/*'\n",
@@ -2163,7 +2163,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
     def test_a_quoted_secrets_inherit_is_gated_and_held(self):
         # YAML reads a quoted key or value as the same string as the bare one.
         text = "name: x\non: push\njobs:\n  a:\n    uses: o/r/.github/workflows/y.yml@abc\n"
-        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        self.assertFalse(diff_risk.gated_workflow("x", text))
         for added in (
             "    secrets: inherit\n",
             '    secrets: "inherit"\n',
@@ -2172,11 +2172,11 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             '    "secrets": "inherit"\n',
         ):
             with self.subTest(added):
-                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                self.assertTrue(diff_risk.gated_workflow("x", text + added))
                 patch = "@@ -1,1 +1,2 @@\n context\n+" + added.rstrip("\n")
                 wf = _file(".github/workflows/x.yml", patch=patch)
                 result = score(_input(files=(wf,), high_floor=False, public=True))
-                self.assertIn(babysit_risk.SECRET_EXPOSURE_CODE, _codes(result))
+                self.assertIn(diff_risk.SECRET_EXPOSURE_CODE, _codes(result))
 
     def test_a_quoted_id_token_key_is_gated(self):
         text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
@@ -2187,9 +2187,9 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             '    permissions: {"id-token": write}\n',
         ):
             with self.subTest(added):
-                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                self.assertTrue(diff_risk.gated_workflow("x", text + added))
         self.assertFalse(
-            babysit_risk.gated_workflow(
+            diff_risk.gated_workflow(
                 "x", text + "    permissions:\n      'id-token': read\n"
             )
         )
@@ -2214,7 +2214,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "    env: {'K' :'x\n      #b ${{ secrets.DEPLOY }}'}\n",
         ):
             with self.subTest(added):
-                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                self.assertTrue(diff_risk.gated_workflow("x", text + added))
         for plain in (
             "      # ${{ secrets.DEPLOY }}\n      - run: echo a\n",
             "      - run: echo a # ${{ secrets.DEPLOY }}\n",
@@ -2223,7 +2223,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "      - run: |\n          echo a\n        env: {} # ${{ secrets.DEPLOY }}\n",
         ):
             with self.subTest(plain):
-                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+                self.assertFalse(diff_risk.gated_workflow("x", text + plain))
 
     def test_the_generator_puts_a_newly_credentialed_workflow_on_the_floor(self):
         import importlib.util
@@ -2339,7 +2339,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         for glob in FLOOR.review:
             with self.subTest(glob):
                 path = glob.replace("**", "x.md")
-                self.assertTrue(babysit_risk.glob_match(glob, path))
+                self.assertTrue(diff_risk.glob_match(glob, path))
                 result = self._score(path, (_lane("claude-security-review"),))
                 self.assertEqual(result.score, Risk.LOW, _codes(result))
                 self.assertFalse(holds(result))
@@ -2389,7 +2389,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         codes = [c for c in _codes(result) if c.startswith("review-path:")]
         self.assertEqual(codes, [f"review-path:{B}babysit_gh.py"])
         self.assertFalse(any(c.startswith("high-") for c in _codes(result)))
-        self.assertEqual(babysit_risk.person_reasons(result.reasons), [])
+        self.assertEqual(diff_risk.person_reasons(result.reasons), [])
 
     def test_each_gate_and_trust_path_holds_even_with_a_clean_review(self):
         for glob in FLOOR.high:
@@ -2414,7 +2414,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         path = B + "babysit_verify_evidence.py"
         caller = ".github/workflows/pr-review-security-hosted.yml"
         lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller], floor=babysit_risk.floor_for())
+            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller], floor=diff_risk.floor_for())
         self.assertEqual(
             {lane.unbound_reason for lane in lanes}, {"lane-source-changed"}
         )
@@ -2487,7 +2487,7 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         # An owner-signed PR could otherwise widen the lift or drop a floor
         # row on a clean review, and the next PR would take the wider lift.
         for path in (
-            B + "babysit_risk.py",
+            B + "diff_risk.py",
             B + "babysit_review_evidence.py",
             B + "babysit_merge_policy.py",
             B + "babysit_merge.py",
@@ -2604,11 +2604,11 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         for path in paths:
             with self.subTest(path=path):
                 self.assertTrue(
-                    any(babysit_risk.glob_match(g, path) for g in FLOOR.high),
+                    any(diff_risk.glob_match(g, path) for g in FLOOR.high),
                     path,
                 )
                 self.assertFalse(
-                    any(babysit_risk.glob_match(g, path) for g in FLOOR.author_review)
+                    any(diff_risk.glob_match(g, path) for g in FLOOR.author_review)
                 )
                 result = self._score(path, (_lane("claude-security-review"),))
                 self.assertTrue(
@@ -2659,7 +2659,7 @@ class LaneSourceReviewPathTests(unittest.TestCase):
                 self.assertEqual(
                     [
                         r.code
-                        for r in babysit_risk.person_reasons(result.reasons)
+                        for r in diff_risk.person_reasons(result.reasons)
                         if self.PATH in r.code
                     ],
                     [],
@@ -2682,7 +2682,7 @@ class PathHoldsSwitchTests(unittest.TestCase):
     UNREVIEWED = (_lane("claude-review"), _lane("claude-security-review", bound=False))
 
     def _paths(self, result):
-        return [r.code for r in result.reasons if babysit_risk.is_path_hold(r)]
+        return [r.code for r in result.reasons if diff_risk.is_path_hold(r)]
 
     def test_off_a_gate_script_change_gets_no_path_hold(self):
         result = score(_input(files=(_file(self.GATE),), path_holds=False))

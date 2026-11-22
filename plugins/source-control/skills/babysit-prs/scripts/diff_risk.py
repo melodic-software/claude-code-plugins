@@ -290,12 +290,12 @@ class RiskResult:
 #   values and lane slots the broker reads, check-trusted-trigger,
 #   check-kill-switch, whose writeOutputs both of those write their verdicts
 #   through), code owners, submodules, and the code that computes the
-#   author lift and the hold tables: babysit_merge*, babysit_risk.py and
+#   author lift and the hold tables: babysit_merge*, this module and
 #   babysit_review_evidence.py (which compute the review's clear
 #   condition), merge-holds.mjs and scripts/sync-hold-floor.py, which writes
 #   this table's copies, and the pr-merge scripts that apply and enforce the
 #   holds: enable-auto-merge.mjs, superseded.mjs, clear-escalations.mjs,
-#   gate-check.mjs and head-ref-map.mjs.
+#   gate-check.mjs and head-ref-map.mjs (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#merge-authority).
 # This repository's rows of each class sit in `merge.diff-check.floor-paths`.
 # - `gate`: the rest of the merge gate's own code: the rate guard and the
 #   other pr-merge scripts; the main-run review's scripts, whose verdict
@@ -342,7 +342,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     # inside it.
     ("docs/conventions/pr-pipeline.yaml", "trust"),
     ("**/.gitmodules", "trust"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"),
+    ("plugins/source-control/skills/babysit-prs/scripts/diff_risk.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
