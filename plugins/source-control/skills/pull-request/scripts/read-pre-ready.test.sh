@@ -153,6 +153,60 @@ out=$(printf 'HTTP/2.0 200 OK\r\n\r\npre_ready:\n  - step: verify\n    enabled: 
 assert_eq "a NUL byte in a response fails closed and runs every step" \
   $'source\tfail-closed\tthe input holds a NUL byte\n'"$ALL_ON" "$out"
 
+STUB_DIR="$TEST_TMPDIR/stubs"
+mkdir -p "$STUB_DIR"
+cat >"$STUB_DIR/gh" <<STUB_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
+if [[ " \$* " == *" -i "* ]]; then
+  [[ -f "$TEST_TMPDIR/response" ]] || exit 1
+  cat "$TEST_TMPDIR/response"
+  [[ ! -f "$TEST_TMPDIR/response-fails" ]] || exit 1
+else
+  [[ -f "$TEST_TMPDIR/default" ]] || exit 1
+  cat "$TEST_TMPDIR/default"
+fi
+STUB_EOF
+chmod +x "$STUB_DIR/gh"
+fetch() { PATH="$STUB_DIR:$PATH" bash "$SCRIPT" --repo acme/app --base "$1" 2>/dev/null; }
+printf 'main\n' >"$TEST_TMPDIR/default"
+printf 'HTTP/2.0 200 OK\r\n\r\n%s' "$VERIFY_OFF" >"$TEST_TMPDIR/response"
+: >"$TEST_TMPDIR/calls"
+out=$(fetch main)
+assert_eq "a fetch on the default branch reads its list" "$VERIFY_ONLY_OFF" "$out"
+assert_contains "the fetch reads the file at the base" "$(cat "$TEST_TMPDIR/calls")" "ref=main"
+assert_contains "the fetch reads the base repository's contents" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/contents/docs/conventions/source-control.yaml"
+out=$(fetch stack/layer-2)
+assert_eq "a fetch on a base other than the default branch fails closed" \
+  $'source\tfail-closed\tbase stack/layer-2 is not the default branch main\n'"$ALL_ON" "$out"
+printf 'HTTP/2.0 404 Not Found\r\n\r\n{"message":"Not Found"}' >"$TEST_TMPDIR/response"
+: >"$TEST_TMPDIR/response-fails"
+out=$(fetch main)
+assert_eq "a fetch that finds no file runs every step by default" $'source\tdefault\n'"$ALL_ON" "$out"
+printf 'HTTP/2.0 502 Bad Gateway\r\n\r\n' >"$TEST_TMPDIR/response"
+out=$(fetch main)
+assert_eq "a fetch answered with a 5xx fails closed" \
+  $'source\tfail-closed\tthe base read returned HTTP/2.0 502 Bad Gateway\n'"$ALL_ON" "$out"
+rm -f "$TEST_TMPDIR/response"
+out=$(fetch main)
+assert_eq "a fetch with no response fails closed" \
+  $'source\tfail-closed\tthe base read returned no response\n'"$ALL_ON" "$out"
+printf 'HTTP/2.0 200 OK\r\n\r\npre_ready:\n  - step: verify\n    enabled: fal\000se\n' >"$TEST_TMPDIR/response"
+rm -f "$TEST_TMPDIR/response-fails"
+out=$(fetch main)
+assert_eq "a NUL byte in a fetched response fails closed" \
+  $'source\tfail-closed\tthe input holds a NUL byte\n'"$ALL_ON" "$out"
+rm -f "$TEST_TMPDIR/default"
+out=$(fetch main)
+assert_eq "a fetch that cannot read the default branch fails closed" \
+  $'source\tfail-closed\tthe base repository\'s default branch could not be read\n'"$ALL_ON" "$out"
+PATH="$STUB_DIR:$PATH" bash "$SCRIPT" --repo acme/app --base main --default-branch main >/dev/null 2>&1
+assert_exit "a fetch never takes the default branch from the caller" 2 "$?"
+PATH="$STUB_DIR:$PATH" bash "$SCRIPT" --repo acme/app --base main - >/dev/null 2>&1
+assert_exit "a fetch reads no stdin" 2 "$?"
+PATH="$STUB_DIR:$PATH" bash "$SCRIPT" --repo '../x/y' --base main >/dev/null 2>&1
+assert_exit "a repository that is not owner/name is a usage error" 2 "$?"
+
 printf '' | bash "$SCRIPT" - >/dev/null 2>&1
 assert_exit "a read without --base and --default-branch is a usage error" 2 "$?"
 bash "$SCRIPT" >/dev/null 2>&1

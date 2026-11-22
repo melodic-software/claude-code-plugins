@@ -7,6 +7,9 @@
 # schemas/source-control.schema.json.
 #
 # Usage:
+#   read-pre-ready.sh --repo <owner/repo> --base <b>
+#       fetches the file at <b> and the repository's default branch with gh,
+#       reading no stdin
 #   read-pre-ready.sh --base <b> --default-branch <d> -
 #       the file's text on stdin
 #   read-pre-ready.sh --base <b> --default-branch <d> --http-response
@@ -14,10 +17,12 @@
 #       means no file, anything else fails closed
 #
 # --base is the pull request's base branch and --default-branch the base
-# repository's default branch. The list is honored only when the two match:
+# repository's default branch; --repo reads that default branch itself and
+# takes none from the caller. The list is honored only when the two match:
 # any other base is a branch the PR's author may have pushed unreviewed. An
 # empty value or a mismatch fails closed. There is no file-path form: the head
-# branch must not choose its own gates, so the caller fetches the base's copy.
+# branch must not choose its own gates, so only the base's copy is read
+# (https://github.com/melodic-software/claude-code-plugins/issues/18112).
 #
 # Output, tab-separated. First a source line:
 #   source  default                 no file, no pre_ready key, or an empty list
@@ -36,6 +41,8 @@
 # default and fail-closed every step is enabled.
 #
 # Exit 0, or 2 for a usage error.
+
+# portability-scope: the GitHub implementation of the base read under --repo; the other forms read stdin.
 set -uo pipefail
 
 # shellcheck source=pre-ready-steps.sh
@@ -44,7 +51,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/pre-ready-steps.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/base-file.sh"
 
 usage() {
-  echo "read-pre-ready: usage: read-pre-ready.sh --base <b> --default-branch <d> (- | --http-response)" >&2
+  echo "read-pre-ready: usage: read-pre-ready.sh --repo <owner/repo> --base <b>, or --base <b> --default-branch <d> (- | --http-response)" >&2
   exit 2
 }
 
@@ -64,12 +71,19 @@ emit() {
 # The reason can quote the file or the response, so control characters become spaces.
 fail_closed() { emit "fail-closed"$'\t'"${1//[[:cntrl:]]/ }" " "; }
 
-mode="" base="" default="" has_base=0 has_default=0
+mode="" base="" default="" repo="" has_base=0 has_default=0
 while (($#)); do
   case "$1" in
-  --base | --default-branch)
+  --base | --default-branch | --repo)
     (($# >= 2)) || usage
-    if [[ "$1" == --base ]]; then base="$2" has_base=1; else default="$2" has_default=1; fi
+    case "$1" in
+    --base) base="$2" has_base=1 ;;
+    --default-branch) default="$2" has_default=1 ;;
+    *)
+      [[ -z "$mode" ]] || usage
+      mode=--repo repo="$2"
+      ;;
+    esac
     shift
     ;;
   - | --http-response)
@@ -80,13 +94,24 @@ while (($#)); do
   esac
   shift
 done
-((has_base && has_default)) && [[ -n "$mode" ]] || usage
+if [[ "$mode" == --repo ]]; then
+  ((has_base && !has_default)) || usage
+  [[ "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$repo" != *..* ]] || usage
+  default=$(gh api "repos/$repo" --jq '.default_branch' 2>/dev/null) || default=""
+else
+  ((has_base && has_default)) && [[ -n "$mode" ]] || usage
+fi
 
 [[ -n "$base" ]] || fail_closed "the pull request's base branch could not be read"
 [[ -n "$default" ]] || fail_closed "the base repository's default branch could not be read"
 [[ "$base" == "$default" ]] || fail_closed "base $base is not the default branch $default"
 
-base_file_load "$mode"
+if [[ "$mode" == --repo ]]; then
+  base_file_load --http-response < <(gh api -i -X GET "repos/$repo/contents/$CONVENTION_KEY_YAML_REL" \
+    -f ref="$base" -H "Accept: application/vnd.github.raw" 2>/dev/null)
+else
+  base_file_load "$mode"
+fi
 case "$BASE_FILE_STATE" in
 absent) emit default " " ;;
 failed) fail_closed "$BASE_FILE_REASON" ;;
