@@ -1,8 +1,6 @@
 // test-scope: .github/scripts/pr-merge/retry-call.bash .github/scripts/pr-merge/sweep-summary.mjs docs/conventions/work-items.yaml
 // test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/lib/yaml-subset.awk
-// test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py
-// test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py
-// test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py
+// test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
 // pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
 // wait on the gate loop (#8299), the listing retries a failed GraphQL read, an
 // unknown listing holds the job green and every later acting step, the

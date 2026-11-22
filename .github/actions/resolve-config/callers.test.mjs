@@ -9,6 +9,7 @@
 // fix-ci-context skips, and
 // work-resolve-issue.yml caps its concurrent runs.
 // test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
