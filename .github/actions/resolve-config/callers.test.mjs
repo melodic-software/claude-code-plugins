@@ -66,7 +66,7 @@ function assertMainTip(steps, checkout, branch = "main") {
   const tip = steps.find((s) => s.id === "tip");
   assert.ok(tip, "the job resolves main's tip");
   assert.ok(steps.indexOf(tip) < steps.indexOf(checkout), "main's tip resolves before the checkout");
-  assert.equal(tip.env.TIP_BRANCH, branch);
+  assert.equal(tip.with.branch, branch);
 }
 
 // Sibling action directories this action's modules import, followed
@@ -10142,123 +10142,130 @@ test("every checkout of this repository takes a SHA, and main's tip comes only f
       }
       if (!tip) continue;
       tips++;
-      const where = `${file}#${jobId}`;
-      assert.equal(tip.name, "Resolve main's tip", where);
-      assert.deepEqual(Object.keys(tip.env).sort(), ["GIT_TERMINAL_PROMPT", "TIP_BRANCH"], where);
-      assert.ok(["main", DEFAULT_BRANCH].includes(tip.env.TIP_BRANCH), where);
-      assert.equal(tip.env.GIT_TERMINAL_PROMPT, "0", where);
-      assert.equal(tip.uses, undefined, where);
-      const carries = steps.some((s) => String(s.env?.PR_MERGE_MAIN_TIP ?? "").includes("steps.tip.outputs.carry-tip"));
-      assert.equal(tip.run, carries ? TIP_RUN_CARRY : TIP_RUN, `${where}: the one tip script`);
+      assert.equal(tip.name, "Resolve main's tip", `${file}#${jobId}`);
     }
   }
   assert.ok(tips >= 70, `only ${tips} tip steps found`);
 });
 
-const TIP_RUN = [
-  'until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
-  "    awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
-  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
-  '  sleep "$((RANDOM % (2 * i + 1)))"',
-  "done",
-  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
-  "",
-].join("\n");
-
-const TIP_RUN_CARRY = [
-  'until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&',
-  "    sha=$(awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }' <<<\"$refs\") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do",
-  '  ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
-  '  sleep "$((RANDOM % (2 * i + 1)))"',
-  "done",
-  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
-  "# The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only",
-  "# while no tag is named main, which they refuse: with it, no reader",
-  "# process reads git/ref/tags/main or git/ref/heads/main again.",
-  "if ! awk '$2 == \"refs/tags/main\" || $2 == \"refs/tags/main^{}\" { found = 1 } END { exit !found }' <<<\"$refs\"; then",
-  '  echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"',
-  "fi",
-  "",
-].join("\n");
-
-test("the tip step outputs the exact ref's SHA from this repository and fails on none", (t) => {
-  const tip = workflow("pr-verify.yml").jobs["check-intent"].steps.find((s) => s.id === "tip");
-  const root = tempDir("tip-step-");
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  mkdirSync(join(root, "bin"));
-  // ls-remote matches a pattern as a ref's tail, so a longer ref ending in it is listed too.
-  const listing = `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n${"2".repeat(40)}\trefs/heads/main\n`;
-  writeFileSync(join(root, "listing"), listing);
-  writeFileSync(join(root, "bin", "git"), `#!/bin/sh\necho "$*" >"${join(root, "args")}"\ncat "${join(root, "listing")}"\n`, { mode: 0o755 });
-  writeFileSync(join(root, "bin", "sleep"), "#!/bin/sh\n", { mode: 0o755 });
-  const run = () => {
-    const output = join(root, "output");
-    writeFileSync(output, "");
-    const result = spawnSync("bash", ["-e", "-c", tip.run], {
-      env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", TIP_BRANCH: "main", GITHUB_OUTPUT: output },
-      encoding: "utf8",
-    });
-    return { status: result.status, stdout: result.stdout, outputs: outputLines(output) };
-  };
-  const found = run();
-  assert.equal(found.status, 0);
-  assert.equal(found.outputs.sha, "2".repeat(40), "the refs/heads/main line, not the longer ref");
-  assert.equal(readFileSync(join(root, "args"), "utf8"), `-C ${root} ls-remote https://github.com/o/r.git refs/heads/main\n`);
-  writeFileSync(join(root, "listing"), `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n`);
-  const missing = run();
-  assert.equal(missing.status, 1);
-  assert.equal(missing.outputs.sha, undefined, "no sha output for the checkout to take");
-  assert.match(missing.stdout, /^::error::the tip of main did not resolve$/m);
+// Release-key jobs run no ci-workflows action: https://github.com/melodic-software/claude-code-plugins/issues/18056#issuecomment-7082231555
+const CI_WORKFLOWS_ACTION = /^melodic-software\/ci-workflows\/\.github\/actions\/[^@]+@([0-9a-f]{40})$/;
+const INLINE_TIP_HOLDERS = [
+  "release-generate-dependabot-changelog-fragments.yml#generate-changelog-fragments",
+  "release-publish-plugins.yml#build",
+  "release-publish-plugins.yml#merge",
+];
+const inlineTipSteps = () =>
+  INLINE_TIP_HOLDERS.map((where) => {
+    const [file, jobId] = where.split("#");
+    return { where, step: workflow(file).jobs[jobId].steps.find((s) => s.id === "tip") };
+  });
+test("the release-key workflows run no ci-workflows action, and their tip steps are one inline authenticated read", () => {
+  for (const file of new Set(INLINE_TIP_HOLDERS.map((where) => where.split("#")[0]))) {
+    const text = read(`../../workflows/${file}`);
+    assert.match(text, /PLUGIN_RELEASE_APP_PRIVATE_KEY/, `${file} holds the release App key`);
+    assert.doesNotMatch(text, /melodic-software\/ci-workflows/, `${file}: no ci-workflows action`);
+  }
+  const steps = inlineTipSteps();
+  for (const { where, step } of steps) {
+    assert.equal(step.name, "Resolve main's tip", where);
+    assert.equal(step.uses, undefined, where);
+    assert.deepEqual(step.env, { TIP_BRANCH: "main", TIP_TOKEN: "${{ github.token }}" }, `${where}: the job token, only through env`);
+    assert.doesNotMatch(step.run, /\$\{\{/, `${where}: no expression in run`);
+    assert.equal(step.run, steps[0].step.run, `${where}: the one inline read`);
+  }
 });
 
-// Element 1 of docs/conventions/pr-pipeline/README.md#outage-posture: at most 3 tries, with full-jitter
-// waits of 0-2 s and then 0-4 s, and red when no try yields a SHA. Each case
-// runs under both shells a step gets: bash -e, and bash -eo pipefail under
-// shell: bash.
-test("the tip step tries ls-remote at most 3 times with full-jitter waits and fails red on none", (t) => {
-  const root = tempDir("tip-retry-");
+// The guards of https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/resolve-branch-tip/resolve.sh
+test("the inline tip read authenticates, takes the exact ref, retries only timeouts and 5xx, and fails fast on 401/403", (t) => {
+  const tipRun = inlineTipSteps()[0].step.run;
+  const root = tempDir("inline-tip-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "bin"));
   const file = (name) => join(root, name);
-  // git fails while its call count is at or below the number in "fails", then lists "listing".
-  writeFileSync(join(root, "bin", "git"), `#!/bin/sh\necho x >>"${file("calls")}"\n[ "$(wc -l <"${file("calls")}")" -gt "$(cat "${file("fails")}")" ] || { echo "fatal: unable to access" >&2; exit 128; }\ncat "${file("listing")}"\n`, { mode: 0o755 });
+  writeFileSync(
+    join(root, "bin", "git"),
+    `#!/bin/bash\necho "$* | $GIT_CONFIG_COUNT $GIT_CONFIG_KEY_0 $GIT_CONFIG_VALUE_0 | $GIT_TERMINAL_PROMPT" >>"${file("calls")}"\nn=$(wc -l <"${file("calls")}")\nplay=$(sed -n "\${n}p" "${file("script")}")\ncase "$play" in ok) cat "${file("listing")}" ;; timeout) exit 124 ;; *) echo "$play" >&2; exit 128 ;; esac\n`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(root, "bin", "timeout"), `#!/bin/bash\nshift\nexec "$@"\n`, { mode: 0o755 });
   writeFileSync(join(root, "bin", "sleep"), `#!/bin/sh\necho "$1" >>"${file("sleeps")}"\n`, { mode: 0o755 });
-  const sha = "3".repeat(40);
-  const run = (shell, fails, listing, seed = 1) => {
+  const token = "ghs_secretvalue";
+  const header = Buffer.from(`x-access-token:${token}`).toString("base64");
+  const sha = "2".repeat(40);
+  const decoy = `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n`;
+  const run = (shell, plays, listing = `${decoy}${sha}\trefs/heads/main\n`) => {
     for (const name of ["calls", "sleeps", "output"]) writeFileSync(file(name), "");
-    writeFileSync(file("fails"), `${fails}\n`);
+    writeFileSync(file("script"), `${plays.join("\n")}\n`);
     writeFileSync(file("listing"), listing);
-    const result = spawnSync("bash", ["--noprofile", "--norc", ...shell, "-c", `RANDOM=${seed}\n${TIP_RUN}`], {
-      env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", TIP_BRANCH: "main", GITHUB_OUTPUT: file("output") },
+    const result = spawnSync("bash", ["--noprofile", "--norc", ...shell, "-c", tipRun], {
+      env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", TIP_BRANCH: "main", TIP_TOKEN: token, GITHUB_OUTPUT: file("output") },
       encoding: "utf8",
     });
     const lines = (name) => readFileSync(file(name), "utf8").split("\n").filter(Boolean);
-    return { status: result.status, stdout: result.stdout, calls: lines("calls").length, sleeps: lines("sleeps").map(Number), outputs: outputLines(file("output")) };
+    return { status: result.status, stdout: result.stdout, calls: lines("calls"), sleeps: lines("sleeps").map(Number), outputs: outputLines(file("output")) };
   };
-  const good = `${sha}\trefs/heads/main\n`;
   for (const shell of [["-e"], ["-eo", "pipefail"]]) {
     const mode = shell.join(" ");
-    const first = run(shell, 0, good);
-    assert.deepEqual([first.status, first.calls, first.sleeps, first.outputs.sha], [0, 1, [], sha], `${mode}: try 1 resolves with no wait`);
+    const ok = run(shell, ["ok"]);
+    assert.equal(ok.status, 0, `${mode}: ${ok.stdout}`);
+    assert.equal(ok.outputs.sha, sha, `${mode}: the refs/heads/main line, not the longer ref`);
+    assert.deepEqual(ok.calls, [`-C ${root} ls-remote https://github.com/o/r.git refs/heads/main | 1 http.https://github.com/.extraheader AUTHORIZATION: basic ${header} | 0`], `${mode}: the token only as the extraheader`);
+    assert.match(ok.stdout, new RegExp(`^::add-mask::${header}$`, "m"), `${mode}: the header is masked`);
+    assert.doesNotMatch(ok.stdout, new RegExp(token), `${mode}: the raw token is never printed`);
 
-    const third = run(shell, 2, good);
-    assert.deepEqual([third.status, third.calls, third.sleeps.length, third.outputs.sha], [0, 3, 2, sha], `${mode}: two faults, then try 3 resolves`);
-    const waits = Array.from({ length: 30 }, (_, seed) => run(shell, 2, good, seed + 1).sleeps);
-    for (const [index, cap] of [[0, 2], [1, 4]]) {
-      const seen = new Set(waits.map((w) => w[index]));
-      assert.ok([...seen].every((s) => Number.isInteger(s) && s >= 0 && s <= cap), `${mode}: wait ${index + 1} within 0-${cap} s, got ${[...seen]}`);
-      assert.ok(seen.size >= 2, `${mode}: wait ${index + 1} is jittered, got only ${[...seen]}`);
-    }
-    assert.ok(waits.some((w) => w[1] > 2), `${mode}: the second wait's cap is 4 s`);
+    const missing = run(shell, ["ok"], decoy);
+    assert.deepEqual([missing.status, missing.calls.length, missing.outputs.sha], [1, 1, undefined], `${mode}: no exact ref fails at once`);
+    assert.match(missing.stdout, /^::error::o\/r has no branch main$/m, mode);
 
-    for (const [why, fails, listing] of [["three faults", 3, good], ["a listing with no SHA", 0, "not-a-sha\trefs/heads/main\n"]]) {
-      const red = run(shell, fails, listing);
-      assert.equal(red.status, 1, `${mode}: ${why} fail the step`);
-      assert.equal(red.calls, 3, `${mode}: ${why} stop after try 3`);
-      assert.equal(red.sleeps.length, 2, `${mode}: ${why} wait only between tries`);
-      assert.match(red.stdout, /^::error::the tip of main did not resolve$/m, `${mode}: ${why}`);
-      assert.equal(red.outputs.sha, undefined, `${mode}: ${why} leave no sha for the checkout`);
+    for (const refused of ["fatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 403", "fatal: Authentication failed for 'https://github.com/o/r.git/'"]) {
+      const red = run(shell, [refused, "ok"]);
+      assert.deepEqual([red.status, red.calls.length, red.sleeps.length, red.outputs.sha], [1, 1, 0, undefined], `${mode}: a refused token fails at once: ${refused}`);
+      assert.match(red.stdout, /^::error::GitHub refused the token \(HTTP 401\/403\)/m, mode);
     }
+
+    const other = run(shell, ["fatal: repository 'https://github.com/o/r.git/' not found", "ok"]);
+    assert.deepEqual([other.status, other.calls.length, other.sleeps.length], [1, 1, 0], `${mode}: any other git failure fails at once`);
+
+    const server = "fatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 502";
+    const recovered = run(shell, ["timeout", server, "ok"]);
+    assert.deepEqual([recovered.status, recovered.calls.length, recovered.sleeps.length, recovered.outputs.sha], [0, 3, 2, sha], `${mode}: a timeout and a 5xx, then try 3 resolves`);
+    assert.ok(recovered.sleeps[0] >= 0 && recovered.sleeps[0] <= 2 && recovered.sleeps[1] >= 0 && recovered.sleeps[1] <= 4, `${mode}: waits within 0-2 s and 0-4 s, got ${recovered.sleeps}`);
+
+    const exhausted = run(shell, [server, server, server, "ok"]);
+    assert.deepEqual([exhausted.status, exhausted.calls.length, exhausted.sleeps.length, exhausted.outputs.sha], [1, 3, 2, undefined], `${mode}: three 5xx stop after try 3`);
+    assert.match(exhausted.stdout, /^::error::the tip of main did not resolve: try 3 got a server error$/m, mode);
+  }
+});
+
+test("every tip step is the pinned resolve-branch-tip action reading this repository's main", () => {
+  const pins = new Set();
+  const tips = [];
+  const inline = [];
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [jobId, job] of Object.entries(doc.jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        const standardsSyncPinned = file === "pr-check-managed-files-hosted.yml";
+        const pin = standardsSyncPinned ? null : CI_WORKFLOWS_ACTION.exec(String(step.uses ?? ""));
+        if (pin) pins.add(pin[1]);
+        if (!/^Resolve main's tip/.test(step.name ?? "") && !String(step.uses ?? "").includes("/resolve-branch-tip@")) continue;
+        if (step.uses === undefined) inline.push(`${file}#${jobId}`);
+        else tips.push({ where: `${file}#${jobId} ${step.name}`, step, contents: (job.permissions ?? doc.permissions)?.contents });
+      }
+    }
+  }
+  assert.deepEqual(inline.sort(), INLINE_TIP_HOLDERS, "only the release-key jobs keep an inline tip read");
+  assert.equal(pins.size, 1, `one ci-workflows pin, got ${[...pins]}`);
+  const [pin] = pins;
+  assert.ok(tips.length >= 70, `only ${tips.length} tip steps found`);
+  for (const { where, step, contents } of tips) {
+    assert.equal(step.uses, `melodic-software/ci-workflows/.github/actions/resolve-branch-tip@${pin}`, where);
+    assert.deepEqual(Object.keys(step.with ?? {}), ["branch"], `${where}: no repository or token override`);
+    assert.ok(["main", DEFAULT_BRANCH].includes(step.with.branch), where);
+    assert.equal(step.run, undefined, where);
+    assert.equal(step.env, undefined, where);
+    assert.ok(["read", "write"].includes(contents), `${where}: the job token needs contents: read`);
   }
 });
 

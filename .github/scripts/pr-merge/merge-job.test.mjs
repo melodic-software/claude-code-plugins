@@ -2828,7 +2828,7 @@ test("the steps that read main's tip get the one the job resolved, not a REST re
   assert.ok(late > steps.findIndex((s) => s.name === "Run the merge gate on each candidate"), "resolved again after the gate");
   assert.ok(late < steps.findIndex((s) => s.name === "Re-fire lane runs refused as workflow-modified"));
   assert.match(step("Resolve main's tip after the gate"), /\n {8}continue-on-error: true\n/);
-  assert.match(runScript("Resolve main's tip after the gate"), /ls-remote "https:\/\/github\.com\/\$GITHUB_REPOSITORY\.git" "refs\/heads\/\$TIP_BRANCH"/);
+  assert.match(step("Resolve main's tip after the gate"), /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40} # v[\d.]+\n {8}with:\n {10}branch: main\n/);
   const gate = runScript("Run the merge gate on each candidate");
   assert.match(gate, /tip=\$\(timeout 60 git -C "\$RUNNER_TEMP" ls-remote "https:\/\/github\.com\/\$GITHUB_REPOSITORY\.git" refs\/heads\/main \|/);
   assert.match(gate, /\n {2}MAIN_TIP_SHA=\$tip "\.base\/\$SCRIPT" /);

@@ -140,7 +140,7 @@ test("it checks out main only, without credentials, and pins every external acti
   const checkout = steps.find((step) => step.includes("uses: actions/checkout@"));
   assert.match(checkout, /\n {8}uses: actions\/checkout@[0-9a-f]{40} #/);
   assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
-  assert.match(steps.find((step) => step.startsWith("Resolve main's tip\n")), /\n {10}TIP_BRANCH: main\n/);
+  assert.match(steps.find((step) => step.startsWith("Resolve main's tip\n")), /\n {10}branch: main$/);
   for (const [, uses] of text.matchAll(/\n +uses: ([^\s.][^\s]*)/g)) {
     assert.match(uses, /@[0-9a-f]{40}$/, uses);
   }
