@@ -8,9 +8,10 @@
   "properties": {
     "$schema": { "type": "string" },
     "churn_window": {
-      "description": "The hotspot recipe's change-frequency window, a value git log --since accepts.",
+      "description": "The hotspot recipe's change-frequency window, a value git log --since accepts, made of letters, digits, spaces and .:,/+- only.",
       "type": "string",
       "minLength": 1,
+      "pattern": "^[A-Za-z0-9 .:,/+-]+$",
       "default": "90 days ago"
     },
     "churn_exclude": {

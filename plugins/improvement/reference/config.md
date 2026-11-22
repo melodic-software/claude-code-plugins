@@ -64,7 +64,8 @@ layer they stand in for, so at a root that is `$HOME` they are not read as team 
 The repository-scope window is declared by the plugin's retirement records,
 [`retirements.yaml`](../retirements.yaml): `improvement-r001` (`.claude/improvement.md`) and
 `improvement-r002` (`.claude/improvement.local.md`), both `migrate`, evaluated by
-`lib/check-retirements.sh` from `/improvement:setup`. `~/.claude/improvement.md` is machine scope,
+`lib/check-retirements.sh` from `/improvement:setup`, always with `--root <root>` so the helper
+checks the same root as every other read (left out, it checks `${CLAUDE_PROJECT_DIR}` first). `~/.claude/improvement.md` is machine scope,
 outside that mechanism, so setup detects it with its own Read. Removing these reads is a separate
 later change (demoting the records to `report-only`), made once no run reports an old file.
 
@@ -119,7 +120,7 @@ evidence_sources:
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `churn_window` | string accepted by `git log --since` | `"90 days ago"` | The hotspot recipe's change-frequency window, its main tuning knob. The recipe's history-depth gate still applies: a window the history does not cover shrinks or downgrades to an evidence gap regardless of this value. |
+| `churn_window` | string accepted by `git log --since`, made of letters, digits, spaces and `.:,/+-` only | `"90 days ago"` | The hotspot recipe's change-frequency window, its main tuning knob. A value with any other character is malformed and never reaches the command. The recipe's history-depth gate still applies: a window the history does not cover shrinks or downgrades to an evidence gap regardless of this value. |
 | `churn_exclude` | list of ERE patterns | `[]` | Extra patterns matched against paths from `git log --name-only` and excluded from churn counting. Unioned across layers and with the mechanical files resolved from the repository. |
 | `churn_exclude_defaults` | boolean (`true` \| `false`, since bare `on`/`off` is the YAML 1.1 coercion footgun and is not accepted) | `true` | `false` drops the exclusions resolved from the repository (the lockfiles, generated or minified output, snapshots and vendored trees its `.gitattributes`, build and manifest files show: the hotspot recipe's Step 2), leaving only declared patterns. The plugin ships no exclusion list. |
 | `find_open_item_cap` | non-negative integer | `5` | Applied to each source label on its own (`source: improvement-find`, `source: architecture-improve`): unattended `/improvement:find` files nothing under a label while the open items carrying it number at or above this, and otherwise files no more than the room left under it. A hard stop the invocation prompt cannot raise, and personal layers can only lower ("Merge semantics"); `0` stops all unattended filing. A value that is not a non-negative integer is malformed: that layer's value is ignored and reported. |

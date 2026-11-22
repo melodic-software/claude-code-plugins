@@ -71,7 +71,11 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
    `evidence_sources_file` cannot be read, WARN it was not considered rather than presenting the
    readable layers as the whole effective config.
 2. **Old files.** Retired conventions: run
-   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`.
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>"`,
+   with `<root>` the path `git rev-parse --show-toplevel` printed (the root every other read in
+   this skill anchors at). Never leave out `--root`: the helper otherwise checks
+   `${CLAUDE_PROJECT_DIR}` first, a subdirectory when the session started in one. When the root
+   does not resolve, the root rule already skips these layers: skip this step and say so.
    Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL, `delete`/`remove-line` WARN,
    `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never silent. Bash unavailable →
    report the step UNKNOWN with remediation, never green. The records cover
@@ -129,8 +133,8 @@ the user's yes for that file, so the config ends in one home, never two:
   keeping the new file's own keys, then resolve that layer again from the new file alone and check
   every moved key resolves the value the old file gave. Only when all match and the operator
   confirms the result, run
-  `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`,
-  which deletes the old file; a tracked one stays deleted in the working tree, to commit with the
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean <id> --i-migrated`,
+  with the same `<root>` as `check` step 2, which deletes the old file; a tracked one stays deleted in the working tree, to commit with the
   new file. On any mismatch, keep the old file and report the key. Before writing the personal
   file, run `git check-ignore -v <home>/improvement.local.yaml`: when it is not ignored, write
   nothing for that file and recommend the `<home>/**/*.local.*` line. Re-run detection last and
@@ -198,8 +202,9 @@ to re-run this setup to reconfigure.
   provisioning the server is the consumer's own MCP setup.
 - Write `userConfig`, user settings, `pluginConfigs`, or the consumer's `.gitignore`. Beyond the
   team file it writes only the targets of a confirmed move of an old file.
-- Write machine-local state. Configuration lives in the consumer's tracked file, never in the
-  plugin directory or the plugin data directory.
+- Write into the plugin directory or the plugin data directory. Configuration lives in the
+  consumer's team and personal files and, after a confirmed move of the old user-global file, the
+  user's own `evidence_sources_file`.
 
 ## Gotchas
 
