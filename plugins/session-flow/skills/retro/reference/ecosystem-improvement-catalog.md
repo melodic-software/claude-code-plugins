@@ -99,6 +99,8 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 | Finding | Hand to |
 | --- | --- |
 | Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/corrections:codify "<the mistake>"`, which counts it, picks the strongest rung that can catch it and proves the check. The row names the mistake as the description to pass; a review-findings file the user already keeps goes to `/corrections:codify findings <file>` |
+| Reviewer miss: a mistake the automated reviewer should have flagged, or a reviewer rule to remove or clarify | `/corrections:codify "<the mistake>"`, whose `automated-review` rung writes to the repository's review criteria |
+| A skill whose description did not fire when the session needed it | `/harness-ops:audit-skill-visibility` |
 | Missing automation: a hook, MCP server, skill, subagent, or scheduled task | `/harness-config:audit-automation-gaps`, which rejects new automation unless evidence earns it |
 | An instruction the model followed unaided, or one that is stale or conflicting | `/harness-config:audit-instructions` |
 | Whether standing instructions are still needed at all | `/harness-config:unhobble`, the bare-model experiment |

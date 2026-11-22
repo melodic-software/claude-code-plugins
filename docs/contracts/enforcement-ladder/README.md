@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.3.1
+enforcement-ladder: 3.4.0
 ---
 
 # Enforcement ladder
@@ -110,9 +110,13 @@ meets it, or checks every state a model can reach.
 A model reads it and nothing blocks. Because nothing checks these rungs, state the rule where the
 reader meets it and put an example of the mistake beside it.
 
-1. **`automated-review`**: `REVIEW.md`, read by the review bot on every pull request. It holds a
-   rule only a reviewer applies, or a change to how severe a finding is; its findings are
-   advisory.
+1. **`automated-review`**: the repository's review criteria, read by the review bot on every pull
+   request. It holds a rule only a reviewer applies, or a change to how severe a finding is; its
+   findings are advisory. The rule goes in the review-criteria index (`docs/review/README.md` at
+   the repository root, and the file its rows route the concern to) when the repository has one,
+   else in a repository-owned `CODING_STANDARDS.md`, else in `REVIEW.md`. Skip a file a
+   standards-sync bot owns (its commits are that bot's): the next sync overwrites a rule written
+   there.
 2. **`instruction`**: a lesson for the agent or person writing the code, in a `CLAUDE.md` or
    `AGENTS.md` line, or in a rules file under `.claude/rules/` (a path-scoped rule loads when a
    covered file is read).
