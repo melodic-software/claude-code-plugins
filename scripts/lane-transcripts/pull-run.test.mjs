@@ -20,7 +20,7 @@ function runArtifacts(publicLine) {
   const withTelemetry = (id, runId, jobId) => artifact(id, { runId, jobId, entries: { [ENTRY]: sealed(publicLine, { runId, jobId }), [TELEMETRY_ENTRY]: telemetry(publicLine, runId, jobId) } });
   return [
     withTelemetry(1, 77, "assess-units-a1"),
-    withTelemetry(2, 77, "judge-a1"),
+    withTelemetry(2, 77, "assess-units-a1"),
     { ...artifact(3, { runId: 77, record: "x" }), name: "unit-findings-a1" },
     withTelemetry(4, 78, "assess-units-a1"),
   ];
@@ -52,7 +52,7 @@ test("pull --run stores only that run's transcripts and telemetry, listing only 
 test("pull --run leaves the pull's state byte for byte, and a second run skips what it holds", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
-  seedState(sink, { last_success_at: iso(NOW - 3600_000), resume_cutoff_at: iso(NOW - 2 * 86400_000), resume_name: "lane-transcript-judge-a1-1", budget_exhausted: true, cursors: { "lane-transcript-judge-a1-1": iso(NOW - 7200_000) } });
+  seedState(sink, { last_success_at: iso(NOW - 3600_000), resume_cutoff_at: iso(NOW - 2 * 86400_000), resume_name: "lane-transcript-assess-units-a1-1", budget_exhausted: true, cursors: { "lane-transcript-assess-units-a1-1": iso(NOW - 7200_000) } });
   const before = readFileSync(paths(sink).state, "utf8");
   assert.equal(run(["pull", "--run", "77", "--sink", sink], { env: keyEnv(privateText), deps: fakeDeps(runArtifacts(publicLine)) }).code, 0);
   assert.equal(readFileSync(paths(sink).state, "utf8"), before);
