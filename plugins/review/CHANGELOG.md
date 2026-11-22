@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.1] - 2026-11-22
+
+### Changed
+
+- The security-review skill names source-control's diff risk scorer by its new module, `diff_risk.py`.
+
 ## [10.8.0] - 2026-11-22
 
 ### Added

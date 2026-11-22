@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [12.0.0] - 2026-11-22
+
+### Changed
+
+- The contract names the diff risk scorer by its new module, `diff_risk.py`, in place of `babysit_risk.py`.
+
+### Removed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `limits.api.<pool>.limit-cap`, so a `pr-pipeline.yaml` that sets it fails validation; delete it. Every pool's read floor is a share of its live `x-ratelimit-limit` header, so GITHUB_TOKEN no longer plans to a 1,000-request budget, and ci-status's `API_BUDGET_LIMIT_CAP` and `BABYSIT_READ_FLOOR_HEADER_LIMIT` are gone ([#18194](https://github.com/melodic-software/claude-code-plugins/issues/18194)).
+
 ## [11.9.1] - 2026-11-22
 
 ### Fixed
