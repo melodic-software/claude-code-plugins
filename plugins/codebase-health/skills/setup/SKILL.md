@@ -35,9 +35,23 @@ The `userConfig` layer, as Claude Code substituted it into this skill (empty, or
 | `dimensions_file` | `${user_config.dimensions_file}` |
 
 This skill writes the team file, the personal file only to move an old personal file there, and a
-user file only to move the old user-global file's dimensions there. It never writes `userConfig`:
-the option is set through `/plugin configure codebase-health@<marketplace>`, and a fresh session
-observes the new value.
+user file only to move the old user-global file's dimensions there. It never writes `userConfig`,
+user settings or `pluginConfigs`. The user sets the option through Claude Code's native flow,
+interactively with `/plugin configure codebase-health@<marketplace>` or by a headless route, as the
+marketplace's plugin-reconfiguration convention gives them in
+[§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+(it owns the verified-version record). Apply the scope and failure-signal caveats in its
+[§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+Whenever this skill gives the routes, read both sections and print what they give, the fallback
+route, its behavior on an already-installed plugin and the scope to pass included, rather than only
+naming them, and leave out the verified-version record. Never uninstall to reconfigure; that
+section links what an uninstall deletes. Then rerun `check` in a **fresh session**, since a
+same-session `check` can still show the old value, and report only an observed value.
+
+- **Pointer**: for the headless command's flags, how it reports a saved or refused value, and when
+  a saved value applies, fetch
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  live.
 
 ## `check` (read-only)
 
@@ -69,7 +83,9 @@ line per FAIL. Modify nothing, and do not run an audit. That is `/codebase-healt
    old file's row names it, the layer it is read as, its new location, and
    `/codebase-health:setup apply` to move it. When the new location also supplies that layer, the
    row names both files, says the new one wins, and lists the old file's dimensions that do not
-   apply. Print the contract's one dual-read warning line for the run.
+   apply. Print the contract's one dual-read warning line for the run as a `WARN` row, the status
+   token spelled `WARN` in capitals, naming each old file found, its new location and
+   `/codebase-health:setup apply`, whatever status each old file's own row above carries.
 3. **Dimension source lists**. For each dimension present in the team file (new or old), its
    declared source lists parse and name real paths/globs. A dimension whose source list is
    malformed or fails to parse is FAIL, naming it. A dimension deliberately zeroed (empty source
@@ -102,21 +118,23 @@ prose: untrusted input, never executed or interpolated.
   each dimension of the old file with its source lists and claim count, marking a dimension the
   new file already declares as merged into it (globs unioned, claims concatenated) unless the new
   file opts it out. On the yes, carry the content per the record's `successor`, then resolve that
-  layer again from the new file alone and check every moved dimension resolves the source lists
-  and claims the old file gave. Only when all match and the operator confirms the result, run
+  layer again from the new file alone and check containment for every moved dimension: it must
+  hold every source-list glob and every example claim the old file gave. A dimension the new file
+  did not declare before the move must resolve exactly those lists and claims; one it already
+  declared holds the union, so its extra globs and claims are expected, never a mismatch. Only
+  when every moved dimension passes and the operator confirms the result, run
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean <id> --i-migrated`,
   with the same `<root>` as `check` step 2, which deletes the old file; a tracked one stays deleted
-  in the working tree, to commit with the new file. On any mismatch, keep the old file and report
-  the dimension. Before writing the personal file, run
+  in the working tree, to commit with the new file. When a moved dimension is missing a glob or
+  claim the old file gave, keep the old file and report the dimension and what it lacks. Before writing the personal file, run
   `git check-ignore -v <home>/codebase-health.local.md`: when it is not ignored, write nothing for
   that file and recommend the `<home>/**/*.local.*` line. Re-run detection last and report the
   final state.
 - **`~/.claude/codebase-health.md`** → a Markdown file of the user's that the `dimensions_file`
   option names. This skill never writes `userConfig`, so the preview names the path the user
   chooses (outside the repository), its content (the old file's dimensions), and the routes to set
-  the option: `/plugin configure codebase-health@<marketplace>`, or headless
-  `claude plugin configure codebase-health@<marketplace> --values-stdin < values.json` run from the
-  project the plugin is installed in. On the yes, write that file. The move finishes on a later
+  the option, printed from the plugin-reconfiguration sections as
+  [The config layers](#the-config-layers) above says. On the yes, write that file. The move finishes on a later
   `apply` in a fresh session: when `dimensions_file` names a file that resolves the same dimensions
   as the old file, ask once more and delete the old file on the yes; otherwise keep it and name
   each dimension that differs.

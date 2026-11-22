@@ -924,6 +924,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/ai-briefing/reference/pl
 docs/contracts/plugin-reconfiguration/README.md plugins/bash-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/bugs/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/code-tidying/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/codebase-health/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/context-budget/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/desktop-notification/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/discipline/reference/plugin-reconfiguration.md
