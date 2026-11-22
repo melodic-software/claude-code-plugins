@@ -35,10 +35,26 @@
       "id": 3,
       "name": "routes-mod-authoring",
       "prompt": "Write me a mod that shows my git branch above the prompt.",
-      "expected_output": "The response recognizes a mod-authoring request and does not run the posture inventory or produce an M1-M5 report.",
+      "expected_output": "The response recognizes a mod-authoring request and does not run the posture inventory or produce an M1-M8 report.",
       "files": [],
       "expectations": [
-        "Does not run the mod posture inventory script or produce an M1-M5 report for this request"
+        "Does not run the mod posture inventory script or produce an M1-M8 report for this request"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "scores-unasked-load-tool-calls-and-nouns",
+      "prompt": "Audit my mod posture. Use the inventory in evals/fixtures/host-inventory-unasked.md relative to the skill directory as the Phase 1 output instead of running the script, and give me the report.",
+      "expected_output": "A dated mod posture report with M6 WARN because the claude-written mods footer reads load-unasked under bypassPermissions in user settings, linking the Create a mod section 'Ask Claude for a mod' and the disableSideloadFlags entry; M7 info on runner naming $.tool.call and $.mcp.call with a link to the mods admin page section 'Know what happens by default'; M8 info on shaper for the notes namespace it adds and M8 WARN on shaper for the store namespace it replaces; no M7 or M8 finding on the disabled idle row; and M1 PASS.",
+      "files": ["evals/fixtures/host-inventory-unasked.md"],
+      "expectations": [
+        "Rates M6 WARN because the claude-written mods footer reads load-unasked, naming bypassPermissions",
+        "Links the Create a mod section 'Ask Claude for a mod' or the disableSideloadFlags settings entry from the M6 finding",
+        "Rates M7 info on runner, naming $.tool.call and $.mcp.call",
+        "Links the mods admin page section 'Know what happens by default' from the M7 finding",
+        "Rates M8 WARN on shaper, naming the store namespace it replaces",
+        "Gives no M7 or M8 finding to idle, whose enabled column is off",
+        "Rates M1 PASS because the guard footer reads seated"
       ]
     }
   ]
