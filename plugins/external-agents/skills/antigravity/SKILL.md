@@ -30,7 +30,7 @@ Antigravity.
 
 | Action | Command | Read |
 |---|---|---|
-| `run` (default): a task (may write) or an investigation (read-only) | `external-agents run antigravity --use task --mode write --prompt-file <file>`, or `--use investigate` | [reference/run.md](reference/run.md) |
+| `run` (default): a task (may write) or an investigation (read-only) | `external-agents run antigravity --use task --mode write [--add-dir <dir>]... [--unsandboxed auto] --prompt-file <file>`, or `--use investigate` | [reference/run.md](reference/run.md) |
 | `review`: agy reviews this branch, read-only | `external-agents review antigravity --base <ref> [--brief-file <file>]` | [reference/run.md](reference/run.md#review) |
 | `status`, `result`, `cancel` | `external-agents status [<job>]`, `result <job>`, `cancel <job>` | [reference/jobs.md](reference/jobs.md) |
 | `update`: readiness, CLI facts, version and routing check | `external-agents update antigravity` | [reference/update.md](reference/update.md) |
@@ -58,6 +58,12 @@ own copy in the job folder. Name the files and paths agy should read; never past
 diffs or logs into the prompt. For an investigation, name the paths: a read-only agy run reads
 files by path and cannot search or list directories.
 
+Before a write task, decide its fence (details in [reference/run.md](reference/run.md#run)):
+every directory outside the worktree it will write, each passed with `--add-dir` and named in the
+prompt (none when the worktree is enough), and whether it needs a command outside agy's sandbox,
+such as network access or a system service. Pass `--unsandboxed auto` only then, and say why in
+the prompt.
+
 ## Background runs
 
 Run every `run` and `review` with the Bash tool's `run_in_background`: a run can last up to
@@ -73,22 +79,28 @@ process tree; stopping the background Bash task alone may leave agy running.
 ## Gotchas
 
 - **Write is opt-in.** Every use runs read-only until the user sets
-  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml`, because
-  agy's write mode has no network isolation (next gotchas). Pass `--mode write` with a task that should
-  change files: under a read-only ceiling it runs read-only and prints a notice naming that key.
-  Relay the notice, and never set the key yourself.
+  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml` (ADR 0119
+  decision 2). Pass `--mode write` with a task that should change files: under a read-only ceiling
+  it runs read-only and prints a notice naming that key, and an `--add-dir` or `--unsandboxed` on
+  it is refused. Relay the notice, and never set the key yourself.
 - **A refused action makes the run `blocked-by-mode`, even with a full answer.** agy keeps going
   after a refusal and may still answer well; the command records the run `blocked-by-mode`, exits
   `3` and prints the answer. Relay the answer, name the refused actions from the first line, and
   never report a task done.
-- **Treat write mode as having network access.** Its limit is agy's sandbox plus agy's own
-  review, which can run a command outside the sandbox
-  ([Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox/#cli-permissions-integration));
-  ADR 0119 decision 2 records why write is opt-in. Never ask agy to push, open or merge pull
-  requests, or run `gh` or `az`; Claude Code stays the only actor for those.
-- **Check the work, not the warning.** A `notice:` saying auto mode fell back to the default mode
-  does not prove writes were refused. Before reporting a task done, check that its files exist;
-  trust neither the notice nor the exit code alone.
+- **`--unsandboxed auto` lifts the fence for the whole run.** In auto mode agy's own review can run
+  a command outside the sandbox, with the disk and network access that brings
+  ([Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox#cli-permissions-integration)),
+  and `--add-dir` does not bound such a command. Never ask agy, fenced or not, to push, open or
+  merge pull requests, or run `gh` or `az`; Claude Code stays the only actor for those.
+- **A refused out-of-sandbox command is `blocked-by-mode`, not a reason to opt out.** Relay the
+  refused command. Rerun with `--unsandboxed auto` only when the task truly needs it (the
+  decision above), and say so in the reply.
+- **Read the auto-mode notice as the command words it.** On an `--unsandboxed auto` run the
+  command checks agy's own log for the run behind agy's auto-mode warning
+  ([observation](https://github.com/melodic-software/claude-code-plugins/issues/18213)). A notice
+  ending `its log shows the mode was applied` means auto mode ran; `notice: the CLI warned: --mode
+  auto is not available` alone means the run fell back. Either way, check that the task's files
+  exist before reporting it done.
 - **Run a build or test that writes output on WSL, not Windows**: on Windows, a write task's
   commands could not write files
   ([probe record](https://github.com/melodic-software/claude-code-plugins/issues/17786#issuecomment-7072008655)).

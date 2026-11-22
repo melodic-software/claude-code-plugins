@@ -65,6 +65,9 @@ modes:
     args:
       run: [--sandbox, workspace-write]
       resume: [-c, 'sandbox_mode="workspace-write"']
+    add_dir:
+      arg: --add-dir
+      commands: [run]
 soft_deny:
   - kind: json_item_failed
     item_types: [command_execution, file_change]
