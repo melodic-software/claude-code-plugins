@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/.claude-plugin/plugin.json
 """The GitHub API rate guard in `babysit_gh._run_gh`.
 
 Expected values come from two sources the code does not compute: the shared
