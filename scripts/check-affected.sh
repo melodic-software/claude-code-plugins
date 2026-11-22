@@ -967,10 +967,8 @@ elif ((run_tests)); then
     local rc=0 left
     wait "$trace_pid" || rc=$?
     cat "$out.trace/report.md" 2>/dev/null || tail -n 5 "$out.trace.log"
-    ((rc == 1)) && return 1
-    ((rc == 0)) || return 2
-    left=$(awk -F'\t' '$2 == "not-traced"' "$out.trace/suites.tsv" | wc -l)
-    left=$((left + $(grep -c $'\tnot checked' "$out.trace/verdicts.tsv" 2>/dev/null || true)))
+    ((rc == 0)) || return $((rc == 1 ? 1 : 2))
+    left=$(($(cat "$out.trace"/{suites,verdicts}.tsv 2>/dev/null | grep -c -e $'\tnot-traced\t' -e $'\tnot checked')))
     ((left == 0)) || { echo "$left suite(s) or file(s) left unchecked past the ${budget}s budget, left to CI"; return 2; }
   }
   if [[ -n "$trace_pid" ]]; then

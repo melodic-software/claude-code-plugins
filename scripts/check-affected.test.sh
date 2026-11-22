@@ -541,7 +541,7 @@ plain=$((SECONDS - start))
 start=$SECONDS
 run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_TRACE_SLEEP=3 STUB_AFFECTED_SLEEP=3 -- --base base --tests
 check "selection-trace runs beside the suites, not after them" \
-  '[[ $RC == 0 && $((SECONDS - start - plain)) -lt 5 ]]'
+  "[[ \$RC == 0 && $((SECONDS - start - plain)) -lt 5 ]]"
 # A selected Node suite in a registered package runs through the package's own
 # npm test, and a failing one fails tests.
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
