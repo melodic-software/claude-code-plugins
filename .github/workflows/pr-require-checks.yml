@@ -7857,7 +7857,7 @@ jobs:
               failed=1
               ;;
             stopped)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of $url; ci-status re-runs when it finishes."
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): an API budget defer or a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of $url; ci-status re-runs when it finishes."
               failed=1
               ;;
             upstream)
