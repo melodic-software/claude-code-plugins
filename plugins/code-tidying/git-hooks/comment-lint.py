@@ -23,6 +23,10 @@ one-line ADR pointer (ADR-0042, or a path into <adr-dir>) passes only when the r
 under <adr-dir> (default docs/adr; one outside <records> falls back to it) of <records>, the
 repository as the change holds it; with no <records> it fails.
 
+An added line that <diff> (git diff -U0 with b/ new-side names) shows replacing a removed line
+of the same hunk only by renamed identifiers (a word holding _, a digit or a lower-to-upper
+case change, each renamed one way across the hunk) is judged like the unchanged line: not at all.
+
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
 Exit: 0 judged; 2 usage; 3 pygments is not importable; 4 grep -E rejected an allow pattern;
@@ -398,7 +402,74 @@ def _allowed(texts: list[str], allow: list[str]) -> set[int]:
     return {int(row.split(":", 1)[0]) - 1 for row in proc.stdout.splitlines() if row}
 
 
-def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR):
+WORD = re.compile(r"\w+|[^\w\s]+")
+IDENTIFIER = re.compile(r"\w*(?:_|\d|[a-z][A-Z])\w*")
+
+
+def _swaps(old: str, new: str) -> list[tuple[str, str]] | None:
+    a, b = WORD.findall(old), WORD.findall(new)
+    if len(a) != len(b):
+        return None
+    swaps = []
+    for x, y in zip(a, b):
+        if x == y:
+            continue
+        if not (x[0].isalnum() or x[0] == "_") or not (y[0].isalnum() or y[0] == "_"):
+            return None
+        if not (IDENTIFIER.fullmatch(x) or IDENTIFIER.fullmatch(y)):
+            return None
+        swaps.append((x, y))
+    return swaps
+
+
+def _renamed_only(hunks, source: list[str]) -> set[int]:
+    """New line numbers whose text differs from a removed line of the same hunk only by an identifier rename."""
+    out: set[int] = set()
+    for start, removed, added in hunks:
+        pairs: set[tuple[str, str]] = set()
+        matched = []
+        for i, new in enumerate(added):
+            n = start + i
+            if n - 1 >= len(source) or source[n - 1] != new:
+                continue
+            pool = [removed[i]] if len(removed) == len(added) else removed
+            swaps = next((s for old in pool if (s := _swaps(old, new))), None)
+            if swaps:
+                pairs.update(swaps)
+                matched.append(n)
+        if len({x for x, _ in pairs}) == len(pairs) == len({y for _, y in pairs}):
+            out.update(matched)
+    return out
+
+
+def _hunks(path: Path) -> dict[str, list[tuple[int, list[str], list[str]]]]:
+    out: dict[str, list[tuple[int, list[str], list[str]]]] = {}
+    name, left, right, hunk = "", 0, 0, None
+    for row in path.read_text(encoding="utf-8", errors="replace").split("\n"):
+        if left > 0 or right > 0:
+            if row.startswith("-"):
+                hunk[1].append(row[1:])
+                left -= 1
+            elif row.startswith("+"):
+                hunk[2].append(row[1:])
+                right -= 1
+            elif row.startswith(" "):
+                left, right = left - 1, right - 1
+            continue
+        if row.startswith("+++ "):
+            target = row[4:].rstrip("\t")
+            name = target[2:] if target.startswith("b/") else ""
+        elif row.startswith("@@ "):
+            old, new = row.split(" ")[1:3]
+            left = int(old.split(",")[1]) if "," in old else 1
+            right = int(new.split(",")[1]) if "," in new else 1
+            hunk = (int(new[1:].split(",")[0]), [], [])
+            if name:
+                out.setdefault(name, []).append(hunk)
+    return out
+
+
+def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, hunks=()):
     """The finding lines for the comments on <added> lines of <path>; None when no lexer reads it."""
     lexer, tokens = _lex(path, text)
     if lexer is None:
@@ -418,7 +489,7 @@ def findings(path: str, text: str, added, posture: str, allow: list[str], repo: 
                 continue
             if not _passes(n, lines, run_of, block_of, source, posture, lexer.name, path, repo, adr_dir):
                 candidates.append(n)
-    candidates = sorted(set(candidates))
+    candidates = sorted(set(candidates) - _renamed_only(hunks, source))
     kept = _allowed([lines[n].comment for n in candidates], allow)
     return [
         f"{path}:{n}: {MESSAGE.format(posture)}"
@@ -448,6 +519,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--allow", type=Path)
     parser.add_argument("--records", type=Path)
     parser.add_argument("--adr-dir", default=ADR_DIR)
+    parser.add_argument("--diff", type=Path)
     args = parser.parse_args(argv)
     try:
         import pygments  # noqa: F401
@@ -461,6 +533,7 @@ def main(argv: list[str]) -> int:
     if args.allow:
         allow = [p for p in args.allow.read_text(encoding="utf-8").splitlines() if p]
     ranges = _ranges(args.ranges)
+    hunks = _hunks(args.diff) if args.diff else {}
     paths = [
         p
         for p in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0")
@@ -470,7 +543,7 @@ def main(argv: list[str]) -> int:
     for path in paths:
         text = (args.root / path).read_text(encoding="utf-8", errors="replace")
         try:
-            got = findings(path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir)
+            got = findings(path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir, hunks.get(path, ()))
         except ValueError as err:
             print(
                 f"comment-lint: grep -E rejected a comment_lint_allow pattern: {err}",

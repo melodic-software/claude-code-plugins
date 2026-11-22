@@ -27,7 +27,8 @@ runs nothing; auto and aggressive read as necessary.
 Judges the files whose extension code-extensions.txt lists, except one whose first 10
 lines match a generated-marker.ere line (sync-managed, @generated, or a whole-file
 "do not edit" notice; each skip is named on stderr), through the pygments lexer for
-the file's name, or POSIX and Bash token rules for a shell script. Findings print as
+the file's name, or POSIX and Bash token rules for a shell script. A comment line whose
+only change is a renamed identifier is judged like the unchanged line. Findings print as
 <path>:<line>: <message> on stderr; block exits 1, report exits 0. A file the comment
 reader fails on is named on stderr while the other files are still judged, and blocks
 like any tool failure. An ADR pointer's record is looked up in comment_adr_dir where
@@ -138,8 +139,12 @@ while IFS= read -r -d '' f; do
 done < <(adr_records)
 
 checks_changed_lines
+checks_diff -U0 --text --diff-filter=MR --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 >"$CHECKS_TMP/diff" 2>/dev/null || {
+  printf 'code-tidying: comment lint could not read the removed lines, so a renamed comment is judged as new\n' >&2
+  : >"$CHECKS_TMP/diff"
+}
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" --diff "$CHECKS_TMP/diff" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing

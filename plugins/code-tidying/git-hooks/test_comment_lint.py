@@ -57,6 +57,53 @@ class AddedLinesOnly(unittest.TestCase):
         )
 
 
+class RenameOnlyEdit(unittest.TestCase):
+    NEW = "x=1\n# reads `diff_risk` from the summary\ndiff_risk=2\n"
+
+    def judged(self, removed, text=NEW, start=2, added_count=2):
+        added = text.split("\n")[start - 1 : start - 1 + added_count]
+        hunks = [(start, removed, added)]
+        got = lint.findings("a.sh", text, [(start, start + added_count - 1)], "necessary", [], hunks=hunks)
+        return [int(f.split(":")[1]) for f in got]
+
+    def test_comment_whose_only_change_is_a_renamed_identifier_passes(self):
+        removed = ["# reads `babysit_risk` from the summary", "babysit_risk=2"]
+        self.assertEqual(self.judged(removed), [])
+
+    def test_renamed_identifier_with_changed_prose_is_still_judged(self):
+        removed = ["# takes `babysit_risk` from the summary", "babysit_risk=2"]
+        self.assertEqual(self.judged(removed), [2])
+
+    def test_plain_word_swap_is_still_judged(self):
+        text = "x=1\n# reads the risk from the summary\n"
+        removed = ["# reads the danger from the summary"]
+        self.assertEqual(self.judged(removed, text, added_count=1), [2])
+
+    def test_unrelated_new_comment_is_still_judged(self):
+        text = "x=1\n# a new note\ndiff_risk=2\n"
+        self.assertEqual(self.judged(["babysit_risk=2"], text, start=2, added_count=2), [2])
+
+    def test_inconsistent_rename_across_the_hunk_is_still_judged(self):
+        text = "x=1\n# uses diff_risk\n# uses merge_risk\n"
+        removed = ["# uses babysit_risk", "# uses babysit_risk"]
+        self.assertEqual(self.judged(removed, text, added_count=2), [2, 3])
+
+    def test_hunks_read_from_a_unified_diff(self):
+        diff = (
+            "diff --git a/a.sh b/a.sh\n--- a/a.sh\n+++ b/a.sh\n"
+            "@@ -2,2 +2,2 @@\n-# reads `babysit_risk` from the summary\n-babysit_risk=2\n"
+            "+# reads `diff_risk` from the summary\n+diff_risk=2\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "diff"
+            p.write_text(diff, encoding="utf-8")
+            self.assertEqual(
+                lint._hunks(p),
+                {"a.sh": [(2, ["# reads `babysit_risk` from the summary", "babysit_risk=2"],
+                           ["# reads `diff_risk` from the summary", "diff_risk=2"])]},
+            )
+
+
 class Shape1ShebangAndCookie(unittest.TestCase):
     def test_shebang_passes(self):
         self.assertEqual(flagged("a.sh", "#!/bin/sh\nx=1\n"), [])
