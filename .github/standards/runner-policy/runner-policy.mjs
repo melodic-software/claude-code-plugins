@@ -6,7 +6,7 @@
 // overwritten by the next sync PR; change the component upstream, or move the
 // component to `locally-owned` in the manifest to customize.
 
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -35,6 +35,12 @@ const YAML_PARSE_OPTIONS = {
 const MODULE_DIRECTORY = import.meta.dirname;
 const DEFAULT_POLICY_PATH = path.join(MODULE_DIRECTORY, "policy.json");
 const DEFAULT_CONFIG_PATH = ".github/runner-policy.json";
+const DEFAULT_PUBLIC_REPOSITORY_CONFIG = Object.freeze({
+  schemaVersion: 1,
+  visibility: "public",
+  selfHostedCi: false,
+  exceptions: Object.freeze({}),
+});
 const POLICY_SCHEMA_PATH = path.join(MODULE_DIRECTORY, "policy.schema.json");
 const REPOSITORY_POLICY_SCHEMA_PATH = path.join(MODULE_DIRECTORY, "repository-policy.schema.json");
 const POLICY_SCHEMA = parseUniqueJson(
@@ -407,6 +413,39 @@ async function readJson(filePath, location) {
     throw new ConfigurationError(`${location} could not be read at ${filePath}: ${error.message}`);
   }
   return parseUniqueJson(source, `${location} at ${filePath}`);
+}
+
+async function readRepositoryConfig(filePath, { configPath, repositoryVisibility }) {
+  let source;
+  try {
+    source = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT" && configPath === DEFAULT_CONFIG_PATH) {
+      let existsAsLink = false;
+      try {
+        await lstat(filePath);
+        existsAsLink = true;
+      } catch {
+        // Truly absent, not a dangling symlink.
+      }
+      if (!existsAsLink) {
+        if (repositoryVisibility === "public") {
+          return DEFAULT_PUBLIC_REPOSITORY_CONFIG;
+        }
+        const requirement =
+          repositoryVisibility === "private"
+            ? "private repositories must declare .github/runner-policy.json"
+            : '.github/runner-policy.json may be omitted only when CI_REPOSITORY_VISIBILITY or --repository-visibility is "public"';
+        throw new ConfigurationError(
+          `repository runner config could not be read at ${filePath}: ${error.message} (${requirement})`,
+        );
+      }
+    }
+    throw new ConfigurationError(
+      `repository runner config could not be read at ${filePath}: ${error.message}`,
+    );
+  }
+  return parseUniqueJson(source, `repository runner config at ${filePath}`);
 }
 
 function parseWorkflow(source, file) {
@@ -2030,19 +2069,17 @@ export async function auditRepository({
     ? policyPath
     : path.join(resolvedRoot, policyPath);
   const basePolicy = validatePolicy(await readJson(resolvedPolicy, "runner policy"));
+  if (repositoryVisibility && !new Set(["public", "private"]).has(repositoryVisibility)) {
+    throw new ConfigurationError('repository visibility evidence must be "public" or "private"');
+  }
   const config = validateRepositoryConfig(
-    await readJson(resolvedConfig, "repository runner config"),
+    await readRepositoryConfig(resolvedConfig, { configPath, repositoryVisibility }),
     basePolicy,
   );
-  if (repositoryVisibility) {
-    if (!new Set(["public", "private"]).has(repositoryVisibility)) {
-      throw new ConfigurationError('repository visibility evidence must be "public" or "private"');
-    }
-    if (repositoryVisibility !== config.visibility) {
-      throw new ConfigurationError(
-        `repository visibility evidence is ${repositoryVisibility}, but .github/runner-policy.json declares ${config.visibility}`,
-      );
-    }
+  if (repositoryVisibility && repositoryVisibility !== config.visibility) {
+    throw new ConfigurationError(
+      `repository visibility evidence is ${repositoryVisibility}, but .github/runner-policy.json declares ${config.visibility}`,
+    );
   }
   const repositoryOwner = resolveRepositoryOwner(config, githubRepository);
   const policy = { ...basePolicy, repositoryOwner };
