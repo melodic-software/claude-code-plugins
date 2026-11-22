@@ -10,9 +10,6 @@
 //
 // Levels: shipped <plugin root>/profiles, user <config dir>/plugin-profiles, repository
 // <project>/<convention home>/plugin-profiles (ADR 0075; default home docs/conventions).
-// A same-named file at a higher level extends the one below: plugins = lower + plugins - remove;
-// optional, exclude and hide_skills add up; description is the highest one set. always-on.yaml
-// resolves the same way and is kept apart from the named profiles.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "./yaml-subset.mjs";
@@ -106,14 +103,18 @@ const emptyProfile = (name) => ({
 function extend(lower, file, name, { repository = false, ignored = [] } = {}) {
   const base = lower ?? emptyProfile(name);
   const plugins = new Set([...base.plugins, ...file.plugins]);
-  for (const id of file.remove) plugins.delete(id);
+  const optional = new Set([...base.optional, ...file.optional]);
+  for (const id of file.remove) {
+    plugins.delete(id);
+    optional.delete(id);
+  }
   const added = (ids, had) => (repository ? ids.filter((id) => !had.has(id)) : []);
   return {
     name,
     description: file.description ?? base.description,
     keepsAlwaysOn: file.alwaysOn ?? base.keepsAlwaysOn,
     plugins,
-    optional: new Set([...base.optional, ...file.optional]),
+    optional,
     exclude: new Set([...base.exclude, ...file.exclude]),
     hideSkills: new Set([...base.hideSkills, ...file.hideSkills]),
     fromRepository: {

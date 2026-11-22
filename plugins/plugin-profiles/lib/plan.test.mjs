@@ -124,6 +124,18 @@ test("AC24: a profile that excludes an always-on member is rejected", () => {
   );
 });
 
+test("AC24: a profile that excludes an always-on optional member is rejected", () => {
+  assert.throws(
+    () =>
+      run({
+        always: profile("always-on", { plugins: ["guard@m"], optional: ["spell@m"] }),
+        build: profile("build", { exclude: ["spell@m"] }),
+        inventory: installed("guard@m", "spell@m"),
+      }),
+    PlanError,
+  );
+});
+
 test("#17038: a profile with always_on false plans its own plugins alone and names the always-on members it writes off", () => {
   const result = run({
     always: profile("always-on", { plugins: ["guard@m", "switch@m"], optional: ["fmt@m"], hideSkills: ["legacy"] }),

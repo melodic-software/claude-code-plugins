@@ -65,7 +65,7 @@ function pinsFor(target, layers) {
 
 /** The always-on members a profile that keeps always-on excludes; AC24 rejects any. */
 export const excludedAlwaysOn = (catalog, profile) =>
-  profile.keepsAlwaysOn ? [...profile.exclude].filter((id) => catalog.alwaysOn.plugins.has(id)) : [];
+  profile.keepsAlwaysOn ? [...profile.exclude].filter((id) => catalog.alwaysOn.plugins.has(id) || catalog.alwaysOn.optional.has(id)) : [];
 
 export const effective = (layers, id) => PRECEDENCE.map((level) => entriesOf(layers, level)[id]).find((v) => v !== undefined);
 

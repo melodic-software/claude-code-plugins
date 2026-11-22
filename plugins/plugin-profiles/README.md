@@ -34,11 +34,11 @@ exclude: [unwanted@a-marketplace]         # keep off, even when the repository e
 hide_skills: [some-standalone-skill]      # skills outside plugins, hidden by skillOverrides
 ```
 
-`plugins` adds members and `remove` drops inherited ones; `optional`, `exclude` and `hide_skills`
-add up across levels; `description` and `always_on` are the highest one set. A profile with
-`always_on: false` is its own lists alone: it switches off every always-on plugin it does not list,
-from any marketplace `always-on` names, and its preview names those plugins and any that stay on, with
-why. No other profile may exclude an `always-on` member; drop one with a
+`plugins` and `optional` add members, and `remove` drops inherited ones from either list; `exclude`
+and `hide_skills` add up across levels; `description` and `always_on` are the highest one set. A
+profile with `always_on: false` is its own lists alone: it switches off every always-on plugin it
+does not list, from any marketplace `always-on` names, and its preview names those plugins and any
+that stay on, with why. No other profile may exclude an `always-on` member; drop one with a
 `remove` line in your own `always-on.yaml`. A repository file cannot switch one off: apply ignores
 such a `remove` or `exclude` line, or `always_on: false`, and its preview names it, along with what
 only a repository file switches on or hides.
