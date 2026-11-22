@@ -30,7 +30,7 @@ Antigravity.
 
 | Action | Command | Read |
 |---|---|---|
-| `run` (default): a task (may write) or an investigation (read-only) | `external-agents run antigravity --use task\|investigate --prompt-file <file>` | [reference/run.md](reference/run.md) |
+| `run` (default): a task (may write) or an investigation (read-only) | `external-agents run antigravity --use task --mode write --prompt-file <file>`, or `--use investigate` | [reference/run.md](reference/run.md) |
 | `review`: agy reviews this branch, read-only | `external-agents review antigravity --base <ref> [--brief-file <file>]` | [reference/run.md](reference/run.md#review) |
 | `status`, `result`, `cancel` | `external-agents status [<job>]`, `result <job>`, `cancel <job>` | [reference/jobs.md](reference/jobs.md) |
 | `update`: readiness, CLI facts, version and routing check | `external-agents update antigravity` | [reference/update.md](reference/update.md) |
@@ -73,8 +73,9 @@ process tree; stopping the background Bash task alone may leave agy running.
 
 - **Write is opt-in.** Every use runs read-only until the user sets
   `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml`, because
-  agy's write mode has no network isolation (next gotchas). A task asked for while the ceiling is
-  read-only runs read-only; relay the notice naming that key, and never set it yourself.
+  agy's write mode has no network isolation (next gotchas). Pass `--mode write` with a task that should
+  change files: under a read-only ceiling it runs read-only and prints a notice naming that key.
+  Relay the notice, and never set the key yourself.
 - **A refused action makes the run `blocked-by-mode`, even with a full answer.** agy keeps going
   after a refusal and may still answer well; the command records the run `blocked-by-mode`, exits
   `3` and prints the answer. Relay the answer, name the refused actions from the first line, and
@@ -87,8 +88,9 @@ process tree; stopping the background Bash task alone may leave agy running.
 - **Check the work, not the warning.** A `notice:` saying auto mode fell back to the default mode
   does not prove writes were refused. Before reporting a task done, check that its files exist;
   trust neither the notice nor the exit code alone.
-- **On Windows, a write task's commands may fail to write files**, so a build or test that writes
-  output belongs on WSL.
+- **Run a build or test that writes output on WSL, not Windows**: on Windows, a write task's
+  commands could not write files
+  ([probe record](https://github.com/melodic-software/claude-code-plugins/issues/17786#issuecomment-7072008655)).
 - **Workspace configuration from the branch loads into agy**
   ([Hooks § Managing hooks in Antigravity CLI](https://antigravity.google/docs/hooks/#managing-hooks-in-antigravity-cli)).
   The command prints a `notice:` when a reviewed change touches `.agents/`; relay it before the

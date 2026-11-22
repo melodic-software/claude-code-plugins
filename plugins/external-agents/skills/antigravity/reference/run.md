@@ -6,11 +6,13 @@
 external-agents run antigravity --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--resume <thread-id>|--last]
 ```
 
-- **Pick the use from the request.** `task` when agy should change files; `investigate` when it
-  should only read and answer. The use's configured mode (`antigravity.uses.<use>.mode`, bundled
-  values in the plugin's `defaults.json`) is both the default and the ceiling. Every use is
-  read-only by default: writes need `antigravity.uses.task.mode: write` from the user. Pass
-  `--mode read-only` to run a task without writes; `--mode write` never lifts a read-only ceiling.
+- **Pick the use from the request.** `task` with `--mode write` when agy should change files;
+  `investigate` when it should only read and answer. The use's configured mode
+  (`antigravity.uses.<use>.mode`, bundled values in the plugin's `defaults.json`) is both the
+  default and the ceiling. Every use is read-only by default: writes need
+  `antigravity.uses.task.mode: write` from the user. `--mode write` never lifts a read-only
+  ceiling; under one, the run is read-only and prints the notice naming that key. Pass
+  `--mode read-only` to run a task without writes.
 - **Model and effort.** Pass `--model` only when the user names one for this run. Otherwise pass
   nothing: `antigravity.model` and `antigravity.effort` from config apply when set, and agy's own
   default applies when not. Choosing one: [routing.md](routing.md).
