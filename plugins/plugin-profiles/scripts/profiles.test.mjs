@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
 import { askPerFolder, main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
@@ -1124,6 +1124,33 @@ function linkedWorktree(w, local = null) {
 }
 
 const runIn = (w, cwd, args, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...w.env, ...extra }, encoding: "utf8" });
+const RACE = pathToFileURL(join(STUB_BIN, "..", "race-settings-write.mjs")).href;
+const runRacing = (w, args) => spawnSync(process.execPath, ["--import", RACE, CLI, ...args], { cwd: w.project, env: w.env, encoding: "utf8" });
+const profilesIn = (dir) => readdirSync(dir).map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")).profile);
+
+test("#18218: a settings write that fails after another apply saved its record leaves that record, with or without a record before", () => {
+  for (const before of [false, true]) {
+    const w = world();
+    if (before) assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    const r = runRacing(w, ["apply", "build", "--for", "folder", "--yes"]);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /settings write failed/);
+    assert.deepEqual(profilesIn(dataRecordsDir(w)), ["other-apply"]);
+  }
+});
+
+test("#18218: a finish whose settings write fails puts the unfinished record back and leaves another apply's record in the repository", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const [name] = readdirSync(dataRecordsDir(w));
+  const pending = readFileSync(join(dataRecordsDir(w), name), "utf8");
+  gitInit(w);
+  const r = runRacing(w, ["apply", "build", "--for", "folder", "--finish-pending"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /settings write failed/);
+  assert.equal(readFileSync(join(dataRecordsDir(w), name), "utf8"), pending);
+  assert.deepEqual(profilesIn(join(w.project, ".git", "plugin-profiles", "records")), ["other-apply"]);
+});
 const esc = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const gitRecords = (w) => {
   const dir = join(w.project, ".git", "plugin-profiles", "records");
