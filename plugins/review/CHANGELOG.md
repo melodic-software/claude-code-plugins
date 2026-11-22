@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.0] - 2026-11-22
+
+### Changed
+
+- `/review:council` Codex members and `/review:fanout`'s Codex surface now run `external-agents review codex`, the command the `external-agents` plugin puts on the Bash `PATH`, instead of locating the OpenAI Codex plugin's install path. With that plugin not enabled, the member or surface reports `skipped (external-agents not enabled)`. Fanout's adversarial Codex run passes its own bundled brief, `skills/fanout/context/codex-adversarial-brief.md`, through `--brief-file`.
+- `council-plan.mjs member` reads a script member's captured output and exit code as its council status (`ran`, `skipped (<reason>)` or `failed (<reason>)`) and its findings, finding the status line after any notices.
+
+### Removed
+
+- `scripts/codex-review.sh` and its test.
+
 ## [10.4.6] - 2026-11-21
 
 ### Changed
