@@ -35,12 +35,14 @@ Implements the tracked-rich-config extensibility contract in
 ([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)).
 The retired team file `.claude/source-control.md` is not read; `/source-control:setup check` names
 it when it is still tracked. A YAML the shared reader rejects stops the lookup for that key instead
-of falling back to a lower layer. The personal override and the user-global file stay
-markdown and keep their place in
+of falling back to a lower layer. The personal override is
+`docs/conventions/source-control.local.yaml`, the same keys in the same YAML shape; the two old
+markdown locations are still read during the dual-read window in
 [The three layers](#the-three-layers). Every resolver reports the layer that supplied a value:
-`docs/conventions/source-control.yaml`, the personal override, the
-user-global file, `userConfig`, or the default. `lib/convention-key.sh` is the reader
-(`layer ROOT KEY` prints `yaml` or `none`; `value` and `list` print the YAML value), and
+`docs/conventions/source-control.yaml`, the personal override, an old location, `userConfig`, or
+the default. `lib/convention-key.sh` is the reader (`layer ROOT KEY` prints `yaml` or `none`;
+`value` and `list` print the team YAML value, `local-value` and `local-list` the personal YAML
+value, and `old-files ROOT` lists each old-location file present with where it moves), and
 `parse-branch-issue.sh --explain` prints the layer for `branch_issue_pattern`.
 
 **Team-layer home of the loop-lane and babysit-prs keys.** Every `babysit_loop_*` key and the seven
@@ -58,12 +60,12 @@ pr_body_required_sections:
 branch_issue_pattern: '^[^/]+/([0-9]+)-'
 ```
 
-The sections below describe each key's value grammar; read "H2" there as "the key in the YAML, or
-its `## <key>` H2 in the personal override or user-global file". A list value is a YAML sequence in the YAML
-and a bullet list in the H2.
+The sections below describe each key's value grammar; read "H2" there as "the key in a YAML
+layer, or its `## <key>` H2 in an old markdown location". A list value is a YAML sequence in a YAML
+layer and a bullet list in the H2.
 
-The personal override and the user-global file are Markdown: one `## <key>` H2 per key,
-the value as the section body. Seven babysit-prs
+The two old locations are Markdown: one `## <key>` H2 per key, the value as the section body.
+Seven babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
 `babysit_skip_downgrade_logins`, `babysit_review_gate_context`,
@@ -441,8 +443,8 @@ lane with a per-domain `--settings` file. Which keys stay in
 [0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
-In the personal override and the user-global file, one `## <key>` H2 per key, exactly
-like the convention keys above. Every value is a scalar except
+In the personal YAML a loop key is a YAML key, and in an old markdown location one `## <key>` H2
+per key, exactly like the convention keys above. Every value is a scalar except
 `babysit_loop_trusted_internal_bot_logins`, a closed list like `pr_body_required_sections` (a YAML
 sequence in the team YAML, a bullet list in an H2), so the per-key override semantics below apply
 unchanged (a closed list is taken whole from its one binding layer, never unioned).
@@ -721,12 +723,12 @@ Resolve every read from the repo root: `${CLAUDE_PROJECT_DIR}` when set, otherwi
 
 When that root is `$HOME` or an ancestor of `$HOME`, or is not inside a git working
 tree, team and personal override are **not applicable** (config-cascade #4672): report both with
-that reason and resolve user-global only. `parse-branch-issue.sh`
+that reason and resolve only the old user-global file, while it exists. `parse-branch-issue.sh`
 skips both layers and prints `team and personal override not applicable: project root is the
 home directory (or an ancestor of it)` or `... project root is not inside a git
-repository` on stderr. A team or personal override path that physically equals the user-global file
-is skipped even when the root is not home. `/source-control:setup apply layer=team`
-and `layer=local` refuse in that state; `layer=user` still writes.
+repository` on stderr. An old personal override path that physically equals the user-global file
+is skipped even when the root is not home. `/source-control:setup apply` refuses to write in that
+state.
 
 `lib/config-root.sh` is the resolver for the scripts and skills that call it: `resolve`, `classify`
 (`repo`, `non-repo`, or `home`), and `same` (physical path equality). `parse-branch-issue.sh`
@@ -734,20 +736,33 @@ sources it, and `commit` and `pull-request` (`create.md`) run `classify` before 
 or personal override layer. `setup` does not call it: its `check` and `apply` steps apply the same rule
 inline (`skills/setup/reference/apply-convention.md`).
 
-Layers, in resolution order, where a later layer refines an earlier one:
+Layers, in resolution order, where a later layer refines an earlier one (the
+[config-cascade layers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers)):
 
-1. **`~/.claude/source-control.md`**: user-global. The operator's own preference, following them
-   across repos and machines. Their home directory, not consumer repository data.
-2. **`${REPO_ROOT}/docs/conventions/source-control.yaml`**: team, tracked. The shared convention
+1. **`${REPO_ROOT}/docs/conventions/source-control.yaml`**: team, tracked. The shared convention
    for the seven convention keys, the layer `/source-control:setup apply` writes by default, and for
    the `babysit_loop_*` keys. The retired `${REPO_ROOT}/.claude/source-control.md` is not read.
-3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal override, gitignored. A per-machine
-   or per-operator deviation from team policy, never committed.
+2. **`${REPO_ROOT}/docs/conventions/source-control.local.yaml`**: personal override, gitignored. A
+   per-machine or per-operator deviation from team policy in one repository, never committed.
 
-   This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+There is no user-global file layer, and no `userConfig` option takes its place: the convention keys
+are per-repository conventions.
+
+**Dual-read window.** Two old locations are still read while they exist, each named on every run
+with where to move it:
+
+| Old location | Read as | Moves to |
+|---|---|---|
+| `~/.claude/source-control.md` | the lowest layer, below team | `docs/conventions/source-control.yaml` (team), or `docs/conventions/source-control.local.yaml` for one person in one repo |
+| `${REPO_ROOT}/.claude/source-control.local.md` | the personal override, only while `docs/conventions/source-control.local.yaml` is absent; beside it the old file is not read | `docs/conventions/source-control.local.yaml` |
+
+`parse-branch-issue.sh` prints one `old location` note per old file on stderr, naming the file, its
+new location and `/source-control:setup apply`, whose migration moves the keys, checks the new
+location resolves the same values and deletes the old file. Removing the old-location reads is a
+later change, made once no old file is reported.
 
 Each layer is optional, and **fall-through is per key, not per file**. A key absent from every layer
-is unresolved even when some layer exists: a user-global file contributing only `trailer_policy`
+is unresolved even when some layer exists: a personal override contributing only `trailer_policy`
 leaves `subject_pattern` as unresolved as no file at all. Each unresolved key falls through
 independently to the repo's own `CLAUDE.md`/rules/commit-msg hook, then the bundled Conventional
 Commits default. Never gate that fall-through on file presence.
@@ -763,15 +778,15 @@ Every key here is a scalar or a closed list: two `subject_pattern` regexes canno
 third valid regex, and a concatenated `trailer_policy` would emit two trailers. This is the layering
 convention's sanctioned per-key case.
 
-Worked example: user-global sets `trailer_policy: none`, team sets `subject_pattern` to a
-ticket-prefix regex and leaves `trailer_policy` unset, personal override sets nothing. The effective
-config is the team `subject_pattern` with the user-global `trailer_policy: none`.
+Worked example: team sets `subject_pattern` to a ticket-prefix regex and leaves `trailer_policy`
+unset, and the personal override sets only `trailer_policy: none`. The effective config is the team
+`subject_pattern` with the personal `trailer_policy: none`.
 
 **`type_list` is bound to the effective `subject_pattern`, not merged independently.** It belongs to
 a Conventional-Commits-shaped pattern, so after the layers merge, an inherited `type_list` is dropped
 whenever the *effective* `subject_pattern` is a custom regex, even when the layer supplying that
-pattern said nothing about `type_list`. A user-global `Conventional Commits` plus its type list,
-overridden by a team ticket-prefix regex, resolves to the team pattern with **no** `type_list`;
+pattern said nothing about `type_list`. A team `Conventional Commits` plus its type list,
+overridden by a personal ticket-prefix regex, resolves to the personal pattern with **no** `type_list`;
 keeping it would leave `/source-control:commit` pre-checking against a vocabulary the effective
 pattern does not use. Conversely, an effective Conventional-Commits pattern with no `type_list` in
 any layer resolves to the bundled 11-type list.
@@ -787,11 +802,11 @@ concern owns **enforcement**: how a zero-dependency guardrails hook decides whet
 *already-formed* subject/title is allowed. Both read the team values in
 `docs/conventions/source-control.yaml` (enforcement also reads the git-tracked
 `docs/conventions/source-control/commit-convention.yml` for a key that file lacks) but differ on
-purpose: enforcement reads the **team-tracked layer** (a gitignored `*.local.md` must never weaken
+purpose: enforcement reads the **team-tracked layer** (a gitignored personal file must never weaken
 a blocking gate), and only where it sets no `subject_pattern` falls back to the operator's
 git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern.
-Drafting does not read that file; an operator who wants drafts to match it sets the same
-`## subject_pattern` in `.claude/source-control.local.md`. Enforcement resolves to **POSIX ERE
+Drafting reads that file as the personal override, which wins over team per key; the old
+`.claude/source-control.local.md` is a drafting input only. Enforcement resolves to **POSIX ERE
 only**, and treats an unresolved key as **no enforcement**, never the bundled Conventional Commits
 default. That contract, the regex-dialect
 normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in the
@@ -799,15 +814,17 @@ normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in th
 
 ## Consumer `.gitignore`
 
-The personal override convention needs one line in the consuming repo:
+The personal override convention needs one line in the consuming repo, the config-cascade line for
+the convention home:
 
 ```gitignore
-.claude/**/*.local.*
+docs/conventions/**/*.local.*
 ```
 
 `/source-control:setup apply layer=team` appends the line when it is missing and announces the
 edit; it is the only write this plugin makes to the consumer's root `.gitignore`. `layer=local`
-never edits it and fails with a recommendation when the personal override is exposed.
+never edits it and fails with a recommendation when the personal override is exposed. An existing
+`.claude/**/*.local.*` line, which covered the old personal override, is left as it is.
 
 ## Failure modes
 

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A git repository whose tracked team file declares a ticket-prefixed subject_pattern, with no
-# .gitignore, so check resolves the pattern from the team layer and the recursive
-# .claude/**/*.local.* ignore rule is missing.
 set -euo pipefail
 git init -q -b main
 git config core.excludesFile /dev/null

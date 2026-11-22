@@ -5,7 +5,7 @@
     {"answer": [".claude/source-control.md"], "why": "a different, non-local path"}
   ],
   "fail": [
-    {"answer": [".claude/source-control.local.md"], "why": "the declined personal override"},
-    {"answer": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"], "why": "the team file plus the declined personal override"}
+    {"answer": ["docs/conventions/source-control.local.yaml"], "why": "the declined personal override"},
+    {"answer": ["docs/conventions/source-control.yaml", "docs/conventions/source-control.local.yaml"], "why": "the team file plus the declined personal override"}
   ]
 }

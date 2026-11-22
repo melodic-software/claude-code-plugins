@@ -27,6 +27,8 @@
 # lower layer past a broken team file.
 
 CONVENTION_KEY_YAML_REL="docs/conventions/source-control.yaml"
+CONVENTION_KEY_LOCAL_REL="docs/conventions/source-control.local.yaml"
+CONVENTION_KEY_OLD_LOCAL_REL=".claude/source-control.local.md"
 CONVENTION_KEY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # True when git tracks the repo-relative file REL under ROOT. An untracked or
@@ -39,7 +41,7 @@ convention_key_tracked() {
 # when the file is absent. Returns 3 when the parser rejects the file; a key
 # repeated in one mapping is a rejection too.
 convention_key_records() {
-  local file="$1/$CONVENTION_KEY_YAML_REL" text
+  local file="$1/${2:-$CONVENTION_KEY_YAML_REL}" text
   [[ -f "$file" ]] || return 0
   text="$(<"$file")"
   LC_ALL=C awk -v STRICT=1 -f "$CONVENTION_KEY_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null || return 3
@@ -47,16 +49,27 @@ convention_key_records() {
 
 # Print the value of KEY from the team YAML under ROOT, or nothing.
 convention_key_yaml_value() {
-  local records
-  records="$(convention_key_records "$1")" || return 3
+  local records other_yaml_rel="${3:-}"
+  records="$(convention_key_records "$1" "$other_yaml_rel")" || return 3
   PCV_KEY="$2" LC_ALL=C awk -F '\t' '$1 == ENVIRON["PCV_KEY"] && !seen++ { print substr($0, length($1) + 2) }' <<<"$records"
 }
 
 # Print the scalar items of the sequence KEY in the team YAML, one per line.
 convention_key_yaml_list() {
   local records
-  records="$(convention_key_records "$1")" || return 3
+  records="$(convention_key_records "$1" "${3:-}")" || return 3
   PCV_KEY="$2" LC_ALL=C awk -F '\t' 'index($1, ENVIRON["PCV_KEY"] ".") == 1 && substr($1, length(ENVIRON["PCV_KEY"]) + 2) ~ /^[0-9]+$/ { print substr($0, length($1) + 2) }' <<<"$records"
+}
+
+convention_key_old_files() {
+  local repo_root_or_empty="$1" user="${HOME:-}/.claude/source-control.md"
+  local root="$repo_root_or_empty"
+  if [[ -n "$root" && -f "$root/$CONVENTION_KEY_OLD_LOCAL_REL" ]]; then
+    printf '%s\t%s\n' "$root/$CONVENTION_KEY_OLD_LOCAL_REL" "$CONVENTION_KEY_LOCAL_REL"
+  fi
+  if [[ -n "${HOME:-}" && -f "$user" ]]; then
+    printf '%s\t%s\n' "$user" "$CONVENTION_KEY_YAML_REL (team) or $CONVENTION_KEY_LOCAL_REL (personal), in each repository that needs it"
+  fi
 }
 
 # True when the team YAML carries KEY, as a scalar or as a non-empty list.
@@ -83,8 +96,11 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     layer) convention_key_layer "${2:?root}" "${3:?key}" ;;
     value) convention_key_yaml_value "${2:?root}" "${3:?key}" ;;
     list) convention_key_yaml_list "${2:?root}" "${3:?key}" ;;
+    local-value) convention_key_yaml_value "${2:?root}" "${3:?key}" "$CONVENTION_KEY_LOCAL_REL" ;;
+    local-list) convention_key_yaml_list "${2:?root}" "${3:?key}" "$CONVENTION_KEY_LOCAL_REL" ;;
+    old-files) convention_key_old_files "${2-}" ;;
     *)
-      echo "usage: bash convention-key.sh layer|value|list ROOT KEY" >&2
+      echo "usage: bash convention-key.sh layer|value|list|local-value|local-list ROOT KEY | old-files ROOT" >&2
       exit 2
       ;;
   esac
