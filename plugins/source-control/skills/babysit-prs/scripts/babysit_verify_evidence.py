@@ -1150,7 +1150,11 @@ def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> b
     (`app_id`) comment opening with `VERDICT_MARKER`, last edited by none or
     the App, whose second line opens with `VERDICT_CLEAR` and one of
     `VERDICT_CLEAR_OUTCOMES`, and whose last line (`JUDGED_RE`) names `title`
-    and `body` by sha256. Pure."""
+    and `body` by sha256. Pure.
+
+    The owner's standing rule and its triage-verdict reading:
+    https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318,
+    https://github.com/melodic-software/architecture/pull/167."""
 
     def app(actor: Any) -> bool:
         actor = json_object(actor)
