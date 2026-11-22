@@ -61,6 +61,7 @@ on:
       - .github/standards/trusted-actors/trusted-actors.json
       - .github/standards/trusted-actors/trusted-actors.schema.json
       - .github/workflows/maintenance-check-links-online.yml
+      - .github/workflows/pr-automerge-dependabot-hosted.yml
       - .github/workflows/pr-check-managed-files-hosted.yml
       - .github/workflows/pr-review-hosted.yml
       - .github/workflows/pr-review-security-hosted.yml
