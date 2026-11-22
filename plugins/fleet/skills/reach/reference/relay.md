@@ -198,8 +198,8 @@ row does without this section, and say with the result that the profile was not 
 
 ### On a Windows lane (R1, R3, R6)
 
-The printed `command` is a POSIX `env` line, so on a Windows lane one PowerShell script runs the
-same three steps from `argv` instead: it removes each variable `argv` names after `-u` from its
+On a Windows lane one PowerShell script runs the same three steps from `argv`, so the prompt
+stays out of the printed `command`: it removes each variable `argv` names after `-u` from its
 own environment and passes the words after `claude` to `claude.exe`. The prompt never enters the
 script text: a first call writes it to a file in `<win-dir>`, quoted as the WSL rows quote a
 prompt, and the script starts `claude.exe` from that file. The script goes to

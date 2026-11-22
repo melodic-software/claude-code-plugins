@@ -318,7 +318,9 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
   const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
-  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
+  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", noProfile.file], "#18250: with no profile inline settings pass as a file, which Windows PowerShell 5.1 cannot mangle");
+  assert.deepEqual(JSON.parse(readFileSync(noProfile.file, "utf8")), JSON.parse(own), "the file holds the launcher's own settings unchanged");
+  assert.ok(!noProfile.command.includes("{"), "no inline JSON in the printed line");
 });
 
 test("apply without --for is a usage error and writes nothing, so a folder shared by other sessions is never chosen by default", () => {
@@ -1831,6 +1833,16 @@ test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and 
   assert.match(cmdOnly.refusal, /found D:\\npm\\claude\.cmd but no claude\.exe/);
   assert.match(claudeCommand({ PATH: "E:\\x" }, "win32", () => false).refusal, /no claude\.exe on PATH/);
   assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
+});
+
+test("#18219: on Windows launch prints a PowerShell line that clears the session variables, and keeps argv for scripts", async () => {
+  const { launchCommand } = await import("./profiles.mjs");
+  const argv = ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude", "--settings", "C:\\data\\a b\\it's.json"];
+  assert.equal(
+    launchCommand(argv, "win32"),
+    "Remove-Item Env:PLUGIN_PROFILES_SESSION, Env:PLUGIN_PROFILES_SESSION_FILE, Env:SESSION_SETTINGS_FILE -ErrorAction Ignore; claude --settings 'C:\\data\\a b\\it''s.json'",
+  );
+  assert.equal(launchCommand(["env", "-u", "X", "claude", "--settings", "/tmp/a.json"], "linux"), "env -u X claude --settings /tmp/a.json");
 });
 
 test("#17063: no spawn in the plugin runs through a shell, which prints DEP0190 on Windows", () => {
