@@ -1,5 +1,14 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.7.0] - 2026-11-22
+
+Additive schema change: a prerequisite entry may carry an optional `install` object,
+`{manager: npm, lockfile: <repo-relative path>}` and no other key. The provisioning step runs
+`npm ci --ignore-scripts --no-audit --no-fund` in that lockfile's directory, at worktree creation
+and never inside a check; an entry without `install` stays report-only. Resolvers still never
+install a declared prerequisite. Before this, a record could say a command's prerequisite was
+missing but nothing could install it (melodic-software/claude-code-plugins#16683).
+
 ## [1.6.0] - 2026-11-17
 
 Additive schema change: new optional `test-changed-cmd` key, a change-scoped test command over

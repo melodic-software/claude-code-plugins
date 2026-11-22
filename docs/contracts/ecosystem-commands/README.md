@@ -207,6 +207,26 @@ drift warning. A resolver never installs a declared prerequisite, in any run; th
 text it shows and never runs. Declaring a runtime package here, rather than installing it inside a
 command string (an `npm ci` in `test-cmd`), keeps an unattended run from installing anything.
 
+#### Provisioning
+
+An entry may carry an `install` object, `{manager: npm, lockfile: <repo-relative path>}`, and
+nothing else: no free-form command. The provisioning step, the source-control plugin's
+`scripts/provision-prerequisites.sh`, runs `npm ci --ignore-scripts --no-audit --no-fund` in the
+directory of each `install` entry's lockfile, so no package's install script runs, and runs nothing
+for an entry without `install`, which stays report-only. The worktree helper runs the step when it
+creates a worktree. A resolver never runs it: the check still only probes, and an entry the step
+could not install still reads `skip (prerequisite missing: <name>)`.
+
+```yaml
+requires:
+  check-cmd:
+    - name: ajv
+      probe: "test -f $REPO_ROOT/tools/node_modules/ajv/package.json"
+      install:
+        manager: npm
+        lockfile: tools/package-lock.json
+```
+
 ## Consumers
 
 Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `test-changed-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,

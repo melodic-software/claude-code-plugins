@@ -1252,8 +1252,20 @@ mkdir -p node_modules/.bin && : >node_modules/.bin/markdownlint-cli2
 exit "${FAKE_NPM_EXIT:-0}"
 EOF
 chmod +x "$fake_bin/npm"
+declare_lockfile() {
+  mkdir -p "$1/.claude/ecosystems"
+  printf '%s\n' 'globs: ["*.ts"]' 'requires:' '  check-cmd:' '    - name: root toolchain' \
+    '      probe: "test -d node_modules"' '      install:' '        manager: npm' \
+    '        lockfile: package-lock.json' >"$1/.claude/ecosystems/typescript.yaml"
+  git -C "$1" add .claude/ecosystems/typescript.yaml
+  git -C "$1" -c commit.gpgsign=false commit -qm record
+}
+undeclared_repo=$(mkrepo)
+commitfile "$undeclared_repo" package-lock.json
 deps_repo=$(mkrepo)
 commitfile "$deps_repo" package-lock.json
+declare_lockfile "$deps_repo"
+NPM_CI_ARGS="ci --ignore-scripts --no-audit --no-fund"
 
 npm_log="$TEST_TMPDIR/npm-ok.log"
 errfile="$TEST_TMPDIR/err-deps-ok.txt"
@@ -1262,7 +1274,7 @@ out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/
 assert_exit "lockfile: creation succeeds" 0 "$?"
 assert_eq "lockfile: stdout is still only the worktree path" \
   "$TEST_TMPDIR/wtroot-deps/${deps_repo##*/}-feat-deps-ok" "$out"
-assert_eq "lockfile: npm ci ran once" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+assert_eq "lockfile: npm ci ran once" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
 assert_file_exists "lockfile: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
 assert_not_contains "lockfile: a clean install prints no warning" "$(cat "$errfile")" "warning"
 
@@ -1273,6 +1285,12 @@ out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/
 assert_exit "no lockfile: creation succeeds" 0 "$?"
 assert_file_absent "no lockfile: npm is not run" "$npm_log"
 
+npm_log="$TEST_TMPDIR/npm-undeclared.log"
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/deps-undeclared --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$undeclared_repo" 2>/dev/null)
+assert_exit "undeclared lockfile: creation succeeds" 0 "$?"
+assert_file_absent "undeclared lockfile: npm is not run" "$npm_log"
+
 # A failed install warns with the remedy and keeps exit 0.
 npm_log="$TEST_TMPDIR/npm-fail.log"
 errfile="$TEST_TMPDIR/err-deps-fail.txt"
@@ -1281,7 +1299,7 @@ out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_EXIT=7 bash "$HELP
 assert_exit "failed install: creation still exits 0" 0 "$?"
 assert_file_exists "failed install: worktree exists" "$out/README.md"
 assert_contains "failed install: warning names npm's exit code" "$(cat "$errfile")" "npm ci failed (exit 7)"
-assert_contains "failed install: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
+assert_contains "failed install: warning names the remedy" "$(cat "$errfile")" "run npm ci --ignore-scripts --no-audit --no-fund in $out"
 
 # An install past the cap is stopped with its children, warned about, and does
 # not hold creation.
@@ -1296,7 +1314,7 @@ rc=$?
 elapsed=$((SECONDS - start))
 assert_exit "capped install: creation still exits 0" 0 "$rc"
 assert_contains "capped install: warning names the cap" "$(cat "$errfile")" "did not finish within 3s"
-assert_contains "capped install: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
+assert_contains "capped install: warning names the remedy" "$(cat "$errfile")" "run npm ci --ignore-scripts --no-audit --no-fund in $out"
 child_pid=$(cat "$child_pid_file" 2>/dev/null)
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   if [[ -z "$child_pid" ]] || ! kill -0 "$child_pid" 2>/dev/null; then break; fi
@@ -1344,7 +1362,7 @@ if command -v flock >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && cp -al
   second=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/seed-two --base-ref head \
     --root "$seed_root" --repo-dir "$deps_repo" 2>"$errfile")
   assert_exit "seed: second worktree on the same lockfile succeeds" 0 "$?"
-  assert_eq "seed: npm ci ran once for two worktrees" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  assert_eq "seed: npm ci ran once for two worktrees" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
   if [[ "$first/node_modules/.bin/markdownlint-cli2" -ef "$second/node_modules/.bin/markdownlint-cli2" ]]; then
     pass "seed: both worktrees hard-link the same file"
   else
@@ -1355,7 +1373,7 @@ if command -v flock >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && cp -al
   npm_log="$TEST_TMPDIR/npm-seed-off.log"
   off=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" WORKTREE_CREATE_NPM_SEED=0 bash "$HELPER" --name feat/seed-off \
     --base-ref head --root "$seed_root" --repo-dir "$deps_repo" 2>/dev/null)
-  assert_eq "seed off: npm ci runs in the worktree" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  assert_eq "seed off: npm ci runs in the worktree" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
   if [[ "$off/node_modules/.bin/markdownlint-cli2" -ef "$first/node_modules/.bin/markdownlint-cli2" ]]; then
     fail "seed off: node_modules is the worktree's own" "own file" "linked to the seed"
   else
@@ -1384,7 +1402,7 @@ if command -v flock >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && cp -al
   npm_log="$TEST_TMPDIR/npm-seed-env.log"
   PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" NODE_ENV=production bash "$HELPER" --name feat/seed-env \
     --base-ref head --root "$seed_root" --repo-dir "$deps_repo" >/dev/null 2>&1
-  assert_eq "seed: a different NODE_ENV builds its own seed" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  assert_eq "seed: a different NODE_ENV builds its own seed" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
 
   flock "$seed_dir.lock" sleep 10 &
   holder=$!
@@ -1416,10 +1434,11 @@ if command -v flock >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && cp -al
   git -C "$script_repo" add package.json
   git -C "$script_repo" -c commit.gpgsign=false commit -qm package
   commitfile "$script_repo" package-lock.json
+  declare_lockfile "$script_repo"
   npm_log="$TEST_TMPDIR/npm-seed-script.log"
   PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/seed-script --base-ref head \
     --root "$TEST_TMPDIR/wtroot-seed-script" --repo-dir "$script_repo" >/dev/null 2>&1
-  assert_eq "seed: a package with a lifecycle script installs in the worktree" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+  assert_eq "seed: a package with a lifecycle script installs in the worktree" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
   if compgen -G "$TEST_TMPDIR/wtroot-seed-script/.npm-seed/*/.complete" >/dev/null; then
     fail "seed: no seed is built for a package with a lifecycle script" "no seed" "a seed exists"
   else
@@ -1449,8 +1468,8 @@ if PATH="$no_npm_path" command -v git >/dev/null 2>&1 && PATH="$no_npm_path" com
     --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
   assert_exit "no npm: creation still exits 0" 0 "$?"
   assert_file_exists "no npm: worktree exists" "$out/README.md"
-  assert_contains "no npm: warning says npm is missing" "$(cat "$errfile")" "npm is not on PATH"
-  assert_contains "no npm: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
+  assert_contains "no npm: warning says what is missing" "$(cat "$errfile")" "is not on PATH"
+  assert_contains "no npm: warning says nothing was provisioned" "$(cat "$errfile")" "provisioned"
 else
   skip_case "npm shares a PATH directory with git or bash; cannot hide it"
 fi
