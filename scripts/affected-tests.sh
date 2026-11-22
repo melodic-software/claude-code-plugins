@@ -28,6 +28,11 @@
 #   scripts/affected-tests.sh --unmapped-corpus  select an unmapped file's whole language corpus (exit 4)
 #   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
 #   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
+#   scripts/affected-tests.sh --each-from LIST --each-out DIR
+#                                                answer each <key>:<path> line of LIST as its own
+#                                                one-file diff, building the tree index once:
+#                                                DIR/<key>.out the suites, DIR/<key>.err its
+#                                                no-suite, deleted or UNMAPPED line
 #   scripts/affected-tests.sh --replay <range> [--against <ref>]
 #                                                select every first-parent commit of <range> against
 #                                                its parent; with --against, diff each selection with
@@ -288,6 +293,8 @@ shard_spec=""
 replay_range=""
 against_ref=""
 not_run_file=""
+each_from=""
+each_out=""
 jobs=1
 budget=""
 budget_given=0
@@ -368,6 +375,16 @@ while [[ $# -gt 0 ]]; do
     not_run_file="$2"
     shift
     ;;
+  --each-from)
+    need_value "$1" $# "${2:-}" "a file of <key>:<path> lines"
+    each_from="$2"
+    shift
+    ;;
+  --each-out)
+    need_value "$1" $# "${2:-}" "a directory"
+    each_out="$2"
+    shift
+    ;;
   --)
     shift
     explicit_paths+=("$@")
@@ -411,6 +428,16 @@ fi
 if [[ -n "$not_run_file" ]] && ! : >"$not_run_file"; then
   echo "error: cannot write --write-not-run file: $not_run_file" >&2
   exit 2
+fi
+if [[ -n "$each_from" || -n "$each_out" ]]; then
+  if [[ -z "$each_from" || -z "$each_out" || ! -d "$each_out" || ! -r "$each_from" ]]; then
+    echo "error: --each-from wants a readable list and --each-out an existing directory; pass both." >&2
+    exit 2
+  fi
+  if [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || -n "$replay_range" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
+    echo "error: --each-from takes its files from the list; it combines with no paths, --base, --replay, --run or --shard." >&2
+    exit 2
+  fi
 fi
 if [[ -n "$replay_range" ]] && [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
   echo "error: --replay takes its changed files from each commit; it combines with no paths, --base, --run or --shard." >&2
@@ -1597,8 +1624,14 @@ if [[ -n "$replay_range" ]]; then
   exit 0
 fi
 
-declare -a changed=()
-if [[ ${#explicit_paths[@]} -gt 0 ]]; then
+declare -a changed=() each_keys=()
+if [[ -n "$each_from" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" == *:?* ]] || continue
+    each_keys+=("${line%%:*}")
+    changed+=("${line#*:}")
+  done <"$each_from"
+elif [[ ${#explicit_paths[@]} -gt 0 ]]; then
   for p in "${explicit_paths[@]}"; do
     p="${p#./}"
     # Every rule is repo-relative, and so is every sync-manifest key. An
@@ -1633,9 +1666,72 @@ if [[ ${#changed[@]} -eq 0 ]]; then
   exit 0
 fi
 
+select_unmapped_corpus() {
+  local -A corpora=()
+  local f lang suite
+  for f in "$@"; do
+    lang_family "$f"
+    case "$LANG_FAMILY" in
+    sh | py | node | ps) corpora["$LANG_FAMILY"]=1 ;;
+    *)
+      [[ -f "$f" && "$(head -c 2 "$f" 2>/dev/null)" == '#!' ]] && corpora[sh]=1
+      ;;
+    esac
+  done
+  CORPUS_LANGS="${!corpora[*]}"
+  [[ -n "$CORPUS_LANGS" ]] || return 0
+  awk -v want=" $CORPUS_LANGS " '
+    { b = $0; sub(/.*\//, "", b) }
+    /\.test\.sh$/ { e = "sh" }
+    /\.test\.m?js$/ { e = "node" }
+    /\.Tests\.ps1$/ { e = "ps" }
+    b ~ /^test_.*\.py$/ { e = "py" }
+    e != "" && index(want, " " e " ") { print e "\t" $0 }
+    { e = "" }' "$WORK_DIR/all-files" >"$WORK_DIR/corpus"
+  while IFS=$'\t' read -r lang suite; do
+    add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
+  done <"$WORK_DIR/corpus"
+}
+
+run_each() {
+  local i f s
+  for i in "${!changed[@]}"; do
+    f="${changed[i]}"
+    SUITES=()
+    select_for "$f"
+    select_scoped "$f"
+    {
+      if [[ "$SEED_HITS" -eq 0 ]]; then
+        if is_no_suite "$f"; then
+          echo "no-suite: $f (recorded in $NO_SUITE_LIST; a non-shell CI lane covers it)"
+        elif [[ ! -e "$f" ]]; then
+          echo "deleted: $f (no longer exists and no surviving suite names it; nothing left to cover)"
+        else
+          echo "UNMAPPED: 1 changed file(s) map to no test suite:"
+          [[ "$unmapped_corpus" -eq 1 ]] && select_unmapped_corpus "$f"
+        fi
+      fi
+    } >"$each_out/${each_keys[i]}.err"
+    if [[ ${#SUITES[@]} -gt 0 ]]; then
+      for s in "${!SUITES[@]}"; do
+        case "$s" in
+        *.test.js | *.test.mjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
+        *) ;;
+        esac
+      done
+      printf '%s\n' "${!SUITES[@]}" | sort -u
+    fi >"$each_out/${each_keys[i]}.out"
+  done
+}
+
 build_sync_map
 load_no_suite_patterns
 build_tree_index
+
+if [[ -n "$each_from" ]]; then
+  run_each
+  exit 0
+fi
 
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
@@ -1677,32 +1773,9 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
   echo "test-scope on the suite that reads it; or record the path class in $NO_SUITE_LIST" >&2
   echo "with the CI lane that does cover it." >&2
   if [[ "$unmapped_corpus" -eq 1 ]]; then
-    declare -A CORPORA=()
-    for f in "${UNMAPPED[@]}"; do
-      lang_family "$f"
-      case "$LANG_FAMILY" in
-      sh | py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
-      *)
-        # An executable without an extension is shell-run code. Data no rule
-        # reaches is read by no suite: a suite that reads a tree file names it
-        # or declares it (R8), so it widens nothing.
-        [[ -f "$f" && "$(head -c 2 "$f" 2>/dev/null)" == '#!' ]] && CORPORA[sh]=1
-        ;;
-      esac
-    done
-    awk -v want=" ${!CORPORA[*]} " '
-      { b = $0; sub(/.*\//, "", b) }
-      /\.test\.sh$/ { e = "sh" }
-      /\.test\.m?js$/ { e = "node" }
-      /\.Tests\.ps1$/ { e = "ps" }
-      b ~ /^test_.*\.py$/ { e = "py" }
-      e != "" && index(want, " " e " ") { print e "\t" $0 }
-      { e = "" }' "$WORK_DIR/all-files" >"$WORK_DIR/corpus"
-    while IFS=$'\t' read -r lang suite; do
-      add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
-    done <"$WORK_DIR/corpus"
-    if [[ ${#CORPORA[@]} -gt 0 ]]; then
-      echo "Selecting the whole corpus of each unmapped code file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    select_unmapped_corpus "${UNMAPPED[@]}"
+    if [[ -n "$CORPUS_LANGS" ]]; then
+      echo "Selecting the whole corpus of each unmapped code file's language under --unmapped-corpus: $CORPUS_LANGS." >&2
     else
       echo "Every unmapped file is data no suite reads; --unmapped-corpus selects no corpus for it." >&2
     fi

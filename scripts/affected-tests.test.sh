@@ -1223,6 +1223,32 @@ if [[ "$RC" -eq 0 && ! -s "$TMP_ROOT/not-run" ]]; then
 else
   fail "--write-not-run should leave an empty file after a shell-only run (rc=$RC): $(cat "$TMP_ROOT/not-run") $OUT"
 fi
+
+rm -rf "$TMP_ROOT/each" && mkdir -p "$TMP_ROOT/each"
+printf '%s\n' 000000:eco/gadget.js 000001:eco/hop/far-runner.test.sh 000002:eco/gone.sh >"$TMP_ROOT/each.list"
+(cd "$repo" && bash scripts/affected-tests.sh --allow-unmapped --each-from "$TMP_ROOT/each.list" --each-out "$TMP_ROOT/each" 2>/dev/null)
+RC=$?
+each_same=1
+for keyed in 000000:eco/gadget.js 000001:eco/hop/far-runner.test.sh; do
+  run_sel "$repo" --allow-unmapped "${keyed#*:}"
+  [[ "$OUT" == "$(cat "$TMP_ROOT/each/${keyed%%:*}.out")" && -n "$OUT" ]] || each_same=0
+done
+if [[ "$RC" -eq 0 && "$each_same" -eq 1 ]]; then
+  ok "--each-from: each listed path selects what its own one-file run selects"
+else
+  fail "--each-from answers differ from one-file runs (rc=$RC): $(cat "$TMP_ROOT"/each/*.out)"
+fi
+if grep -q '^deleted: eco/gone.sh' "$TMP_ROOT/each/000002.err" && [[ ! -s "$TMP_ROOT/each/000002.out" ]]; then
+  ok "--each-from: a path that maps to nothing and no longer exists is reported deleted, selecting nothing"
+else
+  fail "--each-from: eco/gone.sh should be deleted with no suite: $(cat "$TMP_ROOT/each/000002.err" "$TMP_ROOT/each/000002.out")"
+fi
+run_sel "$repo" --each-from "$TMP_ROOT/each.list"
+if [[ "$RC" -eq 2 ]]; then
+  ok "--each-from without --each-out is a usage error (exit 2)"
+else
+  fail "--each-from alone should exit 2, got $RC"
+fi
 OUT="$(cd "$repo" && bash scripts/affected-tests.sh --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && contains "$OUT" 'only applies to --run'; then
