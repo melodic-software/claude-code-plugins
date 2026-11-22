@@ -142,6 +142,14 @@ export function swapRecord(path, expected, text) {
   }
 }
 
+/** Undoes this apply's record write only while the file still holds `ours`: puts `previous` back, or deletes the file when there is none. False when another writer replaced it, which is left as it is. */
+export function rollbackRecord(path, ours, previous) {
+  if (previous) return swapRecord(path, ours, recordText(previous));
+  if (readText(path) !== ours) return false;
+  removeFile(path);
+  return true;
+}
+
 export function baseline(doc, record) {
   const out = {};
   for (const [key, section] of Object.entries(SECTIONS)) {
