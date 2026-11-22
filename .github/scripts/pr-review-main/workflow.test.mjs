@@ -4,6 +4,7 @@
 // uploads the verdict once, after it is written, under the name the writer
 // chose. Each lane runs one leg on the review lanes' credentials in their
 // order, a later leg only for a lane the previous one handed on.
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, symlinkSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
