@@ -1,3 +1,4 @@
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 // Expected values come from the native-merge plan's arm-merge item and the
 // owner answers on it: a lanes App pull request is armed for native auto-merge (squash, at the head
 // read) with no session, and is never armed, or is disarmed, while it carries

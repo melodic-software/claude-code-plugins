@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/.claude-plugin/plugin.json
 """The trust and cost settings (babysit_merge_settings): read only from the
 operator's user and managed settings, fail closed when unset, and never widened
 by anything in a checkout or the environment.

@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
 """`collect_lane_runs` takes a completed lane run's attempts from the run cache.
 
 A read saved in one pr-merge run is carried to the next by

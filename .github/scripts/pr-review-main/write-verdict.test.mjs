@@ -1,3 +1,4 @@
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 // The main-run review verdict: the counts the merge gate reads
 // (babysit_review_evidence `_main_review_counted`), from the model's checked
 // output and the job's own reads, and nothing written on doubt.

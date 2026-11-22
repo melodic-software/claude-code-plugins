@@ -1,3 +1,4 @@
+// test-scope: plugins/source-control/.claude-plugin/plugin.json
 // Expected values come from the invariant in clear-escalations.mjs's LANE_CAUSES
 // comment: the causes the lanes lift are never ones only a person clears. The
 // person sets are read from diff_risk.py (PERSON_CODES, PERSON_PREFIXES) and
