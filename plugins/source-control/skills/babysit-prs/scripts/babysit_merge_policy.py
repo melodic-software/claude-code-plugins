@@ -483,7 +483,7 @@ def _issue_status_config(text: str) -> IssueStatusConfig | None:
             rows = _records_below(text, ISSUE_STATUS_KEY)
             _ISSUE_STATUS[text] = _issue_status_rows(rows) if rows else None
         except PolicyReadError as exc:
-            _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), (), str(exc))
+            _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), str(exc))
     return _ISSUE_STATUS[text]
 
 
@@ -515,9 +515,6 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
             raise ValueError("options must map option ids to states")
         if len(set(states)) != len(states):
             raise ValueError("options map two option ids to one state")
-        setters = listed("bot-setters.", ("id", "login"))
-        if not all(ident(s["id"]) for s in setters):
-            raise ValueError("a bot-setters id is not an id")
         if {k.rsplit(".", 1)[0] for k in items("labels.")} - set(states):
             raise ValueError("labels names a state no option maps")
         labels = tuple(
@@ -545,11 +542,10 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
         holds = holds or HOLD_STATES
         ready = ready or READY_STATE
     except ValueError as exc:
-        return IssueStatusConfig(0, (), (), (), (), f"{ISSUE_STATUS_KEY}: {exc}")
+        return IssueStatusConfig(0, (), (), (), f"{ISSUE_STATUS_KEY}: {exc}")
     return IssueStatusConfig(
         int(field_id),
         options,
-        tuple((int(s["id"]), s["login"]) for s in setters),
         labels,
         order,
         hold_states=holds,
@@ -993,15 +989,13 @@ READY_STATE = "agent-ready"
 @dataclass(frozen=True)
 class IssueStatusConfig:
     """`models.issue-status` (`ISSUE_STATUS_KEY`): the field id, each option
-    id with its state, the `bot-setters` (id, login) pairs, each state's
-    labels, and the collapse order. `error` names a malformed block, which
+    id with its state, each state's labels, and the collapse order. `error` names a malformed block, which
     `issue_status` refuses to read. `hold_states` and `ready_state` are the
     block's `hold-states` and `ready-state`, else `HOLD_STATES` and
     `READY_STATE`."""
 
     field_id: int
     options: tuple[tuple[str, str], ...]
-    bot_setters: tuple[tuple[int, str], ...]
     labels: tuple[tuple[str, tuple[str, ...]], ...]
     order: tuple[str, ...]
     error: str | None = None
@@ -1012,6 +1006,7 @@ class IssueStatusConfig:
 ISSUE_STATUS_KEY = "models.issue-status"
 # The job token's bot, a bot setter the trusted-actor list does not list.
 ACTIONS_BOT = (41898282, "github-actions[bot]")
+STATUS_LANES_APP = "melodic-automation-lanes[bot]"
 # The one App whose field values count for every state, read only from the
 # operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 LANES_APP_LOGIN = merge_settings.load().issue_status_app_login
@@ -1590,7 +1585,6 @@ def _cached_issue_status(value: Any) -> IssueStatusConfig | None:
     status = IssueStatusConfig(
         value.get("field_id"),
         pairs(value.get("options"), str, text),
-        pairs(value.get("bot_setters"), int, text),
         pairs(value.get("labels"), str, texts),
         tuple(order) if texts(order) else (),
         value.get("error"),
@@ -3165,15 +3159,30 @@ ISSUE_STATUS_QUERY = (
 FIELD_EVENT_WINDOW = 100
 
 
+def status_bot_setters(
+    actors: Iterable[tuple[int, Any, Any]],
+) -> tuple[tuple[int, str], ...]:
+    """The Work status bot setters as (id, login): github-actions[bot], then
+    each `kind` bot of `actors` (`trusted_listing`) whose login starts with
+    `melodic-`, other than `STATUS_LANES_APP`, in list order."""
+    return (ACTIONS_BOT,) + tuple(
+        (i, login)
+        for i, login, kind in actors
+        if kind == "bot"
+        and isinstance(login, str)
+        and login.startswith("melodic-")
+        and login != STATUS_LANES_APP
+    )
+
+
 def issue_status(
     repo: str, ref: str, number: int, config: IssueStatusConfig
 ) -> str | None:
     """The state the newest counted Work status event on issue `number` left
     (`config`), or None when that event removed the value or no event counts.
     An event counts when a listed human or the lanes App on the trusted list
-    at `ref` wrote it, or a `bot-setters` account wrote any state but
-    `config.ready_state`, github-actions[bot] always and any other only while
-    the list holds it as a bot with the same id and login. Unlike
+    at `ref` wrote it, or a `status_bot_setters` account of that list wrote
+    any state but `config.ready_state`. Unlike
     issue-status.mjs issueStatus, which reads the newest event's setter, an
     uncounted later change or removal leaves a counted state standing.
     Raises `PolicyReadError` on a malformed `config`, a failed or malformed
@@ -3212,16 +3221,7 @@ def issue_status(
         for i, login, kind in actors
         if kind == "human" or (LANES_APP_LOGIN and login == LANES_APP_LOGIN)
     }
-    listed_bots = {
-        (i, login)
-        for i, login, kind in actors
-        if kind == "bot" and isinstance(login, str)
-    }
-    bots = {
-        entry[0]
-        for entry in config.bot_setters
-        if entry == ACTIONS_BOT or entry in listed_bots
-    }
+    bots = {i for i, _ in status_bot_setters(actors)}
     # An uncounted event neither sets nor clears a counted state: the newest
     # counted one decides, whatever came after it.
     for event in ours_newest_first:

@@ -42,7 +42,7 @@ COUNTED_TRUST=""
 readonly FIELD_VALUE_PAGE=25
 readonly FIELD_EVENT_WINDOW=100
 # The job token's bot, the one bot-setters entry the trust list need not hold.
-readonly ACTIONS_BOT_ID=41898282 ACTIONS_BOT_LOGIN="github-actions[bot]"
+readonly ACTIONS_BOT_ID=41898282 STATUS_LANES_APP="melodic-automation-lanes[bot]"
 
 TRUST_TMP=""
 [[ -z "$COUNTED_TRUST" ]] || {
@@ -88,7 +88,7 @@ trust_context() {
     trust_fail "$EX_CONFIG" "status_trust: $model_path on $repo does not parse: $(tail -n 1 <<<"$records")"
   # shellcheck disable=SC2154  # WIT_DEFAULT_READY_STATE: lib/labels.sh, sourced through common.sh
   CONTEXT="$(jq -R -n -c --argjson actors "$actors" --arg lanes "$lanes" \
-    --argjson bot_id "$ACTIONS_BOT_ID" --arg bot_login "$ACTIONS_BOT_LOGIN" \
+    --argjson bot_id "$ACTIONS_BOT_ID" --arg lanes_bot "$STATUS_LANES_APP" \
     --arg default_ready "$WIT_DEFAULT_READY_STATE" '
     def ident: test("^[1-9][0-9]*$");
     [inputs | select(startswith("models.issue-status.")) | split("\t")
@@ -97,18 +97,11 @@ trust_context() {
     | ([$rows[] | select(.key == "ready-state") | .value] | first // "") as $ready_set
     | (if $ready_set == "" then $default_ready else $ready_set end) as $ready
     | [$rows[] | select(.key | startswith("options.")) | {id: (.key | ltrimstr("options.")), state: .value}] as $options
-    | [$rows[] | select(.key | startswith("bot-setters.")) | .key |= ltrimstr("bot-setters.")] as $setter_rows
-    | (($setter_rows | length) / 2 | floor) as $count
-    | [range($count) as $i | {id: ($setter_rows[] | select(.key == "\($i).id") | .value),
-        login: ($setter_rows[] | select(.key == "\($i).login") | .value)}] as $setters
     | if ($field | ident | not) then {error: "field-id \($field | tojson) is not an id"}
       elif ($options | length) == 0 or any($options[]; (.id | ident | not) or .state == "")
       then {error: "options must map option ids to states"}
       elif ($options | map(.state) | unique | length) != ($options | length)
       then {error: "options map two option ids to one state"}
-      elif ($setter_rows | map(.key) | sort) != ([range($count) | "\(.).id", "\(.).login"] | sort)
-        or ($setters | length) != $count or any($setters[]; .login == "" or (.id | ident | not))
-      then {error: "bot-setters is not a list of {id, login}"}
       elif $ready_set != "" and ([$options[].state] | index($ready_set) | not)
       then {error: "ready-state names a state no option maps"}
       else {
@@ -116,9 +109,8 @@ trust_context() {
         states: ($options | map(.state)),
         ready: $ready,
         people: [$actors[] | select(.kind == "human" or .login == $lanes) | .id],
-        bots: [$setters[] | (.id | tonumber) as $id | .login as $login
-          | select(($id == $bot_id and $login == $bot_login)
-              or any($actors[]; .kind == "bot" and .id == $id and .login == $login)) | $id]
+        bots: ([$bot_id] + [$actors[] | select(.kind == "bot" and (.login | type) == "string"
+          and (.login | startswith("melodic-")) and .login != $lanes_bot) | .id])
       } end' <<<"$records")" ||
     trust_fail "$EX_INTERNAL" "status_trust: $model_path on $repo could not be read"
   if jq -e 'has("error")' <<<"$CONTEXT" >/dev/null; then

@@ -15,6 +15,7 @@ import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
+import { statusBotSetters } from "./issue-status.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 
@@ -920,20 +921,16 @@ test("live config: post-merge records the owner login's agent merges on the owne
   assert.equal(agentIdentity, "melodic-automation-lanes[bot]");
 });
 
-test("live config: models.issue-status bot-setters are github-actions[bot] then listed melodic- Apps other than the lanes App", () => {
-  const setters = parse(FILES.config).models["issue-status"]["bot-setters"];
+test("live config: models.issue-status bot-setters are github-actions[bot] and the listed melodic- Apps but the lanes App", () => {
+  assert.equal(Object.hasOwn(parse(FILES.config).models["issue-status"], "bot-setters"), false);
+  const setters = statusBotSetters(FILES.trustedActors);
   const melodic = FILES.trustedActors.actors
     .filter((actor) => actor.kind === "bot" && actor.login.startsWith("melodic-") && actor.login !== "melodic-automation-lanes[bot]")
     .map(({ id, login }) => ({ id, login }));
   assert.ok(melodic.length > 0);
-  assert.deepEqual(setters[0], { id: 41898282, login: "github-actions[bot]" });
+  assert.deepEqual(setters, [{ id: 41898282, login: "github-actions[bot]" }, ...melodic]);
   for (const login of ["claude[bot]", "cursor[bot]", "cursoragent", "dependabot[bot]", "melodic-automation-lanes[bot]"]) {
     assert.equal(setters.some((entry) => entry.login === login), false, login);
-  }
-  // issueStatus ignores an entry the list stops holding; this test is what
-  // flags that drift, so each entry must still be on the list as that bot.
-  for (const entry of setters.slice(1)) {
-    assert.ok(melodic.some((actor) => actor.id === entry.id && actor.login === entry.login), entry.login);
   }
 });
 

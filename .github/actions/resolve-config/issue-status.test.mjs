@@ -9,7 +9,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { checkStatus, collapseStatus, issueStatus as readStatus, StatusDisagreement, statusOption } from "./issue-status.mjs";
+import { checkStatus, collapseStatus, issueStatus as readStatus, StatusDisagreement, statusBotSetters, statusOption } from "./issue-status.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
@@ -117,7 +117,12 @@ const ACTIONS_BOT = 41898282;
 const MELODIC_AI = 288071998;
 const CLAUDE_BOT = 209825114;
 const LANES_APP = 337595936;
-const BOT_SETTERS = [41898282, 300666570, 288071998, 296023097, 300690090, 337859524];
+const BOT_SETTERS = [
+  ACTIONS_BOT,
+  ...TRUSTED.actors
+    .filter((actor) => actor.kind === "bot" && actor.login.startsWith("melodic-") && actor.login !== "melodic-automation-lanes[bot]")
+    .map((actor) => actor.id),
+];
 
 test("read: github-actions[bot] setting needs-human reads needs-human, and melodic-ai[bot] setting confirmed reads confirmed", () => {
   assert.equal(issueStatus([{ field: FIELD, option: OPTIONS["needs-human"] }], ACTIONS_BOT), "needs-human");
@@ -125,7 +130,8 @@ test("read: github-actions[bot] setting needs-human reads needs-human, and melod
 });
 
 test("read: every bot-setter counts for every state but agent-ready, which reads null", () => {
-  assert.deepEqual(CONFIG["bot-setters"].map((entry) => entry.id), BOT_SETTERS);
+  assert.ok(BOT_SETTERS.includes(MELODIC_AI) && BOT_SETTERS.length > 2);
+  assert.deepEqual(statusBotSetters(TRUSTED).map((entry) => entry.id), BOT_SETTERS);
   for (const setter of BOT_SETTERS) {
     for (const [state, option] of Object.entries(OPTIONS)) {
       assert.equal(issueStatus([{ field: FIELD, option }], setter), state === "agent-ready" ? null : state, `${setter} ${state}`);
@@ -152,27 +158,38 @@ test("read: a bot-setter's option no entry maps fails closed, and a bot-setter w
   assert.equal(issueStatus([{ field: 15462270, option: 27053568 }], ACTIONS_BOT), null);
 });
 
-const rejectsSetters = (setters, text) =>
-  assert.throws(
-    () => checkStatus({ ...CONFIG, "bot-setters": setters }, undefined),
-    (error) => error instanceof Rejection && error.code === "undefined-status" && error.message.includes(text),
-    text,
-  );
-
-test("check: the live bot-setters pass, and so does a config with none", () => {
+test("check: the live config passes", () => {
   checkStatus(CONFIG, undefined);
-  checkStatus({ ...CONFIG, "bot-setters": undefined }, undefined);
 });
 
-test("check: a third-party bot, the lanes App, a wrong id or login, and a repeated id are rejected", () => {
-  const actions = { id: ACTIONS_BOT, login: "github-actions[bot]" };
-  rejectsSetters([actions, { id: CLAUDE_BOT, login: "claude[bot]" }], "claude[bot]");
-  rejectsSetters([{ id: 49699333, login: "dependabot[bot]" }], "dependabot[bot]");
-  rejectsSetters([{ id: 199161495, login: "cursoragent" }], "cursoragent");
-  rejectsSetters([{ id: LANES_APP, login: "melodic-automation-lanes[bot]" }], "other than the lanes App");
-  rejectsSetters([{ id: 1, login: "github-actions[bot]" }], "github-actions[bot] is 41898282");
-  rejectsSetters([{ id: ACTIONS_BOT, login: "melodic-ai[bot]" }], "github-actions[bot] is 41898282");
-  rejectsSetters([actions, { id: MELODIC_AI, login: "melodic-ai[bot]" }, { id: MELODIC_AI, login: "melodic-ai[bot]" }], `id ${MELODIC_AI} twice`);
+test("bot setters: github-actions[bot], then the listed melodic- bots but the lanes App, in list order", () => {
+  const list = {
+    version: 1,
+    actors: [
+      { id: 11, login: "person", kind: "human" },
+      { id: 21, login: "melodic-one[bot]", kind: "bot" },
+      { id: CLAUDE_BOT, login: "claude[bot]", kind: "bot" },
+      { id: LANES_APP, login: "melodic-automation-lanes[bot]", kind: "bot" },
+      { id: 31, login: "melodic-person", kind: "human" },
+      { id: 199161495, login: "cursoragent", kind: "bot" },
+      { id: 41, login: "not-melodic-x[bot]", kind: "bot" },
+      { id: 51, login: "melodic-two[bot]", kind: "bot" },
+    ],
+  };
+  assert.deepEqual(statusBotSetters(list), [
+    { id: 41898282, login: "github-actions[bot]" },
+    { id: 21, login: "melodic-one[bot]" },
+    { id: 51, login: "melodic-two[bot]" },
+  ]);
+  assert.deepEqual(statusBotSetters({ version: 1, actors: [] }), [{ id: 41898282, login: "github-actions[bot]" }]);
+  assert.deepEqual(statusBotSetters(undefined), [{ id: 41898282, login: "github-actions[bot]" }]);
+  const row = [{ field: FIELD, option: OPTIONS["needs-human"] }];
+  for (const [setter, state] of [[21, "needs-human"], [51, "needs-human"], [41898282, "needs-human"], [CLAUDE_BOT, null], [41, null], [199161495, null]]) {
+    assert.equal(readStatus({ fieldValues: row, fieldSetters: { [FIELD]: setter } }, CONFIG, list), state, String(setter));
+  }
+  const ready = [{ field: FIELD, option: OPTIONS["agent-ready"] }];
+  assert.equal(readStatus({ fieldValues: ready, fieldSetters: { [FIELD]: 21 } }, CONFIG, list), null);
+  assert.equal(readStatus({ fieldValues: ready, fieldSetters: { [FIELD]: LANES_APP } }, CONFIG, list), "agent-ready");
 });
 
 // The trusted-actor list may drop or rename a melodic- bot before the config
@@ -180,7 +197,7 @@ test("check: a third-party bot, the lanes App, a wrong id or login, and a repeat
 // labels decide, and the config still loads.
 test("read: a melodic- bot-setter the trusted-actor list no longer holds as that bot is ignored, not rejected", () => {
   const dropped = { ...TRUSTED, actors: TRUSTED.actors.filter((actor) => actor.id !== MELODIC_AI) };
-  const renamed = { ...TRUSTED, actors: TRUSTED.actors.map((actor) => (actor.id === MELODIC_AI ? { ...actor, login: "melodic-ai-2[bot]" } : actor)) };
+  const renamed = { ...TRUSTED, actors: TRUSTED.actors.map((actor) => (actor.id === MELODIC_AI ? { ...actor, login: "ai-2[bot]" } : actor)) };
   const row = [{ field: FIELD, option: OPTIONS["needs-human"] }];
   const setters = { [FIELD]: MELODIC_AI };
   for (const [why, list] of [["dropped", dropped], ["renamed", renamed], ["no list", undefined]]) {

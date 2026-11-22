@@ -6,9 +6,8 @@ pr-merge lane, the capped-close park and the post-merge demotion record.
 
 Expected states come from the rule `docs/conventions/pr-pipeline.yaml` states
 above `models.issue-status`: a listed human or the lanes App counts for every
-state; a `bot-setters` account for every state but agent-ready,
-github-actions[bot] always and a `melodic-` bot only while trusted-actors.json
-lists it as a bot with the same id and login; anything else reads as none, and
+state; github-actions[bot] and each `melodic-` bot trusted-actors.json lists
+but the lanes App for every state but agent-ready; anything else reads as none, and
 a counted value no option maps fails the read. The hold states are
 read-status.mjs HOLD_STATES. GraphQL answers follow the shapes
 resolve-config.mjs FIELD_EVENTS and the work-items get-statuses.sh adapter
@@ -23,7 +22,6 @@ import io
 import json
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -82,8 +80,6 @@ FIELD = 48484079
 MAIN = "c" * 40
 TRUSTED = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref={MAIN}"
 
-# The trusted-actor list the cases read: a person, the lanes App, a melodic-
-# bot the config lists with the same id, and one listed under another id.
 HUMAN_ID = 1001
 LANES_ID = 2002
 ACTORS = [
@@ -97,9 +93,6 @@ SMALL = """\
 models:
   issue-status:
     field-id: 48484079
-    bot-setters:
-      - id: 41898282
-        login: "github-actions[bot]"
     options:
       "84879216": needs-triage
       "84879219": needs-spec
@@ -295,9 +288,6 @@ class TheFieldReader(StatusCase):
             ).as_uri(),
             "config": {
                 "field-id": config.field_id,
-                "bot-setters": [
-                    {"id": i, "login": login} for i, login in config.bot_setters
-                ],
                 "options": dict(config.options),
             },
             "trusted": {"actors": ACTORS},
@@ -412,14 +402,36 @@ class TheConfigBlock(unittest.TestCase):
     def setUp(self) -> None:
         policy._ISSUE_STATUS.clear()
 
+    def test_the_bot_setters_are_github_actions_then_the_listed_melodic_bots(
+        self,
+    ) -> None:
+        actors = (
+            (11, "person", "human"),
+            (21, "melodic-one[bot]", "bot"),
+            (209825114, "claude[bot]", "bot"),
+            (LANES_ID, "melodic-automation-lanes[bot]", "bot"),
+            (31, "melodic-person", "human"),
+            (199161495, "cursoragent", "bot"),
+            (41, "not-melodic-x[bot]", "bot"),
+            (51, "melodic-two[bot]", "bot"),
+            (61, None, "bot"),
+        )
+        self.assertEqual(
+            policy.status_bot_setters(actors),
+            (
+                (41898282, "github-actions[bot]"),
+                (21, "melodic-one[bot]"),
+                (51, "melodic-two[bot]"),
+            ),
+        )
+        self.assertEqual(
+            policy.status_bot_setters(()), ((41898282, "github-actions[bot]"),)
+        )
+
     def test_the_live_block_style_setters_parse(self) -> None:
         status = live_config()
         self.assertEqual(status.field_id, FIELD)
-        self.assertIn((41898282, "github-actions[bot]"), status.bot_setters)
-        self.assertIn((337859524, "melodic-release[bot]"), status.bot_setters)
-        block = re.search(r"\n    bot-setters:\n((?:      - id: \d+\n        login: .+\n)+)", LIVE)
-        assert block is not None
-        self.assertEqual(len(status.bot_setters), block.group(1).count("- id:"))
+        self.assertNotIn("bot-setters", LIVE)
         self.assertIn(("86380005", "needs-human"), status.options)
         self.assertEqual(
             dict(status.labels)["needs-owner-decision"],
@@ -430,8 +442,8 @@ class TheConfigBlock(unittest.TestCase):
     def test_a_malformed_block_is_an_error_that_refuses(self) -> None:
         for name, text in (
             (
-                "setter without login",
-                SMALL.replace('        login: "github-actions[bot]"\n', ""),
+                "a non-numeric option id",
+                SMALL.replace('"84879216": needs-triage', '"x": needs-triage'),
             ),
             ("order missing a state", SMALL.replace("      - ready\n", "")),
             (
@@ -544,7 +556,7 @@ class TheConfigBlock(unittest.TestCase):
         )
         saved = json.loads(json.dumps(dataclasses.asdict(config)))
         self.assertEqual(policy._cached_config(saved), config)
-        saved["issue_status"]["bot_setters"][0][0] = "41898282"
+        saved["issue_status"]["options"][0][0] = 84879216
         self.assertIsNone(policy._cached_config(saved))
         none = json.loads(
             json.dumps(

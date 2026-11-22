@@ -418,8 +418,8 @@ for (const [why, status, code, text, dims] of [
   ["an order naming a state twice", { ...STATUS, order: ["needs-human", "agent-ready", "agent-ready", "needs-triage"] }, "undefined-status", "every mapped state once"],
   ["an order not ending on needs-triage", { ...STATUS, order: ["needs-human", "needs-triage", "agent-ready"] }, "undefined-status", "must end on `needs-triage`"],
   ["a field id one dimension uses", { ...STATUS, "field-id": 2 }, "undefined-status", "is a models.issue-dimensions field", LOADING_DIMS],
-  ["a third-party bot-setter", { ...STATUS, "bot-setters": [{ id: 209825114, login: "claude[bot]" }] }, "undefined-status", "claude[bot]"],
-  ["a bot-setter with no login", { ...STATUS, "bot-setters": [{ id: 41898282 }] }, "invalid-config", "bot-setters"],
+  ["a third-party bot-setter", { ...STATUS, "bot-setters": [{ id: 209825114, login: "claude[bot]" }] }, "invalid-config", "/models/issue-status must NOT have additional properties"],
+  ["a melodic- bot-setter", { ...STATUS, "bot-setters": [{ id: 288071998, login: "melodic-ai[bot]" }] }, "invalid-config", "/models/issue-status must NOT have additional properties"],
   ["an empty label list", { ...STATUS, labels: { ...STATUS.labels, "needs-human": [] } }, "invalid-config", "labels"],
   ["a label given as a string", { ...STATUS, labels: { ...STATUS.labels, "needs-human": "needs-human" } }, "invalid-config", "labels"],
   ["a non-numeric option id", { ...STATUS, options: { ...STATUS.options, ready: "ready" } }, "invalid-config", "options"],
@@ -432,10 +432,8 @@ for (const [why, status, code, text, dims] of [
   });
 }
 
-// Whether the trusted-actor list holds a melodic- bot-setter is read per
-// issue, never a config error, so the config loads with any list or none.
-test("issue-status: a melodic- bot-setter the trusted-actor list does not hold still loads", () => {
-  const files = withModels(statusModels({ ...STATUS, "bot-setters": [{ id: 1234, login: "melodic-unlisted[bot]" }] }));
+test("issue-status: the config loads with any trusted-actor list or none", () => {
+  const files = withModels(statusModels(STATUS));
   assert.equal(fixtureSlot({ ...files, trustedActors: LIVE.trustedActors }).applies, true);
   assert.equal(fixtureSlot({ ...files, trustedActors: undefined }).applies, true);
 });

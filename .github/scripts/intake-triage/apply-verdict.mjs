@@ -803,7 +803,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
   const state = statusConfig && (await verdictStatus([...new Set([...labels, ...lateHolds, ...(labeled ? add : [])])].filter((name) => !off.has(name)), statusConfig));
   const field = String(statusConfig?.["field-id"]);
-  const counted = (setter) => humans.has(setter) || isApp(setter, appId) || (statusConfig?.["bot-setters"] ?? []).some((entry) => entry.id === setter);
+  const bots = statusConfig ? (await import("../../actions/resolve-config/issue-status.mjs")).statusBotSetters(loadTrustedActors(env)) : [];
+  const counted = (setter) => humans.has(setter) || isApp(setter, appId) || bots.some((entry) => entry.id === setter);
   // A state that is no hold keeps a hold a person set since the first read
   // (write-status.mjs keepHold), and the issue then goes to no admission.
   const writeState = async () =>
