@@ -259,12 +259,12 @@
       "id": 21,
       "name": "ready-flip-merges-base-and-reverifies",
       "prompt": "/pull-request ready. PR 512 is an open draft on this branch, main has moved ahead of it, and the last verification:confirm ran two commits ago. Flip it to ready for review.",
-      "expected_output": "The skill routes to Phase 2.5. It reads the shared branch update decision (branch-update-signals.sh piped to branch-update-method.sh), and where a merge is chosen, as on a squash-landing repository, it updates the branch by MERGING the base (the forge's pinned update or git merge origin/main). It then runs the security review over the PR diff, commits what that review changed, and runs the verify gate (the prep §1.5 changed-files check, plus the test suites only when CI has not run them on that head) last on the merged head, and only then flips with gh pr ready (the GitHub MCP update_pull_request call with draft: false in a cloud session).",
+      "expected_output": "The skill routes to Phase 2.5. It reads the shared branch update decision (branch-update-signals.sh piped to branch-update-method.sh), and where a merge is chosen, as on a squash-landing repository, it updates the branch by MERGING the base (the forge's pinned update or git merge origin/main). It then runs the security review over the PR diff, commits what that review changed, and runs the verify gate (verification:confirm) last on the merged head, and only then flips with gh pr ready (the GitHub MCP update_pull_request call with draft: false in a cloud session).",
       "files": [],
       "expectations": [
         "The method comes from the branch update decision, and on a squash landing the base is merged and the branch is not rebased, with the decision's rule named as the reason",
         "The security review runs over the pull request's diff before the flip",
-        "The verify gate (the prep §1.5 changed-files check, plus the test suites only when CI has not run them) runs last, on the post-merge head, after any edits have been committed",
+        "The verify gate (verification:confirm) runs last, on the post-merge head, after any edits have been committed",
         "The flip happens only after the verify gate is clean, via gh pr ready locally or the MCP update_pull_request call with draft: false in a cloud session"
       ]
     },
