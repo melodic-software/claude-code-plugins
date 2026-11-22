@@ -1833,6 +1833,16 @@ test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and 
   assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
 });
 
+test("#18219: on Windows launch prints a PowerShell line that clears the session variables, and keeps argv for scripts", async () => {
+  const { launchCommand } = await import("./profiles.mjs");
+  const argv = ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude", "--settings", "C:\\data\\a b\\it's.json"];
+  assert.equal(
+    launchCommand(argv, "win32"),
+    "Remove-Item Env:PLUGIN_PROFILES_SESSION, Env:PLUGIN_PROFILES_SESSION_FILE, Env:SESSION_SETTINGS_FILE -ErrorAction Ignore; claude --settings 'C:\\data\\a b\\it''s.json'",
+  );
+  assert.equal(launchCommand(["env", "-u", "X", "claude", "--settings", "/tmp/a.json"], "linux"), "env -u X claude --settings /tmp/a.json");
+});
+
 test("#17063: no spawn in the plugin runs through a shell, which prints DEP0190 on Windows", () => {
   const root = join(HERE, "..");
   const sources = readdirSync(root, { recursive: true }).filter((f) => f.endsWith(".mjs"));

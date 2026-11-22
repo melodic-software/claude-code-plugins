@@ -734,11 +734,20 @@ function launchSettings(name, opts, where, env, io) {
   return result;
 }
 
+const psQuoted = (word) => (/^[A-Za-z0-9_%+=:./\\-]+$/.test(word) ? word : `'${word.replace(/'/g, "''")}'`);
+
+/** The line a person runs to start claude with argv's settings and without the cleared variables: env -u on POSIX, Remove-Item in PowerShell on Windows, which has no env. */
+export function launchCommand(argv, platform = process.platform) {
+  if (platform !== "win32") return argv.map(quoted).join(" ");
+  const claude = argv.slice(argv.indexOf("claude"));
+  return `Remove-Item ${CLEARED.map((v) => `Env:${v}`).join(", ")} -ErrorAction Ignore; ${claude.map(psQuoted).join(" ")}`;
+}
+
 function launch(opts, where, env, io) {
   const name = opts.name ?? ownProfile(where, env);
   const { settingsArgs, ...rest } = launchSettings(name, opts, where, env, io);
   const result = { ...rest, argv: ["env", ...CLEARED.flatMap((v) => ["-u", v]), "claude", ...settingsArgs] };
-  result.command = result.argv.map(quoted).join(" ");
+  result.command = launchCommand(result.argv);
   if (opts.json) {
     io.out(JSON.stringify(result, null, 2));
     return 0;
