@@ -5,7 +5,7 @@
   ],
   "fail": [
     {"answer": "assumed: typescript.test-cmd=npm test", "why": "no source named"},
-    {"answer": "assumed: typescript.test-cmd=npx vitest run (reference/ecosystems/typescript.yaml:13)", "why": "the bundled default, not the inferred script"},
+    {"answer": "assumed: typescript.test-cmd=npx vitest run (vitest.config.ts:1)", "why": "a runner chosen for the repo, not the inferred script"},
     {"answer": "Inferred typescript: globs *.js, package.json", "why": "no assumed: line"}
   ]
 }
