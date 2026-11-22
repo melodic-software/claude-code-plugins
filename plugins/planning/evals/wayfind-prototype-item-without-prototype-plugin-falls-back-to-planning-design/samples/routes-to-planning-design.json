@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The prototype plugin is not enabled, so #504 falls back to /planning:design: invoking /planning:design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Invoking /prototype:pressure-test in its vendor-fit mode for #504.",
+      "why": "breaks the rule"
+    }
+  ]
+}
