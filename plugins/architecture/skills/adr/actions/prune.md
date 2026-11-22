@@ -22,10 +22,11 @@ target forms as `audit`.
    edited. Done when each such record carries that status and those citation edits.
 5. For every other accepted record, run
    [Step 3](../SKILL.md#step-3-retire-the-record-the-decision-replaces) items 2 and 3: the
-   acceptance is item 1's yes; the retirement follows `adr_retirement`, a `supersede` with no new
-   record uses the convention's word for a withdrawn record, the citation sweep's proposals are
-   edited as listed (a Contradicted candidate's later record is the record citations point at,
-   otherwise drop), and with `delete` the git-history pointer line is proposed once for the ADR
+   acceptance is item 1's yes. The replacing record is a Contradicted candidate's later record, or
+   for a duplicate from "Recorded in several repositories" the kept record. The retirement follows
+   `adr_retirement`: a `supersede` names the replacing record, or with none uses the convention's
+   word for a withdrawn record. The citation sweep's proposals are edited as listed, pointing at the
+   replacing record, or dropped when there is none. With `delete` the git-history pointer line is proposed once for the ADR
    folder. Done when every accepted retirement and its citation edits are on disk.
 6. Report what was retired or marked superseded in part, how, each file whose citations were
    edited, and the records left standing. Done when `git status --porcelain` shows only those
