@@ -35,6 +35,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/opt-value.sh"
 # shellcheck source=lib/cascade-read.sh
 source "$SCRIPT_DIR/lib/cascade-read.sh"
+# shellcheck source=lib/config-layers.sh
+source "$SCRIPT_DIR/lib/config-layers.sh"
 # shellcheck source=lib/resolve-targets.sh
 source "$SCRIPT_DIR/lib/resolve-targets.sh"
 
@@ -183,39 +185,8 @@ if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
-# Config-cascade step 2: a home or non-repo root has no team layer or personal
-# override, and a team file or personal override that is the user-global file is
-# not read a second time.
-# shellcheck source=../../../lib/config-root.sh
-source "$SCRIPT_DIR/../../../lib/config-root.sh"
-OLD_USER_CFG="${HOME:-/nonexistent}/.claude/ai-slop.json"
-CFG_LAYERS=()
-PERSONAL_CFG=""
-PERSONAL_PRESENT=0
-if [[ "$(config_root_classify "$REPO_ROOT")" == repo ]]; then
-  # The team layer is <home>/ai-slop.yaml and the personal layer
-  # <home>/ai-slop.local.yaml (ADR 0075).
-  CONV_HOME="docs/conventions"
-  if _home="$(bash "$SCRIPT_DIR/../../../lib/resolve-convention-home.sh" --root "$REPO_ROOT" 2>/dev/null)" && [[ -n "$_home" ]]; then
-    CONV_HOME="$_home"
-  fi
-  _cfg="$REPO_ROOT/$CONV_HOME/ai-slop.yaml"
-  [[ -f "$_cfg" ]] && ! config_root_paths_same "$_cfg" "$OLD_USER_CFG" && CFG_LAYERS+=("$_cfg")
-  PERSONAL_CFG="$REPO_ROOT/$CONV_HOME/ai-slop.local.yaml"
-  [[ -f "$PERSONAL_CFG" ]] && ! config_root_paths_same "$PERSONAL_CFG" "$OLD_USER_CFG" && PERSONAL_PRESENT=1
-fi
-OLD_PATH_NOTE=""
-if [[ "$PERSONAL_PRESENT" -eq 1 ]]; then
-  CFG_LAYERS+=("$PERSONAL_CFG")
-  [[ -f "$OLD_USER_CFG" ]] &&
-    OLD_PATH_NOTE="Warning: $OLD_USER_CFG is an old path and not read, since $PERSONAL_CFG supplies the personal layer; /ai-slop:setup apply moves its settings into $PERSONAL_CFG and deletes it"
-elif [[ -f "$OLD_USER_CFG" ]]; then
-  CFG_LAYERS+=("$OLD_USER_CFG")
-  OLD_PATH_NOTE="Warning: $OLD_USER_CFG is an old path, still read as the personal layer until it moves; /ai-slop:setup apply moves it to ${PERSONAL_CFG:-<home>/ai-slop.local.yaml in the repository} and deletes it"
-fi
-if [[ -n "$OLD_PATH_NOTE" && "$SHOW_CONFIG" -eq 0 ]]; then
-  echo "$OLD_PATH_NOTE" >&2
-fi
+# CFG_LAYERS and OLD_PATH_NOTE: lib/config-layers.sh owns which layer files apply.
+resolve_config_layers "$REPO_ROOT" "$SHOW_CONFIG"
 
 # jq reads the user-global JSON layer; the YAML layers need no jq.
 HAVE_JQ=1
