@@ -8,7 +8,7 @@ import { inspect } from "node:util";
 import { boundRun, chartRun, configText } from "./backends/cfg.ts";
 import { plainText } from "./backends/plain-text.ts";
 import { readConfig } from "./frontends/config.ts";
-import { parseDot } from "./frontends/dot.ts";
+import { parseDot, splitLines } from "./frontends/dot.ts";
 import { readCounterexample, readMarks } from "./frontends/marks.ts";
 import { readMessages } from "./frontends/messages.ts";
 import { initialOnlyProperties, readChecks, readSany, readSpec } from "./frontends/spec.ts";
@@ -58,10 +58,10 @@ export function* fileLines(file: string) {
         kept = end;
         continue;
       }
-      yield* buf.toString("utf8", 0, cut).split("\n");
+      yield* splitLines(buf.toString("utf8", 0, cut));
       kept = buf.copy(buf, 0, cut + 1, end);
     }
-    yield buf.toString("utf8", 0, kept);
+    yield* splitLines(buf.toString("utf8", 0, kept));
   } finally {
     fs.closeSync(fd);
   }
@@ -70,14 +70,6 @@ export function* fileLines(file: string) {
 export const PINNED_FLAGS = ["-workers", "1", "-fp", "0", "-lncheck", "final"];
 
 export type Tlc = { jar: string; java: string };
-
-export const killGroup = (pid: number) =>
-  new Promise((resolve) =>
-    spawn("/bin/sh", ["-c", 'kill -s KILL -- "-$1"', "sh", String(pid)], { stdio: "ignore" }).on(
-      "exit",
-      resolve,
-    ),
-  );
 
 export const messageOf = (error: unknown) =>
   typeof error === "object" &&
@@ -135,10 +127,10 @@ function* outputLines(output: Output) {
       rest = buf;
       continue;
     }
-    yield* utf8.decode(buf.subarray(0, cut)).split("\n");
+    yield* splitLines(utf8.decode(buf.subarray(0, cut)));
     rest = buf.subarray(cut + 1);
   }
-  yield utf8.decode(rest);
+  yield* splitLines(utf8.decode(rest));
 }
 
 const messagesOf = (output: Output): Iterable<Part> => ({
@@ -174,7 +166,7 @@ const runToFiles = (
     for (const f of files) fds.push(fs.openSync(f, "w"));
     let child: ChildProcess;
     try {
-      child = spawn(file, args, { ...options, stdio: ["ignore", ...fds] });
+      child = spawn(file, args, { ...options, stdio: ["ignore", ...fds], windowsHide: true });
     } finally {
       for (const fd of fds) fs.closeSync(fd);
     }
@@ -224,6 +216,21 @@ const tail = (r: FileResult) => {
   return kept.join("").trim().split("\n").slice(-30).join("\n");
 };
 
+const firstLines = (text: string) => {
+  const lines = text.trim().split("\n");
+  if (lines.length > 40) lines.splice(40, Infinity, `... ${lines.length - 40} more lines`);
+  return lines.join("\n");
+};
+
+const SANY_ERRORS = /^\*\*\* ?(?:Errors|Abort messages|Parse Error)/m;
+
+const sanyErrors = (r: FileResult) => {
+  if (r.error) return undefined;
+  const text = [...plainText(messagesOf(r.output))].join("");
+  const at = text.search(SANY_ERRORS);
+  return at === -1 ? undefined : firstLines(text.slice(at));
+};
+
 const stopOf = (r: FileResult): Stop => {
   const errors: Part[] = [];
   for (const m of r.error ? [] : messagesOf(r.output)) {
@@ -237,9 +244,7 @@ const stopOf = (r: FileResult): Stop => {
       errors.push(m);
   }
   if (!errors.length) return { status: r.status, message: tail(r) };
-  const lines = [...plainText(errors)].join("").trim().split("\n");
-  if (lines.length > 40) lines.splice(40, Infinity, `... ${lines.length - 40} more lines`);
-  return { status: r.status, message: lines.join("\n") };
+  return { status: r.status, message: firstLines([...plainText(errors)].join("")) };
 };
 
 const names = (rules: Rule[], kind: Rule["kind"]) => {
@@ -300,6 +305,8 @@ export async function check(
           `-Xmx${limits.heap}`,
           `-Djava.io.tmpdir=${tmp}`,
           `-DTLA-Library=${library}`,
+          "-Dstdout.encoding=UTF-8",
+          "-Dstderr.encoding=UTF-8",
           "-Dtlc2.overrides.TLCOverrides=",
           ...jvm,
           "-cp",
@@ -316,8 +323,16 @@ export async function check(
       ["-o", "-I", library, staged],
       ["-XX:TieredStopAtLevel=1"],
     );
-    if (xml.status !== 0)
-      throw new Error(`SANY could not read ${specFile} (exit ${xml.status}):\n${tail(xml)}`);
+    if (xml.status !== 0) {
+      const errors = xml.error
+        ? undefined
+        : sanyErrors(
+            await runJava("sany-errors", "tla2sany.SANY", [staged], ["-XX:TieredStopAtLevel=1"]),
+          );
+      throw new Error(
+        `SANY could not read ${specFile} (exit ${xml.status}):\n${errors ?? tail(xml)}`,
+      );
+    }
     const sany = readSany(fs.readFileSync(xml.stdout, "utf8"));
     const module = path.basename(specFile, ".tla");
     const spec = { ...readSpec({ module, sany, checks }), folder };

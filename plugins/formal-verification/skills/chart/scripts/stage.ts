@@ -74,7 +74,7 @@ export function childEnv(home: string, extra: { [name: string]: string } = {}) {
   for (const name of KEPT) if (process.env[name] !== undefined) env[name] = process.env[name] as string;
   for (const [name, value] of Object.entries(process.env))
     if (name.startsWith(TEST_FAKE_JAVA_PREFIX) && value !== undefined) env[name] = value;
-  return { ...env, HOME: home, TMPDIR: home, ...extra };
+  return { ...env, HOME: home, TMPDIR: home, TEMP: home, TMP: home, ...extra };
 }
 
 export function freshOut(out: string) {
