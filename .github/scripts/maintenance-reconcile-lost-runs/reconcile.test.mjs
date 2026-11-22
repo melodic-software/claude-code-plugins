@@ -2977,7 +2977,7 @@ test("a review run that changed since the plan is left alone", async () => {
 
 test("the review-stop note is the text ci-status writes", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
-  assert.ok(workflow.includes(`did not run on $HEAD_SHA ($url): ${REVIEW_STOP_NOTE}.`));
+  assert.ok(workflow.includes(`did not run on $HEAD_SHA ($url): an API budget defer or ${REVIEW_STOP_NOTE}.`));
 });
 
 // Recorded from https://github.com/melodic-software/claude-code-plugins/actions/runs/44114943906 (check run 134151640257).
