@@ -5,7 +5,7 @@
       "why": "meets the rule"
     },
     {
-      "answer": "Items: 'Map the personal-data stores' (research).\n\nQ1: Do backups count as retained copies? Recommended: yes, so deletion reaches them within the backup rotation window.",
+      "answer": "Proposed map (created after your yes):\n- Create decision item 'Which stores hold personal data?' (wayfind: research), under the map.\n\nOne ready question for you now, in one round:\nQ1: Do backups count as retained copies? Recommended: yes, so deletion reaches them within the backup rotation window.",
       "why": "one open question is an item, the other is asked as a ready question with a recommendation"
     }
   ],
