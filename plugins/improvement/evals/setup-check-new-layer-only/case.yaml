@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: setup-check-new-layer-only
+description: 'Bare /improvement:setup runs the read-only check on a repository whose only improvement config is the new team file docs/conventions/improvement.yaml, setting churn_window to 30 days ago. The reply gives the effective churn window as 30 days with the team file as its layer (team-window-applies), prints no dual-read warning about an old .claude/ file (no-old-file-warning), and neither writes nor edits (no-write, no-edit). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Write Edit so the write graders can fail.'
+tags: [setup, check, config-cascade, no-network]
+expected_outcome: 'A PASS/FAIL/WARN/INFO report reading the team layer from docs/conventions/improvement.yaml: the effective churn_window is 30 days ago, supplied by the team file. No old-location file exists, so no dual-read warning names one. Nothing is written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/improvement:setup'
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: team-window-applies
+    type: regex
+    pattern: '30 days(?: ago)?[^\n]{0,200}?(?:\bteam\b|improvement\.yaml)|(?:\bteam\b|(?<![.\w])improvement\.yaml)[^\n]{0,200}?30 days'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-old-file-warning
+    type: regex
+    pattern: '\bWARN\b[^\n]{0,200}?(?<![~\w/])\.claude/improvement\.|(?<![~\w/])\.claude/improvement\.[^\n]{0,200}?\bWARN\b'
+    match: not_contains
+    target: last_message
+    arm: both

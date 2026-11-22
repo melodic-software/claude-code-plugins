@@ -3,6 +3,7 @@
 # entry, and an apply that writes only the docs convention file or .claude/testing.yaml.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # test-scope: plugins/testing/hooks/hooks.json
+# test-scope: plugins/testing/scripts/* plugins/testing/lib/*
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
@@ -136,6 +137,7 @@ P="$T/plugin"
 PLUGIN_DIR="$(cd "$(dirname "$SETUP")/../../.." && pwd)"
 mkdir -p "$P/skills/setup/scripts" "$P/skills/audit/scripts"
 cp -R "$PLUGIN_DIR/scripts" "$P/scripts"
+cp -R "$PLUGIN_DIR/lib" "$P/lib"
 cp -R "$PLUGIN_DIR/skills/audit/adapters" "$P/skills/audit/adapters"
 cp "$SETUP" "$P/skills/setup/scripts/setup.sh"
 sed 's/\^(js|cs|python|bash|pwsh|go)\$/^[a-z]+$/' "$PLUGIN_DIR/skills/audit/scripts/adapter-load.awk" >"$P/skills/audit/scripts/adapter-load.awk"

@@ -225,9 +225,10 @@ Read [context/own-driving.md](context/own-driving.md) and follow it. Before disp
 subagent, check prerequisites, resolve the run config, and, for a `playwright` drive, run the
 browser-driver check; a stop there dispatches no subagent. The subagent then takes the bundled `run`
 launch step, the Workspace environment, session names, a control skill's Ready and driving tool on
-this route, and teardown. The workflow steps live in [context/e2e.md](context/e2e.md). These three
-commands carry values only this file expands; the context file says when each runs:
+this route, and teardown. The workflow steps live in [context/e2e.md](context/e2e.md). These four
+commands carry values only this file expands; the context files say when each runs:
 
+- Convention-home command: `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
 - Resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance=${user_config.reuse_running_instance}'`
 - Browser-driver resolve command: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'browser_driver=${user_config.browser_driver}'`
 - Browser-driver check: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-browser-driver.sh" --user 'browser_driver=${user_config.browser_driver}'`
@@ -353,9 +354,11 @@ zoom, dark and right-to-left environments, and report. Before injecting a file a
 it, save `git diff HEAD` and `git status --porcelain --untracked-files=all --ignored` outside the
 tree and compare each pair with `cmp`; a difference ends the run degraded. Outside a git checkout,
 or with no mockable boundary, nothing is injected and every finding is labeled inferred. The
-consumer file `.claude/testing/worst-case.md` extends the catalog and is read as data; this plugin
-reads it there until it migrates, then it moves where
-[config locations](../../reference/config-locations.md) says. The action
+consumer file `<home>/testing/worst-case.md` extends the catalog and is read as data. Before the
+dispatch, resolve `<home>` with the convention-home command, pick that file or the old
+`.claude/testing/worst-case.md` per
+[context/e2e-config.md § Convention home and old paths](context/e2e-config.md#convention-home-and-old-paths),
+print any warning it calls for, and pass the chosen path, or none, to the subagent. The action
 edits no component code; fixes go to the user. It always takes own driving and skips Step 1:
 `/app-control:drive` injects no data.
 

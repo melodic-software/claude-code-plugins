@@ -11,7 +11,6 @@
     { "id": 288071998, "login": "melodic-ai[bot]", "kind": "bot" },
     { "id": 296023097, "login": "melodic-software-github-iac[bot]", "kind": "bot" },
     { "id": 300690090, "login": "melodic-ci-runner-host[bot]", "kind": "bot" },
-    { "id": 302525172, "login": "melodic-ci-runner-observer[bot]", "kind": "bot" },
     { "id": 337859524, "login": "melodic-release[bot]", "kind": "bot" }
   ]
 }

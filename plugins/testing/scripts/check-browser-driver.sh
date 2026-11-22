@@ -33,7 +33,7 @@ fi
 
 cat >&2 <<EOF
 check-browser-driver: browser_driver is '$tool' (source: $source), and no command named '$tool' is on PATH. The run stops before driving anything.
-Ways forward: install '$tool', or set browser_driver to a browser tool you have, in .claude/testing.local.yaml, docs/conventions/testing.yaml, ~/.claude/testing.yaml or the testing plugin's browser_driver option.
+Ways forward: install '$tool', or set browser_driver to a browser tool you have, in docs/conventions/testing.local.yaml, docs/conventions/testing.yaml (or the same files in the convention home the repository binds) or the testing plugin's browser_driver option.
 No other browser tool is used as a silent substitute, and a run never switches tools partway through.
 EOF
 exit 1

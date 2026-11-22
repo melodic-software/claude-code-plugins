@@ -39,7 +39,8 @@ that repository's failure, so the evidence survives; nothing from that repositor
 ## Config, baseline and caps per repository
 
 - **Config** resolves from that repository's layers, per [`config-fallback.md`](config-fallback.md):
-  its team file at `origin/HEAD`, its personal `.local.md` file read from the main checkout when
+  its team file at `origin/HEAD`, its personal file (`docs/conventions/mutation-testing.local.yaml`,
+  or the old `.claude/mutation-testing.local.md` with its warning) read from the main checkout when
   present (that file is untracked, so the worktree lacks it), and this plugin's `userConfig` as
   the user layer everywhere. A repository with no test command fails there, with Phase 0's
   remediation; the command is never guessed from another repository.

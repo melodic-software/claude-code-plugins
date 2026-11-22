@@ -56,6 +56,6 @@ graders:
     arm: both
   - name: recommends-local-gitignore
     type: regex
-    pattern: '\.claude/\*\*/\*\.local\.\*'
+    pattern: 'docs/conventions/\*\*/\*\.local\.\*'
     target: last_message
     arm: both

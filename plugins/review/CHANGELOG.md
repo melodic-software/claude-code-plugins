@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.0] - 2026-11-22
+
+### Added
+
+- `/review:council` takes `antigravity` (Gemini through agy) members, run as `external-agents review antigravity --council`, so `antigravity.council.enabled` in `external-agents.yaml` can turn them off. Like Codex members they set a model and a brief but no effort, review committed history only, and are opt-in: add one to `council_members`, for example `{"gemini":{"provider":"antigravity"}}`.
+
 ## [10.5.0] - 2026-11-22
 
 ### Changed

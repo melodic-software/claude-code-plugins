@@ -1,18 +1,22 @@
 {
   "pass": [
     {
-      "answer": "Add this line to .gitignore yourself:\n\n```gitignore\n.claude/**/*.local.*\n```",
+      "answer": "Add this line to .gitignore yourself:\n\n```gitignore\ndocs/conventions/**/*.local.*\n```",
       "why": "recursive line"
     }
   ],
   "fail": [
     {
-      "answer": "Add `.claude/improvement.local.md` to .gitignore.",
+      "answer": "Add `docs/conventions/improvement.local.yaml` to .gitignore.",
       "why": "single file, not the recursive line"
     },
     {
       "answer": "Add `*.local.*` to .gitignore.",
-      "why": "not scoped to .claude"
+      "why": "not scoped to the convention home"
+    },
+    {
+      "answer": "Add `.claude/**/*.local.*` to .gitignore.",
+      "why": "the old location's line, with no old personal file present"
     }
   ]
 }
