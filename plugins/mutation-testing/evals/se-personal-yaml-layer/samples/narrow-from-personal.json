@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Config presence | PASS | operators: narrow (docs/conventions/mutation-testing.local.yaml) |",
+      "why": "value and its layer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Config presence | PASS | operators: default (docs/conventions/mutation-testing.yaml) |",
+      "why": "personal layer ignored"
+    }
+  ]
+}
