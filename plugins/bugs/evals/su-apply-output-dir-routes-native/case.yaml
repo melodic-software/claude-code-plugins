@@ -9,7 +9,7 @@ graders:
     target: last_message
   - name: recommends-ignore-line
     type: regex
-    pattern: '\.claude/\*\*/\*\.local\.\*'
+    pattern: 'docs/conventions/\*\*/\*\.local\.\*'
     target: last_message
   - name: no-gitignore-write
     type: tool_used

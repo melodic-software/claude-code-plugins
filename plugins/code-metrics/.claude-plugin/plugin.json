@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "1.5.3",
+  "version": "1.6.0",
   "license": "MIT",
   "keywords": [
     "code-metrics",
@@ -25,5 +25,12 @@
   ],
   "metadata": {
     "category": "quality"
+  },
+  "userConfig": {
+    "config_file": {
+      "type": "file",
+      "title": "Your code-metrics settings file",
+      "description": "Path to your own code-metrics YAML file, the layer that applies in every repository, under the team file and your personal override. Same keys as docs/conventions/code-metrics.yaml. Unset: no user layer. /code-metrics:setup apply --copy-old fills it from ~/.claude/code-metrics.yaml."
+    }
   }
 }

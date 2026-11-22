@@ -87,9 +87,8 @@ them argue against it directly.
 
 ## Setting your own
 
-Every reference resolves across three layers, user-global (`~/.claude/code-metrics.yaml`) then
-team (`docs/conventions/code-metrics.yaml`) then personal override, with per-key override: setting one key replaces that value and leaves the
-rest of the defaults intact. The full key list is [`reference/config.md`](../../../reference/config.md), and
+Every reference resolves across the code-metrics layers with per-key override: setting one key
+replaces that value and leaves the rest of the defaults intact. The full key list is [`reference/config.md`](../../../reference/config.md), and
 `/code-metrics:setup` writes the team file and probes the collectors. The report prints the layer
 that supplied any value a personal layer changed, so a number that differs from a teammate's is
 traceable to the layer that changed it rather than to the code.

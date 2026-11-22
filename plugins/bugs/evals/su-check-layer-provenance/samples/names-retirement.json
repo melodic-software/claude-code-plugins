@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "| retirements | FAIL | bugs-r001: .claude/bugs.local.md is the old personal override path; run /bugs:setup apply to move it to docs/conventions/bugs.local.md |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The personal override .claude/bugs.local.md opts out with lanes: []."
+    }
+  ]
+}

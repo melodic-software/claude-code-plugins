@@ -130,6 +130,18 @@ expect "with a ShellCheck older than 0.10 the pre-commit entry ran full analysis
 expect "--resolve names the adapter" "bash-format	lint	adapter:shellcheck	shellcheck	yes	config .shellcheckrc; binary shellcheck on PATH" \
   "$(cd "$REPO" && PATH="$WORK/sc-stub:$PATH" bash "$CHECK" --resolve </dev/null 2>&1 | cut -f1-6)"
 
+new_repo
+mkdir -p "$REPO/x" "$REPO/y"
+big "$REPO/x/big.sh" 12000
+line2 "$REPO/x/big.sh" 'echo "stub: finding"'
+cp "$REPO/x/big.sh" "$REPO/y/big.sh"
+commit
+expect "identical copies larger than a pipe buffer are linted once when the source probe exits before reading its input" \
+  "1|x/big.sh:2: warning: stub finding [SC2154]
+y/big.sh:2: warning: stub finding [SC2154]
+$HINT|--norc --extended-analysis=false -s bash -f gcc -S info -
+-x -f gcc -S warning -- x/big.sh" "$(stub "$REPO")"
+
 if ! command -v shellcheck >/dev/null 2>&1 ||
   ! [[ "$(shellcheck --version)" =~ version:\ ([0-9]+)\.([0-9]+) ]] ||
   ((BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 10)); then

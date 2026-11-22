@@ -34,7 +34,9 @@ multi-repository run adds.
 With no action word, take the action from the request: file length or lines is `size`,
 complexity is `complexity`, typing or `any` is `type-debt`. When the request names none of them,
 list the three actions and ask which to run. Read the action's file before running its script; one
-action per invocation.
+action per invocation. Append `--user-file '${user_config.config_file}'` to every script call, exactly as written:
+it names the file holding your userConfig layer, and an empty or unsubstituted value means none
+(`${CLAUDE_PLUGIN_ROOT}/reference/config.md`).
 
 ## Standing rules
 

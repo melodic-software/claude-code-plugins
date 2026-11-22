@@ -65,8 +65,8 @@ your notes and compare by hand.
 
 ## Configuration
 
-Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, personal override;
+Everything tunable resolves through the code-metrics layers (team
+`docs/conventions/code-metrics.yaml`, personal override `docs/conventions/code-metrics.local.yaml`;
 per-key override; keys in `<plugin-root>/reference/config.md`): the reference
 (`type_debt.reference`, `null` by default), scope exclusions (`scope.exclude`), a per-lane opt-out
 (`lanes.<lane>.enabled: false`, which drops that lane even under `--all`), and the per-lane

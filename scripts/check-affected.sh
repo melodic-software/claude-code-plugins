@@ -278,7 +278,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md" "$out.cl"' EXIT
+trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md" "$out.cl" "$out.voc"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -556,6 +556,45 @@ else
   run_check comment-lint \
     "AI_AGENT=ci sh $comment_lint --worktree for uncommitted edits, else scripts/check-comment-lint.sh with HEAD_SHA, BASE_REF and GITHUB_EVENT_NAME=pull_request" \
     comment_lint_merge_base_diff
+fi
+
+vocabulary=scripts/check-vocabulary.py
+vocabulary_senses=scripts/vocabulary-senses.json
+declare -a vocabulary_files=() vocabulary_links=()
+for f in ${changed[@]+"${changed[@]}"}; do
+  case "$(git ls-tree HEAD -- "$f" | cut -d' ' -f1)" in
+  100644 | 100755) vocabulary_files+=("$f") ;;
+  120000) vocabulary_links+=("$f") ;;
+  *) ;;
+  esac
+done
+vocabulary_staged() {
+  local d="$out.voc" f
+  for f in "${vocabulary_files[@]}"; do
+    mkdir -p "$d/$(dirname "$f")" && git show "HEAD:$f" >"$d/$f" || return 2
+  done
+  mkdir -p "$d/scripts" && cp "$tools/$vocabulary" "$tools/$vocabulary_senses" "$d/scripts/" || return 2
+  (cd "$d" && python3 -I "$vocabulary" -- "${vocabulary_files[@]}")
+}
+if ! command -v python3 >/dev/null 2>&1; then
+  skip vocabulary "python3 not installed"
+elif [[ ! -f "$tools/$vocabulary" || ! -f "$tools/$vocabulary_senses" ]]; then
+  skip vocabulary "no $vocabulary and $vocabulary_senses beside this script"
+elif grep -qxE 'scripts/(check-vocabulary\.py|vocabulary-senses\.json)' <<<"$all_raw"; then
+  if ((foreign)); then
+    skip vocabulary "the branch changes the checker or its senses file; CI runs the branch's copy"
+  elif ! git diff --quiet HEAD; then
+    skip vocabulary "the branch changes the checker or its senses file, and the whole-tree scan would read uncommitted edits a push does not send"
+  else
+    run_check vocabulary "python3 -I scripts/check-vocabulary.py" python3 -I "$tools/$vocabulary"
+  fi
+elif ((${#vocabulary_files[@]} == 0)); then
+  skip vocabulary "no changed regular file"
+else
+  for f in ${vocabulary_links[@]+"${vocabulary_links[@]}"}; do
+    skip "vocabulary: $f" "a symlink, which CI scans through to its target"
+  done
+  run_check vocabulary "python3 -I scripts/check-vocabulary.py ${vocabulary_files[*]}" vocabulary_staged
 fi
 
 # machine-specific-paths: the scan the workflow's check-machine-paths composite

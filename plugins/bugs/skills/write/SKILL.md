@@ -32,7 +32,9 @@ and how injected commands run at
 ## Pre-computed context
 
 Consumer gotchas:
-!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" || echo "(consumer gotchas unavailable)"`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" --user-file '${user_config.gotchas_file}' || echo "(consumer gotchas unavailable)"`
+
+Personal gotchas file (`gotchas_file`): `${user_config.gotchas_file}`
 
 ## Variables
 
@@ -236,9 +238,13 @@ present in their host.
 - **The survey is grounding, not investigation.** A bug that needs real investigation is scoped
   separately.
 - **Consumer gotchas extend these.** The pre-computed block holds the `## Gotchas` sections of the
-  bugs config layers (user-global, team, personal override) in layer order; apply them to this
-  invocation. A missing layer is absent, not an error. A generalizable line belongs in this
-  shipped skill via an issue, not in the consumer file.
+  bugs config layers (the `gotchas_file` option's file, team, personal override) in layer order;
+  apply them to this invocation. A missing layer is absent, not an error. When the personal
+  gotchas file line names a file but the block shows no `userConfig` block for it, Read that
+  file's `## Gotchas` section and apply it as the first layer. Relay each `Warning:`
+  line under the block to the user: it names an old config path and the `/bugs:setup apply` that
+  moves it. A generalizable line belongs in this shipped skill via an issue, not in the consumer
+  file.
 
 ## Cross-references
 
