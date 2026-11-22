@@ -83,7 +83,7 @@ is `audit`; anything else asks which action.
 - **No spec or scratchpad.** Behavior, implementation, acceptance criteria and open questions belong
   in their owning artifacts.
 - **No ADR ownership.** Why the system is built a certain way, a decision chosen over a weighed
-  alternative, is `/architecture:record-decision`'s; this skill records only what a term means.
+  alternative, is `/architecture:adr`'s; this skill records only what a term means.
 - **No speculative scaffolding.** An empty glossary or index is worse than no file; create lazily.
 - **No autonomous consensus.** Ambiguous language is a question, not a write; `seed` writes only
   terms a person accepted one by one, and `curate` removes or merges only entries a person accepted.

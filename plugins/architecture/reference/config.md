@@ -4,7 +4,7 @@ The architecture `map-*` skills' team configuration surface: a natural-language 
 consumer's convention home**, bound by the pointer line the consuming marketplace's config-cascade
 expression doctrine defines. Zero config is not a working state for this surface, because `architecture_dir`
 has no default and a plugin guessing where a repository keeps its architecture artifacts would
-write two files into a directory nobody asked for. The `record-decision` keys use a separate
+write two files into a directory nobody asked for. The `adr` keys use a separate
 surface, [Decision-record keys](#decision-record-keys), and so do `/architecture:improve-layout`,
 [Layout keys](#layout-keys), and `/architecture:improve`, [Improve keys](#improve-keys).
 
@@ -68,7 +68,7 @@ a FAIL with a remediation line. It is never silently ignored and never coerced t
 
 ## Decision-record keys
 
-`/architecture:record-decision` reads three optional keys through the four layers of
+`/architecture:adr` reads three optional keys through the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 not through the topic doc above. Lowest first: the default, the `userConfig` option of the same
 name, the team file `<home>/architecture.yaml`, then the personal file
@@ -78,9 +78,9 @@ cannot carry, so it skips that layer. Schema:
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `adr_template` | a path to a Markdown file: repo-relative in the team and personal files, absolute or `~/`-relative in `userConfig` | the bundled `skills/record-decision/templates/adr.md` | The template `record-decision` recommends when the repository has no ADR convention. A repository's own convention, found by discovery, always wins. A repo-relative path must name a regular file inside the repository, never a symlink |
+| `adr_template` | a path to a Markdown file: repo-relative in the team and personal files, absolute or `~/`-relative in `userConfig` | the bundled `skills/adr/templates/adr.md` | The template `/architecture:adr` recommends when the repository has no ADR convention. A repository's own convention, found by discovery, always wins. A repo-relative path must name a regular file inside the repository, never a symlink |
 | `adr_extra_triggers` | a list of short phrases, for example `touches personal data`, `needs a compliance review` | none | Extra conditions that join the admission test's "at least one" list. They never remove the requirement that a real alternative was weighed. A layer that sets the list replaces a lower layer's list whole |
-| `adr_retirement` | `delete`, `supersede`, `archive` | `delete` | How `record-decision` retires a record a new decision reverses, after the person's yes. `delete` removes the file and never reuses its number; `supersede` sets its status to superseded by the new record in the repository's own status words; `archive` moves it to the ADR folder's archive folder |
+| `adr_retirement` | `delete`, `supersede`, `archive` | `delete` | How `/architecture:adr` retires a record a new decision reverses, after the person's yes. `delete` removes the file and never reuses its number; `supersede` sets its status to superseded by the new record in the repository's own status words; `archive` moves it to the ADR folder's archive folder |
 
 ```yaml
 adr_template: docs/adr/template.md

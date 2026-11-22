@@ -400,7 +400,7 @@ We credit `why` for applying evidence discipline to a software repository's own 
 against inferring intent from code is ours in its hardened form (see the departure above).
 
 `discovery:trace-intent` recovers rationale that nobody recorded. Recording rationale when a
-decision is made is `architecture:record-decision`'s job, so we treat design-rationale methods
+decision is made is `architecture:adr`'s job, so we treat design-rationale methods
 (ADRs, IBIS, QOC, DRL) as outside this skill's scope rather than as its prior art.
 
 We keep our own intent-evidence tier names. We considered ICD 203, GRADE and the Admiralty code as

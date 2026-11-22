@@ -1,15 +1,15 @@
 {
   "pass": [
     {
-      "answer": "**T1 Payload contract.** Door: one-way, since three partners build against it at launch.\nRecommend: a versioned envelope with `event`, `version`, `data`. Basis: verified, the Brief's Constraints.\nADR: once T1 resolves I will offer `/architecture:record-decision`.",
+      "answer": "**T1 Payload contract.** Door: one-way, since three partners build against it at launch.\nRecommend: a versioned envelope with `event`, `version`, `data`. Basis: verified, the Brief's Constraints.\nADR: once T1 resolves I will offer `/architecture:adr`.",
       "why": "one-way call, ADR prompt a few lines later"
     },
     {
-      "answer": "1. Payload shape is a one-way door: record it with /architecture:record-decision when we settle it.",
+      "answer": "1. Payload shape is a one-way door: record it with /architecture:adr when we settle it.",
       "why": "same line"
     },
     {
-      "answer": "ADR prompt for T1 (the payload schema, a one-way door): want me to run /architecture:record-decision after this round?",
+      "answer": "ADR prompt for T1 (the payload schema, a one-way door): want me to run /architecture:adr after this round?",
       "why": "ADR named before the one-way call on the same line"
     },
     {

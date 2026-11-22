@@ -534,7 +534,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "d2b7b0900f9abf764b770f86a16881a887d6dca1d158022f6c5b0bf2c59df356"
+  "c6265a36636f06ac3887706c1474c8c8d110f171d5c50bcb228c47b057a47a0b"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -741,25 +741,23 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 # #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 # Step 3 gains a closing summary placed before the recap, whose ADR verdicts come from the round's Decision record step and never from the interview applying the test; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
-# Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks record-decision to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
 # The closing summary lists the Glossary group first and schedules a new or renamed term as its own reviewed change before plan and decompose; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
 # Only the closing summary Glossary bullet gained a fallback clause for when docs-hygiene is not enabled; the confirmation gate and its exemption text are untouched.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
-  "101586e9916d476589a8519aa93cf89121ad517d46278a480aab737027563419"
+  "51b70b43f66248f431385edaf3f4262aeed63720eae69e3079d760fcec21cb99"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
-# does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the record-decision outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
 # Re-audit: the gotchas.md pointer moves out of the does-NOT list to a line above it, so it no longer reads as something the skill does not do; every does-NOT bullet, the fudge prohibition included, is unchanged.
 # The deep-dive bullet now says the interview dispatches exploration itself for a fact that needs more than a quick lookup (owner decision: the interview runs explore and research itself). Every other bullet, the fudge prohibition included, is unchanged.
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "261ea805a3e429229840ef9c86bacdae791acedfa9aedbfb2d95c5e949273d84"
+  "af378b0ba8f1832b6bc13d9bf53fadb9dd2a01b852fb68338687854f882cef14"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -802,8 +800,8 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Owner decisions Q70, Q72, Q74, Q75: the question template folds the Inference line into the recommendation reason and shows Checked against and Flips if only when they carry something; "grilling" wording becomes interview wording; a domain_docs setting (auto, ask, off) gates the glossary and ADR writes; a scenario comparison is offered when candidates compete. None of these resolves a row or touches the no-silent-resolve rule, the constraint-ledger rows or their re-check, which are byte-identical
 # Review on #14953: the Domain check step now names domain_docs (ask asks first, off records instead of writing), matching SKILL.md Domain-aware behaviors; the constraint-ledger rows and the process-change definition are byte-identical
 # Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
-# does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the record-decision outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
-# Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks record-decision to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
+# does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the /architecture:adr outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
+# Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks /architecture:adr to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
 # A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
 # Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
@@ -812,7 +810,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "d91d5185a66e75854f16198128e991ce047bc6129c947a435078d12dca083df0"
+  "f68750f6669e1f329a75dd7df9986751651ef195be66fc227f69c451869c63aa"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
