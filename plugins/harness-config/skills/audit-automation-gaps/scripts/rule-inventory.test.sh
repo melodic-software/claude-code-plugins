@@ -123,7 +123,7 @@ for t in "2 Static analysis" "3 Verification" "4 Guidance" "5 Human only"; do
 done
 assert_line "C: settings absent named" "$out" "- settings: .claude/settings.json absent"
 assert_line "C: declared absent named" "$out" "- declared: docs/conventions/harness-config.yaml absent, so no declared rows"
-assert_line "C: no ecosystem record named" "$out" "- ecosystems: no .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
+assert_line "C: no ecosystem record named" "$out" "- ecosystems: no docs/conventions/ecosystems/*.yaml or .claude/ecosystems/*.yaml record, so no recorded build, test, check or format command"
 assert_line "C: review absent named" "$out" "- review: REVIEW.md absent"
 
 D="$TMP/records"
@@ -143,6 +143,9 @@ cat >"$D/.claude/ecosystems/docs.yaml" <<'EOF'
 globs: ["*.md"]
 fix-cmd: # no formatter wired
 EOF
+mkdir -p "$D/docs/conventions/ecosystems"
+printf 'test-cmd: "go test ./..."\n' >"$D/docs/conventions/ecosystems/lang.yaml"
+printf 'test-cmd: "legacy test"\n' >"$D/.claude/ecosystems/lang.yaml"
 cat >"$D/docs/conventions/harness-config.yaml" <<'EOF'
 rule_inventory:
   declared:
@@ -184,6 +187,8 @@ assert_line "D: check-cmd line 1" "$rows" "$(printf 'shell check-cmd: shellcheck
 assert_line "D: check-cmd line 2" "$rows" "$(printf 'shell check-cmd: shfmt -d <files>\t.claude/ecosystems/shell.yaml\tanalyzer-pack-rule\t2')"
 assert_line "D: test-cmd" "$rows" "$(printf 'shell test-cmd: bash run-tests.sh\t.claude/ecosystems/shell.yaml\tbehavior-test\t2')"
 assert_line "D: fix-cmd is the formatter rung, not a check rung" "$rows" "$(printf 'shell fix-cmd: shfmt -w <files>\t.claude/ecosystems/shell.yaml\tformatter\t2')"
+assert_line "D: a record at the convention home is read" "$rows" "$(printf 'lang test-cmd: go test ./...\tdocs/conventions/ecosystems/lang.yaml\tbehavior-test\t2')"
+assert_no "D: a legacy record the convention home shadows is not read" "$rows" "legacy test"
 assert_no "D: no analyzer-pack-rule row carries fix-cmd" "$(grep -F "	analyzer-pack-rule	" <<<"$rows")" "fix-cmd"
 assert_no "D: a null command with a trailing comment records nothing" "$rows" "build-cmd"
 assert_no "D: a comment-only command value records nothing" "$rows" "docs fix-cmd"

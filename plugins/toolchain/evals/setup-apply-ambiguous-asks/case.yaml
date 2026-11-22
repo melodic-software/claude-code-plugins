@@ -5,11 +5,11 @@ context:
 graders:
   - name: no-typescript-file
     type: file_exists
-    path: .claude/ecosystems/typescript.yaml
+    path: docs/conventions/ecosystems/typescript.yaml
     exists: false
   - name: no-python-file
     type: file_exists
-    path: .claude/ecosystems/python*.yaml
+    path: docs/conventions/ecosystems/python*.yaml
     exists: false
   - name: names-test-ci
     type: regex

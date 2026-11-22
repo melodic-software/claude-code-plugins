@@ -292,8 +292,11 @@ function probeDependencyManifests(repoRoot) {
   return probeOutcome("absent", { probe_class: "repo-file", path: "package.json", detail: "no dependency/build manifest found" });
 }
 
+const ECOSYSTEM_DIRS = ["docs/conventions/ecosystems", ".claude/ecosystems"];
+
 function probeEcosystems(repoRoot) {
-  const dir = join(repoRoot, ".claude", "ecosystems");
+  const rel = ECOSYSTEM_DIRS.find((d) => listDir(join(repoRoot, d)) !== null) ?? ECOSYSTEM_DIRS[0];
+  const dir = join(repoRoot, rel);
   const entries = listDir(dir);
   if (entries === null) {
     // Fallback: inference from build files (never bundled defaults).
@@ -308,7 +311,7 @@ function probeEcosystems(repoRoot) {
     }
     return probeOutcome("absent", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
+      path: rel,
       detail: "absent; build-file inference also negative",
     });
   }
@@ -321,7 +324,7 @@ function probeEcosystems(repoRoot) {
   if (teamFiles.length === 0 && localOnly.length > 0) {
     return probeOutcome("unresolvable", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems/*.local.yaml",
+      path: `${rel}/*.local.yaml`,
       detail: "uncommitted personal layer only; scheduled runs cannot establish",
       rung: "uncommitted",
     });
@@ -335,7 +338,7 @@ function probeEcosystems(repoRoot) {
   if (configured > 0) {
     return probeOutcome("present", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
+      path: rel,
       detail: `${configured} enabled ecosystem file(s)`,
       rung: "consumer-authored",
     });
@@ -344,13 +347,13 @@ function probeEcosystems(repoRoot) {
   if (disabled > 0) {
     return probeOutcome("absent", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
+      path: rel,
       detail: "ecosystem files present but enabled: false (not configured)",
       rung: "consumer-authored",
     });
   }
 
-  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: ".claude/ecosystems", detail: "no ecosystem yaml files" });
+  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: rel, detail: "no ecosystem yaml files" });
 }
 
 function probeSourceTree(repoRoot) {

@@ -17,7 +17,7 @@ Moved to [this section](../../contracts/ecosystem-commands/README.md#file-layout
 
 ## Seam classification (recorded deviation)
 
-Moved to [this section](../../contracts/ecosystem-commands/README.md#seam-classification-recorded-deviation).
+Replaced by [this section](../../contracts/ecosystem-commands/README.md#location-recorded-deviations).
 
 ## Resolution ladder (plugin behavior)
 

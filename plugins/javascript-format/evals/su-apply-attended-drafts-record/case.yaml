@@ -21,7 +21,7 @@ graders:
     focus: 'last_message'
   - name: 'no-file-1'
     type: 'file_exists'
-    path: '**/.claude/ecosystems/*.yaml'
+    path: '**/docs/conventions/ecosystems/*.yaml'
     exists: false
   - name: 'no-write'
     type: 'tool_used'

@@ -13,7 +13,7 @@ your config enables, import sorting by default), `biome lint` for lint. A reposi
 left untouched, and `/javascript-format:setup check` reports the concern unresolved.
 
 The hooks never run a command from your typescript, javascript or json record
-(`.claude/ecosystems/<id>.yaml`, the ecosystem-commands contract in the marketplace repository).
+(`docs/conventions/ecosystems/<id>.yaml`, the ecosystem-commands contract in the marketplace repository).
 That record names any formatter and linter you use, and `/toolchain:lint` and `/toolchain:check`
 run it when you ask.
 

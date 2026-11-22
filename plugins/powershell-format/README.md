@@ -12,7 +12,7 @@ are installed with `/powershell-format:setup apply install-git-hooks`.
 It uses **your repository's own analyzer settings**. It ships no rules of its own
 and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`. The hooks run
 only this adapter; they never run a command from the repository's powershell record
-(`.claude/ecosystems/powershell.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+(`docs/conventions/ecosystems/powershell.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
 request.
 
 ## Behavior

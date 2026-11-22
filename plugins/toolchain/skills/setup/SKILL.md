@@ -1,5 +1,5 @@
 ---
-description: "Report (check, the default) or write (apply) this repository's tracked .claude/ecosystems/ECOSYSTEM.yaml build, test and lint commands, which /toolchain:check and /toolchain:lint resolve first. Re-runnable."
+description: "Report (check, the default) or write (apply) this repository's tracked docs/conventions/ecosystems/ECOSYSTEM.yaml build, test and lint commands, which /toolchain:check and /toolchain:lint resolve first. Re-runnable."
 argument-hint: "[check|apply] [<ecosystem>]"
 user-invocable: true
 disable-model-invocation: true
@@ -10,8 +10,8 @@ disable-model-invocation: true
 Inspect and configure the consuming repo's tracked ecosystem command surface per the uniform setup
 contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
 repository): `check` reports what is configured, `apply` writes it. The tracked files at
-`.claude/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint` resolve commands
-deterministically from rung 1 of the ladder
+`docs/conventions/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint`
+resolve commands deterministically from rung 1 of the ladder
 ([`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md))
 instead of inferring every run or reporting a key unresolved. This skill is the ladder's
 **writer** for rungs 2 and 3 (infer-and-persist, ask-and-persist).
@@ -31,16 +31,17 @@ interactive session) the interview below runs.
 REPO_ROOT=$(git rev-parse --show-toplevel)
 ```
 
-Read and write only inside `$REPO_ROOT/.claude/`, never the plugin directory or the plugin data
-directory; configuration lives in the consumer's tracked files.
+Write only inside `$REPO_ROOT/docs/conventions/ecosystems/`, never the plugin directory or the
+plugin data directory; configuration lives in the consumer's tracked files. Also read the legacy
+`$REPO_ROOT/.claude/ecosystems/`.
 
 ## `check` (read-only)
 
 The contract schema (`ecosystem.schema.json`) is the single source of truth for the file shape.
 **Read the ladder first**, then report a PASS/FAIL/INFO table; modify nothing.
 
-1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
-   report the ecosystem and its resolved command surface
+1. **Configured ecosystems.** For each `$REPO_ROOT/docs/conventions/ecosystems/<ecosystem>.yaml`
+   present, report the ecosystem and its resolved command surface
    (`build-cmd`/`test-cmd`/`test-changed-cmd`/`check-cmd`/`lint-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
    remediation line), an ecosystem file excluded by `.gitignore` (`git check-ignore -v` matches;
@@ -48,6 +49,10 @@ The contract schema (`ecosystem.schema.json`) is the single source of truth for 
    (`git ls-files --error-unmatch` exits non-zero; report "commit it to share with the team").
    Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
    the report to just that file.
+   **WARN** each file still at the legacy `$REPO_ROOT/.claude/ecosystems/`: readers use it only
+   while no file of that name is under `docs/conventions/ecosystems/`, and the remediation is
+   `apply`, which moves it there. A legacy file shadowed by one of the same name there is not read
+   at all; say so and name both paths.
 2. **Unconfigured ecosystems.** INFO: detect which ecosystems the repo has that are *not* yet
    configured (see the inference signals under `apply`), and note that `/toolchain:check` /
    `/toolchain:lint` resolve those through inference, and report a key nothing resolves as
@@ -63,8 +68,10 @@ success).
 
 ### 1. Read existing config first
 
-For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` that already exists, load it and present a
-short summary. The interview proposes changes against that baseline; nothing is dropped without the
+For each `$REPO_ROOT/docs/conventions/ecosystems/<ecosystem>.yaml` that already exists, load it
+and present a short summary. Propose moving each legacy `$REPO_ROOT/.claude/ecosystems/` file
+there with `git mv`, content unchanged, `.local.yaml` files included; with a file of the same name
+at both, show the difference and keep the `docs/conventions/` one unless the person says otherwise. The interview proposes changes against that baseline; nothing is dropped without the
 user confirming. If `$ARGUMENTS` names one ecosystem, scope the whole run to just that file.
 
 ### 2. Infer candidates from the repo before asking
@@ -120,8 +127,8 @@ guessing. Offer any ecosystem the repo has that inference missed.
 
 ### 4. Write the files
 
-Materialize one `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` per accepted ecosystem, conforming to
-the contract's `ecosystem.schema.json`. Each file carries a one-line header comment citing the
+Materialize one `$REPO_ROOT/docs/conventions/ecosystems/<ecosystem>.yaml` per accepted ecosystem,
+conforming to the contract's `ecosystem.schema.json`. Each file carries a one-line header comment citing the
 contract, `globs` (required), the four command keys (`null` where a phase does not apply), and the
 optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `requires`, `gates`, `notes`,
 `lint-cmd`, `test-changed-cmd`).
@@ -139,15 +146,15 @@ the contract schema catches typos the tolerant reader would otherwise ignore.
 
 ### 5. Offer the personal override convention
 
-Personal per-key overrides go in `.claude/ecosystems/<ecosystem>.local.yaml`; a user-global base at
-`~/.claude/ecosystems/<ecosystem>.yaml` is also honored. Layers resolve
+Personal per-key overrides go in `docs/conventions/ecosystems/<ecosystem>.local.yaml`; a
+user-global base at `~/.claude/ecosystems/<ecosystem>.yaml` is also honored. Layers resolve
 user-global → team → personal override, additively per key. Recommend the consumer add the recursive
-`.claude/**/*.local.*` line to `.gitignore` if not already covered.
+`docs/conventions/**/*.local.*` line to `.gitignore` if not already covered.
 
 ## Output
 
-Tracked `.claude/ecosystems/*.yaml` files in the consuming repo, and a one-paragraph summary of what
-was written and how to re-run this setup to reconfigure. `check` alone reports the effective
+Tracked `docs/conventions/ecosystems/*.yaml` files in the consuming repo, and a one-paragraph
+summary of what was written and how to re-run this setup to reconfigure. `check` alone reports the effective
 configuration and changes nothing.
 
 ## What this skill does not do

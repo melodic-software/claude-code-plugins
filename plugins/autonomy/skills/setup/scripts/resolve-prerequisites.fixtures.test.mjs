@@ -159,6 +159,17 @@ function assertPostureDivergence(output) {
   if (mech.verdict === chg.verdict) {
     throw new Error(`verdicts should diverge; both ${mech.verdict}`);
   }
+  const eco = mech.signals.find((s) => s.need === "ecosystems");
+  if (eco?.provenance?.path !== "docs/conventions/ecosystems" || eco.provenance.rung !== "consumer-authored") {
+    throw new Error(`expected the record read from docs/conventions/ecosystems; got ${JSON.stringify(eco?.provenance)}`);
+  }
+}
+
+function assertLegacyEcosystemsRead(output) {
+  const eco = requireRow(output, "tech-debt-sweep").signals.find((s) => s.need === "ecosystems");
+  if (eco?.provenance?.path !== ".claude/ecosystems" || eco.provenance.rung !== "consumer-authored") {
+    throw new Error(`expected the legacy record read; got ${JSON.stringify(eco?.provenance)}`);
+  }
 }
 
 function assertPositiveVerdict(output) {
@@ -193,6 +204,7 @@ function assertRetiredJsonBinding(output) {
   if (!provenance.includes("run /work-items:setup apply") || !provenance.includes(".work-item-tracker.json")) {
     throw new Error(`expected the retired file and /work-items:setup apply in provenance; got ${provenance}`);
   }
+  assertLegacyEcosystemsRead(output);
 }
 
 const ASSERTIONS = {

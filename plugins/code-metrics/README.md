@@ -27,7 +27,7 @@ Lanes are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go
 complexity lane is deferred and reported as such). Every other text file, markdown, JSON, YAML,
 PowerShell, a `Makefile`, lands in the catch-all `other` lane, which carries a line count and
 nothing else: `audit size` measures it, and every other measure reports it as not applicable.
-When the consuming repository tracks `.claude/ecosystems/<lane>.yaml` files, their `globs`
+When the consuming repository tracks `docs/conventions/ecosystems/<lane>.yaml` files, their `globs`
 override the bundled map for that lane. Two scopes are first-class: the default is the change,
 files that differ from the merge-base with the default branch plus uncommitted and untracked
 files, and `--all` is the whole tree (every tracked or untracked-but-not-ignored file); explicit
@@ -84,7 +84,7 @@ their new locations. Every key has a bundled default
 opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
 directories at any depth and reports what it dropped, and a team file that sets the key replaces
 the list whole. The consumer's
-`.claude/ecosystems/<lane>.yaml` files, when tracked, override lane detection with their `globs`
+`docs/conventions/ecosystems/<lane>.yaml` files, when tracked, override lane detection with their `globs`
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
 a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:

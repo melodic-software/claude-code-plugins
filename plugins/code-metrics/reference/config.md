@@ -61,7 +61,7 @@ and is replaced whole, never concatenated. Unknown keys are inert. All three lay
 valid. The recommended consumer `.gitignore` line for the personal override is
 `docs/conventions/**/*.local.*`; the plugin never edits your `.gitignore`.
 
-The consumer's `.claude/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve
+The consumer's `docs/conventions/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve
 through that convention's own layers (`~/.claude/ecosystems/<lane>.yaml`, then the repository's
 `<lane>.yaml` and `<lane>.local.yaml`) for their `globs` (which replace the bundled extension map for that
 lane) and `enabled` (a resolved `false` opts the lane out). Only a lane named under `lanes` reads
@@ -80,7 +80,7 @@ lanes:
 ```
 
 ```yaml
-# .claude/ecosystems/rust.yaml
+# docs/conventions/ecosystems/rust.yaml
 globs: ["**/*.rs"]
 ```
 

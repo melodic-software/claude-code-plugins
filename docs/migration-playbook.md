@@ -239,7 +239,7 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 A consumer-tool seam (a language, framework, tool, library or command choice) resolves through the
 [ecosystem-resolution contract](contracts/ecosystem-resolution/README.md) instead, where two rules
 differ: step 4 is an unresolved report that names the choice and skips the step, never a generic
-default; and for an ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) only, "a merged pull
+default; and for an ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`) only, "a merged pull
 request counts as acceptance" of a lane's proposed record, in place of the operator's confirmation
 in step 2.
 
