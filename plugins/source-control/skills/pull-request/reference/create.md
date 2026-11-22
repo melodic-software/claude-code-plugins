@@ -335,6 +335,7 @@ REQUIRED_SECTIONS_SOURCE="plugin default, briefing (no layer sets pr_body_requir
 #   SECTION_ORDER=("Summary" "Fix" "Verification" "Related"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.github/pull_request_template.md at <base> (repository template)"
 #   REQUIRED_SECTIONS_SOURCE="<owner>/.github .github/PULL_REQUEST_TEMPLATE.md (owner default template)"
+#   REQUIRED_SECTIONS_SOURCE="plugin default, briefing (owner default template read failed: <endpoint> <status or kind>)"
 # When the winning layer declares `summary-test-plan`:
 #   SECTION_ORDER=("Summary" "Test plan"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/docs/conventions/source-control.yaml, pr_body_required_sections (team layer, summary-test-plan)"
