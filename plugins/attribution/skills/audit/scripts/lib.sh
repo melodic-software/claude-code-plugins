@@ -57,7 +57,7 @@ cfg_user_config() {
 # script (CLAUDE_PROJECT_DIR over a corpus root that each one finds its own way).
 # Config-cascade step 2: a home or non-repo root has no team layer or personal override.
 cfg_layers_init() {
-  local config_root="$1" home="docs/conventions" resolved name moved_to="this plugin's userConfig (/plugin configure) for budgets, judge_samples and accuracy, and"
+  local config_root="$1" home="docs/conventions" resolved name moved_to="this plugin's userConfig (see How to set these in the attribution README) for budgets, judge_samples and accuracy, and"
   local repo_files="a repository's <home>/attribution.yaml or attribution.local.yaml"
   local old="${HOME:-/nonexistent}/.claude/attribution.json"
   CFG_LAYERS=()

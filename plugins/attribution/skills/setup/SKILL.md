@@ -104,16 +104,21 @@ interpolated.
 
 1. Preview every key, its value and its new home, and get a yes.
 2. Write the repository keys with the per-key edit below. For the `userConfig` keys, print the
-   values and the reconfiguration route: `/plugin configure attribution@<marketplace>`
-   interactively. Never write `pluginConfigs` or user settings, and never uninstall to
-   reconfigure.
+   values and point the operator at the documented configure routes for
+   `attribution@<marketplace>` that the plugin README's
+   [How to set these](../../README.md#how-to-set-these) lists:
+   [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)
+   or [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+   Never write `pluginConfigs` or user settings, and never uninstall to reconfigure.
 3. Check that the new homes resolve the same values. A repository key's source in
    `--show-config` must name the new file with the old value. For a key no detector reports
    (`separation.*`), read it from the new file with
-   `bash "${CLAUDE_PLUGIN_ROOT}/lib/parse-concern-value.sh" --strict <file> <key>`. A `userConfig` value is visible only
-   in a fresh session, so the check passes when a later `/attribution:setup check` shows each
-   moved option's value below equal to the old value; until then, stop here and leave the old
-   file in place. An empty or unsubstituted value is unset.
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/parse-concern-value.sh" --strict <file> <key>`. We verify a
+   moved `userConfig` option only in a later `/attribution:setup check`, never in the run that
+   printed it: the check passes when that later run shows each moved option's value below equal
+   to the old value; until then, stop here and leave the old file in place. When a changed value
+   takes effect: [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+   An empty or unsubstituted value is unset.
    `budgets_searches_per_candidate` `${user_config.budgets_searches_per_candidate}`,
    `budgets_fetches_per_candidate` `${user_config.budgets_fetches_per_candidate}`,
    `budgets_corpus_fetch_ceiling` `${user_config.budgets_corpus_fetch_ceiling}`,
