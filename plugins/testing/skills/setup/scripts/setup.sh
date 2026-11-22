@@ -1,35 +1,4 @@
 #!/usr/bin/env bash
-# setup.sh — the deterministic half of /testing:setup.
-#
-# check prints four sections and changes nothing:
-#   config        the resolved testing config cascade (scripts/resolve-config.sh)
-#   lint          per language the repository's tracked test files use, whether
-#                 its lint config turns on the rules that catch can't-fail tests.
-#                 A missing rule is a FINDING; Bash, PowerShell and Go have no
-#                 maintained rule. The reading is textual: a rule named in a
-#                 lint config, or the plugin's recommended set referenced.
-#   instruction   an optional line, printed to paste into the instruction file
-#                 Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
-#   hook-entry    that test-quality findings come from /testing:audit, and
-#                 each consumer glob the shipped test-weaken rows skip
-# apply writes the answer flags to the team layer in use: the whole of
-# <root>/<home>/testing.yaml when it exists (its top-level run-e2e
-# keys are kept), else the body of the config block in
-# <root>/<home>/testing.md when that file holds one (its other text
-# stays), else the whole of <root>/.claude/testing.yaml when it exists, else a
-# new <root>/<home>/testing.yaml. <home> is the convention home the pointer
-# region binds, else docs/conventions. It keeps the result only when it
-# resolves, writes no other file, and refuses when the target or its directory
-# is a symlink.
-#
-# Usage:
-#   setup.sh check [--root <dir>]
-#   setup.sh apply [--root <dir>] [--include <glob>]... [--exclude <glob>]...
-#                  [--enable <id>]... [--disable <id>]... [--adapter-dir <dir>]...
-#                  [--extend <id>.<field>=<value>]... [--rule <rule>=off|warn|error]...
-#
-# Exit: check 0 no finding, 1 a lint finding; apply 0 written; 2 usage error,
-# no repository, or a config that does not resolve.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +11,47 @@ die() {
   exit 2
 }
 
+usage() {
+  cat <<'EOF'
+setup.sh — the deterministic half of /testing:setup.
+
+check prints four sections and changes nothing:
+  config        the resolved testing config cascade (scripts/resolve-config.sh)
+  lint          per language the repository's tracked test files use, whether
+                its lint config turns on the rules that catch can't-fail tests.
+                A missing rule is a FINDING; Bash, PowerShell and Go have no
+                maintained rule. The reading is textual: a rule named in a
+                lint config, or the plugin's recommended set referenced.
+  instruction   an optional line, printed to paste into the instruction file
+                Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
+  hook-entry    that test-quality findings come from /testing:audit, and
+                each consumer glob the shipped test-weaken rows skip
+apply writes the answer flags to the team layer in use: the whole of
+<root>/<home>/testing.yaml when it exists (its top-level run-e2e
+keys are kept), else the body of the config block in
+<root>/<home>/testing.md when that file holds one (its other text
+stays), else the whole of <root>/.claude/testing.yaml when it exists, else a
+new <root>/<home>/testing.yaml. <home> is the convention home the pointer
+region binds, else docs/conventions. It keeps the result only when it
+resolves, writes no other file, and refuses when the target or its directory
+is a symlink.
+
+Usage:
+  setup.sh check [--root <dir>]
+  setup.sh apply [--root <dir>] [--include <glob>]... [--exclude <glob>]...
+                 [--enable <id>]... [--disable <id>]... [--adapter-dir <dir>]...
+                 [--extend <id>.<field>=<value>]... [--rule <rule>=off|warn|error]...
+
+Exit: check 0 no finding, 1 a lint finding; apply 0 written; 2 usage error,
+no repository, or a config that does not resolve.
+EOF
+}
+
 ACTION="${1:-}"
+if [[ "$ACTION" == -h || "$ACTION" == --help ]]; then
+  usage
+  exit 0
+fi
 shift || true
 ROOT=""
 inc=() exc=() ena=() dis=() dirs=() ext=() rules=()
@@ -375,5 +384,5 @@ check() {
 case "$ACTION" in
 check) check ;;
 apply) apply ;;
-*) die "usage: setup.sh check|apply [--root <dir>] (see the header)" ;;
+*) die "usage: setup.sh check|apply [--root <dir>] (see --help)" ;;
 esac

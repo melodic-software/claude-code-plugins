@@ -238,14 +238,6 @@ judge::drop() {
 # scanner cannot list, or whose lexer lost sync, is one whole-file key. A
 # missing file is skipped, and logged once: judge::drop removes its records,
 # so no later Stop derives it again.
-#
-# The result is cached under derive/, keyed by the sha256 of the info, this
-# hook directory (so a plugin update re-derives), the file's current content
-# and each testing config file (docs/conventions/testing.yaml, .md and
-# .local.yaml, and the .claude/testing.yaml layers; the same list the
-# scanner's own pre-check in skills/audit/scripts/cant-fail-scan.sh tests):
-# block identity is name and ordinal in the current text, so the same inputs
-# give the same keys and the scanner runs again only when one of them changed. A scan that failed is never cached.
 judge::derive() {
   local file whole base_ok names lines tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
   local root cfg cfgs=() key="" h cache c=()

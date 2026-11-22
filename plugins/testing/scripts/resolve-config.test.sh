@@ -719,7 +719,6 @@ erun --user other_key=x
 assert_eq "--user names only a run-e2e key" 2 "$rc"
 reset
 
-# --- the layers under a bound convention home ---------------------------------
 mkdir -p "$REPO/config"
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `config`.\n<!-- END GENERATED: convention-home -->\n' >"$REPO/AGENTS.md"
 printf 'paths:\n  exclude: [bound-team/**]\n' >"$REPO/config/testing.yaml"
