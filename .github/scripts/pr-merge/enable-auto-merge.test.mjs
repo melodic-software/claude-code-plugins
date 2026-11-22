@@ -1162,9 +1162,6 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
 });
 
 test("a risk hold is a person's only for a security finding, a trusted-actor widening or a cost hold", async () => {
-  // reviewsPerson as diff_risk.person_reasons answers for each code,
-  // read from the Python, the one list.
-  // https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
   const codes = (reviews) => reviews.split("; ").map((part) => part.slice(0, part.indexOf(": ")));
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const answer = (reviews) => {
@@ -2176,11 +2173,6 @@ test("an approval lifts no unread hold-path check and no capped file listing", (
   assert.deepEqual(decide(armed, options, { ...approved, files: ["docs/a.md"], filesCapped: true }), { action: "disarm", reason: FILES_CAPPED_REASON, clears: "person" });
 });
 
-// A manifest is no hold path: the gate's reader scores it (`evidence
-// --lane-reviews`, diff_risk manifest-review-required), so a manifest
-// change the gate reviews is not armed, or is disarmed, and one it does not,
-// such as a plugin.json userConfig default (#9483), arms.
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 test("a manifest change arms only when the gate's risk score allows it", () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const files = ["docs/a.md", ".claude-plugin/marketplace.json", "plugins/a/.claude-plugin/plugin.json"];
@@ -2195,9 +2187,6 @@ test("a manifest change arms only when the gate's risk score allows it", () => {
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), { action: "arm", reason: "no hold" });
 });
 
-// The gate holds a cost path (diff_risk.COST_PATHS) until the body links
-// the owner's cost decision (babysit_merge_policy.cost_decision).
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 test("a cost path holds until the body links the owner's cost decision", async () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const files = ["infra/Pulumi.prod.yaml"];

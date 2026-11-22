@@ -73,10 +73,6 @@ class Wanted(unittest.TestCase):
         self.assertFalse(wr.wanted(None, result(), (CLEAN,)))
 
 
-# A `review-path:` hold (owner decision Q26 option B) stands while the bound
-# security review counts any open finding (diff_risk.security_review_clean),
-# as pull request #10908's did with no CRITICAL one among them.
-# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 PATH = risk.Reason("review-path:.github/x.mjs", risk.Risk.HIGH, ".github/x.mjs")
 BELOW = risk.LaneEvidence("claude-security-review", True, None, 2, True, 0)
 
