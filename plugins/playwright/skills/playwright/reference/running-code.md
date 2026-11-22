@@ -320,15 +320,16 @@ async page => {
   observing long animation frames and detecting support,
   [MDN "Long animation frame timing"](https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Long_animation_frame_timing#observing_long_animation_frames).
   Probe: a scratch page with a CSS transition on a toggled menu, a keyframe entrance on load, an
-  ambient keyframe spinner and a `requestAnimationFrame` counter, under playwright-cli 0.1.22. The
+  ambient keyframe spinner and a `requestAnimationFrame` counter, under playwright-cli 0.1.25. The
   loop stepped with `runFor`; the transitions moved only through a seek and came back with their
   from, to, value, duration, easing (Chromium puts a transition's curve on the effect timing) and
   progress; a second click at 80ms started transitions from the current value, with no jump; a
   finished transition left the list and a keyframe entrance that fills both stayed; the spinner
   kept running; the init script held the entrance paused at about 17ms where an unheld load showed
-  it finished; a call that left the clock paused never returned; and the observer reported its
-  timing in the fresh context. **As of**:
-  2026-10-29. **Recheck trigger**: the frontmatter `upstream-version` moves, or either page changes
+  it finished; and the observer reported its timing in the fresh context. A `run-code` call that
+  returned with the clock still paused came back, and later calls in that session returned, so the
+  `finally` restores the page rather than unblocking the call. **As of**:
+  2026-11-22. **Recheck trigger**: the frontmatter `upstream-version` moves, or either page changes
   what it covers.
 
 ## Local files
@@ -349,9 +350,9 @@ On Windows, start it with `py` when `python3` is not on `PATH`.
 
 - **Pointer**: what the server serves and its security warning, Python
   [`http.server`](https://docs.python.org/3/library/http.server.html); whether playwright-cli opens
-  a `file:` URL, run `playwright-cli goto file:///<path>` live (probe: under 0.1.23 it refused the
-  `file:` protocol; on 2026-10-29 `http.server 0` bound a free port, and its first line reached a
-  background output file only with `-u`). **As of**: 2026-11-03. **Recheck trigger**: the frontmatter
+  a `file:` URL, run `playwright-cli goto file:///<path>` live (probe: under 0.1.25 it refused the
+  `file:` protocol; `http.server 0` bound a free port, and its first line reached a
+  background output file only with `-u`). **As of**: 2026-11-22. **Recheck trigger**: the frontmatter
   `upstream-version` moves.
 
 ## When to reach for `run-code`
