@@ -130,6 +130,11 @@ and offer the repository's own observed shape, or the bundled template, instead.
 - The audit found candidates to remove: /architecture:adr prune.
 - A retirement left terms to rename: /docs-hygiene:rename-references.
 
+## Spoke paths
+
+The action files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before reading a file it names.
+
 ## Gotchas
 
 Failure modes this skill runs into, each stated as the rule it implies.

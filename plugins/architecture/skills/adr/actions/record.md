@@ -31,7 +31,7 @@ The human's call wins: if they still want the record, write it.
 
 ## Step 1. Discover the convention
 
-Read [`${CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md`](${CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md)
+Read `<plugin-root>/reference/adr-discovery.md`
 and walk its ladder from the working area up to the repository root, first hit wins.
 
 Emit one paragraph naming the directory, the numbering scheme, the template source (or that there is
