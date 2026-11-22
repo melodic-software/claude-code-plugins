@@ -73,15 +73,13 @@ run continues.
 
 ## Configuration
 
-This plugin has no `userConfig`. Everything tunable lives in two file layers: team
-(`docs/conventions/code-metrics.yaml`, tracked, checked by
-[`schemas/code-metrics.schema.json`](schemas/code-metrics.schema.json); the retired team file
-under `.claude/` is not read, and `/code-metrics:setup apply` moves its keys) and personal override
-(`docs/conventions/code-metrics.local.yaml`, gitignored; recommended line
-`docs/conventions/**/*.local.*`) with per-key override. The old `~/.claude/code-metrics.yaml` and
-`.claude/code-metrics.local.yaml` are still read, each with a warning, until a later release
-([dual-read window](reference/config.md#layers-and-merge-form)); `/code-metrics:setup apply`
-copies their keys. Every key has a bundled default
+Everything tunable resolves through three layers with per-key override, listed in
+[`reference/config.md`](reference/config.md#layers-and-merge-form): your own `userConfig` file
+(the YAML file the `config_file` option below names), the tracked team file, and a gitignored
+personal override, all checked by [`schemas/code-metrics.schema.json`](schemas/code-metrics.schema.json).
+The old `~/.claude/code-metrics.yaml` and `.claude/code-metrics.local.yaml` are still read, each
+with a warning, until a later release; `/code-metrics:setup apply --copy-old` copies their keys to
+their new locations. Every key has a bundled default
 (`scripts/config-defaults.json`), so the plugin works with no configuration at all; the one
 opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
 directories at any depth and reports what it dropped, and a team file that sets the key replaces
@@ -90,8 +88,8 @@ the list whole. The consumer's
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
 a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:
-`reference/config.md`; `/code-metrics:setup` writes the team layer, copies old personal files into
-the personal override, and probes the collectors. Where each layer lives across this marketplace's
+`reference/config.md`; `/code-metrics:setup` writes the team layer, copies old files to their new
+locations, and probes the collectors. Where each layer lives across this marketplace's
 plugins: [config locations](reference/config-locations.md).
 
 ## The report
@@ -191,6 +189,41 @@ figure for a live session.
   `audit-duplication` and the `principles` measures reference), `type_debt.reference`, the
   cyclomatic reference, and the file-length reference are pinned to
   `scripts/config-defaults.json` by `scripts/check-code-metrics-skill-prose.py`.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `config_file` | file | *(none)* | Path to your own code-metrics YAML file, the layer that applies in every repository, under the team file and your personal override. Same keys as docs/conventions/code-metrics.yaml. Unset: no user layer. /code-metrics:setup apply --copy-old fills it from ~/.claude/code-metrics.yaml. |
+
+### How to set these
+
+Set the options above for `code-metrics@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

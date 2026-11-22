@@ -18,6 +18,7 @@ from pathlib import Path
 os.environ.pop("GIT_DIR", None)
 os.environ.pop("GIT_WORK_TREE", None)
 os.environ.pop("GIT_CONFIG", None)
+os.environ.pop("CODE_METRICS_USER_FILE", None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
@@ -269,65 +270,196 @@ class SetupApplyTests(unittest.TestCase):
         (root / "docs" / "conventions").mkdir(parents=True)
         return home, root, root / "docs" / "conventions" / "code-metrics.local.yaml"
 
-    def _resolve(self, home: Path, root: Path) -> subprocess.CompletedProcess:
+    def _git_repo(self, root: Path, ignore: str | None) -> None:
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        if ignore is not None:
+            (root / ".gitignore").write_text(ignore, encoding="utf-8")
+
+    def _resolve(
+        self, home: Path, root: Path, *extra: str
+    ) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, str(RESOLVER), "--home", str(home), "--repo-root", str(root)],
+            [
+                sys.executable,
+                str(RESOLVER),
+                "--home",
+                str(home),
+                "--repo-root",
+                str(root),
+                *extra,
+            ],
             capture_output=True,
             text=True,
             check=True,
         )
 
-    def test_copy_old_previews_then_copies_and_leaves_the_old_files(self) -> None:
+    def test_copy_old_sends_each_old_file_to_its_own_layer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home, root, personal = self._old_layout(tmp)
+            self._git_repo(root, "docs/conventions/**/*.local.*\n")
             old_user = home / ".claude" / "code-metrics.yaml"
             old_local = root / ".claude" / "code-metrics.local.yaml"
+            user_file = home / "cfg" / "code-metrics.yaml"
             old_user.write_text(
                 "size:\n  file_lines: 700\ncomplexity:\n  cyclomatic:\n    reference: 9\n",
                 encoding="utf-8",
             )
-            old_local.write_text("size:\n  file_lines: 650\n", encoding="utf-8")
+            old_local.write_text("size:\n  mode: iso-8.2.115\n", encoding="utf-8")
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "complexity:\n  cyclomatic:\n    reference: 12\n", encoding="utf-8"
+                "complexity:\n  cognitive:\n    reference: 12\n", encoding="utf-8"
             )
-            before = self._resolve(home, root)
+            option = ("--user-file", "~/cfg/code-metrics.yaml")
+            before = self._resolve(home, root, *option)
             self.assertIn(str(old_user), before.stderr)
             self.assertIn(str(old_local), before.stderr)
 
-            preview = run("--copy-old", "--preview", "--dir", str(root), "--home", str(home))
+            copy = ("--copy-old", "--dir", str(root), "--home", str(home), *option)
+            preview = run(*copy, "--preview")
             self.assertEqual(preview.returncode, 0, preview.stderr)
-            self.assertIn("preview, nothing written", preview.stdout)
+            self.assertEqual(preview.stdout.count("preview, nothing written"), 2)
             self.assertFalse(personal.exists())
+            self.assertFalse(user_file.exists())
 
-            result = run("--copy-old", "--dir", str(root), "--home", str(home))
+            result = run(*copy)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                yaml_subset.parse(user_file.read_text(encoding="utf-8")),
+                {
+                    "size": {"file_lines": 700},
+                    "complexity": {"cyclomatic": {"reference": 9}},
+                },
+            )
+            self.assertEqual(
+                yaml_subset.parse(personal.read_text(encoding="utf-8")),
+                {"size": {"mode": "iso-8.2.115"}},
+            )
+            self.assertIn(
+                f"copy: complexity.cyclomatic.reference from {old_user} to {user_file}",
+                result.stdout,
+            )
+            self.assertNotIn("not gitignored", result.stderr)
+            self.assertTrue(old_user.is_file() and old_local.is_file())
+            self.assertIn(f"left in place: {old_user}", result.stdout)
+            self.assertIn(f"left in place: {old_local}", result.stdout)
+
+            after = self._resolve(home, root, *option)
+
+            def strip(out: str) -> dict:
+                return {
+                    k: v for k, v in json.loads(out).items() if not k.startswith("_")
+                }
+
+            self.assertEqual(strip(after.stdout), strip(before.stdout))
+            provenance = json.loads(after.stdout)["_provenance"]
+            self.assertEqual(
+                provenance["complexity.cyclomatic.reference"],
+                {"value": 9, "layer": "userConfig"},
+            )
+            self.assertEqual(
+                provenance["size.file_lines"], {"value": 700, "layer": "userConfig"}
+            )
+            self.assertEqual(
+                provenance["complexity.cognitive.reference"],
+                {"value": 12, "layer": "team"},
+            )
+            self.assertEqual(
+                provenance["size.mode"], {"value": "iso-8.2.115", "layer": "local"}
+            )
+            self.assertIn(
+                f"{old_user} is the old user-global file and is not read", after.stderr
+            )
+            self.assertIn(
+                f"{old_local} is the old personal override and is not read",
+                after.stderr,
+            )
+
+            again = run(*copy)
+            self.assertEqual(again.stdout.count("already configured"), 2)
+
+    def test_copy_old_with_the_option_unset_copies_no_user_global_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, personal = self._old_layout(tmp)
+            self._git_repo(root, "docs/conventions/**/*.local.*\n")
+            (home / ".claude" / "code-metrics.yaml").write_text(
+                "complexity:\n  cyclomatic:\n    reference: 9\n", encoding="utf-8"
+            )
+            (root / ".claude" / "code-metrics.local.yaml").write_text(
+                "size:\n  file_lines: 650\n", encoding="utf-8"
+            )
+            result = run(
+                "--copy-old",
+                "--dir",
+                str(root),
+                "--home",
+                str(home),
+                "--user-file",
+                "${user_config.config_file}",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(
+                "set the option in /config, then rerun --copy-old", result.stdout
+            )
             self.assertEqual(
                 yaml_subset.parse(personal.read_text(encoding="utf-8")),
                 {"size": {"file_lines": 650}},
             )
-            self.assertIn(
-                f"not copied: complexity.cyclomatic.reference from {old_user}",
-                result.stdout,
+
+    def test_copy_old_warns_when_git_does_not_ignore_the_personal_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, personal = self._old_layout(tmp)
+            self._git_repo(root, None)
+            (root / ".claude" / "code-metrics.local.yaml").write_text(
+                "size:\n  file_lines: 650\n", encoding="utf-8"
             )
-            self.assertTrue(old_user.is_file() and old_local.is_file())
-            self.assertIn(
-                f"left in place: {old_user}; it applies to every repository, so keep it",
-                result.stdout,
+            copy = ("--copy-old", "--dir", str(root), "--home", str(home))
+            for args, written in ((("--preview",), False), ((), True)):
+                result = run(*copy, *args)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"{personal} is not gitignored", result.stderr)
+                self.assertIn("docs/conventions/**/*.local.*", result.stderr)
+                self.assertEqual(personal.exists(), written)
+
+    def test_copy_old_keeps_keys_the_user_file_sets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, _ = self._old_layout(tmp)
+            (home / ".claude" / "code-metrics.yaml").write_text(
+                "size:\n  file_lines: 700\n  mode: iso-8.2.115\n", encoding="utf-8"
             )
-            self.assertIn(f"left in place: {old_local}; delete it once", result.stdout)
-            self.assertNotIn("and delete the old file", before.stderr)
+            user_file = home / "code-metrics.yaml"
+            user_file.write_text("size:\n  file_lines: 900\n", encoding="utf-8")
+            result = run(
+                "--copy-old",
+                "--dir",
+                str(root),
+                "--home",
+                str(home),
+                "--user-file",
+                str(user_file),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                yaml_subset.parse(user_file.read_text(encoding="utf-8")),
+                {"size": {"file_lines": 900, "mode": "iso-8.2.115"}},
+            )
+            self.assertIn(f"{user_file} already sets it", result.stdout)
 
-            after = self._resolve(home, root)
-
-            def strip(out: str) -> dict:
-                return {k: v for k, v in json.loads(out).items() if not k.startswith("_")}
-
-            self.assertEqual(strip(after.stdout), strip(before.stdout))
-            self.assertIn(str(personal), after.stderr)
-            self.assertIn("is not read because", after.stderr)
-
-            again = run("--copy-old", "--dir", str(root), "--home", str(home))
-            self.assertIn("already configured", again.stdout)
+    def test_copy_old_refuses_a_relative_user_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, root, _ = self._old_layout(tmp)
+            (home / ".claude" / "code-metrics.yaml").write_text(
+                "size:\n  file_lines: 700\n", encoding="utf-8"
+            )
+            result = run(
+                "--copy-old",
+                "--dir",
+                str(root),
+                "--home",
+                str(home),
+                "--user-file",
+                "cfg/code-metrics.yaml",
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("is not an absolute path", result.stderr)
 
     def test_copy_old_keeps_keys_the_personal_override_sets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

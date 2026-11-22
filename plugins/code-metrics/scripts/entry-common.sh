@@ -33,6 +33,10 @@ cm_entry_args() {
       JSON=1
       shift
       ;;
+    --user-file)
+      cm_set_user_file "$@" || exit 2
+      shift 2
+      ;;
     --help | -h)
       cm_usage_banner "$file" "$last"
       exit 0
@@ -43,6 +47,14 @@ cm_entry_args() {
       ;;
     esac
   done
+}
+
+cm_set_user_file() {
+  if [[ $# -lt 2 ]]; then
+    echo "$1 needs a value: the config_file option's value" >&2
+    return 2
+  fi
+  export CODE_METRICS_USER_FILE="$2"
 }
 
 cm_require_python() {
@@ -71,7 +83,8 @@ cm_split_config() {
 cm_resolve_config() {
   "${PY[@]}" "$CM_ENTRY_LIB_DIR/resolve-config.py" \
     --ladder "${2:-$CM_ENTRY_LIB_DIR/collector-ladder.tsv}" \
-    --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$1"
+    --home "${CODE_METRICS_HOME:-${HOME:-/}}" \
+    --user-file "${CODE_METRICS_USER_FILE:-}" >"$1"
 }
 
 cm_anchor_document() {

@@ -46,6 +46,10 @@ span or a fenced code block in a Markdown file is not a suppression.
 "${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh" --findings          # the report plus a findings file for /review:fanout fix
 ```
 
+Append `--user-file '${user_config.config_file}'` to every script call, exactly as written:
+it names the file holding your userConfig layer, and an empty or unsubstituted value means none
+(`${CLAUDE_PLUGIN_ROOT}/reference/config.md`).
+
 The change scope reads committed lines only: a suppression in an uncommitted edit is not in it until
 it is committed, so name the file or use `--all` to see the working tree. `scope.exclude` and lane
 opt-outs apply as in the other audits.

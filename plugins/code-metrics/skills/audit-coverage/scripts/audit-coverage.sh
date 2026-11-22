@@ -51,6 +51,10 @@ while [[ $# -gt 0 ]]; do
     CONFIG="$2"
     shift 2
     ;;
+  --user-file)
+    cm_set_user_file "$@" || exit 2
+    shift 2
+    ;;
   --help | -h)
     cm_usage_banner "${BASH_SOURCE[0]}" 17
     exit 0

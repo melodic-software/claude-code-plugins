@@ -7,15 +7,21 @@ later layer keeps the earlier value; a list is a closed value and is replaced
 whole):
 
   0. bundled defaults           scripts/config-defaults.json
-  1. userConfig                 none: the plugin declares no userConfig option
+  1. userConfig                 the file the config_file option names (--user-file)
   2. team                       <repo>/docs/conventions/code-metrics.yaml
   3. personal override          <repo>/docs/conventions/code-metrics.local.yaml
+
+--user-file takes the config_file option's value. Empty, or an unsubstituted
+${user_config.config_file}, is unset; a leading ~/ expands against --home; a
+value still not absolute is skipped with a warning; a file that does not exist
+supplies no layer.
 
 Dual-read window: two old paths are still read, each with one warning per run
 naming the old file and where its keys go.
 
-  ~/.claude/code-metrics.yaml         read as layer `user-global`, below team,
-                                      since no file supplies the userConfig layer
+  ~/.claude/code-metrics.yaml         read as layer `userConfig` only while the
+                                      config_file option's file is absent or
+                                      outside the YAML subset
   <repo>/.claude/code-metrics.local.yaml
                                       read as layer `local` only while the
                                       docs/conventions personal file is absent
@@ -48,6 +54,7 @@ them); otherwise the layers are discovered from --home (default $HOME) and
 
 Options:
   --defaults <file>        bundled defaults (default: config-defaults.json beside this script)
+  --user-file <f>          the config_file option's value: the userConfig layer's file
   --ladder <file>          validate `lanes.<lane>.collectors.<measure>` names against the ladder
   --format json            the resolved document (default): every key, plus `_layers`
                            (dotted key -> the layer that supplied it), `_provenance`
@@ -89,7 +96,7 @@ class ConfigTypeError(ValueError):
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LAYER_NAMES = ("user-global", "team", "local")
+LAYER_NAMES = ("userConfig", "team", "local")
 SURFACE = "code-metrics"
 
 
@@ -272,54 +279,102 @@ def old_layer_paths(home: str, root: str) -> dict[str, str]:
     }
 
 
+USER_OPTION = "config_file"
+UNSET_USER_FILE = (
+    f"the file the {USER_OPTION} userConfig option names (set it in /config)"
+)
+
+
+def user_file(raw: str | None, home: str, warnings: list[str]) -> str | None:
+    """The userConfig layer's path from the option's value, or None when unset."""
+    value = (raw or "").strip()
+    if not value or value.startswith("${user_config."):
+        return None
+    if value.startswith("~/"):
+        value = os.path.join(home, value[2:])
+    if not os.path.isabs(value):
+        warnings.append(
+            f"the {USER_OPTION} option {value!r} is not an absolute path; the "
+            "userConfig layer is skipped, so set an absolute path in /config"
+        )
+        return None
+    return value
+
+
+def _same_file(a: str, b: str) -> bool:
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def _dual_read(
+    layer: str,
+    new: str | None,
+    old: str,
+    what: str,
+    where: str,
+    warnings: list[str],
+) -> list[tuple[str, str]]:
+    """One layer's files: the new one, or the old one while the new one is unusable."""
+    has_new = new is not None and os.path.isfile(new)
+    has_old = os.path.isfile(old) and not (has_new and _same_file(old, str(new)))
+    layer_word = "personal layer" if layer == "local" else f"{layer} layer"
+    if has_new and has_old:
+        if _load_layer(str(new), []) is None:
+            warnings.append(
+                f"{old} is the old {what}, still read as the {layer_word} because "
+                f"{new} is outside the YAML subset; fix {new}, then delete the old file"
+            )
+            return [(layer, old), (layer, str(new))]
+        warnings.append(
+            f"{old} is the old {what} and is not read because {new} exists; move "
+            f"any key it still holds to {new} and delete the old file"
+        )
+    if has_new:
+        return [(layer, str(new))]
+    if has_old:
+        warnings.append(
+            f"{old} is the old {what}, still read as the {layer_word}; move it to "
+            f"{where} (/code-metrics:setup apply --copy-old)"
+        )
+        return [(layer, old)]
+    return []
+
+
 def surface_layer_paths(
-    home: str, root: str, warnings: list[str] | None = None
+    home: str,
+    root: str,
+    warnings: list[str] | None = None,
+    user_option: str | None = None,
 ) -> list[tuple[str, str]]:
     """The plugin's file layers, with the old paths the dual-read window keeps.
 
-    The team and personal override files sit in `docs/conventions/`
-    (config-cascade, "The layers"). The older team file in the repository's
-    `.claude` directory is never read. An old user-global or personal file is
-    read in its layer's place and named in one warning each.
+    The userConfig file is the one the config_file option names; the team and
+    personal override files sit in `docs/conventions/` (config-cascade, "The
+    layers"). The older team file in the repository's `.claude` directory is
+    never read. An old user-global or personal file is read in its layer's
+    place and named in one warning each.
     """
     warnings = [] if warnings is None else warnings
     conventions = os.path.join(root, "docs", "conventions")
     personal = os.path.join(conventions, f"{SURFACE}.local.yaml")
     old = old_layer_paths(home, root)
-    paths = [("team", os.path.join(conventions, f"{SURFACE}.yaml"))]
-    if os.path.isfile(old["user-global"]):
-        paths.insert(0, ("user-global", old["user-global"]))
-        warnings.append(
-            f"{old['user-global']} is the old user-global file, still read below the "
-            "team layer; the plugin has no userConfig option, so copy the keys this "
-            f"repository needs to {personal} (/code-metrics:setup apply --copy-old); "
-            "it applies to every repository, so keep it until each repository that "
-            "relies on it has copied its keys"
-        )
-    if os.path.isfile(personal) and os.path.isfile(old["local"]):
-        if _load_layer(personal, []) is None:
-            paths.extend([("local", old["local"]), ("local", personal)])
-            warnings.append(
-                f"{old['local']} is the old personal override, still read as the "
-                f"personal layer because {personal} is outside the YAML subset; fix "
-                f"{personal}, then delete the old file"
-            )
-        else:
-            paths.append(("local", personal))
-            warnings.append(
-                f"{old['local']} is the old personal override and is not read because "
-                f"{personal} exists; move any key it still holds to {personal} and "
-                "delete the old file"
-            )
-    elif os.path.isfile(personal):
-        paths.append(("local", personal))
-    elif os.path.isfile(old["local"]):
-        paths.append(("local", old["local"]))
-        warnings.append(
-            f"{old['local']} is the old personal override, still read as the personal "
-            f"layer; move it to {personal} (/code-metrics:setup apply --copy-old)"
-        )
-    return paths
+    user = user_file(user_option, home, warnings)
+    return [
+        *_dual_read(
+            "userConfig",
+            user,
+            old["user-global"],
+            "user-global file",
+            user or UNSET_USER_FILE,
+            warnings,
+        ),
+        ("team", os.path.join(conventions, f"{SURFACE}.yaml")),
+        *_dual_read(
+            "local", personal, old["local"], "personal override", personal, warnings
+        ),
+    ]
 
 
 def resolve(
@@ -601,6 +656,7 @@ def main(argv: list[str]) -> int:
         "--home", default=os.environ.get("HOME") or os.path.expanduser("~")
     )
     parser.add_argument("--repo-root")
+    parser.add_argument("--user-file")
     parser.add_argument("--from-json")
     parser.add_argument("--format", choices=("json", *LINE_FORMATS), default="json")
     args = parser.parse_args(argv)
@@ -630,7 +686,7 @@ def main(argv: list[str]) -> int:
                 )
                 return 2
     else:
-        layer_files = surface_layer_paths(args.home, root, warnings)
+        layer_files = surface_layer_paths(args.home, root, warnings, args.user_file)
 
     def discovered(lane: str) -> list[tuple[str, str]]:
         return layer_paths(args.home, root, os.path.join("ecosystems", lane))

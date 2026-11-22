@@ -2,8 +2,8 @@
 
 Every tunable value in this plugin resolves through one set of config layers. This document is their
 contract: the layers, the merge form, the YAML subset, and every key with its default and
-provenance. `/code-metrics:setup` writes the team layer, and the personal override only when it
-copies old files there; every audit skill reads the resolved
+provenance. `/code-metrics:setup` writes the team layer, and the `userConfig` file and the
+personal override only when it copies old files there; every audit skill reads the resolved
 document at run time and prints the layer that supplied any value a personal layer changed. The
 JSON Schema for every layer's keys is [`schemas/code-metrics.schema.json`](../schemas/code-metrics.schema.json).
 
@@ -15,21 +15,30 @@ The layers, each optional, resolve in this order over the bundled defaults
 
 | Order | Layer | Path | Belongs to |
 |---|---|---|---|
-| 1 | `userConfig` | none: the plugin declares no `userConfig` option | the operator, across repositories |
+| 1 | `userConfig` | the YAML file the plugin's `config_file` option names (set it in `/config`) | the operator, across repositories |
 | 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
 | 3 | personal override | `<repo>/docs/conventions/code-metrics.local.yaml` | one operator in one repository, gitignored |
 
+Provenance names these layers `userConfig`, `team` and `local`. The `userConfig` layer holds the
+same nested keys as the team file, which no scalar option can carry, so the `config_file` option
+(type `file`) names a file that does. The skills pass the option's value to their scripts as
+`--user-file`, since a Bash command does not receive plugin options. An empty or unsubstituted
+value means unset, a leading `~/` expands against the home directory, a value still not absolute is
+skipped with a warning, and a file that does not exist supplies no layer.
+
 **Dual-read window.** Two old paths are still read, and each run prints one warning naming the
-old file and where its keys go:
+old file and its new location:
 
 | Old path | Read as | When |
 |---|---|---|
-| `~/.claude/code-metrics.yaml` | layer `user-global`, below the team file | while it exists, since no file supplies the `userConfig` layer |
+| `~/.claude/code-metrics.yaml` | layer `userConfig` | only while the `config_file` option's file is absent or outside the YAML subset; with both present the option's file wins and the warning names both |
 | `<repo>/.claude/code-metrics.local.yaml` | layer `local` | only while `docs/conventions/code-metrics.local.yaml` is absent or outside the YAML subset; with both present the new file wins and the warning names both |
 
-`/code-metrics:setup check` names each old file it finds, and `/code-metrics:setup apply`
-offers to copy their keys into `docs/conventions/code-metrics.local.yaml`, leaving the old files in
-place. A later release stops reading the old paths.
+`/code-metrics:setup check` names each old file it finds, and `/code-metrics:setup apply
+--copy-old` offers to copy each one's keys into its new location after a preview and a yes,
+leaving the old files in place: the old user-global file into the `config_file` option's file
+(while the option is unset it copies none and says to set it), the old personal file into
+`docs/conventions/code-metrics.local.yaml`. A later release stops reading the old paths.
 
 The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
 from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`
@@ -82,8 +91,9 @@ except `file_lines`, which walks the `other` lane's collectors so the files keep
 
 The old user-global file and the ecosystem files' home layer are looked up under `$HOME`;
 `CODE_METRICS_HOME`, when set, replaces that directory for one run (the plugin's own suites use it
-to point at a scratch home). It is the only environment variable the cascade reads; no key is
-settable from the environment.
+to point at a scratch home). `CODE_METRICS_USER_FILE` stands in for `--user-file` when a script is
+run without it. These are the only environment variables the cascade reads; no key is settable
+from the environment.
 
 ## The YAML subset
 

@@ -511,6 +511,29 @@ out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_
 assert_doc "with both personal files the new one wins" "$out" "$(file_lines_is 3)"
 stderr_has "with both personal files the warning names both" "/.claude/code-metrics.local.yaml is the old personal override and is not read because "
 stderr_has "the both-files warning names the new file" "/docs/conventions/code-metrics.local.yaml exists"
+rm -f "$personal" "$old_personal"
+printf 'scope:\n  exclude: ["gen/**"]\n' >"$repo/docs/conventions/code-metrics.yaml"
+reference_is() {
+  printf 'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==%s and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="%s"' "$1" "$2"
+}
+user_file="$home/cfg/code-metrics.yaml"
+old_user="$home/.claude/code-metrics.yaml"
+mkdir -p "$home/cfg" "$home/.claude"
+printf 'size:\n  file_lines: 6\n' >"$user_file"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --user-file "$user_file" 2>"$err_file")"
+assert_doc "the option's file alone supplies the userConfig layer" "$out" "$(reference_is 6 userConfig)"
+if grep -q 'old user-global file' "$err_file"; then
+  fail "the option's file alone prints no old-path warning" "no old user-global file warning" "$(head -c 600 "$err_file")"
+else
+  pass "the option's file alone prints no old-path warning"
+fi
+printf 'size:\n  file_lines: 7\n' >"$old_user"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
+assert_doc "an old user-global file alone still applies as userConfig" "$out" "$(reference_is 7 userConfig)"
+stderr_has "an old user-global file alone is named with the option" "$old_user is the old user-global file, still read as the userConfig layer; move it to the file the config_file userConfig option names (set it in /config)"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --user-file "$user_file" 2>"$err_file")"
+assert_doc "with both user files the option's file wins" "$out" "$(reference_is 6 userConfig)"
+stderr_has "with both user files the warning names both" "$old_user is the old user-global file and is not read because $user_file exists"
 rm -f "$err_file"
 rm -rf "$repo" "$home"
 
