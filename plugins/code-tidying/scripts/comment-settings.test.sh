@@ -39,7 +39,7 @@ lines_for() { bash "$SUT" "$1" 2>/dev/null | grep "^$2${TAB}"; }
 repo="$(repo_with - -)"
 check 'no files leaves the posture unset' \
   "comment_posture${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" "$(lines_for "$repo" comment_posture)"
-check 'every key gets a line' '7' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
+check 'every key gets a line' '8' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
 check 'the skill-local entry point prints the same lines' "$(bash "$SUT" "$repo")" "$(bash "$ENTRY" "$repo")"
 check 'an unset lint level names the team file only' \
   "comment_lint${TAB}unset${TAB}no valid value in $TEAM" "$(lines_for "$repo" comment_lint)"
@@ -54,6 +54,17 @@ repo="$(repo_with $'comment_lint: warn\n' -)"
 check 'a lint level outside off, report and block is invalid' \
   "comment_lint${TAB}invalid${TAB}$TEAM: warn"$'\n'"comment_lint${TAB}unset${TAB}no valid value in $TEAM" \
   "$(lines_for "$repo" comment_lint)"
+
+repo="$(repo_with $'comment_adr_dir: docs/decisions\n' $'comment_adr_dir: docs/mine\n')"
+check 'the ADR folder is read from the team file only' \
+  "comment_adr_dir${TAB}docs/decisions${TAB}$TEAM" "$(lines_for "$repo" comment_adr_dir)"
+
+for escape in /etc ../outside docs/../..; do
+  repo="$(repo_with "comment_adr_dir: $escape"$'\n' -)"
+  check "the ADR folder $escape outside the repository is invalid" \
+    "comment_adr_dir${TAB}invalid${TAB}$TEAM: $escape"$'\n'"comment_adr_dir${TAB}unset${TAB}no valid value in $TEAM" \
+    "$(lines_for "$repo" comment_adr_dir)"
+done
 
 repo="$(repo_with $'comment_lint: report\n' $'comment_lint: off\n')"
 check 'a personal override cannot change the lint level' \

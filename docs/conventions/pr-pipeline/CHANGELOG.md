@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [11.8.4] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
 ## [11.8.3] - 2026-11-22
 
 ### Fixed

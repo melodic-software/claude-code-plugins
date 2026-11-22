@@ -23,6 +23,7 @@ analyzer in the roster can follow. Check each one before condemning a candidate.
 | Generated / templated code | a symbol emitted by a generator, or one a template writes by name |
 | Dynamic invocation | a function called through a variable holding its name, an eval of a built string, a signal or event handler registered by name, a dispatch that matches a command word to a function |
 | Computed path or glob | a loader that builds the path from variables, globs a directory, or imports a computed module name, and never spells this file's basename or repo-relative path. For `unreferenced-file` the verdict is `uncertain`, not `dead` |
+| Named by a decision record | a record in the repository's ADR folder (`docs/adr/` unless the repository keeps its records elsewhere) that names the symbol or the file's path. The verdict is `uncertain`, citing the record, not `dead` |
 
 Cheap checks first, in this order: a repo-wide literal search for the bare name (including inside
 strings), then the config files, then the registration conventions of the frameworks the
@@ -39,7 +40,8 @@ The optional `LSP` assist is one more source, never a substitute. What `findRefe
   This is the honest verdict for most vulture candidates; do not promote one to `dead` to make the
   report tidier. An `unreferenced-file` candidate that a computed path or a glob could load stays
   `uncertain`, not `dead`. A candidate that reflection, type scanning or markup could reach is
-  `uncertain` or `alive`, citing the lookup, the scan or the view, never `dead`.
+  `uncertain` or `alive`, citing the lookup, the scan or the view, never `dead`. A candidate a
+  decision record names is `uncertain`, citing the record.
 - **`alive`**: a specific reference or registration was found. **Never emitted as a record**, and
   every one **cites the evidence that saved it** in the prose report. An unevidenced `alive` is a
   guess wearing a verdict's clothes.

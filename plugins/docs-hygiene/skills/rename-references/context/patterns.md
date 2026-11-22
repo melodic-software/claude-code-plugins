@@ -38,7 +38,7 @@ Each pattern has:
 - **Example match**: what it catches
 - **Known false-positives**: what to expect and how triage handles it
 
-Substitute `<old>` with the actual old token. Anchor with word boundaries (`\b`) wherever possible; use `\B` only for slash-token form.
+Substitute `<old>` with the actual old token. Anchor with word boundaries (`\b`) wherever possible; use `\B` only for slash-token form. A glossary-driven rename adds one identifier-part pass on top of these forms ([SKILL.md](../SKILL.md#glossary-driven-renames)).
 
 ## Form 1: Slash-prefixed token (skill name)
 

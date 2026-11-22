@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.11] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
 ## [0.36.10] - 2026-11-22
 
 ### Changed
