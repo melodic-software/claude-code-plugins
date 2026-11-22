@@ -3,6 +3,12 @@
 All notable changes to the `themes` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-11-22
+
+### Fixed
+
+- The two mixer tests that drive the plugin through the test harness pass on a Windows host, where the harness hands `fs.write` the command-file path resolved there.
+
 ## [0.4.1] - 2026-11-21
 
 ### Fixed
