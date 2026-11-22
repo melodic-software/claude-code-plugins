@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.6.1] - 2026-11-22
+
+### Fixed
+
+- `skills/code-review/reference/bundled-code-review.md` no longer presents the 2.1.263 menu description, which had the bundled `/code-review` review for bugs and cleanups, as its current scope. That description stays as history. The record now points to the `/code-review` row of the commands page, where the current scope is read live, with the 2.1.328 changelog entry to correlate with.
+
 ## [10.6.0] - 2026-11-22
 
 ### Added
