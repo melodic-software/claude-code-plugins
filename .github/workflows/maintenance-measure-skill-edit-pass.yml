@@ -122,6 +122,7 @@ jobs:
   # failure runs the key. Probing is off.
   check-key-credit:
     name: Check Key Credit
+    if: vars.CLAUDE_EVALS_DISABLED == 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
