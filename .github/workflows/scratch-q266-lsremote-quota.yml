@@ -1,0 +1,33 @@
+name: Scratch Q266 ls-remote quota test
+
+on:
+  push:
+    branches: [scratch/q266-lsremote-quota]
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Measure core quota around authenticated ls-remote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          used() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/rate_limit | jq -r '.resources.core | "\(.used) \(.remaining) \(.limit) \(.reset)"'; }
+          b64=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$b64"
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $b64"
+          for round in 1 2; do
+            a=$(used); sleep 5; b=$(used)
+            for i in $(seq 10); do
+              git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/main >/dev/null || echo "ls-remote $i failed"
+            done
+            c=$(used)
+            echo "round $round control: $a -> $b ; after 10 authenticated ls-remote: $c"
+          done
+          GIT_CONFIG_COUNT=0 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/main >/dev/null && echo "anonymous ls-remote ok" || echo "anonymous ls-remote failed"
+          echo "final: $(used)"
