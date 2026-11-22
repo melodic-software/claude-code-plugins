@@ -211,7 +211,7 @@ refuses or parks it (`status: confirmed`, `attended`, `host-run`). It is the sec
 **approve**, at the point Kanban calls the commitment point
 ([`admit.mjs`](../.github/scripts/intake-triage/admit.mjs)). The local `work-loop`'s admission gate
 is the same step in a local loop. The ADR admission test
-([`adr`](../plugins/architecture/skills/adr/actions/record.md#admission-test-advisory))
+([`adr`](../plugins/architecture/skills/adr/SKILL.md#admission-test-advisory))
 is a separate sense.
 
 Distinct from the **queue**: the `agent-ready` issues admission let in, waiting for a build run.
