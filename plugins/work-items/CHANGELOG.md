@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.14.3] - 2026-11-22
+
+### Fixed
+
+- Creating a tracker item, with or without `--repo`, now exits `3` when GitHub reports you cannot push to the resolved repository, so someone else's public repository never receives your issues. Inside GitHub Actions the check is skipped, so lanes whose token cannot push keep filing; reads and lists still resolve.
+
 ## [15.14.2] - 2026-11-22
 
 ### Changed
