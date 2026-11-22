@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-11-21
+
+### Changed
+
+- **`/tdd:principles` anti-patterns and testable-architecture pages carry no C# listings.** `anti-patterns-khorikov.md` loses its eleven C#, Moq (`CallBase`) and `DateTime.Now` listings, and `testable-architecture-khorikov.md` loses its six C#, xUnit.net and Fluent Assertions listings (the CRM refactoring, the domain-layer test, CanExecute/Execute and domain events). Where a listing carried the only statement of a point (the code-pollution flag and its interface fix, partial mocking of a concrete class, time as ambient context, the two ways to inject time, when domain events are recorded and sent), the point is now stated in prose. The rules both pages teach are unchanged ([#17767](https://github.com/melodic-software/claude-code-plugins/issues/17767)).
+
 ## [0.6.6] - 2026-11-21
 
 ### Removed

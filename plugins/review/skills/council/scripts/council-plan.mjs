@@ -287,6 +287,23 @@ export function selectPanel({ config, changed, tier, tierReason, risk, riskReaso
   };
 }
 
+const SHELL_COMMAND_NOT_FOUND = 127;
+
+export function memberResult({ product, output, exit }) {
+  const all = output.replace(/\r\n/g, "\n").split("\n");
+  const notices = all.filter((l) => l.startsWith("notice: ")).map((l) => l.slice("notice: ".length));
+  const lines = all.filter((l) => !/^(notice|job): /.test(l));
+  const shape = new RegExp(`^${product}: (ran|skipped|failed)(?: \\((.*)\\))?\\s*$`, "u");
+  const at = lines.findIndex((l) => shape.test(l));
+  if (at === -1) {
+    const status = exit === SHELL_COMMAND_NOT_FOUND ? "skipped (external-agents not enabled)" : `failed (no status line; exit ${exit})`;
+    return { status, note: null, notices, findings: "" };
+  }
+  const [, word, detail] = shape.exec(lines[at]);
+  if (word === "ran") return { status: "ran", note: detail ?? null, notices, findings: lines.slice(at + 1).join("\n").trim() };
+  return { status: `${word} (${detail || "no reason given"})`, note: null, notices, findings: "" };
+}
+
 function main(argv) {
   const [verb, ...rest] = argv;
   if (verb === "config") {
@@ -313,7 +330,14 @@ function main(argv) {
       claudeVersion: f["claude-version"],
     });
   }
-  usage("usage: council-plan.mjs config|select ...");
+  if (verb === "member") {
+    const f = flags(rest, ["product", "output", "exit"]);
+    for (const k of ["product", "output", "exit"]) if (f[k] === undefined) usage(`member needs --${k}`);
+    if (!/^[a-z][a-z0-9-]*$/.test(f.product)) usage("--product takes a provider name");
+    if (!/^[0-9]+$/.test(f.exit)) usage("--exit takes the command's exit code");
+    return memberResult({ product: f.product, output: readFileSync(f.output, "utf8"), exit: Number(f.exit) });
+  }
+  usage("usage: council-plan.mjs config|select|member ...");
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {

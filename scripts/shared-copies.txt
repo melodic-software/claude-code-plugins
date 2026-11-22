@@ -927,6 +927,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/desktop-notification/ref
 docs/contracts/plugin-reconfiguration/README.md plugins/discipline/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/disk-hygiene/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/docs-hygiene/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/docs-naming/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/education/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/eol-normalizer/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/go-format/reference/plugin-reconfiguration.md
@@ -1010,6 +1011,13 @@ lib/lane-instance-collision-check.md plugins/work-items/skills/work-loop/referen
 lib/cli-version-check.mjs plugins/context7/lib/cli-version-check.mjs
 lib/cli-version-check.mjs plugins/firecrawl/lib/cli-version-check.mjs
 lib/cli-version-check.mjs plugins/playwright/lib/cli-version-check.mjs
+lib/config-cascade.mjs plugins/external-agents/lib/config-cascade.mjs
+lib/yaml-subset.mjs plugins/external-agents/lib/yaml-subset.mjs
+lib/cli-version-check.mjs plugins/external-agents/lib/cli-version-check.mjs
+lib/prerequisites.mjs plugins/external-agents/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/external-agents/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/external-agents/lib/prerequisites.ps1
+lib/resolve-convention-home.sh plugins/external-agents/lib/resolve-convention-home.sh
 docs/contracts/config-cascade/locations.md plugins/ai-slop/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/attribution/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/bugs/reference/config-locations.md
@@ -1027,3 +1035,5 @@ docs/contracts/config-cascade/locations.md plugins/overengineering/reference/con
 docs/contracts/config-cascade/locations.md plugins/plugin-quality/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/source-control/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/testing/reference/config-locations.md
+lib/target-repo.sh plugins/source-control/skills/pull-request/scripts/target-repo.sh
+lib/target-repo.sh plugins/work-items/tools/work-item-tracker/adapters/github/target-repo.sh

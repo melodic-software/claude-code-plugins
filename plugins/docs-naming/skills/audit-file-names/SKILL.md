@@ -78,10 +78,19 @@ form selects several repositories, resolved, counted and listed as
 Three scripts produce the facts. Run them in order and build the plan on what
 they emit.
 
+The inventory and the sweep each take `--user-config` with this plugin's
+`file_names` option, `${user_config.file_names}`, on every call, as one
+single-quoted argument (escape any single quote in it). An empty value or the
+literal `${user_config.…}` placeholder means unset.
+
+- **Pointer**: when checking where a saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
+
 1. **Inventory** the tree:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/inventory.sh --root <repo>
+   ${CLAUDE_SKILL_DIR}/scripts/inventory.sh --root <repo> --user-config '<option>'
    ```
 
    It emits `OFFENDER`, `COLLISION`, `EXEMPT`, and `SCANNED` rows. A `COLLISION`
@@ -97,7 +106,7 @@ they emit.
 2. **Sweep** for references, feeding it the offender pairs:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/sweep.sh --root <repo> --pairs <pairs.tsv>
+   ${CLAUDE_SKILL_DIR}/scripts/sweep.sh --root <repo> --pairs <pairs.tsv> --user-config '<option>'
    ```
 
    Each `REF` row carries the citing file, the line, the form, the tier, the

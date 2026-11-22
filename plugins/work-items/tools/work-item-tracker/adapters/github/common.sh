@@ -177,17 +177,27 @@ wit_run_gh_native() {
   WIT_GH_NATIVE_TRY=1 wit_run_gh "$@"
 }
 
-# wit_resolve_repo <--repo value or empty> — echo owner/repo: the explicit override, else
-# gh's own resolution for the CWD (GH_REPO, the `gh repo set-default` remote, else gh's
-# first remote by name, not necessarily origin) per CONTRACT.md "Setup (binding file)".
 wit_resolve_repo() {
-  local explicit="${1:-}"
+  local explicit="${1:-}" out err rc errfile
   if [[ -n "$explicit" ]]; then
     printf '%s\n' "$explicit"
     return 0
   fi
-  # REST, not `gh repo view`: that is GraphQL-backed (README "View item").
-  wit_run_gh read api 'repos/{owner}/{repo}' --jq .full_name
+  errfile="$(mktemp)"
+  # shellcheck source=target-repo.sh
+  out="$(
+    set --
+    . "$WIT_GH_ADAPTER_DIR/target-repo.sh" 2>"$errfile"
+  )"
+  rc=$?
+  err="$(<"$errfile")"
+  rm -f "$errfile"
+  [[ -n "$err" ]] && printf '%s\n' "$err" >&2
+  if ((rc != 0)); then
+    [[ "$err" == *"target-repo: the remotes name"* ]] && exit 3
+    exit "$(wit_map_gh_error "$err")"
+  fi
+  wit_run_gh read api "repos/$(printf '%s' "$out" | wit_strip_cr)" --jq .full_name
   printf '%s\n' "$WIT_GH_OUT"
 }
 
