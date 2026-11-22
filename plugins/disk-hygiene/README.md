@@ -107,7 +107,7 @@ Backups remain the recovery boundary for user data.
   replace it. The plugin never downloads a runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
-- `gh` with authenticated access to the configured `github.com` remote is additionally required only
+- `gh` with authenticated access to the configured `github.com` remote is required only
   when the operator invokes standalone-checkout VCS evidence mode. Other hosting providers remain
   protected; no generic network or `git ls-remote` fallback is treated as provider proof.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs

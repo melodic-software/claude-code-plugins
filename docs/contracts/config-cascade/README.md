@@ -141,7 +141,7 @@ them wholesale.
 Two sanctioned forms, in order of preference:
 
 1. **Concatenate.** Every layer that exists is loaded and appended. Correct when the content is prose
-   the model reads as guidance: the layers genuinely accumulate, and a reader wants all of them. This
+   the model reads as guidance: the layers accumulate, and a reader wants all of them. This
    is what the first-party precedent does.
 2. **Per-key override.** A later layer replaces an earlier layer's value **key by key**; a key absent
    from a later layer keeps the earlier value. Correct when the values are scalars or closed lists,
@@ -841,7 +841,7 @@ the standards root, not the consumer's `.gitignore`); `work-items`'
 (#3580); `songwriting`; and the `work-items` recurring schedule, both team-only
 too and recommending no personal override line. This contract does not retroactively
 rewrite narrow lines already written into consumer repositories. The
-recursive line simply supersedes them where both exist.
+recursive line supersedes them where both exist.
 
 ## Surfaces listed for later adoption
 
