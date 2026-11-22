@@ -49,8 +49,8 @@
 #      replaying the same id is refused), and TTL-bounded — it lives for the
 #      claiming session's whole life (every /loop cycle's stop stays gated),
 #      retired by its 31-day TTL (GATE_ARM_TTL_DAYS in lane-stop-gate-lib.sh,
-#      the lifetime the README states at
-#      https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/autonomy/README.md#lane-stop-gate--operator-notification-stop-hook)
+#      past the 30-day /loop expiry at
+#      https://code.claude.com/docs/en/changelog#2-1-330)
 #      and the launcher's relaunch sweep, never by a single stop;
 #   3. user settings.json, located only from this script's own install path;
 #   4. the in-script defaults (enabled=false, sentinel=LANE-STOP-OK, no marker).

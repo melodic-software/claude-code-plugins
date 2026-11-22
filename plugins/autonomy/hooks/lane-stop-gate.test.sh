@@ -568,7 +568,7 @@ if [[ -f "$REC_4C" ]]; then fail "an arm record aged 32 days was not dropped"; e
 
 age_file_days() {
   local t=$((NOW_EPOCH - $2 * 86400)) stamp
-  stamp="$(TZ=UTC date -d "@$t" +%Y%m%d%H%M 2>/dev/null || TZ=UTC date -r "$t" +%Y%m%d%H%M)"
+  stamp="$(TZ=UTC printf '%(%Y%m%d%H%M)T' "$t")"
   : >"$1"
   TZ=UTC touch -t "$stamp" "$1"
 }

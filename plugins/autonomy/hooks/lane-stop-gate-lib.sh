@@ -48,9 +48,8 @@ readonly _LANE_STOP_GATE_LIB_LOADED=1
 readonly GATE_ARM_ID_RE='^[A-Za-z0-9_-]{8,64}$'
 
 # Arm-record lifetime: 31 days. The gate's TTL check and the arm helper's
-# `find -mtime` sweep both read this constant; the README states the same
-# lifetime to users:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/autonomy/README.md#lane-stop-gate--operator-notification-stop-hook
+# `find -mtime` sweep both read this constant. It outlasts the 30-day /loop
+# expiry: https://code.claude.com/docs/en/changelog#2-1-330
 # shellcheck disable=SC2034 # read by lane-stop-gate.sh and lane-stop-gate-arm.sh, not here
 readonly GATE_ARM_TTL_DAYS=31
 
