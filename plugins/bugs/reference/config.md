@@ -14,11 +14,34 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 
 | Order | Layer | Path | Version control |
 |---|---|---|---|
-| 1 | user-global | `~/.claude/bugs.md` | outside the worktree, so no git verdict applies |
+| 1 | `userConfig` | the file the `gotchas_file` option names (its `## Gotchas` only) | outside the worktree, so no git verdict applies |
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.yaml` for the keys; `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.md` for prose and `## Gotchas` | must be tracked, the only layer teammates receive |
-| 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
+| 3 | personal override | `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.local.md` | must be gitignored, never staged |
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+### Old paths (dual-read window)
+
+Two old files are still read while they exist:
+
+- `~/.claude/bugs.md`: its `## Gotchas` while the `gotchas_file` file is absent, since that file
+  supplies only gotchas; its `lanes` and `filing_posture` until it is deleted, since no new
+  per-user layer holds them.
+- `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md`, retirement record `bugs-r001`
+  ([`retirements.yaml`](../retirements.yaml)): the whole file while `docs/conventions/bugs.local.md`
+  is absent.
+
+Every run of `concat-gotchas.sh` prints one `Warning:` line per old file it finds, naming it, the new
+location, and `/bugs:setup apply`, which moves it. When both files of a layer exist, the new one wins
+and the warning names both. Removing the old-path read is a later change, made once no old file is
+reported.
+
+`/bugs:setup apply` moves each old file's settings by what each one is:
+
+| What the old file holds | New home |
+|---|---|
+| `## Gotchas` in `~/.claude/bugs.md` (prose the model reads in every repository) | a Markdown file of the user's own outside `~/.claude`, named by the `gotchas_file` option |
+| `lanes` in `~/.claude/bugs.md` (globs about one repository) | the personal override `docs/conventions/bugs.local.md` of the repository it was meant for, or the team file |
+| `filing_posture` in either old file | `docs/conventions/work-items.yaml` ([Filing posture](#filing-posture)) |
+| anything in `.claude/bugs.local.md` | `docs/conventions/bugs.local.md`, as it is |
 
 The team files sit in `docs/conventions/` whatever convention home the repository binds; a
 repository that binds another home still keeps them there.
@@ -60,9 +83,9 @@ them. It is therefore not a recognized key, and a layer that sets it is reported
 ## File format
 
 The team keys are plain YAML in `docs/conventions/bugs.yaml`, checked against the schema; the
-team prose sits beside it in `docs/conventions/bugs.md`. The user-global and personal override layers
-are Markdown with a fenced YAML block holding the same keys; prose outside the block is the
-consumer's own commentary, except a `## Gotchas` section.
+team prose sits beside it in `docs/conventions/bugs.md`. The personal override is Markdown with a
+fenced YAML block holding the same keys; prose outside the block is the consumer's own commentary,
+except a `## Gotchas` section. The `gotchas_file` file supplies only its `## Gotchas` section.
 
 ```yaml
 # docs/conventions/bugs.yaml
@@ -78,8 +101,8 @@ lanes:
 
 ### Consumer `## Gotchas` (cascade scope)
 
-A `## Gotchas` section in `docs/conventions/bugs.md`, `~/.claude/bugs.md` or
-`.claude/bugs.local.md` (outside any YAML fence) is the **local scope** for repo-specific lines the
+A `## Gotchas` section in the `gotchas_file` file, `docs/conventions/bugs.md` or
+`docs/conventions/bugs.local.md` (outside any YAML fence) is the **local scope** for repo-specific lines the
 model should see when `/bugs:scan` or `/bugs:write` loads. Layers concatenate in cascade order after
 the bundled gotchas. Each line records a failure the model actually hit in this repository, the
 same failure-driven rule the bundled gotchas follow. Generalizable lines belong in the shipped
@@ -124,12 +147,12 @@ one entry were absent. Do not discard the whole layer.
 
 ## Consumer `.gitignore`
 
-This recursive line ignores the personal override this plugin reads today, `.claude/bugs.local.md`.
-A personal override at `<home>` needs `<home>/**/*.local.*` instead; see
-[config locations](config-locations.md).
+This recursive line ignores the personal override, `docs/conventions/bugs.local.md`; see
+[config locations](config-locations.md). Keep any `.claude/**/*.local.*` line until the old
+`.claude/bugs.local.md` is moved.
 
 ```gitignore
-.claude/**/*.local.*
+docs/conventions/**/*.local.*
 ```
 
 `/bugs:setup` recommends this line; no plugin writes the consumer's `.gitignore`.

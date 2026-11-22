@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'names-each-layer'
     type: 'regex'
-    pattern: '^(?=[\s\S]*(?:user-global|~/\.claude/bugs\.md))(?=[\s\S]*docs/conventions/bugs\.yaml)(?=[\s\S]*(?:bugs\.local\.md|personal override))'
+    pattern: '^(?=[\s\S]*(?:user-global|~/\.claude/bugs\.md|gotchas_file))(?=[\s\S]*docs/conventions/bugs\.yaml)(?=[\s\S]*(?:bugs\.local\.md|personal override))'
     flags: 'i'
     target: 'last_message'
   - name: 'ran-tracked-probe'
@@ -20,6 +20,10 @@ graders:
     input_match: 'check-ignore(?:(?!\\n)[^"])*bugs\.local\.md'
     min: 1
     arm: 'with-only'
+  - name: 'names-retirement'
+    type: 'regex'
+    pattern: 'bugs-r001'
+    target: 'last_message'
   - name: 'names-opt-out'
     type: 'regex'
     pattern: '\bopt(?:s|ed|ing)?[- ]out\b'

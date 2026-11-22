@@ -27,6 +27,11 @@
       "type": "directory",
       "title": "Output directory",
       "description": "Where --file writes reports. When unset, reports go to the plugin's own persistent data directory. Set this to a path in your repository if you want bug reports committed alongside your code."
+    },
+    "gotchas_file": {
+      "type": "file",
+      "title": "Personal gotchas file",
+      "description": "A Markdown file of your own whose ## Gotchas section /bugs:scan and /bugs:write read in every repository, before the team and personal override layers. Replaces ~/.claude/bugs.md, which /bugs:setup apply moves here."
     }
   }
 }
