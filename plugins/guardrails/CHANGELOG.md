@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.4] - 2026-11-22
+
+### Changed
+
+- Shared `resolve-convention-pattern.sh` synced where this plugin carries it: only a comment changed, naming source-control's drafting layers after their move ([#18000](https://github.com/melodic-software/claude-code-plugins/issues/18000)); enforcement behavior is unchanged.
+
 ## [3.12.3] - 2026-11-21
 
 ### Changed
