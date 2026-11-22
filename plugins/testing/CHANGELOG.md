@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.13.0] - 2026-11-22
+
+### Changed
+
+- `/testing:check-visual-parity` reads its personal override from `docs/conventions/testing.local.yaml`. The old `.claude/testing.local.yaml` is still read when the new file is absent, and is ignored beside it. `~/.claude/testing.yaml` is still read. Each old file found prints one warning naming where to move it ([#18053](https://github.com/melodic-software/claude-code-plugins/issues/18053)).
+
 ## [5.12.0] - 2026-11-22
 
 ### Added
