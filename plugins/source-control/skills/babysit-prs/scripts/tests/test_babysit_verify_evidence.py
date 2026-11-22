@@ -244,6 +244,7 @@ class FakeGitHub:
         self.closing_total: int | None = None
         # Each closing issue's body lastEditedAt now, by number.
         self.closing_edited: dict[int, str | None] = {}
+        self.issue_bodies: dict[int, dict[str, Any]] = {}
         # Each closing issue's comments now, and a totalCount that cuts them.
         self.closing_comments: dict[int, list[dict[str, Any]]] = {}
         self.comments_total: dict[int, int] = {}
@@ -424,6 +425,9 @@ class FakeGitHub:
                     else {"__typename": "Issue"} | self.issue(n, kind)
                 )
                 return ok({"data": {"repository": {"issueOrPullRequest": node}}})
+            if any("issue(number:$n){title body" in a for a in args):
+                n = int(next(a for a in args if a.startswith("n="))[2:])
+                return ok({"data": {"repository": {"issue": self.issue_bodies[n]}}})
             nodes = [self.issue(n, repo) for n, repo in self.closing]
             refs = {"totalCount": self.closing_total or len(nodes), "nodes": nodes}
             pull = {"body": self.body, "closingIssuesReferences": refs}
@@ -1728,25 +1732,50 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
     """Pull request #18023's shape: a FAIL at an earlier head against issue
     #17908's done-when item, the item amended by a trusted comment after the
     FAIL's run, and a pass at a head of the same change whose run was
-    created after the comment. The pass judged the amended spec, so it
-    clears the FAIL (`_spec_amended`); an untrusted amendment or a pass
-    created before it keep `verify:earlier-fail`."""
+    created after the comment. The amendment counts only when it links an
+    owner-decisions row and quotes the owner (owner decision, option B), so
+    the pass judged an owner-decided spec and clears the FAIL
+    (`_spec_amended`); an amendment without that link, an untrusted one or
+    a pass created before it keep `verify:earlier-fail`."""
 
     STRANGER = {"__typename": "User", "login": "stranger", "databaseId": 999}
+    ROW = (
+        "https://github.com/acme/records/blob/"
+        + "0" * 40
+        + "/docs/owner-decisions.md#L42"
+    )
+    DECIDED = f'Item 1 now reads as amended. Decision: {ROW} verbatim: "amend item 1"'
 
-    @staticmethod
+    def setUp(self) -> None:
+        patcher = mock.patch.object(
+            policy,
+            "DECISION_ROW",
+            policy.merge_settings.decision_row_pattern(
+                "acme/records/docs/owner-decisions.md"
+            ),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @classmethod
     def amended(
-        author: dict[str, Any] = HUMAN, at: str = RELINK_AT, recorded: bool = True
+        cls,
+        author: dict[str, Any] = HUMAN,
+        at: str = RELINK_AT,
+        recorded: bool = True,
+        body: str | None = None,
     ) -> FakeGitHub:
         """A FAIL at EARLIER (run 2, created OLDER_START) noting a file, a
         pass at HEAD (run 1, created RUN_STARTED) of the same change, no PR
         body edit or relink, and comment 9 on issue 7 by `author` created at
-        `at`, which the pass records as spec when `recorded`."""
+        `at` with `body` (DECIDED by default), which the pass records as spec
+        when `recorded`."""
         fake = AFixedBodyClearsABodyOnlyFailOnTheSameChange.body_fail(
             [NOTE_ON_A_FILE], relink_answer()
         )
+        text = cls.DECIDED if body is None else body
         fake.closing_comments[7] = [
-            comment(9, HUMAN, at, createdAt=at) | {"author": author}
+            comment(9, HUMAN, at, createdAt=at, body=text) | {"author": author}
         ]
         spec = [{"id": 9, "updated_at": at}] if recorded else []
         fake.records[named(HEAD, "pass")] = record(
@@ -1754,28 +1783,61 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
         )
         return fake
 
-    def test_pr_18023s_fail_clears_after_a_trusted_spec_comment(self) -> None:
-        evidence = read(self.amended())
-        self.assertIsNone(evidence.refusal)
-        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
-
-    def test_a_trusted_issue_body_edit_after_the_fail_clears_it(self) -> None:
+    @classmethod
+    def body_edited(
+        cls, body: str | None = None, editor: dict[str, Any] = HUMAN
+    ) -> FakeGitHub:
+        """The same FAIL and pass, with issue 7's body last edited at
+        RELINK_AT by `editor` to `body` (DECIDED by default)."""
         fake = AFixedBodyClearsABodyOnlyFailOnTheSameChange.body_fail(
             [NOTE_ON_A_FILE], relink_answer()
         )
         fake.closing_edited[7] = RELINK_AT
+        fake.issue_bodies[7] = {
+            "title": "t",
+            "body": cls.DECIDED if body is None else body,
+            "lastEditedAt": RELINK_AT,
+            "author": HUMAN,
+            "editor": editor,
+        }
         fake.records[named(HEAD, "pass")] = record(
             linked_issues=[
                 {
                     **TRUSTED_ISSUE,
                     "last_edited_at": RELINK_AT,
-                    "editor_login": "maintainer",
-                    "editor_id": 100,
-                    "editor_type": "User",
+                    "editor_login": editor.get("login"),
+                    "editor_id": editor.get("databaseId"),
+                    "editor_type": editor.get("__typename"),
                 }
             ]
         )
-        self.assertIsNone(read(fake).refusal)
+        return fake
+
+    def test_pr_18023s_fail_clears_after_a_trusted_decision_comment(self) -> None:
+        evidence = read(self.amended())
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_a_trusted_issue_body_edit_linking_a_decision_clears_it(self) -> None:
+        self.assertIsNone(read(self.body_edited()).refusal)
+
+    def test_a_trusted_amendment_without_a_decision_link_keeps_it(self) -> None:
+        for label, body in (
+            ("plain text", "Item 1 now reads as amended."),
+            ("row link, no quote", f"Decision: {self.ROW}"),
+            ("quote, no row link", 'verbatim: "amend item 1"'),
+            ("link inside an HTML comment", f'<!-- {self.ROW} --> verbatim: "x"'),
+        ):
+            with self.subTest(f"comment, {label}"):
+                fake = self.amended(body=body)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+            with self.subTest(f"issue body, {label}"):
+                fake = self.body_edited(body=body)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_an_issue_body_an_outsider_last_edited_keeps_it(self) -> None:
+        fake = self.body_edited(editor=self.STRANGER)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_an_untrusted_comment_keeps_it(self) -> None:
         for label, author in (
