@@ -78,6 +78,7 @@ export async function models(opts) {
     if (helpName) {
       const args = record.help[helpName];
       doc.efforts = effortChoices(fact(dir, helpName, args, ask), record.effort_flag);
+      if (!doc.efforts) throw new Stop("failed", `${command(args)} lists no ${record.effort_flag} choices this record can read`);
       doc.efforts_source = `${command(args)} (${record.effort_flag})`;
     }
     doc.docs_index = record.docs_index;

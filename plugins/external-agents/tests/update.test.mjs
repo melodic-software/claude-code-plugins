@@ -283,6 +283,12 @@ describe("models", () => {
     assert.deepEqual(w.calls().slice(before), ["--version"]);
   });
 
+  test("help whose effort line lists no readable choices is failed, exit 1, naming the command", async () => {
+    const got = await models(agyWorld({ "--help": { stdout: "  --effort=<level>  Reasoning effort: low, medium, high\n" } }).opts);
+    assert.equal(got.code, 1);
+    assert.deepEqual(JSON.parse(got.stdout), { schema: 1, product: "antigravity", status: "failed", reason: "agy --help lists no --effort choices this record can read" });
+  });
+
   test("an empty cached file is asked for again", async () => {
     const w = agyWorld();
     const dir = join(w.opts.dataDir, "cli-facts", "antigravity", "1.0.0");

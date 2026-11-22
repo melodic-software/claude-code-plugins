@@ -45,7 +45,7 @@ any change a consumer could notice bumps `schema`.
 | `unset_model` | What runs when no model is passed: `cli-default` means the CLI's own default. |
 | `models` | Each model as the CLI lists it: `id` (the value `--model` takes), `name` when the CLI gives one, and, when the CLI reports them per model, `efforts` and `default_effort`. |
 | `models_source` | The command the list came from. |
-| `efforts`, `efforts_source` | The effort levels the CLI's help lists for its effort flag, and that help command; absent when the CLI reports effort per model instead. |
+| `efforts`, `efforts_source` | The effort levels the CLI's help lists for its effort flag, and that help command; absent when the CLI reports effort per model instead. A help whose effort line lists no choices this plugin can read makes the result `failed`, never `ok` without levels. |
 | `docs_index` | The vendor's docs index, for facts no command reports. |
 
 The plugin ships no model names: every value comes from the installed CLI. The output of each
