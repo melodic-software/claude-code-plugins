@@ -26,7 +26,7 @@ import {
   purr,
   thunderFor,
 } from './sound.js'
-import { wait, NIGHT, type FakeMixer, COMMANDS, runFile, mixerChild, sky, stand, ranBy, onWindows, quiet } from './sound-testing.js'
+import { wait, NIGHT, type FakeMixer, COMMANDS, isCommands, runFile, mixerChild, sky, stand, ranBy, onWindows, quiet } from './sound-testing.js'
 
 declare function setTimeout(fn: () => void, ms: number): unknown
 
@@ -49,7 +49,7 @@ test('in the plugin, one mixer plays the bed, the television and a change of wea
     }
     yield* mixerChild(m, () => clockNow(), wake => void setTimeout(wake, 20))
   })
-  const room = await startRoom($, on, { fakes: false, onWrite: (path, text) => (path === COMMANDS ? runFile(mixers.at(-1)!, text, clockNow()) : undefined) })
+  const room = await startRoom($, on, { fakes: false, onWrite: (path, text) => (isCommands(path) ? runFile(mixers.at(-1)!, text, clockNow()) : undefined) })
   clockNow = () => room.clock.now()
   const verbs = (): string[] => (mixers[0]?.ran ?? []).map(r => r.words.join(' '))
 

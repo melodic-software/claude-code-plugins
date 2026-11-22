@@ -26,6 +26,8 @@ export type Ran = { seq: number; words: string[]; at: number }
 export type FakeMixer = { ran: Ran[]; outbox: string[]; wake?: () => void; ended: boolean; endedAt?: number; last: number; exitCode?: number; mute?: boolean; voices?: string }
 const READY = 'ready C:\\Temp\\claude-bedroom-sound-1\\commands.txt\n'
 export const COMMANDS = '/mnt/c/Temp/claude-bedroom-sound-1/commands.txt'
+/** True for a write to COMMANDS; on a Windows host the harness hands fs.write the path resolved there, as D:\mnt\c\... */
+export const isCommands = (path: string): boolean => path.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/') === COMMANDS
 
 /** Reads a command file as the mixer does: only a file that ends with `end`, each line above the last run, one-shots first. */
 export function runFile(m: FakeMixer, text: string, at: number): void {
