@@ -162,13 +162,6 @@
 # cannot spell, one with a character outside the class, keeps the substring
 # test rather than losing its coverage.
 #
-# MANIFESTS. plugin.json, marketplace.json, hooks.json, settings.json,
-# package.json, package-lock.json, CHANGELOG.md and LICENSE select no suite
-# through a mention: a suite that reads one reads its name or version, and the
-# manifest, changelog and catalog gates own those files. Only R1, R2 and a
-# declared scope (R8) reach a suite from them; anything else is on the no-suite
-# list.
-#
 # AMBIGUOUS NAMES. A basename two or more files carry, and the structural docs
 # (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md), name a specific file
 # only when the mention RESOLVES to it, because a bare `SKILL.md` or
@@ -257,7 +250,6 @@ SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
 # Basenames that name a repository-wide role, reached only through a resolved
 # mention (AMBIGUOUS NAMES in the header), however few files carry them today.
 STRUCTURAL_BASENAMES=" README.md SKILL.md AGENTS.md CLAUDE.md index.md "
-# Manifests and changelogs, which no mention reaches (MANIFESTS in the header).
 MANIFEST_BASENAMES=" plugin.json marketplace.json hooks.json settings.json package.json package-lock.json "
 MANIFEST_BASENAMES+="CHANGELOG.md LICENSE "
 
@@ -1018,6 +1010,49 @@ token_hits() {
   ' "$1" "$2" "$5" "$6" "$3" >"$4"
 }
 
+package_scope_importers() {
+  local manifest="$1" dir deps
+  dir="${manifest%/*}"
+  [[ "$dir" == "$manifest" ]] && dir="."
+  if ! deps="$(jq -r '[.dependencies, .devDependencies, .optionalDependencies, .peerDependencies]
+      | map(select(type == "object") | keys[]) | unique[]' "$manifest")"; then
+    echo "error: cannot read the dependencies of $manifest (R10 needs jq and valid JSON)." >&2
+    exit 2
+  fi
+  [[ -n "$deps" ]] || return 0
+  awk -v d="$dir/" -v deps="$deps" '
+    BEGIN { n = split(deps, list, "\n"); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+    FNR == NR { if ($0 ~ /(^|\/)package\.json$/) { p = $0; sub(/[^\/]*$/, "", p); pkg[p] = 1 }; next }
+    /(^|\/)node_modules\// || !/\.(js|mjs|cjs)$/ || /\.test\.(js|mjs|cjs)$/ { next }
+    d != "./" && index($0, d) != 1 { next }
+    {
+      n = split($0, part, "/"); anc = ""
+      for (k = 1; k < n; k++) anc = anc part[k] "/"
+      for (k = n - 1; k >= 1 && anc != d; k--) {
+        if (anc in pkg) next
+        anc = substr(anc, 1, length(anc) - length(part[k]) - 1)
+      }
+      print
+    }
+  ' "$WORK_DIR/all-files" "$WORK_DIR/all-files" >"$WORK_DIR/scope-files"
+  [[ -s "$WORK_DIR/scope-files" ]] || return 0
+  awk -v deps="$deps" '
+    BEGIN { n = split(deps, list, "\n"); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+    {
+      file = $0; found = 0
+      while (!found && (getline line <file) > 0)
+        while (match(line, /(from|import|require)[ \t]*\(?[ \t]*["\047][^"\047]+["\047]/)) {
+          spec = substr(line, RSTART, RLENGTH)
+          line = substr(line, RSTART + RLENGTH)
+          sub(/^[^"\047]*["\047]/, "", spec); sub(/["\047]$/, "", spec)
+          name = spec
+          if (name ~ /^@/) { split(name, s, "/"); name = s[1] "/" s[2] } else sub(/\/.*/, "", name)
+          if (name in want) { print file; found = 1; break }
+        }
+      close(file)
+    }' "$WORK_DIR/scope-files"
+}
+
 # colocated_suites <path> -> every sibling suite covering it, one per line.
 # PLURAL on purpose: a .py can carry a co-located test_<stem>.py and a
 # wrapping <stem>.test.sh at once, and returning one under-selects.
@@ -1091,6 +1126,15 @@ select_for() {
       [[ -n "$copy" ]] && frontier+=("$copy")
     done <<<"${SYNC_SRC_COPIES[$line]:-}"
   done
+  if [[ "${seed##*/}" == package.json && "$seed" != *node_modules/* && -f "$seed" ]]; then
+    if ! package_scope_importers "$seed" >"$WORK_DIR/scope-importers"; then
+      echo "error: the package-scope import scan of $seed failed; refusing to under-select." >&2
+      exit 2
+    fi
+    while IFS= read -r line; do
+      frontier+=("$line")
+    done <"$WORK_DIR/scope-importers"
+  fi
 
   while [[ ${#frontier[@]} -gt 0 ]]; do
     : >"$WORK_DIR/patterns"

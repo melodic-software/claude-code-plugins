@@ -1989,6 +1989,40 @@ for args in "--replay HEAD~1..HEAD plugins/alpha/hooks/alpha-hook.sh" "--against
 done
 rm -rf "$repo"
 
+mk_repo repo
+mkdir -p "$repo/pkg/nested" "$repo/pkg/node_modules/yaml"
+printf '{"dependencies":{"yaml":"2.9.1"},"devDependencies":{"@scope/tool":"1.0.0"}}\n' >"$repo/pkg/package.json"
+printf '{"dependencies":{"yaml":"2.9.1"}}\n' >"$repo/pkg/nested/package.json"
+printf '{"devDependencies":{"graphql":"17.1.0"}}\n' >"$repo/package.json"
+printf 'import { parse } from "yaml";\n' >"$repo/pkg/reader.mjs"
+printf 'const t = require("@scope/tool/sub");\n' >"$repo/pkg/tooled.cjs"
+printf 'import { x } from "./reader.mjs";\n' >"$repo/pkg/caller.mjs"
+printf 'import fs from "node:fs";\n' >"$repo/pkg/plain.mjs"
+printf 'import { parse } from "yaml";\n' >"$repo/pkg/nested/inner.mjs"
+printf 'import { parse } from "yaml";\n' >"$repo/pkg/node_modules/yaml/index.mjs"
+for s in reader tooled caller plain nested/inner node_modules/yaml/index; do
+  printf 'import "node:test";\n' >"$repo/pkg/$s.test.mjs"
+done
+git_test_config "$repo" add -f pkg package.json >/dev/null
+git_test_config "$repo" commit -qm pkg >/dev/null
+
+run_sel "$repo" pkg/package.json
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" pkg/reader.test.mjs && has_line "$OUT" pkg/tooled.test.mjs &&
+  has_line "$OUT" pkg/caller.test.mjs && ! contains "$OUT" pkg/plain.test.mjs &&
+  ! contains "$OUT" pkg/nested/ && ! contains "$OUT" node_modules; then
+  ok "R10: a package.json selects what its scope's bare importers reach, short of a nested package"
+else
+  fail "R10: package-scope selection wrong (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" package.json
+if [[ "$RC" -eq 0 ]] && ! contains "$OUT" .test.; then
+  ok "R10: a package.json no module in its scope bare-imports from selects nothing"
+else
+  fail "R10: the root package.json should select nothing (rc=$RC): $OUT"
+fi
+rm -rf "$repo"
+
 # --- --help reaches the actual end of the header -----------------------------
 # usage() used to extract a hardcoded sed range that stopped mid-header as the
 # comment block grew. Pin a sentence that lives on the last header
