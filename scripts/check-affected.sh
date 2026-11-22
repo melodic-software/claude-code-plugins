@@ -539,7 +539,7 @@ comment_lint_merge_base_diff() {
     fi
   }
   copy_from_merge_base AGENTS.md && copy_from_merge_base CLAUDE.md || return 2
-  home="$(bash "$tools/plugins/code-tidying/lib/resolve-convention-home.sh" --root "$d" 2>/dev/null)" || home=""
+  home="$(bash "$tools/plugins/code-tidying/lib/resolve-convention-home.sh" --root "$d" --ref "$merge_base" 2>/dev/null)" || home=""
   [[ -n "$home" && "$home" != /* && "$home" != *..* ]] || home=docs/conventions
   for f in code-tidying.yaml code-tidying.local.yaml; do
     copy_from_merge_base "${home%/}/$f" || return 2
