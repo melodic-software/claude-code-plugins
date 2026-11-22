@@ -45,7 +45,6 @@ TEMPLATE="$SCRIPT_DIR/../templates/docs-naming.json"
 # shellcheck source=../../../lib/layer-yaml.sh
 . "$SCRIPT_DIR/../../../lib/layer-yaml.sh"
 LEGACY_REL=".claude/docs-naming.json"
-# The resolver's additive class: a personal layer appends entries to these.
 ADDITIVE_KEYS='["roots","exempt_basenames","exempt_paths","exempt_extensions","tiers","sweep_exclude","sweep_exclude_sites"]'
 
 die() {
@@ -131,9 +130,6 @@ if [[ "$WANT_USER_VALUE" -eq 1 ]]; then
     found=1
     keys="$(jqr -c -e '.file_names // {} | if type == "object" then . else error("file_names is not an object") end' "$old" 2>/dev/null)" ||
       die "the old user file is not valid JSON with a file_names object: $old"
-    # A key the option lacks is copied whole. For an additive key both set as a
-    # list, the old entries the option's list lacks are appended, as the
-    # resolver's append_new does; a nearest-wins key the option sets keeps its value.
     added="$(jqr -r -n --argjson v "$value" --argjson o "$keys" --argjson add "$ADDITIVE_KEYS" '
       ($o | keys_unsorted) as $ok
       | [$ok[] | select(. as $k | $v | has($k) | not)] as $new
