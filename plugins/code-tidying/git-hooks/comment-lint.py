@@ -24,8 +24,8 @@ under <adr-dir> (default docs/adr; one outside <records> falls back to it) of <r
 repository as the change holds it; with no <records> it fails.
 
 An added line that <diff> (git diff -U0 with b/ new-side names) shows replacing a removed line
-of the same hunk only by renamed identifiers (a word holding _, a digit or a lower-to-upper
-case change, each renamed one way across the hunk) is judged like the unchanged line: not at all.
+of the same hunk only by renamed identifiers (a word holding a letter and _, a digit or a
+lower-to-upper case change, each renamed one way across the hunk; a number change is content) is judged like the unchanged line: not at all.
 
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
@@ -404,6 +404,7 @@ def _allowed(texts: list[str], allow: list[str]) -> set[int]:
 
 WORD = re.compile(r"\w+|[^\w\s]+")
 IDENTIFIER = re.compile(r"\w*(?:_|\d|[a-z][A-Z])\w*")
+LETTER = re.compile(r"[^\W\d_]")
 
 
 def _swaps(old: str, new: str) -> list[tuple[str, str]] | None:
@@ -414,7 +415,7 @@ def _swaps(old: str, new: str) -> list[tuple[str, str]] | None:
     for x, y in zip(a, b):
         if x == y:
             continue
-        if not (x[0].isalnum() or x[0] == "_") or not (y[0].isalnum() or y[0] == "_"):
+        if not (LETTER.search(x) and LETTER.search(y)):
             return None
         if not (IDENTIFIER.fullmatch(x) or IDENTIFIER.fullmatch(y)):
             return None

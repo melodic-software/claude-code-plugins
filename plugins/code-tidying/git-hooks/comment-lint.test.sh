@@ -146,12 +146,12 @@ for fixture in shape1.py.txt shape2.sh.txt shape3.sh.txt shape4.py.txt shape5.ym
 done
 
 new_repo 'comment_lint: block'
-printf 'x=1\n# reads `babysit_risk` from the summary\nbabysit_risk=2\n' >"$REPO/seed.sh"
+printf 'x=1\n# reads babysit_risk from the summary\nbabysit_risk=2\n' >"$REPO/seed.sh"
 git -C "$REPO" commit -q -am base --no-verify
-printf 'x=1\n# reads `diff_risk` from the summary\ndiff_risk=2\n' >"$REPO/seed.sh"
+printf 'x=1\n# reads diff_risk from the summary\ndiff_risk=2\n' >"$REPO/seed.sh"
 git -C "$REPO" add seed.sh
 expect "block, a comment whose only change is a renamed identifier passes" "0|" "$(check "$REPO")"
-printf 'x=1\n# takes `diff_risk` from the summary\ndiff_risk=2\n' >"$REPO/seed.sh"
+printf 'x=1\n# takes diff_risk from the summary\ndiff_risk=2\n' >"$REPO/seed.sh"
 git -C "$REPO" add seed.sh
 expect "block, a renamed identifier with changed prose is still judged" "1|$(finding seed.sh 2 necessary)" "$(check "$REPO")"
 

@@ -88,6 +88,16 @@ class RenameOnlyEdit(unittest.TestCase):
         removed = ["# uses babysit_risk", "# uses babysit_risk"]
         self.assertEqual(self.judged(removed, text, added_count=2), [2, 3])
 
+    def test_changed_adr_number_is_still_judged(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "docs" / "adr").mkdir(parents=True)
+            (repo / "docs" / "adr" / "0042-x.md").write_text("x\n", encoding="utf-8")
+            text = "x=1\n# ADR-0999\n"
+            hunks = [(2, ["# ADR-0042"], ["# ADR-0999"])]
+            got = lint.findings("a.sh", text, [(2, 2)], "necessary", [], repo, hunks=hunks)
+            self.assertEqual([int(f.split(":")[1]) for f in got], [2])
+
     def test_hunks_read_from_a_unified_diff(self):
         diff = (
             "diff --git a/a.sh b/a.sh\n--- a/a.sh\n+++ b/a.sh\n"
