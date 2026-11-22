@@ -19,7 +19,7 @@ graders:
   - name: one-instance-question
     type: llm
     arm: both
-    criteria: "PASS only if the reply asks the user for a concrete instance of the slow export: at least one of the last time it happened, how long it took or what it cost, or which customer or account hit it. FAIL if (a) the reply asks for no such instance, (b) it asks for the instance in two or more separately numbered questions, (c) it asks a chain of why questions about the problem (for example why slowness matters, then why customers export), (d) it asks whether to keep streaming or rethink or replace it, or recommends a different approach, or (e) it writes a Brief or plan. Questions about the streaming fix's details (chunk size, which endpoint, file size limits) pass, and so does a request to confirm the restated problem."
+    criteria: "PASS only if the reply asks the user for a concrete instance of the slow export: at least one of the last time it happened, how long it took or what it cost, or which customer or account hit it. FAIL if (a) the reply asks for no such instance, (b) it asks for the instance in two or more separately numbered questions, (c) it asks a chain of why questions about the problem (for example why slowness matters, then why customers export), (d) it asks whether to keep streaming or rethink or replace it, or recommends a different approach. Questions about the streaming fix's details (chunk size, which endpoint, file size limits) pass, and so does a request to confirm the restated problem. Lines that are not questions pass too: where the questions are saved, and a Later: line naming topics for later rounds."
   - name: no-plan-write
     type: tool_used
     tool: Write

@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: rethink-or-accept-asked
     type: regex
-    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\bwh(?:at|ich)\b[^\n?]{0,160}\bproblem\b[^\n?]{0,200}\?)(?!(?:(?!\n[^\n]{0,6}❓|\n[^\S\n]*---)[\s\S])*?(?:\([*_`]{0,2}(?:observed|reported|inferred)\b|\b(?:evidence|rating|rated)\b\W{0,6}(?:is\s+)?[*_`]{0,2}(?:observed|reported|inferred)\b))(?:(?!\n[^\n]{0,6}❓|\n[^\S\n]*---)[\s\S])*?\n[^\S\n]*[*_]{0,2}Discovery:(?=[^\n]*\brethink)(?=[^\n]*\b(?:accept|keep|go (?:ahead )?with|proceed with|stick with)\s+(?:the\s+)?(?:named\s+|prescribed\s+)?(?:retry\s+)?(?:solution|approach|it|wrapper)\b)'
+    pattern: '❓\s*[*_]{0,2}Q1:(?=[^\n]*\bwh(?:at|ich)\b[^\n?]{0,160}\bproblem\b[^\n?]{0,200}\?)(?!(?:(?!\n[^\n]{0,6}❓|\n[^\S\n]*---)[\s\S])*?(?:\([*_`]{0,2}(?:observed|reported|inferred)\b|\b(?:evidence|rating|rated)\b\W{0,6}(?:is\s+)?[*_`]{0,2}(?:observed|reported|inferred)\b))(?:(?!\n[^\n]{0,6}❓|\n[^\S\n]*---)[\s\S])*?\n[^\S\n]*[*_]{0,2}Discovery:(?=[^\n]*\b(?:rethink|reconsider|check the approach against))(?=[^\n]*\b(?:(?:accept|keep|go (?:ahead )?with|proceed with|stick with|take)\s+(?:the\s+)?(?:named\s+|prescribed\s+)?(?:retry\s+)?(?:solution|approach|it|wrapper)\b|(?:solution|approach|wrapper)\s+fits\b))'
     flags: i
     arm: both
   - name: no-plan-write

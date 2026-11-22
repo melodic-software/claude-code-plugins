@@ -11,6 +11,10 @@
     {
       "answer": "Use the workflow skill to work out the next stage.",
       "why": "workflow skill"
+    },
+    {
+      "answer": "The usual tool for \"I arrived mid-flow and don't know the stage\" is `/session-flow:workflow`, which works out the stage from what's on disk.",
+      "why": "a negation inside a quoted user phrase does not negate the navigator"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "Don't bother with /session-flow:workflow; just run /planning:plan.",
       "why": "negated navigator"
+    },
+    {
+      "answer": "You said \"I'm unsure\", so don't use /session-flow:workflow; run /planning:plan.",
+      "why": "negated navigator after a quoted phrase"
     },
     {
       "answer": "You are at an unknown workflow stage, so run /planning:design.",
