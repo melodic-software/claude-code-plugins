@@ -301,7 +301,7 @@ its report line is printed. Procedure:
 
 ## Next
 
-- The topology settles a decision worth keeping: `/architecture:record-decision`.
+- The topology settles a decision worth keeping: `/architecture:adr`.
 - The topology needs a deployment change decided: `/planning:design system`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 

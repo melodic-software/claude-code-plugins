@@ -69,3 +69,11 @@ test("a chunk verifier is told to read across chunks, and no text says it cannot
   assert.match(chunk, /a `pass` or `pass-notes` that skips a part, or reads one in pieces, is void/);
   assert.doesNotMatch(flat("./chunk-diff.sh"), /reads only its own parts/);
 });
+
+test("every judge of a chunked head is told a file larger than one chunk comes in pieces", () => {
+  const note = flat("./chunk-note.md");
+  assert.doesNotMatch(note, /each file whole,/);
+  for (const text of [note, spec]) assert.match(text, /cut at its hunks into pieces in different chunks/);
+  for (const text of [note, spec]) assert.ok(text.includes("`piece <i> of <n>`"));
+  assert.match(note, /the file's other hunks are in the parts its other pieces name/);
+});

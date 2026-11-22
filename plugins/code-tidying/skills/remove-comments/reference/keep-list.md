@@ -17,7 +17,10 @@ The shipped keep list. A repository replaces it through the `comment_keep_list` 
   path form its ADR folder uses (`# See docs/adr/0042`), restates none of the record's reason, and
   sits at a module header or on a line whose decision the code does not make obvious. Keep it only
   when the named record exists; a pointer to a missing record is class A. A comment that also
-  states the reason is ordinary rationale, not this keep;
+  states the reason is ordinary rationale, not this keep. The comment lint passes a one-line
+  comment that holds only the id (`ADR-0042`, `ADR 42`) or one relative path into the
+  `comment_adr_dir` folder (default `docs/adr/`), optionally after `See`, when that record exists
+  there;
 - a **script's exit-code list**: in a script's opening `#` comment block (the comment lines that
   start the file, after any shebang), an `Exit`, `Exit codes` or `Exits` heading line and its
   entries, each a line starting with a status number then text, plus that entry's continuation

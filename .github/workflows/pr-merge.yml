@@ -180,22 +180,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&
-              sha=$(awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }' <<<"$refs") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-          # The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only
-          # while no tag is named main, which they refuse: with it, no reader
-          # process reads git/ref/tags/main or git/ref/heads/main again.
-          if ! awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
-            echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"
-          fi
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -204,7 +191,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -274,7 +261,7 @@ jobs:
         if: steps.mode.outputs.live == 'true'
         continue-on-error: true
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -291,7 +278,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           ACTIONS_TOKEN: ${{ github.token }}
           LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -1092,22 +1079,9 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&
-              sha=$(awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }' <<<"$refs") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-          # The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only
-          # while no tag is named main, which they refuse: with it, no reader
-          # process reads git/ref/tags/main or git/ref/heads/main again.
-          if ! awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
-            echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"
-          fi
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
 
       # Everything below runs from main as it is right now, never from a PR.
       # Full history: the gate reads the pipeline config's history from this
@@ -1120,7 +1094,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -1493,7 +1467,7 @@ jobs:
         if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
@@ -1518,7 +1492,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
@@ -1542,7 +1516,7 @@ jobs:
         if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
@@ -2268,16 +2242,9 @@ jobs:
           && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         timeout-minutes: 4
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::warning::the tip of $TIP_BRANCH did not resolve; the steps below read it"; exit 0; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
 
       - name: Re-fire lane runs refused as workflow-modified
         if: >-
@@ -2518,22 +2485,9 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until refs=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" refs/tags/main) &&
-              sha=$(awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }' <<<"$refs") && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-          # The onMain readers' tip (head-ref-map.mjs PR_MERGE_MAIN_TIP), only
-          # while no tag is named main, which they refuse: with it, no reader
-          # process reads git/ref/tags/main or git/ref/heads/main again.
-          if ! awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
-            echo "carry-tip=$sha" >>"$GITHUB_OUTPUT"
-          fi
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
 
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2543,7 +2497,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -2712,7 +2666,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: last-report
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2752,7 +2706,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: carry-run-cache
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2803,7 +2757,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: lane-records
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2940,7 +2894,7 @@ jobs:
           && (!inputs.pr || steps.keep-report.outputs.stands == 'true')
         continue-on-error: true
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: head-ref-map
           ACTIONS_TOKEN: ${{ github.token }}
@@ -2959,7 +2913,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         env:
-          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.carry-tip }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: verify-answers
           ACTIONS_TOKEN: ${{ github.token }}
@@ -3217,16 +3171,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -3322,16 +3269,9 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       # The api-budget library and the upload scanner, from the default
       # branch. A failed checkout leaves neither: the steps below call GitHub
       # as they would without the library, and no reading is logged, but the
@@ -3570,16 +3510,9 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       - name: Check out the api-budget library
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
@@ -3658,16 +3591,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

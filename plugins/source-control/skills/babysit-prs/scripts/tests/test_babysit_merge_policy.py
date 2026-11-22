@@ -5568,6 +5568,7 @@ class LocalEnabledSince(unittest.TestCase):
         )
         blob = self.git(self.clone, "rev-parse", f"{head}:tool.sh")
         self.assertEqual([(f.blob, f.previous_blob) for f in files], [(blob, blob)])
+        self.assertEqual([f.diff_read for f in files], [False])
         self.assertEqual(
             gh.calls,
             [
@@ -5579,6 +5580,38 @@ class LocalEnabledSince(unittest.TestCase):
                 ]
             ],
         )
+
+    def test_a_no_patch_file_is_read_from_the_clone_diff_only_as_text(self) -> None:
+        base = self.commit("docs/big.md", "old\n", "2026-10-01T00:00:00Z")
+        self.commit("docs/big.md", "x" * 4000 + "\n", "2026-10-02T00:00:00Z")
+        (self.clone / "tool.bin").write_bytes(b"\0binary\n")
+        self.git(self.clone, "add", "tool.bin")
+        self.git(self.clone, "commit", "-q", "-m", "y", date="2026-10-03T00:00:00Z")
+        head = self.git(self.clone, "rev-parse", "HEAD")
+        gh = self.local()
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {"filename": "docs/big.md", "status": "modified", "additions": 1, "deletions": 1},
+            {"filename": "tool.bin", "status": "added", "additions": 0, "deletions": 0},
+            {
+                "filename": "docs/small.md",
+                "status": "added",
+                "additions": 1,
+                "deletions": 0,
+                "patch": "@@",
+            },
+        ]  # fmt: skip
+        pr = {
+            "number": 7,
+            "changed_files": 3,
+            "head": {"sha": head},
+            "base": {"sha": base},
+        }
+        files, _ = policy.changed_files(REPO, pr)
+        self.assertEqual(
+            [(f.path, f.diff_read) for f in files],
+            [("docs/big.md", True), ("tool.bin", False), ("docs/small.md", False)],
+        )
+        self.assertFalse(policy._diff_read("0" * 40, head, "docs/big.md"))
 
     def test_a_tree_missing_from_the_clone_reads_the_api(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")

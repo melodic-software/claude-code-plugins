@@ -396,7 +396,7 @@ condition) belongs to the invocation-reach tracked strand in
   trigger again before v1.3.0 (`e12e7ec`, `54bc6b6`, then `d80fa0f` for the `GLOSSARY.md` rename);
   it now fires when the talk turns to codebase terms, or when a `GLOSSARY.md` or an ADR is being written or changed. C23 holds
   for the glossary half. The ADR clause is a deliberate REJECT: `ubiquitous-language` owns no ADRs and
-  leaves them to `/architecture:record-decision`
+  leaves them to `/architecture:adr`
   (`plugins/domain-driven-design/skills/ubiquitous-language/SKILL.md:84-85`).
 
 ## Lane E (#2949)

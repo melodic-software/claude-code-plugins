@@ -120,6 +120,14 @@ timeout or a raised `retention-days` there reports nothing. A
 `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments, is the MED
 `cost-finding`, reported and never held.
 
+A file the files API sends no patch for rates MED as `no-patch:<path>`, which
+does not hold, when it is an image, font or PDF (`MEDIA_SUFFIXES`), when its
+blob ids show no unread content, or when `ChangedFile.diff_read` is True: the
+caller counted its changed lines as text in `git diff <base>...<head>`, the
+diff both review lanes read with `--text`, so a review read the change. Any
+other rates HIGH as `unreviewed-patch:<path>`, for a person. A path listed
+twice holds when either entry does.
+
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
 uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
@@ -189,6 +197,7 @@ class ChangedFile:
     # (`_unread_content`); None holds it for a person.
     blob: str | None = None
     previous_blob: str | None = None
+    diff_read: bool = False
 
 
 @dataclass(frozen=True)
@@ -2225,8 +2234,8 @@ LONG_LINE_BYTES = 1800
 
 
 _UNREAD_DETAIL = (
-    "no patch, so no review read it (git calls a file with a NUL byte"
-    " binary, and an over-size patch is not sent); a person reads it"
+    "no patch, and the git diff did not show its change as text (git calls"
+    " a file with a NUL byte binary), so no review read it; a person reads it"
 )
 _BLOB_ID = re.compile(r"[0-9a-f]{40}")
 EMPTY_BLOB = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
@@ -2294,8 +2303,9 @@ def _size_reasons(
     for f, raw in zip(files, raw_files):
         if f.has_patch is False:
             media = f.path.casefold().endswith(MEDIA_SUFFIXES)
+            read = getattr(raw, "diff_read", None) is True
             unread[f.path] = unread.get(f.path) or (
-                None if media else _unread_content(raw)
+                None if media or read else _unread_content(raw)
             )
     for path, detail in unread.items():
         if detail is None:
@@ -2435,10 +2445,6 @@ MERGEABLE_MED = frozenset(
     }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
-# A file with no patch passes unread as an image, font or PDF, which nothing
-# runs, or when it carries no unread content (`_unread_content`). Any other
-# file (a script whose NUL byte makes git call it binary, an over-size patch)
-# no review read, so a person does.
 MEDIA_SUFFIXES = (
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp",
     ".woff", ".woff2", ".ttf", ".otf", ".pdf",

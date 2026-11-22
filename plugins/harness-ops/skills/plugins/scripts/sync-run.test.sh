@@ -238,7 +238,10 @@ case "$verb" in
     message+=". This plugin is disabled by default - enable it with: claude plugin enable ${3:-}"
   [[ -z "${CLAUDE_STUB_INSTALL_UNSET:-}" ]] ||
     message+=$'\n'"$CLAUDE_STUB_INSTALL_UNSET - run /plugin configure ${3:-} in Claude Code, or pass --config KEY=VALUE."
-  result install ok "${3:-}" "$message"
+  # The result field 2.1.323 and later add beside that sentence.
+  extra='{}'
+  [[ -z "${CLAUDE_STUB_INSTALL_UNSET_COUNT:-}" ]] || extra="{\"unsetOptionCount\": $CLAUDE_STUB_INSTALL_UNSET_COUNT}"
+  result install ok "${3:-}" "$message" "$extra"
   # Opt-in user-settings state: an install writes the user-scope key as the CLI
   # does, `false` for a disabled-by-default plugin and `true` otherwise.
   if [[ -n "${CLAUDE_STUB_SETTINGS_STATE:-}" ]]; then
@@ -1371,9 +1374,11 @@ assert_eq "text result: the update line still yields an Updated row" "alpha@mark
   "$(jq -r '.marketplaces[0].user_sweep.updated[0] | "\(.id) \(.old) \(.new)"' <<<"$out")"
 
 # --- the stub's result lines keep the recorded shape ----------------------------
-# fixtures/cli-json-results.jsonl holds result lines an attended probe captured
-# from Claude Code 2.1.310. Each stub line must carry the same keys and
-# updateOutcome as its recording, so a stub drifting from the CLI fails here.
+# fixtures/cli-json-results.jsonl holds result lines attended probes captured
+# from Claude Code 2.1.310 and, for the install-unset-count and
+# install-config-partial rows, 2.1.330. Each stub line must carry the same keys
+# and updateOutcome as its recording, so a stub drifting from the CLI fails here:
+# https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
 stub_line() { # stub_line <env...> -- <args...>: the stub's last stdout line
   local -a vars=()
   while [[ "$1" != -- ]]; do
@@ -1396,6 +1401,8 @@ assert_eq "recorded shape: a failed update" "$(recorded_shape update-missing)" \
   "$(stub_shape "$(stub_line CLAUDE_STUB_UPDATE_FAIL_ID=alpha@market1 -- plugin update alpha@market1 -s user --json)")"
 assert_eq "recorded shape: an install" "$(recorded_shape install)" \
   "$(stub_shape "$(stub_line -- plugin install beta@market1 -s user --json)")"
+assert_eq "recorded shape: an install that left options unset" "$(recorded_shape install-unset-count)" \
+  "$(stub_shape "$(stub_line CLAUDE_STUB_INSTALL_UNSET_COUNT=2 -- plugin install beta@market1 -s user --json)")"
 assert_eq "recorded shape: a failed install" "$(recorded_shape install-missing)" \
   "$(stub_shape "$(stub_line CLAUDE_STUB_INSTALL_FAIL_ID=beta@market1 -- plugin install beta@market1 -s user --json)")"
 assert_contains "recorded shape: the disabled-by-default sentence the stub copies" \
@@ -2116,6 +2123,26 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir2" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_
 out=$(run_sync "$case_dir2" --marketplace market1 --install-new all --journal-root "$case_dir2/journal")
 assert_eq "render unset config: a single option with no required clause" '[{"id":"beta@market1","options_unset":1,"required":null}]' \
   "$(jq -c '.marketplaces[0].installed_with_unset_user_config' <<<"$out")"
+unset_field_case() {
+  local dir
+  dir=$(new_case_dir)
+  cp -r "$case_dir"/. "$dir"/
+  : >"$dir/claude.log"
+  : >"$dir/cc.log"
+  : >"$dir/normalize.log"
+  write "$dir/installed_plugins.json" "{\"version\": 1, \"plugins\": {\"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$dir/cache/alpha\", \"version\": \"0.1.0\"}]}}"
+  write "$dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  EXTRA_ENV=(CLAUDE_PROJECT_DIR="$dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+    CLAUDE_STUB_INSTALL_UNSET_COUNT="$1" CLAUDE_STUB_INSTALL_UNSET="${2:-}")
+  run_sync "$dir" --marketplace market1 --install-new all --journal-root "$dir/journal" |
+    jq -c '.marketplaces[0].installed_with_unset_user_config'
+}
+CASE_NUM=$((CASE_NUM + 1))
+assert_eq "render unset config: the field alone gives the count" '[{"id":"beta@market1","options_unset":2,"required":null}]' \
+  "$(unset_field_case 2)"
+CASE_NUM=$((CASE_NUM + 1))
+assert_eq "render unset config: the field with the sentence keeps the required count" '[{"id":"beta@market1","options_unset":2,"required":1}]' \
+  "$(unset_field_case 2 "2 userConfig options not yet set (1 required)")"
 
 # --- audit: every mutating line is a prediction, Would withhold beside Would update
 CASE_NUM=$((CASE_NUM + 1))

@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [11.9.0] - 2026-11-22
+
+### Changed
+
+- address-feedback and fix-ci run the check-affected self-check over their uncommitted work before they hand it on, as resolve-issue does; the runner stages checks and self-checks under prepare: review-threads and ci-context.
+
+## [11.8.4] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
+## [11.8.3] - 2026-11-22
+
+### Fixed
+
+- The merge gate's risk score counts a text file the files API sends no patch for (an over-size diff) as reviewed when a local clone holding the base and head counts its changed lines as text in `git diff <base>...<head>`, the diff both review lanes read with `--text`. Such a file scores `no-patch:<path>` and no longer holds for a person as `unreviewed-patch:<path>`. A file git calls binary, or whose git diff cannot be read, still holds.
+
 ## [11.8.2] - 2026-11-22
 
 ### Fixed

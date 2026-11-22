@@ -84,14 +84,14 @@ integrates the reference changes and opens the pull request that closes it.
 
 ## Why this wraps the upstream skill
 
-Verdict: keep the wrapper. Microsoft's own skill, `@playwright/cli` 0.1.24
-(checked 2026-11-16; recheck when a newer `@playwright/cli` release changes its `SKILL.md`
+Verdict: keep the wrapper. Microsoft's own skill, `@playwright/cli` 0.1.25
+(checked 2026-11-22; recheck when a newer `@playwright/cli` release changes its `SKILL.md`
 description, length, or reference layout), falls short of the skill-authoring guidance this
 marketplace follows:
 
 - Its description is one short sentence with no trigger phrases, so the model
   has little to route on.
-- Its `SKILL.md` body is 493 lines, close to the size the skill-authoring
+- Its `SKILL.md` body is 497 lines, close to the size the skill-authoring
   guidance tells authors to stay under, and carries the whole command reference
   inline, so every invocation loads all of it. For that size guidance, see
   [Skills: Add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files).

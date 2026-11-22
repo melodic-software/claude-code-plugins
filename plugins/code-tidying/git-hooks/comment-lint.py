@@ -18,7 +18,10 @@ token rules, comment-census.py's tokens), on an added line, passes when it is on
 allowed shapes or an extended regular expression in <allow> (one per line, matched with
 grep -E) matches its text; every other one prints
   <path>:<line>: comment outside the <posture> posture: ...
-on stdout. A path with no lexer is skipped with one notice on stderr.
+on stdout. A path with no lexer is skipped with one notice on stderr. Under necessary, a
+one-line ADR pointer (ADR-0042, or a path into <adr-dir>) passes only when the record exists
+under <adr-dir> (default docs/adr; one outside <records> falls back to it) of <records>, the
+repository as the change holds it; with no <records> it fails.
 
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
@@ -73,6 +76,11 @@ PINNED_SHA = re.compile(
 IGNORE = "remove-comments-ignore"
 DISSOLVE = "dissolve-comments-ignore"
 LINK = re.compile(r"https?://\S|\bRFC[\s-]?\d+", re.IGNORECASE)
+ADR_DIR = "docs/adr"
+ADR_POINTER = re.compile(
+    r"^[#/*;!%\s-]*(?:see\s+)?(?:adr[\s-]?(\d+)|([\w.-]*/[\w./-]+))[\s*/]*$", re.IGNORECASE
+)
+LEADING_NUMBER = re.compile(r"\d+")
 EXIT_HEADING = re.compile(r"^#+\s*(?:exit(?:\s+codes)?|exits)\s*:?(?:\s+(\d).*)?$", re.IGNORECASE)
 EXIT_ENTRY = re.compile(r"^#+\s+\d+\b[^\w\n]*\w")
 HASH_INDENT = re.compile(r"^#+(\s*)")
@@ -223,7 +231,40 @@ def _link_span(n: int, run: list[int], lines: list[_Line]) -> list[int]:
     return run[low : high + 1]
 
 
-def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
+def _adr_folder(repo: Path, adr_dir: str) -> Path:
+    root = repo.resolve()
+    folder = (root / adr_dir).resolve()
+    if folder == root or not folder.is_relative_to(root):
+        return (root / ADR_DIR).resolve()
+    return folder
+
+
+def _adr_pointer(text: str, path: str, repo: Path | None, adr_dir: str) -> bool:
+    match = ADR_POINTER.match(text)
+    if not match or repo is None:
+        return False
+    folder = _adr_folder(repo, adr_dir)
+    if not folder.is_dir():
+        return False
+    if match.group(1):
+        number = int(match.group(1))
+        return any(
+            (lead := LEADING_NUMBER.match(f.name)) and int(lead.group()) == number
+            for f in folder.iterdir()
+        )
+    for base in (repo, (repo / path).parent):
+        target = (base / match.group(2)).resolve()
+        if not target.is_relative_to(folder) or not target.parent.is_dir():
+            continue
+        if target.is_file() or any(
+            f.name.startswith((target.name + "-", target.name + "."))
+            for f in target.parent.iterdir()
+        ):
+            return True
+    return False
+
+
+def _passes(n, lines, run_of, block_of, source, posture, lexer_name, path="", repo=None, adr_dir=ADR_DIR) -> bool:
     ln = lines[n]
     text = ln.comment
     run = run_of.get(n, [n])
@@ -255,6 +296,12 @@ def _passes(n, lines, run_of, block_of, source, posture, lexer_name) -> bool:
         return True
     if posture == "necessary" and any(
         LINK.search(lines[m].comment) for m in _link_span(n, run, lines)
+    ):
+        return True
+    if (
+        posture == "necessary"
+        and [m for m in run if _has_prose(lines[m])] == [n]
+        and _adr_pointer(text, path, repo, adr_dir)
     ):
         return True
     if posture == "necessary" and n in _exit_doc(_header(lines, run_of, source), lines):
@@ -351,7 +398,7 @@ def _allowed(texts: list[str], allow: list[str]) -> set[int]:
     return {int(row.split(":", 1)[0]) - 1 for row in proc.stdout.splitlines() if row}
 
 
-def findings(path: str, text: str, added, posture: str, allow: list[str]):
+def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR):
     """The finding lines for the comments on <added> lines of <path>; None when no lexer reads it."""
     lexer, tokens = _lex(path, text)
     if lexer is None:
@@ -369,7 +416,7 @@ def findings(path: str, text: str, added, posture: str, allow: list[str]):
                 source[n - 1] if n - 1 < len(source) else "", lines[n].comment
             ):
                 continue
-            if not _passes(n, lines, run_of, block_of, source, posture, lexer.name):
+            if not _passes(n, lines, run_of, block_of, source, posture, lexer.name, path, repo, adr_dir):
                 candidates.append(n)
     candidates = sorted(set(candidates))
     kept = _allowed([lines[n].comment for n in candidates], allow)
@@ -399,6 +446,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--ranges", required=True, type=Path)
     parser.add_argument("--allow", type=Path)
+    parser.add_argument("--records", type=Path)
+    parser.add_argument("--adr-dir", default=ADR_DIR)
     args = parser.parse_args(argv)
     try:
         import pygments  # noqa: F401
@@ -421,7 +470,7 @@ def main(argv: list[str]) -> int:
     for path in paths:
         text = (args.root / path).read_text(encoding="utf-8", errors="replace")
         try:
-            got = findings(path, text, ranges.get(path, []), args.posture, allow)
+            got = findings(path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir)
         except ValueError as err:
             print(
                 f"comment-lint: grep -E rejected a comment_lint_allow pattern: {err}",

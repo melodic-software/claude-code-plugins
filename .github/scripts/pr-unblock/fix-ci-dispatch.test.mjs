@@ -343,7 +343,7 @@ test("a head whose ci-lanes passed, is pending, is missing or came from another 
 // while the lanes pass: no fix-ci round, since the reconciler re-runs the
 // review after the reset (https://github.com/melodic-software/claude-code-plugins/issues/17460, assumption A4).
 test("a head whose ci-status failed only on a stopped review, with ci-lanes passed, gets no fix-ci round", async () => {
-  const { api, result } = await run({ pages: [[pr(7, { checks: [check("ci-status", "FAILURE", { title: "a kill switch was on when it started" }), lanes("SUCCESS")] })]] });
+  const { api, result } = await run({ pages: [[pr(7, { checks: [check("ci-status", "FAILURE", { title: "an API budget defer or a kill switch was on when it started" }), lanes("SUCCESS")] })]] });
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(api.calls.dispatch, []);
 });

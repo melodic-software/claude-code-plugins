@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-11-22
+
+### Added
+
+- `/multi-agent:route vendors <task>` picks the vendor (Claude, Codex or Gemini), model and effort for one delegated task: each vendor's default for everyday work, one effort step up with a named basis for a heavy whole-task delegation. Codex and Gemini facts come only from `external-agents models <product>`; without external-agents it covers Claude. The rules and the checked benchmark sources live in `reference/vendors.md`.
+
 ## [3.2.0] - 2026-11-22
 
 ### Added

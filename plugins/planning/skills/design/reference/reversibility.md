@@ -32,7 +32,7 @@ The definition of each door is [`<plugin-root>/reference/one-way-doors.md`](../.
 
 - **One-way door**: design it deliberately: write the criteria first, and run the Phase 2
   two-candidate step when its other triggers hold. Prompt for an ADR: when the thread resolves,
-  offer `/architecture:record-decision` (when that plugin is enabled) and note the offer in the
+  offer `/architecture:adr` (when that plugin is enabled) and note the offer in the
   thread. Unattended, list the ADR prompt in the run's output.
 - **Two-way door**: decide it fast, with a recommendation and its `Basis:` line; no ADR prompt.
 

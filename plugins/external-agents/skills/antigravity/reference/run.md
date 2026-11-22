@@ -15,9 +15,8 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
   `--mode read-only` to run a task without writes.
 - **Model and effort.** By default pass neither: `antigravity.model` and `antigravity.effort` from config
   apply when set, and agy's own default applies when not. Pass `--model` or `--effort` for one
-  run when the user names one, or when a heavy whole-task delegation calls for a different choice
-  and the sources in [routing.md](routing.md) support it. The models and levels this agy offers: `external-agents models antigravity`. Name the override and its basis in
-  the reply.
+  run when the user names one, or when `/multi-agent:route vendors <task>` recommends one for a
+  heavy whole-task delegation. Name the override and its basis in the reply.
 - **Resume** continues an agy conversation this plugin started. `--resume <thread-id>` takes a
   `thread_id` from `external-agents status <job>`; a thread that is not in this repository's job
   files is refused. `--last` resumes this plugin's newest job with a thread in this repository. A

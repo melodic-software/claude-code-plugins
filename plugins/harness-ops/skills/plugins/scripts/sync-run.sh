@@ -762,13 +762,17 @@ object_lines_to() {
 # command's review text can sit beside it.
 #   Claim: update prints `updateOutcome` (`updated`, `up_to_date`), `oldVersion`
 #     and `newVersion`; install and update print `outcome` (`ok`, `failed`),
-#     `message` and, on failure, `failureCode`. No field names unset userConfig
-#     options or a disabled-by-default install: both are sentences in `message`.
-#   Basis: attended probe on Claude Code 2.1.310 (WSL2), captured in
-#     sync-run.test.sh's stub shapes; plugins CLI reference, plugin JSON result.
-#   As of: 2026-10-25.
-#   Recheck: a Claude Code release that adds a field for either sentence, or
-#     changes `updateOutcome`'s values.
+#     `message` and, on failure, `failureCode`. Install adds `unsetOptionCount`
+#     (only when an option is unset) and `configApplied` (only with --config).
+#     No field gives the required count or a disabled-by-default install: both
+#     are sentences in `message`.
+#   Basis: attended probes on Claude Code 2.1.310 and 2.1.330 (WSL2, scratch
+#     CLAUDE_CONFIG_DIR), recorded in fixtures/cli-json-results.jsonl;
+#     https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
+#   As of: 2026-11-22.
+#   Recheck: a Claude Code release that adds a field for the required count or
+#     the disabled-by-default sentence, renames `unsetOptionCount`, or changes
+#     `updateOutcome`'s values.
 # One jq reads every candidate line. `values`: jq 1.7's last() of nothing is
 # null, and a found null would read as a result line.
 RESULT_LINE_JQ='last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values'
@@ -817,27 +821,43 @@ cli_reported_version() {
   fi
 }
 
-# The install's sentence about userConfig options the user has not set, as a
-# JSON object `{options_unset, required}` or `null`. The result line has no field
-# for it (cli_json's claim), so this reads the sentence in `message`. Classified at
-# capture time from the UNTRUNCATED output: the digest row keeps 400 characters.
+# The userConfig options an install left unset, as a JSON object
+# `{options_unset, required}` or `null`. `options_unset` is the result's
+# `unsetOptionCount` when present, else the count in `message`'s sentence; no
+# field carries `required` (cli_json's claim), so it always comes from the
+# sentence. Classified at capture time from the UNTRUNCATED output: the digest
+# row keeps 400 characters.
 #   Claim: the sentence is "<N> userConfig option(s) not yet set[ (<M> required)]
-#     — run /plugin configure <id> in Claude Code, or pass --config KEY=VALUE."
-#   Basis: attended probe on Claude Code 2.1.310, `plugin install --json`
-#     `message` with two options and with three.
-#   As of: 2026-10-25.
+#     — run /plugin configure <id> in Claude Code, or pass --config KEY=VALUE.",
+#     and `unsetOptionCount` equals its N.
+#   Basis: attended probes of `plugin install --json` on Claude Code 2.1.310
+#     (two options and three) and 2.1.330 (two unset with one required, one
+#     unset, none unset);
+#     https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
+#   As of: 2026-11-22.
 #   Recheck: as cli_json.
 unset_user_config_of() {
   local __var="$1"
-  local text
-  cli_message text "$2"
-  if [[ "$text" =~ ([0-9]+)\ userConfig\ options?\ not\ yet\ set(\ \(([0-9]+)\ required\))? ]]; then
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to "$__var" -c -n --arg n "${BASH_REMATCH[1]}" --arg r "${BASH_REMATCH[3]:-}" \
-      '{options_unset: ($n | tonumber), required: (if $r == "" then null else ($r | tonumber) end)}'
-  else
-    printf -v "$__var" '%s' "null"
+  local text="$2" json pair count="" n="" r=""
+  cli_json json "$2"
+  if [[ -n "$json" ]]; then
+    jq_to pair -r '(.unsetOptionCount | if type == "number" and . > 0 then tostring else "" end)
+      + "\u001f" + (.message // "")' <<<"$json"
+    count="${pair%%$'\x1f'*}"
+    text="${pair#*$'\x1f'}"
   fi
+  if [[ "$text" =~ ([0-9]+)\ userConfig\ options?\ not\ yet\ set(\ \(([0-9]+)\ required\))? ]]; then
+    n="${BASH_REMATCH[1]}"
+    r="${BASH_REMATCH[3]:-}"
+  fi
+  n="${count:-$n}"
+  if [[ -z "$n" ]]; then
+    printf -v "$__var" '%s' "null"
+    return 0
+  fi
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to "$__var" -c -n --arg n "$n" --arg r "$r" \
+    '{options_unset: ($n | tonumber), required: (if $r == "" then null else ($r | tonumber) end)}'
 }
 
 # What the CLI said it did, classified at capture time, because the outcome is not

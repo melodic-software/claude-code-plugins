@@ -822,11 +822,12 @@ Each leaf declares:
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
   `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (one
   without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing, except
-  `verify-scripts` under `prepare: ci-context`, which the read runner stages as a base copy the
+  `verify-scripts` and `self-checks` under `prepare: ci-context`, which the read runner stages as a base copy the
   skill is told to run in place of the checkout's; its Bash, Edit and Write stay open, so review
   of the patch is the control.
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
-  through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
+  through the same wrapper before it commits or hands its change on, also under `prepare:
+  ci-context` (fix-ci) and in a patch skill with `prepare: review-threads` (address-feedback). Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
   report. A script in both lists fails red.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
@@ -1307,10 +1308,13 @@ the rules that only tighten in
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
   `no-patch:` is an image, font or PDF, or a file whose blob ids show no unread content: a rename,
   mode change or modification that keeps its blob and does not gain execute, or an empty file added
-  or removed.
+  or removed. It is also a text file whose change the review lanes read from the git diff: the
+  files API sends no patch for an over-size text diff, but both review lanes read
+  `git diff --text <base>...<head>`, so when a local clone holding both commits counts the file's
+  changed lines as text in that diff, the file counts as reviewed.
   Any other file the files API sends no patch for (a script with a NUL byte that git calls binary,
-  an over-size patch, a copy, an unread blob id) no review read, so it holds for a person as
-  `unreviewed-patch:<path>`.
+  a file whose git diff no clone could read, an unread blob id) no review read, so it holds for a
+  person as `unreviewed-patch:<path>`.
 - **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
@@ -1551,16 +1555,19 @@ the rules that only tighten in
   change (the merge gate's own cutoff), or a failed read, fetch or diff reviews again. The diff is
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
-  boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
+  boundaries with each file whole, except that a file over 300000 bytes is cut at its hunks into
+  pieces, each under the file's header and no two in one chunk (`split-diff.py`); each chunk is
+  reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
-  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single file
-  over 300000 bytes, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
+  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single hunk
+  over 300000 bytes with its file's header, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
   review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
   until a dynamic chunk count lifts it
   ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
   diff also writes `manifest.txt` in the data directory, every file of the whole diff with its
-  chunk and status (added, modified, deleted, or renamed with both paths), up to what one Read
+  chunk, `piece <i> of <n>` for each piece of a cut file, and status (added, modified, deleted,
+  or renamed with both paths), up to what one Read
   returns whole (`PART_BYTES`). Each chunked prompt names that file, tells the reviewer to read
   it as untrusted data, and asks for a finding naming both paths when a change references a file
   another chunk holds; the paths, which the pull request's author chose, never enter the prompt,
@@ -2781,7 +2788,9 @@ sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
-whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk
+whole but one over 300000 bytes, cut at its hunks into pieces the manifest lists as
+`piece <i> of <n>` (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`),
+and a file with one hunk over a chunk gets no verdict; each chunk
 gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
 (`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when
@@ -4543,7 +4552,7 @@ Size the process to the change:
 - A sub-topic of lane work gets a one-page plan.
 - Run `/planning:design`, the plan review and `/planning:devils-advocate` only for a change that
   moves a trust boundary.
-- Record an ADR only for a trust-boundary or irreversible choice; `/architecture:record-decision`'s
+- Record an ADR only for a trust-boundary or irreversible choice; `/architecture:adr`'s
   admission test still applies, and a reversible choice goes in the PR body.
 - When the owner pre-approved the recommended options, stop only on the items the owner reserved.
 

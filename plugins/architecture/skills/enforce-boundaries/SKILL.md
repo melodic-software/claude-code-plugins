@@ -175,7 +175,7 @@ the files changed.
 ## Next
 
 - A rule has existing crossings to fix: /implementation:implement.
-- The mechanism chosen for the repository is worth a record: /architecture:record-decision.
+- The mechanism chosen for the repository is worth a record: /architecture:adr.
 - No boundary rule is recorded yet: /architecture:improve conventions.
 
 ## Gotchas

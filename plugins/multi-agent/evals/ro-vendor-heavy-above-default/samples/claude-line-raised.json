@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model sonnet @ effort high (basis: model-config § choose an effort level; unattended many-file bug fix is a heavy task)",
+      "why": "one step up with a named basis"
+    },
+    {
+      "answer": "- `claude: model opus @ effort xhigh` (basis: model-config § choose an effort level; long unattended task)",
+      "why": "bulleted, higher level"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude: model sonnet @ effort medium (basis: default; everyday task)",
+      "why": "stayed at the default"
+    },
+    {
+      "answer": "claude: model sonnet @ effort high (basis: default; heavy task)",
+      "why": "raised effort but basis default"
+    }
+  ]
+}
