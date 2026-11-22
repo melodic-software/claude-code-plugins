@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "browser_mode is headed, from the old team file .claude/testing/e2e.md. The run warns: .claude/testing/e2e.md is an old location; move it to docs/conventions/testing/e2e.md.",
+      "why": "value, old source and the warning naming both paths"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "browser_mode is headed, from .claude/testing/e2e.md.",
+      "why": "no warning and no new location"
+    },
+    {
+      "answer": "No docs/conventions/testing/e2e.md exists, so browser_mode is headless by default and .claude/testing/e2e.md is not read; no warning.",
+      "why": "old file dropped"
+    }
+  ]
+}

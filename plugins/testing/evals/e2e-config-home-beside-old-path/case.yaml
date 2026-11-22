@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-config-home-beside-old-path
+description: 'Dual-read window, both present: recording gif from docs/conventions/testing/e2e.md wins over video in .claude/testing/e2e.md, and the warning names both files and says the docs/conventions file was used. home-wins-warning reads the reply; meets-expectations (llm) checks the value, its source and the warning. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Reports recording gif from docs/conventions/testing/e2e.md and a warning naming both files that says the docs/conventions file was used.'
+execution:
+  prompt: '/testing:run-e2e the login flow. The convention-home command exits 1. docs/conventions/testing/e2e.md holds `recording: gif` and .claude/testing/e2e.md holds `recording: video`; there is no personal override file and no ~/.claude/testing/e2e.md. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say which recording value the run uses, which file supplied it, and each warning the run prints about config file locations, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: home-wins-warning
+    type: regex
+    pattern: '^(?=[\s\S]*\bgif\b)(?=[\s\S]*\.claude/testing/e2e\.md)(?=[\s\S]*docs/conventions/testing/e2e\.md)(?=[\s\S]*\bwarn)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: the convention-home command exits 1, docs/conventions/testing/e2e.md holds recording: gif and .claude/testing/e2e.md holds recording: video. PASS only if the reply (1) reports recording as gif, (2) names docs/conventions/testing/e2e.md as the file that supplied it, and (3) reports a warning that names both docs/conventions/testing/e2e.md and .claude/testing/e2e.md and says the docs/conventions file was used. FAIL if recording is video, the old file is named as the source, or the warning names only one of the two files.'

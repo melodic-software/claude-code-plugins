@@ -88,9 +88,11 @@ pixel_tolerance:
   reason: "subpixel text: the CI image renders without hinting"
 ```
 
-The user-global `~/.claude/testing.yaml`, the personal override `.claude/testing.local.yaml`
-(`source=personal-override`) and the plugin option can only lower the team value. The script reports a raise as ignored, and names an invalid
-layer and drops it. Quote a `reason` that holds a colon followed by a space.
+The personal override `docs/conventions/testing.local.yaml` (`source=personal-override`) and the
+plugin option can only lower the team value. So can the old `~/.claude/testing.yaml` and, when the
+new personal file is absent, the old `.claude/testing.local.yaml`; each one found prints a warning
+naming where to move it. The script reports a raise as ignored, and names an invalid layer and
+drops it. Quote a `reason` that holds a colon followed by a space.
 
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 

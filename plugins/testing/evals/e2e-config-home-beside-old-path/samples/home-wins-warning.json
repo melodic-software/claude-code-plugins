@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "recording is gif, from docs/conventions/testing/e2e.md. The run warns that docs/conventions/testing/e2e.md and .claude/testing/e2e.md both exist and that it used docs/conventions/testing/e2e.md.",
+      "why": "home value wins and the warning names both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "recording is video, from .claude/testing/e2e.md.",
+      "why": "old file wins, no warning"
+    },
+    {
+      "answer": "recording is gif, from docs/conventions/testing/e2e.md.",
+      "why": "no warning naming the old file"
+    }
+  ]
+}
