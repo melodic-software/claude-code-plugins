@@ -44,3 +44,5 @@ wayfind-labels-refused-stops-before-charting
 wayfind-labels-unknown-action-stops-before-charting
 wayfind-decision-record-close-runs-dossier-branch-step
 wayfind-prd-destination-closes-to-prd-with-source-map-line
+wayfind-event-model-design-item-falls-back-to-planning-design
+wayfind-prototype-item-without-prototype-plugin-falls-back-to-planning-design

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://github.com/acme/shop/issues/504): Knock (provisional until [Prove Knock sends email and in-app from one call](https://github.com/acme/shop/issues/504))",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://github.com/acme/shop/issues/504): Knock.",
+      "why": "breaks the rule"
+    }
+  ]
+}

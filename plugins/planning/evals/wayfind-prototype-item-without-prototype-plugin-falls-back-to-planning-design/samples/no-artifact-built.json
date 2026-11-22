@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Resolution comment on #504: Resolved by discussion through /planning:design: Knock. No artifact was built; the pass checks were not run.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolution comment on #504: Verdict: both pass checks passed. Knock confirmed.",
+      "why": "breaks the rule"
+    }
+  ]
+}
