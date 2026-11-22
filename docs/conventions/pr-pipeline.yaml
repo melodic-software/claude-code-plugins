@@ -1663,45 +1663,6 @@ merge:
     trusted-action-owners:
       - anthropics
       - melodic-software
-  # No path is held for being trusted alone (owner direction 2026-10-24)
-  # except the narrow path floor (diff_risk.py FLOOR_CLASSES, the paths
-  # every consumer shares, joined to `floor-paths` below, this repository's
-  # own rows; owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B).
-  # `author-lift: false` keeps a `gate` row with a person (owner decision
-  # Q11 (A)). Change a row here, then run scripts/sync-hold-floor.py. Its `trust`
-  # globs (request-lane-token, check-trusted-trigger, check-kill-switch,
-  # CODEOWNERS, .gitmodules) and `gate` globs (resolve-config, the rate
-  # guard, every pr-merge script, this file, babysit_merge*, diff_risk.py,
-  # babysit_review_evidence.py) wait for a person. Its `enforcement` globs
-  # (pr-merge.yml and pr-require-checks.yml, by owner direction 2026-10-27;
-  # the other modules the floored scripts import; the rest of the Python that
-  # decides the holds) wait for a clean security review bound to the head.
-  # It holds whatever `high-path-floor` says, while `path-holds` (below) is
-  # true. `high-path-floor:
-  # false` turns off the manifest review, which the security lane flags
-  # instead. The trusted-actor widening and cost holds stay on either way. The
-  # verifier verdict, both AI review lanes, ci-status and the post-merge
-  # revert breaker still gate every lane PR.
-  # Owner decision Q624 still holds for the rest: no denied path or size cap.
-  # Each comes back by setting it here: list denied-paths, or set
-  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
-  # `c2-contradictions` is deprecated and has no effect; set, it adds a
-  # `configNotes` entry to the gate report.
-  # The work-class lane hold covers untrusted-provenance work only
-  # (`trust_refusal` in babysit_merge_policy.py); every other lane PR off the
-  # HIGH floor merges on the verifier verdict.
-  # `path-holds` also sets whether ci-status holds an exempt author's PR for
-  # a trust-gate path or an App-authored one (`trust-path-hold-apps`), except
-  # that ci-status holds a Dependabot PR for one either way (owner decision
-  # Q24, 2026-10-29: its action-pin bumps bring in third-party code), unless
-  # it only bumps actions of `dependabot.trusted-action-owners` above (owner
-  # decision Q-ANTHROPIC-DEPS, 2026-10-31).
-  # `path-holds: false`: no changed path holds a pull request for its path
-  # alone, not the floor above, denied-paths nor `review-path:` (owner
-  # decision Q15, 2026-10-29: "We shouldn't really have any path
-  # restrictions at all"). True brings every one back. The gate report and
-  # enable-auto-merge's log name each hold it skipped.
-  # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
   diff-check:
     denied-paths: []
     high-path-floor: false

@@ -137,10 +137,6 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
     return sorted(seen)
 
 
-# The Python that decides the holds: diff_risk, and every script a floored
-# JS module runs (enable-auto-merge.mjs's VERIFY_SCRIPT), with every module of
-# babysit-prs/scripts/ they import.
-# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
 # A script path in a quoted string, or a bare one a `python`/`python3` command
 # runs, with or without a `.base/` checkout prefix.
@@ -439,9 +435,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_person_floor_is_the_same_list(self) -> None:
-        # HOLD_PATH_FLOOR (merge-holds.mjs) is diff_risk `Floor.high`, entry
-        # for entry and in order: the trust and gate globs a person clears.
-        # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
         script = (
             "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
             % json.dumps(MODULE.as_uri())

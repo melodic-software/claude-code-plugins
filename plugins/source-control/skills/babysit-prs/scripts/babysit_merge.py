@@ -5009,12 +5009,6 @@ def unattended_writes(
             )
             escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
             text = _normalized((prior or {}).get("body"))
-            # An escalated comment at this head stays escalated when its
-            # reasons change, so the label never stands beside a comment that
-            # no longer says why. Only a reason a person clears escalates
-            # (diff_risk.person_reasons, owner rule 2026-10-26); the lanes
-            # clear the rest, so their comment stays the record.
-            # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
             person = diff_risk.person_reasons(diff_risk.holding(risk))
             if (
                 person

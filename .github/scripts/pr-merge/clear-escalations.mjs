@@ -281,7 +281,6 @@ const REFUSAL_CLEARED = "refusal-cleared";
 //   person's), missing or unreadable (no answer), or ineligible (always
 //   paired with a link answer, which verifyHold reads first).
 // - link: none; an issue link is a person's.
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 export const LANE_CAUSES = Object.freeze({
   link: Object.freeze([]),
   verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed", "verify:repeated-fail", "verify:too-old"]),
