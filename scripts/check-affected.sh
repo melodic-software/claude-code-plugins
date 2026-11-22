@@ -278,7 +278,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md" "$out.cl" "$out.voc"' EXIT
+trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md" "$out.cl" "$out.voc" "$out.trace" "$out.trace.log"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -845,6 +845,28 @@ elif ((run_tests)); then
     npm_failed=1
     fail_check npm-deps "$rc" "bash scripts/setup-env.sh --node"
   fi
+  trace_pid='' trace_why=''
+  if ((npm_failed)); then
+    trace_why="npm dependencies did not install"
+  elif ((snapshot)); then
+    trace_why="--uncommitted has no commit here to list the changed suites from"
+  elif ! command -v strace >/dev/null 2>&1; then
+    trace_why="strace not installed"
+  elif ! trace_list="$(bash "$tools/scripts/selection-audit.sh" changed --base "$merge_base" 2>&1)"; then
+    trace_why="could not list the changed suites: ${trace_list##*$'\n'}"
+  elif [[ -z "$trace_list" ]]; then
+    trace_why="no changed suite"
+  else
+    mapfile -t trace_suites <<<"$trace_list"
+    printf -v now '%(%s)T' -1
+    if ((deadline - now < 1)); then
+      trace_why="past the ${budget}s budget, left to CI"
+    else
+      env -u CHECK_DATA_ROOT bash "$tools/scripts/selection-audit.sh" trace --jobs 1 \
+        --budget "$((deadline - now))" --out "$out.trace" "${trace_suites[@]}" >"$out.trace.log" 2>&1 &
+      trace_pid=$!
+    fi
+  fi
   # affected-tests exits 3 when it ran every shell suite it selected but also
   # selected suites it does not run, which it writes to the --write-not-run
   # file. One under a package of scripts/outside-node-packages.txt runs here as
@@ -940,6 +962,21 @@ elif ((run_tests)); then
     skip tests "npm dependencies did not install"
   else
     run_check tests "scripts/affected-tests.sh --run --jobs $jobs --budget $budget --base $base" affected
+  fi
+  selection_trace() {
+    local rc=0 left
+    wait "$trace_pid" || rc=$?
+    cat "$out.trace/report.md" 2>/dev/null || tail -n 5 "$out.trace.log"
+    ((rc == 1)) && return 1
+    ((rc == 0)) || return 2
+    left=$(awk -F'\t' '$2 == "not-traced"' "$out.trace/suites.tsv" | wc -l)
+    left=$((left + $(grep -c $'\tnot checked' "$out.trace/verdicts.tsv" 2>/dev/null || true)))
+    ((left == 0)) || { echo "$left suite(s) or file(s) left unchecked past the ${budget}s budget, left to CI"; return 2; }
+  }
+  if [[ -n "$trace_pid" ]]; then
+    run_check selection-trace "scripts/selection-audit.sh trace --strict ${trace_suites[*]}" selection_trace
+  else
+    skip selection-trace "$trace_why"
   fi
 fi
 
