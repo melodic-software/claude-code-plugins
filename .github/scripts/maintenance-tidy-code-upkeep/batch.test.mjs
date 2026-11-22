@@ -87,7 +87,7 @@ test("sortSweeps records a clean sweep and a refused one, and keeps a good branc
 test("sortSweeps refuses a branch that changes a hold path", () => {
   const held = { ...areas[0], area: "plugins/source-control", slug: "plugins-source-control" };
   const sweep = prSweep({ slug: "plugins-source-control" });
-  const raw = rawLine("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py");
+  const raw = rawLine("plugins/source-control/skills/babysit-prs/scripts/diff_risk.py");
   assert.deepEqual(sortSweeps([sweep], [held], { rawOf: () => raw, binary: () => false }), { kept: [], recorded: ["plugins-source-control"] });
 });
 

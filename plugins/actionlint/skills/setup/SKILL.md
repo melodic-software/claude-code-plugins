@@ -43,7 +43,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. The plugin only lints. Its hooks run only the shipped actionlint adapter,
 over the repository's workflow files, applying the repository's own actionlint config when there is
 one; they never run a
-command from the repository's github-actions record (`.claude/ecosystems/github-actions.yaml`),
+command from the repository's github-actions record (`docs/conventions/ecosystems/github-actions.yaml`),
 which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); it never writes the
 actionlint config or the record (`/toolchain:setup apply github-actions` writes the record). The
@@ -249,7 +249,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter. `git commit` exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Write an actionlint config or a `.claude/ecosystems/` record.
+- Write an actionlint config or a `docs/conventions/ecosystems/` record.
 - Install actionlint, node or Bash.
 - Download or execute tools during `check` beyond the read-only `command -v` presence probes, the
   lint entry's `--resolve` row and the installer's read-only `verify`.

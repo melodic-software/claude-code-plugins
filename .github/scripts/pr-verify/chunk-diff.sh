@@ -3,19 +3,22 @@
 # removes it. Each judgment is given its own parts, and the manifest names
 # every file's first part, so it can read across chunks where a change does.
 #
-# Each chunk holds whole files, at most MAX_DIFF_BYTES, in diff order
-# (../pr-review-main/split-diff.py), and with more than one chunk manifest.txt
-# lists every file with its chunk, in $DATA/manifest/part-<n>.txt files of at
-# most PART_BYTES. Each chunk is cut into
+# Each chunk is at most MAX_DIFF_BYTES, in diff order, cut as split-diff.py's
+# docstring says: whole files, and a file over MAX_DIFF_BYTES cut at its hunks
+# into pieces under its header, no two in one chunk
+# (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-review-main/split-diff.py).
+# With more than one chunk manifest.txt lists every file, and each piece as
+# `piece <i> of <n>`, with its chunk, in $DATA/manifest/part-<n>.txt files of
+# at most PART_BYTES. Each chunk is cut into
 # $DATA/diff/chunk-<k>/part-<n>.patch files of at most PART_BYTES and PART_LINES.
 # Read may cut a long line short, so a line over LONG_LINE_BYTES continues on
 # lines that start `\ continued: `, which no line of a diff does, each on the
 # side of the line it continues, and every byte of the diff reaches a whole
 # Read. An empty diff is one chunk with one empty part.
 #
-# A file over MAX_DIFF_BYTES, or a diff that needs more than MAX_CHUNKS chunks,
-# prints an error naming it and exits 1 with no chunk written: the head gets no
-# verdict, and so no fail on size alone.
+# A file with a hunk over MAX_DIFF_BYTES with its header, or a diff that needs
+# more than MAX_CHUNKS chunks, prints an error naming it and exits 1 with no
+# chunk written: the head gets no verdict, and so no fail on size alone.
 # shellcheck disable=SC2154 # the step's env sets DATA and the limits
 set -euo pipefail
 

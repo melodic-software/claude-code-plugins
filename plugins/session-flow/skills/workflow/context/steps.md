@@ -115,7 +115,7 @@ design section, which is how they reach the implementer.
   stage can see it. On the full path, size alone never skips it
 - Domain modeling, prototypes, and architecture surveys feed it; a decision that passes the
   admission test of an architecture-decision capability (if enabled, e.g.
-  /architecture:record-decision) is recorded as an architecture decision before planning; without
+  /architecture:adr) is recorded as an architecture decision before planning; without
   one, each decision made over a weighed alternative is listed for the human to judge whether it
   earns a record
 - A user-facing flow or screen is designed before the technical design: the flow and navigation

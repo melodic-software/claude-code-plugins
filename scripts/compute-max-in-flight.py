@@ -16,7 +16,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "plugins/source-control/skills/babysit-prs/scripts"))
 
-import babysit_risk  # noqa: E402
+import diff_risk  # noqa: E402
 
 CONFIG = ROOT / "docs/conventions/pr-pipeline.yaml"
 INPUTS = (
@@ -46,7 +46,7 @@ def cap(sizing: dict[str, int]) -> int:
 
 def read(path: pathlib.Path) -> tuple[str | None, dict[str, int]]:
     """The set value and the integer inputs; a missing input raises KeyError."""
-    entries = dict(babysit_risk._yaml_entries(path.read_text(encoding="utf-8")))
+    entries = dict(diff_risk._yaml_entries(path.read_text(encoding="utf-8")))
     sizing = {key: int(entries["merge", "in-flight-sizing", key]) for key in INPUTS}
     return entries.get(("merge", "max-in-flight")), sizing
 

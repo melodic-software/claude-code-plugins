@@ -4,7 +4,7 @@ A Claude Code plugin that scans an existing codebase for **module-level
 architecture friction** and proposes concrete improvements. It is proactive
 discovery, distinct from reviewing a diff or planning new work: it hunts for
 shallow modules, seam leaks, and locality gaps in code that already exists. A
-companion skill, `record-decision`, writes one architecture decision record into
+companion skill, `adr`, records, audits and prunes architecture decision records in
 whatever ADR convention the repository already has.
 
 The first (and default) lens implements John Ousterhout's **deep-module**
@@ -179,7 +179,7 @@ report goes, comes from the shared medium resolver, which reads the plugin's `me
 
 ## Record a decision
 
-`/architecture:record-decision` discovers the ADR convention the repository
+`/architecture:adr` discovers the ADR convention the repository
 already uses (the directory, the numbering scheme, and the record shape) and
 writes one record that follows it, reporting what it found before it writes.
 Where nothing is declared and nothing exists, it names the rungs it searched,
@@ -192,7 +192,8 @@ or archived, per `adr_retirement`, and in the same change repoints or drops
 each line that cites the old record, listed by `file:line`. After writing a
 record it offers one pointer comment at the code the decision governs, added
 only on your yes. `audit` lists records the code or a later decision no longer
-backs, with the lines citing each, and changes nothing. A team can set its own template,
+backs, with the lines citing each, and changes nothing; `prune` retires the
+ones you accept, one group at a time. A team can set its own template,
 extra admission triggers and retirement mode in `architecture.yaml`
 (`reference/config.md`, "Decision-record keys"). The
 upstream template catalog is cited by URL for you to read, under its own
@@ -226,8 +227,9 @@ at the plan. With no rule recorded it writes nothing and points at the
 /architecture:improve conventions # derive conventions and propose rules
 /architecture:improve-layout     # do files that change together live together?
 /architecture:principles seam    # define a module-design term
-/architecture:record-decision    # record one decision into the repo's convention
-/architecture:record-decision audit # list ADRs the code no longer backs
+/architecture:adr                # record one decision into the repo's convention
+/architecture:adr audit          # list ADRs the code no longer backs
+/architecture:adr prune          # retire the ADRs you accept from the audit
 /architecture:enforce-boundaries # set up and prove a check per recorded boundary rule
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
@@ -307,8 +309,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | Where the map-* views and the improve report go. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact (the improve report stays a local file); hosted is read as artifact. A team rendered-views file never publishes. |
-| `adr_template` | string | *(none)* | Absolute or ~/ path to your own ADR template, used by record-decision when a repository has no ADR convention. Empty: the bundled template. A repository's team or personal architecture.yaml overrides it, and a repository's own ADR convention always wins. |
-| `adr_retirement` | string | `"delete"` | How record-decision retires a record a new decision reverses, after your yes. delete (default): remove the file; its number is never reused. supersede: mark it superseded. archive: move it to the ADR folder's archive folder. A repository's team or personal architecture.yaml overrides it. |
+| `adr_template` | string | *(none)* | Absolute or ~/ path to your own ADR template, used by /architecture:adr when a repository has no ADR convention. Empty: the bundled template. A repository's team or personal architecture.yaml overrides it, and a repository's own ADR convention always wins. |
+| `adr_retirement` | string | `"delete"` | How /architecture:adr retires a record a new decision reverses, after your yes. delete (default): remove the file; its number is never reused. supersede: mark it superseded. archive: move it to the ADR folder's archive folder. A repository's team or personal architecture.yaml overrides it. |
 
 ### How to set these
 

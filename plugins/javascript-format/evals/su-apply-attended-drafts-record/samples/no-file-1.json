@@ -16,7 +16,7 @@
     {
       "answer": [
         "src/app.ts",
-        ".claude/ecosystems/typescript.yaml"
+        "docs/conventions/ecosystems/typescript.yaml"
       ],
       "why": "wrote the typescript record"
     }

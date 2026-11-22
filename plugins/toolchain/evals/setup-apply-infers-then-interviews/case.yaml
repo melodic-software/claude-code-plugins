@@ -5,6 +5,10 @@ context:
 graders:
   - name: nothing-written
     type: file_exists
+    path: 'docs/conventions/ecosystems/*.yaml'
+    exists: false
+  - name: nothing-written-legacy
+    type: file_exists
     path: '.claude/ecosystems/*.yaml'
     exists: false
   - name: uv-specialized
@@ -13,4 +17,4 @@ graders:
     target: last_message
   - name: meets-expectations
     type: llm
-    criteria: 'The run is `/toolchain:setup apply` with no ecosystem argument in an unconfigured repository holding a uv-managed Python package, a Biome-linted TypeScript package and shell scripts, and no user present to answer. It meets the legacy expectations: "Infers candidate ecosystems from the repo layout (project/build files, lockfiles, linter configs) before asking" "Drafts each ecosystem''s command surface seeded from the bundled portable default and specialized to the repo" "Interviews the user one ecosystem at a time with a recommendation, rather than writing config blind" "Writes the .claude/ecosystems/*.yaml files only after the user accepts the drafts".'
+    criteria: 'The run is `/toolchain:setup apply` with no ecosystem argument in an unconfigured repository holding a uv-managed Python package, a Biome-linted TypeScript package and shell scripts, and no user present to answer. It meets the legacy expectations: "Infers candidate ecosystems from the repo layout (project/build files, lockfiles, linter configs) before asking" "Drafts each ecosystem''s command surface seeded from the bundled portable default and specialized to the repo" "Interviews the user one ecosystem at a time with a recommendation, rather than writing config blind" "Writes the docs/conventions/ecosystems/*.yaml files only after the user accepts the drafts".'

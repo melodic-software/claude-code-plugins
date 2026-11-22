@@ -1,5 +1,5 @@
 ---
-ecosystem-resolution: 1.1.0
+ecosystem-resolution: 1.1.1
 ---
 
 <!-- GENERATED from docs/contracts/ecosystem-resolution/generic-resolution.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -29,7 +29,7 @@ written with.
 
    | Choice | Record | Writer |
    |---|---|---|
-   | A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
+   | A build, test, lint or format command for one ecosystem | `docs/conventions/ecosystems/<ecosystem>.yaml` | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
    | A language, framework or library convention, or a review criterion | the standards index (`docs/standards/README.md` unless `.claude/standards.yaml` moves it) and the files its rows route to | the standards setup, on acceptance |
    | The repository's chosen way for a task it repeats | the file the `paved-path` row of that index routes to | `/discipline:reuse-or-replace`, after a yes |
    | The order of enforcement mechanisms | the project instructions: `CLAUDE.md`, an `AGENTS.md` the session reads, or a rules file | the person |
@@ -52,7 +52,7 @@ written with.
    enforcement mechanisms), offer the text and let the person write it. An unattended run writes no
    record. It logs each command it runs as assumed, with its source: the record, the file that
    states it, or the file that implies it. When its lane proposes records, it may propose an
-   ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) in a pull request instead, holding only
+   ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`) in a pull request instead, holding only
    commands within the unattended limits; merging that pull request is the acceptance.
 7. **Report what stays unresolved.** When no step resolved the choice, or an unattended run met a
    tie, skip the step that needed it and say so in the output: the choice, what you read, and the

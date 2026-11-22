@@ -10,16 +10,16 @@ graders:
     min: 1
     max: 1
     arm: both
-  - name: record-decision-not-run
+  - name: adr-not-run
     type: tool_used
     tool: 'Skill'
-    input_match: 'record-decision'
+    input_match: 'architecture:adr'
     min: 0
     max: 0
     arm: both
-  - name: record-decision-offered
+  - name: adr-offered
     type: regex
-    pattern: 'record-decision'
+    pattern: 'architecture:adr'
     target: 'last_message'
   - name: no-style-and-sources
     type: llm

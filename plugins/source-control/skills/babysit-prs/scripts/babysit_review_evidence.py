@@ -48,7 +48,7 @@ from typing import Any
 
 import babysit_lane_binding as lane_binding
 import babysit_merge_settings as settings
-from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
+from diff_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, status job names), read only from the
 # operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md

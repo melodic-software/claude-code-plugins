@@ -12,7 +12,7 @@ file, with your `.shellcheckrc` when you have one and ShellCheck's own defaults 
 repository with no shell section gets no formatting, and `/bash-format:setup check` reports that
 concern unresolved.
 
-The hooks never run a command from your bash record (`.claude/ecosystems/bash.yaml`, the
+The hooks never run a command from your bash record (`docs/conventions/ecosystems/bash.yaml`, the
 ecosystem-commands contract in the marketplace repository). That record names any formatter and
 linter you use, and `/toolchain:lint` and `/toolchain:check` run it when you ask.
 

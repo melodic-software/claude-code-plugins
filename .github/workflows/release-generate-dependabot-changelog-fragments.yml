@@ -67,16 +67,45 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
+        # Inline, not the ci-workflows action, while this job holds the release App key: https://github.com/melodic-software/claude-code-plugins/issues/18056#issuecomment-7082231555
         env:
           TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
+          TIP_TOKEN: ${{ github.token }}
         run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          header="$(printf 'x-access-token:%s' "$TIP_TOKEN" | base64 | tr -d '\n')"
+          unset TIP_TOKEN
+          echo "::add-mask::$header"
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $header"
+          unset header
+          export TIP_HEAD="refs/heads/$TIP_BRANCH"
+          err="$RUNNER_TEMP/resolve-tip.err"
+          i=0
+          while :; do
+            status=0
+            listing="$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "$TIP_HEAD" 2>"$err")" || status=$?
+            sed 's/^/git: /' "$err" >&2
+            if ((status == 0)); then
+              # ls-remote matches a pattern as a ref's tail, so only an exact name counts.
+              sha="$(awk '$2 == ENVIRON["TIP_HEAD"] { print $1 }' <<<"$listing")"
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::$GITHUB_REPOSITORY has no branch $TIP_BRANCH"; exit 1; }
+              echo "sha=$sha" >>"$GITHUB_OUTPUT"
+              exit 0
+            elif ((status == 124)); then
+              why="timed out after 60 s"
+            elif grep -qE 'returned error: 40[13]|HTTP 40[13]|Authentication failed for|could not read Username' "$err"; then
+              echo "::error::GitHub refused the token (HTTP 401/403): the job's token needs contents: read"
+              exit 1
+            elif grep -qE 'returned error: 5[0-9]{2}|HTTP 5[0-9]{2}' "$err"; then
+              why="got a server error"
+            else
+              echo "::error::git ls-remote failed with exit $status"
+              exit 1
+            fi
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve: try 3 $why"; exit 1; }
+            echo "::warning::try $i $why; retrying"
             sleep "$((RANDOM % (2 * i + 1)))"
           done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

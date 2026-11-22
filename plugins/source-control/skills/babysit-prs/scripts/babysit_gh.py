@@ -467,8 +467,8 @@ def _send_once(
 # the process exits red naming the reset, with no retry and no wait. The
 # signals are the documented ones below; the shares of each pool's limit
 # (`writer-pause`, `read-floor`) are `limits.api` in pr-pipeline.yaml, unset
-# fields filled from .github/actions/log-api-budget/rate-limits.json (with
-# github-token's `limit-cap`), and an unreadable block or defaults file
+# fields filled from .github/actions/log-api-budget/rate-limits.json, and an
+# unreadable block or defaults file
 # refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
 # consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
 # port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
@@ -833,12 +833,10 @@ def evaluate_rate_response(
     body: Any,
     now: float,
     read_floor: float,
-    limit_cap: int | None = None,
 ) -> dict[str, Any]:
     """One response against the decision table: `latched`, `low`, `pool`,
     `reset` (epoch seconds) and `reset_source`. `headers` are lowercase.
-    `low` measures what is left of the planned budget, the header's limit at
-    most `limit_cap`, as rate-guard.mjs planOf does."""
+    `low` measures the header's remaining against `read_floor` of its limit."""
     remaining = _int_header(headers, "x-ratelimit-remaining")
     limit = _int_header(headers, "x-ratelimit-limit")
     reset_header = _int_header(headers, "x-ratelimit-reset")
@@ -857,10 +855,7 @@ def evaluate_rate_response(
     gql = any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
     too_many = status == 429
     latched = remaining == 0 or ra is not None or msg or gql or too_many
-    low = False
-    if limit and remaining is not None:
-        planned = limit if limit_cap is None else min(limit, limit_cap)
-        low = planned - (limit - remaining) < read_floor * planned
+    low = bool(limit) and remaining is not None and remaining < read_floor * limit
     result: dict[str, Any] = {
         "latched": latched,
         "low": low,
@@ -944,8 +939,8 @@ def _budget_token_name(env_overrides: Mapping[str, str] | None) -> str:
 
 
 def pool_limits(pool: str) -> dict[str, float] | str:
-    """`limits.api.<pool>`'s shares, unset ones from rate-limits.json, with the
-    pool's default `limit-cap` when it has one, or why they cannot be read. Read through the pipeline config's own reader;
+    """`limits.api.<pool>`'s shares, unset ones from rate-limits.json, or why
+    they cannot be read. Read through the pipeline config's own reader;
     only a read that succeeded is kept, so a failure is read again next call."""
     limits = _limits.get(pool) or _read_pool_limits(pool)
     if not isinstance(limits, str):
@@ -992,12 +987,6 @@ def _read_pool_limits(pool: str) -> dict[str, float] | str:
         if isinstance(raw, bool) or not typed or not 0 <= share <= 1:
             return f"limits.api.{pool}.{name} is not a share: {raw!r}"
         shares[name] = share
-    # The default cap alone, as before any config could set one.
-    cap = dig(defaults, pool, "limit-cap")
-    if cap is not None:
-        if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
-            return f"{LIMITS_DEFAULTS.name}: {pool}.limit-cap is not a count: {cap!r}"
-        shares["limit-cap"] = cap
     return shares
 
 
@@ -1101,19 +1090,8 @@ def _guard_response(
         raise trip
 
 
-# Set to 1, the read floor is a share of the header's limit, not of the pool's
-# `limit-cap`: ci-status's merge-group verdict reader, whose refusal ejects the
-# queue entry, plans to the token's live limit (owner decision D418; run
-# https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120
-# refused with 2,766 of 5,000 left).
-READ_FLOOR_HEADER_LIMIT_ENV = "BABYSIT_READ_FLOOR_HEADER_LIMIT"
-
-
 def _below(pool: str | None, field: str) -> bool:
     pools = list(_headroom) if pool is None else [pool]
-    capped = (
-        field == "read-floor" and os.environ.get(READ_FLOOR_HEADER_LIMIT_ENV) != "1"
-    )
     for name in pools:
         limits = pool_limits(name)
         if isinstance(limits, str):
@@ -1122,9 +1100,6 @@ def _below(pool: str | None, field: str) -> bool:
         if not reading:
             continue
         remaining, limit = reading
-        cap = limits.get("limit-cap") if capped else None
-        if cap is not None and cap < limit:
-            remaining, limit = max(0, cap - (limit - remaining)), cap
         if remaining < limits[field] * limit:
             return True
     return False
@@ -1132,10 +1107,8 @@ def _below(pool: str | None, field: str) -> bool:
 
 def low_headroom(pool: str | None = None) -> bool:
     """Whether `pool` (any pool read so far, when None) last read below its
-    `read-floor` share (of the pool's default `limit-cap` in rate-limits.json
-    when the header reports more, unless `READ_FLOOR_HEADER_LIMIT_ENV` is
-    set), or its limits are unreadable. Report-only reads
-    are skipped then."""
+    `read-floor` share of the header's limit, or its limits are unreadable.
+    Report-only reads are skipped then."""
     return _below(pool, "read-floor")
 
 

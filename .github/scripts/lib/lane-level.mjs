@@ -55,14 +55,11 @@ function shares(readings, s) {
   const out = [];
   for (const pool of s.pools) {
     const { used, limit } = readings?.pools?.[pool] ?? {};
-    const { plan, "writer-pause": writerPause, "limit-cap": cap } = s.api[pool] ?? {};
+    const { plan, "writer-pause": writerPause } = s.api[pool] ?? {};
     if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0 || !Number.isFinite(plan) || !Number.isFinite(writerPause)) {
       return null;
     }
-    // As limits.api reads them: plan is a share of the planned budget, the
-    // header's limit at most limit-cap; writer-pause a share of the header's.
-    const planned = Number.isFinite(cap) ? Math.min(limit, cap) : limit;
-    out.push({ planned: used / planned, left: (limit - used) / limit, plan, writerPause });
+    out.push({ planned: used / limit, left: (limit - used) / limit, plan, writerPause });
   }
   return out;
 }

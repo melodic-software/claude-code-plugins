@@ -102,6 +102,10 @@ rm -r "$HOME/.claude" "$REPO/.claude" "$REPO/demo.cfg"
 expect "rt_print says none, and why, when nothing resolves" "demo	format	none		n/a	no demo.cfg" "$(rt_print format "$REPO")"
 : >"$REPO/demo.cfg"
 expect "rt_print with files gives one row per file" "demo	lint	adapter:demofmt	stubfmt	yes	config demo.cfg" "$(rt_print lint "$REPO" "$REPO/seed.dm")"
+mkdir -p "$REPO/docs/conventions/ecosystems"
+printf '%s\n' 'fix-cmd: "touch record-ran <files>"' >"$REPO/docs/conventions/ecosystems/demo.yaml"
+expect "a record at the convention home gets the same note" "demo	format	adapter:demofmt	stubfmt	yes	config demo.cfg; the demo record is not run by hooks; /toolchain:lint and /toolchain:check run it" "$(rt_print format "$REPO")"
+rm -r "$REPO/docs"
 
 # Running: files reach the command as arguments, never as command text.
 new_repo

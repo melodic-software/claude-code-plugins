@@ -259,22 +259,6 @@
       "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 }, "github-token": { "used": 4200, "limit": 5000 } }, "signals": [] },
       "demand": { "waiting": 2, "running": 3 },
       "expect": { "level": 3, "streak": 0, "holdUntil": 0, "reason": "hot" }
-    },
-    {
-      "name": "a pool's limit-cap is its planned budget: 600 used of a 1000 cap times 4/3 is over the 0.7 plan, though 600 of 5000 is not",
-      "config": { "lane-level": { "pools": ["lanes-app", "github-token"] }, "api": { "github-token": { "limit-cap": 1000 } } },
-      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
-      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 }, "github-token": { "used": 600, "limit": 5000 } }, "signals": [] },
-      "demand": { "waiting": 2, "running": 3 },
-      "expect": { "level": 3, "streak": 2, "holdUntil": 0, "reason": "no-fit" }
-    },
-    {
-      "name": "under its limit-cap a capped pool fits: 500 of a 1000 cap times 4/3 is under the 0.7 plan",
-      "config": { "lane-level": { "pools": ["lanes-app", "github-token"] }, "api": { "github-token": { "limit-cap": 1000 } } },
-      "previous": { "level": 3, "streak": 1, "holdUntil": 0 },
-      "readings": { "at": 1794340800, "pools": { "lanes-app": { "used": 500, "limit": 5000 }, "github-token": { "used": 500, "limit": 5000 } }, "signals": [] },
-      "demand": { "waiting": 2, "running": 3 },
-      "expect": { "level": 4, "streak": 0, "holdUntil": 0, "reason": "step-up" }
     }
   ]
 }
