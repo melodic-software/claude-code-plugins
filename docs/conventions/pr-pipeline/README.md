@@ -198,8 +198,9 @@ reader applies.
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main`, half-hourly (one tick five minutes after the hourly lost-run
-reconciler tick), and on a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and
+:34 ticks; the reconciler's one pass per token window runs on the first of its quarter-hour ticks
+after the reset), and on a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.

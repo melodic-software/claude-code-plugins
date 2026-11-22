@@ -8,4 +8,4 @@ bump: minor
 
 ### Changed
 
-- The lost-run reconciler's hourly tick waits until 90 seconds past the GITHUB_TOKEN window's reset, or runs at once when the window began at most 11 minutes ago, so each pass re-runs deferred work at the start of the next window wherever the reset has drifted. That tick is not paced: it spends the fresh window. A tick whose reset read fails runs at once and is paced as before.
+- The lost-run reconciler ticks every 15 minutes (`4,19,34,49`) and runs one pass per GITHUB_TOKEN window: the first tick at least 90 seconds and at most 30 minutes after the window's reset, read from GET /rate_limit, so deferred work is re-run at the start of the next window wherever the reset has drifted. Other ticks read nothing else and stop. That pass is not paced: it spends the fresh window. A tick whose reset read fails runs the pass unless one finished in the last hour.
