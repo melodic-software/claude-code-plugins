@@ -85,14 +85,20 @@ Unless `quick` or `review-only` scope:
 2. **Run the comment pass** over the branch's changed code files, after simplify and before any review of the result: `/code-tidying:remove-comments --pipeline --base <remote>/<base-branch>` when the `code-tidying` plugin is enabled. Its default posture, `necessary`, deletes warnings about this repository's own code, a security warning included, and stages each in its report. An unattended run (invoked with `--unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk` session, a dispatched worker) applies no comment edit unless the consuming project's instructions pre-approve applied comment edits in unattended runs: without that, run `/code-tidying:remove-comments report --pipeline --base <remote>/<base-branch>` and put its proposals in the 1.6 report. Without the plugin, put `comment pass not run: code-tidying plugin not enabled` in the 1.6 report
 3. **Show the simplify and comment-pass diff**: run `git diff` and present what changed. Automated simplification fixes and comment deletions are not research-verified; treat them like any code-review finding: inspect each change, approve or revert
 4. **Pause for user review**: let the user approve/reject simplify and comment-pass changes before proceeding
-5. Re-run tests on approved changes
-6. Run the verify gate (1.5)
+5. Run the verify gate (1.5) on the approved changes
 
 ## 1.5 Verify gate (hard: blocks PR creation)
 
-Run the project's full build + test + lint surface, via `/verification:confirm` when the `verification` plugin is enabled (or `/toolchain:check` for the mechanical half alone) and otherwise the build, test and lint commands the repository's own CI workflows, ecosystem records or project instructions name for every ecosystem the branch touches; an ecosystem none of them names a command for is reported as unresolved. **All results must be clean before proceeding to PR creation.** A `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, counts as clean here (`/verification:confirm`'s PR-prep gate rule).
+Run one quick check of the branch's changed files, never a test suite: CI runs the suites, and the ready step runs them only on a head CI has not tested ([ready-for-review.md](ready-for-review.md) §2.5.3, **CI's test lanes**). The check is, in order:
 
-**Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that looks like it touches one ecosystem can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run. The project's CI workflows are the canonical list of what must pass.
+1. **The repository's affected-files check, without its tests.** `scripts/check-affected.sh` when the repository ships it, run from the worktree root without `--tests`. Otherwise the lint and build commands the repository's CI workflows, ecosystem records or project instructions name for each ecosystem the branch touches, leaving out test suites; an ecosystem none of them names a command for is reported as unresolved. It covers every file the branch changes, not only the "obvious" ecosystem: a touched README, an unmarked `.sh` script or a workflow file can fail CI too.
+2. **guardrails `reference-verify` and bash-format `lint-full`, where the repository has them.** The marketplace repository ships them as `plugins/guardrails/git-hooks/reference-verify.sh` and `plugins/bash-format/git-hooks/lint-full.sh`. Both are over the 3 s git-hook budget, so they run here and not at `pre-push`. Each reads refs on stdin as git passes a pre-push hook; hand it the branch as a new ref, so it ranges from the merge-base with the remote's default branch. `$BRANCH` is the current branch and `$REMOTE` the push remote (`bash "<skill-dir>/scripts/resolve-remote.sh" --push`):
+
+   ```bash
+   printf 'refs/heads/%s %s refs/heads/%s %s\n' "$BRANCH" "$(git rev-parse HEAD)" "$BRANCH" 0000000000000000000000000000000000000000 | sh "<script>" "$REMOTE" "$(git remote get-url "$REMOTE")"
+   ```
+
+**All results must be clean before proceeding to PR creation.** Record the head the check ran on (`git rev-parse HEAD`) in the 1.6 report: [create.md](create.md) §2.3.4 skips the check on that head.
 
 **Decision rule:**
 
@@ -107,6 +113,6 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 ## 1.6 Report
 
-Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, the comment pass applied, report-only or not run (with its proposals when report-only), verify gate pass/fail per ecosystem, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
+Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, the comment pass applied, report-only or not run (with its proposals when report-only), verify gate pass/fail per ecosystem and the head it ran on, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
 **Prep before create is the developer loop.** The branch updates in [create.md](create.md) §2.2 and [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, so the ready step re-runs the verify gate on the head it flips.

@@ -4,7 +4,7 @@ Installs the `commit-msg-convention` entry once for the user, as a git config ho
 under an `includeIf` the operator chooses. It then covers every clone and linked worktree the
 condition matches, and runs beside lefthook, husky, the pre-commit framework or a
 `core.hooksPath` setup, with no edit to any repository. Only the `commit-msg` entry installs
-this way; `pre-commit-content`, `pre-push-content` and `reference-verify` keep the `local` and
+this way; `pre-commit-content` and `pre-push-content` keep the `local` and
 `shared` scopes.
 
 **Git floor: 2.54.** The installer's floor is 2.54. Below it, `config-hook` returns `git-too-old`

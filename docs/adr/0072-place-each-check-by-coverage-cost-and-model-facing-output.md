@@ -121,3 +121,21 @@ Recheck the rubric's rule 4 (report-only findings never reach the model per edit
 [check-placement](../contracts/check-placement/README.md#the-rubric)) when sessions move off Sonnet
 5.5: its evidence is the Sonnet 5.5 probes in Context and the spelling pilot, which also ran on
 Sonnet ([2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080)).
+
+## Addendum (2026-11-22): 3 s git-hook budgets and a pre-PR check
+
+Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
+
+- **Budgets.** `pre-commit` gets 3 s, measured on a 10-file commit, and `pre-push` gets 3 s. Basis:
+  a course instructor's guidance to keep git hooks to about three seconds and leave slow checks
+  to CI, and the measured timings: the 11 shipped `pre-commit`
+  entries took 1.91 s on 10 files, and `pre-push-content` took 0.17 s.
+- **Over budget.** A check over its hook's budget runs in the pre-PR check or in CI, never in a
+  git hook.
+- **Pre-push keeps one entry:** guardrails `pre-push-content`, the secrets and machine-path scan
+  of the pushed commits. It is the only check whose failure cannot be undone once the commits
+  reach a public repository.
+- **The pre-PR check.** `/source-control:pull-request` runs one quick check of the changed files
+  once per head before the pull request opens: the repository's affected-files check without its
+  test suites, plus guardrails `reference-verify` and bash-format `lint-full` where the
+  repository has them. Both left `pre-push` for it. CI runs the test suites.

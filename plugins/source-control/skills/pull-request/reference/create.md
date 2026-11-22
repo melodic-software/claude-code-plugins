@@ -144,6 +144,10 @@ printf '%s\n' "<PR title>" | bash "<plugin-root>/scripts/write-changelog-fragmen
 
 It writes a fragment, with the bump and section the title's Conventional Commits type maps to, only for a listed plugin the branch changes and that has no fragment from this branch yet; a plugin the list does not name keeps the per-PR bump. When it prints paths, stage them and commit through `/source-control:commit` (a `chore` subject naming the fragments). On exit 2 for a title it cannot map, rerun with `--level major|minor|patch|none`.
 
+### 2.3.4 Quick changed-files check, once per head
+
+After the last commit (2.3.3's fragments included) and the 2.2 update, and before the 2.4.1 push, run the check of [prep.md](prep.md) §1.5 on `HEAD`. Skip it when the prep report names the same head (`git rev-parse HEAD`) as the one its check passed on. It runs no test suite. A failure stops create: fix it, commit through `/source-control:commit`, and run the check again on the new head.
+
 ## 2.4 Push, create PR, and persist PR number
 
 ### 2.4.0 Resolve linked issue(s)

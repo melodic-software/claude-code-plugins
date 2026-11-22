@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/hooks/yaml-subset.awk plugins/guardrails/lib/verification/*.sh
-# Contract tests for the guardrails pre-push entry git-hooks/pre-push-content.sh:
-# a secret or machine-specific path that a pushed commit adds blocks with
-# "<path>:<line>: <message> (commit <id>)", also when a later commit of the same
-# push removes it again; a pushed commit with nothing to find, the same token
-# under an exempt path, a commit the remote's tracking refs already hold, the
-# remote's lines and files a merge brings in and a deletion do not block; a merge's own
-# conflict resolution is judged, in a file another parent holds as a symlink
-# too, and its git process count does not grow with the other side's diff; a
-# NUL file is judged whole; a symlink a commit turns into a regular file is
-# judged whole and the reverse is not judged; a declined entry checks nothing; --worktree
-# covers uncommitted files; and through the plugin's vendored installer a real
-# `git push` of a dossier/<key>-<slug> branch (the dossier_branch_prefix
-# default) to a bare remote fails on a planted token and passes once that
-# commit is dropped from the range. The entry's run time on a 20-commit push is
-# printed and held to the check-placement convention's 60 s pre-push budget.
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs
 # test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/commit-msg-convention.sh
@@ -337,7 +322,7 @@ got="$(new_push)"
 took=$((SECONDS - start))
 echo "measured: pre-push-content took ${took} s on a 20-commit, 40-file-change push"
 expect "the entry passes the 20-commit push" "0|" "$got"
-expect "the entry runs within the 60 s pre-push budget" yes "$( ((took < 60)) && echo yes)"
+expect "the entry runs within the 3 s pre-push budget" yes "$( ((took <= 3)) && echo yes)"
 
 # End to end through the plugin's vendored installer and a real git push.
 new_repo

@@ -463,8 +463,8 @@ fi
 printf 'guardrails: correct each flag or skill reference above, or fix the failure a reference-verify line names, commit the fix, then push again.\n' >&2
 if grep -q ': cli-flag-verify: ' "$out"; then
   printf '%s\n' \
-    'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, run /guardrails:setup to stop this' \
-    'entry in this clone: it declines it (install.mjs decline --entry reference-verify) and removes its registration.' >&2
+    'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, stop this check in this clone:' \
+    'git config checks.guardrails.reference-verify.declined true' >&2
 fi
 printf '%s\n' 'guardrails: git -c checks.skipmissing=jq skips this check only while jq is missing; it never skips a finding.' >&2
 exit 1

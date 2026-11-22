@@ -1,23 +1,5 @@
 #!/usr/bin/env bash
-# Contract tests for the guardrails pre-push entry git-hooks/reference-verify.sh:
-# an unknown CLI flag or an unresolved skill reference, on a line the pushed
-# commits add, blocks with "<path>:<line>: <message>", the line the text is on;
-# a cited path the repository deleted is printed the same way and passes; a file
-# whose verifier input cannot be built or whose verifier run fails, or a tip
-# that cannot be checked out ("<sha>: reference-verify: ..."), blocks; a
-# declined entry checks nothing, run directly or through the lefthook-remote
-# wrapper; the same text on an
-# unchanged line, in a file type the verifiers do not read, or in an eval
-# suite's samples/ folder (recorded model output), does not; a new
-# branch ranges from its merge-base with the remote's default branch, or from a
-# pushed branch it is stacked on, a pushed branch that merged main or another
-# pushed branch is judged only on its own lines, and a deletion checks nothing;
-# the failure names the way out (decline the entry; the skip key covers only a
-# missing jq);
-# --worktree covers uncommitted files;
-# and the plugin's vendored installer wires the entry as a pre-push hook, so
-# `git commit` does not run it and `git push` does.
-# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .lefthook/remote-entry.sh
+# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
@@ -26,8 +8,6 @@ unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONF
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/reference-verify.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
-TOP="$(cd "$PLUGIN/../.." && pwd)"
-INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not on PATH -- reference-verify tests skipped"
   exit 0
@@ -133,8 +113,8 @@ else
 fi
 
 err="$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
-expect "the failure names the decline route for this entry" yes \
-  "$(grep -qF 'install.mjs decline --entry reference-verify' <<<"$err" && grep -qF '/guardrails:setup' <<<"$err" && echo yes)"
+expect "the failure names the decline key the script reads" yes \
+  "$(grep -qxF 'git config checks.guardrails.reference-verify.declined true' <<<"$err" && echo yes)"
 expect "the failure says the skip key covers only a missing jq" yes \
   "$(grep -qF 'checks.skipmissing=jq' <<<"$err" && grep -qi 'only while jq is missing' <<<"$err" && echo yes)"
 
@@ -158,31 +138,12 @@ expect "a new markdown file's finding names its code span's line, heading and de
 docs/guide.md:5:   faketool --bogus (not in 'faketool --help')" \
   "$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE" | head -2)"
 
-# A declined entry checks nothing, run directly or through the lefthook-remote
-# wrapper from a fetched copy: the entry's key, else the master key, at git's
-# precedence, so the entry's false beats the master's true.
-REMOTE="$WORK/lefthook/info/lefthook-remotes/r"
-mkdir -p "$REMOTE/.lefthook/pre-push" "$REMOTE/plugins"
-cp "$TOP/.lefthook/pre-push/guardrails-reference-verify.sh" "$REMOTE/.lefthook/pre-push/"
-cp "$TOP/.lefthook/remote-entry.sh" "$REMOTE/.lefthook/"
-cp -R "$PLUGIN" "$REMOTE/plugins/guardrails"
-via_wrapper() { # <ref> <local-sha> <remote-sha> -> "<rc>|<first stderr line>"
-  local err rc
-  err="$(cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
-    sh "$REMOTE/.lefthook/pre-push/guardrails-reference-verify.sh" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
-  rc=$?
-  printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
-}
 new_repo
 printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
 commit_all bogus
 tip="$(git -C "$REPO" rev-parse HEAD)"
-expect "the lefthook-remote wrapper runs the check" "1|run.sh:3: $FLAG_FINDING" \
-  "$(via_wrapper refs/heads/main "$tip" "$BASE")"
 git -C "$REPO" config checks.guardrails.reference-verify.declined true
 expect "with the entry declined, a push checks nothing" "0|" "$(push_check refs/heads/main "$tip" "$BASE")"
-expect "with the entry declined, the lefthook-remote wrapper checks nothing" "0|" \
-  "$(via_wrapper refs/heads/main "$tip" "$BASE")"
 git -C "$REPO" config --unset checks.guardrails.reference-verify.declined
 git -C "$REPO" config checks.git-hooks.declined true
 expect "with every entry declined by the master key, a push checks nothing" "0|" \
@@ -615,34 +576,7 @@ expect "--worktree: an uncommitted unknown flag blocks" 1 "$(c="$(worktree_check
 git -C "$REPO" checkout -q run.sh
 expect "--worktree: no uncommitted change passes" "0|" "$(worktree_check)"
 
-# End to end through the plugin's vendored installer, a real commit and a real push.
 new_repo
-status="$(node "$INSTALL" copy --scope local --entry reference-verify --repo "$REPO")"
-expect "the vendored installer installs the entry" '[{"entry":"reference-verify","status":"installed"}]' "$status"
-expect "the entry is registered as a pre-push hook" yes \
-  "$(test -f "$REPO/.git/hooks/pre-push.d/guardrails.reference-verify" && test ! -e "$REPO/.git/hooks/pre-commit" && echo yes)"
-for a in run-guards.sh hook-utils.sh cli-flag-verify.sh verify-cli-flag.sh; do
-  expect "the $a asset is installed beside the copy" yes "$(test -f "$REPO/.git/hooks/guardrails/$a" && echo yes)"
-done
-printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
-git -C "$REPO" add run.sh
-git -C "$REPO" commit -q -m change 2>/dev/null
-expect "git commit does not run the entry" 0 "$?"
-err="$(git -C "$REPO" push -q origin main 2>&1)"
-expect "git push runs the installed entry and fails on the added flag" 1 "$?"
-expect "the installed copy finds its verifier (the finding names the flag)" yes \
-  "$(grep -q 'faketool --bogus' <<<"$err" && echo yes)"
-printf '#!/usr/bin/env bash\nfaketool --real\necho clean\n' >"$REPO/run.sh"
-git -C "$REPO" add run.sh
-git -C "$REPO" commit -q -m clean 2>/dev/null
-git -C "$REPO" push -q origin main 2>/dev/null
-expect "a push whose net change adds no finding passes through the installed entry" 0 "$?"
-expect "verify reports the entry ok" "ok	reference-verify" "$(node "$INSTALL" verify --repo "$REPO" | grep 'reference-verify')"
-
-# git exports GIT_DIR to a hook, a linked worktree's git dir when pushed from
-# one. A doc below the root citing a path the branch restored still passes.
-new_repo
-node "$INSTALL" copy --scope local --entry reference-verify --repo "$REPO" >/dev/null
 WT="$WORK/wt$n"
 git -C "$REPO" worktree add -q -b restore "$WT" main
 mkdir -p "$WT/docs/sub"
@@ -651,13 +585,13 @@ printf 'gone\n' >"$WT/docs/gone.md"
 printf '# R\nSee `docs/gone.md` for the details.\n' >"$WT/docs/sub/README.md"
 git -C "$WT" add -A
 git -C "$WT" commit -q -m restore --no-verify
-err="$(git -C "$WT" push -q origin restore 2>&1)"
-expect "a push from a linked worktree citing a restored path passes" "0|" "$?|$(head -1 <<<"$err")"
+err="$(cd "$WT" && printf 'refs/heads/restore %s refs/heads/restore %s\n' "$(git rev-parse HEAD)" "$ZERO" |
+  GIT_DIR="$(git rev-parse --absolute-git-dir)" bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+expect "a run from a linked worktree citing a restored path passes" "0|" "$?|$(head -1 <<<"$err")"
 
 # An inherited discovery ceiling between the doc and the root does not hide the
 # repository, so a citation of a deleted path is still reported.
 new_repo
-node "$INSTALL" copy --scope local --entry reference-verify --repo "$REPO" >/dev/null
 WT="$WORK/wt$n"
 git -C "$REPO" worktree add -q -b cite "$WT" main
 mkdir -p "$WT/docs/sub"
@@ -665,8 +599,9 @@ mkdir -p "$WT/docs/sub"
 printf '# R\nSee `docs/gone.md` for the details.\n' >"$WT/docs/sub/README.md"
 git -C "$WT" add -A
 git -C "$WT" commit -q -m cite --no-verify
-err="$(GIT_CEILING_DIRECTORIES="$WT/docs" git -C "$WT" push -q origin cite 2>&1)"
-expect "a push under a discovery ceiling citing a deleted path reports it" "0|yes" \
+err="$(cd "$WT" && printf 'refs/heads/cite %s refs/heads/cite %s\n' "$(git rev-parse HEAD)" "$ZERO" |
+  GIT_CEILING_DIRECTORIES="$WT/docs" bash "$CHECK" origin "$WORK/r$n.git" 2>&1)"
+expect "a run under a discovery ceiling citing a deleted path reports it" "0|yes" \
   "$?|$(grep -qF 'docs/sub/README.md:2: stale-path-verify' <<<"$err" && echo yes)"
 
 echo "reference-verify: $PASS passed, $FAIL failed"
