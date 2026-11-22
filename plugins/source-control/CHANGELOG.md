@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.6.1] - 2026-11-22
+
+### Fixed
+
+- A schedule or dispatch demotion record that `babysit_postmerge.py --remediate` files now says it clears once a full run passes on main at a later commit and a lane then closes it, rather than that it clears itself.
+
 ## [13.6.0] - 2026-11-22
 
 ### Added
