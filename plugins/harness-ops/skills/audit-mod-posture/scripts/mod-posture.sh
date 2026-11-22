@@ -12,8 +12,10 @@
 # through a strict grammar, plus fixed words. Never prints a settings or env value, a path,
 # or any `claude auth status` field but the derived guard state. From managed settings it
 # reads only `prependPlugins`, the guard's `allowModsToOverrideDenyRules`, `disableSideloadFlags`
-# and `permissions.defaultMode`, and from user settings only `permissions.defaultMode`, the one
-# other file whose auto and bypassPermissions values take effect, each printed as words:
+# and `permissions.defaultMode`, and from user, project and local settings only
+# `permissions.defaultMode` (user settings being the one other file whose auto and
+# bypassPermissions values take effect; a lower mode in project or local settings still
+# overrides the user's), each printed as words:
 # https://code.claude.com/docs/en/settings-reference#permissions-defaultmode
 #
 # Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <file>]
@@ -227,14 +229,24 @@ if ((GUARD_ONLY)); then
   exit 0
 fi
 
-user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-user_mode="unset"
-if [[ -f "$user_settings" ]]; then
-  user_mode="$(jq -r "$MODE_WORD"' .permissions?.defaultMode? | mode_word' "$user_settings" 2>/dev/null)" ||
-    user_mode="unreadable"
-fi
+mode_of() {
+  [[ -f "$1" ]] || {
+    printf 'unset'
+    return 0
+  }
+  jq -r "$MODE_WORD"' .permissions?.defaultMode? | mode_word' "$1" 2>/dev/null || printf 'unreadable'
+}
 mode="$managed_mode" mode_from="managed"
-[[ "$mode" == "unset" ]] && mode="$user_mode" mode_from="user"
+if [[ "$mode" == "unset" ]]; then
+  mode="$(mode_of "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json")" mode_from="user"
+  # https://code.claude.com/docs/en/settings-reference#permissions-defaultmode
+  for scope in project local; do
+    file="$PROJECT/.claude/settings.json"
+    [[ "$scope" == "local" ]] && file="$PROJECT/.claude/settings.local.json"
+    scope_mode="$(mode_of "$file")"
+    case "$scope_mode" in unset | auto | bypassPermissions) ;; *) mode="$scope_mode" mode_from="$scope" ;; esac
+  done
+fi
 if [[ "$managed_sideload" == "true" ]]; then
   written="not-unasked (managed disableSideloadFlags true)"
 elif ((!managed_read)) && [[ "$managed" != "absent" && "$managed" != "mcp" ]]; then
@@ -245,7 +257,7 @@ else
     written="load-unasked (defaultMode $mode in $mode_from settings; disableSideloadFlags $managed_sideload)"
     ;;
   default | acceptEdits | plan | dontAsk | manual | other | unset) written="not-unasked (defaultMode $mode)" ;;
-  *) written="unknown (user settings unreadable)" ;;
+  *) written="unknown ($mode_from settings unreadable)" ;;
   esac
 fi
 NOT_READ+=("claude-written mods: --permission-mode, --dangerously-skip-permissions and --settings are not read; managed values come from the managed files only")

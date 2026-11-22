@@ -364,6 +364,17 @@ mkdir -p "$FIX/proj/.claude"
 printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$FIX/proj/.claude/settings.json"
 run_mp --no-fetch
 assert_contains "project settings cannot set bypassPermissions" "$OUT" "# claude-written mods: not-unasked (defaultMode default)"
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$U"
+printf '{"permissions":{"defaultMode":"plan"}}\n' >"$FIX/proj/.claude/settings.json"
+run_mp --no-fetch
+assert_contains "a lower project mode overrides user bypassPermissions" "$OUT" "# claude-written mods: not-unasked (defaultMode plan)"
+printf '{"permissions":{"defaultMode":"dontAsk"}}\n' >"$FIX/proj/.claude/settings.local.json"
+run_mp --no-fetch
+assert_contains "local settings outrank project settings" "$OUT" "# claude-written mods: not-unasked (defaultMode dontAsk)"
+printf '{"permissions":{"defaultMode":"auto"}}\n' >"$FIX/proj/.claude/settings.local.json"
+printf 'not json\n' >"$FIX/proj/.claude/settings.json"
+run_mp --no-fetch
+assert_contains "unparsable project settings leave it unknown" "$OUT" "# claude-written mods: unknown (project settings unreadable)"
 rm -rf -- "${FIX:?}/proj/.claude"
 printf '{"permissions":{"defaultMode":"SECRETMODE1"}}\n' >"$U"
 cp -- "$U" "$FIX/user-mode-other.txt"

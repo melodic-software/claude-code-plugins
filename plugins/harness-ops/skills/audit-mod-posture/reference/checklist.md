@@ -50,7 +50,8 @@ The table itself. Not scored.
 ## M6 Claude-written mods load unasked
 
 Reads the `# claude-written mods:` footer, once per run. The script derives it from
-`permissions.defaultMode` (managed settings, else user settings) and managed
+`permissions.defaultMode` (managed settings, else user settings, unless project or local settings
+set a mode other than `auto` or `bypassPermissions`, which then wins) and managed
 `disableSideloadFlags`.
 
 | Footer | Result |
@@ -114,7 +115,8 @@ built-in row) or a `redacted` entry reads info, "nouns not read".
 - **Pointer** (the sideload record): for what `disableSideloadFlags` rejects, and that only managed
   settings set it, fetch
   [Settings reference: disableSideloadFlags](https://code.claude.com/docs/en/settings-reference#disablesideloadflags)
-  live. For why the script reads `permissions.defaultMode` from managed and user settings only, see
+  live. For why the script takes `auto` and `bypassPermissions` from managed and user settings
+  only, while a lower mode in project or local settings still wins, see
   [the same page's `permissions.defaultMode` entry](https://code.claude.com/docs/en/settings-reference#permissions-defaultmode).
 - **As of**: 2026-11-22
 - **Recheck trigger**: `disableSideloadFlags` stops keeping Claude-written mods from loading or

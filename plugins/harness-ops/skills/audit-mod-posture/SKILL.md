@@ -73,8 +73,8 @@ says. `can_disable` for built-ins comes from the live mods overview table, fetch
 plugin's docs cache; `unknown` when that fetch fails.
 
 The `# claude-written mods:` footer reads `load-unasked` when `permissions.defaultMode` is `auto` or
-`bypassPermissions` (managed settings, else user settings) and managed `disableSideloadFlags` is
-not `true`; `not-unasked` otherwise; and `unknown` when a settings file it needs did not read.
+`bypassPermissions` (managed settings, else user settings, unless project or local settings set a
+mode other than those two) and managed `disableSideloadFlags` is not `true`; `not-unasked` otherwise; and `unknown` when a settings file it needs did not read.
 Mods Claude has already written being present is not part of it.
 
 - **Pointer**: for what the `hooks:` and `calls:` lines of `claude plugin validate` list, fetch
