@@ -2015,6 +2015,15 @@ else
   fail "R10: package-scope selection wrong (rc=$RC): $OUT"
 fi
 
+printf '{"devDependencies":{"@scope/tool":"1.0.0"}}\n' >"$repo/pkg/package.json"
+run_sel "$repo" pkg/package.json
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" pkg/reader.test.mjs && has_line "$OUT" pkg/tooled.test.mjs; then
+  ok "R10: a dependency the change removes still selects what imports it"
+else
+  fail "R10: a removed dependency lost its importers (rc=$RC): $OUT"
+fi
+git -C "$repo" checkout -q -- pkg/package.json
+
 run_sel "$repo" package.json
 if [[ "$RC" -eq 0 ]] && ! contains "$OUT" .test.; then
   ok "R10: a package.json no module in its scope bare-imports from selects nothing"

@@ -150,6 +150,14 @@
 #                    through its wrapper (scripts/run-outside-node-suites.sh
 #                    leaves it to the wrapper), so the Node suite alone runs
 #                    nothing. Applied after every other rule, before --shard.
+#   R10 package scope Node reads a package.json for every bare import made in
+#                    its package scope (PACKAGE_SELF_RESOLVE,
+#                    https://nodejs.org/api/esm.html#resolution-algorithm-specification),
+#                    so a changed <dir>/package.json seeds the walk with each
+#                    non-test .js, .mjs or .cjs file under <dir>, short of
+#                    node_modules/ and any nested package.json, that imports or
+#                    requires a dependency the manifest declares at the diff
+#                    base or now; R2, R3 and R4 then apply to each. Needs jq.
 #
 # MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
 # PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
@@ -161,6 +169,15 @@
 # file nothing covers coming back mapped at exit 0. A basename the token rule
 # cannot spell, one with a character outside the class, keeps the substring
 # test rather than losing its coverage.
+#
+# MANIFESTS. plugin.json, marketplace.json, hooks.json, settings.json,
+# package.json, package-lock.json, CHANGELOG.md and LICENSE select no suite
+# through a mention: a suite that reads one reads its name or version, and the
+# manifest, changelog and catalog gates own those files. Only R1, R2 and a
+# declared scope (R8) reach a suite from them; anything else is on the no-suite
+# list.
+# A package.json also reaches its package scope's importers (R10), because Node
+# reads it on every bare import there (https://nodejs.org/api/esm.html#resolution-algorithm-specification).
 #
 # AMBIGUOUS NAMES. A basename two or more files carry, and the structural docs
 # (README.md, SKILL.md, AGENTS.md, CLAUDE.md, index.md), name a specific file
@@ -246,6 +263,7 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
+DIFF_BASE=""
 
 # Basenames that name a repository-wide role, reached only through a resolved
 # mention (AMBIGUOUS NAMES in the header), however few files carry them today.
@@ -1011,14 +1029,25 @@ token_hits() {
 }
 
 package_scope_importers() {
-  local manifest="$1" dir deps
+  local manifest="$1" dir deps="" copy
   dir="${manifest%/*}"
   [[ "$dir" == "$manifest" ]] && dir="."
-  if ! deps="$(jq -r '[.dependencies, .devDependencies, .optionalDependencies, .peerDependencies]
-      | map(select(type == "object") | keys[]) | unique[]' "$manifest")"; then
-    echo "error: cannot read the dependencies of $manifest (R10 needs jq and valid JSON)." >&2
-    exit 2
-  fi
+  for copy in "head" "${DIFF_BASE:-HEAD}"; do
+    if [[ "$copy" == head ]]; then
+      [[ -f "$manifest" ]] || continue
+      copy="$(cat "$manifest")" || exit 2
+    else
+      git cat-file -e "$copy:$manifest" 2>/dev/null || continue
+      copy="$(git show "$copy:$manifest")" || exit 2
+    fi
+    if ! copy="$(jq -r '[.dependencies, .devDependencies, .optionalDependencies, .peerDependencies]
+        | map(select(type == "object") | keys[]) | unique[]' <<<"$copy")"; then
+      echo "error: cannot read the dependencies of $manifest (R10 needs jq and valid JSON)." >&2
+      exit 2
+    fi
+    deps+="$copy"$'\n'
+  done
+  deps="$(sort -u <<<"$deps" | sed '/^$/d')"
   [[ -n "$deps" ]] || return 0
   awk -v d="$dir/" -v deps="$deps" '
     BEGIN { n = split(deps, list, "\n"); for (i = 1; i <= n; i++) want[list[i]] = 1 }
@@ -1026,11 +1055,11 @@ package_scope_importers() {
     /(^|\/)node_modules\// || !/\.(js|mjs|cjs)$/ || /\.test\.(js|mjs|cjs)$/ { next }
     d != "./" && index($0, d) != 1 { next }
     {
-      n = split($0, part, "/"); anc = ""
-      for (k = 1; k < n; k++) anc = anc part[k] "/"
-      for (k = n - 1; k >= 1 && anc != d; k--) {
-        if (anc in pkg) next
-        anc = substr(anc, 1, length(anc) - length(part[k]) - 1)
+      n = split($0, part, "/"); up = ""
+      for (k = 1; k < n; k++) up = up part[k] "/"
+      for (k = n - 1; k >= 1 && up != d; k--) {
+        if (up in pkg) next
+        up = substr(up, 1, length(up) - length(part[k]) - 1)
       }
       print
     }
@@ -1126,7 +1155,7 @@ select_for() {
       [[ -n "$copy" ]] && frontier+=("$copy")
     done <<<"${SYNC_SRC_COPIES[$line]:-}"
   done
-  if [[ "${seed##*/}" == package.json && "$seed" != *node_modules/* && -f "$seed" ]]; then
+  if [[ "${seed##*/}" == package.json && "$seed" != *node_modules/* ]]; then
     if ! package_scope_importers "$seed" >"$WORK_DIR/scope-importers"; then
       echo "error: the package-scope import scan of $seed failed; refusing to under-select." >&2
       exit 2
@@ -1392,6 +1421,7 @@ changed_from_diff() {
     mapfile -t merge_heads <"$merge_head_file"
   fi
   mb="$(git merge-base "$base" HEAD "${merge_heads[@]}" 2>/dev/null)" || mb="$base"
+  DIFF_BASE="$mb"
   # Every failure is fatal, never an empty list, which downstream reads as
   # "nothing to select, exit 0". This runs in the CURRENT shell (see the call
   # site) so these exits are the script's.
