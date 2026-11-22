@@ -182,7 +182,7 @@ are covered.
 
 Each class is **listed** (rows), **counted** (a number in the counts table) or **omitted**. Keys are
 read from `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md` under `delta_noise_budget`, never
-redefined here.
+redefined here, through that page's layers and dual-read window, warning on each old file it reads.
 
 **Always listed, whatever the budget:** a verdict moved under a carried-forward judgment (rule 5) and
 a status change. They are not configurable keys.

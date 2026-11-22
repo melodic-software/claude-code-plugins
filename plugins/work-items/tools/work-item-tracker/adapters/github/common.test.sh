@@ -6,7 +6,7 @@
 set -uo pipefail
 # In a CI job the adapter wraps its gh calls and records into the job's
 # RUNNER_TEMP; the stubs here answer the unwrapped calls.
-unset RUNNER_TEMP
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -88,6 +88,7 @@ repo)
   ;;
 api)
   case "$*" in
+  *"--jq .permissions.push") [[ "$2" == repos/up/r ]] && echo false || echo true ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
   *"--jq .full_name") printf "%s\n" "${2#repos/}" | sed 's#^o/r-old$#o/r#' ;;
   "api repos/me/r --jq"*) printf 'up/r\n' ;;
@@ -191,6 +192,20 @@ EOF
   rc=$?
   assert_eq "wit_resolve_repo refuses undecidable remotes with exit 3" "3" "$rc"
   assert_contains "wit_resolve_repo refusal prints the set-default fix" "$ERR" "gh repo set-default <owner>/<repo>"
+
+  THEIRS="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$THEIRS" init -q
+  git -C "$THEIRS" remote add origin https://github.com/up/r
+  ERR="$(cd "$THEIRS" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" write 2>&1 >/dev/null)"
+  rc=$?
+  assert_eq "wit_resolve_repo write in a clone you cannot push to exits 3" "3" "$rc"
+  assert_contains "wit_resolve_repo write refusal names the repository" "$ERR" "you cannot push to up/r"
+  REPO="$(cd "$THEIRS" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo read in a clone you cannot push to still resolves" "up/r" "$REPO"
+  (cd "$NO_REMOTE" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo up/r write >/dev/null 2>&1)
+  assert_eq "wit_resolve_repo write to an explicit repository you cannot push to exits 3" "3" "$?"
+  REPO="$(cd "$NO_REMOTE" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo o/r write 2>/dev/null)"
+  assert_eq "wit_resolve_repo write to an explicit pushable repository resolves" "o/r" "$REPO"
 
   rm -rf "$EMIT_STUB"
 

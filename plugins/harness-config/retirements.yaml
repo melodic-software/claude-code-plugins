@@ -1,0 +1,10 @@
+---
+id: harness-config-r001
+retired: 2026-11-22
+plugin_version: 5.8.0
+kind: file
+path: .claude/audit-pass.local.md
+content_match: '^[[:space:]]*suppressions:'
+action: migrate
+successor: "the audit-pass personal override moved to <home>/audit-pass.local.md (skills/setup/SKILL.md apply): confirm git check-ignore covers that path first, carry every entry of the old file's fenced suppressions block into it by finding_id unchanged, keeping the new file's own entries, stop on an id both files carry with any differing key, run the audit engine --json and confirm the personal layer reads the new file with every moved entry and no new malformed line, have the operator confirm, then clean"
+note: "old audit-pass personal override; entries move to <home>/audit-pass.local.md"

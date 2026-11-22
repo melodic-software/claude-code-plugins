@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no tool calls" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/.claude/audit-pass.local.md" } }], "why": "read-only run" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/docs/conventions/audit-pass.local.md", "content": "x" } }], "why": "moved the file during a check" }
+  ]
+}

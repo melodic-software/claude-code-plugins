@@ -4,9 +4,9 @@ import { update } from "./lib/update.mjs";
 
 const USAGE = `usage: external-agents <command> [options]
 
-  run <product> --use task|investigate [--mode read-only|write] [--model M]
+  run <product> --use task|investigate [--mode read-only|write] [--model M] [--effort E]
                 [--resume <thread-id>|--last] [--prompt-file F]   (prompt on stdin without --prompt-file)
-  review <product> --base <ref> [--model M] [--brief-file F] [--council]
+  review <product> --base <ref> [--model M] [--effort E] [--brief-file F] [--council]
                 (--council: skipped when <product>.council.enabled is false)
   status [<job>]
   result <job>
@@ -17,8 +17,8 @@ exit codes: 0 ok, 1 failed, 2 usage, 3 blocked by the mode, 4 CLI unavailable or
 `;
 
 const OPTIONS = {
-  run: { "--use": "use", "--mode": "mode", "--model": "model", "--resume": "resume", "--last": null, "--prompt-file": "promptFile" },
-  review: { "--base": "base", "--model": "model", "--brief-file": "briefFile", "--council": null },
+  run: { "--use": "use", "--mode": "mode", "--model": "model", "--effort": "effort", "--resume": "resume", "--last": null, "--prompt-file": "promptFile" },
+  review: { "--base": "base", "--model": "model", "--effort": "effort", "--brief-file": "briefFile", "--council": null },
   status: {},
   result: {},
   cancel: {},
@@ -71,8 +71,8 @@ export async function main(argv) {
   }
   const [first] = options.positional;
   const outcome =
-    command === "run" ? await run({ product: first, use: options.use, mode: options.mode, model: options.model, resume: options.resume, last: options.last, prompt: text })
-    : command === "review" ? await review({ product: first, base: options.base, model: options.model, brief: text, council: options.council })
+    command === "run" ? await run({ product: first, use: options.use, mode: options.mode, model: options.model, effort: options.effort, resume: options.resume, last: options.last, prompt: text })
+    : command === "review" ? await review({ product: first, base: options.base, model: options.model, effort: options.effort, brief: text, council: options.council })
     : command === "update" ? await update({ product: first })
     : { status, result, cancel }[command]({ jobId: first });
   process.stdout.write(outcome.stdout);

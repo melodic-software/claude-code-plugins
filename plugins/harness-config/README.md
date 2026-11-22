@@ -100,7 +100,7 @@ files in five places and hoping you knew all five. A deterministic reader discov
 scope, covering managed policy, user-global, project, local, and any pre-v2.1.211 copy left in the
 session's start directory, then inventories each one's `allow` / `ask` / `deny` rules with its source named.
 
-The status vocabulary is the point: `absent` means looked and found nothing, `skipped` means could not
+The status vocabulary separates two cases: `absent` means looked and found nothing, `skipped` means could not
 look. The managed scope is four admin surfaces per OS, not one file, plus the server-managed
 cache record; the Windows policy registry keys and the macOS managed-preferences domain are optional
 platform integrations that degrade visibly while the
@@ -244,10 +244,13 @@ first shipper is this marketplace's `guardrails` plugin.
 
 ## Configuration
 
-One `userConfig` option, `time_units` (default off): off, `audit-automation-gaps` sizes each
+Two `userConfig` options. `time_units` (default off): off, `audit-automation-gaps` sizes each
 implementation plan as Small, Medium or Large; on, it may state the size in time units. A time
 budget you state is kept in your words either way. A `time_units` key in
-`<home>/harness-config.yaml` sets it for a repository and wins over the option. That file is the
+`<home>/harness-config.yaml` sets it for a repository and wins over the option.
+`audit_pass_suppressions_file` (unset by default) names a file of your own `audit-pass`
+suppression entries, which `audit` reads in every repository; your per-repository personal
+override is `<home>/audit-pass.local.md`. `<home>/harness-config.yaml` is the
 one tracked consumer-project file; it also holds `audit-pass`'s suppression record, above, and
 the `verification` level (`off | light | standard | strict`, default `light`, with per-skill
 `verification_skills`), read from the default branch only by `lib/read-verification.sh`, which
@@ -291,6 +294,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `time_units` | boolean | `false` | When on, /harness-config:audit-automation-gaps may state the size of an implementation plan in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off. |
+| `audit_pass_suppressions_file` | file | *(none)* | Your own audit-pass suppressions file (Markdown), read by /harness-config:audit in every repository. Only a repository's team record enacts a suppression; an entry here the team record lacks is reported personal-only. Replaces ~/.claude/audit-pass.md. Default: unset. |
 
 ### How to set these
 

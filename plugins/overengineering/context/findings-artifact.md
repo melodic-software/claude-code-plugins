@@ -40,7 +40,7 @@ the verdict. An inline terminal summary is a view of it, never a second record.
 This artifact declares `type: overengineering-findings` and **must never be made to declare
 `type: review-findings`**, nor be written into the directory where a fix relay scans.
 
-The reasoning is structural, not stylistic. The `review:fanout` fix relay locates its input purely
+The `review:fanout` fix relay locates its input purely
 by frontmatter, matching files that declare `type: review-findings` and whose `branch:` matches the
 current branch, and never by provenance; nothing authenticates the writer
 (`docs/contracts/detector-findings/README.md`). A findings file of that type is therefore
@@ -510,8 +510,8 @@ anything outside this artifact, and every transition it makes sits behind an exp
 acceptance from the operator.
 
 `overengineering:audit` writes `OPEN` on a finding it has not seen before and otherwise **carries
-the prior status forward** verbatim. It never advances, downgrades, or clears one. This is not a
-courtesy: the audit's verb contract is read-only, and a read-only producer that rewrote statuses
+the prior status forward** verbatim. It never advances, downgrades, or clears one. The audit's
+verb contract is read-only, and a read-only producer that rewrote statuses
 would silently erase decisions a human made. That is the failure the durable judgment record exists
 to prevent, reintroduced by the producer itself.
 
@@ -639,8 +639,9 @@ unwalked layers only.
 ## The durable judgment record
 
 The artifact is memory-tier and ephemeral; an operator's judgment must outlive it. So a judgment is
-**offered** persistence as a suppression entry in the consuming repository's **tracked**
-`.claude/overengineering.md`, per `docs/contracts/finding-suppression/`, written by realign behind
+**offered** persistence as a suppression entry in the consuming repository's **tracked** team file,
+`<home>/overengineering.yaml`, or the old `.claude/overengineering.md` while the dual-read window
+in `reference/consumer-config.md` has it supply the team layer, per `docs/contracts/finding-suppression/`, written by realign behind
 the **same per-item gate** that authorized the remediation.
 
 - **Offered, never taken.** A producer that wrote a suppression entry unprompted would record an

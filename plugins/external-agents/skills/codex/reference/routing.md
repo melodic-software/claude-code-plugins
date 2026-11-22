@@ -1,7 +1,8 @@
 # Routing: model and effort
 
-This skill holds no model names and no effort defaults. A run passes a model only when the user
-names one or `codex.model` is set, and an effort only when `codex.effort` is set; otherwise Codex's
+This skill holds no model names and no effort defaults. A run passes a model or an effort only
+when the user names one, a heavy whole-task delegation calls for one (see [run.md](run.md)), or
+`codex.model` or `codex.effort` is set; otherwise Codex's
 own configuration and recommended default decide. Which model and effort each agent role in a
 multi-agent run uses is `/multi-agent:route`'s config, not this skill's.
 

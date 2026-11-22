@@ -320,6 +320,7 @@ the row states the manifest as it exists on `main`.
 | `plugin-quality` | 2 | 2026-09-01 |
 | `docs-naming` | 2 | 2026-10-01 |
 | `guardrails` | 4 | 2026-10-16 |
+| `harness-config` | 1 | 2026-11-22 |
 | `attribution` | 4 | 2026-09-27 |
 | `harness-ops` | 5 | 2026-09-05 |
 | `improvement` | 2 | 2026-11-22 |

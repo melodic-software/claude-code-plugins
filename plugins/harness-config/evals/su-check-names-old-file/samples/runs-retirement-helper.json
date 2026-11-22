@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/plugin/lib/check-retirements.sh\" --manifest \"/plugin/retirements.yaml\" --root \"/ws\"" } }], "why": "runs the helper" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no tool calls" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git check-ignore -v .claude/audit-pass.local.md" } }], "why": "a different probe" }
+  ]
+}

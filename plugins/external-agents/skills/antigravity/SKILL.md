@@ -34,14 +34,15 @@ Antigravity.
 | `review`: agy reviews this branch, read-only | `external-agents review antigravity --base <ref> [--brief-file <file>]` | [reference/run.md](reference/run.md#review) |
 | `status`, `result`, `cancel` | `external-agents status [<job>]`, `result <job>`, `cancel <job>` | [reference/jobs.md](reference/jobs.md) |
 | `update`: readiness, CLI facts, version and routing check | `external-agents update antigravity` | [reference/update.md](reference/update.md) |
-| Choosing a model or effort | none: config keys only | [reference/routing.md](reference/routing.md) |
+| Choosing a model or effort | `--model`, `--effort` for one run; config keys otherwise | [reference/routing.md](reference/routing.md) |
 
 ## Reporting a run
 
 - **First reply line:** `Mode: <mode> (<use>)`, taken from the job, never from what was asked: the
   `mode:` line of `external-agents status <job>` (the job id is the `job: <id>` line on stderr).
   A review is always `Mode: read-only (review)`. When the mode ceiling lowered a write request, say
-  so and name the config key the notice names.
+  so and name the config key the notice names. When the run passed `--model` or `--effort`, add
+  the `model:` and `effort:` lines from the same status output and why they were chosen.
 - Then the command's first stdout line, then agy's final message verbatim. That message is agy's
   answer, not yours: relay it, and add your own reading only below it, labeled as yours.
 - Exit codes (`scripts/lib/runner.mjs:12`): `0` ok, `1` failed, `2` usage or refused, `3` blocked

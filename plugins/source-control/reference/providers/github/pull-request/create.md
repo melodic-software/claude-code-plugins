@@ -113,7 +113,7 @@ later): captures go to the PR through the pull-request skill's `evidence` action
 ## Resolve the target repository
 
 ```bash
-REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>" --write) || exit 1
 export GH_REPO="$REPO"
 ```
 
@@ -183,7 +183,7 @@ In a sandboxed session, take identity from the create response, or re-read it wi
 ## Open the PR from an out-of-tree orchestrator
 
 Resolve the repository for the worker's checkout, not the orchestrator's:
-`REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "$WT") || exit 1`, then
+`REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "$WT" --write) || exit 1`, then
 `export GH_REPO="$REPO"`. `gh pr create` must pass `--head "$BRANCH"` explicitly, since the
 invoker is not on the branch:
 

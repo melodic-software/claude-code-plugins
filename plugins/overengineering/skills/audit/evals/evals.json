@@ -229,6 +229,77 @@
         "Passes `file` to visualization:visualize when the offer is taken",
         "Builds no HTML file itself"
       ]
+    },
+    {
+      "id": 17,
+      "name": "config-new-team-file-only-no-warning",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the repository binds no convention-home pointer, so the home is docs/conventions. docs/conventions/overengineering.yaml is tracked and sets thresholds.exercise_frequency_days: 180; no docs/conventions/overengineering.local.yaml, no ~/.claude/overengineering.md, no .claude/overengineering.md and no .claude/overengineering.local.md exist. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Resolves the consumer configuration from docs/conventions/overengineering.yaml as the team layer and applies exercise_frequency_days 180, reporting that the team layer supplied it and that every other key is the bundled default. Prints no old-path warning, because no old file exists. Leaves docs/conventions/overengineering.yaml out of the scan set and writes only the findings artifact.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads docs/conventions/overengineering.yaml as the team layer",
+        "Applies exercise_frequency_days 180 and names the team layer as the source of that value",
+        "Prints no warning about an old config path",
+        "Does not treat docs/conventions/overengineering.yaml as an enforcement mechanism to audit"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "config-old-team-file-only-applies-and-warns",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the repository binds no convention-home pointer, so the home is docs/conventions. The tracked .claude/overengineering.md holds a fenced YAML block that sets protected_categories.audit-trail-retention: off and thresholds.exercise_frequency_days: 180; neither docs/conventions/overengineering.yaml nor docs/conventions/overengineering.local.yaml exists, and there is no ~/.claude/overengineering.md. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Reads the old .claude/overengineering.md as the team layer, because no docs/conventions/overengineering.yaml exists, and applies both of its values: audit-trail-retention is off as a team-layer value, and exercise_frequency_days is 180. Prints one warning line saying overengineering still reads .claude/overengineering.md and to move its settings to docs/conventions/overengineering.yaml and then delete the old file. Drops no setting from the old file and excludes it from the scan set.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Applies the old file's values as the team layer: audit-trail-retention off and exercise_frequency_days 180",
+        "Prints one warning naming .claude/overengineering.md and docs/conventions/overengineering.yaml as the place to move its settings",
+        "Tells the operator to delete the old file after the move",
+        "Does not audit .claude/overengineering.md as an enforcement mechanism"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "config-old-and-new-team-files-new-wins-warns",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the repository binds no convention-home pointer, so the home is docs/conventions. docs/conventions/overengineering.yaml is tracked and sets thresholds.exercise_frequency_days: 120. The tracked .claude/overengineering.md also exists, with a fenced YAML block setting thresholds.exercise_frequency_days: 180 and observation_window.days: 45. No personal file exists at any path. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Uses docs/conventions/overengineering.yaml as the team layer: exercise_frequency_days resolves to 120, and observation_window.days stays at its bundled default of 30, because the new file supplies the team layer and the old file is not applied. Prints one warning that names both files: overengineering reads docs/conventions/overengineering.yaml and ignores .claude/overengineering.md, and any setting only the old file holds (here observation_window.days) should move to the new file before the old one is deleted.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves exercise_frequency_days to 120 from docs/conventions/overengineering.yaml, not 180 from the old file",
+        "Does not apply observation_window.days 45 from the old file",
+        "Prints one warning that names both docs/conventions/overengineering.yaml and .claude/overengineering.md",
+        "Tells the operator to move any setting only the old file holds into the new file, then delete the old file"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "config-old-user-global-file-applies-below-team-and-warns",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the repository binds no convention-home pointer, so the home is docs/conventions. docs/conventions/overengineering.yaml is tracked and sets thresholds.exercise_frequency_days: 120. The old user-global ~/.claude/overengineering.md exists, with a fenced YAML block setting thresholds.exercise_frequency_days: 180 and observation_window.days: 45. No docs/conventions/overengineering.local.yaml, no .claude/overengineering.md and no .claude/overengineering.local.md exist. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Reads ~/.claude/overengineering.md as a personal layer below the team layer, because no docs/conventions/overengineering.local.yaml exists. exercise_frequency_days resolves to 120 from the team file, which sits above the old user-global file, and observation_window.days resolves to 45 from the old user-global file, which the team file does not set; the run names the old user-global file as the layer that supplied 45. Prints the user-global warning, not the generic one: overengineering still reads ~/.claude/overengineering.md; copy its settings to docs/conventions/overengineering.local.yaml in each repository that relies on it, then delete it. Drops no setting from the old file and excludes it from the scan set.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves exercise_frequency_days to 120 from docs/conventions/overengineering.yaml, not 180 from the old user-global file",
+        "Applies observation_window.days 45 from ~/.claude/overengineering.md and names that file as its source",
+        "Prints one warning saying overengineering still reads ~/.claude/overengineering.md and naming docs/conventions/overengineering.local.yaml",
+        "Tells the operator to copy the settings into each repository that relies on the file before deleting it",
+        "Does not audit ~/.claude/overengineering.md as an enforcement mechanism"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "config-old-and-new-personal-files-new-wins-warns",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the repository binds no convention-home pointer, so the home is docs/conventions. docs/conventions/overengineering.yaml is tracked and sets thresholds.exercise_frequency_days: 120. The gitignored docs/conventions/overengineering.local.yaml sets thresholds.exercise_frequency_days: 150. The gitignored old .claude/overengineering.local.md also exists, with a fenced YAML block setting thresholds.exercise_frequency_days: 200 and observation_window.days: 60. No ~/.claude/overengineering.md and no .claude/overengineering.md exist. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Uses docs/conventions/overengineering.local.yaml as the personal layer: exercise_frequency_days resolves to 150 and the run names the personal override as its source, and observation_window.days stays at its bundled default of 30, because the new personal file supplies that layer and the old .claude/overengineering.local.md is not applied. Prints one warning that names both files: overengineering reads docs/conventions/overengineering.local.yaml and ignores .claude/overengineering.local.md, and any setting only the old file holds (here observation_window.days) should move to the new file before the old one is deleted.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves exercise_frequency_days to 150 from docs/conventions/overengineering.local.yaml, not 200 from the old file or 120 from the team file",
+        "Does not apply observation_window.days 60 from .claude/overengineering.local.md",
+        "Prints one warning that names both docs/conventions/overengineering.local.yaml and .claude/overengineering.local.md",
+        "Tells the operator to move any setting only the old file holds into the new file, then delete the old file"
+      ]
     }
   ]
 }
