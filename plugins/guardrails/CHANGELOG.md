@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.0] - 2026-11-22
+
+### Added
+
+- `git-hooks/reference-verify.sh --base <ref>` checks every commit from HEAD's merge-base with `<ref>`, pushed ones included. The pre-PR check and CI run it this way.
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+- A cli-flag finding names `git config checks.guardrails.reference-verify.declined true` as the way to stop the check in a clone.
+
+### Removed
+
+- The `reference-verify` git-hook entry. At about 10 s on a 44-file change it is over the check-placement convention's 3 s push budget, so `/source-control:pull-request` runs `git-hooks/reference-verify.sh` in its pre-PR check instead. `pre-push-content` is the one pre-push entry left. A lefthook remote stops running it on its next fetch; a local or shared copy an earlier `apply install-git-hooks` installed keeps running until you remove it: delete the `pre-push.d/guardrails.reference-verify` marker and the `guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks`, a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml`, a `.husky/pre-push` line that runs `reference-verify.sh`, and `.githooks/guardrails/reference-verify.sh` (the README's "Git hooks" section lists the same).
+
 ## [3.12.4] - 2026-11-22
 
 ### Changed

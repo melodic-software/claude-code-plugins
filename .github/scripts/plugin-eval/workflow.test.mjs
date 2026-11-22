@@ -145,6 +145,7 @@ test("compare mode runs both arms on the API key alone and stops without a cost 
     const arm = job(name);
     assert.match(arm, /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n*$/, name);
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
+    assert.match(arm, /\n {6}ablation: none\n/, name);
   }
   assert.doesNotMatch(compare, /OAUTH_TOKEN|secrets: inherit/);
   assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
@@ -177,8 +178,8 @@ test("the record job's name is the one the release requires to have succeeded", 
 });
 
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
-  assert.match(text, /name: Check Key Credit\n {4}if: >-\n {6}\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
-  assert.match(job("compare-prepare"), /if: >-\n {6}github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
+  assert.match(text, /name: Check Key Credit\n(?: {4}#[^\n]*\n)* {4}if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false' && \(\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
+  assert.match(job("compare-prepare"), /if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false'\n {6}&& github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
   assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\}', inputs\.pr, inputs\.head-sha\)/);
   const { runVouches } = await import("../pr-merge/release-eval-hold.mjs");
   const head = "d".repeat(40);

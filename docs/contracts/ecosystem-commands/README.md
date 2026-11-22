@@ -215,6 +215,31 @@ drift warning. A resolver never installs a declared prerequisite, in any run; th
 text it shows and never runs. Declaring a runtime package here, rather than installing it inside a
 command string (an `npm ci` in `test-cmd`), keeps an unattended run from installing anything.
 
+#### Provisioning
+
+An entry may carry an `install` object, `{manager: npm, lockfile: <repo-relative path>}`, and
+nothing else: no free-form command. The provisioning step, the source-control plugin's
+`scripts/provision-prerequisites.sh`, runs `npm ci --ignore-scripts --no-audit --no-fund` in the
+directory of each `install` entry's lockfile, so no package's install script runs, and runs nothing
+for an entry without `install`, which stays report-only. The worktree helper runs the step when it
+creates a worktree. A resolver never runs it: the check still only probes, and an entry the step
+could not install still reads `skip (prerequisite missing: <name>)`.
+
+When no record in the repository declares any `install` entry, the step still installs a root
+`npm-shrinkwrap.json` or `package-lock.json` the same way and prints a notice to declare it; this
+fallback ends in the next major version of this contract, with the legacy-location read, once every
+repository holding records declares its lockfiles.
+
+```yaml
+requires:
+  check-cmd:
+    - name: ajv
+      probe: "test -f $REPO_ROOT/tools/node_modules/ajv/package.json"
+      install:
+        manager: npm
+        lockfile: tools/package-lock.json
+```
+
 ## Consumers
 
 Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `test-changed-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,
@@ -230,6 +255,7 @@ lane membership without running a verb:
 | Plugin | Keys | Use |
 |---|---|---|
 | `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset is ignored with a warning, and `/code-metrics:setup check` shows FAIL for it. |
+| `source-control` | `requires.*[].install`, `gates[].requires[].install`, and each such entry's `name` | The provisioning step (`scripts/provision-prerequisites.mjs`, run by `scripts/provision-prerequisites.sh` at worktree creation) installs each declared lockfile with scripts off, and, while no record declares one, the root lockfile with a notice. No verb is run. A record with no `install` key is not parsed; one with an `install` key outside the YAML subset is named on stderr and skipped. |
 
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<lane>.yaml` and
 no other ecosystem-commands key. It fails soft, as the tolerant-reader paragraph above asks: an

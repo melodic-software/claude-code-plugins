@@ -26,9 +26,6 @@ import { findSecret } from "../../../lib/publish-gate.mjs";
 export const SCHEMA = 1;
 export const LANES = Object.freeze(["claude-review", "claude-security-review"]);
 export const SEVERITIES = Object.freeze(["CRITICAL", "IMPORTANT", "SUGGESTION"]);
-// The longest diff line text, in bytes, the review reads whole
-// (diff_risk.LONG_LINE_BYTES): a verdict past it is never written.
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 export const LONG_LINE_BYTES = 1800;
 const FINDINGS_MAX = 200;
 const TEXT_MAX = 2000;

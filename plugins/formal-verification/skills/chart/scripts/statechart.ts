@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { CHART_STATES, DEFAULT_LIMITS, RERUN_STATES } from "./ir.ts";
-import { killGroup, messageOf } from "./run.ts";
+import { killGroup } from "./kill.ts";
+import { messageOf } from "./run.ts";
 import { checkSpecName, childEnv, freshOut } from "./stage.ts";
 
 const MAX_TIMEOUT_SECONDS = Math.floor((2 ** 31 - 1) / 1000);
@@ -156,25 +157,25 @@ try {
         detached: true,
         stdio: ["ignore", "inherit", "inherit"],
         env: childEnv(tmp),
+        windowsHide: true,
       },
     );
-    janitor = spawn(
-      "/bin/sh",
-      [
-        "-c",
-        'while read -r line; do :; done; kill -s KILL -- "-$1"; rm -rf -- "$2" "$3"',
-        "sh",
-        String(worker.pid),
-        stage,
-        tmp,
-      ],
-      { detached: true, stdio: ["pipe", "ignore", "ignore"] },
+    const sweeper = spawn(
+      process.execPath,
+      [...runtime, path.join(import.meta.dirname, "janitor.ts"), String(worker.pid), stage, tmp],
+      { detached: true, stdio: ["pipe", "ignore", "ignore"], windowsHide: true },
     );
+    sweeper.stdin?.on("error", () => {});
+    janitor = sweeper;
     const exited = new Promise<number>((resolve) =>
-      worker.on("exit", (code) => resolve(code ?? 2)),
+      worker.on("exit", (code) => {
+        sweeper.stdin?.write("exited\n");
+        resolve(code ?? 2);
+      }),
     );
     await Promise.race([stopped, exited]);
-    await killGroup(worker.pid as number);
+    const running = worker.exitCode === null && worker.signalCode === null;
+    if (running || process.platform !== "win32") await killGroup(worker.pid as number);
     const verdict = await exited;
     if (stop) {
       console.error(`${stop} stopped the check, so the command wrote nothing.`);

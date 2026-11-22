@@ -92,7 +92,7 @@ for candidate in \
   "${VERIFY_LOAD_CLAUDE_BIN:-}" \
   "$SCRIPT_DIR/../../../node_modules/.bin/claude" \
   "$(command -v claude 2>/dev/null || true)"; do
-  [[ -n "$candidate" && -x "$candidate" ]] && {
+  [[ -n "$candidate" && -x "$candidate" ]] && "$candidate" --version >/dev/null 2>&1 && {
     CLI="$candidate"
     break
   }

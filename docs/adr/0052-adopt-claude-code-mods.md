@@ -210,14 +210,25 @@ amendment. The decision stands: no policy narrowing of what a mod may do.
 - **With or without the guard, a mod is unsandboxed and its own calls bypass permission rules.**
   The same overview section (quoted with link markup removed): "Mods aren't sandboxed. If you turn
   on sandboxing, the sandbox isolates the Bash commands Claude runs, and a process that a mod
-  starts runs outside it." The same admin section: "Permission rules and `PreToolUse` hooks apply
-  to Claude's tool calls, not to a mod's `$.fs` and `$.process` calls."
+  starts runs outside it."
+  [admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default)
+  (quoted with link markup removed): "`$.fs` and `$.process` calls can skip permission rules and
+  `PreToolUse` hooks", and "calls such as `$.tool.call` and `$.mcp.call` can skip permission rules,
+  permission prompts, a hook's `ask`, and the auto mode classifier". So `$.tool.call` and
+  `$.mcp.call` raise no permission prompt; the
+  [review table](https://code.claude.com/docs/en/plugins/mods/admin#review-what-a-mod-can-do) also
+  lists `$.mcp.call` as calling an MCP tool "with no permission prompt". The guard's deny
+  precedence covers Claude's calls, not calls a mod makes itself:
+  [admin: know which controls still apply](https://code.claude.com/docs/en/plugins/mods/admin#know-which-controls-still-apply)
+  (quoted with link markup removed) says "For Claude's calls, deny rules take precedence over a
+  user's mod where the guard loads".
 - **Containment is unchanged.** No mod in this repository registers `tool.check`, and the CI write
   runner installs plugins only from the base copy
   ([ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md), decision 3).
 
-These pointers are as of 2026-10-25, Claude Code 2.1.310. Recheck when either quoted section
-changes, or when a CI lane adds a Claude step without the managed-settings write or drops it.
+These pointers are as of 2026-10-25, Claude Code 2.1.310, except the admin quotes in the third
+bullet, re-read 2026-11-22. Recheck when any quoted section changes, or when a CI lane adds a Claude
+step without the managed-settings write or drops it.
 
 ## Recheck triggers
 

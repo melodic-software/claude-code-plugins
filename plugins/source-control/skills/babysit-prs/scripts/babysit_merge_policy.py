@@ -920,7 +920,6 @@ class PipelineConfig:
     # for a reason only a person clears (`diff_risk.person_reasons`); 0 is
     # no minimum. Absent, or anything but a whole number, is
     # `RISK_ESCALATION_MINUTES`.
-    # https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
     # one pull request at which it holds, never to merge unattended, when one

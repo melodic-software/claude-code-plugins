@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.5.12] - 2026-11-22
+
+### Fixed
+
+- The observability report says `cli-flag-verify` runs in guardrails' `reference-verify` pre-PR check, not a git hook.
+
 ## [10.5.11] - 2026-11-22
 
 ### Fixed

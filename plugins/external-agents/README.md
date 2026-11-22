@@ -22,8 +22,11 @@ In progress: `run`, `review`, `status`, `result`, `cancel`, `update` and `models
 - **`/external-agents:codex`**: hands a task, an investigation or a review to Codex
   as a background job, and reads back, resumes or cancels its jobs.
 - **`/external-agents:antigravity`**: the same for Google's Antigravity CLI (`agy`). agy runs
-  read-only unless you opt in to writes with `antigravity.uses.task.mode: write`, because agy's
-  write mode has no network isolation.
+  read-only unless you opt in to writes with `antigravity.uses.task.mode: write`. A write run is
+  fenced by agy's terminal sandbox (`--mode accept-edits`); `--unsandboxed auto` opts one run into
+  agy's auto mode instead.
+- **Extra writable directories:** a write run of either CLI takes a repeatable
+  `--add-dir <absolute dir>`; without it the run writes only inside its workspace.
 - No hooks, no agents and no `commands/` folder: nothing runs until you or a council run asks.
 
 claude.ai organization plugin sync skips this plugin, because it ships a top-level `bin/`

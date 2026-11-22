@@ -368,8 +368,10 @@ pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
 its one marker in place when it reviews the pushed fix. `publish-feedback` also brings the body
 sections a landed fix made stale up to date, unless the base's `pr_body_refresh` is `false`: the
-select job offers the `##` sections the base's `pr_body_required_sections` lists (every one when it
-lists none) whose text holds no gate-read line, never `## Follow-ups` or the body's last section,
+select job offers the `##` sections the base's `pr_body_required_sections` lists, else the headings
+of the base's pull request template, else those of the owner's `.github` repository template (every
+one when none of them names any, and none when that template cannot be read) whose text holds no
+gate-read line, never `## Follow-ups` or the body's last section,
 and pins each by SHA-256 in `run.json`; the model job records replacement text with the
 review-thread tool; and `publish-feedback` puts it in place of an offered section still unchanged,
 leaving every other byte, or drops the refresh alone, naming why in its log and round marker, when

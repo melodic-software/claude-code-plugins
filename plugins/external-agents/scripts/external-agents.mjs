@@ -7,6 +7,8 @@ const USAGE = `usage: external-agents <command> [options]
 
   run <product> --use task|investigate [--mode read-only|write] [--model M] [--effort E]
                 [--resume <thread-id>|--last] [--prompt-file F]   (prompt on stdin without --prompt-file)
+                [--add-dir <absolute dir>]...   (write runs: another writable directory, repeatable)
+                [--unsandboxed <name>]          (write runs: an opt-in the provider declares, such as antigravity's auto)
   review <product> --base <ref> [--model M] [--effort E] [--brief-file F] [--council]
                 (--council: skipped when <product>.council.enabled is false)
   status [<job>]
@@ -19,7 +21,7 @@ exit codes: 0 ok, 1 failed, 2 usage, 3 blocked by the mode, 4 CLI unavailable or
 `;
 
 const OPTIONS = {
-  run: { "--use": "use", "--mode": "mode", "--model": "model", "--effort": "effort", "--resume": "resume", "--last": null, "--prompt-file": "promptFile" },
+  run: { "--use": "use", "--mode": "mode", "--model": "model", "--effort": "effort", "--resume": "resume", "--last": null, "--prompt-file": "promptFile", "--add-dir": "addDirs", "--unsandboxed": "unsandboxed" },
   review: { "--base": "base", "--model": "model", "--effort": "effort", "--brief-file": "briefFile", "--council": null },
   status: {},
   result: {},
@@ -27,6 +29,8 @@ const OPTIONS = {
   update: {},
   models: {},
 };
+
+const REPEATED = new Set(["addDirs"]);
 
 function parse(command, rest) {
   const known = OPTIONS[command];
@@ -41,7 +45,9 @@ function parse(command, rest) {
       parsed[arg.slice(2)] = true;
     } else {
       if (i + 1 >= rest.length) throw new Error(`${command}: ${arg} needs a value`);
-      parsed[known[arg]] = rest[(i += 1)];
+      i += 1;
+      const value = rest[i];
+      parsed[known[arg]] = REPEATED.has(known[arg]) ? [...(parsed[known[arg]] ?? []), value] : value;
     }
   }
   return parsed;
@@ -74,7 +80,7 @@ export async function main(argv) {
   }
   const [first] = options.positional;
   const outcome =
-    command === "run" ? await run({ product: first, use: options.use, mode: options.mode, model: options.model, effort: options.effort, resume: options.resume, last: options.last, prompt: text })
+    command === "run" ? await run({ product: first, use: options.use, mode: options.mode, model: options.model, effort: options.effort, resume: options.resume, last: options.last, addDirs: options.addDirs, unsandboxed: options.unsandboxed, prompt: text })
     : command === "review" ? await review({ product: first, base: options.base, model: options.model, effort: options.effort, brief: text, council: options.council })
     : command === "update" ? await update({ product: first })
     : command === "models" ? await models({ product: first })

@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [12.1.1] - 2026-11-22
+
+### Fixed
+
+- The leak scan sends a failed gate read (`getBranch`, `getContent`) again, up to three sends, waiting for the reset or `retry-after` the answer names, or one minute, within `rate-limit-wait-seconds`. When the sends are spent, the run holds as `scan-refused-output`. A scan that never finished now always holds, with a patch or without one. Only a judged text-only patch that does not apply to the head still retries as `scan-refused-fault`.
+
+## [12.1.0] - 2026-11-22
+
+### Changed
+
+- The `address-feedback` select job offers for a body refresh the sections the base's `pr_body_required_sections` lists, else the `##` headings of the base's pull request template, else those of the owner's `.github` repository template, and offers none when that template cannot be read.
+- The merge-risk workflow's header no longer claims that nothing holds on the rating.
+
 ## [12.0.0] - 2026-11-22
 
 ### Changed

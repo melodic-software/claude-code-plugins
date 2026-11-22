@@ -68,7 +68,7 @@
             "task": {
               "type": "object",
               "additionalProperties": false,
-              "properties": { "mode": { "type": "string", "enum": ["read-only", "write"], "default": "read-only", "description": "Default and ceiling for task runs. Write is opt-in: agy's write mode has no network isolation (ADR 0119)." } }
+              "properties": { "mode": { "type": "string", "enum": ["read-only", "write"], "default": "read-only", "description": "Default and ceiling for task runs. Write is opt-in (ADR 0119); a write run is fenced by agy's terminal sandbox unless the run passes --unsandboxed auto." } }
             },
             "investigate": {
               "type": "object",

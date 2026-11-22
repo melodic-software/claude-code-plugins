@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.12] - 2026-11-22
+
+### Changed
+
+- The repo-sweep hygiene catalog's glossary step sends removals and merges to `/domain-driven-design:ubiquitous-language prune` after a yes, and renames to `/docs-hygiene:rename-references`.
+
 ## [0.36.11] - 2026-11-22
 
 ### Changed
