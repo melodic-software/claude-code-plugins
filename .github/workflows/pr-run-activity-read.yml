@@ -298,16 +298,9 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
 
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -379,7 +372,7 @@ jobs:
           && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: start
           role: ${{ inputs.role }}
@@ -411,7 +404,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.skipped-key.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -669,16 +662,9 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
 
       # The kill switch and the trigger gate run from the default branch tip,
       # never from a base the PR chose. Full history lets the next check test
@@ -1237,7 +1223,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1528,7 +1514,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: key
           role: ${{ inputs.role }}
@@ -1541,7 +1527,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback != '' && inputs.fallback != 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: subscription
           role: ${{ inputs.role }}
@@ -1553,7 +1539,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           leg: fallback
           role: ${{ inputs.role }}
@@ -1581,7 +1567,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1646,7 +1632,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1697,7 +1683,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1873,7 +1859,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2440,16 +2426,9 @@ jobs:
           steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
           && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
         continue-on-error: true
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
 
       - name: Check out the default branch tip
         id: base
@@ -2650,16 +2629,9 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
 
       - name: Check out the default branch tip
         id: base
@@ -3495,16 +3467,9 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
       # Code from the default branch tip the event names; the checked base
       # is only data the diff step fetches.
       - name: Check out the default branch tip
@@ -3642,7 +3607,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
 
       - name: Isolate the runner
         id: isolate
@@ -3662,7 +3627,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3688,7 +3653,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3714,7 +3679,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3751,7 +3716,7 @@ jobs:
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
@@ -3871,16 +3836,9 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: ${{ github.event.repository.default_branch }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: ${{ github.event.repository.default_branch }}
 
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

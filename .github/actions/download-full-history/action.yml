@@ -21,7 +21,8 @@ inputs:
       blob:none: every commit and tree arrives, so merge-base and rev-list
       match a full fetch, and a blob is fetched from origin when first read.
       Diffs read blobs too (rename detection reads the old side), so this
-      relies on an anonymous fetch, which a public repository allows. Empty
+      relies on an anonymous fetch in those later steps, which a public
+      repository allows. Empty
       (the default) fetches every blob. Opt in only from a job whose
       historical blob reads are few and fail closed:
       gitleaks in lint-repo reads every blob in its range, and the bump
@@ -29,6 +30,14 @@ inputs:
       failed read as empty, so those keep the full fetch.
     required: false
     default: ""
+  token:
+    description: >
+      Token both fetches send, so GitHub's limit on anonymous git reads from
+      shared runner addresses does not refuse them. It reaches git as an
+      http.extraheader in GIT_CONFIG_* variables of the step alone, masked,
+      and is never written to .git/config. The job token needs contents: read.
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: composite
@@ -37,15 +46,16 @@ runs:
       shell: bash
       env:
         FILTER: ${{ inputs.filter }}
+        FETCH_BASE: ${{ inputs.fetch-base == 'true' && github.event_name == 'pull_request' && github.base_ref || '' }}
+        FETCH_TOKEN: ${{ inputs.token }}
       run: |
+        header="$(printf 'x-access-token:%s' "$FETCH_TOKEN" | base64 | tr -d '\n')"
+        echo "::add-mask::$header"
+        unset FETCH_TOKEN
+        export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $header"
         if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
           git fetch --prune --unshallow --no-tags ${FILTER:+"--filter=$FILTER"}
         fi
-
-    - name: Fetch base ref
-      if: inputs.fetch-base == 'true' && github.event_name == 'pull_request' && github.base_ref != ''
-      shell: bash
-      env:
-        BASE_REF: ${{ github.base_ref }}
-      run: |
-        git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
+        if [ -n "$FETCH_BASE" ]; then
+          git fetch --no-tags origin "$FETCH_BASE":"refs/remotes/origin/$FETCH_BASE"
+        fi
