@@ -2794,9 +2794,10 @@ clear_run() {
 CLEAR_AT=2026-10-17T16:26:00Z
 # The step reads now from date: pin it, so the windows it walks stay the same.
 mkdir -p "$TMP_ROOT/closebin"
+clock_stub="$TMP_ROOT/closebin/$(basename "$(command -v date)")"
 printf '#!/usr/bin/env bash\nif [[ "$*" == "-u +%%s" ]]; then echo 1793577600; else exec %q "$@"; fi\n' \
-  "$(command -v date)" >"$TMP_ROOT/closebin/date" # portability-ok: writes a stub file named date, runs no date -d
-chmod +x "$TMP_ROOT/closebin/date" # portability-ok: a path ending in date, runs no date -d
+  "$(command -v date)" >"$clock_stub"
+chmod +x "$clock_stub"
 # run_close <issues-json> [lastEditedAt]; GREEN is the green-run listing
 # (default one dispatch at CLEAR_AT), ANCESTRY the record SHA's compare status,
 # ON_MAIN the run head's compare against main's tip, POLICY_FILE the
