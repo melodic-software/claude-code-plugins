@@ -55,7 +55,7 @@ function world(scenario = {}, { local, team } = {}) {
     cwd,
     dataDir,
     set,
-    calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []),
+    calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []),
   };
 }
 const launched = (w, verb = "exec") => w.calls().filter((c) => c.argv[0] === verb);
