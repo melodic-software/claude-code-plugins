@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Keys in .claude/improvement.md that do not apply: find_size_band.", "why": "list after the phrase" },
+    { "answer": "find_size_band (small) is set only in the old file and is not applied.", "why": "key then phrase" }
+  ],
+  "fail": [
+    { "answer": "find_size_band resolves to all (default).", "why": "unapplied old key not reported" },
+    { "answer": "Some old keys do not apply.", "why": "key not named" }
+  ]
+}

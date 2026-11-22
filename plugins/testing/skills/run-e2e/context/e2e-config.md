@@ -3,10 +3,10 @@
 The consumer config for `/testing:run-e2e`: how a run captures evidence, whether the browser is
 visible, who drives, and whether it drives an app already running. The keys live on two surfaces:
 
-- `recording` and `browser_mode` stay on `.claude/testing/e2e.md`. That surface's identity is its
-  path relative to `.claude/`, `testing/e2e.md`, so its layers are `~/.claude/testing/e2e.md`
-  (user-global), `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.md` (team), and
-  `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.local.md` (personal override).
+- `recording` and `browser_mode` live on the `e2e.md` surface at the convention home: team
+  `<home>/testing/e2e.md` and personal override `<home>/testing/e2e.local.md`, both relative to the
+  repository root. [Convention home and old paths](#convention-home-and-old-paths) says how
+  `<home>` resolves and which old files are still read.
 - `e2e_driver`, `reuse_running_instance` and `browser_driver` are top-level keys of the testing
   plugin's YAML config, the file the scan settings share: team `docs/conventions/testing.yaml` (schema
   [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), user-global
@@ -115,19 +115,19 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 `recording` and `browser_mode`, highest authority first:
 
 1. Explicit session prompt
-2. Personal override (`.claude/testing/e2e.local.md`)
-3. Team (`.claude/testing/e2e.md`)
-4. User-global (`~/.claude/testing/e2e.md`)
+2. Personal override (`<home>/testing/e2e.local.md`, else the old `.claude/testing/e2e.local.md`)
+3. Team (`<home>/testing/e2e.md`, else the old `.claude/testing/e2e.md`)
+4. Old user-global file (`~/.claude/testing/e2e.md`), while it exists
 5. Bundled default (`recording: off`, `browser_mode: headless`)
 
 `e2e_driver`, `reuse_running_instance`, `browser_driver` and the five `map` keys, highest
 authority first:
 
 1. Explicit session prompt
-2. Personal override (`.claude/testing.local.yaml`)
-3. Team (`docs/conventions/testing.yaml`)
-4. User-global (`~/.claude/testing.yaml`)
-5. The plugin `userConfig` option of the same name
+2. Personal override (`<home>/testing.local.yaml`, else the old `.claude/testing.local.yaml`)
+3. Team (`<home>/testing.yaml`; `<home>` is `docs/conventions` unless the repository binds another)
+4. The plugin `userConfig` option of the same name, when set to a value other than its default
+5. The old user-global file (`~/.claude/testing.yaml`)
 6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`, and each
    `map` key's default in [map.md](map.md))
 
@@ -140,6 +140,37 @@ wins, then that driving tool (an `e2e_driver` value when it names one, else that
 The highest layer that sets a key decides it. A value outside the key's list is named with its file
 and key, and the key takes its default: a lower layer's value is never used in its place, and the
 run never stops on it. An unrendered `${user_config.<key>}` reads as unset.
+
+## Convention home and old paths
+
+`<home>` is the repository's convention home. Before the first read, run SKILL.md's
+convention-home command (Own driving) once as one Bash call and follow its exit code; never parse
+the root instruction file yourself:
+
+- Exit 0: `<home>` is the path it prints.
+- Exit 1 (no pointer) or 4 (declined): `<home>` is the default, `docs/conventions`.
+- Any other exit: read no `<home>` file, name the exit code and its stderr line in the config
+  report, and read only the old paths below.
+
+Two run-e2e surfaces sit at `<home>`: `<home>/testing/e2e.md` with its personal override
+`<home>/testing/e2e.local.md` (the keys above), and `<home>/testing/worst-case.md`, the consumer
+extension to the worst-case catalog ([worst-case.md](worst-case.md)).
+
+While a file at an old path exists, it is still read, and its values apply wherever no `<home>`
+file supplies that layer:
+
+| Old path | Layer | Move it to |
+|---|---|---|
+| `.claude/testing/e2e.md` | team | `<home>/testing/e2e.md` |
+| `.claude/testing/e2e.local.md` | personal override | `<home>/testing/e2e.local.md` |
+| `~/.claude/testing/e2e.md` | user-global, below team | `<home>/testing/e2e.local.md` in each repository that needs it, where its values rank above team; there is no user-global file layer |
+| `.claude/testing/worst-case.md` | team | `<home>/testing/worst-case.md` |
+
+Each run prints one warning per old file it finds, naming the old file and where to move it. When
+the `<home>` file for the same layer also exists, the warning names both and says the `<home>` file
+was used. A warning that points at `<home>/testing/e2e.local.md` also says the repository's
+`.gitignore` needs the `<home>/**/*.local.*` line before that file is written, so the personal file
+stays out of the index.
 
 ## Older releases
 

@@ -5,7 +5,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/ws/.claude/improvement.md",
+            "file_path": "/ws/docs/conventions/improvement.yaml",
             "content": "x"
           }
         }

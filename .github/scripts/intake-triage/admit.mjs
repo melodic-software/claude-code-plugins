@@ -143,11 +143,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { carried, DECISION_LABELS, isStatusLabel, readyWhileDeferred, StatusReadError } from "../../actions/resolve-config/read-status.mjs";
+import { carried, DECISION_LABELS, HOLD_STATES, isStatusLabel, readyWhileDeferred, StatusReadError } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
-import { writeAdmissionRecord } from "../lib/admission-record.mjs";
+import { matchesRecord, readAdmissionRecord, writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
@@ -2016,6 +2016,41 @@ export async function trustedSplitChild(github, repository, number, humans, appI
 export function refinementSpec(comments, appId) {
   const newest = (comments ?? []).findLast((comment) => appRefinement(comment, appId));
   return newest?.lastEditedAt == null ? newest : undefined;
+}
+
+// Whether pr-verify takes the body of `issue` (a GraphQL node: title, body,
+// author, labels {totalCount, nodes}, comments as an array of nodes, oldest
+// first) as spec because intake briefed it and no one vetoed it: the lanes
+// App (a Bot whose id is `appId`) filed it; its newest admission record
+// (lib/admission-record.mjs: by the App's account id, canonical, never
+// edited) names the current title and body by hash; its labels read whole
+// hold no HOLD_STATES state and none of UNTRUSTED_LABELS; and its body has no
+// BODY_HOLD line. A record that is not one as written counts nothing. The
+// owner's standing rule:
+// https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318.
+// babysit_verify_evidence.py briefed_issue is its twin. Pure.
+export function briefedIssue(issue, appId) {
+  const labels = issue?.labels;
+  if (appId === undefined || issue?.author?.__typename !== "Bot" || issue.author.databaseId !== appId || !Array.isArray(labels?.nodes) || labels.totalCount !== labels.nodes.length) {
+    return false;
+  }
+  const held = new Set([...HOLD_STATES, ...UNTRUSTED_LABELS].map((name) => name.toLowerCase()));
+  if (names(labels.nodes).some((name) => held.has(String(name ?? "").toLowerCase())) || BODY_HOLD.test(String(issue.body ?? ""))) {
+    return false;
+  }
+  const rest = (issue.comments ?? []).map((comment) => ({
+    id: comment?.databaseId,
+    user: { id: comment?.author?.__typename === "Bot" ? comment.author.databaseId : undefined },
+    body: comment?.body,
+    created_at: comment?.createdAt,
+    updated_at: comment?.lastEditedAt ?? comment?.createdAt,
+  }));
+  try {
+    const newest = readAdmissionRecord(rest, appId);
+    return newest !== null && matchesRecord(newest.record, { title: issue.title, body: issue.body });
+  } catch {
+    return false;
+  }
 }
 
 // Whether a GraphQL comment is a refinement of the lanes App's (a Bot whose

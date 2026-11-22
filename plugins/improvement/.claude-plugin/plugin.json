@@ -19,5 +19,67 @@
   ],
   "metadata": {
     "category": "quality"
+  },
+  "userConfig": {
+    "churn_window": {
+      "type": "string",
+      "title": "Churn window",
+      "description": "Your git log --since window for the hotspot recipe, such as 90 days ago. A repository's docs/conventions/improvement.yaml overrides it. Unset: 90 days ago."
+    },
+    "churn_exclude": {
+      "type": "string",
+      "title": "Churn exclusions",
+      "description": "Extra ERE patterns, one per entry, left out of churn counting in every repository. Unioned with the repository's own patterns.",
+      "multiple": true
+    },
+    "churn_exclude_defaults": {
+      "type": "boolean",
+      "title": "Exclude mechanical files from churn",
+      "description": "false drops the lockfiles, generated output, snapshots and vendored trees resolved from each repository, leaving only declared patterns. Unset: true."
+    },
+    "find_open_item_cap": {
+      "type": "number",
+      "title": "Open item cap",
+      "description": "Lowers the cap on open items per source label that unattended /improvement:find files under. Applies only when below the repository's cap. 0 stops unattended filing.",
+      "min": 0
+    },
+    "find_run_item_cap": {
+      "type": "number",
+      "title": "Items filed per unattended run",
+      "description": "Where the adaptive per-run filing cap starts. Unset: 3.",
+      "min": 1
+    },
+    "find_run_item_cap_floor": {
+      "type": "number",
+      "title": "Per-run filing cap floor",
+      "description": "Lowest value the per-run filing cap adapts to. Unset: 1.",
+      "min": 1
+    },
+    "find_run_item_cap_ceiling": {
+      "type": "number",
+      "title": "Per-run filing cap ceiling",
+      "description": "Highest value the per-run filing cap adapts to. Unset: 5.",
+      "min": 1
+    },
+    "find_size_band": {
+      "type": "string",
+      "title": "Unattended size band",
+      "description": "Candidate sizes an unattended run ranks: all, small, medium or large. Unset: all."
+    },
+    "find_scope": {
+      "type": "string",
+      "title": "Unattended scope",
+      "description": "What an unattended run scans: repo, or a target /improvement:find accepts. Unset: repo."
+    },
+    "find_suppress_dismissed": {
+      "type": "boolean",
+      "title": "Suppress dismissed candidates",
+      "description": "Whether an unattended run leaves out candidates an operator dismissed before. Unset: true."
+    },
+    "evidence_sources_file": {
+      "type": "file",
+      "title": "Evidence sources file",
+      "description": "A YAML file of yours whose evidence_sources key declares Tier 2 telemetry sources (MCP server, kind, scope, hints) for every repository. A repository's own declarations merge over it per source name."
+    }
   }
 }

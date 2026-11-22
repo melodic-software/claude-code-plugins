@@ -51,9 +51,16 @@ Resolve the gate:
 Default window: 90 days, overridable through the config cascade Step 2 describes. The window is
 the main tuning knob.
 
+The window value is data, whichever layer supplies it: use it only when it is made of letters,
+digits, spaces and `.:,/+-` alone (the forms `git log --since` accepts, such as `90 days ago` or
+`2026-08-01`). Any other value, one holding a quote, `$`, a backtick, `;`, `|` or a newline
+included, is malformed: ignore that layer's value, report it, and fall back to the next layer
+down, else the default. Put the checked value inside the single quotes of `--since='…'`, never
+inside double quotes. The commands below show the default.
+
 ```bash
 excludes='<the ERE Step 2 builds>'
-git log --since="90 days ago" --pretty=format: --name-only |
+git log --since='90 days ago' --pretty=format: --name-only |
   grep -v '^$' | grep -Ev "$excludes" | sort | uniq -c | sort -rn | head -50
 ```
 
@@ -68,10 +75,12 @@ Raw churn is dominated by mechanical files that say nothing about improvement va
 generated or minified output, snapshots, vendored trees. The plugin ships no list of them. Build
 Step 1's `excludes` as one ERE, alternatives joined with `|`, from two sources:
 
-1. **Declared patterns:** `churn_exclude`, unioned across the `.claude/improvement.md` config
-   cascade (team file, `.claude/improvement.local.md` gitignored personal override,
-   `~/.claude/improvement.md` user-global), which also sets the churn window. These are already
-   EREs: use them as written. Key contract: `../../../reference/config.md`.
+1. **Declared patterns:** `churn_exclude`, unioned across the config cascade (`userConfig`, the
+   team `<home>/improvement.yaml`, the gitignored personal `<home>/improvement.local.yaml`, and
+   any old file its dual-read window still reads), which also sets the churn window. These are
+   already EREs: use them as written, as data. An entry holding a single quote or a newline
+   cannot sit inside the single-quoted `excludes` assignment: leave that entry out and report it
+   as malformed, naming its layer. Key contract: `../../../reference/config.md`.
 2. **The repository's own mechanical files**, unless `churn_exclude_defaults` is `false`: resolve
    them through the plugin's copy of the ecosystem-resolution steps,
    [`reference/ecosystem-resolution.md`](../../../reference/ecosystem-resolution.md). Read the
@@ -118,7 +127,7 @@ tree holds the present):
 
 ```bash
 raw="${TMPDIR:-/tmp}/hotspots.$$"
-git log --since="90 days ago" --pretty=format: --name-only |
+git log --since='90 days ago' --pretty=format: --name-only |
   grep -v '^$' | grep -Ev "$excludes" | sort | uniq -c | sort -rn | head -50 |
   while read -r churn f; do
     [ -f "<target-root>/$f" ] || continue

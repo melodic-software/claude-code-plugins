@@ -129,10 +129,36 @@ Two hard rules follow:
 - **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is enabled, consult
   it for session/cost/hook telemetry relevant to the operational-setup dimension.
 - **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
-  declares through the `.claude/improvement.md` config cascade (team file + `.local` personal override +
-  user-global; key contract in the plugin's reference/config.md). Never hardcode a vendor; if no
-  source is configured, Tier 2 is an evidence gap, and product-level candidates fall back down the
-  ladder.
+  declares through the config cascade ([Configuration](#configuration)). Never hardcode a vendor;
+  if no source is configured, Tier 2 is an evidence gap, and product-level candidates fall back
+  down the ladder.
+
+## Configuration
+
+The churn keys, the unattended controls and the Tier 2 sources resolve through the layers in
+`${CLAUDE_PLUGIN_ROOT}/reference/config.md` (one Read of that file): plugin default, `userConfig`,
+the team `<home>/improvement.yaml`, then the personal `<home>/improvement.local.yaml`, with that
+file's merge semantics, root rule and dual-read window. While an old file
+(`~/.claude/improvement.md`, `.claude/improvement.md` or `.claude/improvement.local.md`) exists,
+read it as that file says and print its one warning line in the run's output, naming each old
+file, its new location and `/improvement:setup apply`.
+
+The `userConfig` layer, as substituted into this skill (empty, or a literal `${user_config.…}`
+placeholder, means unset):
+
+| Option | Value |
+|---|---|
+| `churn_window` | `${user_config.churn_window}` |
+| `churn_exclude` | `${user_config.churn_exclude}` |
+| `churn_exclude_defaults` | `${user_config.churn_exclude_defaults}` |
+| `find_open_item_cap` | `${user_config.find_open_item_cap}` |
+| `find_run_item_cap` | `${user_config.find_run_item_cap}` |
+| `find_run_item_cap_floor` | `${user_config.find_run_item_cap_floor}` |
+| `find_run_item_cap_ceiling` | `${user_config.find_run_item_cap_ceiling}` |
+| `find_size_band` | `${user_config.find_size_band}` |
+| `find_scope` | `${user_config.find_scope}` |
+| `find_suppress_dismissed` | `${user_config.find_suppress_dismissed}` |
+| `evidence_sources_file` | `${user_config.evidence_sources_file}` |
 
 **GitHub access-path probe ladder.** For CI and repo-platform data, probe in order: GitHub MCP
 tools (`actions_*` and repo tools) → `gh` CLI → none. On "none", record the evidence gap and rank

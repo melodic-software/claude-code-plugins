@@ -72,7 +72,7 @@ import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, briefedIssue, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
@@ -113,7 +113,7 @@ const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count
 
 const COMMENT_FIELDS = "totalCount pageInfo { hasNextPage endCursor } nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } }";
 const ISSUE_FIELDS = `number repository { nameWithOwner } title body lastEditedAt
-          author { ...actor } editor { ...actor } labels(first: 50) { nodes { name } }
+          author { ...actor } editor { ...actor } labels(first: 50) { totalCount nodes { name } }
           comments(first: 100) { ${COMMENT_FIELDS} }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 // The pages after the first of an issue's comments.
@@ -964,7 +964,9 @@ async function compareFiles(github, repository, base, head) {
 // body of an own-agent filing no other account edited that carries exactly
 // one `source:` label, as admission requires (admit.mjs ownAgentText, under
 // main's `own-agents`; ADR 0111,
-// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md). Given the
+// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md),
+// and the body of a lanes App filing whose newest admission record names it
+// as it is and that no one holds (admit.mjs briefedIssue). Given the
 // `base` branch, a closing issue also carries the siblings that delivered part
 // of it (`credited_siblings`, creditedSiblings), so its diff is judged for the
 // rest. An issue the recurring filer opened takes its body from its row of
@@ -1114,7 +1116,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       const childBody = childBodies.get(issue.number);
       const sources = sourceLabels(issue.labels?.nodes);
       const ownBody = !written(issue) && childBody === undefined && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && sources.length === 1 && SOURCE_LABEL.test(sources[0]) && ownAgentText(issue, ownIds) ? String(issue.body ?? "") : null;
-      const recurring = written(issue) || childBody !== undefined || ownBody !== null ? null : recurringSpec(issue, schedule);
+      const briefed = !written(issue) && childBody === undefined && ownBody === null && !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER) && briefedIssue({ ...issue, comments: issue.comments.nodes }, laneAppId) ? String(issue.body ?? "") : null;
+      const recurring = written(issue) || childBody !== undefined || ownBody !== null || briefed !== null ? null : recurringSpec(issue, schedule);
       const upstreamDrift = written(issue) || childBody !== undefined || recurring !== null ? null : (driftBodies.get(issue.number) ?? null);
       const incident = written(issue) || childBody !== undefined || recurring !== null || upstreamDrift !== null || !mainRedIncident(issue) ? null : MAIN_RED_SPEC;
       // A trusted target-subset part's Scope line (admit.mjs splitScope):
@@ -1126,7 +1129,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         ...(recurring !== null && { source: "recurring-schedule" }),
         ...(upstreamDrift !== null && { source: "upstream-drift" }),
         ...(incident !== null && { source: "main-red-incident" }),
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? ownBody ?? recurring ?? upstreamDrift ?? incident),
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBody ?? ownBody ?? briefed ?? recurring ?? upstreamDrift ?? incident),
         ...(scope !== null && { scope }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         // The body's done-when items that refinement lists as checks a

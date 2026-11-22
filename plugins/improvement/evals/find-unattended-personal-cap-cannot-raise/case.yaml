@@ -25,7 +25,7 @@ graders:
   - name: reads-personal-layer
     type: tool_used
     tool: 'Read'
-    input_match: 'improvement\.local\.md'
+    input_match: 'docs[\\/]+conventions[\\/]+improvement\.local\.yaml'
     min: 1
   - name: personal-value-does-not-raise-cap
     type: llm
