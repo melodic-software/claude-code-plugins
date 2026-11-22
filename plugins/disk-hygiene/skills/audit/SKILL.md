@@ -58,12 +58,14 @@ directory, a symlink, or a Windows reparse point.
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" \
   --data-root "<data_root>" [--project-dir "<project-dir>"] \
-  [--policy "<policy.json>"] [--max-depth <N>] [--sizes-only] [--quiet] \
+  [--policy "<policy.json>"] [--user-policy "<policy_file>"] \
+  [--max-depth <N>] [--sizes-only] [--quiet] \
   [--root-children [--root-child <name>]...]
 ```
 
 `--project-dir` is optional; pass it, as a literal absolute path, when the consumer project has
-standing policy files. Pass literal values only: the guard rejects shell expansion, so never pass
+standing policy files. `--user-policy` takes the `policy_file` option's value,
+`${user_config.policy_file}`, only when it reads as a path. Pass literal values only: the guard rejects shell expansion, so never pass
 an environment-variable reference. What each flag does, including the large-target and volume-root rules, is in
 [scan-flags.md](../clean/reference/scan-flags.md). For a home directory or another large target,
 start with `--max-depth 1`, then scan the subtrees the evidence justifies. Never pass

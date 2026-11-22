@@ -39,6 +39,7 @@ import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
 import ranking_signals  # noqa: E402  (sibling module; a rank orders review only)
+import yaml_subset  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -46,6 +47,17 @@ SCHEMA_VERSION = 1
 OVERLAY_VERSIONS = (1, 2)
 RULE_MIN_AGE_BASES = ("mtime", "atime", "ctime")
 ELEVATION_VALUES = ("never", "uac-prompt")
+POLICY_FILE_NAME = "disk-hygiene.json"
+TEAM_POLICY_NAME = "disk-hygiene.yaml"
+PERSONAL_POLICY_NAME = "disk-hygiene.local.yaml"
+POLICY_FILE_OPTION = "policy_file"
+POLICY_SETUP_COMMAND = "/disk-hygiene:setup apply"
+DEFAULT_CONVENTION_HOME = ("docs", "conventions")
+CONVENTION_HOME_MARKERS = (
+    "<!-- BEGIN GENERATED: convention-home -->",
+    "<!-- END GENERATED: convention-home -->",
+)
+CONVENTION_HOME_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 MAX_SNAPSHOT_ENTRIES = 250_000
 # The temp-zone size walk runs on every scan whose target overlaps the temp
 # directory, including the gated large-target probe, so it stays well below
@@ -280,6 +292,7 @@ def scan_complete_payload(
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
         "policy_sources": policy["policy_sources"],
+        "policy_warnings": policy.get("policy_warnings", []),
         "elevation": policy["elevation"],
         "os_autoclean": advisory,
         "note": note,
@@ -1070,10 +1083,144 @@ def hard_protection(
     return sorted(set(reasons))
 
 
-def standing_policy_paths(project_dir: Path | None) -> list[Path]:
-    layers = [Path.home() / ".claude" / "disk-hygiene.json"]
+def _pointer_token(text: str) -> str | None:
+    begin, end = CONVENTION_HOME_MARKERS
+    token = None
+    in_region = False
+    for line in text.splitlines():
+        marker = line.strip()
+        if marker == begin:
+            in_region = True
+        elif marker == end and in_region:
+            return token or ""
+        elif in_region and token is None:
+            match = re.search(r"`([^`]*)`", line)
+            if match:
+                token = match.group(1)
+    return None
+
+
+def convention_home(project_dir: Path) -> Path:
+    """The project's convention home, read from its pointer region.
+
+    AGENTS.md is read first and CLAUDE.md when AGENTS.md has no closed region;
+    the first backticked token in the region is the home, and no region or a
+    token outside the segment grammar means ``docs/conventions``. Looser than
+    the marketplace's ``lib/resolve-convention-home.sh``, which fails on a
+    second pointer line, an unclosed region or a symlinked home.
+    """
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        try:
+            text = (project_dir / name).read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeError):
+            continue
+        token = _pointer_token(text)
+        if token is None:
+            continue
+        segments = token.rstrip("/").split("/")
+        if token and all(
+            CONVENTION_HOME_SEGMENT.fullmatch(segment)
+            and segment not in (".", "..")
+            and segment.rstrip(".").casefold() != ".git"
+            for segment in segments
+        ):
+            return project_dir.joinpath(*segments)
+        break
+    return project_dir.joinpath(*DEFAULT_CONVENTION_HOME)
+
+
+def user_policy_path(raw: str | None, warnings: list[str]) -> Path | None:
+    """The file the ``policy_file`` userConfig option names, or None when unset."""
+    value = (raw or "").strip()
+    if not value or value.startswith("${user_config."):
+        return None
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        warnings.append(
+            f"the {POLICY_FILE_OPTION} option {value!r} is not an absolute path, "
+            "so it supplies no layer"
+        )
+        return None
+    if not path.is_file():
+        warnings.append(
+            f"the {POLICY_FILE_OPTION} option names {path}, which is not a file, "
+            "so it supplies no layer"
+        )
+    return path
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+def _dual_read(
+    layer: str, new: Path | None, old: Path, destination: str, warnings: list[str]
+) -> list[Path]:
+    has_new = new is not None and new.is_file()
+    has_old = old.is_file() and not (
+        has_new and new is not None and _same_file(old, new)
+    )
+    if has_new and has_old:
+        warnings.append(
+            f"{old} is the old {layer} policy and is not read because {new} "
+            f"supplies that layer; move any setting it still holds to {new} and "
+            f"delete it ({POLICY_SETUP_COMMAND})"
+        )
+    if has_new and new is not None:
+        return [new]
+    if has_old:
+        warnings.append(
+            f"{old} is the old {layer} policy, still read as that layer; move it "
+            f"to {destination} ({POLICY_SETUP_COMMAND})"
+        )
+        return [old]
+    return []
+
+
+def old_policy_paths(project_dir: Path | None) -> dict[str, Path]:
+    """The pre-cascade policy files, by the layer each stands in for."""
+    paths = {"userConfig": Path.home() / ".claude" / POLICY_FILE_NAME}
     if project_dir is not None:
-        layers.append(project_dir / ".claude" / "disk-hygiene.json")
+        paths["team"] = project_dir / ".claude" / POLICY_FILE_NAME
+    return paths
+
+
+def standing_policy_paths(
+    project_dir: Path | None,
+    user_policy: str | None = None,
+    warnings: list[str] | None = None,
+) -> list[Path]:
+    """The standing layers in order: userConfig, team, personal.
+
+    While no new file supplies the userConfig or team layer, its old
+    ``.claude/disk-hygiene.json`` is read in its place, and each old file found
+    adds one warning.
+    """
+    warnings = [] if warnings is None else warnings
+    old = old_policy_paths(project_dir)
+    user = user_policy_path(user_policy, warnings)
+    layers = _dual_read(
+        "userConfig",
+        user,
+        old["userConfig"],
+        str(user)
+        if user is not None
+        else f"the file the {POLICY_FILE_OPTION} userConfig option names",
+        warnings,
+    )
+    if project_dir is not None:
+        home = convention_home(project_dir)
+        team = home / TEAM_POLICY_NAME
+        if _same_file(old["team"], old["userConfig"]):
+            layers.append(team)
+        else:
+            layers += _dual_read("team", team, old["team"], str(team), warnings)
+        personal = home / PERSONAL_POLICY_NAME
+        if personal.is_file():
+            layers.append(personal)
     unique: dict[Path, Path] = {}
     for path in layers:
         if path.is_file():
@@ -1102,6 +1249,7 @@ def baseline_policy() -> dict[str, Any]:
         "rules": [],
         "elevation": "never",
         "policy_sources": ["baseline"],
+        "policy_warnings": [],
     }
 
 
@@ -1157,24 +1305,41 @@ def is_virtual_disk_name(name: str) -> bool:
     return any(glob_matches(name, glob) for glob in baseline_disk_image_name_globs())
 
 
+def repository_policy_paths(project_dir: Path | None) -> set[Path]:
+    """The policy files a repository controls, which may not opt into elevation."""
+    if project_dir is None:
+        return set()
+    home = convention_home(project_dir)
+    return {
+        path.resolve()
+        for path in (
+            project_dir / ".claude" / POLICY_FILE_NAME,
+            home / TEAM_POLICY_NAME,
+            home / PERSONAL_POLICY_NAME,
+        )
+    }
+
+
 def load_policy(
-    overlay_path: Path | None, project_dir: Path | None = None
+    overlay_path: Path | None,
+    project_dir: Path | None = None,
+    user_policy: str | None = None,
 ) -> dict[str, Any]:
     result = baseline_policy()
-    # An explicit --policy is the invocation-specific choice and wins outright;
-    # otherwise standing user-global and project files layer additively.
+    warnings: list[str] = []
     overlays = (
         [overlay_path]
         if overlay_path is not None
-        else standing_policy_paths(project_dir)
+        else standing_policy_paths(project_dir, user_policy, warnings)
     )
-    project_layer = (
-        project_dir / ".claude" / "disk-hygiene.json"
-        if overlay_path is None and project_dir is not None
-        else None
+    repository = (
+        repository_policy_paths(project_dir) if overlay_path is None else set()
     )
     for path in overlays:
-        apply_policy_overlay(result, path, project_scope=path == project_layer)
+        apply_policy_overlay(
+            result, path, project_scope=path.resolve() in repository
+        )
+    result["policy_warnings"].extend(warnings)
     # A class rule covers every hint carrying the class across all layers, so a
     # later layer's hint joins an earlier layer's rule; `hint_sources` records
     # which layer supplied each hint so a match can be traced to it.
@@ -1192,16 +1357,29 @@ def load_policy(
     return result
 
 
+def load_overlay(path: Path) -> dict[str, Any]:
+    """A policy file: YAML for the convention-home layers, JSON otherwise."""
+    if path.suffix.casefold() not in (".yaml", ".yml"):
+        return load_json(path)
+    try:
+        value = yaml_subset.load(str(path))
+    except (OSError, UnicodeError, yaml_subset.YamlSubsetError) as exc:
+        raise HygieneError(f"cannot read YAML {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise HygieneError(f"YAML root must be a mapping: {path}")
+    return value
+
+
 def apply_policy_overlay(
     result: dict[str, Any], overlay_path: Path, project_scope: bool = False
 ) -> None:
     """Layer one overlay onto ``result``; a failing layer changes nothing.
 
     ``elevation`` is the one field that loosens rather than adds, so a
-    repository-controlled project file may set it only to ``never``; opting
-    into ``uac-prompt`` takes the user-global file or an explicit --policy.
+    repository-controlled file may set it only to ``never``; opting into
+    ``uac-prompt`` takes the userConfig policy file or an explicit --policy.
     """
-    overlay = load_json(overlay_path)
+    overlay = load_overlay(overlay_path)
     version = overlay.get("version")
     if isinstance(version, bool) or version not in OVERLAY_VERSIONS:
         raise HygieneError(f"policy version must be 1 or 2: {overlay_path}")
@@ -1251,8 +1429,8 @@ def apply_policy_overlay(
         )
     if project_scope and "elevation" in overlay and elevation != "never":
         raise HygieneError(
-            "elevation can be opted into only from the user-global policy or an "
-            f"explicit --policy, not a project policy: {overlay_path}"
+            "elevation can be opted into only from the userConfig policy file or "
+            f"an explicit --policy, not a project policy: {overlay_path}"
         )
     result["hints"] = [
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
@@ -6062,7 +6240,10 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.project_dir).expanduser().absolute()
                 if args.project_dir
                 else None,
+                args.user_policy,
             )
+            for warning in policy["policy_warnings"]:
+                print(f"warning: {warning}", file=sys.stderr)
             if has_protected_path_component(
                 target, set(policy["protected_exact_names"])
             ):

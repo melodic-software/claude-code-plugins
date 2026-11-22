@@ -273,6 +273,11 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             Flag("--target", required=True, example="target-dir"),
             _file_flag("--output", required=True),
             Flag("--policy", example="policy.json"),
+            Flag(
+                "--user-policy",
+                example="policy.json",
+                help="the file the policy_file userConfig option names",
+            ),
             Flag("--project-dir", example="project-dir"),
             Flag(
                 "--in-flight-refs",

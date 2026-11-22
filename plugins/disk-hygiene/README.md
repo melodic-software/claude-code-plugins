@@ -107,7 +107,7 @@ Backups remain the recovery boundary for user data.
   replace it. The plugin never downloads a runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
-- `gh` with authenticated access to the configured `github.com` remote is additionally required only
+- `gh` with authenticated access to the configured `github.com` remote is required only
   when the operator invokes standalone-checkout VCS evidence mode. Other hosting providers remain
   protected; no generic network or `git ls-remote` fallback is treated as provider proof.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
@@ -374,20 +374,31 @@ a class; the other classes match only hints an operator adds through `additional
 `class`. With `min_age_days`, an entry touched inside the window (or a directory whose newest descendant is, or
 whose coverage is incomplete) stays unticked; `min_age_basis` picks the timestamp: `mtime` by
 default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open issues, PRs, or handoffs
-reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
-project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
+reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, the `policy_file` file or `--policy` only, never a
+repository file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
 that are contested only for `needs-elevation`; the default `never` keeps every elevation off. A native
 replica of the lane's elevated re-check passed a Windows UAC pilot on 2026-10-01, but the skill's
 shipped lane has not run end to end on Windows; see the
 [safety model](skills/clean/reference/safety-model.md#opt-in-elevation) for what was and was not
 covered.
 
-Without `--policy`, standing policy files layer over the baseline when present:
-`~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
-`.claude/disk-hygiene.json`. An explicit `--policy` file is the invocation-specific choice and
-replaces both standing layers. The scan output records which sources applied.
+Without `--policy`, standing policy files layer over the baseline when present, in this order:
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+| Layer | File |
+|---|---|
+| userConfig | the JSON file the `policy_file` option names (set it in `/config`) |
+| team | `<home>/disk-hygiene.yaml` in the consumer project, tracked |
+| personal | `<home>/disk-hygiene.local.yaml` in the consumer project, gitignored |
+
+`<home>` is the project's convention home, `docs/conventions` unless its `AGENTS.md` pointer
+region names another. The YAML files hold the same keys as a JSON overlay. An explicit `--policy`
+file is the invocation-specific choice and replaces every standing layer. The scan output records
+which sources applied in `policy_sources`.
+
+The old files `~/.claude/disk-hygiene.json` and the project's `.claude/disk-hygiene.json` are still
+read, each in place of the `policy_file` and team layer while no new file supplies it, and every
+scan warns about each one. `/disk-hygiene:setup apply` moves them after a preview and a yes. Where
+other config lives: [config locations](reference/config-locations.md).
 
 Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/`, a drive letter, or `\\` (a UNC path such as `\\server\share\keep\**`) matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted. For every entry that matches a path, the scan entry, the preview candidate, the handoff-verify verdict, and a skipped apply path list it under `protection_matches`, sorted and deduplicated, as `{glob}` or `{glob, reason}`. That field sits beside the `consumer-protected-path` reason and is absent when no entry matched. Hard safety
 predicates and the baseline protected-name/root rules are non-overridable by any layer: a policy
@@ -603,8 +614,10 @@ installed. The measurements below carry the conditions they were taken under.
   for the degraded-mode detail). The engine never reads or stores credentials; standalone-checkout
   evidence delegates one exact commit lookup per local head to the already-authenticated `gh` CLI.
   Policy comes from an explicit invocation
-  argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
-  `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
+  argument or the standing layers: the file the `policy_file` option names, and the consumer
+  project's `<home>/disk-hygiene.yaml` and `<home>/disk-hygiene.local.yaml` (the old
+  `disk-hygiene.json` files under `~/.claude/` and the project's `.claude/` while they remain).
+  All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
   cannot widen the destructive surface.
 - **Isolation:** bundled assets resolve from `${CLAUDE_PLUGIN_ROOT}`; generated state belongs under
@@ -666,6 +679,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `disk_hygiene_enabled` | boolean | `true` | Allows the clean skill's execution tiers. On by default; false is audit-only mode. |
+| `policy_file` | file | *(none)* | Absolute path to your own policy overlay (JSON, the clean skill's policy-overlay schema), layered under the repository's docs/conventions/disk-hygiene.yaml. The only standing layer that may set elevation to uac-prompt. Empty means no personal policy file. |
 
 ### How to set these
 

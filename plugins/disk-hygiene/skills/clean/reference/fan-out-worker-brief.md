@@ -27,7 +27,9 @@ or extra commands in the same tool call. Required flags on every scan:
 
 `--project-dir` is optional: pass it (as a literal absolute path filled by the parent) only when the
 session's project has standing policy that should apply to the target, and omit it otherwise, for
-example in a home-directory session; the engine then skips the project policy layer.
+example in a home-directory session; the engine then skips the project policy layers.
+`--user-policy "<user-policy>"` follows the same rule: the parent fills in the `policy_file`
+option's path when it has one, and the worker adds the flag to any template below.
 
 Use the hook Python launcher the parent filled in for `<hook-python>`, not a bare `python3` on PATH.
 
