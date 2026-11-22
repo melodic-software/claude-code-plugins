@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.7.1] - 2026-11-22
+
+### Changed
+
+- babysit-prs: `diff_risk.py`, `babysit_merge.py`, `babysit_merge_policy.py` and two test modules drop the comments the necessary comment posture does not keep, and the module links added only to pass the comment lint. No behavior changes.
+
 ## [13.7.0] - 2026-11-22
 
 ### Added
