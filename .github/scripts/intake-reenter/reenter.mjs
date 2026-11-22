@@ -111,10 +111,11 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 export const HOLD_MARKER = "<!-- intake-reenter:needs-human-decision -->";
 export const FORM_MARKER = "<!-- intake-reenter:decision-form -->";
 const HOW_FIELD = "a listed human changes the issue's Work status field from needs-human to needs-triage, or clears it";
+const HOW_FIELD_REPOST = "a listed human clears the issue's Work status field and then posts the decision again, since a field release re-enters no issue that also carries a status label";
 const HOW_LABEL = `a listed human removes the \`${NEEDS_HUMAN}\` label`;
 const HOW_LABEL_CONFIRMED = `${HOW_LABEL} and then posts the decision again, since a label removal re-enters no issue at \`${CONFIRMED}\``;
 const holdReply = (how) =>
-  `${HOLD_MARKER}\n\`${NEEDS_HUMAN}\` holds this issue, so a recorded decision does not send it back to intake triage. The hold stays until ${how}; that release sends the issue to intake, which reads the decision.`;
+  `${HOLD_MARKER}\n\`${NEEDS_HUMAN}\` holds this issue, so a recorded decision does not send it back to intake triage. The hold stays until ${how}. The issue then goes back to intake triage, which reads the decision.`;
 const FORM_REPLY = `${FORM_MARKER}\nThis comment did not send the issue back to intake triage: only a comment by a listed human whose first line is exactly \`**Decision recorded.**\` does. Post the decision again with that first line.`;
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 const LOOSE_DECISION = /^[^\p{L}\p{N}]*decision recorded/iu;
@@ -348,7 +349,12 @@ async function replyOnce({ client, repository, base, issue, marker, body, log, w
   return 0;
 }
 
-const holdHow = (own) => (own.includes(NEEDS_HUMAN) ? (own.includes(CONFIRMED) ? HOW_LABEL_CONFIRMED : HOW_LABEL) : HOW_FIELD);
+const holdHow = (own) => {
+  if (own.includes(NEEDS_HUMAN)) {
+    return own.includes(CONFIRMED) ? HOW_LABEL_CONFIRMED : HOW_LABEL;
+  }
+  return own.some((name) => isStatusLabel(name)) ? HOW_FIELD_REPOST : HOW_FIELD;
+};
 
 const replyHeld = ({ own, ...rest }) =>
   replyOnce({ ...rest, marker: HOLD_MARKER, body: holdReply(holdHow(own)), what: `${NEEDS_HUMAN} holds the issue, so a decision re-enters nothing` });

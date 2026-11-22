@@ -524,7 +524,7 @@ test("a failed Work status read lifts nothing on the comment path or the needs-h
 test("a hold in the Work status field the labels lack stops a decision, which gets only the hold reply", async () => {
   const w = world({ labels: ["status: confirmed"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-human" } }), 0);
-  assert.match(onlyReply(w, HOLD_REPLY, "field hold"), /Work status field from needs-human/);
+  assert.match(onlyReply(w, HOLD_REPLY, "field hold"), /clears the issue's Work status field and then posts the decision again/);
   assert.deepEqual(w.labels(), ["status: confirmed"]);
 });
 
