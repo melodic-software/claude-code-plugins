@@ -1498,18 +1498,16 @@ class MainRunReviewTests(Base):
         self.assertTrue(security.bound)
         self.assertEqual(security.blocking_findings, 1)
 
-    def test_a_critical_an_earlier_head_recorded_holds_after_a_clean_re_roll(
+    def test_an_earlier_head_critical_clears_once_the_head_reviews_clean(
         self,
     ) -> None:
-        # A whitespace push makes a new tree whose clean review would bind at
-        # zero; the CRITICAL the report-review-counts job left on the earlier head holds.
         context = dict(
-            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 2}
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 3}
         )
         result = self.main_bind([main_review(lane) for lane in LANES], context=context)
         security = result["claude-security-review"]
         self.assertTrue(security.bound)
-        self.assertEqual((security.open_findings, security.blocking_findings), (2, 2))
+        self.assertEqual((security.open_findings, security.blocking_findings), (0, 0))
         scored = risk.score(
             risk.RiskInput(
                 files=(),
@@ -1519,18 +1517,63 @@ class MainRunReviewTests(Base):
                 lanes=tuple(result.values()),
             )
         )
-        self.assertIn(
-            "security-finding",
-            [r.code for r in risk.person_reasons(risk.holding(scored))],
+        self.assertNotIn("security-finding", [r.code for r in risk.holding(scored)])
+
+    def test_an_earlier_head_critical_with_an_open_thread_still_holds(self) -> None:
+        threads = [
+            thread(
+                "severity: CRITICAL\nbad",
+                author={"__typename": "Bot", "login": "claude"},
+            )
+        ]
+        reviews = [main_review(lane) for lane in LANES]
+        result = by_lane(
+            ev.bind(
+                S,
+                [
+                    whole("claude-review", S),
+                    whole("claude-security-review", S, n=1, k=1),
+                ],
+                both_markers(),
+                threads,
+                is_human=is_human,
+                changed_paths=(self.SOURCE,),
+                head_file=fixed_head,
+                main_reviews=reviews,
+                main_context=recorded(
+                    reviews,
+                    dict(
+                        CONTEXT,
+                        carried_critical={
+                            "claude-review": 0,
+                            "claude-security-review": 3,
+                        },
+                    ),
+                ),
+                floor=risk.floor_for(),
+            )
         )
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual(security.blocking_findings, 1)
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertIn("security-finding", [r.code for r in risk.holding(scored)])
 
     def test_a_recorded_critical_holds_with_no_verdict_at_the_head(self) -> None:
         context = dict(
-            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 1}
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 3}
         )
         security = self.main_bind([], context=context)["claude-security-review"]
         self.assertFalse(security.bound)
-        self.assertEqual(security.blocking_findings, 1)
+        self.assertEqual(security.blocking_findings, 3)
 
     def test_unread_recorded_counts_bind_no_lane(self) -> None:
         reviews = [main_review(lane) for lane in LANES]
