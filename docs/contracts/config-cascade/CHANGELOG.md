@@ -16,6 +16,12 @@ No contract change.
   the plugin keeps no user-global file. Each old `.claude` file is still read, with a warning,
   until the new file for its layer exists, and a later change removes those reads. The plugin
   leaves the later-adoption list. The layering axis is unchanged, so `contract_version` stays.
+- **`instruction-placement` moves to the location axis.** Its row names the team file
+  `<home>/instruction-placement.yaml` and the personal override `<home>/instruction-placement.local.yaml`,
+  with no `userConfig` option and no user-global file; the old `.claude/` and `~/.claude/` paths are
+  still read, with a warning, until `/instruction-placement:setup apply migrate-config` moves them
+  (#18012). It leaves the not-yet-migrated list. The layering axis is unchanged, so
+  `contract_version` stays.
 - **The `docs-naming` row reads `userConfig`, not `~/.claude/docs-naming.json`.** Its per-person
   layer is the `file_names` option; the old user files are read only while it is unset or invalid,
   with a warning, until a later change removes the read. The layering axis is unchanged, so
