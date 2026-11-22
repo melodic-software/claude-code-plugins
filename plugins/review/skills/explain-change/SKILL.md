@@ -26,7 +26,7 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "<option>" [--setting '<name>=<value>' ...] [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
 ```
 
-- `--setting '<name>=<value>'` once for each digest option below that reads as a value, never for one that reads empty or as an unsubstituted placeholder: `digest_policy` `${user_config.digest_policy}`, `digest_max_files` `${user_config.digest_max_files}`, `digest_max_changed_lines` `${user_config.digest_max_changed_lines}`, `digest_blast_radius` `${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`, `digest_opt_in_label` `${user_config.digest_opt_in_label}`.
+- `--setting '<name>=<value>'` once for each digest option below that reads as a value, never for one that reads empty or as an unsubstituted placeholder. Keep the whole argument inside the single quotes and write each `'` in the value as `'\''`, so no value ends the quoting: `digest_policy` `${user_config.digest_policy}`, `digest_max_files` `${user_config.digest_max_files}`, `digest_max_changed_lines` `${user_config.digest_max_changed_lines}`, `digest_blast_radius` `${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`, `digest_opt_in_label` `${user_config.digest_opt_in_label}`.
 - `--requested` when the reader asked for the digest. That is the explicit tier, so the action is `build`.
 - `--event ready` when the run comes at the pull request's ready flip.
 - `--blast-radius` when a plan or `/review:quality-gate downstream` assessed one.

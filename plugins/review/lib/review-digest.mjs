@@ -220,7 +220,7 @@ export function resolveDigestConfig(baseOid, options = {}) {
   if (existsSync(paths.retiredUser)) {
     const value = readJsonLayer(paths.retiredUser, "user-global", warnings);
     if (value) layers.push({ label: "user-global", path: paths.retiredUser, value });
-    const set = Object.keys(user).map((key) => OPTION_NAMES[key]);
+    const set = Object.keys(user).filter((key) => isValidSetting(key, user[key])).map((key) => OPTION_NAMES[key]);
     retired.push(`user-global ${paths.retiredUser} is retired but still read: run ${SETUP_COMMAND} to move its settings to the review plugin's digest options${set.length ? `; the options already set (${set.join(", ")}) win over it` : ""}`);
   }
   if (Object.keys(user).length) layers.push({ label: "userConfig", path: "", value: user });

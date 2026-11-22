@@ -298,7 +298,9 @@ describe("cascade layers resolve through the CLI", () => {
     result = run(facts);
     assert.equal(result.action, "offer");
     assert.match(result.policy.source, /^personal-override /);
-    assert.deepEqual(result.warnings.filter((w) => !/ is retired but still read: /.test(w)), []);
+    assert.equal(result.warnings.length, 2, result.warnings.join("\n"));
+    assert.match(result.warnings[0], /^user-global .*review-digest\.json is retired but still read: run \/review:setup apply to move its settings to the review plugin's digest options$/);
+    assert.match(result.warnings[1], /^personal-override .*\.claude[\\/]review-digest\.local\.json is retired but still read: run \/review:setup apply to move its settings to docs\/conventions\/review-digest\.local\.yaml$/);
   });
   test("the argument beats every layer", () => {
     const result = run(facts, ["--policy", "off"]);
@@ -330,7 +332,9 @@ describe("cascade layers resolve through the CLI", () => {
     git("add", ".claude/review-digest.json");
     commit();
     const result = run(facts);
-    assert.doesNotMatch(result.warnings.filter((w) => !/ is retired but still read: /.test(w)).join("\n"), /\.claude\/review-digest\.json/);
+    const naming = result.warnings.filter((w) => /\.claude[\\/]review-digest\.json/.test(w));
+    assert.equal(naming.length, 1, naming.join("\n"));
+    assert.match(naming[0], /^user-global .*[\\/]home[\\/]\.claude[\\/]review-digest\.json is retired but still read: run \/review:setup apply to move its settings to the review plugin's digest options$/);
     assert.equal(result.config.max_files.value, 2);
     assert.match(result.config.max_files.source, /^team .*review-digest\.yaml$/);
   });
@@ -512,6 +516,34 @@ describe("setup moves the retired digest files", () => {
     assert.equal(out.status, 1);
     assert.equal(existsSync(retiredPersonal), true);
     assert.equal(existsSync(personal), false);
+  });
+  test("a tracked YAML file that sets every old key is refused, and the old file is kept", () => {
+    git("rm", "-q", "--cached", ".claude/review-digest.local.json");
+    commit();
+    writeFileSync(retiredPersonal, '{"digest_policy": "off"}');
+    mkdirSync(dirname(personal), { recursive: true });
+    writeFileSync(personal, "digest_policy: always\n");
+    git("add", "-f", "docs/conventions/review-digest.local.yaml");
+    commit();
+    assert.match(migrate("check").stdout, /^WARN \.claude\/review-digest\.local\.json: docs\/conventions\/review-digest\.local\.yaml would not be read \(.*tracked in git.*\); fix it first$/m);
+    const out = migrate("personal", "--yes");
+    assert.equal(out.status, 1);
+    assert.doesNotMatch(out.stdout, /deleted/);
+    assert.equal(existsSync(retiredPersonal), true);
+    assert.equal(readFileSync(personal, "utf8"), "digest_policy: always\n");
+    git("rm", "-q", "--cached", "docs/conventions/review-digest.local.yaml");
+    commit();
+    rmSync(personal);
+  });
+  test("a dangling symlink at the YAML path is refused before anything is written through it", () => {
+    const outside = join(scratch, "migrate-outside.yaml");
+    symlinkSync(outside, personal);
+    const out = migrate("personal", "--yes");
+    assert.equal(out.status, 1);
+    assert.match(out.stdout, /would not be read \(.*symlink/);
+    assert.equal(existsSync(outside), false);
+    assert.equal(existsSync(retiredPersonal), true);
+    rmSync(personal);
   });
 });
 

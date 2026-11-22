@@ -62,7 +62,8 @@ moved, the digest still reads it and warns on every run, naming this setup.
 
 In every command below, pass `--setting '<name>=<value>'` once for each option that reads as a
 value, never one that reads empty or as an unsubstituted placeholder, and never a `${user_config.*}`
-string: `digest_policy` `${user_config.digest_policy}`, `digest_max_files`
+string. Keep the whole argument inside the single quotes and write each `'` in the value as `'\''`,
+so no value ends the quoting: `digest_policy` `${user_config.digest_policy}`, `digest_max_files`
 `${user_config.digest_max_files}`, `digest_max_changed_lines`
 `${user_config.digest_max_changed_lines}`, `digest_blast_radius`
 `${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`,
@@ -79,7 +80,9 @@ Each WARN names an old file and where each of its settings goes.
    any key that file already sets, which wins and is kept. Show it and ask whether to move it. Only
    on an explicit yes, rerun with `--yes`: it adds the keys, reads the file back, checks each moved
    value resolves the same and that the file is untracked and gitignored, and only then deletes the
-   old file. Exit 1 leaves both files as they were and names why; report it. A file that is not
+   old file. A new file the digest would not read (tracked, not gitignored, or a symlink at it or
+   a parent) is refused before anything is written or deleted. Exit 1 leaves both files as they
+   were and names why; report it. A file that is not
    gitignored needs the `docs/conventions/**/*.local.*` line in `.gitignore`, which the
    convention-home offer of [Repository settings](#repository-settings) adds. An old file the digest
    does not read (tracked, or behind a symlink) is not moved.

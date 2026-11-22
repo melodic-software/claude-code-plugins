@@ -93,11 +93,17 @@ function check(env) {
   return report(lines.length ? lines : ["INFO review-digest: no retired file"], 0);
 }
 
-/** What moving the retired personal file does: the keys the new file lacks, and the keys it already sets, which win. */
+/**
+ * What moving the retired personal file does: the keys the new file lacks, and the keys it already
+ * sets, which win. The new file must be one the digest reads (untracked, gitignored, no symlink at
+ * it or a parent) before anything is written to it or counted from it.
+ */
 function personalPlan(root) {
   const old = readRetired(join(root, RETIRED_PERSONAL));
   if (old.error || old.bad.length) return { error: `${old.error ?? `unknown or invalid keys ${old.bad.join(", ")}`}; fix the file first` };
   const to = join(root, PERSONAL_YAML);
+  const refused = [];
+  if (!personalOverrideApplies(root, to, refused, { requireIgnored: true })) return { error: `${PERSONAL_YAML} would not be read (${refused.join("; ")}); fix it first` };
   const before = existsSync(to) ? readFileSync(to, "utf8") : null;
   const current = before === null ? {} : parseYamlLayer(before, "personal-override", PERSONAL_YAML, []);
   if (!current) return { error: `${PERSONAL_YAML} does not parse; fix it first` };

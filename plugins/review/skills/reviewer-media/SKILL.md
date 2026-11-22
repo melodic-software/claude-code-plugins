@@ -40,7 +40,7 @@ Then check the renderer, on a direct run and on `--handoff` alike:
 "${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--producer-unavailable] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] [--setting '<name>=<value>' ...] < <dir>/facts.json
 ```
 
-- `--setting '<name>=<value>'` once for each review-digest option below that reads as a value, never for one that reads empty or as an unsubstituted placeholder, and never with a `${user_config.*}` string in the command: `digest_max_files` `${user_config.digest_max_files}`, `digest_max_changed_lines` `${user_config.digest_max_changed_lines}`, `digest_blast_radius` `${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`, `digest_opt_in_label` `${user_config.digest_opt_in_label}`.
+- `--setting '<name>=<value>'` once for each review-digest option below that reads as a value, never for one that reads empty or as an unsubstituted placeholder, and never with a `${user_config.*}` string in the command. Keep the whole argument inside the single quotes and write each `'` in the value as `'\''`, so no value ends the quoting: `digest_max_files` `${user_config.digest_max_files}`, `digest_max_changed_lines` `${user_config.digest_max_changed_lines}`, `digest_blast_radius` `${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`, `digest_opt_in_label` `${user_config.digest_opt_in_label}`.
 
 - `--requested` when a reader invoked this skill; `--handoff` means `ready` or `monitor` handed the
   pull request over, so leave it off.
