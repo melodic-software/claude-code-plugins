@@ -295,9 +295,17 @@ function probeDependencyManifests(repoRoot) {
 const ECOSYSTEM_DIRS = ["docs/conventions/ecosystems", ".claude/ecosystems"];
 
 function probeEcosystems(repoRoot) {
-  const rel = ECOSYSTEM_DIRS.find((d) => listDir(join(repoRoot, d)) !== null) ?? ECOSYSTEM_DIRS[0];
-  const dir = join(repoRoot, rel);
-  const entries = listDir(dir);
+  const dirOf = new Map();
+  const listed = [];
+  for (const d of ECOSYSTEM_DIRS) {
+    const names = listDir(join(repoRoot, d));
+    if (names === null) continue;
+    listed.push(d);
+    for (const name of names) if (!dirOf.has(name)) dirOf.set(name, d);
+  }
+  const entries = listed.length === 0 ? null : [...dirOf.keys()].sort();
+  const teamDir = entries?.find((name) => name.endsWith(".yaml") && !name.endsWith(".local.yaml"));
+  const rel = teamDir ? dirOf.get(teamDir) : (listed[0] ?? ECOSYSTEM_DIRS[0]);
   if (entries === null) {
     // Fallback: inference from build files (never bundled defaults).
     const inferred = probeDependencyManifests(repoRoot);
@@ -331,7 +339,7 @@ function probeEcosystems(repoRoot) {
   }
 
   const configured = teamFiles.filter(
-    (name) => readEnabledFlag(readFileSync(join(dir, name), "utf8")) !== false,
+    (name) => readEnabledFlag(readFileSync(join(repoRoot, dirOf.get(name), name), "utf8")) !== false,
   ).length;
   const disabled = teamFiles.length - configured;
 
