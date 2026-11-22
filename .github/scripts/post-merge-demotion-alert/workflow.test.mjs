@@ -156,6 +156,7 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     .replace(/fromJSON\('([^']*)'\)/g, "$1")
     .replace(/\bcontains\(/g, "C(")
     .replace(/\bformat\(/g, "F(")
+    .replace(/\binputs\.([a-z-]+)/g, 'ctx.inputs?.["$1"]')
     .replace(/github\.event\.workflow_run\./g, "ctx.wr.")
     .replace(/github\./g, "ctx.")
     .replace(/([!=])=/g, "$1==");
@@ -251,7 +252,10 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   });
   assert.deepEqual(mismatches, [], "the job if and the file step disagree on these workflow_run events");
   assert.ok(acted.includes("acts") && acted.includes("exits"), "the cases cover both outcomes");
-  assert.equal(admits({ event_name: "workflow_dispatch", repository: "o/r", wr: {} }, C, F), true, "a dispatch always runs");
+  const dispatch = (inputs) => admits({ event_name: "workflow_dispatch", repository: "o/r", wr: {}, inputs }, C, F);
+  assert.equal(dispatch({ "run-id": "41", "head-sha": "0".repeat(40), "close-cleared": "" }), true, "a red-run dispatch runs");
+  assert.equal(dispatch({ "run-id": "41", "head-sha": "0".repeat(40) }), true, "a red-run dispatch without the input runs");
+  assert.equal(dispatch({ "close-cleared": "true" }), false, "a close-cleared dispatch files nothing");
 });
 
 // label-paths labels pull requests, which GITHUB_TOKEN refuses with
@@ -274,7 +278,7 @@ test("label-paths can label pull requests and runs no model", () => {
 // repository's main, whatever it concluded, and holds only actions: read,
 // contents: read, issues: write and pull-requests: read (babysit_lift.py
 // close reads the pull requests that reference a record).
-test("close-cleared runs on every completed scheduled full run on main, with a narrow token", () => {
+test("close-cleared runs on every completed scheduled full run on main and on a close dispatch, with a narrow token", () => {
   const closer = text.slice(text.indexOf("\n  close-cleared:\n"));
   const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(closer);
   assert.ok(folded, "close-cleared has a folded if:");
@@ -283,12 +287,13 @@ test("close-cleared runs on every completed scheduled full run on main, with a n
     .map((line) => line.trim())
     .filter(Boolean)
     .join(" ")
+    .replace(/\binputs\.([a-z-]+)/g, 'ctx.inputs?.["$1"]')
     .replace(/github\.event\.workflow_run\./g, "ctx.wr.")
     .replace(/github\./g, "ctx.")
     .replace(/([!=])=/g, "$1==");
   const admits = new Function("ctx", `return (${js});`);
   const base = { name: "PR Require Checks", event: "schedule", conclusion: "success", run_attempt: 1, head_branch: "main", head_repository: { full_name: "o/r" } };
-  const ctx = (wr, event_name = "workflow_run") => ({ event_name, repository: "o/r", wr: { ...base, ...wr } });
+  const ctx = (wr, event_name = "workflow_run", inputs) => ({ event_name, repository: "o/r", wr: { ...base, ...wr }, inputs });
   assert.equal(admits(ctx({})), true);
   assert.equal(admits(ctx({ conclusion: "failure" })), true, "a red scheduled run still scans");
   assert.equal(admits(ctx({ run_attempt: 2 })), true, "a re-run still scans");
@@ -300,7 +305,10 @@ test("close-cleared runs on every completed scheduled full run on main, with a n
   ]) {
     assert.equal(admits(ctx({ [field]: value })), false, `${field}=${JSON.stringify(value)} is not admitted`);
   }
-  assert.equal(admits(ctx({}, "workflow_dispatch")), false, "a dispatch never runs it");
+  assert.equal(admits(ctx({}, "workflow_dispatch", { "run-id": "41", "close-cleared": "" })), false, "a red-run dispatch does not run it");
+  assert.equal(admits(ctx({}, "workflow_dispatch", { "close-cleared": "false" })), false, "only 'true' runs it");
+  assert.equal(admits(ctx({}, "workflow_dispatch", { "close-cleared": "true" })), true, "a close-cleared dispatch runs it");
+  assert.match(closer, /\n {4}concurrency:\n {6}group: post-merge-close-cleared\n {6}cancel-in-progress: false\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(closer)[1];
   assert.deepEqual(Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]])), {
     actions: "read",

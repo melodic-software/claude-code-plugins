@@ -316,14 +316,15 @@ trust control (below). The post-merge demotion alert
 follows the record rules [#11022](https://github.com/melodic-software/claude-code-plugins/issues/11022)
 set and the pr-pipeline "Demotion issue" rule
 ([the local babysit lane](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) states: a
-red-main record carries no label and clears once main is green at a later commit; a canary,
+red-main record carries no label, clears once main is green at a later commit, and is then closed
+by the alert's `close-cleared` job; a canary,
 revert or read-back record, which a green main does not clear, keeps `needs-human` only until it
 lifts on its own lane-verifiable condition, when the alert's `close-cleared` job closes it and
 removes the label; a fix or quarantine issue intake triage did not receive gets a marker comment
 each later alert run retries, with no label; and a red-main record gets `needs-human` when a failing
 check got no fix issue because it was over the cap or outside the name charset, which no retry can
 file. This convention adds no second escalation channel; the telemetry comment (§4)
-is the report surface, never the sole path when human action is required. The escalation record
+is where the lane reports, never the sole path when human action is required. The escalation record
 write and the out-of-band notification section below are further ways to notify about the one
 filed escalation, the fan-out posture the runner design
 ([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names, never a
@@ -1290,7 +1291,7 @@ for when each fixed-interval run starts, see
   is therefore self-paced because those two invariants require it. Two of the lane's other per-cycle signals,
   the adaptive-cap streak and seam exit 8 counted as dirty, govern *how much work a cycle takes
   on*, not when the next one fires, and are unaffected by either shape. The drain-exit snapshot is
-  not one of them: it is the pacing signal named above, the input deciding whether the cycle calls
+  not one of them. It is the pacing signal named above, the input deciding whether the cycle calls
   `ScheduleWakeup` with `stop: true` instead of scheduling another run at all.
 - **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
   interval chosen once *is* the whole cadence policy. No per-cycle state derives a better one, so
@@ -1497,8 +1498,8 @@ no latched account and adopts the first account it reads, so a switch before tha
 All three depend on an internal `.claude.json` key or on the writer's attribution.
 
 **Guard-mode telemetry.** Each lane records the guard's mode, proactive, reactive, or unknown, in
-its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
-tracking surface.
+its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible in
+that block.
 
 ## 7. Operator steering through GitHub state
 
@@ -1567,7 +1568,7 @@ the lanes skip the item. Intake triage,
 the triage sweep, intake re-entry, the WIP cap, the issue lane's admission and the unblock sweep
 skip it (`.github/actions/check-born-triaged`), and `list-frontier --autonomous` excludes it, so
 `work-loop` never admits it, while the interactive frontier keeps it for the owning session. The
-label is about ownership only: whether a person drives a run stays `attended` or unattended.
+label is about ownership only. Whether a person drives a run stays `attended` or unattended.
 
 ```bash
 L=$(yq -o=json -e '.tracker' "<project root>/docs/conventions/work-items.yaml" 2>/dev/null |

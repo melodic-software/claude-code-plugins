@@ -169,7 +169,7 @@ jobs:
     outputs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
-      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
+      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.close.outputs.stop || steps.alert.outputs.stop }}
       # `true` when the burn-rate pacer paces this schedule tick: the merge and
       # enable-auto-merge jobs then skip their sweep at job level.
       paced: ${{ steps.pace.outputs.paced }}
@@ -343,6 +343,10 @@ jobs:
             python3 "$scripts/babysit_postmerge.py" \
               --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
               </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+            if jq -e '.recoveries | keys | any(split("|")[2] == "OPEN")' \
+              "$RUNNER_TEMP/demotion-recoveries.json" >/dev/null 2>&1; then
+              echo "close-cleared=true" >>"$GITHUB_OUTPUT"
+            fi
           fi
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
@@ -948,6 +952,42 @@ jobs:
           path: ${{ runner.temp }}/alerted.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Send a proven recovery to close-cleared
+        id: close
+        if: >-
+          !cancelled()
+          && steps.kill.outputs.proceed == 'true'
+          && steps.mode.outputs.live == 'true'
+          && steps.post-merge.outputs.close-cleared == 'true'
+          && steps.post-merge.outputs.code != '75'
+          && steps.cover.outputs.rate-limited != 'true'
+          && steps.dispatch.outputs.rate-limited != 'true'
+          && steps.rerun.outputs.rate-limited != 'true'
+          && steps.alert.outputs.rate-limited != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          api_budget_wrap_gh github-token
+          err=$RUNNER_TEMP/close-stderr
+          if gh api -X POST "repos/$REPO/actions/workflows/post-merge-file-demotion-issues.yml/dispatches" \
+            -f ref=main -f "inputs[close-cleared]=true" >/dev/null 2>"$err"; then
+            echo "sent the proven recoveries to close-cleared"
+            exit 0
+          fi
+          cat "$err" >&2
+          stop=$(rate_stop_from "$err" "the send to close-cleared")
+          if [ -n "$stop" ]; then
+            echo "::error title=GitHub rate limit::the send to close-cleared was rate limited ($stop)"
+            echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+            echo "stop=$stop" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "::warning::could not send the proven recoveries to close-cleared; the next check that proves them, or the next scheduled full run, closes them"
 
       - name: Log the API budget at the end
         if: always()

@@ -1469,6 +1469,36 @@ class AutoClearOnGreen(unittest.TestCase):
             result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
         )
 
+    def test_close_cleared_closing_a_recovered_record_leaves_the_floor(self) -> None:
+        green = policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
+        closed_at = "2026-10-12T13:00:00Z"
+        for name, actor, floor in (
+            ("open, recovered by the 11:00 green", None, green),
+            ("close-cleared's github-actions[bot] close keeps the recovery", bot("github-actions"), green),
+            ("a User login github-actions with write is still not human", user("github-actions"), green),
+            ("a person's close moves the floor to the close", user(OPERATOR), policy.datetime.fromisoformat(closed_at)),
+        ):
+            with self.subTest(name):
+                issue = (
+                    {}
+                    if actor is None
+                    else {
+                        "state": "CLOSED",
+                        "timelineItems": {
+                            "nodes": [{"createdAt": closed_at, "actor": actor, "closer": None}]
+                        },
+                    }
+                )
+                self.fake(**issue)
+                result = policy.read_demotion(
+                    REPO,
+                    agent_identity=IDENTITY,
+                    permission=permissions({OPERATOR: "admin", "github-actions": "write"}),
+                    now=NOW,
+                )
+                self.assertFalse(result.active, result.reason)
+                self.assertEqual(result.cleared_at, floor)
+
     def test_a_record_cleared_early_reads_no_later_span(self) -> None:
         # However many green runs came since, a record main cleared in its
         # first span reads only that span: later spans would fail the read.
