@@ -131,12 +131,18 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
 - **personal override** `<home>/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
 - **old locations** `~/.claude/audit-pass.md` (the `userConfig` layer's) and
-  `.claude/audit-pass.local.md` (the personal override's): WARN for each one present, naming the
-  file and where it moves. The audit engine still reads an old file while no new-location file
-  supplies its layer, and ignores it once one does, so a WARN with both present means the old
-  file's entries no longer take part. An old `.claude/audit-pass.local.md` also gets the personal
-  override's gitignored-and-never-staged check above, FAIL included. `apply` moves it. See
-  [config locations](../../reference/config-locations.md).
+  `.claude/audit-pass.local.md` (the personal override's), each row naming the file, where it
+  moves, and `/harness-config:setup apply`. Retired conventions: run
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>"`,
+  with `<root>` the repo root anchored above. Exit 0 → PASS. Exit 1 → one finding per TSV row:
+  `migrate` is FAIL, `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`.
+  Exit 2 → FAIL, never silent. Bash unavailable → report the step UNKNOWN with remediation, never
+  green. The one record, `harness-config-r001`, covers `.claude/audit-pass.local.md`;
+  `~/.claude/audit-pass.md` is machine scope, outside the manifest, so a present one is a WARN.
+  The audit engine still reads an old file while no new-location file supplies its layer, and
+  ignores it once one does, so with both present the row says the old file's entries no longer
+  take part. An old `.claude/audit-pass.local.md` also gets the personal override's
+  gitignored-and-never-staged check above. See [config locations](../../reference/config-locations.md).
 
 Parse each present layer and report as malformed any entry missing **any** of its five required
 keys: `check`, `claim`, `sites`, `reason`, `date`. Checking only `reason` and `date` would pass an
@@ -211,7 +217,10 @@ Then converge the one surface this plugin owns, conservatively:
      names it, and parsing the new file's fenced block yields every `finding_id` the old file held,
      each with the same keys. On any mismatch, restore the new file to its earlier content, keep the old file, and
      report the difference.
-  5. Delete the old file, then rerun `check` and report that the WARN is gone.
+  5. Delete the old file: `.claude/audit-pass.local.md` through
+     `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean harness-config-r001 --i-migrated`,
+     with the same `<root>` as `check`; `~/.claude/audit-pass.md` with a plain delete. Then rerun
+     `check` and report that its row is gone.
 
 Every write names the file and the exact change before making it, and preserves unrelated content.
 
