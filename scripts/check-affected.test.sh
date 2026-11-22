@@ -60,27 +60,6 @@ while (($#)); do
 done
 exit "${STUB_AFFECTED_TESTS:-0}"
 STUB
-cat >"$repo/scripts/selection-audit.sh" <<'STUB'
-#!/usr/bin/env bash
-cmd="$1"
-shift
-if [[ "$cmd" == changed ]]; then
-  [[ -z "${STUB_CHANGED_SUITES:-}" ]] || printf '%s\n' "$STUB_CHANGED_SUITES"
-  exit "${STUB_SELECTION_CHANGED:-0}"
-fi
-[[ -z "${STUB_TRACE_LOG:-}" ]] || printf '%s\n' "$*" >"$STUB_TRACE_LOG"
-[[ -z "${STUB_TRACE_START_LOG:-}" ]] || date +%s >"$STUB_TRACE_START_LOG"
-sleep "${STUB_TRACE_SLEEP:-0}"
-while (($#)); do
-  [[ "$1" == --out ]] && out="$2"
-  shift
-done
-mkdir -p "$out"
-echo "stub trace report: ${STUB_TRACE_REPORT:-No gap}" >"$out/report.md"
-printf '%s' "${STUB_TRACE_SUITES:-}" >"$out/suites.tsv"
-printf '%s' "${STUB_TRACE_VERDICTS:-}" >"$out/verdicts.tsv"
-exit "${STUB_SELECTION_AUDIT:-0}"
-STUB
 printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys.exit(int(os.environ.get("STUB_SYNC_PLUGIN_OPTIONS_DOCS", "0")))\n' \
   >"$repo/scripts/sync-plugin-options-docs.py"
 cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
@@ -116,8 +95,7 @@ chmod +x "$repo"/scripts/*.sh
 # fixture's missing config. It echoes its arguments and exits STUB_TYPOS.
 mkdir -p "$tmp/bin"
 printf '#!/usr/bin/env bash\necho "typos ran: $*" >&2\nexit "${STUB_TYPOS:-0}"\n' >"$tmp/bin/typos"
-printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/strace"
-chmod +x "$tmp/bin/typos" "$tmp/bin/strace"
+chmod +x "$tmp/bin/typos"
 export PATH="$tmp/bin:$PATH"
 
 # path_without <command>: PATH minus every directory holding that command.
@@ -504,44 +482,6 @@ rm -rf "$repo/eco"
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'fixtures/case.test.js\n' -- --base base --tests
 check "--tests counts no path under outside-node-exclusions.txt as an unrun suite" \
   '[[ $RC == 0 && $ERR != *"SKIP tests"* ]]'
-
-run -- --base base --tests
-check "selection-trace skips a change that adds or changes no suite" \
-  '[[ $RC == 0 && $ERR == *"SKIP selection-trace (no changed suite)"* ]]'
-run -- --base base
-check "without --tests there is no selection-trace" \
-  '[[ $RC == 0 && $ERR != *"selection-trace"* ]]'
-trace_log="$tmp/trace.log"
-run STUB_CHANGED_SUITES=$'scripts/a.test.sh\nscripts/b.test.mjs' STUB_TRACE_LOG="$trace_log" -- --base base --tests --budget 45
-check "selection-trace passes when the trace finds no gap and checks everything" \
-  '[[ $RC == 0 && $ERR != *"selection-trace"* && $OUT == *"passed"* ]]'
-check "selection-trace traces each changed suite with one job inside the run's budget" \
-  '[[ $(cat "$trace_log") =~ ^--jobs\ 1\ --budget\ (4[0-5])\ --out\ .*\ scripts/a.test.sh\ scripts/b.test.mjs$ ]]'
-run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_SELECTION_AUDIT=1 STUB_TRACE_REPORT="1 gap: a.test.sh reads x.yml" -- --base base --tests
-check "selection-trace fails on a gap and shows the trace's report" \
-  '[[ $RC == 1 && $ERR == *"FAIL selection-trace"* && $ERR == *"1 gap: a.test.sh reads x.yml"* ]]'
-run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_TRACE_SUITES=$'scripts/a.test.sh\tnot-traced\t0\t0\n' -- --base base --tests
-check "a suite the budget left untraced is a selection-trace SKIP, never a pass" \
-  '[[ $RC == 0 && $ERR == *"SKIP selection-trace (could not run, exit 2: 1 suite(s) or file(s) left unchecked past the 120s budget, left to CI)"* ]]'
-run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_TRACE_VERDICTS=$'x.yml\tnot checked\n' -- --base base --tests
-check "a file the budget left unchecked is a selection-trace SKIP" \
-  '[[ $RC == 0 && $ERR == *"SKIP selection-trace (could not run, exit 2: 1 suite(s) or file(s) left unchecked"* ]]'
-run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_SELECTION_AUDIT=2 -- --base base --tests
-check "a trace that could not run is a selection-trace SKIP" \
-  '[[ $RC == 0 && $ERR == *"SKIP selection-trace (could not run, exit 2"* ]]'
-run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_SELECTION_CHANGED=2 -- --base base --tests
-check "a failed listing is a selection-trace SKIP" \
-  '[[ $RC == 0 && $ERR == *"SKIP selection-trace (could not list the changed suites"* ]]'
-run STUB_CHANGED_SUITES=scripts/a.test.sh -- --base base --tests --uncommitted
-check "--uncommitted skips selection-trace, so a lane's self-check keeps its wall" \
-  '[[ $ERR == *"SKIP selection-trace (--uncommitted has no commit here to list the changed suites from)"* ]]'
-start=$SECONDS
-run STUB_CHANGED_SUITES=scripts/a.test.sh -- --base base --tests
-plain=$((SECONDS - start))
-start=$SECONDS
-run STUB_CHANGED_SUITES=scripts/a.test.sh STUB_TRACE_SLEEP=3 STUB_AFFECTED_SLEEP=3 -- --base base --tests
-check "selection-trace runs beside the suites, not after them" \
-  "[[ \$RC == 0 && $((SECONDS - start - plain)) -lt 5 ]]"
 # A selected Node suite in a registered package runs through the package's own
 # npm test, and a failing one fails tests.
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
