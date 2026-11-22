@@ -25,15 +25,34 @@ the per-key (whole-list) override semantics. This doc never restates them. It ow
   required section, and runs a pre-`gh pr create` gate that fails when an assembled body is missing
   a required section or leaves one empty. The `create` action owns both halves, the assembly and
   the pre-create gate.
+- **The pr-unblock body refresh (this repository's CI).** Its select job offers for rewriting the
+  sections the key lists, else the template headings in the same order, and offers none when the
+  owner's default template cannot be read
+  ([`docs/conventions/pr-pipeline/README.md`](../../conventions/pr-pipeline/README.md)).
 - **CI / enforcement (deferred).** A gate validating an *already-opened* PR body against the same
   team-tracked value, the enforcement half of the two-reads pattern the
   [commit-convention seam](../commit-convention/README.md) already establishes for the
   commit-subject / PR-title convention. No such consumer exists yet in this fleet; this doc reserves
   the concern so the second adopter reads the same key instead of inventing a parallel one.
 
+## When no layer sets the key: the template, then `briefing`
+
+When no layer sets `pr_body_required_sections`, the sections come from the first of these that
+names one: the `##` headings of the repository's own pull request template, those of the owner's
+default template in its `.github` repository, then the `briefing` preset. `create` reports which
+level supplied them; its §2.4.1 owns where each template is read and how a heading is recognized.
+
+Why the template comes first. A repository or organization that ships a pull request template has
+already stated its section convention, and a CI contract check usually reads the same headings, so
+repeating them in this key only adds a second copy to keep in step. GitHub lists pull request
+templates among the default files an owner's `.github` repository supplies to a repository without
+its own
+([Creating a default community health file](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file)),
+so one file sets the convention across an organization. The key stays for a repository whose drafted sections must differ from its template.
+
 ## Portable default: the `briefing` preset
 
-When no layer sets `pr_body_required_sections`, the plugin drafts the `briefing` preset: `Why`,
+With no key and no template, the plugin drafts the `briefing` preset: `Why`,
 `What changed`, `Scope`, `Tradeoffs`, `Risk` and `Verification`, in that order, with `Why`,
 `What changed`, `Scope` and `Verification` required and the other two written only when they have
 content. The section rules live in `/source-control:pull-request`'s `create` reference; this doc
@@ -59,9 +78,10 @@ A linked-issue or "Related" section is **not** part of either preset: it presume
 runs an issue tracker and links PRs to it, which is an org-specific choice, not a property every
 repo shares. That choice belongs in configuration, not in the plugin's shipped default.
 
-**`## Related` is never dropped by the mechanism.** A consumer whose convention includes it
-declares `Related` in its own `pr_body_required_sections` list (team-tracked, personal override, or
-user-global), the same as any other section name. The plugin ships no opinion on it either way.
+**`## Related` is never dropped by the mechanism.** A consumer whose convention includes it puts a
+`## Related` heading in its pull request template, or declares `Related` in its own
+`pr_body_required_sections` list (team-tracked, personal override, or user-global), the same as any
+other section name. The plugin ships no opinion on it either way.
 
 ## `none`: no required sections
 
@@ -79,7 +99,7 @@ value.
 
 **`none` is a value, absence is not.** A layer declaring `none` wins the per-key override exactly
 like a list would, replacing a lower layer's list with zero sections, while a key absent from
-every layer still falls through to the portable default. Layering mechanics live in
+every layer still falls through to the templates, then the portable default. Layering mechanics live in
 [`config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md); this doc
 only fixes the value's meaning.
 

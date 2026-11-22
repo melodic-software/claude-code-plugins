@@ -13,6 +13,8 @@ and then marks it ready (the stop list below says when that needs the user).
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
 `CI Status` fails any other title.
 
+Before opening a pull request or filing an issue, read [docs/standards/filing-prs-and-issues.md](docs/standards/filing-prs-and-issues.md) (synced from melodic-software/standards).
+
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
 `gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a pull
 request for any reason, a measured regression included, applies the label at once and removes it
