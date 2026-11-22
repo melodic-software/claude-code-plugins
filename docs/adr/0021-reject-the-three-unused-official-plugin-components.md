@@ -1,6 +1,8 @@
 # Reject the three unused official plugin components, each with a recheck trigger
 
-- Status: accepted
+- Status: accepted; the `bin/` verdict partly superseded by
+  [ADR 0118](0118-ship-the-external-agents-command-in-bin-and-exempt-it-from-the-no-bin-gate.md)
+  for the external-agents plugin
 - Date: 2026-07-12
 
 ## Decision

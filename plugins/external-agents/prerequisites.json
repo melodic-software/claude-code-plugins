@@ -1,0 +1,46 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the external-agents command and its runner cannot start, so no external CLI can be reached.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "codex",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "codex"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+(?:\\.[0-9]+)+)",
+          "min": "0",
+          "latest": "github:openai/codex"
+        }
+      },
+      "degrade": "Without the Codex CLI, Codex runs are reported unavailable and council's Codex member is skipped; other CLIs are unaffected.",
+      "install": {
+        "docs": "https://github.com/openai/codex"
+      }
+    }
+  ]
+}

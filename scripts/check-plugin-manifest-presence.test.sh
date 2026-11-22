@@ -198,6 +198,38 @@ else
 fi
 rm -rf "$TMP/plugins/alpha/scripts"
 
+make_plugin external-agents
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nexternal-agents\t./plugins/external-agents\n' | write_marketplace
+mkdir -p "$TMP/plugins/external-agents/bin"
+printf '#!/usr/bin/env node\n' >"$TMP/plugins/external-agents/bin/external-agents"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "external-agents' populated top-level bin/ passes (the one exemption)"
+else
+  fail "external-agents bin/ should pass (rc=$rc): $out"
+fi
+mkdir -p "$TMP/plugins/beta/bin"
+printf 'x\n' >"$TMP/plugins/beta/bin/tool"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'plugins/beta/bin' <<<"$out" && ! grep -q 'plugins/external-agents/bin' <<<"$out"; then
+  ok "the exemption names one plugin: another plugin's bin/ still fails"
+else
+  fail "beta bin/ should fail and external-agents should not be named (rc=$rc): $out"
+fi
+rm -rf "$TMP/plugins/beta/bin"
+printf 'x\n' >"$TMP/plugins/external-agents/bin/extra"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'plugins/external-agents/bin' <<<"$out"; then
+  ok "the exemption covers one file: anything else in external-agents' bin/ fails"
+else
+  fail "an extra file in external-agents bin/ should fail (rc=$rc): $out"
+fi
+rm -rf "$TMP/plugins/external-agents"
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
+
 # --- 7. Back to green after every fixture is restored/removed. -------------
 out="$(run)"
 rc=$?

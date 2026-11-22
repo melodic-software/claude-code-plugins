@@ -117,6 +117,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 - [`session-flow`](../plugins/session-flow): Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after a stall), find-handoff, clean-stop, retro and running-retro, audit-sessions, audit-friction, orient (where the session stands), orchestrate, reanchor (verify assumptions), reconcile (retire finished work), recommend-skills, tidy-work (.work tiers), step-away (run unattended, report on return), go-with-recommendations (accept after an evidence check), check, setup.
 - [`multi-agent`](../plugins/multi-agent): Workflow and model-routing guidance for multi-agent work: assess (workflow, subagent or single context), route (the role map a workflow script reads from args, keeping fan-out stages off a frontier model), audit-defaults (rechecks bundled defaults against upstream, or sweeps the repo's model and workflow guidance, via a read-only drift-audit workflow), check (whether node resolves and the fetch gate is registered), and setup (writes a user, team or local layer after a preview and a yes).
+- [`external-agents`](../plugins/external-agents): Hands tasks and reviews to other vendors' official coding-agent CLIs (Codex first) through their documented headless surfaces: one skill per CLI, one shared runner with per-use sandbox ceilings, job files and a breaker, and the external-agents command that review:council calls.
 
 ## Presentation
 

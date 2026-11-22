@@ -1,0 +1,53 @@
+{
+  "skill_name": "codex",
+  "evals": [
+    {
+      "id": 1,
+      "name": "investigation-runs-read-only-through-the-command",
+      "prompt": "Ask Codex why the integration tests in this repo are slow. Don't let it change anything.",
+      "expected_output": "Writes the prompt to a file in a gitignored scratch folder, runs external-agents run codex --use investigate --prompt-file <file>, and reports Mode: read-only (investigate) on the first line, then the command's first stdout line and Codex's final message verbatim.",
+      "files": [],
+      "expectations": [
+        "Runs external-agents run codex with --use investigate and --prompt-file",
+        "Never runs the codex binary directly and never looks up the plugin's install path",
+        "Does not paste file contents or logs into the prompt",
+        "The first reply line is Mode: read-only (investigate), taken from the job"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "blocked-run-is-not-reported-done",
+      "prompt": "Have Codex fix the failing lint in src/, then tell me when it's done.",
+      "expected_output": "Runs external-agents run codex --use task. When the command exits 3 with codex: blocked-by-mode, the reply says the run was blocked, gives the blocked count and commands from the first line, relays the final message as Codex's, and does not report the fix as done or do the fix itself.",
+      "files": [],
+      "expectations": [
+        "Runs external-agents run codex with --use task",
+        "On exit 3 says the run was blocked and names the blocked commands",
+        "Does not report the task done and does not do the task itself in Codex's place"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "branch-review-names-the-base",
+      "prompt": "Get a Codex second opinion on this branch against main.",
+      "expected_output": "Runs external-agents review codex --base main as a background Bash task, reports Mode: read-only (review), then the codex: ran line and the findings verbatim, relaying any notice line.",
+      "files": [],
+      "expectations": [
+        "Runs external-agents review codex with --base main",
+        "The first reply line is Mode: read-only (review)",
+        "Relays Codex's findings as Codex's, with any own reading labeled separately"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unavailable-points-to-update",
+      "prompt": "Ask Codex to summarize the README.",
+      "expected_output": "When the command exits 4 with codex: unavailable (not logged in), the reply reports that line and the CLI's error, points to external-agents update codex, and does not summarize the README itself.",
+      "files": [],
+      "expectations": [
+        "On exit 4 points the user to external-agents update codex",
+        "Does not answer the request itself in Codex's place"
+      ]
+    }
+  ]
+}
