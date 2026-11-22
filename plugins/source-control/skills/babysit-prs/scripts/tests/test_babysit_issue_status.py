@@ -22,6 +22,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -415,7 +416,9 @@ class TheConfigBlock(unittest.TestCase):
         self.assertEqual(status.field_id, FIELD)
         self.assertIn((41898282, "github-actions[bot]"), status.bot_setters)
         self.assertIn((337859524, "melodic-release[bot]"), status.bot_setters)
-        self.assertEqual(len(status.bot_setters), 7)
+        block = re.search(r"\n    bot-setters:\n((?:      - id: \d+\n        login: .+\n)+)", LIVE)
+        assert block is not None
+        self.assertEqual(len(status.bot_setters), block.group(1).count("- id:"))
         self.assertIn(("86380005", "needs-human"), status.options)
         self.assertEqual(
             dict(status.labels)["needs-owner-decision"],
