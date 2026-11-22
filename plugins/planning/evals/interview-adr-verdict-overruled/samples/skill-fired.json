@@ -4,7 +4,7 @@
     {"answer": [{"tool": "Skill", "input": {"skill": "interview"}}], "why": "unqualified name"}
   ],
   "fail": [
-    {"answer": [{"tool": "Skill", "input": {"skill": "architecture:record-decision"}}], "why": "only the ADR skill fired"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "architecture:adr"}}], "why": "only the ADR skill fired"},
     {"answer": [], "why": "no tool call"}
   ]
 }

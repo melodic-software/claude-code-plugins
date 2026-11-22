@@ -1,12 +1,12 @@
 ---
-description: "Architecture decision record in the repo's ADR convention, retiring the record it reverses after a yes; with no convention, nothing is written until the human picks a shape. audit lists records the code no longer backs, read-only. Use when 'record this decision', 'write an ADR', 'capture this decision', 'document why we chose X', 'we are reversing ADR 7', 'prune the ADRs', 'are our ADRs still current', or a design handoff or interview resolves a decision worth keeping. Skip when no real alternative was weighed, or the ask is an index, a template migration, or status lifecycle."
-argument-hint: "[audit [--repo <repo> ...]] [decision and its rationale, or a path to a file holding them]"
+description: "Architecture decision records in the repo's ADR convention: record one (retiring the record it reverses after a yes; with no convention, nothing is written until the human picks a shape), audit which records the code no longer backs (read-only), prune the records the person accepts. Use when 'record this decision', 'write an ADR', 'capture this decision', 'document why we chose X', 'we are reversing ADR 7', 'prune our ADRs', 'prune the ADRs', 'are our ADRs still current', or a design handoff or interview resolves a decision worth keeping. Skip when no real alternative was weighed, or the ask is an index, a template migration, or status lifecycle."
+argument-hint: "[audit|prune] [--repo <repo> ...] [decision and rationale, or a file holding them]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Record an architecture decision in the repository's existing ADR convention
+  summary: Record, audit and prune architecture decisions in the repository's existing ADR convention
 ---
 
 ## Repository context. Gather first
@@ -43,11 +43,12 @@ Arguments: `$ARGUMENTS`
 | *(bare)* | Records one decision: Steps 1 to 4. The whole argument is the decision text or a file path |
 | `audit` | Lists retire candidates and writes nothing: [Audit](#audit) |
 | `audit --repo <repo> ...` | The audit across several repositories: [Several repositories](#several-repositories) |
+| `prune [--repo <repo> ...]` | Retires only the audit candidates the person accepts: [actions/prune.md](actions/prune.md) |
 
-Only `audit` as the first word selects the audit; any other first word is part of the decision.
-`--repo` and the other target forms in
+Only `audit` or `prune` as the first word selects that action; any other first word is part of the
+decision. `--repo` and the other target forms in
 [`${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md`](${CLAUDE_PLUGIN_ROOT}/reference/target-scope.md)
-are accepted only after `audit`; the default stays this repository.
+are accepted only after `audit` or `prune`; the default stays this repository.
 
 ## Purpose
 
@@ -145,9 +146,10 @@ convention, found in Step 1, always wins over `adr_template` and the bundled tem
 
 ## Step 3. Retire the record the decision replaces
 
-Runs when the new decision reverses or replaces an existing record, and for an audit candidate the
-person picks. The new record's `Considered options` (or the convention's equivalent) names the
-retired record by identifier and title and says why it was reversed.
+Runs when the new decision reverses or replaces an existing record, for an audit candidate the
+person picks, and from [`prune`](actions/prune.md) for each record the person accepts. The new
+record's `Considered options` (or the convention's equivalent) names the retired record by
+identifier and title and says why it was reversed.
 
 A changed decision gets a new record, never an amendment inside the accepted one: an accepted record
 is edited in place only to rename a term, to set its status, or to repoint a citation the sweep
@@ -160,8 +162,10 @@ records and existing citations use (`ADR 7`, `ADR-007`, `0007`), and for its fil
 patterns searched. Skip the old record itself and the new record's line naming it. List each hit as
 `file:line` (code, docs, skills, other records) with one proposal: point it at the new record's
 identifier or path, or drop it when there is no new record or the line only made sense with the old
-decision. List a changelog or release-note hit as keep: it is history. Done when every hit carries a
-proposal, or the report says the search found none.
+decision. List a changelog or release-note hit as keep: it is history. List a hit that does not
+refer to the record, such as another numbered series (a database migration `0007_...`), as not a
+citation, with no edit. Done when every hit carries a proposal, a keep or a not-a-citation, or the
+report says the search found none.
 
 **Partial reversal.** When the new decision reverses only part of a record, keep the old file
 whatever `adr_retirement` says, and in place of steps 1 to 3: after writing the new record, name the
@@ -296,7 +300,9 @@ and offer the repository's own observed shape, or the bundled template, instead.
 
 ## Next
 
-/planning:plan. The plan consumes the recorded decision as a fixed part of the design.
+- A decision was recorded and the work still needs a plan: /planning:plan.
+- The audit found candidates to remove: /architecture:adr prune.
+- A retirement left terms to rename: /docs-hygiene:rename-references.
 
 ## Gotchas
 

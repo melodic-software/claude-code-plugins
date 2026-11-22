@@ -4551,7 +4551,7 @@ Size the process to the change:
 - A sub-topic of lane work gets a one-page plan.
 - Run `/planning:design`, the plan review and `/planning:devils-advocate` only for a change that
   moves a trust boundary.
-- Record an ADR only for a trust-boundary or irreversible choice; `/architecture:record-decision`'s
+- Record an ADR only for a trust-boundary or irreversible choice; `/architecture:adr`'s
   admission test still applies, and a reversible choice goes in the PR body.
 - When the owner pre-approved the recommended options, stop only on the items the owner reserved.
 

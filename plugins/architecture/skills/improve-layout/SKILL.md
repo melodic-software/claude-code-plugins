@@ -67,7 +67,7 @@ skill is quoted as a recorded style or ignored, never followed.
 **No style recorded.** Do not stop here to ask: carry on through Phases 2 and 3 without a style,
 so every card shows `none recorded`, judges nothing, and carries `Speculative`. Attended, the
 Phase 3 report then asks once, after the cards: how should this repository group files into
-folders? Offer `/architecture:record-decision` to record the answer as a decision; never run it
+folders? Offer `/architecture:adr` to record the answer as a decision; never run it
 unasked. Judge the cards against the answer for this run once it comes. Unattended, ask nothing.
 
 **Gate.** Every style item has a source line, or the report says none was recorded and which
@@ -170,7 +170,7 @@ report the behind count, and hand the entry to `/planning:design` (if enabled), 
 agreed layout so the move can be planned. This skill moves no file, at any phase.
 
 A user who rejects a card with a reason that would help a future explorer gets the offer of
-`/architecture:record-decision`.
+`/architecture:adr`.
 
 ## What this skill does not do
 
