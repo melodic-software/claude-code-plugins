@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/code-tidying/git-hooks/entries.json plugins/code-tidying/lib/git-hooks/check-lib.sh plugins/code-tidying/lib/git-hooks/install.mjs plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/scripts/comment-census.py plugins/code-tidying/scripts/code-extensions.txt plugins/code-tidying/scripts/generated-marker.ere plugins/code-tidying/lib/parse-concern-value.sh plugins/code-tidying/lib/yaml-subset.awk plugins/code-tidying/lib/resolve-convention-home.sh
+# test-scope: plugins/code-tidying/git-hooks/entries.json plugins/code-tidying/lib/git-hooks/check-lib.sh plugins/code-tidying/lib/git-hooks/install.mjs plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/scripts/comment-census.py plugins/code-tidying/scripts/code-extensions.txt plugins/code-tidying/scripts/generated-marker.ere plugins/code-tidying/lib/parse-concern-value.sh plugins/code-tidying/lib/yaml-subset.awk plugins/code-tidying/lib/resolve-convention-home.sh plugins/code-tidying/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 
@@ -221,6 +221,24 @@ printf '# 42\n' >"$REPO/docs/adr/0042-use-postgres.md"
 printf 'x=1\n# See ADR-0042\ny=1\n# See docs/adr/0042\nz=1\n# See ADR-0043\n' >"$REPO/src/a.sh"
 git -C "$REPO" add -A
 expect "an ADR pointer passes only when the record exists" "1|$(finding src/a.sh 6 necessary)" "$(check "$REPO")"
+
+new_repo 'comment_lint: block'
+mkdir -p "$REPO/docs/adr" "$REPO/src"
+printf '# 42\n' >"$REPO/docs/adr/0042-use-postgres.md"
+printf 'x=1\n# See ADR-0042\n' >"$REPO/src/a.sh"
+git -C "$REPO" add -- src/a.sh
+expect "a staged ADR pointer to an untracked record fails" "1|$(finding src/a.sh 2 necessary)" "$(check "$REPO")"
+expect "--worktree: the same pointer passes on the untracked record" "0|" "$(check "$REPO" --worktree)"
+git -C "$REPO" add -- docs/adr
+rm "$REPO/docs/adr/0042-use-postgres.md"
+expect "a staged ADR pointer to a staged record passes when the work tree lost it" "0|" "$(check "$REPO")"
+
+new_repo 'comment_lint: block' 'comment_adr_dir: docs/decisions'
+mkdir -p "$REPO/docs/decisions" "$REPO/src"
+printf '# 7\n' >"$REPO/docs/decisions/0007-x.md"
+printf 'x=1\n# See ADR-0007\n' >"$REPO/src/a.sh"
+git -C "$REPO" add -A
+expect "comment_adr_dir: docs/decisions holds the record ADR-0007 names" "0|" "$(check "$REPO")"
 
 new_repo 'comment_lint: block'
 mkdir -p "$REPO/docs/conventions"

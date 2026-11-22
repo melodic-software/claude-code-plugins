@@ -172,9 +172,8 @@ When the pair comes from a domain glossary change (a term renamed, a word moved 
 over by `/domain-driven-design:ubiquitous-language`), code names
 follow the glossary too, and the sweep runs as its own reviewed change, never folded into the
 glossary edit. When `/domain-driven-design:ubiquitous-language` is among the available skills, the
-sweep also matches the term inside identifiers the way its glossary contract's "Counting a term"
-section counts it (`plugins/domain-driven-design/skills/ubiquitous-language/context/glossary-contract.md#counting-a-term`),
-so `addLearner` is found for `learner`; when it is not, the report says the identifier-part pass
+sweep also matches the term inside identifiers the way that skill's glossary contract counts a
+term ("Counting a term"), so `addLearner` is found for `learner`; when it is not, the report says the identifier-part pass
 did not run. Ordinary renames keep the `\b` anchor ("Word-boundary trap"). The report groups hits
 by layer:
 

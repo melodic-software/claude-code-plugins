@@ -280,6 +280,19 @@ class AdrPointer(unittest.TestCase):
     def test_pointer_fails_under_none(self):
         self.assertEqual(self.lines("# ADR-0042\nx = 1\n", posture="none"), [1])
 
+    def test_configured_folder_holds_the_records(self):
+        (self.repo / "docs" / "decisions").mkdir()
+        (self.repo / "docs" / "decisions" / "0007-x.md").write_text("# 7\n")
+        text = "# ADR-0007\nx = 1\n# See docs/decisions/0007\ny = 1\n# ADR-0042\nz = 1\n"
+        got = lint.findings("a.py", text, [(1, 6)], "necessary", [], self.repo, "docs/decisions")
+        self.assertEqual([int(f.split(":")[1]) for f in got], [5])
+
+    def test_folder_outside_the_repository_falls_back_to_the_default(self):
+        for adr_dir in ("../elsewhere", "/tmp", "."):
+            with self.subTest(adr_dir=adr_dir):
+                got = lint.findings("a.py", "# ADR-0042\nx = 1\n", [(1, 2)], "necessary", [], self.repo, adr_dir)
+                self.assertEqual(got, [])
+
     def test_pointer_fails_without_a_repository(self):
         self.assertEqual(flagged("a.py", "# ADR-0042\nx = 1\n"), [1])
 
