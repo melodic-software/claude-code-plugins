@@ -1286,10 +1286,14 @@ assert_exit "no lockfile: creation succeeds" 0 "$?"
 assert_file_absent "no lockfile: npm is not run" "$npm_log"
 
 npm_log="$TEST_TMPDIR/npm-undeclared.log"
+errfile="$TEST_TMPDIR/err-deps-undeclared.txt"
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/deps-undeclared --base-ref head \
-  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$undeclared_repo" 2>/dev/null)
+  --root "$TEST_TMPDIR/wtroot-deps-undeclared" --repo-dir "$undeclared_repo" 2>"$errfile")
 assert_exit "undeclared lockfile: creation succeeds" 0 "$?"
-assert_file_absent "undeclared lockfile: npm is not run" "$npm_log"
+assert_eq "undeclared lockfile: npm ci runs once, scripts off" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/null)"
+assert_file_exists "undeclared lockfile: node_modules lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
+assert_contains "undeclared lockfile: a notice names the lockfile and the fix" "$(cat "$errfile")" \
+  "package-lock.json is installed though no ecosystem record declares it; declare it under requires.<command>[].install"
 
 # A failed install warns with the remedy and keeps exit 0.
 npm_log="$TEST_TMPDIR/npm-fail.log"
@@ -1465,21 +1469,29 @@ fi
 # npm missing from PATH: warn and keep exit 0. Drops every PATH entry that holds
 # an npm; skipped when that would also drop git or bash.
 no_npm_path=""
+if command -v node >/dev/null 2>&1; then
+  mkdir -p "$TEST_TMPDIR/node-only-bin"
+  ln -sf "$(node -p process.execPath)" "$TEST_TMPDIR/node-only-bin/node"
+  no_npm_path="$TEST_TMPDIR/node-only-bin"
+fi
 IFS=: read -r -a path_dirs <<<"$PATH"
 for d in "${path_dirs[@]}"; do
   [[ -n "$d" && ! -x "$d/npm" ]] && no_npm_path="${no_npm_path:+$no_npm_path:}$d"
 done
-if PATH="$no_npm_path" command -v git >/dev/null 2>&1 && PATH="$no_npm_path" command -v bash >/dev/null 2>&1; then
+if PATH="$no_npm_path" command -v node >/dev/null 2>&1 && PATH="$no_npm_path" command -v git >/dev/null 2>&1 &&
+  PATH="$no_npm_path" command -v bash >/dev/null 2>&1; then
   errfile="$TEST_TMPDIR/err-deps-nonpm.txt"
   bash_bin=$(command -v bash)
   out=$(PATH="$no_npm_path" "$bash_bin" "$HELPER" --name feat/deps-nonpm --base-ref head \
     --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
   assert_exit "no npm: creation still exits 0" 0 "$?"
   assert_file_exists "no npm: worktree exists" "$out/README.md"
-  assert_contains "no npm: warning says what is missing" "$(cat "$errfile")" "is not on PATH"
-  assert_contains "no npm: warning says nothing was provisioned" "$(cat "$errfile")" "provisioned"
+  assert_contains "no npm: warning says npm is missing and names the entry" "$(cat "$errfile")" \
+    "npm is not on PATH; root toolchain (package-lock.json) not provisioned"
+  assert_contains "no npm: warning names the remedy" "$(cat "$errfile")" \
+    "run npm $NPM_CI_ARGS in $out"
 else
-  skip_case "npm shares a PATH directory with git or bash; cannot hide it"
+  skip_case "node is unavailable, or npm shares a PATH directory with git or bash; cannot hide it"
 fi
 
 # --- Case: a missing sourced library exits 4 with "cannot load" (#5983) ---

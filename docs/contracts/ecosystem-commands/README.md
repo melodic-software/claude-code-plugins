@@ -217,6 +217,11 @@ for an entry without `install`, which stays report-only. The worktree helper run
 creates a worktree. A resolver never runs it: the check still only probes, and an entry the step
 could not install still reads `skip (prerequisite missing: <name>)`.
 
+When no record in the repository declares any `install` entry, the step still installs a root
+`npm-shrinkwrap.json` or `package-lock.json` the same way and prints a notice to declare it; this
+fallback ends in the next major version of this contract, with the legacy-location read, once every
+repository holding records declares its lockfiles.
+
 ```yaml
 requires:
   check-cmd:
@@ -242,7 +247,7 @@ lane membership without running a verb:
 | Plugin | Keys | Use |
 |---|---|---|
 | `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset stops the run with exit 2 and `/code-metrics:setup check` shows FAIL, where this contract says plugins should fail soft. |
-| `source-control` | `requires.*[].install`, `gates[].requires[].install`, and each such entry's `name` | The provisioning step (`scripts/provision-prerequisites.mjs`, run by `scripts/provision-prerequisites.sh` at worktree creation) installs each declared lockfile with scripts off. No verb is run. A record with no `install` key is not parsed; one with an `install` key outside the YAML subset is named on stderr and skipped. |
+| `source-control` | `requires.*[].install`, `gates[].requires[].install`, and each such entry's `name` | The provisioning step (`scripts/provision-prerequisites.mjs`, run by `scripts/provision-prerequisites.sh` at worktree creation) installs each declared lockfile with scripts off, and, while no record declares one, the root lockfile with a notice. No verb is run. A record with no `install` key is not parsed; one with an `install` key outside the YAML subset is named on stderr and skipped. |
 
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `.claude/ecosystems/<lane>.yaml` and
 no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: an ecosystem

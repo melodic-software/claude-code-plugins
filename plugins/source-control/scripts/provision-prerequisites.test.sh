@@ -116,14 +116,69 @@ assert_eq "step: npm ci runs once, in the lockfile's directory, with scripts off
 (cd "$t" && test -d node_modules/fake-pkg)
 assert_exit "step: the entry's probe now finds the prerequisite" 0 "$?"
 assert_file_absent "step: the report-only entry's lockfile is not installed" "$t/tools/node_modules"
+assert_not_contains "step: a declared lockfile prints no fallback notice" "$(cat "$TEST_TMPDIR/err-ok.txt")" "no ecosystem record declares"
 
+NOTICE_FIX="declare it under requires.<command>[].install in docs/conventions/ecosystems/<ecosystem>.yaml; this fallback ends at the ecosystem-commands contract's next major version"
 t="$TEST_TMPDIR/undeclared"
 mkdir -p "$t"
 printf '{}\n' >"$t/package-lock.json"
 log="$TEST_TMPDIR/npm-undeclared.log"
+PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$log" bash "$STEP" "$t" 2>"$TEST_TMPDIR/err-undeclared.txt"
+assert_exit "fallback: an undeclared root lockfile exits 0" 0 "$?"
+assert_eq "fallback: an undeclared root lockfile installs once at the root, with scripts off" \
+  "$t|ci --ignore-scripts --no-audit --no-fund" "$(cat "$log" 2>/dev/null)"
+err=$(cat "$TEST_TMPDIR/err-undeclared.txt")
+assert_contains "fallback: the notice names the lockfile" "$err" "package-lock.json is installed though no ecosystem record declares it"
+assert_contains "fallback: the notice names the fix and the end" "$err" "$NOTICE_FIX"
+assert_eq "fallback: the notice is printed once" "1" "$(grep -c 'no ecosystem record declares' "$TEST_TMPDIR/err-undeclared.txt")"
+
+t="$TEST_TMPDIR/undeclared-shrinkwrap"
+mkdir -p "$t"
+printf '{}\n' >"$t/package-lock.json"
+printf '{}\n' >"$t/npm-shrinkwrap.json"
+PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$TEST_TMPDIR/npm-undeclared-sw.log" bash "$STEP" "$t" 2>"$TEST_TMPDIR/err-undeclared-sw.txt"
+assert_contains "fallback: with both root lockfiles the notice names npm-shrinkwrap.json, which npm reads" \
+  "$(cat "$TEST_TMPDIR/err-undeclared-sw.txt")" "npm-shrinkwrap.json is installed though no ecosystem record declares it"
+
+t="$TEST_TMPDIR/no-lockfile"
+mkdir -p "$t"
+log="$TEST_TMPDIR/npm-no-lockfile.log"
 PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$log" bash "$STEP" "$t" 2>/dev/null
-assert_exit "step: nothing declared exits 0" 0 "$?"
-assert_file_absent "step: an undeclared lockfile is not installed" "$log"
+assert_exit "step: no record and no root lockfile exits 0" 0 "$?"
+assert_file_absent "step: no record and no root lockfile runs no npm" "$log"
+
+t=$(tree other-declared)
+cat >"$t/.claude/ecosystems/typescript.yaml" <<'EOF'
+globs: ["*.ts"]
+requires:
+  check-cmd:
+    - name: tools packages
+      probe: "test -d tools/node_modules/fake-pkg"
+      install:
+        manager: npm
+        lockfile: tools/package-lock.json
+EOF
+log="$TEST_TMPDIR/npm-other.log"
+PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$log" bash "$STEP" "$t" 2>"$TEST_TMPDIR/err-other.txt"
+assert_eq "no fallback: a record declaring another lockfile installs only that one" \
+  "$t/tools|ci --ignore-scripts --no-audit --no-fund" "$(cat "$log" 2>/dev/null)"
+assert_file_absent "no fallback: the undeclared root lockfile is not installed" "$t/node_modules"
+assert_not_contains "no fallback: no notice is printed" "$(cat "$TEST_TMPDIR/err-other.txt")" "no ecosystem record declares"
+
+t=$(tree broken-declared)
+cat >"$t/.claude/ecosystems/typescript.yaml" <<'EOF'
+globs: ["*.ts"]
+requires:
+  check-cmd:
+    - name: misspelled
+      probe: "true"
+      install:
+        manager: npm
+        lockfile: missing/package-lock.json
+EOF
+log="$TEST_TMPDIR/npm-broken.log"
+PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$log" bash "$STEP" "$t" 2>/dev/null
+assert_file_absent "no fallback: a declaration that is skipped still turns the fallback off" "$log"
 
 t=$(tree step-fail)
 log="$TEST_TMPDIR/npm-fail.log"
@@ -136,10 +191,13 @@ rm -rf "${t:?}/node_modules"
 (cd "$t" && test -d node_modules/fake-pkg)
 assert_exit "step: after a failed install the probe still reports absent" 1 "$?"
 
-no_npm_path=""
+node_only="$TEST_TMPDIR/node-only-bin"
+mkdir -p "$node_only"
+ln -s "$(node -p process.execPath)" "$node_only/node"
+no_npm_path="$node_only"
 IFS=: read -r -a path_dirs <<<"$PATH"
 for d in "${path_dirs[@]}"; do
-  [[ -n "$d" && ! -x "$d/npm" ]] && no_npm_path="${no_npm_path:+$no_npm_path:}$d"
+  [[ -n "$d" && ! -x "$d/npm" ]] && no_npm_path="$no_npm_path:$d"
 done
 if PATH="$no_npm_path" command -v node >/dev/null 2>&1 && PATH="$no_npm_path" command -v bash >/dev/null 2>&1; then
   t=$(tree step-nonpm)
@@ -147,7 +205,7 @@ if PATH="$no_npm_path" command -v node >/dev/null 2>&1 && PATH="$no_npm_path" co
   assert_exit "step: no npm exits 1" 1 "$?"
   assert_contains "step: no npm names the entry" "$(cat "$TEST_TMPDIR/err-nonpm.txt")" "npm is not on PATH; root toolchain (package-lock.json) not provisioned"
 else
-  skip_case "npm shares a PATH directory with node or bash; cannot hide it"
+  skip_case "npm shares a PATH directory with bash; cannot hide it"
 fi
 
 if command -v flock >/dev/null 2>&1 && cp -al --help >/dev/null 2>&1; then

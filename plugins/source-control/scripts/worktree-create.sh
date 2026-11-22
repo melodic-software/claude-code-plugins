@@ -271,9 +271,12 @@ Options:
   -h, --help          Show this help.
 
 Dependencies: the helper runs the provisioning step, provision-prerequisites.sh,
-which installs only the lockfiles the tree's ecosystem records declare with an
+which installs the lockfiles the tree's ecosystem records declare with an
 install object on a requires entry, by npm ci --ignore-scripts --no-audit
---no-fund in each lockfile's directory. It installs once per distinct install
+--no-fund in each lockfile's directory. When no record declares any lockfile,
+it installs the root npm-shrinkwrap.json or package-lock.json the same way and
+prints a notice to declare it; that fallback ends at the ecosystem-commands
+contract's next major version. It installs once per distinct install
 into <root>/.npm-seed/<key>, makes the seed's files read-only, and hard-links
 that node_modules into the worktree (cp -al), so worktrees on one install share
 one copy on disk. It installs in place instead without flock, node or a working

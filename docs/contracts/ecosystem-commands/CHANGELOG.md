@@ -7,7 +7,10 @@ Additive schema change: a prerequisite entry may carry an optional `install` obj
 `npm ci --ignore-scripts --no-audit --no-fund` in that lockfile's directory, at worktree creation
 and never inside a check; an entry without `install` stays report-only. Resolvers still never
 install a declared prerequisite. Before this, a record could say a command's prerequisite was
-missing but nothing could install it (melodic-software/claude-code-plugins#16683).
+missing but nothing could install it (melodic-software/claude-code-plugins#16683). While no record
+in a repository declares an `install` entry, the step installs a root `npm-shrinkwrap.json` or
+`package-lock.json` the same way, with a notice to declare it; that fallback ends in the next major
+version, with the legacy-location read.
 
 ## [1.6.0] - 2026-11-17
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exit codes:
-#   0  every declared lockfile installed, or none declared
+#   0  every lockfile to install installed, or none to install
 #   1  at least one was not; stderr names each with the command that installs it
 #   2  usage error
 set -uo pipefail
@@ -159,10 +159,14 @@ plan="$(node "$HERE/provision-prerequisites.mjs" list "$tree")" || exit 1
 [[ -n "$plan" ]] || exit 0
 
 status=0
-while IFS=$'\t' read -r rel names lockfile; do
+while IFS=$'\t' read -r rel names lockfile origin; do
   dir="$tree/$rel"
   [[ "$rel" == "." ]] && dir="$tree"
   remedy="run ${NPM_CI[*]} in $dir"
+  if [[ "$origin" == undeclared ]]; then
+    printf '%s: notice: %s is installed though no ecosystem record declares it; %s\n' "$PROG" "$lockfile" \
+      "declare it under requires.<command>[].install in docs/conventions/ecosystems/<ecosystem>.yaml; this fallback ends at the ecosystem-commands contract's next major version" >&2
+  fi
   if ! command -v npm >/dev/null 2>&1; then
     printf '%s: warning: npm is not on PATH; %s (%s) not provisioned. To provide it, %s\n' "$PROG" "$names" "$lockfile" "$remedy" >&2
     status=1

@@ -37,6 +37,7 @@ function entriesOf(record) {
 
 export function listInstalls(root, warn = () => {}) {
   const byDir = new Map();
+  let declared = 0;
   for (const rel of RECORD_DIRS) {
     const dir = path.join(root, rel);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) continue;
@@ -48,11 +49,13 @@ export function listInstalls(root, warn = () => {}) {
       try {
         record = parse(text);
       } catch (err) {
+        declared++;
         warn(`${where}: not read (${err.message}); its install entries are skipped`);
         continue;
       }
       for (const entry of entriesOf(record)) {
         if (!("install" in entry)) continue;
+        declared++;
         const name = typeof entry.name === "string" ? entry.name : "(unnamed)";
         const error = installError(entry.install);
         if (error) {
@@ -74,7 +77,12 @@ export function listInstalls(root, warn = () => {}) {
       }
     }
   }
-  return [...byDir.values()];
+  return { installs: [...byDir.values()], declared };
+}
+
+export function undeclaredRootLockfile(root, declared) {
+  if (declared) return "";
+  return ["npm-shrinkwrap.json", "package-lock.json"].find((f) => existsSync(path.join(root, f))) ?? "";
 }
 
 export function main(argv, out = {}) {
@@ -85,9 +93,10 @@ export function main(argv, out = {}) {
     stderr("usage: provision-prerequisites.mjs list <repo-root>");
     return 2;
   }
-  for (const { dir, names, lockfile } of listInstalls(root, (m) => stderr(`provision-prerequisites: ${m}`))) {
-    stdout([dir, names.join(", "), lockfile].join("\t"));
-  }
+  const { installs, declared } = listInstalls(root, (m) => stderr(`provision-prerequisites: ${m}`));
+  for (const { dir, names, lockfile } of installs) stdout([dir, names.join(", "), lockfile].join("\t"));
+  const fallback = undeclaredRootLockfile(root, declared);
+  if (fallback) stdout([".", "the root lockfile", fallback, "undeclared"].join("\t"));
   return 0;
 }
 
