@@ -74,6 +74,7 @@ api)
   *"--method POST"*) printf '42\n' ;;
   *"/labels?"*) printf '%b' "${GH_STUB_LABELS-type: bug\ntype: feature\ntype: task\n}" ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
+  *"--jq .full_name") printf '%s\n' "${2#repos/}" ;;
   *) printf '{"number":42,"title":"t","state":"open","assignees":[],"labels":[{"name":"a"},{"name":"type: task"}],"type":{"name":"Task"},"html_url":"https://github.com/o/r/issues/42"}\n' ;;
   esac
   exit 0

@@ -89,6 +89,7 @@ repo)
 api)
   case "$*" in
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
+  *"--jq .full_name") printf "%s\n" "${2#repos/}" | sed 's#^o/r-old$#o/r#' ;;
   "api repos/me/r --jq"*) printf 'up/r\n' ;;
   "api repos/up/r --jq"* | "api repos/a/r --jq"* | "api repos/b/r --jq"*) ;;
   *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z","milestone":{"number":1,"title":"After zero"}}\n' ;;
@@ -175,6 +176,12 @@ EOF
   REPO="$(cd "$FORK" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
   assert_eq "wit_resolve_repo in a fork checkout targets the fork, not upstream" "me/r" "$REPO"
   assert_contains "wit_resolve_repo names the target on stderr" "$ERR" "target repository: me/r"
+
+  RENAMED="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$RENAMED" init -q
+  git -C "$RENAMED" remote add origin https://github.com/o/r-old
+  REPO="$(cd "$RENAMED" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo returns GitHub's canonical name, not the remote URL's" "o/r" "$REPO"
 
   TWO="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   git -C "$TWO" init -q

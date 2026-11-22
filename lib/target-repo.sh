@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 github_repo_of() {
   local url="${1%/}"
   url="${url%.git}"
-  case "${url,,}" in
+  case "$(lower "$url")" in
   https://github.com/*) echo "${url:19}" ;;
   ssh://git@github.com/*) echo "${url:21}" ;;
   git@github.com:*) echo "${url:15}" ;;
@@ -55,12 +57,12 @@ if [[ -z "$VIEW" ]] && ! grep -q "No default remote repository has been set" "$E
   exit 1
 fi
 
-declare -A SEEN=()
+SEEN=" "
 REPOS=()
 for remote in origin $(git remote | grep -vx origin); do
   repo=$(github_repo_of "$(git remote get-url "$remote" 2>/dev/null)")
-  [[ -n "$repo" && -z "${SEEN[${repo,,}]:-}" ]] || continue
-  SEEN[${repo,,}]=1
+  [[ -n "$repo" && "$SEEN" != *" $(lower "$repo") "* ]] || continue
+  SEEN+="$(lower "$repo") "
   REPOS+=("$repo")
 done
 
@@ -71,7 +73,8 @@ if ((${#REPOS[@]} > 1)); then
       exit 1
     }
     [[ -n "$parent" ]] || continue
-    if [[ "${parent,,}" == "${VIEW,,}" || -n "${SEEN[${parent,,}]:-}" ]]; then
+    parent=$(lower "$parent")
+    if [[ "$parent" == "$(lower "$VIEW")" || "$SEEN" == *" $parent "* ]]; then
       found "$repo"
     fi
   done

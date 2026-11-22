@@ -184,7 +184,11 @@ wit_resolve_repo() {
     return 0
   fi
   errfile="$(mktemp)"
-  out="$(bash "$WIT_GH_ADAPTER_DIR/target-repo.sh" 2>"$errfile")"
+  # shellcheck source=target-repo.sh
+  out="$(
+    set --
+    . "$WIT_GH_ADAPTER_DIR/target-repo.sh" 2>"$errfile"
+  )"
   rc=$?
   err="$(<"$errfile")"
   rm -f "$errfile"
@@ -193,7 +197,8 @@ wit_resolve_repo() {
     [[ "$err" == *"target-repo: the remotes name"* ]] && exit 3
     exit "$(wit_map_gh_error "$err")"
   fi
-  printf '%s\n' "$out" | wit_strip_cr
+  wit_run_gh read api "repos/$(printf '%s' "$out" | wit_strip_cr)" --jq .full_name
+  printf '%s\n' "$WIT_GH_OUT"
 }
 
 # --- Assignee ops (REST) -----------------------------------------------------
