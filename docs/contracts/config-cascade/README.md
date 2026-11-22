@@ -131,7 +131,6 @@ with nothing configured. `userConfig` carries a per-person value across repos, w
 structurally cannot, because a per-user setting cannot decide the location or content of a
 team-shared artifact. The team layer is the only layer teammates receive. The personal override is the only place
 a personal deviation can live without either editing the shared file or going uncommitted and lost.
-Dropping any one of them reintroduces a problem the other three cannot solve.
 
 ## Merge semantics
 
@@ -661,7 +660,7 @@ conformance.
 
 Conformance is tracked, not assumed. A surface is listed here whether or not it conforms, so the gap
 stays visible. Each row states the surface's conformance **as it exists on `main`**, never as a
-migration intends it to be; a row that ran ahead of the code would report a closed gap that is still
+migration intends it to be; a row written ahead of the code would show a gap as closed while it is still
 open. Every row fills `Who wins` and `Merge form` with one short phrase each, never blank, and
 `Floor direction` with a value from the policy-floor section above, taken from the row's `Who wins`
 cell as it stands on `main` (`no-floor` when the surface has no policy-floor key). Every row

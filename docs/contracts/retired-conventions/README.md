@@ -109,7 +109,7 @@ set at plan approval (ADR 0018), and no record exists for it on `main`.
 
 ## Append-only, and the enumerated legal edits
 
-The manifest is the plugin's retirement history, and a history that can be rewritten is not one. A
+The manifest is the plugin's retirement history, so a published record cannot be rewritten later. A
 record is **never deleted**, and its `id`, `kind`, `path`, `match`, `heading`, and `content_match`
 are never changed once published. A consumer who skips ten versions must still have every record
 evaluated against them, and a record whose detection changed under them would report a different
@@ -333,6 +333,6 @@ plugin's first two records.
 
 **CI-aggregated fleet registry.** A generated, committed registry of every plugin's records is the
 only way to detect leftovers whose owning plugin has been *uninstalled*, since the runtime sweep can
-only see what is installed. It lost the mechanism tournament on machinery and coupling and is
+only see what is installed. Compared with the other candidate mechanisms, it lost on machinery and coupling, so it is
 deferred. **Revive trigger:** orphan leftovers from an uninstalled plugin observed in practice, when
 a consumer reports an artifact no installed plugin's manifest explains.
