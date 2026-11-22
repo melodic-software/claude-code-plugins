@@ -746,6 +746,38 @@ test("a spec that SANY cannot read stops the command with exit 2", () => {
   assert.deepEqual(r.files, []);
 });
 
+test("a spec that SANY cannot read gets SANY's line and column, not a Java stack trace", () => {
+  const dir = copyCase("MediaPlayer", (d) => {
+    fs.writeFileSync(path.join(d, "sany.exit"), "1\n");
+    fs.writeFileSync(
+      path.join(d, "sany.out"),
+      [
+        "****** SANY2 Version 2.2",
+        "Parsing file MediaPlayer.tla",
+        'Exception in thread "main" java.lang.NullPointerException',
+        "\tat tla2sany.xml.XMLExporter.run(XMLExporter.java:1)",
+        "\tat tla2sany.xml.XMLExporter.main(XMLExporter.java:1)",
+        "Semantic processing of module MediaPlayer",
+        "*** Errors: 1",
+        "",
+        "line 7, col 9 to line 7, col 11 of module MediaPlayer",
+        "",
+        "Unknown operator: `foo'.",
+        "",
+      ].join("\n"),
+    );
+  });
+  const r = run(dir);
+  assert.equal(r.status, 2);
+  assert.equal(
+    r.stderr,
+    `SANY could not read ${path.join(dir, "MediaPlayer.tla")} (exit 1):\n` +
+      "*** Errors: 1\n\nline 7, col 9 to line 7, col 11 of module MediaPlayer\n\nUnknown operator: `foo'.\n",
+  );
+  assert.doesNotMatch(r.stderr, /^\s+at tla2sany\./m);
+  assert.deepEqual(r.files, []);
+});
+
 test("a first verdict run that TLC cannot finish stops the command with exit 2", () => {
   const dir = copyCase("Login", (d) => fs.writeFileSync(path.join(d, "verdict-1.exit"), "150\n"));
   const r = run(dir);

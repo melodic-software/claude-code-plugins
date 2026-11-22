@@ -44,7 +44,8 @@ Work in a scratch folder outside the repo unless the spec lives in a `formal-<ar
 
    On native Windows the launcher, a POSIX shell script, cannot run: run
    `node --disable-warning=ExperimentalWarning "${CLAUDE_PLUGIN_ROOT}/skills/chart/scripts/statechart.ts"`
-   with the same arguments, leaving out `--runtime`, under Node 22.18 to 22.x or Node 23.6 or later.
+   with the same arguments, leaving out `--runtime`, under a Node version the launcher accepts (the
+   `start` gate in [`scripts/statechart`](scripts/statechart) owns the range).
 
    The exit code is TLC's own on the config as written: 0 when every rule holds, 1 when a rule
    breaks, 2 when TLC stops with an error, a limit stops it, the spec is refused, or the command
