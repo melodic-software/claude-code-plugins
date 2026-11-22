@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.8] - 2026-11-22
+
+### Changed
+
+- The README's multi-agent example names the role map's new personal override, `docs/conventions/multi-agent.local.yaml` ([#17998](https://github.com/melodic-software/claude-code-plugins/issues/17998)).
+
 ## [2.2.7] - 2026-11-21
 
 ### Changed
