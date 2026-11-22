@@ -3,6 +3,12 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-11-22
+
+### Changed
+
+- The `antigravity` and `codex` skills leave the choice of vendor, model and effort for a task to `/multi-agent:route vendors <task>`; their `routing.md` files keep only each CLI's own facts and docs pointers.
+
 ## [0.4.0] - 2026-11-22
 
 ### Added
