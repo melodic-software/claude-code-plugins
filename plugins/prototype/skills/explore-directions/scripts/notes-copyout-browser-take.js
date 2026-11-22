@@ -28,6 +28,7 @@ async page => {
     await settle(block, A);
     ok("Copy chosen design copies the shown variant's copy-out text", (await block()) === A, await block());
     ok("it is the text the page's own copy-out gives", (await block()) === (await frame.evaluate(() => window.uiFeedbackCopyOut())));
+    await settle(async () => /Copied the chosen design/.test(await status()), true);
     ok("the copy is said in the status line", /Copied the chosen design/.test(await status()), await status());
 
     await page.click("#vnext");

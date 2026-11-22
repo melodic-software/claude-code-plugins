@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -218,10 +219,6 @@ const pull = (overrides) => [
   },
 ];
 
-// Owner decision 2026-10-29: pr-verify's FAILs at the cap never clear for the
-// pull request, so a fix round's push could never merge: the gate's reader
-// (verify-cap.mjs) says so, the dispatcher starts no round and posts nothing,
-// and pr-merge closes it for a fresh attempt.
 test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round", async () => {
   const api = fakeApi();
   const asked = [];
@@ -234,13 +231,20 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   assert.deepEqual(api.calls.dispatch, []);
   assert.deepEqual(asked, [{ number: 42, head: HEAD, base: "b".repeat(40), expected: [] }]);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
-  // The cap never clears for the head: a later run at it reads nothing.
+});
+
+test("a capped head whose FAIL a later pass superseded is read again and dispatched", async () => {
   const record = emptyRecord();
-  await decide(api, resolvedLane(), { verifyCapped, record });
-  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
-  assert.equal(again.result, null);
-  assert.equal(asked.length, 2);
-  assert.match(again.lines.join("\n"), /\(recorded\)/);
+  const answers = [{ cap: "verify:repeated-fail: fails at 3 heads, the cap is 3", supersededAtHead: false }, { cap: null, supersededAtHead: true }];
+  const verifyCapped = () => answers.shift();
+  const capped = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(capped.result, null, "capped: no round");
+  assert.equal(record.handled.size, 0, "the cap is not recorded as handling the head");
+  const api = fakeApi();
+  const cleared = await decide(api, resolvedLane(), { verifyCapped, record });
+  assert.deepEqual(cleared.result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  assert.equal(answers.length, 0, "a superseded head FAIL is a clean head (#17646): the second run reads the verifier again");
 });
 
 // A sibling pull request's FAIL run the reader cannot read may hide the cap:
@@ -276,8 +280,6 @@ test("a PR skipped because the listing did not fit warns with the reader's detai
   assert.ok(!sibling.lines.some((line) => line.includes("verify-deadline-skip")), sibling.lines.join("\n"));
 });
 
-// A verifier PASS at a new head clears no cap, so the pass-only dispatch
-// starts no round either.
 test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
   const api = fakeApi();
   const { result, lines } = await decide(api, resolvedLane(), { passOnly: true, verifyCapped: () => "verify:repeated-fail: fails at 3 heads, the cap is 3" });
@@ -319,7 +321,6 @@ test("a pass-only dispatch names the head superseded only when the gate's reader
   assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => ({ cap: null, supersededAtHead: false }) }), [undefined]);
   assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => null }), [undefined]);
   assert.deepEqual(await inputs({ verifyCapped: () => ({ cap: null, supersededAtHead: true }) }), [undefined]);
-  // A cap the reader found still skips the round, superseded or not.
   assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => ({ cap: "verify:repeated-fail: fails at 3 heads, the cap is 3", supersededAtHead: true }) }), []);
 });
 

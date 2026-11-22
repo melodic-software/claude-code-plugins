@@ -382,7 +382,7 @@ class TestGuards(NotesCase):
         self.assertIn("unknown field", body["error"])
 
     def test_an_oversize_note_is_a_400_and_an_oversize_body_a_413(self):
-        limit = nb.SCHEMA["properties"]["text"]["maxLength"]
+        limit = nb.SCHEMA["$defs"]["text"]["maxLength"]
         self.assertEqual(self.note({**NOTE, "text": "a" * (limit + 1)})[0], 400)
         self.assertEqual(self.note({**NOTE, "text": "a" * limit})[0], 200)
         big = json.dumps(
@@ -716,7 +716,7 @@ class TestImport(unittest.TestCase):
         )
 
     def test_an_oversize_note_refuses_the_whole_block(self):
-        limit = nb.SCHEMA["properties"]["text"]["maxLength"]
+        limit = nb.SCHEMA["$defs"]["text"]["maxLength"]
         self.assert_refused(
             block([NOTE, {**NOTE, "text": "a" * (limit + 1)}]), "longer than"
         )

@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_DONE, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, retriageNote, renderSplitRecord, SIZE_SPLIT_DONE, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -5617,6 +5617,10 @@ test("the sweep keeps a held deferred issue deferred and drops the deferral of o
 const editedSpec = (lastEditedAt) => ({ body: "", author: { __typename: "User", databaseId: OWNER.id }, editor: { __typename: "User", databaseId: OWNER.id }, lastEditedAt, comments: [] });
 const SECURITY_REASON = "area: security was added after it was deferred, so the admission it was deferred from did not judge it";
 const EDITED_REASON = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
+const retriageWrites = (reason) => [
+  "SET 25 needs-triage",
+  `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${retriageNote(reason, [])}` })}`,
+];
 const staleWrites = (reason, status, code = null) => [
   `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: code === null ? `${ADMIT_MARKER}\n${refusalText(reason)}` : heldBody(reason, code) })}`,
   `SET 25 ${status === "needs-owner-decision" ? "needs-owner-decision" : "confirmed"}`,
@@ -5702,7 +5706,7 @@ test("the sweep never rewrites admission's marked comment on a deferred issue a 
 });
 
 // The one Work status field write replaces a parked confirmed; no label moves.
-test("a deferred issue refused at needs-owner-decision takes a parked status: confirmed off; one refused at status: confirmed keeps it", async (t) => {
+test("a deferred issue refused at needs-owner-decision takes a parked status: confirmed off; one edited at status: confirmed goes to needs-triage", async (t) => {
   t.mock.method(console, "log", () => {});
   const added = { event: "labeled", label: { name: "area: security" }, actor: OWNER, created_at: "2026-10-16T09:00:00Z" };
   const hold = deferredWorld({ labels: ["admission-deferred", "status: ready", "area: security", "status: confirmed"], events: [deferredAdd(LANES_BOT), added] });
@@ -5710,14 +5714,14 @@ test("a deferred issue refused at needs-owner-decision takes a parked status: co
   assert.deepEqual(writes(hold.calls), staleWrites(SECURITY_REASON, "needs-owner-decision", "security"));
   const edited = deferredWorld({ labels: ["admission-deferred", "status: ready", "status: confirmed"], specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
   assert.equal(await sweep({ github: edited.github, writer: edited.writer }, PAUSING), 0);
-  assert.deepEqual(writes(edited.calls), staleWrites(EDITED_REASON, "status: confirmed"));
+  assert.deepEqual(writes(edited.calls), retriageWrites(EDITED_REASON));
 });
 
-test("the sweep refuses a deferred issue whose body was edited since its deferral, at status: confirmed", async (t) => {
+test("the sweep refuses a deferred issue whose body was edited since its deferral, back to intake at needs-triage", async (t) => {
   t.mock.method(console, "log", () => {});
   const after = deferredWorld({ specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
   assert.equal(await sweep({ github: after.github, writer: after.writer }, PAUSING), 0);
-  assert.deepEqual(writes(after.calls), staleWrites(EDITED_REASON, "status: confirmed"));
+  assert.deepEqual(writes(after.calls), retriageWrites(EDITED_REASON));
   const before = deferredWorld({ specs: { 25: editedSpec("2026-10-16T07:00:00Z") } });
   assert.equal(await sweep({ github: before.github }, PAUSING), 0);
   assert.deepEqual(writes(before.calls), [labeled(25)]);
@@ -6500,8 +6504,7 @@ test("a person's mark on an issue whose body was edited or that gained area: sec
   t.mock.method(console, "log", () => {});
   const edited = markedWorld({ specs: { 25: { ...editedSpec("2026-10-16T09:00:00Z"), body: markedIssue(MARKED).body } } });
   assert.equal(await sweep({ github: edited.github, writer: edited.writer, admission: admissionFor() }, PAUSING), 0);
-  // A body edit asks no person: admission judges it again from status: confirmed.
-  assert.deepEqual(writes(edited.calls), staleWrites(EDITED_REASON, "status: confirmed"));
+  assert.deepEqual(writes(edited.calls), retriageWrites(EDITED_REASON));
   const security = markedWorld({ labels: [...MARKED, "area: security"], extraEvents: [labelAdd("area: security", OWNER, "2026-10-16T09:00:00Z")] });
   assert.equal(await sweep({ github: security.github, writer: security.writer, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(security.calls), staleWrites(SECURITY_REASON, "needs-owner-decision", DECIDE_SECURITY));

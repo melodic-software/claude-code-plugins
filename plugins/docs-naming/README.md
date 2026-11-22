@@ -31,7 +31,8 @@ plugin.
 
 ## Configuration
 
-The skills read one consumer surface, layered as user-global, team
+The skills read one consumer surface, layered as `userConfig` (the plugin's
+`file_names` option, a JSON object of your own `file_names` keys), team
 (`docs/conventions/docs-naming.yaml`, tracked, validated by
 [`schemas/docs-naming.schema.json`](schemas/docs-naming.schema.json)), and a
 gitignored personal override (`docs/conventions/docs-naming.local.yaml`). All
@@ -47,9 +48,15 @@ The JSON files under `.claude/` the team layer and personal override used to liv
 (`docs-naming.json`, `docs-naming.local.json`, and their `docs-hygiene` names)
 are not read. `/docs-naming:setup check` names each one it finds, and while the
 team YAML is absent `/docs-naming:setup apply` copies the old team file's keys
-into it. A user-global file still at the retired `docs-hygiene` name
-(`~/.claude/docs-hygiene.json`) is read, with a warning from the resolver; rename
-it to retire the warning.
+into it.
+
+The user-global files `~/.claude/docs-naming.json` and
+`~/.claude/docs-hygiene.json` are retired in favor of the `file_names` option.
+While the option is unset or invalid, the first of them that exists is still read, and
+every run warns about each one. `/docs-naming:setup check` names them, and
+`/docs-naming:setup apply` previews copying their keys into the option and gives
+the command that saves it. The options reference below says how to set the
+option.
 
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
 
@@ -83,6 +90,41 @@ repository's `test-windows` CI lane, which runs the bundled suites. macOS is
 unverified; the scripts avoid the constructs that differ there (no `${x,,}`, no
 `sed -i`, existence asked of the git index rather than the filesystem), but no
 runner covers it.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `file_names` | string | *(none)* | Your file_names keys as one JSON object, the shape of docs/conventions/docs-naming.yaml, e.g. {"exempt_basenames":\["NOTES.md"\]}. Empty (default): none. Repository files win; on policy-floor keys it only adds, and generated is ignored. Invalid JSON is reported and ignored. |
+
+### How to set these
+
+Set the options above for `docs-naming@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

@@ -19,7 +19,8 @@
 set -uo pipefail
 
 # The session running this test may export these; the hook reads them.
-unset CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR GIT_DIR GIT_WORK_TREE GIT_CONFIG \
+  CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,6 +44,13 @@ assert_asks() {
     fail "$2 — no ask in output: $1"
   fi
 }
+assert_denies() {
+  if grep -q '"permissionDecision":"deny"' <<<"$1"; then
+    ok "$2"
+  else
+    fail "$2 — no deny in output: $1"
+  fi
+}
 # assert_silent <hook-output> <message> — the payload must pass untouched
 assert_silent() {
   if [[ -z "$1" ]]; then
@@ -63,16 +71,12 @@ git -C "$REPO" -c user.name=t -c user.email=t@t -c commit.gpgsign=false -c core.
   commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q --detach "$WORK/wt"
 
-# run <tool_name> <file_path> [cwd] [env KEY=VALUE] — prints hook stdout
 run() {
-  local tool="$1" path="$2" cwd="${3:-$REPO}" kv="${4:-}"
+  local tool="$1" path="$2" cwd="${3:-$REPO}"
+  shift $(($# < 3 ? $# : 3))
   local payload
   payload=$(printf '{"tool_name":"%s","cwd":"%s","tool_input":{"file_path":"%s"}}' "$tool" "$cwd" "$path")
-  if [[ -n "$kv" ]]; then
-    env HOME="$FAKEHOME" "$kv" node "$HOOK" <<<"$payload"
-  else
-    env HOME="$FAKEHOME" node "$HOOK" <<<"$payload"
-  fi
+  env HOME="$FAKEHOME" CLAUDE_CODE_SESSION_ATTENDED=1 "$@" node "$HOOK" <<<"$payload"
 }
 
 assert_asks "$(run Write "$REPO/.claude/settings.json")" \
@@ -156,8 +160,26 @@ assert_asks "$(run Edit "$REPO/.claude/settings.LOCAL.json")" \
 
 # Windows-style path separators must still match.
 # portability-ok: the doubled backslashes are literal JSON escapes for printf, not a GNU regex class
-assert_asks "$(printf '{"tool_name":"Write","cwd":"C:\\\\repo","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")" \
+assert_asks "$(printf '{"tool_name":"Write","cwd":"C:\\\\repo","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | CLAUDE_CODE_SESSION_ATTENDED=1 node "$HOOK")" \
   "backslash paths normalize and ask"
+
+assert_denies "$(printf '{"tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/.claude/settings.json"}}' "$REPO" "$REPO" | HOME="$FAKEHOME" node "$HOOK")" \
+  "CLAUDE_CODE_SESSION_ATTENDED unset denies"
+
+assert_denies "$(run Write "$REPO/.claude/settings.json" "$REPO" "CLAUDE_CODE_SESSION_ATTENDED=0")" \
+  "CLAUDE_CODE_SESSION_ATTENDED=0 (claude -p, --bg) denies"
+
+assert_denies "$(run Edit "$FAKEHOME/.claude/settings.json" "$REPO" "CLAUDE_CODE_SESSION_ATTENDED=true")" \
+  "an ATTENDED value other than 1 denies"
+
+assert_denies "$(run Write "$REPO/.claude/settings.json" "$REPO" "GUARDRAILS_SESSION_UNWATCHED=1")" \
+  "attended but GUARDRAILS_SESSION_UNWATCHED=1 denies"
+
+assert_asks "$(run Write "$REPO/.claude/settings.json" "$REPO" "GUARDRAILS_SESSION_UNWATCHED=0")" \
+  "attended with GUARDRAILS_SESSION_UNWATCHED other than 1 asks"
+
+assert_silent "$(run Write "$REPO/src/settings.json" "$REPO" "CLAUDE_CODE_SESSION_ATTENDED=0")" \
+  "unattended, an unmatched path still passes silently"
 
 # The hook is inert unless hooks.json routes the tools to it, so the registered
 # matcher is part of the contract.

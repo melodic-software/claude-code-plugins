@@ -6,7 +6,7 @@
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_OPTION_FILE_NAMES
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -205,8 +205,16 @@ root="$(new_repo)"
 mkdir -p "${root%/repo}/home/.claude"
 printf '{"schema": 1, "file_names": {"rule": "lower-kebab"}}\n' >"${root%/repo}/home/.claude/docs-hygiene.json"
 out="$(check "$root")"
-assert_contains "the retired user-global name warns" "$out" "WARN  layer user-global"
-assert_contains "and says to rename it" "$out" "is the retired docs-hygiene name; rename it to docs-naming.json in the same directory"
+assert_contains "the old user file warns" "$out" "WARN  old user file"
+assert_contains "and says it is read and apply previews the copy" "$out" "${root%/repo}/home/.claude/docs-hygiene.json is read in place of the file_names option; /docs-naming:setup apply previews copying its keys into the option"
+assert_contains "the unset option is an INFO row" "$out" "INFO  layer userConfig"
+assert_eq "an old user file does not fail the run" "0" "$(status "$root")"
+out="$(bash "$SUT" --root "$root" --home "${root%/repo}/home" --user-config '{"rule": "lower-kebab"}' 2>&1)"
+assert_contains "a set option passes" "$out" "PASS  layer userConfig"
+assert_contains "with the option set, the old user file is reported unread" "$out" "${root%/repo}/home/.claude/docs-hygiene.json is not read; /docs-naming:setup apply previews copying any key the file_names option lacks into it"
+out="$(bash "$SUT" --root "$root" --home "${root%/repo}/home" --user-config '{not json' 2>&1)"
+assert_contains "an option that is not one JSON object warns" "$out" "WARN  layer userConfig"
+assert_contains "and the run still resolves" "$out" "PASS  resolve"
 
 # 14. Usage.
 assert_eq "--help exits 0" "0" "$(

@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.9] - 2026-11-21
+
+### Fixed
+
+- The babysit merge gate reruns a review that failed on GitHub's API rate limit (`publish-rate-limit`) one hour after its job finished, matching the installation pool's hourly reset, instead of five. A `rate-limit` failure keeps the five-hour plan-window wait, and a check with both classes waits the longer ([#18037](https://github.com/melodic-software/claude-code-plugins/issues/18037)).
+
+## [13.3.8] - 2026-11-21
+
+### Fixed
+
+- `babysit_verify_evidence.py` refuses `verify:repeated-fail` only when a counted FAIL that is not superseded stands at the vetted head and FAILs sit at `merge.max-verify-fails` or more heads, that one included (owner decision Q245, [#17646](https://github.com/melodic-software/claude-code-plugins/issues/17646)). A head whose newest verdicts pass, or whose own FAIL is superseded, goes on to the `verify:earlier-fail` or pass decision, whatever FAILs sit at earlier heads or on other pull requests for its issues. Before, FAILs at superseded heads kept counting, so the pr-merge lane closed a pull request whose current head had passed. Counting across other pull requests, the capped-close floor, draft-judged exclusions and `verify:fail` at the head are unchanged.
+
 ## [13.3.7] - 2026-11-21
 
 ### Changed
