@@ -140,13 +140,19 @@ test("compare mode reads the pull request's commits only as git objects for the 
   assert.doesNotMatch(armsScript, /\b(?:source|\.)\s+"?\$REPO|bash "?\$REPO|node "?\$REPO|checkout|worktree|apply/);
 });
 
-test("compare mode runs both arms on the API key alone and stops without a cost cap", () => {
+test("compare mode runs the with-plugin arm on the API key, the subscription token only on opt-in, and stops without a cost cap", () => {
   for (const name of ["compare-before", "compare-after"]) {
     const arm = job(name);
-    assert.match(arm, /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n*$/, name);
+    assert.match(
+      arm,
+      /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n {6}MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: \$\{\{ inputs\.subscription-opt-in && secrets\.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN \|\| '' \}\}\n*$/,
+      name,
+    );
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
+    assert.match(arm, /\n {6}ablation: none\n/, name);
   }
-  assert.doesNotMatch(compare, /OAUTH_TOKEN|secrets: inherit/);
+  assert.doesNotMatch(compare, /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN|secrets: inherit/);
+  assert.match(text, /subscription-opt-in:\n(?: {8}[^\n]*\n)*? {8}type: boolean\n {8}default: false\n/);
   assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
   const guard = /if ! \[\[ \$COST_CAP .*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;

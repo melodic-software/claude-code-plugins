@@ -63,6 +63,13 @@ on:
         required: false
         type: number
         default: 5
+      ablation:
+        description: >-
+          Empty runs both arms; none runs the with-plugin arm only, for a
+          caller whose verdict reads only that arm.
+        required: false
+        type: string
+        default: ""
       lane:
         description: The lane name in the pass's lane-outcome records.
         required: false
@@ -407,6 +414,7 @@ jobs:
           TAGS: ${{ inputs.tags }}
           CASE: ${{ inputs.case }}
           MAX_COST: ${{ inputs.max-cost-usd }}
+          ABLATION: ${{ inputs.ablation }}
           OUT: ${{ runner.temp }}/pass
         run: |
           if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
@@ -427,6 +435,11 @@ jobs:
           done
           if [ "${#tags[@]}" -gt 0 ]; then args+=(--tag "${tags[@]}"); fi
           if [ -n "$CASE" ]; then args+=(--case "$CASE"); fi
+          case "$ABLATION" in
+            "") ;;
+            none) args+=(--ablation none) ;;
+            *) echo "::error::ablation must be empty or none"; exit 1 ;;
+          esac
           status=0
           claude plugin eval "$DIR" --eval-dir evals-deterministic --output-dir "$OUT/run" --json "$OUT/results.json" "${args[@]}" \
             >"$RUNNER_TEMP/console.log" 2>&1 || status=$?
@@ -820,6 +833,7 @@ jobs:
           TAGS: ${{ inputs.tags }}
           CASE: ${{ inputs.case }}
           MAX_COST: ${{ inputs.max-cost-usd }}
+          ABLATION: ${{ inputs.ablation }}
           OUT: ${{ runner.temp }}/pass
         run: |
           if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
@@ -840,6 +854,11 @@ jobs:
           done
           if [ "${#tags[@]}" -gt 0 ]; then args+=(--tag "${tags[@]}"); fi
           if [ -n "$CASE" ]; then args+=(--case "$CASE"); fi
+          case "$ABLATION" in
+            "") ;;
+            none) args+=(--ablation none) ;;
+            *) echo "::error::ablation must be empty or none"; exit 1 ;;
+          esac
           status=0
           claude plugin eval "$DIR" --eval-dir evals-deterministic --output-dir "$OUT/run" --json "$OUT/results.json" "${args[@]}" \
             >"$RUNNER_TEMP/console.log" 2>&1 || status=$?
@@ -1164,6 +1183,7 @@ jobs:
           TAGS: ${{ inputs.tags }}
           CASE: ${{ inputs.case }}
           MAX_COST: ${{ inputs.max-cost-usd }}
+          ABLATION: ${{ inputs.ablation }}
           OUT: ${{ runner.temp }}/pass
         run: |
           if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
@@ -1184,6 +1204,11 @@ jobs:
           done
           if [ "${#tags[@]}" -gt 0 ]; then args+=(--tag "${tags[@]}"); fi
           if [ -n "$CASE" ]; then args+=(--case "$CASE"); fi
+          case "$ABLATION" in
+            "") ;;
+            none) args+=(--ablation none) ;;
+            *) echo "::error::ablation must be empty or none"; exit 1 ;;
+          esac
           status=0
           claude plugin eval "$DIR" --eval-dir evals-deterministic --output-dir "$OUT/run" --json "$OUT/results.json" "${args[@]}" \
             >"$RUNNER_TEMP/console.log" 2>&1 || status=$?

@@ -131,8 +131,10 @@ on:
           suite runs the target's suite as above. compare runs the target's
           deterministic cases that case or tag selects (one is required) on pull request pr's
           merge base and on head-sha, each as plugin text on this branch's
-          harness, on the API key only, and posts the eval-pair record on a
-          PASS; runs, allow-tools and the inputs after them do not apply.
+          harness, with-plugin arm only, on the API key (or, with
+          subscription-opt-in, also the maintenance subscription token), and
+          posts the eval-pair record on a PASS; runs, allow-tools and the
+          inputs after them do not apply.
         required: false
         type: choice
         options: [suite, compare]
@@ -152,6 +154,15 @@ on:
         required: false
         type: string
         default: ""
+      subscription-opt-in:
+        description: >-
+          Compare mode only. Also hand the passes the maintenance subscription
+          token, used when the API key is empty or stopped. It spends that
+          account's plan usage, so set it only after the pull request states
+          the agent-run count and that account's weekly headroom allows it.
+        required: false
+        type: boolean
+        default: false
   # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
   # completion runs this file from main, never the PR's copy
   # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
@@ -2353,9 +2364,11 @@ jobs:
       edit-artifact-id: ${{ needs.compare-prepare.outputs.before-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.before-sha256 }}
       max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      ablation: none
       lane: eval-compare
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.subscription-opt-in && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-after:
     name: Compare After
@@ -2377,9 +2390,11 @@ jobs:
       edit-artifact-id: ${{ needs.compare-prepare.outputs.after-artifact-id }}
       edit-sha256: ${{ needs.compare-prepare.outputs.after-sha256 }}
       max-cost-usd: ${{ fromJSON(inputs.cost-cap-usd) }}
+      ablation: none
       lane: eval-compare
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.subscription-opt-in && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}
 
   compare-verdict:
     name: Compare Verdict
