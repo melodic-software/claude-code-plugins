@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [11.8.3] - 2026-11-22
+
+### Fixed
+
+- The merge gate's risk score counts a text file the files API sends no patch for (an over-size diff) as reviewed when a local clone holding the base and head counts its changed lines as text in `git diff <base>...<head>`, the diff both review lanes read with `--text`. Such a file scores `no-patch:<path>` and no longer holds for a person as `unreviewed-patch:<path>`. A file git calls binary, or whose git diff cannot be read, still holds.
+
 ## [11.8.2] - 2026-11-22
 
 ### Fixed

@@ -136,7 +136,7 @@ own change, never in this step.
 
 ### adr-audit
 
-- skill: architecture:record-decision
+- skill: architecture:adr
 - args: audit
 - applies-when: repo has an ADR folder
 - checked: true
@@ -144,7 +144,7 @@ own change, never in this step.
 #### Notes
 
 Read-only: tick `report-only <n>` or `no-findings`. Retirements go through
-`/architecture:record-decision` in their own change, after a yes, never in this step.
+`/architecture:adr prune` in their own change, after a yes, never in this step.
 
 ### overengineering
 

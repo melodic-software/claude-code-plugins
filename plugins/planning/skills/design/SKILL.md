@@ -490,7 +490,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
 | `/architecture:principles` (if enabled) | **During.** Supplies the module-design terms the topology uses when the work changes module structure (Phase 4) |
 | `/architecture:improve` (if enabled) | **Before.** Finds which existing modules to reshape; design decides the new shape |
-| `/architecture:record-decision` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |
+| `/architecture:adr` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |
 | `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline it into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
 | `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what should exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Gathers external facts; deferred research items can run in parallel |

@@ -2,12 +2,12 @@
   "skill": "planning:design",
   "plugin": "planning",
   "skill_dir": "plugins/planning/skills/design",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are design-handoff (the gate after design), plan (the step after), brainstorm (before scope), architecture:record-decision, and naming for one undecided name.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are design-handoff (the gate after design), plan (the step after), brainstorm (before scope), architecture:adr, and naming for one undecided name.",
   "competitors": [
     "planning:design-handoff",
     "planning:plan",
     "planning:brainstorm",
-    "architecture:record-decision",
+    "architecture:adr",
     "naming:name-it-better",
     "implementation:implement"
   ],

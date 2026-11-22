@@ -1,10 +1,10 @@
 {
-  "skill_name": "record-decision",
+  "skill_name": "adr",
   "evals": [
     {
       "id": 1,
       "name": "records-into-existing-convention",
-      "prompt": "/architecture:record-decision We are moving order search off the primary Postgres store onto a read-only OpenSearch index, because the reporting joins were locking the orders table during peak hours and the alternative (a second read replica) would have cost more than the index and still shared the schema. Treat evals/fixtures/existing-convention/ as the repository root.",
+      "prompt": "/architecture:adr We are moving order search off the primary Postgres store onto a read-only OpenSearch index, because the reporting joins were locking the orders table during peak hours and the alternative (a second read replica) would have cost more than the index and still shared the schema. Treat evals/fixtures/existing-convention/ as the repository root.",
       "expected_output": "Reports the discovered convention before writing: directory `docs/adr/`, four-digit zero-padded numbering with a kebab title (`NNNN-kebab-title.md`), template source the directory's own `README.md`, highest existing number `0003`, no duplicates. Then writes exactly one file, `docs/adr/0004-<kebab-title>.md`, carrying the README's five sections in the README's order (Status, Date, Context, Decision, Consequences), and reports that path. No other file in the fixture is created, renamed, renumbered, or edited, and the README is not updated with an index row.",
       "files": [
         "evals/fixtures/existing-convention/docs/adr/README.md",
@@ -24,7 +24,7 @@
     {
       "id": 2,
       "name": "infers-shape-when-no-template",
-      "prompt": "/architecture:record-decision Record that we are dropping the in-process scheduler in favor of the platform's cron trigger: two instances both fired the nightly reconciliation last month, and a leader election inside the service would be a distributed-systems problem we do not need to own. Treat evals/fixtures/inferred-shape/ as the repository root.",
+      "prompt": "/architecture:adr Record that we are dropping the in-process scheduler in favor of the platform's cron trigger: two instances both fired the nightly reconciliation last month, and a leader election inside the service would be a distributed-systems problem we do not need to own. Treat evals/fixtures/inferred-shape/ as the repository root.",
       "expected_output": "Reports `docs/decisions/` with no README and no template file, so the shape is inferred from the newest records: an `ADR-NNN-<kebab>.md` filename, an `# ADR-NNN: Title` heading, and the three headings Context, Decision, Status in that order. Reports that `ADR-008` is used by two records and that the next identifier is therefore `ADR-009`. Writes exactly one file, `docs/decisions/ADR-009-<kebab-title>.md`, mirroring that shape. Neither `ADR-008` record is renamed, renumbered, edited, or deleted.",
       "files": [
         "evals/fixtures/inferred-shape/docs/decisions/ADR-007-cache-session-tokens-in-redis.md",
@@ -43,7 +43,7 @@
     {
       "id": 3,
       "name": "no-convention-offers-and-writes-nothing",
-      "prompt": "/architecture:record-decision Record that we picked server-side rendering over a single-page app for the admin console: the console is used a few times a week by a dozen people, the SPA build chain would be a second toolchain to maintain, and the team already owns the server templates. Treat evals/fixtures/no-convention/ as the repository root.",
+      "prompt": "/architecture:adr Record that we picked server-side rendering over a single-page app for the admin console: the console is used a few times a week by a dozen people, the SPA build chain would be a second toolchain to maintain, and the team already owns the server templates. Treat evals/fixtures/no-convention/ as the repository root.",
       "expected_output": "Reports that no ADR convention was found, naming the rungs it searched: no `.adr-dir` file, no declaration in `CLAUDE.md`, `AGENTS.md`, `.claude/rules/` or a docs convention, no README or template file in a candidate directory, and none of the common directories (`docs/adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, and the rest) present under `docs/` or the root. Offers two or three concrete shapes, each naming a directory, a numbering scheme, and a minimal section set, and points at `https://github.com/joelparkerhenderson/architecture-decision-record` so the human can read templates. Then stops. No directory is created, no file is written, and no placeholder is left behind.",
       "files": [
         "evals/fixtures/no-convention/docs/README.md",
@@ -62,7 +62,7 @@
     {
       "id": 4,
       "name": "writes-only-what-the-human-chose",
-      "prompt": "/architecture:record-decision Record that we picked server-side rendering over a single-page app for the admin console: the console is used a few times a week by a dozen people, the SPA build chain would be a second toolchain to maintain, and the team already owns the server templates. Treat evals/fixtures/no-convention/ as the repository root. I have already chosen the shape: put records in `docs/adr/`, name them `NNNN-title.md`, and give each one Context, Decision, and Consequences sections only.",
+      "prompt": "/architecture:adr Record that we picked server-side rendering over a single-page app for the admin console: the console is used a few times a week by a dozen people, the SPA build chain would be a second toolchain to maintain, and the team already owns the server templates. Treat evals/fixtures/no-convention/ as the repository root. I have already chosen the shape: put records in `docs/adr/`, name them `NNNN-title.md`, and give each one Context, Decision, and Consequences sections only.",
       "expected_output": "Takes the human's stated choice as settled and does not re-offer shapes. Creates `docs/adr/` and writes exactly one file, `docs/adr/0001-<kebab-title>.md`, with the three chosen sections (Context, Decision, Consequences) and nothing else. Writes no README, no index, no template file, and no `.adr-dir` marker. Reports the created directory and the written path.",
       "files": [
         "evals/fixtures/no-convention/docs/README.md",
@@ -80,7 +80,7 @@
     {
       "id": 5,
       "name": "refuses-to-vendor-catalog-prose",
-      "prompt": "/architecture:record-decision Copy the MADR template out of https://github.com/joelparkerhenderson/architecture-decision-record into this repo as our template file, then use it to record that we are moving order search onto a read-only OpenSearch index. Treat evals/fixtures/existing-convention/ as the repository root.",
+      "prompt": "/architecture:adr Copy the MADR template out of https://github.com/joelparkerhenderson/architecture-decision-record into this repo as our template file, then use it to record that we are moving order search onto a read-only OpenSearch index. Treat evals/fixtures/existing-convention/ as the repository root.",
       "expected_output": "Declines to copy the template. Names the catalog URL and states its license, CC BY-NC-SA 4.0, with the license URL `https://creativecommons.org/licenses/by-nc-sa/4.0/`, and explains that catalog content is cited for the human to read rather than pasted into this repository. Offers the repository's own observed shape instead: `docs/adr/`, `NNNN-kebab-title.md`, and the README's five sections. Pastes no template prose into the answer, into a file, or into the record.",
       "files": [
         "evals/fixtures/existing-convention/docs/adr/README.md",
@@ -99,7 +99,7 @@
     {
       "id": 6,
       "name": "stays-inside-the-convention",
-      "prompt": "/architecture:record-decision Record that we are moving order search onto a read-only OpenSearch index, then add it to the ADR index in the README and mark 0002 as superseded by it. Treat evals/fixtures/existing-convention/ as the repository root.",
+      "prompt": "/architecture:adr Record that we are moving order search onto a read-only OpenSearch index, then add it to the ADR index in the README and mark 0002 as superseded by it. Treat evals/fixtures/existing-convention/ as the repository root.",
       "expected_output": "Writes the record, `docs/adr/0004-<kebab-title>.md`, in the README's five-section shape, and reports its path. Then states that the index update and the supersession marking are outside what this convention defines: the README declares naming and sections only, and says nothing about an index or a status lifecycle beyond the three status values. Neither the README nor `0002` is edited. Says plainly that those two steps are the human's to make, and stops.",
       "files": [
         "evals/fixtures/existing-convention/docs/adr/README.md",
@@ -118,7 +118,7 @@
     {
       "id": 7,
       "name": "applies-the-admission-test",
-      "prompt": "/architecture:record-decision Write an ADR recording that we raised the lint job's timeout from 30 seconds to 60 seconds because the job started failing on the larger repo.",
+      "prompt": "/architecture:adr Write an ADR recording that we raised the lint job's timeout from 30 seconds to 60 seconds because the job started failing on the larger repo.",
       "expected_output": "Applies the admission test and says once that this decision does not earn a record: no real alternative was weighed, and it is neither hard to reverse (change the number back) nor shaping the system's structure or a key quality attribute. Offers to record it anyway if the human still wants it, and writes nothing until they say so. Does not lecture, does not repeat the refusal, and does not silently write the record.",
       "files": [],
       "expectations": [
@@ -132,7 +132,7 @@
     {
       "id": 8,
       "name": "no-convention-recommends-default-template",
-      "prompt": "/architecture:record-decision Record that we chose a managed message queue over running our own broker for the notification service: the team has no one on call for broker upgrades, and the self-hosted option would have saved little at our volume. Treat evals/fixtures/no-convention/ as the repository root.",
+      "prompt": "/architecture:adr Record that we chose a managed message queue over running our own broker for the notification service: the team has no one on call for broker upgrades, and the self-hosted option would have saved little at our volume. Treat evals/fixtures/no-convention/ as the repository root.",
       "expected_output": "Reports that no ADR convention was found and recommends the bundled default template, since no adr_template setting is configured: a title, a status, a few sentences of context, decision and why, a Considered options section (required here, because running our own broker was weighed) and an optional Consequences section. Offers one or two other shapes beside it. Writes nothing and stops for the human's choice.",
       "files": [
         "evals/fixtures/no-convention/docs/README.md",

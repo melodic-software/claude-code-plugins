@@ -228,7 +228,7 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
 - Friction in an existing module's interface: `/architecture:improve`.
 - The view opens a new boundary or contract to decide: `/planning:design module`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
-- The view settles a decision worth keeping: `/architecture:record-decision`.
+- The view settles a decision worth keeping: `/architecture:adr`.
 
 ## Gotchas
 

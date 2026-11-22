@@ -190,7 +190,7 @@ by layer:
 - **Stored values and migrations** (an enum value or string persisted in a database, a migration,
   seed or fixture, a message schema, a public API field): never edited. The report names each as a
   decision, a phased migration or a mapping that keeps the stored name, recorded as an ADR through
-  `/architecture:record-decision`.
+  `/architecture:adr`.
 
 ## What this skill does NOT do
 
