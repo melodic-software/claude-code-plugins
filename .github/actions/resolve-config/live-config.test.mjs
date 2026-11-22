@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // The repository's own pipeline config, resolved with the real schema,
 // vocabulary and trust files. Expected values come from the pr-unblock
 // contract (applies-when of resolve-conflicts, the report-escalation leaf) and

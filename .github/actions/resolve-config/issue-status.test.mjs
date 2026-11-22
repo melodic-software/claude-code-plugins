@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // models.issue-status: the label collapse and the Work status field reader,
 // over the live config. Expected values are written by hand: the option ids
 // from the org field as read on 2026-11-01, and the label table and collapse

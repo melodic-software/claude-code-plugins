@@ -1,5 +1,6 @@
 # test-scope: .github/actions/resolve-config/issue-status.mjs .github/actions/resolve-config/dimensions.mjs docs/conventions/pr-pipeline.yaml plugins/source-control/lib/yaml-subset.awk .github/actions/resolve-config/package.json
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/probe_rerun_after_success.json
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py
 """The Work status field (`models.issue-status`) as a hold source for the
 pr-merge lane, the capped-close park and the post-merge demotion record.
 
