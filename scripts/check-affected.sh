@@ -739,6 +739,19 @@ run_check as-of-recheck "scripts/check-as-of-recheck.sh --check" \
 run_check cost-figures "scripts/check-cost-figures.sh --check" \
   "$tools/scripts/check-cost-figures.sh" --check
 
+rv=plugins/guardrails/git-hooks/reference-verify.sh
+if [[ -f "$tools/$rv" ]]; then
+  run_check reference-verify "sh $rv --base $base" sh "$tools/$rv" --base "$base"
+else
+  skip reference-verify "no $rv in this repository"
+fi
+lf=plugins/bash-format/git-hooks/lint-full.sh
+if [[ -f "$tools/$lf" ]]; then
+  run_check lint-full "sh $lf --base $base" sh "$tools/$lf" --base "$base"
+else
+  skip lint-full "no $lf in this repository"
+fi
+
 # A file added to, changed in or removed from a plugin can make a cluster of
 # byte-identical copies across plugins that the registry does not list, or
 # leave a listed one drifted or stale.

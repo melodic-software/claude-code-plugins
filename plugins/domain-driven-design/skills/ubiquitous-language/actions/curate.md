@@ -2,8 +2,8 @@
 
 Change the glossary when language resolves: a new term, a term used for two concepts, competing
 names for one concept, a definition that no longer matches the model, or one spelling that
-intentionally means different things in different known contexts. It also removes or merges entries
-a person accepted, such as `audit`'s prune candidates.
+intentionally means different things in different known contexts. Removing or merging entries is
+[prune.md](prune.md)'s.
 
 ## 1. Establish what is resolved
 
@@ -42,19 +42,11 @@ Apply the target file's format and the contract: one canonical term for one conc
 a tight 1-2 sentence definition of what the concept **is**, states listed under their entity,
 rejected synonyms on the `Avoid:` line (a name the resolution rules out is recorded there, not folded
 into the definition), an `Actions:` line when one verb was chosen over another for an operation on
-the entity, an optional `Shown to users as:` line, project-specific domain concepts only,
-and no implementation details, requirements, scratch notes or speculative terms.
+the entity, optional `Also called:` and `Shown to users as:` lines, project-specific domain concepts
+only, and no implementation details, requirements, scratch notes or speculative terms.
 
 Refine an existing entry in place instead of appending a duplicate. Preserve unrelated content and
 ordering.
-
-**Remove or merge.** Present the prune candidates (from `audit` or the request) one group at a
-time, each with its reason and, for an unused term, its count. Write only the entries the person
-said yes to; a group without a yes stays as it is. A merge keeps the covering term's entry, removes
-the other and records the removed phrase on the covering entry's `Avoid:` line. Then report every
-reference that still names a removed term, by file and line, for the same reviewed change: bold
-mentions in other entries and the glossary index (which counting skips), and docs. Unattended,
-report the candidates and write nothing.
 
 A team that wants a domain owner to review glossary changes lists the glossary path in its
 `CODEOWNERS` file; this skill has no reviewer setting.
@@ -82,9 +74,4 @@ and line, in these groups:
 
 Return the canonical term and definition, rejected synonyms and verbs, the bounded context when there is more
 than one, the file updated or created (or the proposed file and its setting layer when nothing was
-written), the entries removed or merged with the counts their question gave and, for each, where its
-meaning went (an `Avoid:` word on the covering term, moved to code or a doc, or dropped), two
-counts of entries: accepted (the entries the person said yes to) and removed (the entries in the
-glossary file before the edit and absent after it, read from the file; a merge counts the entry it
-removed), naming any entry in one set and not the other, the
-surviving references to removed terms, the step 5 hits, and any unresolved ambiguity.
+written), the step 5 hits, and any unresolved ambiguity.

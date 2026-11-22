@@ -1,8 +1,8 @@
 # audit
 
 Check a glossary against the contract, find its rejected words still in use, and propose entries to
-prune. Read-only: every finding is a report line; changes go through `curate` and
-`/docs-hygiene:rename-references`.
+prune. Read-only: every finding is a report line; removals and merges go through `prune`, other
+changes through `curate` and `/docs-hygiene:rename-references`.
 
 ## Steps
 
@@ -30,11 +30,11 @@ prune. Read-only: every finding is a report line; changes go through `curate` an
    not drift. A hit where the `Avoid:` word names a concept of its own, not this one, is a candidate
    entry, not drift; it goes to `curate`.
 5. Group the scope's code names that look like an existing term's concept, as `seed` step 3 does,
-   and report each one that is neither the term nor one of its `Avoid:` words, with its count and a
-   `file:line`. Each finding proposes the name as a new `Avoid:` word through `curate`, or, when the
-   name carries a meaning of its own (its own fields or behavior), as a candidate entry. Two copies
-   of the same logic are not a glossary finding: duplicated code goes to
-   `/code-metrics:audit-duplication`.
+   and report each one that is not the term, one of its `Also called:` names or one of its `Avoid:`
+   words, with its count and a `file:line`. Each finding proposes the name as a new `Avoid:` word
+   through `curate`, or, when the name carries a meaning of its own (its own fields or behavior), as
+   a candidate entry. Two copies of the same logic are not a glossary finding: duplicated code goes
+   to `/code-metrics:audit-duplication`.
 
 Steps 3 to 5 count every term as the contract's
 [Counting a term](../context/glossary-contract.md#counting-a-term) says.
@@ -45,5 +45,6 @@ Contract findings, then prune candidates grouped by kind, each with a one-line r
 with its count and the counting method), then rejected-word hits by `curate` step 5's groups, then
 step 4's candidate entries, then step 5's unrecorded names, each with its proposed `Avoid:` word or
 as a candidate entry. Each
-finding has `file:line` and the change it suggests; removals, merges and new `Avoid:` words go
-through `curate`. Close with the counts. With no glossary: `Glossary: none` and a pointer to `seed`.
+finding has `file:line` and the change it suggests; removals and merges go through `prune`, new
+`Avoid:` words through `curate`. Close with the counts; with prune candidates, name `prune` as the
+follow-up. With no glossary: `Glossary: none` and a pointer to `seed`.

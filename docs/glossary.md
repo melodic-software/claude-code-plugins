@@ -308,6 +308,19 @@ AGENTS.md, Merging.
 
 A level of merge authority a repository grants its lanes, from human-only merge upward.
 
+**merge-risk rating**
+
+A model's rating of one pull request head, from LOW to CRITICAL, written as the pull request's
+`Merge-Risk:` body line.
+
+Avoid: risk score (that is the diff risk score)
+
+**diff risk score**
+
+A deterministic score of a pull request's diff, LOW, MED or HIGH, with the reason codes behind it.
+
+Avoid: merge risk, babysit risk (merge risk is the merge-risk rating)
+
 **changelog fragment**
 
 A note a pull request adds for each plugin it changes, declaring the version bump (or none) and the

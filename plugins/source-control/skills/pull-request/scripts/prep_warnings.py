@@ -10,13 +10,13 @@ staged, unstaged and untracked changes alike) and prints one line per finding:
     SKILL.md, the plugin's `evals/` for an agent body. The skill criteria ship
     a cut only with eval evidence of no loss.
   protected-path <path>: a changed path on the floor's person-held globs
-    (`babysit_risk.Floor.high`, with the `merge.diff-check.floor-paths` rows at
+    (`diff_risk.Floor.high`, with the `merge.diff-check.floor-paths` rows at
     `--base`) or the configured `merge.diff-check.denied-paths`
     (`--denied-path`), or with a
-    segment `babysit_risk.normalize_path` calls unsafe, which the guarded
+    segment `diff_risk.normalize_path` calls unsafe, which the guarded
     merge holds for a person, or a plugin or marketplace manifest
-    (`babysit_risk.is_manifest_path`), which it compares base against head.
-    The path rules are imported from babysit_risk, never restated.
+    (`diff_risk.is_manifest_path`), which it compares base against head.
+    The path rules are imported from diff_risk, never restated.
   note: a configured denied-path set the merge cannot read, so it matches only
     the floor; or `floor-paths` rows the merge refuses, so only the built-in
     floor matches.
@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "babysit-prs" / "scripts"))
 import babysit_merge_policy as policy  # noqa: E402
-import babysit_risk as risk  # noqa: E402
+import diff_risk as risk  # noqa: E402
 
 
 class GitError(Exception):

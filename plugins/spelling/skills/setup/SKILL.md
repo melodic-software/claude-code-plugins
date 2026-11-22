@@ -41,7 +41,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Spelling is one concern, lint: it reports and never rewrites. The hooks
 run only the plugin's shipped typos adapter, with or without a repository typos config; they never
 run a command from the repository's spelling record
-(`.claude/ecosystems/spelling.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
+(`docs/conventions/ecosystems/spelling.yaml`), which `/toolchain:lint` and `/toolchain:check` run on
 request. The only consumer-project files this plugin writes are its git-hook entry copies
 (`apply install-git-hooks`); the record is written by `/toolchain:setup apply spelling`, never
 here. Rules come from the repository's own typos config, and the only tunables are the native
@@ -240,7 +240,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the spell-checker. `git commit` exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Write the spelling record (`.claude/ecosystems/spelling.yaml`); `/toolchain:setup apply spelling` does.
+- Write the spelling record (`docs/conventions/ecosystems/spelling.yaml`); `/toolchain:setup apply spelling` does.
 - Install `typos`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.
 - Download tools, or run any during `check` or `apply` beyond the read-only `typos --version` and

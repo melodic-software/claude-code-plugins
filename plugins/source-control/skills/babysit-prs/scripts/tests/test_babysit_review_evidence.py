@@ -23,7 +23,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
 import babysit_review_evidence as ev
-import babysit_risk as risk
+import diff_risk as risk
 
 # This repository's rows, which the floor paths below sit on.
 FLOOR_ROWS = policy.floor_paths_in(
@@ -4191,7 +4191,7 @@ class FailClosedTests(Base):
                 self.assertIsNone(item.open_findings)
 
     def test_evidence_is_the_scorers_lane_evidence(self) -> None:
-        import babysit_risk
+        import diff_risk
 
         result = ev.bind(
             S,
@@ -4202,7 +4202,7 @@ class FailClosedTests(Base):
             changed_paths=(),
             floor=risk.floor_for(),
         )
-        self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
+        self.assertTrue(all(isinstance(r, diff_risk.LaneEvidence) for r in result))
 
     def test_pinned_head_must_be_a_full_sha(self) -> None:
         result = ev.bind(
@@ -4239,7 +4239,7 @@ class CarriedBlockingTests(Base):
     """A blocking security finding a bound review left open still holds after
     the lane unbinds: the binder carries the count from the newest head of
     the pull request the lane's evidence binds at, so the gate's person
-    routing (babysit_risk.person_reasons) still sees `security-finding`."""
+    routing (diff_risk.person_reasons) still sees `security-finding`."""
 
     SEC = "claude-security-review"
     S2 = "c2" * 20  # a newer head

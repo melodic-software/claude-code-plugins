@@ -1,6 +1,6 @@
 // Expected values come from the issue that added these holds and the gate's
 // own rules: the merge gate holds a change to a cost path
-// (babysit_risk.COST_PATHS) until the owner's cost decision, which
+// (diff_risk.COST_PATHS) until the owner's cost decision, which
 // babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
 // pins case by case. ci-status names its owner by the trusted-actor list, as
 // its cost-only review hold step does, so a review approval lifts a hold path
@@ -13,6 +13,7 @@
 // it before the decision (#10437), and a later head
 // only when the net change against the base branch is the same at both (owner
 // decisions Q17 c and Q18 d on #9436).
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { writeFileSync } from "node:fs";
@@ -491,7 +492,7 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/retry-call.bash",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
   "docs/conventions/pr-pipeline.yaml",
 ];
@@ -577,11 +578,12 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   assert.match(held.out, /it changes docs\/held\.md, a hold path/);
 });
 
-// The trust gate (babysit_risk._actors_widened, owner direction 2026-10-24):
+// The trust gate (diff_risk._actors_widened, owner direction 2026-10-24):
 // a change that adds or widens an entry of the trusted-actor list waits for
 // the owner, and one that only removes entries does not. ci-status has no
 // bypass, so the owner's approval of the head lifts it, as it lifts a hold
 // path.
+// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const KYLE = { id: 1, login: "kyle", kind: "human" };
 const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };

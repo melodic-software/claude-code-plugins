@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [12.0.0] - 2026-11-22
+
+### Changed
+
+- The contract names the diff risk scorer by its new module, `diff_risk.py`, in place of `babysit_risk.py`.
+
+### Removed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `limits.api.<pool>.limit-cap`, so a `pr-pipeline.yaml` that sets it fails validation; delete it. Every pool's read floor is a share of its live `x-ratelimit-limit` header, so GITHUB_TOKEN no longer plans to a 1,000-request budget, and ci-status's `API_BUDGET_LIMIT_CAP` and `BABYSIT_READ_FLOOR_HEADER_LIMIT` are gone ([#18194](https://github.com/melodic-software/claude-code-plugins/issues/18194)).
+
+## [11.9.1] - 2026-11-22
+
+### Fixed
+
+- Every `Resolve main's tip` step now reads main's tip with the job's own token instead of an anonymous `git ls-remote`, which GitHub refused with HTTP 403 from shared runner addresses. 94 steps use the ci-workflows `resolve-branch-tip` action; the 3 in the two release workflows that hold the release App key carry the same read inline, so those workflows run no ci-workflows action. A timeout or a 5xx is retried within 3 tries, and a 401 or 403 fails at once. pr-merge's carry readers take the action's `unambiguous-sha`, set only while no tag is named main. `download-full-history` sends the job token for its unshallow and base-ref fetches too.
+
+- pr-verify and pr-review-main judge a pull request whose single file diff is over one chunk (300000 bytes) instead of giving no verdict. `split-diff.py` cuts such a file at its hunks into pieces of at most one chunk, each under the file's header and no two in one chunk, and the manifest lists each piece as `piece <i> of <n>`; the chunk prompts and the final judge say so. A file with one hunk over a chunk with its header, and a diff over `MAX_CHUNKS` chunks, still get no verdict.
+
+## [11.9.0] - 2026-11-22
+
+### Changed
+
+- address-feedback and fix-ci run the check-affected self-check over their uncommitted work before they hand it on, as resolve-issue does; the runner stages checks and self-checks under prepare: review-threads and ci-context.
+
 ## [11.8.4] - 2026-11-22
 
 ### Changed

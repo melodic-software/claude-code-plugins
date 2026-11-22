@@ -7,6 +7,7 @@ UPSTREAM=melodic-software/ci-workflows
 # The standards sync owns this file's pin.
 MANAGED=.github/workflows/pr-check-managed-files-hosted.yml
 FORMAL_MODELS='.claude/skills/formal-*/model/**'
+SCANNED=(-- . ":(exclude)${MANAGED}" ":(exclude,glob)${FORMAL_MODELS}")
 DOC=docs/conventions/pr-pipeline/pr-run-activity.md
 SHA_RE='^[0-9a-f]{40}$'
 TAG_RE='^v[0-9]+\.[0-9]+\.[0-9]+$'
@@ -68,7 +69,7 @@ current() {
 }
 
 apply() {
-  local old="$1" old_tag="$2" new="$3" new_tag="$4" root="$5" files pin status f left outside rewritten
+  local old="$1" old_tag="$2" new="$3" new_tag="$4" root="$5" files linked pin status f left outside rewritten
   [[ "$old" =~ $SHA_RE && "$new" =~ $SHA_RE ]] || die "old and new must be 40-character commit SHAs"
   [[ "$old_tag" =~ $TAG_RE && "$new_tag" =~ $TAG_RE ]] || die "old and new tags must be vX.Y.Z"
   pin="$(current_pin "$root")"
@@ -86,6 +87,9 @@ apply() {
   [[ "$status" == ahead ]] || die "${new_tag} (${new}) does not contain the current pin ${old}: compare status '${status}'"
 
   files="$(file_set "$root")"
+  linked="$(git -C "$root" grep -lF "github.com/${UPSTREAM}/blob/${old}/" "${SCANNED[@]}" \
+    ':(exclude,glob)**/CHANGELOG.md' ':(exclude).changes' || true)"
+  [[ -z "$linked" ]] || files="$(sort -u <<<"${files}"$'\n'"${linked}")"
   rewritten="$(mktemp)"
   while IFS= read -r f; do
     sed -E \
@@ -97,7 +101,7 @@ apply() {
   done <<<"$files"
   rm -f "$rewritten"
 
-  left="$(git -C "$root" grep -l "$old" -- . ":(exclude)${MANAGED}" ":(exclude,glob)${FORMAL_MODELS}" || true)"
+  left="$(git -C "$root" grep -l "$old" "${SCANNED[@]}" || true)"
   [[ -z "$left" ]] || die "${old} still appears after the rewrite in: $(tr '\n' ' ' <<<"$left")"
   outside="$(git -C "$root" status --porcelain | cut -c4- | grep -vxF "$files" || true)"
   [[ -z "$outside" ]] || die "paths outside the re-pin set changed: $(tr '\n' ' ' <<<"$outside")"
