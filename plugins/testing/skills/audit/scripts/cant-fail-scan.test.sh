@@ -2415,6 +2415,8 @@ assert_contains "with a warning naming the new location" "$out" "/.claude/testin
 printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.yaml"
 cfg_scan
 assert_finding_count "both team files: the new weak-oracle off applies, the old Go exclude does not" 2
+assert_contains "the Go finding remains, so the old team exclude is ignored" "$out" "sum_test.go"
+assert_not_contains "and the weak oracle is off, so the new team file applies" "$out" "weak.test.ts"
 assert_contains "with a warning naming both" "$out" "/docs/conventions/testing.yaml and "
 assert_contains "and the ignored .claude file" "$out" "/.claude/testing.yaml both exist; using "
 rm -f "$CFG/.claude/testing.yaml" "$CFG/docs/conventions/testing.yaml"
@@ -2430,6 +2432,8 @@ assert_contains "with a warning naming the new location" "$out" "/.claude/testin
 printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.local.yaml"
 cfg_scan
 assert_finding_count "both personal files: the new weak-oracle off applies, the old Go exclude does not" 2
+assert_contains "the Go finding remains, so the old personal exclude is ignored" "$out" "sum_test.go"
+assert_not_contains "and the weak oracle is off, so the new personal file applies" "$out" "weak.test.ts"
 assert_contains "with a warning naming both" "$out" "/docs/conventions/testing.local.yaml and "
 assert_contains "and the ignored old file" "$out" "/.claude/testing.local.yaml both exist; using "
 rm -f "$CFG/.claude/testing.local.yaml"
