@@ -107,7 +107,7 @@
           "npm"
         ]
       },
-      "degrade": "Without npm, worktree creation still succeeds but skips npm ci for a package-lock.json and warns; run npm ci in the new worktree yourself.",
+      "degrade": "Without npm, worktree creation still succeeds but its provisioning step installs no lockfile an ecosystem record declares, and warns; run npm ci --ignore-scripts in that lockfile's directory yourself.",
       "install": {
         "docs": "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm"
       }

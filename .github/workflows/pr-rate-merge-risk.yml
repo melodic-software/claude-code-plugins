@@ -3,10 +3,6 @@ name: PR Rate Merge Risk
 # The report-only merge-risk rating (#13657, owner decision Q57): for each
 # lanes App head that passes pr-require-checks, /review:merge-risk rates the
 # head and this run uploads rating.json as pr-merge-risk-<pr>-<head-sha>.
-# enable-auto-merge.mjs reads it just before it arms that head and writes the
-# `Merge-Risk:` line as the body's last line (merge-risk-line.mjs), so the
-# squash commit carries it. No gate, hold or rung reads the line or this
-# artifact; a run that rates nothing leaves the line `unrated`.
 #
 # It runs beside pr-verify.yml on the same trigger, as its own run, so the
 # PASS pr-verify gates on never waits for a rating. Its controls are

@@ -281,60 +281,6 @@ class RiskResult:
     skipped: tuple[Reason, ...] = ()
 
 
-# What a lane pull request must not change unattended (owner decisions
-# Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B), each glob with its class:
-# - `trust`: what mints and scopes lane tokens and judges triggers
-#   (request-lane-token, resolve-config, which the token broker runs from
-#   main in its signer process with effect-grants.json, lane-rules.json and
-#   activity-rules.json, the pipeline config, whose activity `effect:`
-#   values and lane slots the broker reads, check-trusted-trigger,
-#   check-kill-switch, whose writeOutputs both of those write their verdicts
-#   through), code owners, submodules, and the code that computes the
-#   author lift and the hold tables: babysit_merge*, this module and
-#   babysit_review_evidence.py (which compute the review's clear
-#   condition), merge-holds.mjs and scripts/sync-hold-floor.py, which writes
-#   this table's copies, and the pr-merge scripts that apply and enforce the
-#   holds: enable-auto-merge.mjs, superseded.mjs, clear-escalations.mjs,
-#   gate-check.mjs and head-ref-map.mjs (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#merge-authority).
-# This repository's rows of each class sit in `merge.diff-check.floor-paths`.
-# - `gate`: the rest of the merge gate's own code: the rate guard and the
-#   other pr-merge scripts; the main-run review's scripts, whose verdict
-#   writer sets the counts; every workflow `gated_workflow` names (owner
-#   decision Q11 (A), 2026-10-28): the review workflows, ci-status
-#   (pr-require-checks.yml, which posts the required status and runs the
-#   hold step), each that holds a credential beyond its job's GITHUB_TOKEN,
-#   a job token dying with its job while an App key or PAT outlives the run,
-#   and each whose token has `actions: write`, which dispatches those
-#   credentialed workflows. The generator derives
-#   those rows from the workflow files (`GATE_WORKFLOWS` in `floor-paths`), so a
-#   workflow that gains a secret joins the gate. A workflow outside it that
-#   gains a write scope, a privileged trigger or a secret holds by its patch
-#   instead (`_workflow_privilege_gains`, `secret-exposure-review`). And
-#   what changes what agents may do unattended or what later reviews judge
-#   against: Claude Code settings (hooks, permission allows) and the hook
-#   scripts under `.claude/hooks/`, `.mcp.json`,
-#   `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and the synced standards. Those
-#   review-surface rows (`_NO_AUTHOR_LIFT`, and a `floor-paths` row with
-#   `author-lift: false`) never take the author lift.
-# - `enforcement`: the rest of the modules the floored scripts import and
-#   the Python that decides the holds (test_merge_holds_sync.py derives both
-#   closures and requires them here), and the scripts that act on a
-#   pr-unblock stop's route (report-escalation.sh, adjudicate-feedback.mjs,
-#   publish-feedback.mjs, apply-patch.mjs) with every module they import and
-#   the routing table they read, so a held reason cannot be dropped unreviewed.
-# A `trust` or `gate` path holds for a person (`Floor.high`). An `enforcement`
-# path holds until the security lane's review binds to the head with no
-# open finding (`Floor.review`, `review-path:`), so no person is needed. So
-# does a `gate` path on a trusted person's own pull request that only their
-# own commits touched, on a head pr-verify passed (`Floor.author_review`,
-# `RiskInput.author_reviewed`); a lanes App pull request's never does, nor
-# does a `trust` path: agents commit as the trusted owner, so what scopes a
-# lane token, and what could widen the lift or drop a floor row for the next
-# pull request, always waits for a person.
-# Only the paths every consumer shares sit here. scripts/sync-hold-floor.py
-# joins this table to the repository's `floor-paths` rows, writes the result
-# into merge-holds.mjs HOLD_PATH_CLASSES, the review callers' hold-paths and
-# ci-status's hold_patterns, and test_merge_holds_sync.py runs its --check.
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("**/CODEOWNERS", "trust"),
     # The pipeline config every consumer's merge gate reads

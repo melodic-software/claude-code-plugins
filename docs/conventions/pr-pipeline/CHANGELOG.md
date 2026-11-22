@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## [12.1.0] - 2026-11-22
+
+### Changed
+
+- The `address-feedback` select job offers for a body refresh the sections the base's `pr_body_required_sections` lists, else the `##` headings of the base's pull request template, else those of the owner's `.github` repository template, and offers none when that template cannot be read.
+- The merge-risk workflow's header no longer claims that nothing holds on the rating.
+
 ## [12.0.0] - 2026-11-22
 
 ### Changed

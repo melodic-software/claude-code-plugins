@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.14] - 2026-11-22
+
+### Changed
+
+- The toolchain prerequisite probe reads ecosystem records from `docs/conventions/ecosystems/`, else the legacy `.claude/ecosystems/`, and names the directory it read in its provenance, plus each legacy file a same-named `docs/conventions/ecosystems/` file shadows.
+
 ## [5.2.13] - 2026-11-22
 
 ### Changed

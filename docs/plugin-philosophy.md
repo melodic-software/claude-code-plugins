@@ -136,7 +136,9 @@ The rule is the first paragraph of [Design boundary](#design-boundary): no runti
 machine's paths, one organization's repository names, or an undocumented consumer layout. A value
 that varies per environment, operator, or consumer belongs in the consumer's own config layers
 (`melodic-software/standards` `standards/engineering/shareable-artifact-design.md`,
-"Externalize what a consumer may decide"). This subsection is the doctrine owner; component-scoped
+"Externalize what a consumer may decide"). One consumer's setting never removes an option other
+consumers can turn on: the plugin keeps the option and its default, and the consumer's own settings
+hold their choice. This subsection is the doctrine owner; component-scoped
 audits cite it instead of restating the rule:
 
 - `plugin-quality:audit` recurring-concerns (per-component detection cues).

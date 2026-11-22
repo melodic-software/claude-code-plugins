@@ -67,7 +67,9 @@ through that convention's own layers (`~/.claude/ecosystems/<lane>.yaml`, then t
 lane) and `enabled` (a resolved `false` opts the lane out). Only a lane named under `lanes` reads
 its file: the bundled lanes, plus any extra id a layer lists there. A record whose id is not listed
 creates no lane, because a record need not describe a programming language (a lint-only
-`markdown` or `yaml` record is common).
+`markdown` or `yaml` record is common). A record of a name absent from `docs/conventions/ecosystems/`
+is read from the legacy `.claude/ecosystems/`, per the contract's
+[Legacy location](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md#legacy-location).
 
 To add a lane the plugin does not ship, list its id under `lanes` and give it a record with
 `globs`:

@@ -58,9 +58,11 @@ function unavailable(record, text, now) {
 
 /**
  * @returns the fields a finished run adds to its job file. `status` is `ok` only when every
- * success condition holds; a refusal the mode caused wins over every other reading.
+ * success condition holds; a refusal the mode caused wins over every other reading. `spec` is the
+ * mode as the run applied it (an --unsandboxed variant included); `cliLog` is the CLI's own log
+ * for this run, read for the fallback warning's `applied` text.
  */
-export function classify(record, { exitCode, stdout, stderr, finalMessage, mode, now = Date.now() }) {
+export function classify(record, { exitCode, stdout, stderr, finalMessage, mode, spec, cliLog = "", now = Date.now() }) {
   const output = record.output;
   let thread = null;
   let message = finalMessage ?? "";
@@ -112,10 +114,14 @@ export function classify(record, { exitCode, stdout, stderr, finalMessage, mode,
   if (message.trim() === "" && !why.length) why.push("no final message");
 
   const notices = [];
-  const fallback = record.modes[mode]?.fallback_warning;
+  const fallback = (spec ?? record.modes[mode])?.fallback_warning;
   if (fallback && stderr.includes(fallback.pattern)) {
-    notices.push(`the CLI warned: ${fallback.pattern}`);
-    if (fallback.severity === "downgrade") why.push(`the ${mode} mode was not applied`);
+    if (fallback.applied && cliLog.includes(fallback.applied)) {
+      notices.push(`the CLI warned "${fallback.pattern}", but its log shows the mode was applied ("${fallback.applied}")`);
+    } else {
+      notices.push(`the CLI warned: ${fallback.pattern}`);
+      if (fallback.severity === "downgrade") why.push(`the ${mode} mode was not applied`);
+    }
   }
 
   const status = denied.length ? "blocked-by-mode" : why.length ? "failed" : "ok";

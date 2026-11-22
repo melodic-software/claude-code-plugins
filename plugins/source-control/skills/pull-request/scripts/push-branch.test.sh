@@ -77,6 +77,7 @@ case "$1 $2" in
   "pr view")
     if [[ " $* " == *" baseRefName,url "* ]]; then
       echo base-read >>"$PB_GH_LOG"
+      [[ -z ${PB_GH_HINT:-} ]] || printf 'hint: if you need to wait for this pull request to be reviewed, use this instead of polling:\n    gh event listen --resource x\n' >&2
       [[ -n ${PB_PR_BASE:-} ]] || {
         echo "no pull requests found for branch \"$3\"" >&2
         exit 1
@@ -764,6 +765,9 @@ PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=sync-stacked/origin s
 check "sync, stacked PR: exit 0" "$RC" "0"
 check "sync, stacked PR: fetched its base" "$(grep -c 'origin +refs/heads/stack:' "$LOG/fetch.log")" "1"
 check "sync, stacked PR: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
+PB_GH_HINT=1 PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=sync-stacked/origin sync_run "$wc"
+check "sync, gh hint on stderr: still fetched the PR's base" "$(grep -c 'origin +refs/heads/stack:' "$LOG/fetch.log")" "1"
+check "sync, gh hint on stderr: no skip" "$(grep -c 'sync-stale-base skipped' "$LOG/err")" "0"
 # A PR whose base repository no remote fetches skips the sync and still pushes.
 PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack PB_PR_BASE_REPO=elsewhere/app sync_run "$wc"
 check "sync, base repository with no remote: exit 0" "$RC" "0"

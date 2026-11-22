@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { after, describe, test } from "node:test";
+import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { resolveBinary } from "../scripts/lib/binary.mjs";
 import { readBreaker } from "../scripts/lib/breaker.mjs";
@@ -13,72 +12,13 @@ import { classify } from "../scripts/lib/outcome.mjs";
 import { pidStartTime } from "../scripts/lib/process.mjs";
 import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { cancel, dataDirFor, installedDataDir, result, review, run, status } from "../scripts/lib/runner.mjs";
+import { assertNoBypass, clean, cliArgs, completed, events, fakeAgy, fakeCmd, fixture, fixtures, gitRepo, launched, opened, said, scratch, THREAD, world } from "./support/world.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixtures = join(here, "fixtures");
-const fixture = (name) => readFileSync(join(fixtures, name), "utf8");
-const scratch = mkdtempSync(join(tmpdir(), "external-agents-runner-"));
-after(() => rmSync(scratch, { recursive: true, force: true }));
-
 const codex = loadProvider("codex");
-const fakeCodex = { path: process.execPath, args: [join(fixtures, "fake-codex.mjs")], shell: false };
-const fakeAgy = { path: process.execPath, args: [join(fixtures, "fake-agy.mjs")], shell: false };
-const fakeCmd = { path: join(fixtures, "fake-codex.cmd"), args: [], shell: true };
-
-// Event shapes: the sample lines in https://learn.chatgpt.com/docs/non-interactive-mode.md and the
-// item and status names in openai/codex codex-rs/exec/src/exec_events.rs, both read 2026-11-21.
-const events = (...list) => `${list.map((e) => JSON.stringify(e)).join("\n")}\n`;
-const THREAD = "00000000-0000-7000-8000-00000000000a";
-const opened = [{ type: "thread.started", thread_id: THREAD }, { type: "turn.started" }];
-const said = { type: "item.completed", item: { id: "item_0", type: "agent_message", text: "done" } };
-const completed = { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
-const clean = events(...opened, said, completed);
-
-let count = 0;
-function world(scenario = {}, { local, team } = {}) {
-  const root = join(scratch, `w${(count += 1)}`);
-  const cwd = join(root, "cwd");
-  const dataDir = join(root, "data");
-  const home = join(cwd, "docs", "conventions");
-  mkdirSync(home, { recursive: true });
-  mkdirSync(dataDir);
-  if (local) writeFileSync(join(home, "external-agents.local.yaml"), local);
-  if (team) writeFileSync(join(home, "external-agents.yaml"), team);
-  const calls = join(root, "calls.jsonl");
-  const set = (next) => writeFileSync(join(root, "scenario.json"), JSON.stringify({ record: calls, ...next }));
-  set(scenario);
-  return {
-    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
-    cwd,
-    dataDir,
-    set,
-    calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []),
-  };
-}
-const launched = (w, verb = "exec") => w.calls().filter((c) => c.argv[0] === verb);
-const cliArgs = (job) => job.argv.slice(2);
-
-const WIDENING_FLAGS_IN_CODEX_EXEC_HELP = /dangerously|danger-full-access|approve-for-me|ignore-rules/;
-const assertNoBypass = (argv) => assert.ok(!argv.some((a) => WIDENING_FLAGS_IN_CODEX_EXEC_HELP.test(a)), argv.join(" "));
-
-function gitRepo(cwd, files) {
-  const g = (...args) => execFileSync("git", ["-C", cwd, "-c", "user.email=t@example.com", "-c", "user.name=t", ...args], { stdio: "ignore" });
-  g("init", "-q", "-b", "main");
-  writeFileSync(join(cwd, "a.txt"), "one\n");
-  g("add", "a.txt");
-  g("commit", "-q", "-m", "base");
-  g("branch", "a&b");
-  g("checkout", "-q", "-b", "change");
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(cwd, path)), { recursive: true });
-    writeFileSync(join(cwd, path), text);
-    g("add", path);
-  }
-  g("commit", "-q", "-m", "change");
-}
 
 describe("done versus blocked (Codex event stream)", () => {
   const judge = (stdout, extra = {}) => classify(codex, { exitCode: 0, stdout, stderr: "", finalMessage: "final answer", mode: "read-only", ...extra });
@@ -515,11 +455,6 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     assert.equal(readBreaker(w.dataDir, "antigravity")?.class, "usage-limit");
   });
 
-  test("a notice-level fallback warning never changes the status", async () => {
-    const w = world({ envelope: { status: "SUCCESS", response: "done" }, stderr: "warning: --mode auto is not available for this account; continuing in the default mode.\n" }, { local: "schema: 1\n" });
-    const got = await run(agy(w, { use: "investigate", prompt: "x" }));
-    assert.equal(got.job.status, "ok");
-  });
 
   test("resume passes the thread through the record's resume arguments", async () => {
     const w = world({ envelope: { status: "SUCCESS", response: "one", conversation_id: "conv-7" } });
@@ -804,6 +739,21 @@ describe("provider record", () => {
     for (const key of ["prompt_form", "modes.write.sandbox", "output.final_arg", "soft_deny[0].pattern", "review.dir"]) {
       assert.ok(problems.includes(`${key}: unknown key`), `${key} in ${problems.join(" | ")}`);
     }
+  });
+
+  test("a misspelled key in an add_dir or unsandboxed entry is named, and an opt-in on the read-only mode is refused", () => {
+    const record = structuredClone(loadProvider("antigravity"));
+    record.modes.write.add_dir.flag = "--add-dir";
+    record.modes.write.unsandboxed.auto.mode = "auto";
+    record.modes.write.unsandboxed.auto.fallback_warning.log = "--log-file";
+    delete record.modes.write.unsandboxed.auto.fallback_warning.log_arg;
+    record.modes["read-only"].unsandboxed = { auto: {} };
+    const problems = validateProvider(record);
+    for (const key of ["modes.write.add_dir.flag", "modes.write.unsandboxed.auto.mode", "modes.write.unsandboxed.auto.fallback_warning.log"]) {
+      assert.ok(problems.includes(`${key}: unknown key`), `${key} in ${problems.join(" | ")}`);
+    }
+    assert.ok(problems.includes("modes.write.unsandboxed.auto.fallback_warning.applied: log_arg and applied are set together"), problems.join(" | "));
+    assert.ok(problems.includes("modes.read-only.unsandboxed: expected a mapping of opt-in names, on the write mode only"), problems.join(" | "));
   });
 
   test("a review preface naming a token the runner does not fill is refused", () => {

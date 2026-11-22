@@ -133,6 +133,20 @@
           "type": "string",
           "description": "How a person provides the prerequisite, shown beside the skip. Display text only: resolvers never run it."
         },
+        "install": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manager", "lockfile"],
+          "properties": {
+            "manager": { "enum": ["npm"], "description": "The package manager that installs from the lockfile. npm is the only one." },
+            "lockfile": {
+              "type": "string",
+              "pattern": "^(?![/\\\\])(?!.*(^|/)\\.\\.(/|$))(.*/)?(package-lock|npm-shrinkwrap)\\.json$",
+              "description": "Repo-relative path of the lockfile: a package-lock.json or npm-shrinkwrap.json, with no leading slash and no '..' segment."
+            }
+          },
+          "description": "What the provisioning step installs for this entry: it runs npm ci --ignore-scripts --no-audit --no-fund in the lockfile's directory, so no install script runs. The step runs at worktree creation (the source-control plugin's provision-prerequisites.sh), never inside a check: a resolver still only probes, and an entry the step could not install still reads skip (prerequisite missing: <name>). An entry without install is report-only."
+        },
         "run-from": {
           "type": "string",
           "enum": ["repo-root", "ecosystem"],

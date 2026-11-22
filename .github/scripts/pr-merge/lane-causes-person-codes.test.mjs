@@ -3,7 +3,6 @@
 // comment: the causes the lanes lift are never ones only a person clears. The
 // person sets are read from diff_risk.py (PERSON_CODES, PERSON_PREFIXES) and
 // babysit_verify_evidence.py (NEEDS_HUMAN), the lists the merge gate reads.
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
