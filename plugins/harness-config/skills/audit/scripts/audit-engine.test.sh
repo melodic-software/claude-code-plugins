@@ -515,7 +515,7 @@ suppressions:
     reason: "no claim or sites"
     date: "2026-09-08"
 EOF
-cat >"$m/project/.claude/audit-pass.local.md" <<EOF
+cat >"$m/project/docs/conventions/audit-pass.local.md" <<EOF
 \`\`\`yaml
 suppressions:
   $(bash "$SCRIPT" finding-id --check "harness-config/audit/B/allow-completeness" --claim "missing-allow:git commit" --site ".claude/settings.json" "$(bash "$SCRIPT" anchor --excerpt "/permissions/allow")"):
@@ -541,7 +541,58 @@ assert_eq "case 5: local-only entry is personal-only, not applied" "1" "$(jq '.s
 assert_eq "case 5: the personal-only finding still stands" "1" "$(jq '[.findings[] | select(.identity.claim=="missing-allow:git commit")] | length' <<<"$out")"
 assert_eq "case 5: the entry names its layer and file" "team docs/conventions/harness-config.yaml" "$(jq -r '.suppressions.applied[0].suppressed | "\(.layer) \(.source)"' <<<"$out")"
 assert_eq "case 5: the team layer lists only the YAML" "docs/conventions/harness-config.yaml read" "$(jq -r '.suppressions.layers[] | select(.layer=="team") | "\(.source) \(.state)"' <<<"$out")"
-assert_eq "case 5: every layer is listed" "team user-global local" "$(jq -r '[.suppressions.layers[].layer] | join(" ")' <<<"$out")"
+assert_eq "case 5: every layer is listed" "team userConfig personal" "$(jq -r '[.suppressions.layers[].layer] | join(" ")' <<<"$out")"
+assert_eq "case 5: the personal layer reads its new location" "docs/conventions/audit-pass.local.md read" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5: an unset userConfig option is listed unset" "userConfig:audit_pass_suppressions_file unset" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5: no old location, no warning" "0" "$(jq '.suppressions.old_locations | length' <<<"$out")"
+
+ml="$(make_machine old-locations)"
+cp "$m/project/.claude/settings.json" "$ml/project/.claude/settings.json"
+mkdir -p "$ml/project/docs/conventions"
+cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/project/.claude/audit-pass.local.md"
+rc=0
+out=$(run "$ml" --json 2>"$ml/err") || rc=$?
+assert_eq "case 5a: an old personal file alone is read" ".claude/audit-pass.local.md read from the old location" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5a: the old personal file's entry is still read" "1" "$(jq '.suppressions.personal_only | length' <<<"$out")"
+assert_eq "case 5a: one warning for the old file" "1" "$(grep -c '^WARNING: ' "$ml/err")"
+assert_contains "case 5a: the warning names the old file, the new location and setup" "$(cat "$ml/err")" \
+  ".claude/audit-pass.local.md is an old audit-pass suppression location, still read for now; run /harness-config:setup apply to move it to docs/conventions/audit-pass.local.md"
+assert_eq "case 5a: the warning is in the document too" "1" "$(jq '.suppressions.old_locations | length' <<<"$out")"
+
+cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/project/docs/conventions/audit-pass.local.md"
+rc=0
+out=$(run "$ml" --json 2>"$ml/err") || rc=$?
+assert_eq "case 5a: with both personal files the new one wins" "docs/conventions/audit-pass.local.md read" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5a: both present still warns once" "1" "$(grep -c '^WARNING: ' "$ml/err")"
+assert_contains "case 5a: the warning names the old personal file" "$(cat "$ml/err")" \
+  ".claude/audit-pass.local.md is an old audit-pass suppression location and is not read, because "
+assert_contains "case 5a: the warning names the new personal file" "$(cat "$ml/err")" \
+  "/docs/conventions/audit-pass.local.md supplies the personal layer"
+rm "$ml/project/.claude/audit-pass.local.md" "$ml/project/docs/conventions/audit-pass.local.md"
+
+cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/user/audit-pass.md"
+rc=0
+out=$(run "$ml" --json --user-suppressions '${user_config.audit_pass_suppressions_file}' 2>"$ml/err") || rc=$?
+assert_eq "case 5a: an unsubstituted option reads the old user file" "user:audit-pass.md read from the old location" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5a: the old user file's entry is still read" "1" "$(jq '.suppressions.personal_only | length' <<<"$out")"
+assert_contains "case 5a: the warning names the old user file and the option" "$(cat "$ml/err")" \
+  "/user/audit-pass.md is an old audit-pass suppression location, still read for now; run /harness-config:setup apply to move it to the file the audit_pass_suppressions_file userConfig option names"
+
+cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/mine.md"
+rc=0
+out=$(run "$ml" --json --user-suppressions "$ml/mine.md" 2>"$ml/err") || rc=$?
+assert_eq "case 5a: with both user files the option's file wins" "userConfig:audit_pass_suppressions_file read" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
+assert_contains "case 5a: the warning names the old user file" "$(cat "$ml/err")" \
+  "/user/audit-pass.md is an old audit-pass suppression location and is not read, because "
+assert_contains "case 5a: the warning names the option's file" "$(cat "$ml/err")" \
+  "/mine.md supplies the userConfig layer"
+
+rm "$ml/user/audit-pass.md"
+rc=0
+out=$(run "$ml" --json --user-suppressions "$ml/mine.md" 2>"$ml/err") || rc=$?
+assert_eq "case 5a: the option's file alone is read" "userConfig:audit_pass_suppressions_file read" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5a: the option's file alone is not warned about" "0" "$(grep -c '^WARNING: ' "$ml/err")"
+assert_eq "case 5a: the option's file entry is read" "1" "$(jq '.suppressions.personal_only | length' <<<"$out")"
 
 # --- Case 5b: a team YAML that does not parse drops the team layer --------------
 cp "$m/project/docs/conventions/harness-config.yaml" "$TEST_TMPDIR/harness-config.yaml"
