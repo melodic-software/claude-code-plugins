@@ -1600,9 +1600,12 @@ the rules that only tighten in
   completed, successful run names the pinned head, with the most findings, and the most CRITICAL
   ones, that any counted review of that tree reported, so a re-run, a failed run or an empty
   commit never clears one. The security lane also keeps any CRITICAL finding its pull_request review left
-  open, and the most CRITICAL findings any `pr-review-main: claude-security-review` check run
-  records on any head of the pull request (its commits and the heads force pushes replaced), so a
-  whitespace push whose new tree reviews clean cannot re-roll one away. Check runs were chosen
+  open. Until a counted verdict binds the pinned head, it also holds the most CRITICAL findings
+  any `pr-review-main: claude-security-review` check run records on any head of the pull request
+  (its commits and the heads force pushes replaced), so a push no review has covered, a
+  whitespace push included, cannot clear one. Once the pinned head's own main-run review binds
+  with no CRITICAL finding, an earlier head's CRITICAL stops holding: a main-run finding has no
+  thread to resolve (owner decision, 2026-11-21). Check runs were chosen
   over a comment because the checks API has no delete: a pull_request workflow's token can delete
   an artifact or a comment, not a check run, and a forged one can only add a hold. A count that
   cannot be read leaves the lane unbound. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
