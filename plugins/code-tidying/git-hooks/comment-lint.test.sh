@@ -216,6 +216,13 @@ $(finding src/a.sh 2 none)
 $(finding src/a.sh 4 none)" "$(check "$REPO")"
 
 new_repo 'comment_lint: block'
+mkdir -p "$REPO/docs/adr" "$REPO/src"
+printf '# 42\n' >"$REPO/docs/adr/0042-use-postgres.md"
+printf 'x=1\n# See ADR-0042\ny=1\n# See docs/adr/0042\nz=1\n# See ADR-0043\n' >"$REPO/src/a.sh"
+git -C "$REPO" add -A
+expect "an ADR pointer passes only when the record exists" "1|$(finding src/a.sh 6 necessary)" "$(check "$REPO")"
+
+new_repo 'comment_lint: block'
 mkdir -p "$REPO/docs/conventions"
 printf 'comment_posture: none\n' >"$REPO/docs/conventions/code-tidying.local.yaml"
 git -C "$REPO" add -A

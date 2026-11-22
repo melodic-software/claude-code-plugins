@@ -231,6 +231,59 @@ class Shape8LinkOrRfc(unittest.TestCase):
         self.assertEqual(flagged("a.sh", text), [])
 
 
+class AdrPointer(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name)
+        (self.repo / "docs" / "adr").mkdir(parents=True)
+        (self.repo / "docs" / "adr" / "0042-use-postgres.md").write_text("# 42\n")
+        (self.repo / "src" / "deep").mkdir(parents=True)
+
+    def lines(self, text, path="src/deep/a.py", posture="necessary"):
+        count = text.count("\n") + 1
+        got = lint.findings(path, text, [(1, count)], posture, [], self.repo)
+        return [int(f.split(":")[1]) for f in got]
+
+    def test_existing_id_passes(self):
+        for text in ("# ADR-0042\nx = 1\n", "# See ADR 42\nx = 1\n", "x = 1  # adr0042\n"):
+            with self.subTest(text=text):
+                self.assertEqual(self.lines(text), [])
+
+    def test_existing_path_passes(self):
+        for pointer in (
+            "docs/adr/0042-use-postgres.md",
+            "See docs/adr/0042",
+            "../../docs/adr/0042-use-postgres.md",
+        ):
+            with self.subTest(pointer=pointer):
+                self.assertEqual(self.lines(f"# {pointer}\nx = 1\n"), [])
+
+    def test_block_comment_pointer_passes(self):
+        self.assertEqual(self.lines("/* See ADR-0042 */\nint x;\n", path="a.c"), [])
+
+    def test_missing_record_fails(self):
+        for text in ("# ADR-0043\nx = 1\n", "# See docs/adr/0043\nx = 1\n"):
+            with self.subTest(text=text):
+                self.assertEqual(self.lines(text), [1])
+
+    def test_path_outside_the_adr_folder_fails(self):
+        (self.repo / "src" / "deep" / "b.py").write_text("")
+        self.assertEqual(self.lines("# See src/deep/b.py\nx = 1\n"), [1])
+
+    def test_pointer_with_reason_fails(self):
+        self.assertEqual(self.lines("# See ADR-0042: Postgres for the primary store\nx = 1\n"), [1])
+
+    def test_pointer_inside_a_longer_comment_fails(self):
+        self.assertEqual(self.lines("# Postgres holds the primary store.\n# ADR-0042\nx = 1\n"), [1, 2])
+
+    def test_pointer_fails_under_none(self):
+        self.assertEqual(self.lines("# ADR-0042\nx = 1\n", posture="none"), [1])
+
+    def test_pointer_fails_without_a_repository(self):
+        self.assertEqual(flagged("a.py", "# ADR-0042\nx = 1\n"), [1])
+
+
 class Shape9FloorRest(unittest.TestCase):
     def test_line_after_ignore_marker_passes(self):
         for marker in ("remove-comments-ignore", "dissolve-comments-ignore"):
