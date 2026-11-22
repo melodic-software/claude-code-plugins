@@ -1,3 +1,9 @@
+// test-scope: .github/actions/check-kill-switch/action.yml .github/actions/check-trusted-base/action.yml
+// test-scope: .github/actions/check-trusted-trigger/action.yml .github/actions/collect-base-activity/action.yml
+// test-scope: .github/actions/log-api-budget/pace.mjs .github/actions/request-lane-token/action.yml
+// test-scope: .github/actions/resolve-config/action.yml .github/actions/select-trusted-text/action.yml
+// test-scope: .github/actions/setup-pinned-node/action.yml .github/actions/setup-runner-isolation/action.yml
+// test-scope: .github/workflows/*.yml
 // pr-merge.yml's main-verification trigger. Expected values come from the
 // owner decision of 2026-10-18 (every merge to main gets a full run, whoever
 // merged), the efficiency plan of 2026-10-26 (items 5 and 7(b): at most one
