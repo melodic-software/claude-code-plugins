@@ -1307,10 +1307,13 @@ the rules that only tighten in
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
   `no-patch:` is an image, font or PDF, or a file whose blob ids show no unread content: a rename,
   mode change or modification that keeps its blob and does not gain execute, or an empty file added
-  or removed.
+  or removed. It is also a text file whose change the review lanes read from the git diff: the
+  files API sends no patch for an over-size text diff, but both review lanes read
+  `git diff --text <base>...<head>`, so when a local clone holding both commits counts the file's
+  changed lines as text in that diff, the file counts as reviewed.
   Any other file the files API sends no patch for (a script with a NUL byte that git calls binary,
-  an over-size patch, a copy, an unread blob id) no review read, so it holds for a person as
-  `unreviewed-patch:<path>`.
+  a file whose git diff no clone could read, an unread blob id) no review read, so it holds for a
+  person as `unreviewed-patch:<path>`.
 - **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from

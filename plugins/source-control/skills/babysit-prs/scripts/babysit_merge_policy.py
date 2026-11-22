@@ -77,6 +77,7 @@ from babysit_gh import (
 )
 from babysit_risk import (
     FLOOR_ROW_CLASSES,
+    MEDIA_SUFFIXES,
     ChangedFile,
     Floor,
     FloorRowError,
@@ -6874,9 +6875,55 @@ def _changed_files(
                 previous_mode=previous_mode,
                 blob=blob,
                 previous_blob=previous_blob,
+                diff_read="patch" not in entry
+                and isinstance(path, str)
+                and not path.casefold().endswith(MEDIA_SUFFIXES)
+                and _diff_read(base_sha, str(head), path),
             )
         )
     return tuple(files), complete
+
+
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+
+def _diff_read(base_sha: str, head: str, path: str) -> bool:
+    """Whether a local clone holding both commits counts `path`'s changed
+    lines as text in `git diff <base_sha>...<head>`, the diff both review
+    lanes read with `--text`, so a review read a change the files API sent
+    no patch for. Git's binary call (`-` counts), no changed line, or a diff
+    no clone can read is False, which holds the file for a person. The
+    attributes come from the empty tree, not the checkout, and no user
+    attributes file is read, so a checked-out `.gitattributes` cannot make a
+    binary file count as text."""
+    if not (SHA_RE.fullmatch(base_sha) and SHA_RE.fullmatch(head)):
+        return False
+    for root in _clones_holding(head):
+        numstat = _git(
+            root,
+            f"--attr-source={EMPTY_TREE}",
+            "-c",
+            f"core.attributesFile={os.devnull}",
+            "diff",
+            "--numstat",
+            "--no-renames",
+            "--no-ext-diff",
+            "--no-textconv",
+            f"{base_sha}...{head}",
+            "--",
+            f":(literal){path}",
+        )
+        if numstat is None:
+            continue
+        rows = [line.split("\t", 2) for line in numstat.splitlines() if line]
+        return bool(rows) and all(
+            len(row) == 3
+            and row[0].isdigit()
+            and row[1].isdigit()
+            and int(row[0]) + int(row[1]) > 0
+            for row in rows
+        )
+    return False
 
 
 # The most files GitHub's pull request files listing returns
