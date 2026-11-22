@@ -120,6 +120,7 @@ activities:
     # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
+    self-checks: ["scripts/check-affected.sh --uncommitted"]
     # Edits head files, so no write token: the change leaves as a patch.
     effect: read
     applied-by:
@@ -280,6 +281,7 @@ activities:
     # is told to run its base copy. Bash, Edit and Write stay open, so review
     # of the patch, not this list, controls what a re-pin changes.
     verify-scripts: [plugins/planning/scripts/repin-digests.sh]
+    self-checks: ["scripts/check-affected.sh --uncommitted"]
     # Runs head code, so no write token: the change leaves as a patch.
     effect: read
     applied-by:
