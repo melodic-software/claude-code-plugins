@@ -11,6 +11,10 @@
     {
       "answer": "### Round 2\nScope check: 7 of 27 questions registered\n\n❓ Q4: **Should the export be requested, built outside the web request, and offered as a download once ready, instead of built while the person waits?**\n\nContext:\n- One month for the largest account is about 40,000 rows, and in-request downloads time out after 30 seconds (user, round 2).\n\n➡️ My recommendation: **Yes, build it outside the request.**\n",
       "why": "Asks the large-export decision as 'built outside the web request ... once ready', the wording a correct F3 reply used."
+    },
+    {
+      "answer": "### Round 2\n\nScope check: 13 of 27 questions registered\n\n❓ Q13: **How should the file be produced, given the page's downloads build inside a web request that times out after 30 seconds?**\n",
+      "why": "asks how a large export reaches the person, worded as \"inside a web request\" and \"times out\""
     }
   ],
   "fail": [
