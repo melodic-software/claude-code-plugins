@@ -151,7 +151,7 @@ Context:
 
 [Source: <the exact text the decision rests on, as a > quote>, <link to its exact section>, <one line on why that text makes this a question>. ONLY when the question rests on text the user has not read]
 
-My recommendation: **<answer>**. <2-3 sentences: why it beats the alternatives, including why those facts together lead to this answer for this user>.
+My recommendation: **<answer>**. <2-3 sentences: why it beats the alternatives, including why those facts together lead to this answer for this user>. It gains <what it gains>, at the cost of <what it costs>.
 Origin: <the user, round <N> | <named source> (<link>) | new (ours)>
 [Checked against: <each constraint named in words>. ONLY when a constraint shaped the answer]
 Basis: verified, <the Context sources this recommendation rests on>
@@ -190,7 +190,7 @@ Q<N+1>: ...
 
 **Context first, as much as the decision needs and no more.** Every question carries its own `Context:` block (its place: "Keep the layout whole"), so the user can decide from that question alone without scrolling back or asking what something means; the round-header restate never stands in for it. The block holds what drives the decision and nothing else; its items, which terms it defines inline and the one-claim-per-line sourcing rule are in [`context/question-shape.md`](context/question-shape.md) "Context", for every lane, and a claim the user stated cites `user, round <N>`. `Basis:` keeps its job as the label in the saved block: it names which of the Context sources the recommendation rests on, so the user sees at once whether it is grounded. Eval case: `interview-context-unfamiliar-term-upstream`.
 
-**Alternatives carry their tradeoffs.** One option per bullet, never a run-on sentence or a table: what it would gain, what it would cost, and the source behind that, so it can be weighed against the recommendation. A decision with only one viable answer is not asked: it goes on the round header's `Settled by evidence:` line (below).
+**Alternatives carry their tradeoffs.** One option per bullet, never a run-on sentence or a table: what it would gain, what it would cost, and the source behind that, so it can be weighed against the recommendation. The recommendation names its own gain and cost the same way, in one sentence of its reason, so every option on the table shows both. A decision with only one viable answer is not asked: it goes on the round header's `Settled by evidence:` line (below).
 
 **Keep the layout whole.** Every question opens with its title line, then its `Context:` block, before `My recommendation:` (or `Withheld:` or `Discovery:`), then `Alternatives:`, with a blank line after the title, after the recommendation block and after `Alternatives:`, and a `---` line between one question and the next. With emoji markers on, the title is `❓ Q<N>: **<title>**` and the recommendation `➡️ My recommendation:`; off, the same without the two markers. Keep a question's information in its own block: no terms table at the top of the round, no per-question alternatives table, and no closing summary table. A structural question's compact visual goes first inside its Context ("Visual-first for structural questions"). The `product` action states its own shape as a declared exception ([`context/product.md`](context/product.md) "Question shape").
 

@@ -532,11 +532,12 @@ done
 # merge of main (#17872 prescribed-solution Stance line) with this PR: against main the section differs only by "at most one contradiction pass"; the no-silent-resolve rule is byte-identical
 # the edits add the round reviewer dispatch to the round-check paragraph and one pointer sentence in loop.md item 4; no-silent-resolve, the constraint-ledger rows and the process-change definition are unchanged
 # the edit adds one second-review clause for a question the reviewer added; no-silent-resolve is unchanged
+# the edit adds the recommendation gain-and-cost sentence to the question template and to "Alternatives carry their tradeoffs"; no-silent-resolve is unchanged
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "97eb7126c8673b9be517696d87f238ee0efa39b3f15ee890049dff5833374a3d"
+  "069f27ad18c0d3111edf431759ed7879f8ca3d63af21ea2cae45e818e55c7e2d"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

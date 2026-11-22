@@ -1,6 +1,6 @@
 ---
 name: interview-round-reviewer
-description: "Fresh-context reviewer for a drafted /planning:interview round: given the round file, the ledger and the round's pacing, but none of the conversation, returns one line per broken rule (an unsourced Context line, a reason step resting on its own inference, an open fact missing from Flips if:, an undefined term or a reference to another question, an alternative without both a gain and a cost, a ready decision left off the round) with its fix. Read-only. Dispatched by the interview skill with the round check; not intended for direct ad-hoc use."
+description: "Fresh-context reviewer for a drafted /planning:interview round: given the round file, the ledger and the round's pacing, but none of the conversation, returns one line per broken rule (an unsourced Context line, a reason step resting on its own inference, an open fact missing from Flips if:, an undefined term or a reference to another question, an option, the recommended one included, without both a gain and a cost, a ready decision left off the round) with its fix. Read-only. Dispatched by the interview skill with the round check; not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob"
 model: inherit # reason: the review should come from the session's own model, so no model is named here
 maxTurns: 15
@@ -37,8 +37,8 @@ again in every other question.
      a step, rule or option;
    - it never leans on another question or alternative for substance ("the check in Q3",
      "alternative (b) of Q4"): the substance is restated in this question;
-   - each alternative, checked one by one, names what it gains and what it costs; a condition
-     ("only if you can name it") is not a cost.
+   - each alternative, checked one by one, and the recommendation itself name what they gain and
+     what they cost; a condition ("only if you can name it") is not a cost.
 5. **No ready decision is left off the round** (pacing `round` only; skip this rule under
    `single`). A topic on the header's `Later:` line, or one the header defers, is ready when every
    answer to the question it waits on leaves it the same options. Check the deferral's own reason
