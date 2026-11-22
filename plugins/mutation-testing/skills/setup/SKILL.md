@@ -41,7 +41,8 @@ override of earlier releases, holds the same keys in a `yaml` block. While it ex
 - Every `check`, `apply` and audit run prints one warning line naming the old file, the new
   location and the command that moves it:
   `WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local`.
-  With both present, the line also says the YAML file won.
+  With both present, the line ends with ` (docs/conventions/mutation-testing.local.yaml won)`
+  after `apply local`, so it also says the YAML file won.
 
 [Moving the old personal file](#moving-the-old-personal-file) is the one way to clear the warning.
 Dropping the old-path read is a later change, made once no run reports the old file.
@@ -254,7 +255,9 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
 - **`local`** writes to `docs/conventions/mutation-testing.local.yaml` only, and only the keys the
   user wants to override, as plain YAML without the template's team-shared header. When the old
   `.claude/mutation-testing.local.md` exists, it first runs
-  [Moving the old personal file](#moving-the-old-personal-file). It skips step 8, since a personal
+  [Moving the old personal file](#moving-the-old-personal-file). When that move is declined, or
+  the run is unattended, `apply local` stops there and writes nothing: a new YAML file beside the
+  old one would become the personal layer, and every old key it left out would stop applying. It skips step 8, since a personal
   suppression entry would not suppress, and step 9, since the personal override is meant to stay untracked. Before writing, run `git check-ignore -v docs/conventions/mutation-testing.local.yaml`;
   when nothing ignores it, offer the `docs/conventions/**/*.local.*` line in `.gitignore` and write it only on
   the user's acceptance.
@@ -304,7 +307,8 @@ never two:
    each old key it also sets as `overridden`, with both values, and each old key it lacks as one
    that would start to apply, and lets the user pick which of those to carry over.
 2. **Ask.** Write nothing until the user says yes. On no, or in an unattended run, change nothing:
-   the old file stays, and so does the warning.
+   the old file stays, and so does the warning. `apply local` then ends without writing; `apply
+   team` goes on to its own writes, which leave the personal layer as it was.
 3. **Write**, at either layer only after running
    `git check-ignore -v docs/conventions/mutation-testing.local.yaml` and the ignore-line offer the
    `local` bullet describes, so the new file is never left exposed to the index.
