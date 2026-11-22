@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.4] - 2026-11-22
+
+### Changed
+
+- The example finding in `context/findings-artifact.md` and the first suppression entry in `reference/consumer-config.md` use a generic `Test conventions` section in place of a C# heading and a `.cs` glob. Their `anchor/v1` and `finding_id` values, and the golden vectors in `scripts/detect.test.sh`, are re-derived from the new heading.
+
 ## [1.10.3] - 2026-11-22
 
 ### Fixed
