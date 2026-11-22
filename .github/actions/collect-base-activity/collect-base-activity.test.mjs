@@ -1416,7 +1416,7 @@ function launchResolved(extra) {
 const PATCH = { "applied-by": { patch: "apply-patch" } };
 
 test("run-claude-cli refuses a writing skill, a patch-producing skill with a prepare mode, a gate and a check outside a no-prepare patch skill before any output", () => {
-  const onlyPatch = /checks, self-checks and verify-scripts run only in a skill that hands on a patch with no prepare mode/;
+  const onlyPatch = /checks and self-checks run only in a skill that hands on a patch with no prepare mode or review-threads, or under ci-context/;
   for (const [overrides, message] of [
     [{ EFFECT: "mutate-branch", CAN_COMMIT: "true" }, /only a read skill/],
     [{ PREPARE: "review-threads" }, /only a read skill/],
@@ -1620,14 +1620,14 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
 // tool's wrapper as its one Bash rule (bare and quoted), the thread files
 // staged read-only and denied to the file tools, and state/ left writable for
 // the replies file. pr-run-activity.md, "prepare: review-threads".
-function launchThreads({ runFile = true, threads = '{"threads":[]}\n' } = {}) {
+function launchThreads({ runFile = true, threads = '{"threads":[]}\n', extra = {} } = {}) {
   const feedbackDir = mkdtempSync(path.join(root, "launch-feedback-"));
   writeFileSync(path.join(feedbackDir, "threads.json"), threads);
   if (runFile) writeFileSync(path.join(feedbackDir, "run.json"), '{"version":1}\n');
   const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
   mkdirSync(scripts, { recursive: true });
   writeFileSync(path.join(scripts, "feedback-thread.sh"), "#!/usr/bin/env bash\n");
-  return launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" } }), PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, SKILL: "source-control:pull-request" });
+  return launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" }, ...extra }), PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, SKILL: "source-control:pull-request" });
 }
 
 const FEEDBACK_TOOL = `${WORKSPACE}/.lane/feedback/bin/feedback-thread`;
@@ -2121,4 +2121,41 @@ test("run-claude-cli: a merge-base skill that hands on no patch fails red before
   assert.notEqual(run.status, 0);
   assert.match(run.stdout, /only a read skill/);
   assert.deepEqual(run.tools, []);
+});
+
+test("run-claude-cli: a review-threads skill's self-checks are staged wrappers it may run by exact path, denied to the file tools", () => {
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho check\n", { mode: 0o755 });
+  const run = launchThreads({ extra: { "self-checks": ["scripts/check-x.sh --uncommitted"] } });
+  assert.equal(run.status, 0, run.stdout);
+  const lane = `${WORKSPACE}/.lane`;
+  const wrapper = `${lane}/checks/bin/check-x`;
+  assert.ok(run.allowedTools.includes(`Bash(${wrapper})`), run.allowedTools.join(" | "));
+  assert.ok(!run.allowedTools.some((rule) => rule.startsWith(`Bash(${wrapper} `)), run.allowedTools.join(" | "));
+  for (const tool of ["Edit", "Write", "NotebookEdit"]) assert.ok(run.deniedTools.includes(`${tool}(./.lane/checks/**)`), tool);
+  const check = readFileSync(path.join(run.stageDir, "checks", "bin", "check-x"), "utf8");
+  assert.ok(check.endsWith(`CHECK_DATA_ROOT=${WORKSPACE} exec ${lane}/checks/scripts/check-x.sh --uncommitted\n`), check);
+  assert.ok(check.includes("unset GH_TOKEN GITHUB_TOKEN\n"), check);
+  assert.ok(run.preamble.includes(`run each of these repository checks as written, with no arguments: ${wrapper}.`), run.preamble);
+});
+
+test("run-claude-cli: a ci-context skill's self-checks are staged base copies the preamble names", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-launch-self-checks-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho check\n", { mode: 0o755 });
+  const run = launch({ RESOLVED: launchResolved({ ...PATCH, "self-checks": ["scripts/check-x.sh --uncommitted"] }), PREPARE: "ci-context", CI_DIR: ciDir, SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  const lane = `${WORKSPACE}/.lane`;
+  for (const tool of ["Edit", "Write", "NotebookEdit"]) assert.ok(run.deniedTools.includes(`${tool}(./.lane/checks/**)`), tool);
+  assert.ok(readFileSync(path.join(run.stageDir, "checks", "bin", "check-x"), "utf8").endsWith(`exec ${lane}/checks/scripts/check-x.sh --uncommitted\n`));
+  assert.ok(run.preamble.includes(`run each of these repository checks as written, with no arguments: ${lane}/checks/bin/check-x.`), run.preamble);
+});
+
+test("run-claude-cli: self-checks stay refused under merge-base and dependency-review", () => {
+  for (const prepare of ["merge-base", "dependency-review"]) {
+    const run = launch({ RESOLVED: launchResolved({ ...PATCH, "self-checks": ["scripts/check-x.sh"] }), PREPARE: prepare });
+    assert.notEqual(run.status, 0, prepare);
+    assert.match(run.stdout, /checks and self-checks run only in a skill that hands on a patch with no prepare mode or review-threads, or under ci-context/);
+  }
 });
