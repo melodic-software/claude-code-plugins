@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.10] - 2026-11-22
+
+### Changed
+
+- `skills/pull-request/scripts/target-repo.sh` is now a generated copy of the shared `lib/target-repo.sh`, which the work-items GitHub adapter also carries; its resolution order is unchanged.
+
 ## [13.3.9] - 2026-11-21
 
 ### Fixed
