@@ -302,7 +302,7 @@ Avoid: human queue
 **PR hold**
 
 A stop on merging a pull request until it is lifted. Which holds each gate enforces is in
-AGENTS.md, Merging.
+AGENTS.md, Pull request states, and the hold convention in `docs/contracts/loop-lane/README.md`.
 
 **merge rung**
 
