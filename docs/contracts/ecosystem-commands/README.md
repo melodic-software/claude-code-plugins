@@ -234,7 +234,7 @@ lane membership without running a verb:
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<lane>.yaml` and
 no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: an ecosystem
 file outside the supported YAML subset stops the run with exit 2
-(`plugins/code-metrics/scripts/resolve-config.py:450-455`) instead of failing soft. Parseable but
+(`plugins/code-metrics/scripts/resolve-config.py:467-472`) instead of failing soft. Parseable but
 schema-invalid content is not validated. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
 merge form", the paragraph on consumer ecosystems files. **Recheck:** when that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
 
