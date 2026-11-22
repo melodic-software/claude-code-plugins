@@ -702,6 +702,15 @@ test("the kill switch stops the run before any API call", async () => {
 const lift = (actor, name = "needs-human") => ({ event: "unlabeled", actor, label: { name }, created_at: "2026-10-24T00:00:00Z" });
 const runLift = (w) => run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "" });
 
+test("with needs-human on both the label and the field, the label lift re-enters only once the field is cleared, as the hold reply says", async () => {
+  const held = world({ labels: ["priority: medium"], events: [lift(OWNER)], fieldNodes: heldOnField("needs-human") });
+  assert.equal(await runLift(held), 0);
+  assert.equal(held.dispatches().length, 0, "the field still holds the issue");
+  const cleared = world({ labels: ["priority: medium"], events: [lift(OWNER)], fieldNodes: [...heldOnField("needs-human"), fieldNode("IssueFieldRemovedEvent", OWNER)] });
+  assert.equal(await runLift(cleared), 0);
+  expectDispatched(cleared);
+});
+
 test("a listed human lifting needs-human sends the issue back to triage", async () => {
   const w = world({ labels: ["priority: medium"], events: [lift(OWNER)] });
   assert.equal(await runLift(w), 0);

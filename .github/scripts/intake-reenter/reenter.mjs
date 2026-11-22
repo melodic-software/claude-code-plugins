@@ -112,7 +112,7 @@ export const HOLD_MARKER = "<!-- intake-reenter:needs-human-decision -->";
 export const FORM_MARKER = "<!-- intake-reenter:decision-form -->";
 const HOW_FIELD = "a listed human changes the issue's Work status field from needs-human to needs-triage, or clears it";
 const HOW_FIELD_REPOST = "a listed human clears the issue's Work status field and then posts the decision again, since a field release re-enters no issue that also carries a status label";
-const HOW_LABEL = `a listed human removes the \`${NEEDS_HUMAN}\` label`;
+const HOW_LABEL = `a listed human clears the issue's Work status field if it also reads needs-human, then removes the \`${NEEDS_HUMAN}\` label`;
 const HOW_LABEL_CONFIRMED = `${HOW_LABEL} and then posts the decision again, since a label removal re-enters no issue at \`${CONFIRMED}\``;
 const holdReply = (how) =>
   `${HOLD_MARKER}\n\`${NEEDS_HUMAN}\` holds this issue, so a recorded decision does not send it back to intake triage. The hold stays until ${how}. The issue then goes back to intake triage, which reads the decision.`;
