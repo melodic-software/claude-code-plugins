@@ -274,7 +274,7 @@ chomp_nl LAST
 # launcher. TTL keeps a crashed lane's record from outliving its usefulness; the
 # session claim makes a replayed id (e.g. one a lane leaked and a repo env block
 # later serves to a different session) worthless.
-GATE_ARM_TTL_SECONDS=$((7 * 86400))
+GATE_ARM_TTL_SECONDS=$((GATE_ARM_TTL_DAYS * 86400))
 GATE_ARM_JSON=""
 
 # Does this session own the record whose claim sidecar is <claim path>?
