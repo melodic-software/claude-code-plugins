@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "route",
+            "args": "vendors unattended race fix across thirty files session=opus"
+          }
+        }
+      ],
+      "why": "route skill, bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "multi-agent:assess"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ]
+}

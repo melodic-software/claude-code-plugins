@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Basis: https://code.claude.com/docs/en/model-config#choose-an-effort-level",
+      "why": "link anchor"
+    },
+    {
+      "answer": "(basis: model config, Choose an effort level)",
+      "why": "section name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "(basis: default; heavy task)",
+      "why": "no effort table"
+    }
+  ]
+}
