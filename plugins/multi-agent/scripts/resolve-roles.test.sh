@@ -174,6 +174,44 @@ out="$(run layered worker --session-model opus)"
 assert_contains "user-global effort and personal override model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
 assert_contains "source names the layer per value" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
 
+fixture newlayers
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/newlayers/user.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/newlayers/repo/docs/conventions/multi-agent.local.yaml"
+out="$(run newlayers worker --session-model opus --user-file "$T/newlayers/user.yaml")"
+assert_contains "new layers: user file effort and personal override model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
+assert_contains "new layers: source names user-config and personal-override" "$out" '"source":{"model":"personal-override","effort":"user-config"}'
+assert_contains "new layers: the personal row names the home path" "$out" '"layer":"personal-override","path":"'"$T/newlayers/repo/docs/conventions/multi-agent.local.yaml"'","state":"read"'
+assert_lacks "new layers: no old-path warning" "$out" 'old path'
+
+fixture tilde
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/tilde/home/user.yaml"
+out="$(run tilde worker --session-model opus --user-file \~/user.yaml)"
+assert_contains "tilde: a leading ~/ reads the file under the home" "$out" '"layer":"user-config","path":"'"$T/tilde/home/user.yaml"'","state":"read"'
+out="$(run tilde worker --session-model opus --user-file user.yaml)"
+assert_eq "relative: the resolver still exits 0" 0 "$?"
+assert_contains "relative: the note asks for an absolute path" "$out" "user-config layer skipped: the role_map_file option 'user.yaml' is not an absolute path; set an absolute path in /config"
+assert_contains "relative: the user layer is absent" "$out" '"layer":"user-config","path":"","state":"absent"'
+
+fixture oldonly
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/oldonly/home/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/oldonly/repo/.claude/multi-agent.local.yaml"
+out="$(run oldonly worker --session-model opus --user-file '${user_config.role_map_file}')"
+assert_contains "old only: values apply" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
+assert_contains "old only: an unsubstituted option reads as unset" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
+assert_contains "old only: the user file warning names the option and setup" "$out" "user-global: $T/oldonly/home/.claude/multi-agent.yaml is an old path, still read until it moves; /multi-agent:setup apply --migrate moves it to the file the role_map_file option names"
+assert_contains "old only: the personal warning names the new location" "$out" "personal-override: $T/oldonly/repo/.claude/multi-agent.local.yaml is an old path, still read until it moves; /multi-agent:setup apply --migrate moves it to $T/oldonly/repo/docs/conventions/multi-agent.local.yaml"
+assert_eq "old only: one warning per old file on stderr" 2 "$(grep -c 'is an old path' "$T/oldonly.err")"
+
+fixture both
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/both/home/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/both/user.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: opus\n' >"$T/both/repo/.claude/multi-agent.local.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/both/repo/docs/conventions/multi-agent.local.yaml"
+out="$(run both worker --session-model opus --user-file "$T/both/user.yaml")"
+assert_contains "both: the new files win" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
+assert_contains "both: the user warning names both files" "$out" "user-global: $T/both/home/.claude/multi-agent.yaml is an old path and not read, since $T/both/user.yaml supplies the layer"
+assert_contains "both: the personal warning names both files" "$out" "personal-override: $T/both/repo/.claude/multi-agent.local.yaml is an old path and not read, since $T/both/repo/docs/conventions/multi-agent.local.yaml supplies the layer"
+
 # Turning the guard off is the explicit opt-in to frontier fan-outs.
 fixture optout
 printf 'schema: 1\nfanout:\n  frontier_guard: false\n' >"$T/optout/repo/docs/conventions/multi-agent.yaml"
