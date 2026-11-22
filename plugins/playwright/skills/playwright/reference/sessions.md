@@ -9,6 +9,7 @@ Named sessions isolate cookies, storage, cache, history, and tabs. Use `-s=<name
 - [Implicit session via env](#implicit-session-via-env)
 - [Persistent profiles](#persistent-profiles)
 - [Attach to a running browser (CDP)](#attach-to-a-running-browser-cdp)
+- [Attach to the user's browser (extension)](#attach-to-the-users-browser-extension)
 - [Patterns](#patterns)
 - [Naming discipline](#naming-discipline)
 
@@ -39,7 +40,7 @@ playwright-cli -s=<name> delete-data  # remove persistent profile data
 
 If a headless session reports the browser is not open after a pause, run `open` again and redo any in-memory setup. Before a long pause mid-flow, raise the idle limit with `open --idle-timeout=<ms>`.
 
-- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live; for the change, fetch the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). **As of**: 2026-11-16. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live, or fetch upstream's [session-management reference, "Browser Session Commands"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/session-management.md#browser-session-commands); correlate with the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20).
 
 ## Implicit session via env
 
@@ -83,12 +84,23 @@ playwright-cli attach --cdp=msedge
 
 # By explicit CDP endpoint
 playwright-cli attach --cdp=http://localhost:9222
-
-# Via Playwright browser extension
-playwright-cli attach --extension
 ```
 
 Supported channels: `chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `msedge`, `msedge-beta`, `msedge-dev`, `msedge-canary`.
+
+## Attach to the user's browser (extension)
+
+To work in the user's own browser profile (their tabs and logins), attach through the Playwright Extension. Name the browser, and name the session for the task:
+
+```bash
+playwright-cli attach --extension=chrome --session=checkout-review
+playwright-cli -s=checkout-review goto https://app.example.com
+playwright-cli -s=checkout-review detach
+```
+
+Preserve the user's tabs: end the session with plain `detach`, and close its tabs only when the user says they no longer need them.
+
+- **Pointer**: before any cleanup of the session, and for the browser choice, the tab-group flags and the error when the extension is missing, fetch upstream's [session-management reference, "Attach via browser extension"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/session-management.md#attach-via-browser-extension) live; correlate with the [v0.1.25 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.25).
 
 ## Patterns
 
