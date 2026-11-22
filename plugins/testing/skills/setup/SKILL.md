@@ -73,10 +73,30 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" check
 ```
 
 It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer does not resolve
-(the file and line are on stderr). Its four sections:
+(the file and line are on stderr). Its five sections:
 
 1. **config**: the resolved records, or the note that no layer exists.
-2. **lint**: one row per rule for each language the repository's tracked test files use. The script
+2. **old paths**: each testing config file found at an old path, the location to move it to, and a
+   preview of what a copy would write there. The old paths and their new locations:
+
+   | Old path | New location |
+   |---|---|
+   | `.claude/testing.yaml` | `<home>/testing.yaml` |
+   | `.claude/testing.local.yaml` | `<home>/testing.local.yaml` |
+   | `~/.claude/testing.yaml` | each key's `userConfig` option, else `<home>/testing.local.yaml` |
+   | `.claude/testing/e2e.md` | `<home>/testing/e2e.md` |
+   | `.claude/testing/e2e.local.md` and `~/.claude/testing/e2e.md` | `<home>/testing/e2e.local.md` |
+   | `.claude/testing/worst-case.md` | `<home>/testing/worst-case.md` |
+
+   A copy writes a whole file into a new location that does not exist yet, else appends the old
+   file's top-level YAML keys the new file lacks. A copy leaves out three things the section names
+   for the user to handle by hand: a key both files set, a key of `~/.claude/testing.yaml` with a
+   `userConfig` option (set the option), and a Markdown file whose new location exists. A personal (`.local.`) location must be
+   gitignored before a copy. A user-global file (`~/.claude/testing.yaml`, `~/.claude/testing/e2e.md`)
+   is not copied while its new location is absent and the repository's old personal file for that
+   location exists: creating the location would stop that file being read, so copy it first. The
+   old file always stays in place.
+3. **lint**: one row per rule for each language the repository's tracked test files use. The script
    reads the lint config as text: a rule named there, or its plugin referenced beside a recommended
    config, reads as present. Treat a `PRESENT` row from the recommended-config path as likely rather
    than proven, and say so. A `FINDING` is a gap to report, not a neutral absence. The rules:
@@ -118,7 +138,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      can decide the rule: a change that makes the mistake impossible first, then a check that
      blocks it, then a test, and an instruction only when nothing a machine runs can decide it.
      Say that `/corrections:codify` was not available, so the proposal is unproven.
-3. **instruction**: the optional line, naming one file Claude Code loads at the repository
+4. **instruction**: the optional line, naming one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is
    read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). Offer it as a pointer: it
@@ -126,7 +146,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    pointing at that team file; do not paste it anywhere. A test rule a check could decide goes to
    `/corrections:codify "<the test pattern>"` instead of the instruction line, named for the user
    behind the same availability gate and fallback as the lint rows above.
-4. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
+5. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
    per-edit hook, then, when a consumer glob matches no shipped `test-weaken` row, a line naming
    those globs: the audit scans them, `test-weaken` skips them. No settings entry is printed.
 
@@ -138,7 +158,16 @@ missing launcher.
 ## `apply`
 
 1. Run `check` and summarize the effective config before proposing a change. Nothing already
-   configured is dropped without the user confirming.
+   configured is dropped without the user confirming. For each file the old paths section names
+   with a copy preview, show that preview and ask whether to copy it. On a yes, run the command
+   the section prints for that file, one file per yes; `--copy-old` takes no answer flags and
+   writes nothing else. Pass the old path exactly as the section prints it: it is already quoted
+   for the shell.
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply --copy-old <old file as printed>
+   ```
+
 2. Ask only what the repository cannot answer: folders or files to leave out, test files the
    shipped globs miss (and which adapter reads them), adapters to turn off, rule levels.
 3. Write the team layer with the answers. The script writes the team file in use:
@@ -158,7 +187,7 @@ missing launcher.
    `--extend <id>.<field>=<value>`, `--rule <rule>=off|warn|error`, each repeatable.
 4. Run `check` again. Offer `git add` for the file
    `apply` printed and a commit, and run each only when the user accepts. Personal overrides go in
-   `.claude/testing.local.yaml`, which should be gitignored. `check` also prints the optional line
+   `<home>/testing.local.yaml`, which should be gitignored. `check` also prints the optional line
    to paste into `CLAUDE.md` or `AGENTS.md` that points at `docs/conventions/testing.md` when that
    file exists; a test rule a check could decide goes to `/corrections:codify` instead, as
    `check`'s instruction section says.

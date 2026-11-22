@@ -209,7 +209,6 @@ cat >"$TMP_ROOT/reader.py" <<'EOF'
 import json, os, sys
 with open(os.environ["STUB_LOG"], "a") as log:
     log.write("reader " + " ".join(sys.argv[1:]) + "\n")
-    log.write("reader-env header-limit=" + os.environ.get("BABYSIT_READ_FLOOR_HEADER_LIMIT", "") + "\n")
     log.write("reader-env floor-wait=" + os.environ.get("BABYSIT_READ_FLOOR_WAIT_SECONDS", "") + "\n")
 if os.environ.get("STUB_READER_RC"):
     sys.exit(int(os.environ["STUB_READER_RC"]))
@@ -296,7 +295,7 @@ expect() {
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" BABYSIT_VERIFY_LEGACY_FAILS="$TMP_ROOT/base/.github/verify-legacy-fails.json" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -458,7 +457,7 @@ tip_step="$(awk -v tip="      - name: Resolve main's tip" -v name="      - name:
   on { buf = buf $0 "\n" }' "$WORKFLOW")"
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$base_step" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$base_step" == *"&& steps.tip.outputs.sha != '' }}"* &&
-  "$tip_step" == *"id: tip"* && "$tip_step" == *'TIP_BRANCH: ${{ github.event.repository.default_branch }}'* &&
+  "$tip_step" == *"id: tip"* && "$tip_step" == *'branch: ${{ github.event.repository.default_branch }}'* &&
   "$base_step" == *"persist-credentials: false"* ]]; then
   ok "the reader's checkout is the default branch tip, with no credential kept"
 else
@@ -705,7 +704,7 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs \
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
-  plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
   plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py docs/conventions/pr-pipeline.yaml \
   .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
   .github/scripts/pr-review-main/write-verdict.mjs; do
@@ -889,14 +888,6 @@ if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --repo o/r --base-sha 
   ok "the queue runs the verdict reader once, for the pull request at its head, with the group's base for the FAIL cap"
 else
   fail "the verdict reader ran as: '$(grep '^reader ' "$TMP_ROOT/log")'"
-fi
-# Owner decision D418: the queue's reader plans its read floor to the token's
-# live header limit, not github-token's limit-cap
-# (https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
-if grep -qxF "reader-env header-limit=1" "$TMP_ROOT/log"; then
-  ok "the queue's verdict reader plans its read floor to the header's limit"
-else
-  fail "the queue's verdict reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
 fi
 if [[ $budget -gt 300 ]] && grep -qxF "reader-env floor-wait=$budget" "$TMP_ROOT/log"; then
   ok "with no wait before it, the queue's verdict reader may wait the whole merge-group budget"
@@ -1124,11 +1115,6 @@ for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:u
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
 done
 STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
-if grep -qxF "reader-env header-limit=" "$TMP_ROOT/log"; then
-  ok "an owner pull request's reader, whose refusals other than a FAIL hold nothing, keeps the limit-cap"
-else
-  fail "an owner pull request's reader ran with: '$(grep '^reader-env ' "$TMP_ROOT/log")'"
-fi
 STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
 STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"

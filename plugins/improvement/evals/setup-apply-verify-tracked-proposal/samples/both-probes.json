@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "Verify:\n\n```bash\ngit check-ignore -v .claude/improvement.md\ngit ls-files --error-unmatch .claude/improvement.md\n```",
+      "answer": "Verify:\n\n```bash\ngit check-ignore -v docs/conventions/improvement.yaml\ngit ls-files --error-unmatch docs/conventions/improvement.yaml\n```",
       "why": "both probes"
     },
     {
-      "answer": "Run `git check-ignore -v .claude/improvement.md` (expect no output) and `git ls-files --error-unmatch .claude/improvement.md` (expect exit 1 until committed).",
+      "answer": "Run `git check-ignore -v docs/conventions/improvement.yaml` (expect no output) and `git ls-files --error-unmatch docs/conventions/improvement.yaml` (expect exit 1 until committed).",
       "why": "inline"
     }
   ],
   "fail": [
     {
-      "answer": "Verify with `git check-ignore -v .claude/improvement.md`; no output means it is shared.",
+      "answer": "Verify with `git check-ignore -v docs/conventions/improvement.yaml`; no output means it is shared.",
       "why": "not-ignored probe only"
     },
     {
-      "answer": "Verify with `git ls-files --error-unmatch .claude/improvement.md`.",
+      "answer": "Verify with `git ls-files --error-unmatch docs/conventions/improvement.yaml`.",
       "why": "tracked probe only"
     }
   ]

@@ -318,7 +318,7 @@ async function postAtHead({ api, pull, verdict, appId, log }) {
   const resolved = new Set((await api.listThreads(pr)).filter((thread) => thread.isResolved === true).flatMap((thread) => (thread.comments?.nodes ?? []).map((comment) => comment.databaseId)));
   const posted = new Set(
     (await api.listReviewComments(pr))
-      .filter((comment) => markedBy(comment, VERIFY_NOTE_MARKER) && comment.commit_id === head && !resolved.has(comment.id))
+      .filter((comment) => markedBy(comment, VERIFY_NOTE_MARKER) && comment.original_commit_id === head && !resolved.has(comment.id))
       .map((comment) => comment.path),
   );
   const files = (await api.listPullFiles(pr)).map((file) => file.filename);

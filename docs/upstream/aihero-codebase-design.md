@@ -8,7 +8,7 @@ with a deterministic check, and runs a refactor from a scan report through a spe
 counterparts are [`/architecture:improve`](../../plugins/architecture/skills/improve/SKILL.md),
 [`/architecture:principles`](../../plugins/architecture/skills/principles/SKILL.md),
 [`/architecture:enforce-boundaries`](../../plugins/architecture/skills/enforce-boundaries/SKILL.md),
-[`/architecture:record-decision`](../../plugins/architecture/skills/record-decision/SKILL.md),
+[`/architecture:adr`](../../plugins/architecture/skills/adr/SKILL.md),
 [`/planning:design`](../../plugins/planning/skills/design/SKILL.md),
 [`/tdd:principles`](../../plugins/tdd/skills/principles/SKILL.md) and
 [`/work-items:ship`](../../plugins/work-items/skills/ship/SKILL.md). Rows hold our decisions and

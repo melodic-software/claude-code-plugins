@@ -65,8 +65,8 @@ artifact sets the item's type (work step 5's table).
 - **Interview is the entry.** `/planning:interview` suggests wayfind once an interview passes its
   size threshold; that skill owns the threshold. An effort that fits one session skips the map.
 - **Chart reads an existing interview ledger** and seeds the map from it (chart step 1). With no
-  interview of the effort behind it, chart offers the interview first, preloaded with what the user
-  has already said, and runs it inline.
+  interview of the effort behind it, and only when the no-fog bail-out has not fired, chart offers the
+  interview first, preloaded with what the user has already said, and runs it inline.
 - **The map closes to `/planning:prd`, `/planning:plan` then `/work-items:decompose`, or
   `/work-items:work`**, or ends in
   a decision record or a general summary when that is its destination (work step 8).
@@ -181,7 +181,10 @@ skill's chain), stop and report that charting needs an interactive session. Do n
      uncertainty is already sharp, or the whole effort fits one session), the effort skips the
      map. Stop and route out instead of fabricating one: a single contract to lock → invoke
      `/planning:interview` via the Skill tool; a set of sharp tickets → `/work-items:decompose`
-     (or `/work-items:track add` for one ticket); small enough to just do → say so. The trigger
+     (or `/work-items:track add` for one ticket); small enough to just do → say so. The bail-out
+     ends the run at that one route: it never offers `/planning:interview` beside or before a
+     route to decompose, a ticket or doing it, since the interview offer below is only for an
+     effort that keeps the map. The trigger
      is too-big and foggy, both, never either alone. Seeded rows are sharp by construction, so
      the fog must come from the survey; a seeded interview with no fog goes back to its own
      handoff and resume.
@@ -291,8 +294,8 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    |---|---|---|
    | `<prefix> research` | agent-capable | `/discovery:research` (falls back to inline research if not enabled) |
    | `<prefix> interview` | `<human-gated>` (intent) | `/planning:interview` |
-   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility; its vendor-fit mode when the item proves an outside vendor does something) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
+   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work (falls back to `/planning:design` if not enabled) |
+   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility; its vendor-fit mode when the item proves an outside vendor does something) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment. Falls back to `/planning:design` if not enabled: the resolution comment says no artifact was built, and the decision the item settles is recorded as provisional, naming this prototype item (step 6). This fallback route is itself provisional until a prototype item is first worked without the plugin and shows whether a discussion settles its question |
    | `<prefix> task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate`; its resolution records the names and locations of what was set up, never the values |
 
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
@@ -304,7 +307,9 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    the item (comment → index → close, as one atomic sequence). The comment takes its type's shape
    ([`context/map-anatomy.md`](context/map-anatomy.md) "Resolution comments"). A decision that
    rests on a prototype not yet run is recorded as provisional, naming that prototype item, and
-   that prototype's resolution confirms or reverses it (map-anatomy "Provisional decisions").
+   that prototype's verdict confirms or reverses it. A marker naming a prototype item that closed
+   through the `/planning:design` fallback, with no verdict, clears only through a new prototype
+   item charted once the prototype plugin is enabled (map-anatomy "Provisional decisions").
    **Wrongly scoped** (on the tracker
    but not this effort): add one Out-of-scope line linking it, then close it, with no
    Decisions-so-far pointer. Fog stays in Not-yet-specified and never moves into Out-of-scope for
@@ -337,7 +342,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    ruled out of scope by the user, which moves it to Out-of-scope with the reason; that ruling is
    the one way fog leaves without being charted. Then post a closing comment on the map that states every resolved decision in full: for
    each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
-   resolution comment records, not only the link, and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then close the map issue and hand the decisions
+   resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it). Then close the map issue and hand the decisions
    to the destination's skill in a source form it accepts:
 
    | Destination | Closes to |
@@ -345,7 +350,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    | A PRD | `/planning:prd`, with the closing comment's decisions and a `Source map: #<map-number>` line as its task description |
    | A set of build items (a spec or plan) | `/planning:plan`, with the closing comment's decisions and a `Source map: #<map-number>` line as its task description, then `/work-items:decompose` from that plan. A map whose decisions already read as slices goes straight to `/work-items:decompose #<map-number>`; its item source reads the map's body and comments, so it finds the decisions in the closing comment |
    | One change | `/work-items:work` on the item `/work-items:track add` files for it, its body carrying the decisions |
-   | A decision record | `/architecture:record-decision` when enabled, else the repository's ADR convention, given the decisions |
+   | A decision record | `/architecture:adr` when enabled, else the repository's ADR convention, given the decisions |
    | A general summary | The closing comment is the summary; no further skill |
 
    The map's dossier branch, if one exists, goes through the work-items dossier-branch step, which
@@ -374,12 +379,12 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | When | Skill | How it composes |
 |---|---|---|
 | Effort too big and foggy to ticket | **`/planning:wayfind`** (this) | Produces a map of decision items; closes to its destination |
-| The entry, and a single sharp contract to lock | `/planning:interview` | Suggests wayfind past its size threshold; chart runs it inline when no interview exists; `interview`-typed items route here |
+| The entry, and a single sharp contract to lock | `/planning:interview` | Suggests wayfind past its size threshold; chart runs it inline when no interview exists and the no-fog bail-out has not fired; `interview`-typed items route here |
 | Product intent still fuzzy | `/planning:prd` | Closure target when the destination is a PRD |
 | Sharp build work | `/planning:plan`, `/work-items:decompose`, `/work-items:work` | Closure targets for a set of build items (plan, then decompose) or one change |
 | Human-only setup in a task item | `/wizard:generate` | `task`-typed items whose work only a human can do route here |
 | Design-space item | `/planning:design`, `/event-storming:*` | `design`-typed items route here |
-| Feasibility / UX unknown | `/prototype:pressure-test`, `/prototype:explore-directions` | `prototype`-typed items route here |
+| Feasibility / UX unknown | `/prototype:pressure-test`, `/prototype:explore-directions` | `prototype`-typed items route here (`/planning:design` if not enabled) |
 | External-evidence item | `/discovery:research` | `research`-typed items route here |
 
 Pre-implementation order (blindspot → brainstorm/prototype → interview, calling a PRD when product
@@ -405,7 +410,7 @@ intent is unsettled and escalating here when it outgrows one session → referen
 ## Next
 
 - The map is charted: /planning:wayfind work.
-- The effort has no interview behind it yet: /planning:interview.
+- The effort keeps the map but has no interview behind it yet: /planning:interview.
 - The map closed on a set of build items: /planning:plan.
 - The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.
 - The map closed on a PRD: /planning:prd.

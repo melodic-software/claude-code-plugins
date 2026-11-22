@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local",
+      "why": "warning line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Config presence | PASS | operators: narrow (.claude/mutation-testing.local.md) |",
+      "why": "no warning"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Instruction-placement team config",
+  "description": "Schema for instruction-placement.yaml in a repository's convention home (default docs/conventions): the declined findings that /instruction-placement:audit, delta and realign read and realign writes, listed in plugins/instruction-placement/reference/consumer-config.md. Entry format: the finding-suppression contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "suppressions": {
+      "type": "object",
+      "description": "Declined findings keyed by finding_id, the hash of each entry's check, claim and sites.",
+      "propertyNames": { "pattern": "^[0-9a-f]{16}$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["check", "claim", "sites", "reason", "date"],
+        "properties": {
+          "check": { "type": "string", "minLength": 1 },
+          "claim": { "type": "string", "minLength": 1 },
+          "sites": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["surface"],
+              "properties": { "surface": { "type": "string", "minLength": 1 } },
+              "patternProperties": { "^anchor/v[0-9]+$": { "type": "string" } }
+            }
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "date": { "description": "The day the decline was recorded, as YYYY-MM-DD." }
+        }
+      }
+    }
+  }
+}

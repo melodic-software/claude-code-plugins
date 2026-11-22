@@ -20,13 +20,6 @@
 # into link text. A pattern with no capture group, or a capture of any other
 # shape, yields no output and exit 1. It resolves, first hit wins:
 #   1. The layered `branch_issue_pattern` key (reference/config-resolution.md):
-#      `<repo>/.claude/source-control.local.md` over the team layer over
-#      `$HOME/.claude/source-control.md`. The team layer is the
-#      `branch_issue_pattern` key of `<repo>/docs/conventions/source-control.yaml`,
-#      read only when git tracks it; an untracked one is skipped with a note.
-#      The retired `<repo>/.claude/source-control.md` is not read. A team YAML
-#      the shared reader rejects stops resolution. `--explain` prints the layer
-#      that supplied the pattern on stderr.
 #      In a markdown layer the value is the `## branch_issue_pattern` section's
 #      first non-blank line, surrounding backticks
 #      stripped, or, when that line opens a code fence, the first non-blank line
@@ -260,6 +253,9 @@ usable_pattern() {
 
 REPO_ROOT="$(config_root_resolve)"
 
+SETUP_HINT="run /source-control:setup apply to move it, which deletes the old file"
+old_location() { note "old location ${1}: $2; move its keys to ${3}; ${SETUP_HINT}"; }
+
 LAYERS=()
 USER_LAYER="${HOME:-}/.claude/source-control.md"
 if [[ -n "$REPO_ROOT" ]]; then
@@ -267,9 +263,18 @@ if [[ -n "$REPO_ROOT" ]]; then
     home) note "team and personal override not applicable: project root is the home directory (or an ancestor of it)" ;;
     non-repo) note "team and personal override not applicable: project root is not inside a git repository" ;;
     *)
-      personal_override="${REPO_ROOT}/.claude/source-control.local.md"
+      PERSONAL_YAML="${REPO_ROOT}/${CONVENTION_KEY_LOCAL_REL}"
+      personal_override="${REPO_ROOT}/${CONVENTION_KEY_OLD_LOCAL_REL}"
       TEAM_YAML="${REPO_ROOT}/${CONVENTION_KEY_YAML_REL}"
-      config_root_paths_same "$personal_override" "$USER_LAYER" || LAYERS+=("$personal_override")
+      [[ -f "$PERSONAL_YAML" ]] && LAYERS+=("$PERSONAL_YAML")
+      if [[ -f "$personal_override" ]] && ! config_root_paths_same "$personal_override" "$USER_LAYER"; then
+        if [[ -f "$PERSONAL_YAML" ]]; then
+          old_location "$personal_override" "not read, since ${CONVENTION_KEY_LOCAL_REL} supplies the personal override" "$PERSONAL_YAML"
+        else
+          LAYERS+=("$personal_override")
+          old_location "$personal_override" "still read as the personal override" "$PERSONAL_YAML"
+        fi
+      fi
       # The team layer is the YAML, a layer only when git tracks it, as in the
       # commit skill. The retired .claude/source-control.md is not read.
       if convention_key_tracked "$REPO_ROOT" "$CONVENTION_KEY_YAML_REL"; then
@@ -280,25 +285,32 @@ if [[ -n "$REPO_ROOT" ]]; then
       ;;
   esac
 fi
-LAYERS+=("$USER_LAYER")
+if [[ -n "${HOME:-}" && -f "$USER_LAYER" ]]; then
+  LAYERS+=("$USER_LAYER")
+  old_location "$USER_LAYER" "still read as the lowest layer" \
+    "${CONVENTION_KEY_YAML_REL} (team) or ${CONVENTION_KEY_LOCAL_REL} (personal) in each repository that needs it"
+fi
 
 # The layer a resolved pattern came from, as reported by --explain.
 layer_label() {
   case "$1" in
     "${TEAM_YAML:-}") echo "$CONVENTION_KEY_YAML_REL" ;;
-    "${personal_override:-}") echo ".claude/source-control.local.md" ;;
-    "$USER_LAYER") echo "user-global .claude/source-control.md in the home directory" ;;
+    "${PERSONAL_YAML:-}") echo "$CONVENTION_KEY_LOCAL_REL" ;;
+    "${personal_override:-}") echo "old personal override ${CONVENTION_KEY_OLD_LOCAL_REL}" ;;
+    "$USER_LAYER") echo "old user-global .claude/source-control.md in the home directory" ;;
     *) echo "$1" ;;
   esac
 }
 
 PATTERN="" SOURCE="" LABEL=""
-for layer in "${LAYERS[@]}"; do
-  if [[ -n "${TEAM_YAML:-}" && "$layer" == "$TEAM_YAML" ]]; then
-    value="$(convention_key_yaml_value "$REPO_ROOT" "$KEY")"
+for layer in ${LAYERS[@]+"${LAYERS[@]}"}; do
+  if [[ "$layer" == "${TEAM_YAML:-}" || "$layer" == "${PERSONAL_YAML:-}" ]]; then
+    rel="$CONVENTION_KEY_YAML_REL"
+    [[ "$layer" == "${PERSONAL_YAML:-}" ]] && rel="$CONVENTION_KEY_LOCAL_REL"
+    value="$(convention_key_yaml_value "$REPO_ROOT" "$KEY" "$rel")"
     rc=$?
     if [[ "$rc" -ne 0 ]]; then
-      note "${CONVENTION_KEY_YAML_REL} could not be parsed; ${STOP}"
+      note "${rel} could not be parsed; ${STOP}"
       exit 1
     fi
   else

@@ -38,5 +38,4 @@ plugins/machine-health/skills/audit/reference/windows/remediation-policy.md
 plugins/playwright/skills/playwright/reference/snapshots-and-refs.md
 plugins/skill-quality/skills/check/reference/fresh-eyes-declarations.md
 plugins/source-control/skills/setup/SKILL.md
-plugins/toolchain/skills/check/context/powershell.md
 plugins/work-items/skills/scan-todos/SKILL.md

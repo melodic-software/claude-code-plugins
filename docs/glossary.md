@@ -211,7 +211,7 @@ refuses or parks it (`status: confirmed`, `attended`, `host-run`). It is the sec
 **approve**, at the point Kanban calls the commitment point
 ([`admit.mjs`](../.github/scripts/intake-triage/admit.mjs)). The local `work-loop`'s admission gate
 is the same step in a local loop. The ADR admission test
-([`record-decision`](../plugins/architecture/skills/record-decision/SKILL.md#admission-test-advisory))
+([`adr`](../plugins/architecture/skills/adr/SKILL.md#admission-test-advisory))
 is a separate sense.
 
 Distinct from the **queue**: the `agent-ready` issues admission let in, waiting for a build run.
@@ -309,6 +309,19 @@ body hold or a human comment asking to wait until the owner lifts it (AGENTS.md,
 **merge rung**
 
 A level of merge authority a repository grants its lanes, from human-only merge upward.
+
+**merge-risk rating**
+
+A model's rating of one pull request head, from LOW to CRITICAL, written as the pull request's
+`Merge-Risk:` body line.
+
+Avoid: risk score (that is the diff risk score)
+
+**diff risk score**
+
+A deterministic score of a pull request's diff, LOW, MED or HIGH, with the reason codes behind it.
+
+Avoid: merge risk, babysit risk (merge risk is the merge-risk rating)
 
 **changelog fragment**
 

@@ -1469,6 +1469,36 @@ class AutoClearOnGreen(unittest.TestCase):
             result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
         )
 
+    def test_close_cleared_closing_a_recovered_record_leaves_the_floor(self) -> None:
+        green = policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
+        closed_at = "2026-10-12T13:00:00Z"
+        for name, actor, floor in (
+            ("open, recovered by the 11:00 green", None, green),
+            ("close-cleared's github-actions[bot] close keeps the recovery", bot("github-actions"), green),
+            ("a User login github-actions with write is still not human", user("github-actions"), green),
+            ("a person's close moves the floor to the close", user(OPERATOR), policy.datetime.fromisoformat(closed_at)),
+        ):
+            with self.subTest(name):
+                issue = (
+                    {}
+                    if actor is None
+                    else {
+                        "state": "CLOSED",
+                        "timelineItems": {
+                            "nodes": [{"createdAt": closed_at, "actor": actor, "closer": None}]
+                        },
+                    }
+                )
+                self.fake(**issue)
+                result = policy.read_demotion(
+                    REPO,
+                    agent_identity=IDENTITY,
+                    permission=permissions({OPERATOR: "admin", "github-actions": "write"}),
+                    now=NOW,
+                )
+                self.assertFalse(result.active, result.reason)
+                self.assertEqual(result.cleared_at, floor)
+
     def test_a_record_cleared_early_reads_no_later_span(self) -> None:
         # However many green runs came since, a record main cleared in its
         # first span reads only that span: later spans would fail the read.
@@ -5538,6 +5568,7 @@ class LocalEnabledSince(unittest.TestCase):
         )
         blob = self.git(self.clone, "rev-parse", f"{head}:tool.sh")
         self.assertEqual([(f.blob, f.previous_blob) for f in files], [(blob, blob)])
+        self.assertEqual([f.diff_read for f in files], [False])
         self.assertEqual(
             gh.calls,
             [
@@ -5549,6 +5580,38 @@ class LocalEnabledSince(unittest.TestCase):
                 ]
             ],
         )
+
+    def test_a_no_patch_file_is_read_from_the_clone_diff_only_as_text(self) -> None:
+        base = self.commit("docs/big.md", "old\n", "2026-10-01T00:00:00Z")
+        self.commit("docs/big.md", "x" * 4000 + "\n", "2026-10-02T00:00:00Z")
+        (self.clone / "tool.bin").write_bytes(b"\0binary\n")
+        self.git(self.clone, "add", "tool.bin")
+        self.git(self.clone, "commit", "-q", "-m", "y", date="2026-10-03T00:00:00Z")
+        head = self.git(self.clone, "rev-parse", "HEAD")
+        gh = self.local()
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {"filename": "docs/big.md", "status": "modified", "additions": 1, "deletions": 1},
+            {"filename": "tool.bin", "status": "added", "additions": 0, "deletions": 0},
+            {
+                "filename": "docs/small.md",
+                "status": "added",
+                "additions": 1,
+                "deletions": 0,
+                "patch": "@@",
+            },
+        ]  # fmt: skip
+        pr = {
+            "number": 7,
+            "changed_files": 3,
+            "head": {"sha": head},
+            "base": {"sha": base},
+        }
+        files, _ = policy.changed_files(REPO, pr)
+        self.assertEqual(
+            [(f.path, f.diff_read) for f in files],
+            [("docs/big.md", True), ("tool.bin", False), ("docs/small.md", False)],
+        )
+        self.assertFalse(policy._diff_read("0" * 40, head, "docs/big.md"))
 
     def test_a_tree_missing_from_the_clone_reads_the_api(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
@@ -7756,7 +7819,7 @@ class ForeignPaths(unittest.TestCase):
 class AuthorReviewedPaths(unittest.TestCase):
     """Owner direction 2026-10-27: a trusted person's own pull request's
     `gate` paths only their own commits touched, on a head pr-verify passed,
-    clear on a clean security review (`babysit_risk.RiskInput.author_reviewed`);
+    clear on a clean security review (`diff_risk.RiskInput.author_reviewed`);
     the lanes App's, a bot's, a `trust` path and a lane's fix never do."""
 
     GATE = ".github/scripts/pr-merge/who.mjs"

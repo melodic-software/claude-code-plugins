@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| api-contracts | 1 primary, 1 verification, 1 claim | team (old .claude/codebase-health.md) |", "why": "dimension then old file" },
+    { "answer": ".claude/codebase-health.md still supplies the team layer: documentation and api-contracts.", "why": "old file then dimension" }
+  ],
+  "fail": [
+    { "answer": "| api-contracts | 1 primary | docs/conventions/codebase-health.md |", "why": "new location named as the layer" },
+    { "answer": "The effective config has an api-contracts dimension.", "why": "no layer named" }
+  ]
+}

@@ -13,13 +13,13 @@
 # missing docs/ tree and a custom api-contracts dimension.
 set -euo pipefail
 set -o noclobber
-mode="${1:?mode: clean, drift, boundary, docs-tree, drift-docs-tree, harness, view-team-terminal, view-retired-terminal, view-publishing, setup-ambiguous or setup-existing}"
+mode="${1:?mode: clean, drift, boundary, docs-tree, drift-docs-tree, harness, view-team-terminal, view-retired-terminal, view-publishing, setup-ambiguous, setup-existing, setup-new or setup-both}"
 
 start_line="- Start the server with \`npm start\`; it listens on port 3000 unless \`PORT\` is set."
 repo=false
 case "${mode}" in
 clean | boundary | docs-tree | harness) ;;
-setup-ambiguous | setup-existing) repo=true ;;
+setup-ambiguous | setup-existing | setup-new | setup-both) repo=true ;;
 drift | drift-docs-tree | view-team-terminal | view-retired-terminal | view-publishing)
   start_line="- Start the dev server with \`npm run serve\`; it listens on port 3000 unless \`PORT\` is set."
   [[ "${mode}" == view-* ]] && repo=true
@@ -222,8 +222,14 @@ The service once listened on port 8080 and was started with `npm run serve`.
 MD
 fi
 
-if [[ "${mode}" == setup-existing ]]; then
-  mkdir -p contracts .claude
+case "${mode}" in
+setup-existing | setup-both) config_path=.claude/codebase-health.md ;;
+setup-new) config_path=docs/conventions/codebase-health.md ;;
+*) config_path= ;;
+esac
+
+if [[ -n "${config_path}" ]]; then
+  mkdir -p contracts "$(dirname "${config_path}")"
   cat >contracts/ledger.openapi.yaml <<'YAML'
 openapi: 3.1.0
 info:
@@ -236,7 +242,7 @@ paths:
         "200":
           description: ok
 YAML
-  cat >.claude/codebase-health.md <<'MD'
+  cat >"${config_path}" <<'MD'
 # codebase-health configuration
 
 ## documentation
@@ -265,6 +271,23 @@ YAML
 
 - claim: "The OpenAPI info.version matches package.json version"
   - verify-via: "Read contracts/ledger.openapi.yaml info.version and package.json version"
+MD
+fi
+
+if [[ "${mode}" == setup-both ]]; then
+  mkdir -p docs/conventions
+  cat >docs/conventions/codebase-health.md <<'MD'
+# codebase-health configuration
+
+## documentation
+
+**primary-sources:**
+
+- `README.md`
+
+**verification-sources:**
+
+- `package.json`
 MD
 fi
 

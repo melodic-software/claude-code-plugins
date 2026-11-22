@@ -131,7 +131,7 @@ can see which element each action targets.
 - **Pointer**: when you need the exact flags or default values of `video-start`, `video-chapter` or
   `video-show-actions`, run `playwright-cli <command> --help` live; for what changed, fetch the
   [v0.1.21 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.21).
-  **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
+  **As of**: 2026-11-22, 0.1.25. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Frame size (two levers, not one)
 
@@ -153,8 +153,9 @@ PowerShell has no inline env prefix. Set `$env:PLAYWRIGHT_MCP_VIEWPORT_SIZE = '<
 line before the `open`, then clear it afterwards if later sessions should use the default.
 
 Measured outcomes. Claim: the sizes below are what each combination actually produces.
-Basis: ffprobe on the resulting `.webm` for each row. As of 2026-07-26, on
-`@playwright/cli` 0.1.14; on 0.1.23 (2026-11-03) only the first row was re-measured, again 800×450.
+Basis: ffprobe on the resulting `.webm` for each row, and a frame read from the padded row.
+As of 2026-11-22, every row re-measured on `@playwright/cli` 0.1.25 with the same results, in the
+headless-shell Chromium build.
 Recheck when the frontmatter `upstream-version` moves, or when a
 recording comes back at a size this table does not predict.
 

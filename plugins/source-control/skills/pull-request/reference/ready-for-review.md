@@ -57,7 +57,8 @@ request cannot switch off its own gates
 The list is honored only when that base is the base repository's default branch. Any other base,
 such as a stacked layer, is a branch the PR's author may have pushed without review, where the
 list could switch off reviews of the author's own PR. The read goes through
-`scripts/read-pre-ready.sh`, given the base and the default branch. It prints a `source` line
+`scripts/read-pre-ready.sh`, given the base repository and branch, which fetches the file and the
+default branch itself, with nothing piped in. It prints a `source` line
 (`default`, `config`, or `fail-closed` with a reason) and one `<step> enabled|disabled` line per
 step. When `<plugin-root>/lib/config-root.sh classify` does not print `repo`, skip the read: every step runs.
 
@@ -394,7 +395,8 @@ The bullets below are the steps.
 - **The verify gate of [prep.md](prep.md) §1.5 (`verify`), last.** The update moved HEAD, so the gate that ran
   in prep no longer covers the commit that ships. It runs after the commit below; nothing that
   edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
-  --tests` when the repository ships it, otherwise the commands §1.5 resolves. That part
+  --tests` when the repository ships it, otherwise the commands §1.5 resolves plus the test
+  suites the repository's CI workflows name for the ecosystems the branch touches. That part
   runs inside the record command below, so the result comes from its exit status. When CI's test
   lanes already passed on the head, the suites are skipped as a built-in condition (**CI's test
   lanes**, below); `ready --verify-local` runs them anyway.
@@ -429,7 +431,7 @@ PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<ch
 When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip
 the suites only: the gate's deterministic last part still runs, as `scripts/check-affected.sh`
 without `--tests` (still running the repository's other affected checks), or the commands §1.5
-resolves minus the test suites when the repository does not ship it.
+resolves when the repository does not ship it.
 Record `pass` or `fail` from its exit status with the first
 command below. Report the verify line as that result, with the suites `skipped (CI covers it)`
 and the venue line's detail, naming the suites skipped: the list `scripts/affected-tests.sh`
@@ -452,13 +454,24 @@ it was ready. `ci-status` gates the merge either way.
   When the venue's `tests` line read `ci` (above), drop `--tests` from the command, so the suites
   CI already ran are the only part skipped. Without `scripts/check-affected.sh` in the PR worktree,
   the `if` holds the commands §1.5 resolves joined with `&&`, run from `$PR_TREE`
-  (`(cd "$PR_TREE" && <commands>)`), leaving out the test suites on a `ci` line. When an earlier
-  part of §1.5 already failed, record `fail` directly, with the next bullet's command and
-  `--result fail`. A recorded `fail` stops the flip.
-- `verify` did not run: record `skipped` with the command below when the `parse-ready-skip.sh`
-  output has a `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line,
-  not when the venue's `tests` line reads `ci`, which skips only the suites (above). The report
-  still names the skip or the disabling (2.5.7).
+  (`(cd "$PR_TREE" && <commands>)`), with the test suites added unless the line read `ci`. When an earlier
+  part of §1.5 already failed, record `fail` directly, with the `skip verify` bullet's command
+  and `--result fail`. A recorded `fail` stops the flip.
+- `verify` did not run because the `read-pre-ready.sh` output has a `verify disabled` line:
+  record with `--from-pre-ready`, which reads `pre_ready` at the base itself and records
+  `skipped` only when the base is the base repository's default branch and its list turns
+  `verify` off. Any other read records nothing and exits 4: run the gate as in the bullet above.
+  `$BASE_REPO` and `$BASE` are the base repository and branch the pre-ready read used
+  ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-pre-ready-steps-at-the-base)):
+
+  ```bash
+  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --from-pre-ready --repo "$BASE_REPO" --base "$BASE" --dir "$PR_TREE" --head "$(git -C "$PR_TREE" rev-parse HEAD)"
+  ```
+
+- `verify` did not run because the `parse-ready-skip.sh` output has a `skip verify` line (a
+  present person's `--skip`): record `skipped` with the command below. Neither bullet applies when
+  the venue's `tests` line reads `ci`, which skips only the suites (above). The report still names
+  the skip or the disabling (2.5.7).
 
   ```bash
   PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --dir "$PR_TREE" --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result skipped   # or --result fail

@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +15,7 @@ test("a pull lists every name built from the job-ids by attempts 1 to 3, one cal
   assert.equal(run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 0);
   const expected = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flat().flatMap((id) => [1, 2, 3].map((n) => `api repos/${REPO}/actions/artifacts?name=lane-transcript-${id}-${n}&per_page=100&page=1`)))];
   assert.deepEqual(listings(deps), expected, "each name once, though two workflows share the model job-id");
-  for (const name of ["lane-transcript-check-intent-spec-3", "lane-transcript-judge-fallback-d8-1", "lane-transcript-review-subscription-claude-security-review-4-2", "lane-transcript-adjudicate-feedback-2-fallback-1", "lane-transcript-reuse-summary-1", "lane-transcript-reuse-summary-subscription-2", "lane-transcript-reuse-summary-fallback-3"]) {
+  for (const name of ["lane-transcript-check-intent-spec-3", "lane-transcript-assess-units-fallback-d8-1", "lane-transcript-review-subscription-claude-security-review-4-2", "lane-transcript-adjudicate-feedback-2-fallback-1", "lane-transcript-reuse-summary-1", "lane-transcript-reuse-summary-subscription-2", "lane-transcript-reuse-summary-fallback-3"]) {
     assert.ok(TRANSCRIPT_NAMES.includes(name), name);
   }
 });

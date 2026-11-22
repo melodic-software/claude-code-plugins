@@ -45,8 +45,7 @@ test("a missing or invalid rate-limits.json throws, so the latch warns that the 
       "a share past 1": JSON.stringify({ ...valid, "lanes-app": { ...valid["lanes-app"], "read-floor": 1.5 } }),
       "a share as text": JSON.stringify({ ...valid, "lanes-app": { ...valid["lanes-app"], breaker: "0.2" } }),
       "a plan of 0": JSON.stringify({ ...valid, graphql: { ...valid.graphql, plan: 0 } }),
-      "a fractional limit-cap": JSON.stringify({ ...valid, "github-token": { ...valid["github-token"], "limit-cap": 10.5 } }),
-      "a limit-cap of 0": JSON.stringify({ ...valid, "github-token": { ...valid["github-token"], "limit-cap": 0 } }),
+      "a limit-cap, a field no pool takes": JSON.stringify({ ...valid, "github-token": { ...valid["github-token"], "limit-cap": 1000 } }),
       "per-minute off content-creation": JSON.stringify({ ...valid, "owner-token": { ...valid["owner-token"], "per-minute": 80 } }),
       "a per-hour of 0": JSON.stringify({ ...valid, "content-creation": { ...valid["content-creation"], "per-hour": 0 } }),
       "an unknown field": JSON.stringify({ ...valid, graphql: { ...valid.graphql, floor: 0.1 } }),
@@ -84,30 +83,6 @@ test("the schema states no limits.api default: rate-limits.json holds the only c
   }
   assert.equal(defaults["github-token"]["start-gate"], 0.1, "start-gate stays valid in rate-limits.json");
 });
-
-// github-token plans to a limit-cap of 1,000, the figure GitHub documents for
-// GITHUB_TOKEN per repository per hour
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions).
-// That is a planning cap, not this repository's live limit: its responses
-// report x-ratelimit-limit 5000. The other pools plan to the limit their
-// header reports.
-test("limit-cap defaults to 1000 for github-token only", () => {
-  const limits = apiLimits({ resolvedPath: "" });
-  assert.equal(limits["github-token"]["limit-cap"], 1000);
-  for (const name of ["lanes-app", "graphql", "owner-token", "content-creation"]) {
-    assert.equal(limits[name]["limit-cap"], undefined, name);
-  }
-});
-
-test("a resolved limit-cap caps another pool, and another github-token field keeps its cap", () =>
-  withDir((dir) => {
-    const path = join(dir, "resolved.json");
-    writeFileSync(path, JSON.stringify({ limits: { api: { "github-token": { "read-floor": 0.2 }, "lanes-app": { "limit-cap": 4000 } } } }));
-    const limits = apiLimits({ resolvedPath: path });
-    assert.equal(limits["github-token"]["limit-cap"], 1000);
-    assert.equal(limits["github-token"]["read-floor"], 0.2);
-    assert.equal(limits["lanes-app"]["limit-cap"], 4000);
-  }));
 
 test("a resolved config's limits.api overrides the rate-limits.json default for that field only", () =>
   withDir((dir) => {

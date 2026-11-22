@@ -32,6 +32,20 @@ test("AC3: a repository profile extends the user one, which extends the shipped 
   assert.deepEqual([...build.hideSkills], ["legacy"]);
 });
 
+test("AC3: a remove line drops an inherited optional member as it does a plugins member", () => {
+  const root = writeTree(tempDir(), {
+    "shipped/build.yaml": "plugins: [impl@m]\noptional: [fmt@m, lint@m]\n",
+    "user/build.yaml": "remove: [fmt@m, impl@m]\n",
+    "shipped/always-on.yaml": "plugins: [guard@m]\noptional: [spell@m]\n",
+    "user/always-on.yaml": "remove: [spell@m]\n",
+  });
+  const catalog = readCatalog(levels(root));
+  const build = catalog.profiles.get("build");
+  assert.deepEqual([...build.plugins], []);
+  assert.deepEqual([...build.optional], ["lint@m"]);
+  assert.deepEqual([...catalog.alwaysOn.optional], []);
+});
+
 test("AC24: always-on members add up across levels and a remove line takes one out", () => {
   const root = writeTree(tempDir(), {
     "shipped/always-on.yaml": "plugins: [guard@m, flow@m]\noptional: [fmt@m]\n",

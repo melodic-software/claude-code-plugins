@@ -29,11 +29,11 @@ The consuming plugin names its own surface. The first adopter, `harness-config`'
 
 | Order | Layer | Path |
 |---|---|---|
-| 1 | user-global | `~/.claude/audit-pass.md` |
+| 1 | `userConfig` | the file the plugin's `audit_pass_suppressions_file` option names |
 | 2 | team (tracked) | `<home>/harness-config.yaml` (`<home>` from the convention-home pointer line, default `docs/conventions`) |
-| 3 | personal override (gitignored) | `.claude/audit-pass.local.md` |
+| 3 | personal override (gitignored) | `<home>/audit-pass.local.md` |
 
-A plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../config-cascade/locations.md) says.
+The plugin still reads the old `~/.claude/audit-pass.md` and `.claude/audit-pass.local.md`, each with a warning, while no new file supplies that layer; `/harness-config:setup apply` moves them where [config locations](../config-cascade/locations.md) says.
 
 In a YAML concern file the `suppressions` mapping sits at the root with the entry shape below; a
 reader that uses the shared YAML-subset parser needs the `"anchor/v1":` key quoted.
@@ -166,7 +166,7 @@ It qualifies on all three of the class's conditions:
 Condition 3 is behavioral, not declarative: a surface that declares the inversion but does not report
 which layer supplied each entry has not met the class.
 
-**What the inversion itself decides is narrower than it looks, and saying so is the point.** The
+**What the inversion itself decides is narrower than it looks.** The
 constituents-hash-to-the-key rule means two entries sharing a `finding_id` have identical `check`,
 `claim`, and `sites` by construction. The only fields that can differ are `reason` and `date`. So
 the inversion protects the team's recorded *justification* for an accepted finding. Which findings

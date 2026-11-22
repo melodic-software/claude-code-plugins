@@ -3,6 +3,64 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.2] - 2026-11-22
+
+### Changed
+
+- The ecosystem-specialist agent reads records from `docs/conventions/ecosystems/`, else the legacy `.claude/ecosystems/`. The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [10.8.1] - 2026-11-22
+
+### Changed
+
+- The security-review skill names source-control's diff risk scorer by its new module, `diff_risk.py`.
+
+## [10.8.0] - 2026-11-22
+
+### Added
+
+- The CI code-review lane reads a root `CODING_STANDARDS.md` and `CONTRIBUTING.md` when present,
+  as review criteria with the same standing and untrusted-content framing as `REVIEW.md`.
+
+### Changed
+
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
+## [10.7.0] - 2026-11-22
+
+### Added
+
+- **Review-digest options.** The review plugin has six new options: `digest_policy`, `digest_max_files`, `digest_max_changed_lines`, `digest_blast_radius`, `digest_risk_paths` and `digest_opt_in_label`. The two list options each take a JSON list. Together they are the per-user layer of the review-digest settings that `/review:explain-change` and `/review:reviewer-media` read. The personal override is now `docs/conventions/review-digest.local.yaml` ([#18006](https://github.com/melodic-software/claude-code-plugins/issues/18006)).
+- **`/review:setup` moves the old digest files.** `check` names each old file it finds and where each of its settings goes. `apply` previews the move and acts only after a yes. It adds the old personal settings that `docs/conventions/review-digest.local.yaml` lacks, keeps the ones that file already sets, checks that each moved value resolves the same, and then deletes `.claude/review-digest.local.json`. For `~/.claude/review-digest.json` it lists each option still unset. Once every old setting is covered by an option, it deletes the file after a yes.
+
+### Deprecated
+
+- **`~/.claude/review-digest.json` and `.claude/review-digest.local.json`.** Both files are still read while they exist, each just below the layer that replaces it, so a new layer wins on each key it sets. Each run prints one warning per old file that names `/review:setup apply`. A later release stops reading them.
+
+## [10.6.1] - 2026-11-22
+
+### Fixed
+
+- `skills/code-review/reference/bundled-code-review.md` no longer presents the 2.1.263 menu description, which had the bundled `/code-review` review for bugs and cleanups, as its current scope. That description stays as history. The record now points to the `/code-review` row of the commands page, where the current scope is read live, with the 2.1.328 changelog entry to correlate with.
+
+## [10.6.0] - 2026-11-22
+
+### Added
+
+- `/review:council` takes `antigravity` (Gemini through agy) members, run as `external-agents review antigravity --council`, so `antigravity.council.enabled` in `external-agents.yaml` can turn them off. Like Codex members they set a model and a brief but no effort, review committed history only, and are opt-in: add one to `council_members`, for example `{"gemini":{"provider":"antigravity"}}`.
+
+## [10.5.0] - 2026-11-22
+
+### Changed
+
+- `/review:council` Codex members and `/review:fanout`'s Codex surface now run `external-agents review codex`, the command the `external-agents` plugin puts on the Bash `PATH`, instead of locating the OpenAI Codex plugin's install path. With that plugin not enabled, the member or surface reports `skipped (external-agents not enabled)`. Fanout's adversarial Codex run passes its own bundled brief, `skills/fanout/context/codex-adversarial-brief.md`, through `--brief-file`.
+- `council-plan.mjs member` reads a script member's captured output and exit code as its council status (`ran`, `skipped (<reason>)` or `failed (<reason>)`) and its findings, finding the status line after any notices.
+
+### Removed
+
+- `scripts/codex-review.sh` and its test.
+
 ## [10.4.6] - 2026-11-21
 
 ### Changed

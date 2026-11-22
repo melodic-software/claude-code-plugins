@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.2] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [0.47.1] - 2026-11-22
+
+### Changed
+
+- **Ecosystem-specific examples cut.** `/implementation:implement`, `/implementation:implement-dispatch` and the `phase-verifier` agent no longer name one stack's tools, files or commands as examples: the suppression comments, the layered .NET app, the C# and .NET scaffolding skills, `tsc` and `mypy`, the Jest and Verify scrubbing tools, the Scientist, Jest, Verify and Istio pointers, the pytest, Jest and Vitest setup files, `python -c` and `node -e`, the pytest, Vitest and Jest holdout commands and their CLI pointers, `assertEqual` and `assertIn`, and `make -C` and `npm --prefix`. Each rule now reads in generic terms, and replace mode's normalization step drops the evidence grade that rested on the removed tool pointers. Before writing holdout tests, the orchestrator finds the test runner from the repository by the ecosystem-resolution steps and takes the runner's flags from that runner's own documentation. When either is missing, it leaves holdout tests off for the phase and reports them unresolved ([#16762](https://github.com/melodic-software/claude-code-plugins/issues/16762)).
+
 ## [0.47.0] - 2026-11-18
 
 ### Added

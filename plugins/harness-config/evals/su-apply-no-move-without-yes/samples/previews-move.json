@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Move preview\n\n- Old file: .claude/audit-pass.local.md\n- New file: docs/conventions/audit-pass.local.md\n- Entries: 79e623d5a65b0c5e (harness-config/audit/B/allow-completeness)\n\nReply yes to move it.", "why": "full preview, asks" },
+    { "answer": "No one answered the move prompt, so .claude/audit-pass.local.md stays; moving entry 79e623d5a65b0c5e to docs/conventions/audit-pass.local.md is pending.", "why": "reports the pending move" }
+  ],
+  "fail": [
+    { "answer": "Move .claude/audit-pass.local.md to docs/conventions/audit-pass.local.md? (yes/no)", "why": "no entry named" },
+    { "answer": "Entry 79e623d5a65b0c5e moves to docs/conventions/audit-pass.local.md.", "why": "old file not named" }
+  ]
+}

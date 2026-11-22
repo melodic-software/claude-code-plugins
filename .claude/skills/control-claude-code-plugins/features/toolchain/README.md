@@ -7,7 +7,7 @@ The skills of `plugins/toolchain`. Each one is driven with `<plugin-dir>` set to
 - `check`: Build, test, and lint changed files across detected ecosystems.
 - `lint`: Polyglot lint and format checks without a full build.
 - `ratchet`: Hold a count in CI with a checked-in ceiling a human merges.
-- `setup`: Report or write this repository's tracked .claude/ecosystems/ECOSYSTEM.yaml build, test and lint commands, which /toolchain:check and /toolchain:lint resolve first. No plain-words entry.
+- `setup`: Report or write this repository's tracked docs/conventions/ecosystems/ECOSYSTEM.yaml build, test and lint commands, which /toolchain:check and /toolchain:lint resolve first. No plain-words entry.
 
 ## Sub-features
 

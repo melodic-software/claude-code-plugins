@@ -56,8 +56,12 @@ can mean either.
 If /auto-mode-setup is available in your session (gate basis: its row of the commands reference;
 records in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md)), you can
 run it instead of or alongside this skill to have the `environment` section drafted from your sessions
-and saved for you; this interview then covers the allow and deny sections. If they take it, run
-Phase 1 again after it saves so the draft builds on what it wrote. When the caller passes
+and saved for you; this interview then covers the allow and deny sections. It can also offer `allow`
+rules drawn from your recent auto mode denials (version in the records). Those rules are input to
+the `allow` section here: paste the ones you accepted, or the `allow` list `claude auto-mode config`
+prints, and the interview asks for each one's exclusions and transcript-visible condition instead of
+drafting it from recall. If they take it, run Phase 1 again after it saves so the draft builds on
+what it wrote. When the caller passes
 `--unattended`, the run records the offer in its output instead of asking;
 without that flag it asks.
 
@@ -78,8 +82,10 @@ section to focus the interview on. `--unattended`, anywhere in the arguments, is
 declaring that nobody is present, which governs the `/auto-mode-setup` offer under "Routing". Take
 it out first, then read the rest.
 
-There is no history input: a read of "the repo's observed prompt and denial history" names no actual
-location, and an unnamed read surface in a skill shipped to consumers is unreviewable.
+This skill reads no history itself: a read of "the repo's observed prompt and denial history" names
+no actual location, and an unnamed read surface in a skill shipped to consumers is unreviewable.
+Denial history reaches the draft only through the `allow` rules `/auto-mode-setup` saved, which the
+person brings to the interview (see "Routing").
 
 ## Phase 1: Read what already exists
 

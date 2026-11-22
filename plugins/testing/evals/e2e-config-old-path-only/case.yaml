@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-config-old-path-only
+description: 'Dual-read window, old file only: browser_mode headed from .claude/testing/e2e.md still applies, and the run prints one warning naming that file and docs/conventions/testing/e2e.md as where to move it. old-file-warning reads the reply; meets-expectations (llm) checks the value, its source and the warning. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Reports browser_mode headed from .claude/testing/e2e.md and one warning naming it and docs/conventions/testing/e2e.md.'
+execution:
+  prompt: '/testing:run-e2e the login flow. The convention-home command exits 1. There is no docs/conventions/testing/ directory. .claude/testing/e2e.md holds `browser_mode: headed`; there is no .claude/testing/e2e.local.md and no ~/.claude/testing/e2e.md. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say which browser_mode value the run uses, which file supplied it, and each warning the run prints about config file locations, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: old-file-warning
+    type: regex
+    pattern: '^(?=[\s\S]*\bheaded\b)(?=[\s\S]*\.claude/testing/e2e\.md)(?=[\s\S]*docs/conventions/testing/e2e\.md)(?=[\s\S]*\bwarn)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: the convention-home command exits 1, no docs/conventions/testing/ directory exists, and .claude/testing/e2e.md holds browser_mode: headed. PASS only if the reply (1) reports browser_mode as headed, (2) names .claude/testing/e2e.md as the file that supplied it, and (3) reports one warning that names .claude/testing/e2e.md and docs/conventions/testing/e2e.md as where to move it. FAIL if the old file is ignored, browser_mode falls back to headless, or no warning naming both paths is reported.'

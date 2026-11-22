@@ -3,6 +3,24 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-11-22
+
+### Changed
+
+- Lane records resolve from `docs/conventions/ecosystems/<lane>.yaml` (and `<lane>.local.yaml`), falling back to the legacy `.claude/ecosystems/` file of a name absent there; with both present the new file wins and one warning names both. `/code-metrics:setup check` reports records at either location and warns on a legacy file the new home shadows.
+
+## [1.6.0] - 2026-11-22
+
+### Added
+
+- **A `config_file` userConfig option** names a YAML file holding your own settings for every repository, the `userConfig` layer under the team file and the personal override. The skills pass it to their scripts as `--user-file`.
+- **`/code-metrics:setup apply --copy-old`** copies each old file's keys into its new location after a `--preview` and a yes, leaving the old files in place: the old user-global keys into the `config_file` option's file (while the option is unset it copies none and says to set it), the old personal keys into `docs/conventions/code-metrics.local.yaml`, warning when git does not ignore that file. `/code-metrics:setup check` names each old file and its new location.
+
+### Changed
+
+- **The personal override moves to `docs/conventions/code-metrics.local.yaml`** ([#18001](https://github.com/melodic-software/claude-code-plugins/issues/18001)), beside the team file, per the config-cascade layers. Recommended `.gitignore` line: `docs/conventions/**/*.local.*`.
+- **Dual-read window for the old paths.** `~/.claude/code-metrics.yaml` is still read as the `userConfig` layer while the `config_file` option's file is absent, and `.claude/code-metrics.local.yaml` as the personal layer while the new file is absent. Each run prints one warning per old file naming its new location; with both files of a layer present the new one wins and the warning names both. A later release stops reading the old paths.
+
 ## [1.5.3] - 2026-11-21
 
 ### Changed

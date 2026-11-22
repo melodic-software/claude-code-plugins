@@ -1,0 +1,90 @@
+schema: 1
+product: codex
+docs_index: https://learn.chatgpt.com/docs/llms.txt
+config_reference: https://learn.chatgpt.com/docs/config-file/config-reference.md
+help:
+  codex: [--help]
+  exec: [exec, --help]
+  exec-review: [exec, review, --help]
+models:
+  args: [debug, models]
+  format: codex_catalog
+binary:
+  name: codex
+  candidates:
+    win32:
+      - "{LOCALAPPDATA}/Programs/OpenAI/Codex/bin/codex.exe"
+      - "{APPDATA}/npm/codex.cmd"
+version:
+  args: [--version]
+  sources:
+    standalone: github:openai/codex
+    npm: npm:@openai/codex
+  markers:
+    npm: [npm, node_modules]
+login_status:
+  args: [login, status]
+unset_model: cli-default
+model_flag: -m
+profile_flag: -p
+profile_on: [run]
+effort_config: model_reasoning_effort
+config_arg: -c
+always_args: [-c, 'approval_policy="never"']
+prompt:
+  form: "-"
+output:
+  kind: jsonl_events
+  final_message_arg: -o
+  thread_event: thread.started
+  thread_field: thread_id
+  turn_ok_event: turn.completed
+  failure_events: [turn.failed, error]
+  item_event: item.completed
+  item_prefix: item.
+  mcp_item_types: [mcp_tool_call]
+run:
+  args: [exec, --json]
+resume:
+  args: [exec, resume, "{thread}", --json]
+review:
+  kind: native
+  args: [exec, review, --base, "{base}", --json]
+  brief_args: [exec, review, --json]
+  brief_preface: "Review only the changes on this branch against {base}: the diff of {merge_base}...HEAD. Changed files ({file_count}):{files}"
+  config_paths: [.codex/]
+modes:
+  read-only:
+    enforcement: sandbox
+    args:
+      run: [--sandbox, read-only]
+      resume: [-c, 'sandbox_mode="read-only"']
+      review: [-c, 'sandbox_mode="read-only"']
+  write:
+    enforcement: sandbox
+    args:
+      run: [--sandbox, workspace-write]
+      resume: [-c, 'sandbox_mode="workspace-write"']
+soft_deny:
+  - kind: json_item_failed
+    item_types: [command_execution, file_change]
+    text_field: aggregated_output
+    patterns:
+      - "is denied"
+      - "Access is denied"
+      - "Permission denied"
+      - "Operation not permitted"
+      - "Read-only file system"
+  - kind: json_item_failed
+    item_types: [command_execution]
+    statuses: [declined]
+unavailable:
+  - class: usage-limit
+    patterns:
+      - "usage limit"
+    reset_pattern: "try again at ([^.]+)"
+  - class: auth
+    patterns:
+      - "401 Unauthorized"
+      - "Not logged in"
+      - "token is expired"

@@ -3,6 +3,28 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.1] - 2026-11-22
+
+### Changed
+
+- Lanes and the dead-code shapes point at `docs/conventions/ecosystems/<ecosystem>.yaml` for a repository's commands. The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [0.57.0] - 2026-11-22
+
+### Added
+
+- The comment lint passes an ADR pointer under the `necessary` posture: a one-line comment holding only a record id (`ADR-0042`, `ADR 42`) or one relative path into the decision-record folder, optionally after `See`, when that record exists in the snapshot the lint reads the file from (the index, the work tree with `--worktree`, or the pushed tips). A pointer to a missing record, or one that also states a reason, still fails. The new team-file setting `comment_adr_dir` names that folder (default `docs/adr`); a value outside the repository is ignored and the default applies.
+
+### Changed
+
+- `/code-tidying:audit-dead-code` adjudicates a candidate that a decision record names by symbol or file path as `uncertain`, citing the record, never `dead`.
+
+## [0.56.4] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
 ## [0.56.3] - 2026-11-21
 
 ### Changed

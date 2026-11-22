@@ -38,6 +38,12 @@ interfaces and contracts wait for design, files and symbols for plan.
   on-ramp), or follow-ups where the Brief is the conversation
 - How its questions are paced, and when explore, research, a PRD (stages 2-4) or a prototype runs
   around it, are `/planning:interview`'s rules
+- When the interview adds or renames a domain term, the glossary change, and for a renamed term the
+  code rename, land as their own change before plan and decompose, so the spec and tickets name
+  only the settled terms: through a glossary capability (if enabled, e.g.
+  /domain-driven-design:ubiquitous-language) and a rename sweep (if enabled, e.g.
+  /docs-hygiene:rename-references); without them, edit the glossary file and sweep the old name by
+  hand. With no term added or renamed, this step is skipped
 - **Effort:** scoping in question rounds the human answers
 
 ## 2. Explore (conditional: a question needs the code read)
@@ -113,7 +119,7 @@ design section, which is how they reach the implementer.
   stage can see it. On the full path, size alone never skips it
 - Domain modeling, prototypes, and architecture surveys feed it; a decision that passes the
   admission test of an architecture-decision capability (if enabled, e.g.
-  /architecture:record-decision) is recorded as an architecture decision before planning; without
+  /architecture:adr) is recorded as an architecture decision before planning; without
   one, each decision made over a weighed alternative is listed for the human to judge whether it
   earns a record
 - A user-facing flow or screen is designed before the technical design: the flow and navigation
@@ -214,6 +220,10 @@ Session analysis and learning codification: the self-improvement loop. Invoke th
 skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure). Score trends
 across sessions are `/session-flow:audit-sessions trends`.
 
+- When the `/session-flow:retro` report lists a "Missed or hard-to-find skill" finding marked as a
+  workflow step candidate, add that skill to the workflow as its own stage at the point in the
+  sequence the finding names, with the trigger that should bring it up, so the next session
+  reaches it without the user naming it
 - **Effort:** reviewing the session's own record, every finding going to the human to accept or
   reject
 
@@ -230,6 +240,11 @@ the consuming repo's choice. A stage is named by its heading above without the n
 anything after a colon or a parenthesis. A conditional stage listed here still runs only on its
 trigger, and a skipped stage is marked SKIPPED with this row's reason. The retrospective is
 optional after any kind.
+
+Pruning the glossary and pruning architecture decisions are maintenance, not stages, and no task
+kind enters them: they run on request, or after a repo sweep's read-only audit finds candidates,
+through a glossary capability (if enabled, e.g. /domain-driven-design:ubiquitous-language prune)
+and an architecture-decision capability (if enabled, e.g. /architecture:adr prune).
 
 | Kind | Stages, in order | Skips | Why |
 | --- | --- | --- | --- |

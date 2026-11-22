@@ -27,13 +27,16 @@
 # scope as cwd-relative `lane<TAB>path` rows and stops, producing no document.
 #
 # Configuration: without `--config`, the cascade is resolved here through
-# scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
-# docs/conventions/code-metrics.yaml, .claude/code-metrics.local.yaml, plus the
-# consumer's .claude/ecosystems/<lane>.yaml files); CODE_METRICS_HOME overrides
-# the home directory the user-global layer is read from. `--config` takes a
+# scripts/resolve-config.py, whose layers the plugin's reference/config.md
+# lists. `--user-file <f>` (or CODE_METRICS_USER_FILE) takes the config_file
+# userConfig option's value; CODE_METRICS_HOME overrides the home directory
+# the old user-global file is read from during the dual-read window.
+# The consumer's docs/conventions/ecosystems/<lane>.yaml files resolve there too.
+# `--config` takes a
 # pre-resolved JSON document (the resolver's output) instead. Either way the
 # resolved document supplies the references, `scope.exclude`, the per-lane
-# collector overrides, and the ecosystem globs and opt-outs.
+# collector overrides, and the ecosystem globs and opt-outs. Layers:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers
 #
 # Exit: 0 the document was produced (including an `empty` run); 2 usage or
 # environment error; 3 a resolved collector ran and produced no parseable
@@ -122,6 +125,10 @@ while [[ $# -gt 0 ]]; do
     # they anchor the finished document once, after that.
     NO_ANCHOR=1
     shift
+    ;;
+  --user-file)
+    cm_set_user_file "$@" || exit 2
+    shift 2
     ;;
   --config)
     [[ $# -ge 2 ]] || die_usage "--config needs a value"

@@ -79,7 +79,8 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:council [--yes] [--unattended]`**. Council review: a panel of configured members (provider, model,
   brief, effort), chosen for the change by ordered rules over its paths, size tier and merge
   risk, writes one ranked findings report in fanout's shape. Claude members run as
-  `brief-reviewer`; Codex members run through `scripts/codex-review.sh`. A member that cannot run
+  `brief-reviewer`; Codex and Antigravity members run `external-agents review codex` or `antigravity`, the command the
+  `external-agents` plugin puts on the Bash `PATH`, and are skipped when it is not enabled. A member that cannot run
   as configured is reported, never replaced. One round by default; above one
   (`council_max_rounds`), `/review:fanout fix` runs between rounds and later rounds review only
   what it changed. Opt-in for lanes through `council_lanes`. Posts nothing.
@@ -217,13 +218,13 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
   project's own review criteria, severity vocabulary, and conventions first (`CLAUDE.md`,
   project rules, `REVIEW.md`/review docs); the plugin's bundled baseline
   (`context/severity.md`) applies only where the project defines nothing.
-- **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
-  ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
+- **Command truth from `docs/conventions/ecosystems/`.** `ecosystem-specialist` resolves each
+  ecosystem's build/test/lint command from the consumer's `docs/conventions/ecosystems/<ecosystem>.yaml`
   files when present (the marketplace-wide ecosystem-commands contract,
   `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions.
   A command neither source names is reported unresolved; the agent ships no default command.
 - **Graceful degrade.** Optional orchestrator plugins. `pr-review-toolkit` and `code-review` from
-  the official marketplace, and `codex` from the OpenAI Codex marketplace. They add adversarial breadth
+  the official marketplace, and Codex through this marketplace's `external-agents` plugin. They add adversarial breadth
   when installed; every path works without them. Claude Code's bundled `/code-review` command and
   the managed Code Review GitHub App service are two further surfaces, distinct from the
   `code-review` marketplace plugin despite the shared name. **`/review` is one of them, not this
@@ -308,6 +309,12 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `council_members` | string | *(none)* | Your /review:council member catalog as JSON, the shape of council_members in docs/conventions/review.yaml, e.g. {"codex-adv":{"provider":"codex","brief":"adversarial"}}. Empty (default): the repository's value or three Opus members. The repository's value wins; invalid JSON is reported and ignored. |
 | `council_panel` | string | *(none)* | Your /review:council fallback panel as a JSON list of member ids. Empty (default): the repository's value or every catalog member. A repository's value wins; invalid JSON is reported and ignored. |
 | `council_rules` | string | *(none)* | Your /review:council selection rules as a JSON list, the same shape as council_rules in docs/conventions/review.yaml. Empty (default): the repository's rules or none. A repository's value wins; invalid JSON is reported and ignored. |
+| `digest_policy` | string | *(none)* | When /review:explain-change offers a change digest: off, offer (the shipped default: when a trigger fires) or always (build at the ready flip). Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
+| `digest_max_files` | number<br>*min 0* | *(none)* | The digest files trigger fires when a pull request changes more files than this; shipped default 5. Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
+| `digest_max_changed_lines` | number<br>*min 0* | *(none)* | The digest changed-lines trigger fires when additions plus deletions exceed this; shipped default 200. Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
+| `digest_blast_radius` | string | *(none)* | Assessed blast radius levels that fire the digest offer, as a JSON list of LOW, MEDIUM, HIGH and CRITICAL; shipped default \["HIGH","CRITICAL"\]. Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
+| `digest_risk_paths` | string | *(none)* | Path globs that fire the digest offer when a changed path matches, as a JSON list of at most 64 globs of at most 256 characters each, e.g. \["db/migrations/*"\]. Empty (default): unset. The docs/conventions/review-digest YAML files win over this option. |
+| `digest_opt_in_label` | string | *(none)* | The pull request label that fires the digest offer; shipped default explain-change. Empty (default): unset, so to turn the label trigger off, set opt_in_label: "" in a docs/conventions/review-digest YAML file. Those files win over this option. |
 | `medium` | string | `"auto"` | Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host. |
 
 ### How to set these

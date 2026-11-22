@@ -2,7 +2,8 @@
 # Tests for setup.sh: check's four sections, lint findings, the consumer hook
 # entry, and an apply that writes only the docs convention file or .claude/testing.yaml.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
-# test-scope: plugins/testing/hooks/hooks.json
+# test-scope: plugins/testing/hooks/hooks.json plugins/testing/.claude-plugin/plugin.json
+# test-scope: plugins/testing/scripts/* plugins/testing/lib/*
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
@@ -136,6 +137,7 @@ P="$T/plugin"
 PLUGIN_DIR="$(cd "$(dirname "$SETUP")/../../.." && pwd)"
 mkdir -p "$P/skills/setup/scripts" "$P/skills/audit/scripts"
 cp -R "$PLUGIN_DIR/scripts" "$P/scripts"
+cp -R "$PLUGIN_DIR/lib" "$P/lib"
 cp -R "$PLUGIN_DIR/skills/audit/adapters" "$P/skills/audit/adapters"
 cp "$SETUP" "$P/skills/setup/scripts/setup.sh"
 sed 's/\^(js|cs|python|bash|pwsh|go)\$/^[a-z]+$/' "$PLUGIN_DIR/skills/audit/scripts/adapter-load.awk" >"$P/skills/audit/scripts/adapter-load.awk"
@@ -314,6 +316,73 @@ map_entry_points: first
 map_report_order: gone,new,pre-existing
 file_findings: new
 file_findings_floor: medium" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+
+M="$T/oldpaths"
+mkdir -p "$M/.claude/testing" "$M/docs/conventions" "$HOME/.claude"
+git -C "$M" init -q
+printf 'rules:\n  rule-weak-oracle: off\n' >"$M/docs/conventions/testing.yaml"
+run_m() {
+  rc=0
+  out="$(bash "$SETUP" "$@" --root "$M" 2>&1)" || rc=$?
+}
+run_m check
+assert_contains "with only the new team layer, check reports no old file" "$out" "== old paths ==
+no testing config file at an old path"
+printf '# team\npaths:\n  exclude: [old]\nrules:\n  rule-weak-oracle: warn\n' >"$M/.claude/testing.yaml"
+printf 'recording: video\n' >"$M/.claude/testing/e2e.md"
+printf 'adapters:\n  disable: [py-unittest]\ne2e_driver: run\n' >"$HOME/.claude/testing.yaml"
+run_m check
+assert_contains "check names the old team file and its new location" "$out" "$M/.claude/testing.yaml
+  move to: $M/docs/conventions/testing.yaml"
+assert_contains "and previews the keys the new file lacks" "$out" "  copy would append to $M/docs/conventions/testing.yaml:
+    paths:
+      exclude: [old]"
+assert_contains "and names a key both files set" "$out" "not copied: rules, which $M/docs/conventions/testing.yaml already sets"
+assert_contains "a Markdown file previews whole" "$out" "  copy would create $M/docs/conventions/testing/e2e.md with:
+    recording: video"
+assert_contains "a personal target that is not gitignored is named, not copied" "$out" \
+  "not copied: $M/docs/conventions/testing.local.yaml is not gitignored"
+printf 'docs/conventions/**/*.local.*\n' >"$M/.gitignore"
+run_m check
+assert_contains "a gitignored personal target previews the user-global keys with no userConfig option" "$out" \
+  "  copy would create $M/docs/conventions/testing.local.yaml with:
+    adapters:
+      disable: [py-unittest]"
+assert_contains "and names the key a userConfig option holds" "$out" "not copied: e2e_driver, which has a userConfig option of that name"
+assert_eq "check copies nothing" "" "$(ls "$M/docs/conventions/testing" 2>/dev/null)"
+old_team="$(cat "$M/.claude/testing.yaml")"
+run_m apply --copy-old "$M/.claude/testing.yaml" --exclude 'x/**'
+assert_eq "--copy-old refuses answer flags beside it" 2 "$rc"
+run_m apply --copy-old "$M/.claude/testing.yaml"
+assert_eq "--copy-old appends the keys the new file lacks" "0:rules:
+  rule-weak-oracle: off
+paths:
+  exclude: [old]" "$rc:$(cat "$M/docs/conventions/testing.yaml")"
+assert_eq "and leaves the old file in place" "$old_team" "$(cat "$M/.claude/testing.yaml")"
+run_m apply --copy-old "$M/.claude/testing/e2e.md"
+assert_eq "--copy-old copies a Markdown file whole" "0:recording: video" "$rc:$(cat "$M/docs/conventions/testing/e2e.md")"
+run_m apply --copy-old "$M/.claude/testing/e2e.md"
+assert_eq "a Markdown file whose new location exists is not copied again" 2 "$rc"
+printf 'rules:\n  rule-weak-oracle: off\n' >"$M/.claude/testing.local.yaml"
+run_m apply --copy-old "$HOME/.claude/testing.yaml"
+assert_eq "the user-global file is not copied while it would stop the old personal file being read" "2:" \
+  "$rc:$(cat "$M/docs/conventions/testing.local.yaml" 2>/dev/null)"
+assert_contains "and the note says to copy that file first" "$out" "not copied: copy $M/.claude/testing.local.yaml first"
+run_m apply --copy-old "$M/.claude/testing.local.yaml"
+assert_eq "the old personal file copies first" "0:rules:
+  rule-weak-oracle: off" "$rc:$(cat "$M/docs/conventions/testing.local.yaml")"
+run_m apply --copy-old "$HOME/.claude/testing.yaml"
+assert_eq "then the user-global keys with no userConfig option append to the personal override" "0:rules:
+  rule-weak-oracle: off
+adapters:
+  disable: [py-unittest]" "$rc:$(cat "$M/docs/conventions/testing.local.yaml")"
+run_m apply --copy-old "$M/elsewhere.yaml"
+assert_eq "--copy-old refuses a file the old paths section does not list" 2 "$rc"
+rm -f "$HOME/.claude/testing.yaml" "$M/docs/conventions/testing.yaml"
+printf '```yaml config\npaths:\n  exclude: [block]\n```\n' >"$M/docs/conventions/testing.md"
+run_m check
+assert_contains "beside a docs block, the old team file is named, not copied" "$out" \
+  "not copied: the yaml config block in docs/conventions/testing.md is the team layer"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but docs/conventions/testing.yaml" "docs/conventions/testing.yaml" \

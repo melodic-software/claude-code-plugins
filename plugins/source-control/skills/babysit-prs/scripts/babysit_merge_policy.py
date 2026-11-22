@@ -75,8 +75,9 @@ from babysit_gh import (
     record_pull_request_total,
     single_attempt,
 )
-from babysit_risk import (
+from diff_risk import (
     FLOOR_ROW_CLASSES,
+    MEDIA_SUFFIXES,
     ChangedFile,
     Floor,
     FloorRowError,
@@ -483,7 +484,7 @@ def _issue_status_config(text: str) -> IssueStatusConfig | None:
             rows = _records_below(text, ISSUE_STATUS_KEY)
             _ISSUE_STATUS[text] = _issue_status_rows(rows) if rows else None
         except PolicyReadError as exc:
-            _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), (), str(exc))
+            _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), str(exc))
     return _ISSUE_STATUS[text]
 
 
@@ -515,8 +516,12 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
             raise ValueError("options must map option ids to states")
         if len(set(states)) != len(states):
             raise ValueError("options map two option ids to one state")
-        setters = listed("bot-setters.", ("id", "login"))
-        if not all(ident(s["id"]) for s in setters):
+        setters = (
+            listed("bot-setters.", ("id", "login"))
+            if any(k == "bot-setters" or k.startswith("bot-setters.") for k in rows)
+            else None
+        )
+        if setters is not None and not all(ident(s["id"]) for s in setters):
             raise ValueError("a bot-setters id is not an id")
         if {k.rsplit(".", 1)[0] for k in items("labels.")} - set(states):
             raise ValueError("labels names a state no option maps")
@@ -545,15 +550,17 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
         holds = holds or HOLD_STATES
         ready = ready or READY_STATE
     except ValueError as exc:
-        return IssueStatusConfig(0, (), (), (), (), f"{ISSUE_STATUS_KEY}: {exc}")
+        return IssueStatusConfig(0, (), (), (), f"{ISSUE_STATUS_KEY}: {exc}")
     return IssueStatusConfig(
         int(field_id),
         options,
-        tuple((int(s["id"]), s["login"]) for s in setters),
         labels,
         order,
         hold_states=holds,
         ready_state=ready,
+        bot_setters=None
+        if setters is None
+        else tuple((int(s["id"]), s["login"]) for s in setters),
     )
 
 
@@ -910,14 +917,16 @@ class PipelineConfig:
     queue_ejection_infra_causes: tuple[str, ...] = QUEUE_EJECTION_INFRA_CAUSES
     # `merge.risk-escalation-minutes`: how long a reasons comment must have
     # stood unchanged at the head before the gate adds the human-gated label
-    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # for a reason only a person clears (`diff_risk.person_reasons`); 0 is
     # no minimum. Absent, or anything but a whole number, is
     # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
-    # one pull request at which it holds, never to merge unattended, whatever
-    # a later pass says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
-    # but a whole number of at least 1 is 1, so any earlier FAIL holds.
+    # one pull request at which it holds, never to merge unattended, when one
+    # that is not superseded stands at its head (`babysit_verify_evidence`,
+    # https://github.com/melodic-software/claude-code-plugins/issues/17646).
+    # Absent is `MAX_VERIFY_FAILS`; anything but a whole number of at least 1
+    # is 1, so any FAIL standing at the head caps.
     max_verify_fails: int = MAX_VERIFY_FAILS
     # `merge.verify-cap-attempts`: fresh attempts one issue gets after the
     # pr-merge lane closes its pull request at the FAIL cap or as too old
@@ -991,25 +1000,26 @@ READY_STATE = "agent-ready"
 @dataclass(frozen=True)
 class IssueStatusConfig:
     """`models.issue-status` (`ISSUE_STATUS_KEY`): the field id, each option
-    id with its state, the `bot-setters` (id, login) pairs, each state's
-    labels, and the collapse order. `error` names a malformed block, which
+    id with its state, each state's labels, and the collapse order. `error` names a malformed block, which
     `issue_status` refuses to read. `hold_states` and `ready_state` are the
     block's `hold-states` and `ready-state`, else `HOLD_STATES` and
-    `READY_STATE`."""
+    `READY_STATE`. `bot_setters` is the block's `bot-setters` (id, login)
+    pairs, None when it has none."""
 
     field_id: int
     options: tuple[tuple[str, str], ...]
-    bot_setters: tuple[tuple[int, str], ...]
     labels: tuple[tuple[str, tuple[str, ...]], ...]
     order: tuple[str, ...]
     error: str | None = None
     hold_states: tuple[str, ...] = HOLD_STATES
     ready_state: str = READY_STATE
+    bot_setters: tuple[tuple[int, str], ...] | None = None
 
 
 ISSUE_STATUS_KEY = "models.issue-status"
 # The job token's bot, a bot setter the trusted-actor list does not list.
 ACTIONS_BOT = (41898282, "github-actions[bot]")
+STATUS_LANES_APP = "melodic-automation-lanes[bot]"
 # The one App whose field values count for every state, read only from the
 # operator's settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 LANES_APP_LOGIN = merge_settings.load().issue_status_app_login
@@ -1588,12 +1598,14 @@ def _cached_issue_status(value: Any) -> IssueStatusConfig | None:
     status = IssueStatusConfig(
         value.get("field_id"),
         pairs(value.get("options"), str, text),
-        pairs(value.get("bot_setters"), int, text),
         pairs(value.get("labels"), str, texts),
         tuple(order) if texts(order) else (),
         value.get("error"),
         tuple(holds) if texts(holds) else (),
         value.get("ready_state"),
+        None
+        if value.get("bot_setters") is None
+        else pairs(value.get("bot_setters"), int, text),
     )
     if (
         type(status.field_id) is not int
@@ -3163,15 +3175,37 @@ ISSUE_STATUS_QUERY = (
 FIELD_EVENT_WINDOW = 100
 
 
+def status_bot_setters(
+    actors: Iterable[tuple[int, Any, Any]],
+    explicit: tuple[tuple[int, str], ...] | None = None,
+) -> tuple[tuple[int, str], ...]:
+    """The Work status bot setters as (id, login). With `explicit` (the
+    block's `bot-setters`), each entry that is `ACTIONS_BOT` or that `actors`
+    (`trusted_listing`) lists as a bot with the same id and login; without
+    it, github-actions[bot], then each `kind` bot of `actors` whose login
+    starts with `melodic-`, other than `STATUS_LANES_APP`, in list order."""
+    actors = tuple(actors)
+    if explicit is not None:
+        bots = {(i, login) for i, login, kind in actors if kind == "bot"}
+        return tuple(e for e in explicit if e == ACTIONS_BOT or e in bots)
+    return (ACTIONS_BOT,) + tuple(
+        (i, login)
+        for i, login, kind in actors
+        if kind == "bot"
+        and isinstance(login, str)
+        and login.startswith("melodic-")
+        and login != STATUS_LANES_APP
+    )
+
+
 def issue_status(
     repo: str, ref: str, number: int, config: IssueStatusConfig
 ) -> str | None:
     """The state the newest counted Work status event on issue `number` left
     (`config`), or None when that event removed the value or no event counts.
     An event counts when a listed human or the lanes App on the trusted list
-    at `ref` wrote it, or a `bot-setters` account wrote any state but
-    `config.ready_state`, github-actions[bot] always and any other only while
-    the list holds it as a bot with the same id and login. Unlike
+    at `ref` wrote it, or a `status_bot_setters` account (`config.bot_setters`
+    or that list's) wrote any state but `config.ready_state`. Unlike
     issue-status.mjs issueStatus, which reads the newest event's setter, an
     uncounted later change or removal leaves a counted state standing.
     Raises `PolicyReadError` on a malformed `config`, a failed or malformed
@@ -3210,16 +3244,7 @@ def issue_status(
         for i, login, kind in actors
         if kind == "human" or (LANES_APP_LOGIN and login == LANES_APP_LOGIN)
     }
-    listed_bots = {
-        (i, login)
-        for i, login, kind in actors
-        if kind == "bot" and isinstance(login, str)
-    }
-    bots = {
-        entry[0]
-        for entry in config.bot_setters
-        if entry == ACTIONS_BOT or entry in listed_bots
-    }
+    bots = {i for i, _ in status_bot_setters(actors, config.bot_setters)}
     # An uncounted event neither sets nor clears a counted state: the newest
     # counted one decides, whatever came after it.
     for event in ours_newest_first:
@@ -4326,6 +4351,8 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/formal-verification/schemas/**",
     "plugins/code-metrics/scripts/**",
     _skill_scripts("code-metrics:audit"),
+    "plugins/guardrails/git-hooks/reference-verify.sh",
+    "plugins/bash-format/git-hooks/lint-full.sh",
 )
 
 
@@ -6743,7 +6770,7 @@ def merged_since_floor(
 
 
 def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
-    """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
+    """`diff_risk.RiskInput.pulumi_dirs`: each directory holding a
     Pulumi project file (`Pulumi.yaml`, `Pulumi.yml` or `Pulumi.json`) at
     the base ("" for the root); None when the base tree cannot be listed
     whole."""
@@ -6850,9 +6877,55 @@ def _changed_files(
                 previous_mode=previous_mode,
                 blob=blob,
                 previous_blob=previous_blob,
+                diff_read="patch" not in entry
+                and isinstance(path, str)
+                and not path.casefold().endswith(MEDIA_SUFFIXES)
+                and _diff_read(base_sha, str(head), path),
             )
         )
     return tuple(files), complete
+
+
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+
+def _diff_read(base_sha: str, head: str, path: str) -> bool:
+    """Whether a local clone holding both commits counts `path`'s changed
+    lines as text in `git diff <base_sha>...<head>`, the diff both review
+    lanes read with `--text`, so a review read a change the files API sent
+    no patch for. Git's binary call (`-` counts), no changed line, or a diff
+    no clone can read is False, which holds the file for a person. The
+    attributes come from the empty tree, not the checkout, and no user
+    attributes file is read, so a checked-out `.gitattributes` cannot make a
+    binary file count as text."""
+    if not (SHA_RE.fullmatch(base_sha) and SHA_RE.fullmatch(head)):
+        return False
+    for root in _clones_holding(head):
+        numstat = _git(
+            root,
+            f"--attr-source={EMPTY_TREE}",
+            "-c",
+            f"core.attributesFile={os.devnull}",
+            "diff",
+            "--numstat",
+            "--no-renames",
+            "--no-ext-diff",
+            "--no-textconv",
+            f"{base_sha}...{head}",
+            "--",
+            f":(literal){path}",
+        )
+        if numstat is None:
+            continue
+        rows = [line.split("\t", 2) for line in numstat.splitlines() if line]
+        return bool(rows) and all(
+            len(row) == 3
+            and row[0].isdigit()
+            and row[1].isdigit()
+            and int(row[0]) + int(row[1]) > 0
+            for row in rows
+        )
+    return False
 
 
 # The most files GitHub's pull request files listing returns

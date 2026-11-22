@@ -41,7 +41,7 @@ from pathlib import Path
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-import babysit_risk
+import diff_risk
 from babysit_gh import fetch_paginated_api, gh_capture
 
 # The reasons comment babysit_merge.py writes; the record lives in it.
@@ -66,7 +66,7 @@ MAX_RUNNING_JOBS = 35
 MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
-FINDING_CODES = frozenset(code for code, _ in babysit_risk.LANES.values())
+FINDING_CODES = frozenset(code for code, _ in diff_risk.LANES.values())
 # The lane whose clean review clears a `review-path:` hold.
 SECURITY_LANE = "claude-security-review"
 NEW_RUN_CLEARS = frozenset({"rerun-not-allowed", "base-retargeted"})
@@ -118,7 +118,7 @@ def record_lines(body: Any) -> list[str]:
     return [m[0] for m in RECORD_RE.finditer(_unfenced(body))]
 
 
-def _new_run_clears(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
+def _new_run_clears(lanes: Sequence[diff_risk.LaneEvidence]) -> set[str]:
     """The `evidence-unbound:` risk codes of the lanes whose one evidence entry
     is unbound for a reason in `NEW_RUN_CLEARS`, the reasons a new run at the
     same head removes: the re-run rule reads only a run's later attempts, and
@@ -128,7 +128,7 @@ def _new_run_clears(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
     return {
         f"evidence-unbound:{lane.lane}"
         for lane in lanes
-        if lane.lane in babysit_risk.LANES
+        if lane.lane in diff_risk.LANES
         and names.count(lane.lane) == 1
         and lane.unbound_reason in NEW_RUN_CLEARS
     }
@@ -136,19 +136,19 @@ def _new_run_clears(lanes: Sequence[babysit_risk.LaneEvidence]) -> set[str]:
 
 def wanted(
     reason: str | None,
-    risk: babysit_risk.RiskResult,
-    lanes: Sequence[babysit_risk.LaneEvidence],
+    risk: diff_risk.RiskResult,
+    lanes: Sequence[diff_risk.LaneEvidence],
 ) -> bool:
     """Every other gate passed (`reason` is None), the only reasons holding
     the score are open findings, `review-path:` holds and lanes unbound for a
     reason in `NEW_RUN_CLEARS`, and a clean whole review would close each lane's. A
     `review-path:` hold stands while the security lane's bound review counts
-    an open finding of any tier (`babysit_risk.security_review_clean`), so
+    an open finding of any tier (`diff_risk.security_review_clean`), so
     that lane must be one a whole review clears."""
-    held_by = babysit_risk.holding(risk)
+    held_by = diff_risk.holding(risk)
     if reason is not None or not held_by:
         return False
-    path = babysit_risk.REVIEW_PATH_PREFIX
+    path = diff_risk.REVIEW_PATH_PREFIX
     codes = {r.code for r in held_by}
     rerun = _new_run_clears(lanes) & codes
     if not all(
@@ -161,8 +161,8 @@ def wanted(
         lane
         for lane in lanes
         if (
-            babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
-            and (babysit_risk.blocking(lane) or 0) > 0
+            diff_risk.LANES.get(lane.lane, ("",))[0] in codes
+            and (diff_risk.blocking(lane) or 0) > 0
         )
         or (
             review_path

@@ -34,8 +34,10 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 ## Purpose
 
 Setup per the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in
-the marketplace repository): `check` inspects and reports, `apply` resolves. This plugin declares no
-`userConfig`, and has two setup concerns:
+the marketplace repository): `check` inspects and reports, `apply` resolves. This plugin's
+`userConfig` options are set in `/config`, never by this skill. The `audit_pass_suppressions_file`
+option reads `${user_config.audit_pass_suppressions_file}` here; empty or a literal
+`${user_config.…}` placeholder means unset. The skill has two setup concerns:
 
 - the external command-line tools its bundled scripts require, where `apply` is guidance-and-verify
   with no write path: it points at platform install instructions and never installs a system package;
@@ -45,7 +47,8 @@ the marketplace repository): `check` inspects and reports, `apply` resolves. Thi
   (`bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` prints it), else `docs/conventions`.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then remediation;
-`wsl-profile` runs only its own section. All are non-interactive, so never prompt when the action is given.
+`wsl-profile` runs only its own section. All are non-interactive, so never prompt when the action is
+given, except before `apply` moves an old-location suppression file.
 
 ## `check` (read-only)
 
@@ -115,7 +118,8 @@ CWD-relative read, which resolves a different (or missing) file depending on the
 nested worktree the skill was invoked from, then report one row per layer. The same
 tracked/ignored question has opposite correct answers per layer, so verify each on its own terms:
 
-- **user-global** `~/.claude/audit-pass.md`: outside the worktree; no git command applies. INFO only.
+- **userConfig** the file `audit_pass_suppressions_file` names: outside the worktree; no git
+  command applies. INFO only, `unset` when the option is.
 - **team** `<home>/harness-config.yaml`: must be tracked, probed as the pair:
   `git check-ignore -v` reports no match (a match is FAIL with the pattern) and
   `git ls-files --error-unmatch` exits 0. Untracked while present is a hard STOP:
@@ -124,10 +128,21 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
   uses: a non-zero exit is FAIL with the line it prints, because the engine then drops the whole team
   layer. The common cause is an unquoted `anchor/v1` key; the parser takes a plain key only of
   letters, digits, `_` and `-`, so the key is written `"anchor/v1":`.
-- **personal override** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
+- **personal override** `<home>/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
-
-  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+- **old locations** `~/.claude/audit-pass.md` (the `userConfig` layer's) and
+  `.claude/audit-pass.local.md` (the personal override's), each row naming the file, where it
+  moves, and `/harness-config:setup apply`. Retired conventions: run
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>"`,
+  with `<root>` the repo root anchored above. Exit 0 → PASS. Exit 1 → one finding per TSV row:
+  `migrate` is FAIL, `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`.
+  Exit 2 → FAIL, never silent. Bash unavailable → report the step UNKNOWN with remediation, never
+  green. The one record, `harness-config-r001`, covers `.claude/audit-pass.local.md`;
+  `~/.claude/audit-pass.md` is machine scope, outside the manifest, so a present one is a WARN.
+  The audit engine still reads an old file while no new-location file supplies its layer, and
+  ignores it once one does, so with both present the row says the old file's entries no longer
+  take part. An old `.claude/audit-pass.local.md` also gets the personal override's
+  gitignored-and-never-staged check above. See [config locations](../../reference/config-locations.md).
 
 Parse each present layer and report as malformed any entry missing **any** of its five required
 keys: `check`, `claim`, `sites`, `reason`, `date`. Checking only `reason` and `date` would pass an
@@ -136,7 +151,7 @@ suppress anything. Report as malformed too an entry whose stored constituents do
 key: the constituents are authoritative and the key is derived from them. A malformed entry does not
 suppress, and a silent partial parse would turn a formatting slip into a lost check.
 
-Report a **user-global or personal override entry for an id the team layer does not carry** as INFO
+Report a **`userConfig` or personal override entry for an id the team layer does not carry** as INFO
 `personal-only, not applied`, naming promotion to the team layer as what makes it take effect. The
 team layer is the only one that enacts a suppression, so a personal-only entry that looks live is a
 finding the operator believes is accepted and is not.
@@ -178,11 +193,34 @@ Then converge the one surface this plugin owns, conservatively:
   explicit request.
 - **Team layer present but untracked**: report the STOP and the exact `git add` the operator should
   run. Never stage on their behalf.
-- **Personal override present but not ignored**: recommend the recursive `.claude/**/*.local.*` line and leave
-  the `.gitignore` edit to the consumer.
+- **Personal override present but not ignored**: recommend the recursive `<home>/**/*.local.*` line
+  (`.claude/**/*.local.*` for an old-location file) and leave the `.gitignore` edit to the consumer.
 - **Malformed or unrecognized entries**: report them and stop. Never rewrite, reorder, or drop an
   operator's suppression: an entry this skill cannot reconcile is a question for the operator, and a
   silent rewrite would hide the very finding the entry was suppressing.
+- **An old-location file**: move it, so its entries end in one file, never two. This step asks
+  before it writes, unlike the rest of `apply`; with no one to answer, report the move and leave
+  the files as they are. Per old file:
+  1. Resolve the new file: `<home>/audit-pass.local.md` for `.claude/audit-pass.local.md`; for
+     `~/.claude/audit-pass.md`, the file `audit_pass_suppressions_file` names. With that option
+     unset, tell the operator to set it in `/config` to a file outside any repository, then rerun
+     `apply`; stop for this file.
+  2. Preview: name the old file, the new file, and each entry by `finding_id`. An id both files
+     carry with any differing key is a conflict: show both and stop for this file. An id both carry
+     identically is listed once.
+  3. On a yes, write the old file's entries into the new file's fenced `suppressions:` block,
+     creating the file in the same Markdown shape when absent and keeping the new file's own
+     entries and prose. A new `<home>/audit-pass.local.md` is gitignored first, per the personal
+     override check above; if it would not be, stop and recommend the `<home>/**/*.local.*` line.
+  4. Verify: run the audit engine `--json` (pass `--user-suppressions` with the option's file) and
+     confirm `suppressions.layers` shows the layer reading the new file, no new `malformed` line
+     names it, and parsing the new file's fenced block yields every `finding_id` the old file held,
+     each with the same keys. On any mismatch, restore the new file to its earlier content, keep the old file, and
+     report the difference.
+  5. Delete the old file: `.claude/audit-pass.local.md` through
+     `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean harness-config-r001 --i-migrated`,
+     with the same `<root>` as `check`; `~/.claude/audit-pass.md` with a plain delete. Then rerun
+     `check` and report that its row is gone.
 
 Every write names the file and the exact change before making it, and preserves unrelated content.
 
@@ -207,13 +245,13 @@ check an edited profile, run `... wsl-profile.sh lint <file>`.
 
 ## Gotchas
 
-- **Never run a git command against the user-global layer.** `~/.claude/audit-pass.md` is outside the
-  worktree, so `git check-ignore` and `git status` return a meaningless verdict there, or a
+- **Never run a git command against the `userConfig` layer.** The option's file and the old
+  `~/.claude/audit-pass.md` sit outside the worktree, so `git check-ignore` and `git status` return a meaningless verdict there, or a
   confidently wrong one when the home directory is itself a git repository.
 - **Missing config is not a failure.** All three suppression layers absent means no suppressions,
   which is the normal state for a repo that has never suppressed a finding. INFO, never FAIL.
-- **Recommend the recursive gitignore line, and leave the edit to the consumer.** `.claude/**/*.local.*`
-  covers flat, folder-form, and profiled personal overrides alike; the narrower `.claude/*.local.*`
+- **Recommend the recursive gitignore line, and leave the edit to the consumer.** `<home>/**/*.local.*`
+  covers flat, folder-form, and profiled personal overrides alike; the narrower `<home>/*.local.*`
   silently misses any nested personal override. The consumer's ignore file is their artifact; this skill never writes it.
 - **An install command's exit code is not verification.** After any install, re-run the probe and
   report its actual result.
@@ -225,6 +263,7 @@ check an edited profile, run `... wsl-profile.sh lint <file>`.
   `audit-permission-state`, `audit-prompting-postures`, `draft-auto-mode-rules`, `unhobble`).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`; `wsl-profile` prints a block and the user merges it.
 - Install system packages.
-- Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries.
+- Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries; the
+  old-location move copies entries unchanged and asks first.
 - Download anything. `check` makes no network call; the audit skills' own doc/marketplace fetches are
   theirs, not setup's.

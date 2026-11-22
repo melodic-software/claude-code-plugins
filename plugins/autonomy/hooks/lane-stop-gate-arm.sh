@@ -129,7 +129,7 @@ mkdir -p -- "$DIR" 2>/dev/null || {
 
 # Self-cleaning store: drop records past the gate's TTL so crashed lanes cannot
 # accumulate stale grants. Best-effort.
-find "$DIR" -type f -mtime +7 -delete 2>/dev/null
+find "$DIR" -type f -mtime +"$GATE_ARM_TTL_DAYS" -delete 2>/dev/null
 
 # A re-armed id must start UNCLAIMED. The gate's claim sidecar outlives the
 # record it names, so a claim left by the previous lane would bind this fresh

@@ -35,6 +35,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/opt-value.sh"
 # shellcheck source=lib/cascade-read.sh
 source "$SCRIPT_DIR/lib/cascade-read.sh"
+# shellcheck source=lib/config-layers.sh
+source "$SCRIPT_DIR/lib/config-layers.sh"
 # shellcheck source=lib/resolve-targets.sh
 source "$SCRIPT_DIR/lib/resolve-targets.sh"
 
@@ -178,33 +180,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Config cascade (user-global JSON -> team -> personal override YAML) --------
-
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
-# Config-cascade step 2: a home or non-repo root has no team layer or personal
-# override, and a team file or personal override that is the user-global file is
-# not read a second time.
-# shellcheck source=../../../lib/config-root.sh
-source "$SCRIPT_DIR/../../../lib/config-root.sh"
-USER_CFG="${HOME:-/nonexistent}/.claude/ai-slop.json"
-CFG_LAYERS=()
-[[ -f "$USER_CFG" ]] && CFG_LAYERS+=("$USER_CFG")
-if [[ "$(config_root_classify "$REPO_ROOT")" == repo ]]; then
-  # The team layer is <home>/ai-slop.yaml and the personal layer
-  # <home>/ai-slop.local.yaml (ADR 0075).
-  CONV_HOME="docs/conventions"
-  if _home="$(bash "$SCRIPT_DIR/../../../lib/resolve-convention-home.sh" --root "$REPO_ROOT" 2>/dev/null)" && [[ -n "$_home" ]]; then
-    CONV_HOME="$_home"
-  fi
-  for _name in ai-slop ai-slop.local; do
-    _cfg="$REPO_ROOT/$CONV_HOME/$_name.yaml"
-    [[ -f "$_cfg" ]] && ! config_root_paths_same "$_cfg" "$USER_CFG" && CFG_LAYERS+=("$_cfg")
-  done
-fi
+resolve_config_layers "$REPO_ROOT" "$SHOW_CONFIG"
 
 # jq reads the user-global JSON layer; the YAML layers need no jq.
 HAVE_JQ=1
@@ -342,6 +323,7 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   else
     for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
   fi
+  [[ -n "$OLD_PATH_NOTE" ]] && echo "$OLD_PATH_NOTE"
   # Every Effective line ends with "[layer: <file>]" naming the layer that
   # supplied the value, or "[layer: default]" when no layer did.
   for entry in "${DENSITY_RULES[@]}"; do

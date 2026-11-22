@@ -4,6 +4,30 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.12] - 2026-11-22
+
+### Changed
+
+- The repo-sweep hygiene catalog's glossary step sends removals and merges to `/domain-driven-design:ubiquitous-language prune` after a yes, and renames to `/docs-hygiene:rename-references`.
+
+## [0.36.11] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
+## [0.36.10] - 2026-11-22
+
+### Changed
+
+- Listed the repo-sweep done-line outcomes in history.sh in the same order as state.sh and tick.sh.
+
+## [0.36.9] - 2026-11-22
+
+### Changed
+
+- **The repo-sweep hygiene catalog names instruction-placement's new suppression file.** The `instruction-placement` step's notes and claim now say realign writes a decline to `<home>/instruction-placement.yaml` (default home `docs/conventions`) instead of `.claude/instruction-placement.md`, following that plugin's move to the config-cascade layers ([#18012](https://github.com/melodic-software/claude-code-plugins/issues/18012)).
+
 ## [0.36.8] - 2026-11-21
 
 ### Added

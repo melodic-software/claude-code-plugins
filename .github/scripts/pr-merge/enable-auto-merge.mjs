@@ -47,8 +47,8 @@
 //   untrusted work in any spelling and none ever removed by a non-human, so
 //   one added after admission refuses for a person
 //   (`untrusted-provenance`). Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
-//   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
-//   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
+//   at it, no earlier FAIL is uncleared, and the spec is unchanged and
+//   trusted. A
 //   read that fails, or a line without the link's answer, refuses. Only the
 //   scheduled run and
 //   a hand-started one read them (READER_EVENTS), last, for a pull request
@@ -84,7 +84,7 @@
 //   naming each one still armed because its disarm failed.
 // - pr-merge's gate would not hold it on its risk score: `evidence
 //   --lane-reviews --rung <the room's rung>` runs the gate's scorer
-//   (babysit_risk.score, holding) over the inputs the gate builds, the
+//   (diff_risk.score, holding) over the inputs the gate builds, the
 //   review lanes' evidence bound to the head included. So an open CRITICAL
 //   security finding or a review not bound to the head (whether or not the
 //   lane applied its hold label), a symlink, submodule or other non-regular
@@ -778,15 +778,6 @@ export function verifyHold(evidence, head) {
 // read whole, more than the 100 the read lists, which no later read changes.
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
-// Who clears the refusal verifyHold reads in `evidence` at `head`
-// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner;
-// cost and trust holds stay a person's): `person`
-// for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
-// refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
-// or a risk hold it marks `reviewsPerson` (babysit_risk.person_reasons),
-// `lane` for every other refusal, which gets the comment and no label, and
-// null for an unread answer, which the next run reads again. An answer
-// without its flag is a person's, as any doubt holds.
 export function verifyClears(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || evidence.head !== head) {
     return null;
@@ -873,14 +864,6 @@ export function refusalReasons(body, person, head, label, { since = null, partia
 // when it is not one.
 const personReasons = (body, head, label) => refusalReasons(body, true, head, label, { partial: isPartial(body, head), records: recordLines(body) });
 
-// A person's refusal at `head` whose every reason is a hold path
-// (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
-// escalation a trusted person's approval of the head lifts, so the lane may
-// take its label off. A cost, risk or verifier reason, a label a person set
-// with no refusal, or a comment at another head is not one, except that with
-// `pathHolds` false a risk reason whose every code is a path hold
-// (babysit_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
-// `review-path:`) is one too.
 const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
 const PATH_HOLD_CODE = /^(high-path:(?!\*\*$)|review-path:)\S/;
 const pathOnlyRisk = (line) =>

@@ -195,7 +195,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 ## Next
 
 - A hop leaves the process at Publish or Send: `/architecture:map-events`.
-- The trace settles a decision worth keeping: `/architecture:record-decision`.
+- The trace settles a decision worth keeping: `/architecture:adr`.
 - The trace shows a hop or contract to redesign: `/planning:design integration`.
 
 ## Gotchas

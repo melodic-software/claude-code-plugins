@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: dl-both-team-paths-new-wins
+graders:
+  - name: 'both-files-named'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\.claude/instruction-placement\.md\b)(?=[^\n]*\binstruction-placement\.yaml\b)(?=[^\n]*\b4d7f2a90c1e3b856\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the delta run does with both team files present. PASS only if it satisfies every point: (1) Applies docs/conventions/instruction-placement.yaml as the team layer and suppresses Deploy conventions from it; (2) Does not apply the old .claude/instruction-placement.md, so Lint rules is still reported; (3) Warns naming both files and the id 4d7f2a90c1e3b856 that only the old file carries; (4) Names /instruction-placement:setup apply migrate-config to merge it, and writes neither file. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

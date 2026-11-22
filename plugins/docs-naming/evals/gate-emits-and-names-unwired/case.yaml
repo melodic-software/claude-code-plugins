@@ -53,7 +53,7 @@ graders:
     arm: both
   - name: names-registry-and-adr
     type: regex
-    pattern: '^(?=[\s\S]*(?:\bregistry\b|\bgate list\b|\bother (?:gates|checks)\b|\b(?:list|table|index) of\b[^\n]{0,40}\b(?:gates|checks)\b))(?=[\s\S]*(?:decision record|\bADR\b|record-decision))'
+    pattern: '^(?=[\s\S]*(?:\bregistry\b|\bgate list\b|\bother (?:gates|checks)\b|\b(?:list|table|index) of\b[^\n]{0,40}\b(?:gates|checks)\b))(?=[\s\S]*(?:decision record|\bADR\b|architecture:adr))'
     flags: i
     arm: both
   - name: no-rule-file

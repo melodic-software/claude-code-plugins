@@ -199,6 +199,9 @@ lib/check-retirements.sh plugins/harness-ops/lib/check-retirements.sh
 lib/check-retirements.sh plugins/attribution/lib/check-retirements.sh
 lib/check-retirements.sh plugins/docs-naming/lib/check-retirements.sh
 lib/check-retirements.sh plugins/guardrails/lib/check-retirements.sh
+lib/check-retirements.sh plugins/bugs/lib/check-retirements.sh
+lib/check-retirements.sh plugins/improvement/lib/check-retirements.sh
+lib/check-retirements.sh plugins/codebase-health/lib/check-retirements.sh
 lib/state-key.sh plugins/harness-config/lib/state-key.sh
 lib/state-key.sh plugins/harness-memory/lib/state-key.sh
 lib/state-key.sh plugins/harness-ops/lib/state-key.sh
@@ -293,6 +296,7 @@ lib/session-bridge/session_bridge.py plugins/planning/surface/session_bridge.py
 lib/session-bridge/watch.sh plugins/planning/surface/watch.sh
 lib/session-bridge/wake.sh plugins/planning/surface/wake.sh
 plugins/code-metrics/scripts/yaml_subset.py plugins/planning/surface/yaml_subset.py
+plugins/code-metrics/scripts/yaml_subset.py plugins/disk-hygiene/lib/yaml_subset.py
 lib/session-bridge/session_bridge.py plugins/planning/shared/session_bridge.py
 lib/session-bridge/watch.sh plugins/planning/shared/watch.sh
 lib/session-bridge/wake.sh plugins/planning/shared/wake.sh
@@ -922,11 +926,13 @@ docs/contracts/plugin-reconfiguration/README.md plugins/ai-briefing/reference/pl
 docs/contracts/plugin-reconfiguration/README.md plugins/bash-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/bugs/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/code-tidying/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/codebase-health/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/context-budget/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/desktop-notification/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/discipline/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/disk-hygiene/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/docs-hygiene/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/docs-naming/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/education/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/eol-normalizer/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/go-format/reference/plugin-reconfiguration.md
@@ -1010,6 +1016,13 @@ lib/lane-instance-collision-check.md plugins/work-items/skills/work-loop/referen
 lib/cli-version-check.mjs plugins/context7/lib/cli-version-check.mjs
 lib/cli-version-check.mjs plugins/firecrawl/lib/cli-version-check.mjs
 lib/cli-version-check.mjs plugins/playwright/lib/cli-version-check.mjs
+lib/config-cascade.mjs plugins/external-agents/lib/config-cascade.mjs
+lib/yaml-subset.mjs plugins/external-agents/lib/yaml-subset.mjs
+lib/cli-version-check.mjs plugins/external-agents/lib/cli-version-check.mjs
+lib/prerequisites.mjs plugins/external-agents/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/external-agents/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/external-agents/lib/prerequisites.ps1
+lib/resolve-convention-home.sh plugins/external-agents/lib/resolve-convention-home.sh
 docs/contracts/config-cascade/locations.md plugins/ai-slop/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/attribution/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/bugs/reference/config-locations.md
@@ -1027,3 +1040,5 @@ docs/contracts/config-cascade/locations.md plugins/overengineering/reference/con
 docs/contracts/config-cascade/locations.md plugins/plugin-quality/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/source-control/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/testing/reference/config-locations.md
+lib/target-repo.sh plugins/source-control/skills/pull-request/scripts/target-repo.sh
+lib/target-repo.sh plugins/work-items/tools/work-item-tracker/adapters/github/target-repo.sh

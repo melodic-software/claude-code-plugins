@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model sonnet @ effort medium (basis: default; one flag on one command is an everyday task)",
+      "why": "contract line at the default"
+    },
+    {
+      "answer": "- `claude: model sonnet @ effort medium` (basis: default; everyday task)",
+      "why": "bulleted and code-spanned line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude: model sonnet @ effort high (basis: model-config § choose an effort level; heavy task)",
+      "why": "raised effort"
+    },
+    {
+      "answer": "Use Sonnet at medium effort.",
+      "why": "no contract line"
+    }
+  ]
+}

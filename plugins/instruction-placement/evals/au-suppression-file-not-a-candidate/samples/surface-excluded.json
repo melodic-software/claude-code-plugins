@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/instruction-placement.yaml is the suppression surface, so it is excluded from the candidate set.",
+      "why": "names the file and its exclusion"
+    },
+    {
+      "answer": "Dropped the promote candidate on `docs/conventions/instruction-placement.yaml`: the suppression file is never a candidate.",
+      "why": "paraphrase dropping the candidate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "IP-002 promote: docs/conventions/instruction-placement.yaml reads as a convention nothing loads; move it to a nested AGENTS.md.",
+      "why": "proposes a finding on the suppression file"
+    },
+    {
+      "answer": "Suppressed: Deploy conventions (team layer, docs/conventions/instruction-placement.yaml, 2026-11-02).",
+      "why": "near miss: names the file only as the layer source"
+    },
+    {
+      "answer": "Excluded the suppression surface from the candidate set.",
+      "why": "near miss: never names the file"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

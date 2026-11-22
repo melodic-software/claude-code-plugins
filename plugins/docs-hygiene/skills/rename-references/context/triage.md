@@ -162,6 +162,9 @@ When a hit's context does not show which it is, it goes to Ambiguous with its co
 Certain. Each list is counted in its own layer row of the report and recorded as spans, each with
 its matched snippet, `(file, line, start, end)` for apply.md Phase 6.
 
+A hit only the identifier-part pass finds (`learner` inside `addLearner`) is never Certain: a
+declaration or call site goes to the refactor-tool list, any other to Ambiguous.
+
 When the pair is a verb from an entity's `Actions:` line, a hit is in scope only where the verb names
 that operation on that entity: beside the entity's name, or inside an identifier with it (`sendRefund`
 for `Refund ... Actions: issue (Avoid: send)`). The verb used on anything else is ordinary English

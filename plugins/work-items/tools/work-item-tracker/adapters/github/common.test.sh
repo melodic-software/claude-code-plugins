@@ -6,7 +6,7 @@
 set -uo pipefail
 # In a CI job the adapter wraps its gh calls and records into the job's
 # RUNNER_TEMP; the stubs here answer the unwrapped calls.
-unset RUNNER_TEMP
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -79,12 +79,20 @@ issue)
   exit 1
   ;;
 repo)
+  if [[ "$2 $3" == "set-default --view" ]]; then
+    printf 'No default remote repository has been set for this directory.\n' >&2
+    exit 0
+  fi
   printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
   exit 1
   ;;
 api)
   case "$*" in
+  *"--jq .permissions.push") [[ "$2" == repos/up/r ]] && echo false || echo true ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
+  *"--jq .full_name") printf "%s\n" "${2#repos/}" | sed 's#^o/r-old$#o/r#' ;;
+  "api repos/me/r --jq"*) printf 'up/r\n' ;;
+  "api repos/up/r --jq"* | "api repos/a/r --jq"* | "api repos/b/r --jq"*) ;;
   *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z","milestone":{"number":1,"title":"After zero"}}\n' ;;
   esac
   exit 0
@@ -153,11 +161,51 @@ EOF
   (CLAUDE_CODE_REMOTE='' wit_require_graphql_session "--parent" >/dev/null 2>&1)
   assert_eq "wit_require_graphql_session passes in a local session" "0" "$?"
 
+  NO_REMOTE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$NO_REMOTE" init -q
   : >"$EMIT_STUB/calls.log"
-  REPO="$(GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "")"
-  assert_eq "wit_resolve_repo resolves over REST" "o/r" "$REPO"
+  REPO="$(cd "$NO_REMOTE" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo with no github.com remote resolves over REST" "o/r" "$REPO"
   assert_not_contains "wit_resolve_repo skips repo view" "$(<"$EMIT_STUB/calls.log")" "repo view"
   assert_eq "wit_resolve_repo keeps an explicit override" "x/y" "$(wit_resolve_repo x/y)"
+
+  FORK="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$FORK" init -q
+  git -C "$FORK" remote add origin git@github.com:me/r.git
+  git -C "$FORK" remote add upstream https://github.com/up/r
+  ERR="$(cd "$FORK" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>&1 >/dev/null)"
+  REPO="$(cd "$FORK" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo in a fork checkout targets the fork, not upstream" "me/r" "$REPO"
+  assert_contains "wit_resolve_repo names the target on stderr" "$ERR" "target repository: me/r"
+
+  RENAMED="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$RENAMED" init -q
+  git -C "$RENAMED" remote add origin https://github.com/o/r-old
+  REPO="$(cd "$RENAMED" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo returns GitHub's canonical name, not the remote URL's" "o/r" "$REPO"
+
+  TWO="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$TWO" init -q
+  git -C "$TWO" remote add origin https://github.com/a/r
+  git -C "$TWO" remote add other https://github.com/b/r
+  ERR="$(cd "$TWO" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>&1 >/dev/null)"
+  rc=$?
+  assert_eq "wit_resolve_repo refuses undecidable remotes with exit 3" "3" "$rc"
+  assert_contains "wit_resolve_repo refusal prints the set-default fix" "$ERR" "gh repo set-default <owner>/<repo>"
+
+  THEIRS="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  git -C "$THEIRS" init -q
+  git -C "$THEIRS" remote add origin https://github.com/up/r
+  ERR="$(cd "$THEIRS" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" write 2>&1 >/dev/null)"
+  rc=$?
+  assert_eq "wit_resolve_repo write in a clone you cannot push to exits 3" "3" "$rc"
+  assert_contains "wit_resolve_repo write refusal names the repository" "$ERR" "you cannot push to up/r"
+  REPO="$(cd "$THEIRS" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "" 2>/dev/null)"
+  assert_eq "wit_resolve_repo read in a clone you cannot push to still resolves" "up/r" "$REPO"
+  (cd "$NO_REMOTE" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo up/r write >/dev/null 2>&1)
+  assert_eq "wit_resolve_repo write to an explicit repository you cannot push to exits 3" "3" "$?"
+  REPO="$(cd "$NO_REMOTE" && GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo o/r write 2>/dev/null)"
+  assert_eq "wit_resolve_repo write to an explicit pushable repository resolves" "o/r" "$REPO"
 
   rm -rf "$EMIT_STUB"
 

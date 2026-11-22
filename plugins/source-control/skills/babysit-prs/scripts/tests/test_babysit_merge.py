@@ -2832,7 +2832,7 @@ class MainReviewInputTests(unittest.TestCase):
                 None,
                 None,
                 [HEAD],
-                floor=merge.babysit_risk.floor_for(),
+                floor=merge.diff_risk.floor_for(),
             )
         calls.extend(read.call_args_list)
         return reviews, context, calls
@@ -2930,7 +2930,7 @@ class LaneRunsReadTests(unittest.TestCase):
                 frozenset(),
                 lambda login: "write",
                 changed,
-                merge.babysit_risk.floor_for(),
+                merge.diff_risk.floor_for(),
             )
         return listed
 

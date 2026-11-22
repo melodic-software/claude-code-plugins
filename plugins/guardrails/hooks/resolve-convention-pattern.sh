@@ -29,12 +29,12 @@
 # launcher. It runs the same under bash.
 #
 # ENFORCEMENT ≠ DRAFTING — the policy-floor contract:
-#   Enforcement reads the TEAM-TRACKED layer: the files above. The user-global
-#   (`~/.claude/source-control.md`) and gitignored local
-#   (`.claude/source-control.local.md`) personal overrides are DRAFTING inputs the model
-#   merges per `reference/config-resolution.md`; a blocking gate never reads
-#   them. "Is regex A stricter than B" is undecidable, so no merge of a personal
-#   pattern with a team one could honor "tighten only".
+#   Enforcement reads the TEAM-TRACKED layer: the files above. The drafting
+#   layers the model merges per `reference/config-resolution.md` (the personal
+#   override, plus the two old locations still read during the dual-read
+#   window) are never merged here. "Is regex A stricter than B" is undecidable,
+#   so no merge of a personal pattern with a team one could honor "tighten only"
+#   (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/commit-convention/README.md).
 #
 #   THE PERSONAL LAYER IS FALLBACK-ONLY: `subject_pattern` in
 #   `docs/conventions/source-control.local.yaml` (ADR 0075's

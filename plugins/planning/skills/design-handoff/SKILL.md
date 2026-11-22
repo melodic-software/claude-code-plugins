@@ -142,7 +142,7 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
 - **ADR candidates.** List each resolved decision whose thread records a rejected alternative,
   with that alternative quoted from `design-threads.md`; a decision with none is not listed.
   "None" is the entry when no decision qualifies. When the `architecture` plugin is enabled, offer
-  to invoke `/architecture:record-decision` via the Skill tool for each listed decision, passing
+  to invoke `/architecture:adr` via the Skill tool for each listed decision, passing
   the decision, its recorded rationale and the rejected alternative. That skill owns and applies
   the admission test, the template and convention discovery; this step carries no copy of the test
   and judges none. Without the `architecture` plugin, list the

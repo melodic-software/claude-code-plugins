@@ -5,6 +5,49 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.9.1] - 2026-11-22
+
+### Changed
+
+- The automation-gaps rule inventory reads ecosystem records from `docs/conventions/ecosystems/` and a legacy `.claude/ecosystems/` record of a name not there; a legacy record shadowed by one of the same name is named with the file that takes its place.
+
+### Fixed
+
+- `audit-automation-gaps` places a report-only check over the commit budget in the pre-PR check, not at `pre-push`, as the check-placement rubric now does.
+
+## [5.9.0] - 2026-11-22
+
+### Changed
+
+- `/harness-config:audit-automation-gaps`'s rule inventory counts `CODING_STANDARDS.md`, the
+  review-criteria index `docs/review/README.md` and the `docs/review/` files it links as
+  `automated-review` rules, beside `REVIEW.md`.
+
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
+## [5.8.0] - 2026-11-22
+
+### Changed
+
+- **The audit-pass suppression record reads the config-cascade layers.** A new `file`-typed
+  `userConfig` option, `audit_pass_suppressions_file`, names your own suppressions file in place of
+  `~/.claude/audit-pass.md`, and the personal override moves from `.claude/audit-pass.local.md` to
+  `<home>/audit-pass.local.md`. The audit engine takes the option's file as `--user-suppressions`
+  and lists the layers as `team`, `userConfig` and `personal`. An old-location file is still read
+  while no new file supplies its layer; each run prints one warning per old file naming where it
+  moves and `/harness-config:setup apply`, which now moves it after a preview and a yes, checks the
+  new file resolves the same entries, and deletes the old one. The retirement record
+  `harness-config-r001` declares the `.claude/audit-pass.local.md` window: `check` reports it and
+  `apply` deletes that file through its cleanup
+  ([#18007](https://github.com/melodic-software/claude-code-plugins/issues/18007)).
+
+## [5.7.1] - 2026-11-21
+
+### Changed
+
+- `draft-auto-mode-rules` now offers the `allow` rules that `/auto-mode-setup` (Claude Code 2.1.329 and later) drafts from recent auto mode denials as input to the `allow` section. Its reference records what the command reads and writes.
+
 ## [5.7.0] - 2026-11-21
 
 ### Changed

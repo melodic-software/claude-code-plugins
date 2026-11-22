@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no tool calls" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/ws/.work/notes.md", "old_string": "a", "new_string": "b" } }], "why": "scratch edit" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/ws/docs/conventions/audit-pass.local.md", "old_string": "Commits go through the release script.", "new_string": "I commit by hand in this repository." } }], "why": "merges the conflicting entry" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/ws/.claude/audit-pass.local.md", "old_string": "a", "new_string": "b" } }], "why": "edits the old file" }
+  ]
+}

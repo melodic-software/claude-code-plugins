@@ -237,11 +237,11 @@
       "id": 17,
       "name": "adr-offer-routes-to-architecture-when-installed",
       "prompt": "/planning:interview The `architecture` plugin is enabled in this session. During the interview we settled that the exports service will write artifact keys to a dedicated `export_artifacts` table rather than reusing the existing `blobs` table: the two have different retention rules, sharing the table would mean a retention column every reader has to honor, and splitting it is a migration we cannot cheaply undo once clients read the new table. Propose whatever interview outputs this earns.",
-      "expected_output": "The decision is about the system and weighed a real alternative (reuse `blobs` with a retention column), so the round's Decision record step invokes `/architecture:record-decision` via the Skill tool, passing the decision, its rationale and the rejected alternative. That skill applies the admission test; the interview does not restate or pre-apply it. The interview itself picks no directory, no numbering scheme, and no section set.",
+      "expected_output": "The decision is about the system and weighed a real alternative (reuse `blobs` with a retention column), so the round's Decision record step invokes `/architecture:adr` via the Skill tool, passing the decision, its rationale and the rejected alternative. That skill applies the admission test; the interview does not restate or pre-apply it. The interview itself picks no directory, no numbering scheme, and no section set.",
       "files": [],
       "expectations": [
         "The handoff happens as the round's numbered Decision record step, not as a passing aside",
-        "`/architecture:record-decision` is invoked via the Skill tool, and the decision, its rationale and the rejected alternative (reusing `blobs`) are passed in the invocation",
+        "`/architecture:adr` is invoked via the Skill tool, and the decision, its rationale and the rejected alternative (reusing `blobs`) are passed in the invocation",
         "The interview does not restate the admission test's criteria as its own gate",
         "The interview does NOT name a target directory (`docs/adr/` or otherwise), a numbering scheme, or a section set: choosing those is the invoked skill's job",
         "The interview does not itself write an ADR file alongside the invocation",
@@ -252,14 +252,14 @@
       "id": 18,
       "name": "adr-candidate-recorded-when-architecture-absent",
       "prompt": "/planning:interview The `architecture` plugin is NOT enabled in this session. During the interview we settled that the exports service will write artifact keys to a dedicated `export_artifacts` table rather than reusing the existing `blobs` table: the two have different retention rules, sharing the table would mean a retention column every reader has to honor, and splitting it is a migration we cannot cheaply undo once clients read the new table. Treat evals/fixtures/lock-stop-on-gap/codebase-survey.md as the Step 1 survey result (relative to the skill directory). Propose whatever interview outputs this earns.",
-      "expected_output": "The decision weighed a real alternative, so it is an ADR candidate. With no `architecture` plugin, the interview records it as an ADR candidate in the resolution field of the register row that resolved it, naming the decision and the rejected alternative. It writes no ADR file and applies no copy of the admission test. `/architecture:record-decision` is never invoked, named as available, or waited on, because it is not enabled.",
+      "expected_output": "The decision weighed a real alternative, so it is an ADR candidate. With no `architecture` plugin, the interview records it as an ADR candidate in the resolution field of the register row that resolved it, naming the decision and the rejected alternative. It writes no ADR file and applies no copy of the admission test. `/architecture:adr` is never invoked, named as available, or waited on, because it is not enabled.",
       "files": [
         "evals/fixtures/lock-stop-on-gap/codebase-survey.md"
       ],
       "expectations": [
         "The decision is recorded as an ADR candidate in its register row, with the rejected alternative named",
         "No ADR file is written and no admission-test criteria are applied by the interview itself",
-        "`/architecture:record-decision` is NOT invoked and is not presented as something this session can call",
+        "`/architecture:adr` is NOT invoked and is not presented as something this session can call",
         "The run does not stall or report itself blocked on a missing plugin"
       ]
     },

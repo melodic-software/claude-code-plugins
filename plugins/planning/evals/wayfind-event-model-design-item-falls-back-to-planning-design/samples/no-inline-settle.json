@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/planning:design (#903) takes over the event-model question from here.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolved: OrderPlaced, OrderPaid, OrderShipped, OrderDelivered. Closing #903.",
+      "why": "breaks the rule"
+    }
+  ]
+}

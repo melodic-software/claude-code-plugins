@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| Old location | FAIL | .claude/audit-pass.local.md is still read as the personal layer; run /harness-config:setup apply to move it to docs/conventions/audit-pass.local.md |", "why": "one row with all three" },
+    { "answer": "Old file: .claude/audit-pass.local.md\nNew location: docs/conventions/audit-pass.local.md\n\nNext: /harness-config:setup apply", "why": "spread over the report" }
+  ],
+  "fail": [
+    { "answer": "WARN: .claude/audit-pass.local.md is an old location.", "why": "no new location, no command" },
+    { "answer": "Run /harness-config:setup apply to move docs/conventions/audit-pass.local.md.", "why": "old file not named" },
+    { "answer": "WARN: move .claude/audit-pass.local.md to docs/conventions/audit-pass.local.md.", "why": "no setup command" }
+  ]
+}

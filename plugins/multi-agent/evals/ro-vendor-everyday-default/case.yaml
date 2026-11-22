@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: 'ro-vendor-everyday-default'
+graders:
+  - name: 'invoked-route'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:multi-agent:)?route"'
+    min: 1
+    arm: 'with-only'
+  - name: 'claude-line-default'
+    type: 'regex'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+\s*@\s*effort\s+medium\b[^\n]*basis:\s*default'
+    flags: 'mi'
+    target: 'last_message'
+  - name: 'names-external-agents-absent'
+    type: 'regex'
+    pattern: 'external-agents[^\n]{0,40}not installed|not installed[^\n]{0,60}external-agents'
+    flags: 'i'
+    target: 'last_message'

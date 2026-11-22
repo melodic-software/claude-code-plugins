@@ -356,12 +356,11 @@ jq -s 'map(select(.hook != null)) | sort_by(.ts) as $e
 
 ## 4.5 Hallucination-guard catches (`cli-flag-verify`)
 
-guardrails runs `cli-flag-verify` at push time, in its `reference-verify` git hook, not after each
-Write or Edit: the `reference-verify` entry is a `pre-push` hook whose assets carry
-`hooks/cli-flag-verify.sh` (`plugins/guardrails/git-hooks/entries.json:43-52`), and
-`plugins/guardrails/hooks/hooks.json` registers no `cli-flag-verify` hook. A git hook writes no
+guardrails runs `cli-flag-verify` in the pre-PR check `/source-control:pull-request` runs, through
+`plugins/guardrails/git-hooks/reference-verify.sh`, not after each Write or Edit:
+`plugins/guardrails/hooks/hooks.json` registers no `cli-flag-verify` hook. That check writes no
 Claude Code hook event, so the hook event log holds no catches to count. Report the section as
-`not collected: cli-flag-verify runs at push time in guardrails' reference-verify git hook`, and
+`not collected: cli-flag-verify runs in guardrails' reference-verify pre-PR check`, and
 never read an empty count as a clean verifier.
 
 ## 5. Drift candidates (rules-vs-code mismatches)

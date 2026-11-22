@@ -9,7 +9,7 @@
 # that message.
 # Non-zero exit on any FAIL.
 
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO GITHUB_ACTIONS
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -41,7 +41,9 @@ case "$1 $2" in
   done
   [[ " ${STUB_NOPUSH:-} " == *" $repo "* ]] && push=false
   [[ "$3" == --jq ]] || { echo "stub gh: expected --jq" >&2; exit 99; }
-  printf '{"full_name":"%s","parent":%s,"permissions":{"push":%s}}\n' "$repo" "$parent" "$push" | jq -r "$4"
+  perms=",\"permissions\":{\"push\":$push}"
+  [[ " ${STUB_NOPERMS:-} " == *" $repo "* ]] && perms=
+  printf '{"full_name":"%s","parent":%s%s}\n' "$repo" "$parent" "$perms" | jq -r "$4"
   ;;
 *) echo "stub gh: unexpected call: $*" >&2; exit 99 ;;
 esac
@@ -64,8 +66,9 @@ make_repo() {
 check() {
   local desc="$1" repo="$2" want_out="$3" want_rc="$4" want_err="$5"
   shift 5
-  local out rc err
-  err=$(env PATH="$WORKDIR/bin:$PATH" "$@" bash "$RESOLVER" --dir "$repo" 2>&1 >"$WORKDIR/out")
+  local out rc err extra=()
+  [[ -n "${WRITE_MODE:-}" ]] && extra=(--write)
+  err=$(env PATH="$WORKDIR/bin:$PATH" "$@" bash "$RESOLVER" --dir "$repo" "${extra[@]}" 2>&1 >"$WORKDIR/out")
   rc=$?
   out=$(<"$WORKDIR/out")
   if [[ "$out" == "$want_out" && $rc -eq $want_rc && "$err" == *"$want_err"* ]]; then
@@ -114,6 +117,23 @@ check "an unrecognized --view message is not read as no default" "$SINGLE" \
   "" 1 "unknown flag: --view" "STUB_VIEW_ERR=unknown flag: --view"
 check "a failing gh is reported, not resolved" "$SINGLE" \
   "" 1 "HTTP 401" "STUB_VIEW_ERR=HTTP 401" STUB_VIEW_RC=1
+checkw() { WRITE_MODE=1 check "$@"; }
+checkw "a write to the one remote the caller cannot push to is refused" "$SINGLE" \
+  "" 1 "you cannot push to acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPUSH=acme/tool
+checkw "a write to a GH_REPO the caller cannot push to is refused" "$SINGLE" \
+  "" 1 "you cannot push to elsewhere/other" GH_REPO=elsewhere/other STUB_NOPUSH=elsewhere/other
+checkw "a write to a recorded default the caller cannot push to is refused" "$UNRELATED" \
+  "" 1 "you cannot push to beta/lib" STUB_VIEW_OUT=beta/lib STUB_NOPUSH=beta/lib
+checkw "a write to a pushable repository resolves" "$SINGLE" \
+  "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT"
+checkw "a write passes when GitHub returns no permissions field" "$SINGLE" \
+  "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPERMS=acme/tool
+checkw "a write stops when the permission read fails" "$SINGLE" \
+  "" 1 "could not read repository acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" "STUB_API_FAIL=HTTP 503"
+checkw "a write inside GitHub Actions skips the push check" "$SINGLE" \
+  "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPUSH=acme/tool GITHUB_ACTIONS=true
+check "a read of a repository the caller cannot push to still resolves" "$SINGLE" \
+  "acme/tool" 0 "target repository: acme/tool" "STUB_VIEW_ERR=$NO_DEFAULT" STUB_NOPUSH=acme/tool
 usage_err=$(bash "$RESOLVER" --bogus 2>&1)
 if [[ $? -eq 2 && "$usage_err" == *"usage: target-repo.sh"* ]]; then
   echo "PASS: an unknown argument is a usage error"

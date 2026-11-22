@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".claude/codebase-health.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "old file deleted during a check"
+    }
+  ]
+}

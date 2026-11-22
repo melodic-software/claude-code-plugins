@@ -3,6 +3,42 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.13.2] - 2026-11-22
+
+### Fixed
+
+- The `wr-glossary-root` and `wr-glossary-docs-path` eval descriptions describe the glossary lookup `/testing:write` performs now (the ubiquitous-language lookup or a repository glob) instead of a walk-up rule.
+
+## [5.13.1] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [5.13.0] - 2026-11-22
+
+### Changed
+
+- `/testing:check-visual-parity` reads its personal override from `docs/conventions/testing.local.yaml`. The old `.claude/testing.local.yaml` is still read when the new file is absent, and is ignored beside it. `~/.claude/testing.yaml` is still read. Each old file found prints one warning naming where to move it ([#18053](https://github.com/melodic-software/claude-code-plugins/issues/18053)).
+
+## [5.12.0] - 2026-11-22
+
+### Added
+
+- `/testing:setup check` and `apply` print an old paths section. It names each testing config file at an old path (`.claude/testing.yaml`, `.claude/testing.local.yaml`, `~/.claude/testing.yaml`, `.claude/testing/e2e.md`, `.claude/testing/e2e.local.md`, `~/.claude/testing/e2e.md`, `.claude/testing/worst-case.md`), says where to move it, and previews a copy. After the user says yes, `setup.sh apply --copy-old <old file>` copies that file's keys into the new location and leaves the old file in place. It never copies a key the new file already sets or one that has a `userConfig` option, and it writes to a `.local.` file only when that file is gitignored ([#18052](https://github.com/melodic-software/claude-code-plugins/issues/18052)).
+
+## [5.11.0] - 2026-11-22
+
+### Changed
+
+- `/testing:run-e2e` reads `recording` and `browser_mode` from `<home>/testing/e2e.md` and its personal override `<home>/testing/e2e.local.md`, and the worst-case catalog extension from `<home>/testing/worst-case.md`, `<home>` being the convention home (`docs/conventions` by default). The old `.claude/testing/e2e.md`, `.claude/testing/e2e.local.md`, `~/.claude/testing/e2e.md` and `.claude/testing/worst-case.md` are still read where no `<home>` file supplies that layer, and each run prints one warning per old file naming where to move it ([#18051](https://github.com/melodic-software/claude-code-plugins/issues/18051)).
+
+- `scripts/resolve-config.sh` reads the config-cascade layers. The team layer and the new personal override, `testing.local.yaml`, come from the repository's convention home (`docs/conventions` unless the repository binds another), and a broken convention-home pointer stops the scan config. A `userConfig` value set to anything other than its default now wins over `~/.claude/testing.yaml` for the run-e2e and map keys. `/testing:setup apply` writes the team layer under the same convention home, and `/testing:audit` resolves the config when `docs/conventions/testing.local.yaml` is the only file ([#18050](https://github.com/melodic-software/claude-code-plugins/issues/18050)).
+
+### Deprecated
+
+- `~/.claude/testing.yaml`, `.claude/testing.yaml` and `.claude/testing.local.yaml` are still read. Each run prints one warning for each of these files it finds, naming where to move it. The old personal override is ignored once `<home>/testing.local.yaml` exists ([#18050](https://github.com/melodic-software/claude-code-plugins/issues/18050)).
+
 ## [5.10.4] - 2026-11-21
 
 ### Changed

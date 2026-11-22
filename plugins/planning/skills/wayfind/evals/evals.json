@@ -337,7 +337,7 @@
     {
       "id": 28,
       "name": "prototype-files-on-dossier-folder-and-safe-push",
-      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed prototype item 'Prove Knock sends email and in-app from one call' (#504) is done: the pressure-test passed all checks. Another session is writing research findings to the same map's dossier branch right now. Save the prototype files and close the item.",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed prototype item 'Prove Knock sends email and in-app from one call' (#504) is done: the pressure-test passed all checks. The prototype plugin is enabled in this repository. Another session is writing research findings to the same map's dossier branch right now. Save the prototype files and close the item.",
       "expected_output": "The item proves an outside vendor does something, so its route is /prototype:pressure-test in its vendor-fit mode. The prototype's files go in #504's own folder on the map's single dossier branch. The push is fetch, rebase, then a plain push without force, retried after a fresh fetch and rebase if rejected; it needs no force because the other session writes only its own item's folder. The verdict (each pass check passed) goes in the resolution comment with a link to the folder; then the pointer is added and the item closed.",
       "files": [],
       "expectations": [
@@ -389,7 +389,7 @@
     {
       "id": 32,
       "name": "ui-prototype-item-routes-to-explore-directions",
-      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed item 'Settle the channel mute controls' (#506) carries the wayfind: prototype label. Its body reads: '**Prove:** UI: a settings screen where a user mutes email, push and in-app per notification type reads clearly at a glance. **Pass checks:** 1. A first-time user finds how to mute push for order updates in under ten seconds. 2. The muted state of every channel is visible without scrolling. **On fail:** reopen the preferences layout decision. **Fallback:** one global mute per channel.' I'll judge the variants. Work it.",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed item 'Settle the channel mute controls' (#506) carries the wayfind: prototype label. Its body reads: '**Prove:** UI: a settings screen where a user mutes email, push and in-app per notification type reads clearly at a glance. **Pass checks:** 1. A first-time user finds how to mute push for order updates in under ten seconds. 2. The muted state of every channel is visible without scrolling. **On fail:** reopen the preferences layout decision. **Fallback:** one global mute per channel.' The prototype plugin is enabled in this repository. I'll judge the variants. Work it.",
       "expected_output": "The item routes by its wayfind: prototype label to the prototype skills, and because its Prove line says UI, to /prototype:explore-directions, not /prototype:pressure-test. It does not go to /planning:design even though its subject is a screen layout.",
       "files": [],
       "expectations": [
@@ -416,12 +416,36 @@
       "id": 34,
       "name": "decision-record-close-runs-dossier-branch-step",
       "prompt": "/planning:wayfind work 'Map: session token storage' (#800). Destination: a decision record. Every item is closed, the frontier and Not-yet-specified are empty, and the map has a dossier branch, dossier/800-session-token-storage. I'm here to answer. Close the map and hand it on.",
-      "expected_output": "A decision record creates no container, so no container close will ever delete the dossier branch. Map close runs the dossier-branch step itself: before posting the closing comment it calls /work-items:track dossier-branches for map #800, without --unattended since the user is present, and the closing comment carries that step's report. The decisions go to /architecture:record-decision or the repository's ADR convention. The reply neither keeps the branch waiting for a container nor deletes it outside that step.",
+      "expected_output": "A decision record creates no container, so no container close will ever delete the dossier branch. Map close runs the dossier-branch step itself: before posting the closing comment it calls /work-items:track dossier-branches for map #800, without --unattended since the user is present, and the closing comment carries that step's report. The decisions go to /architecture:adr or the repository's ADR convention. The reply neither keeps the branch waiting for a container nor deletes it outside that step.",
       "files": [],
       "expectations": [
         "Output calls /work-items:track dossier-branches for map #800 at map close, before or in the closing comment",
         "Output does not keep the dossier branch until a container closes",
         "Output does not delete dossier/800-session-token-storage outside the dossier-branch step"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "event-model-design-item-falls-back-to-planning-design",
+      "prompt": "/planning:wayfind work 'Map: order fulfillment' (#900). The claimed item 'Model the order lifecycle events' (#903, wayfind: design) asks which domain events an order goes through from placement to delivery. The event-storming plugin is not enabled in this repository. Work it.",
+      "expected_output": "The item is domain/event-model work, which would route to /event-storming:methodology or /event-storming:simulation, but the event-storming plugin is not enabled, so the item falls back to /planning:design. The skill does not settle the event model itself inline and does not stop for the missing plugin.",
+      "files": [],
+      "expectations": [
+        "Output routes the item to /planning:design",
+        "Output does not invoke or write a call to /event-storming:methodology or /event-storming:simulation",
+        "Output does not settle the order lifecycle events itself inline as the decision"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "prototype-item-without-prototype-plugin-falls-back-to-planning-design",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed item 'Prove Knock sends email and in-app from one call' (#504, https://github.com/acme/shop/issues/504) carries the wayfind: prototype label. Its body reads: '**Prove:** Knock's API sends one notification to both email and in-app from a single call. **Pass checks:** 1. One API call produces the email. 2. The same call produces the in-app message. **On fail:** reopen the vendor decision. **Fallback:** Courier.' The prototype plugin is not enabled in this repository. No separate vendor decision exists on the map. Work it through to the end; the discussion settles the vendor on Knock.",
+      "expected_output": "With the prototype plugin not enabled, the item falls back to /planning:design. Its resolution comment says no artifact was built, and the decision it settles (Knock) is recorded as provisional, naming this prototype item: its Decisions-so-far line ends 'provisional until' a link to 'Prove Knock sends email and in-app from one call'.",
+      "files": [],
+      "expectations": [
+        "Output routes the item to /planning:design rather than /prototype:pressure-test or /prototype:explore-directions",
+        "The resolution comment states that no artifact (prototype) was built",
+        "Output records the Knock decision as provisional, naming the prototype item 'Prove Knock sends email and in-app from one call' (#504)"
       ]
     }
   ]

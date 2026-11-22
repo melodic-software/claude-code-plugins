@@ -241,17 +241,16 @@ test("a PR whose pr-verify FAILs are at the cap gets no fix-ci round", async () 
   assert.match(lines.join("\n"), /^skip fix-ci #5: .*verify:repeated-fail/m);
 });
 
-test("a capped head is recorded, so the next run skips it without reading the verifier again", async () => {
+test("a capped head whose FAIL a later pass superseded is read again and dispatched", async () => {
   const record = emptyRecord();
-  let reads = 0;
-  const verifyCapped = () => {
-    reads += 1;
-    return "verify:repeated-fail";
-  };
-  await run({ pages: [[pr(5)]] }, { verifyCapped, record });
-  const { api } = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
-  assert.equal(reads, 1);
-  assert.deepEqual(api.calls.dispatch, []);
+  const answers = ["verify:repeated-fail: fails at 3 heads, the cap is 3", null];
+  const verifyCapped = () => answers.shift();
+  const capped = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.deepEqual(capped.api.calls.dispatch, [], "capped: no round");
+  assert.equal(record.handled.size, 0, "the cap is not recorded as handling the head");
+  const cleared = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.deepEqual(cleared.api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["5"]);
+  assert.equal(answers.length, 0, "a superseded head FAIL is a clean head (#17646): the second run reads the verifier again");
 });
 
 test("a head whose sibling FAIL run cannot be read is skipped but not recorded", async () => {
@@ -338,6 +337,15 @@ test("a head whose ci-lanes passed, is pending, is missing or came from another 
     ],
   });
   assert.deepEqual(result.dispatched, []);
+});
+
+// A review the defer gate stopped turns ci-status red on its review-stop note
+// while the lanes pass: no fix-ci round, since the reconciler re-runs the
+// review after the reset (https://github.com/melodic-software/claude-code-plugins/issues/17460, assumption A4).
+test("a head whose ci-status failed only on a stopped review, with ci-lanes passed, gets no fix-ci round", async () => {
+  const { api, result } = await run({ pages: [[pr(7, { checks: [check("ci-status", "FAILURE", { title: "an API budget defer or a kill switch was on when it started" }), lanes("SUCCESS")] })]] });
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(api.calls.dispatch, []);
 });
 
 test("a head that already has a fix-ci run is skipped, unless every run failed within the restart count", async () => {

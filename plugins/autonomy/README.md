@@ -172,7 +172,7 @@ settings precedence:
    a record under the plugin's own install-derived data directory) and injects the random record id
    as `lane_stop_gate_arm_id` in the session's `--settings`. The id is a capability pointer, never
    authority: the gate validates it, honors only its own store, binds it to the first presenting
-   session, and expires it after 7 days. The record is not consumed on a stop, a lane is one
+   session, and expires it after 31 days. The record is not consumed on a stop, a lane is one
    session across many `/loop` cycles, each of whose stops must stay gated, so it lives for the
    claiming session and is retired by TTL plus the launcher's relaunch sweep. To arm a hand-launched
    session, run the arm helper from the installed plugin the same way, then pass the id as this

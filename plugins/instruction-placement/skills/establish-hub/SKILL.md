@@ -87,7 +87,7 @@ it:
 |---|---|---|
 | `AGENTS.md` as the content home, `CLAUDE.md` as exactly `@AGENTS.md` | `/instruction-placement:migrate` (same plugin, always present) when the hub already tracks a `CLAUDE.md` or `AGENTS.md`; this skill writes the one-line shim itself when it tracks neither | n/a |
 | Wording of new agent-loaded text | invoke `/docs-hygiene:write-for-agents` when it is among the available skills (enabled) | write from the catalog's own guidance and say once the write-side doctrine was not available |
-| The hub's decision record | invoke `/architecture:record-decision` when it is among the available skills (enabled) | put the record's text under "Proposed, not written" and say once that the architecture plugin would write it in the estate's convention |
+| The hub's decision record | invoke `/architecture:adr` when it is among the available skills (enabled) | put the record's text under "Proposed, not written" and say once that the architecture plugin would write it in the estate's convention |
 | The scratch directory's `.gitignore` line | this skill: a one-line append when absent | n/a |
 | The mechanism for a catalog rule a check could decide (a write to a target's main checkout, a scratch directory that must stay ignored) | name `/corrections:codify` in the report when it is among the available skills (enabled): it picks the enforcement-ladder rung | list the rule under "Proposed, not written" as a candidate for a stronger mechanism and say once that the corrections plugin would pick it |
 

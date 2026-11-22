@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "1.0.47",
+  "version": "1.1.0",
   "license": "MIT",
   "keywords": [
     "disk",
@@ -26,6 +26,11 @@
       "title": "Clean execution tiers",
       "description": "Allows the clean skill's execution tiers. On by default; false is audit-only mode.",
       "default": true
+    },
+    "policy_file": {
+      "type": "file",
+      "title": "Personal policy file",
+      "description": "Absolute path to your own policy overlay (JSON, the clean skill's policy-overlay schema), layered under the repository's docs/conventions/disk-hygiene.yaml. The only standing layer that may set elevation to uac-prompt. Empty means no personal policy file."
     }
   }
 }

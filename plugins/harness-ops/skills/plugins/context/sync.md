@@ -126,9 +126,9 @@ the run directory, which the digest names.
 
 ## Concurrency
 
-The `claude plugin` CLI does not serialize concurrent writes, so this skill keeps its own mutating
-calls serial (see [gotchas.md](gotchas.md), "Never run plugin CLI writes concurrently: the sweep
-stays serial"). There is no separate lock this skill manages.
+This skill keeps its own mutating `claude plugin` calls serial, on the concurrency probe recorded in
+[gotchas.md](gotchas.md), "Never run plugin CLI writes concurrently: the sweep stays serial". There
+is no separate lock this skill manages.
 
 **The re-read boundary is the step, not the individual mutation.** Re-run `fleet-state.sh`
 immediately before each mutating step rather than mutating off a snapshot taken several steps ago; a
@@ -239,10 +239,11 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-**Two install facts are read from the result's message text.** The probe found no result field
-for unset userConfig options or a disabled-by-default install, so `sync-run.sh` classifies both
-from the message (`unset_user_config_of`, `install_disabled_notice`). The shapes it matches live
-only in the script and its probe evidence, never here.
+**Two install facts come mostly from the result's message text.** The probe found a result field
+for the number of unset userConfig options, `unsetOptionCount`, which `unset_user_config_of` reads
+first. It found none for how many of them are required or for a disabled-by-default install, so
+`sync-run.sh` reads those from the message (`unset_user_config_of`, `install_disabled_notice`). The
+shapes it matches live only in the script and its probe evidence, never here.
 
 - **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
   result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`

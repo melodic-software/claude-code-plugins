@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit/SKILL.md plugins/code-metrics/skills/audit/actions/size.md
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
-# test-scope: .claude/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
+# test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -116,12 +116,51 @@ out="$(gate --check --all)"
 assert_eq "--check over --all cannot decide (exit 2)" 2 "$?"
 assert_contains "--check over --all says it needs the change scope" "$out" "needs the change scope"
 
-printf '.claude/\n' >"$GATE/.gitignore"
-printf 'size:\n  check: report\n' >"$GATE/.claude/code-metrics.local.yaml"
+printf '.claude/\ndocs/conventions/**/*.local.*\n' >"$GATE/.gitignore"
+printf 'size:\n  check: report\n' >"$GATE/docs/conventions/code-metrics.local.yaml"
 out="$(gate --check)"
 assert_eq "a personal override of report wins over the team rule (exit 0)" 0 "$?"
 assert_contains "the report names the personal layer" "$out" "\`size.check\` is \`report\` (local)"
-rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/.gitignore"
+case "$out" in
+*"old personal override"*) fail "the new personal file alone prints no old-path warning" "no warning" "$out" ;;
+*) pass "the new personal file alone prints no old-path warning" ;;
+esac
+rm -f "$GATE/docs/conventions/code-metrics.local.yaml"
+printf 'size:\n  check: report\n' >"$GATE/.claude/code-metrics.local.yaml"
+out="$(gate --check)"
+assert_eq "an old personal file alone still applies (exit 0)" 0 "$?"
+assert_contains "an old personal file alone is named with its new location" "$out" "/.claude/code-metrics.local.yaml is the old personal override, still read as the personal layer; move it to "
+printf 'size:\n  check: crossing-or-growth\n' >"$GATE/.claude/code-metrics.local.yaml"
+printf 'size:\n  check: report\n' >"$GATE/docs/conventions/code-metrics.local.yaml"
+out="$(gate --check)"
+assert_eq "with both personal files the new one wins (exit 0)" 0 "$?"
+assert_contains "with both personal files the warning names both" "$out" "/docs/conventions/code-metrics.local.yaml exists"
+rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/docs/conventions/code-metrics.local.yaml" "$GATE/.gitignore"
+
+team $'  file_lines: 5\n'
+user_file="$GATE_HOME/cfg/code-metrics.yaml"
+old_user="$GATE_HOME/.claude/code-metrics.yaml"
+mkdir -p "$GATE_HOME/cfg" "$GATE_HOME/.claude"
+printf 'size:\n  check: crossing\n' >"$user_file"
+out="$(gate --check --user-file "$user_file")"
+assert_eq "the option's file alone sets the rule (exit 1)" 1 "$?"
+assert_contains "the report names the userConfig layer" "$out" "Rule \`crossing\` (userConfig)"
+case "$out" in
+*"old user-global file"*) fail "the option's file alone prints no old-path warning" "no warning" "$out" ;;
+*) pass "the option's file alone prints no old-path warning" ;;
+esac
+rm -f "$user_file"
+printf 'size:\n  check: crossing\n' >"$old_user"
+out="$(gate --check)"
+assert_eq "an old user-global file alone still applies (exit 1)" 1 "$?"
+assert_contains "an old user-global file alone supplies the userConfig layer" "$out" "Rule \`crossing\` (userConfig)"
+assert_contains "an old user-global file alone is named with the option" "$out" "$old_user is the old user-global file, still read as the userConfig layer; move it to the file the config_file userConfig option names"
+printf 'size:\n  check: report\n' >"$user_file"
+out="$(gate --check --user-file "$user_file")"
+assert_eq "with both user files the option's file wins (exit 0)" 0 "$?"
+assert_contains "with both user files the report names its rule" "$out" "\`size.check\` is \`report\` (userConfig)"
+assert_contains "with both user files the warning names both" "$out" "$old_user is the old user-global file and is not read because $user_file exists"
+rm -rf "${GATE_HOME:?}/cfg" "${GATE_HOME:?}/.claude"
 
 team $'  file_lines: 50\n  check: crossing\n'
 gate --check >/dev/null

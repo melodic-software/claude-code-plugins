@@ -49,7 +49,7 @@ class PositionalLayerTests(unittest.TestCase):
         self.assertEqual(d["complexity"]["cyclomatic"]["reference"], cyc["value"])
         self.assertEqual((cyc["value"], cyc["layer"]), (15, "team"))
         self.assertEqual(
-            d["_provenance"]["size.file_lines"], {"value": 800, "layer": "user-global"}
+            d["_provenance"]["size.file_lines"], {"value": 800, "layer": "userConfig"}
         )
         self.assertEqual(
             d["_provenance"]["size.mode"],
@@ -451,6 +451,46 @@ class DiscoveredLayerTests(unittest.TestCase):
                 args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
             )
 
+    def test_reads_ecosystem_records_from_the_convention_home_first(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            home_dir = root / "docs" / "conventions" / "ecosystems"
+            legacy = root / ".claude" / "ecosystems"
+            home_dir.mkdir(parents=True)
+            legacy.mkdir(parents=True)
+            shell, golang, py = "bash", "go", "python"
+            (home_dir / (shell + ".yaml")).write_text(
+                'globs: ["*.sh"]\n', encoding="utf-8"
+            )
+            (legacy / (shell + ".yaml")).write_text(
+                'globs: ["*.legacy"]\n', encoding="utf-8"
+            )
+            (home_dir / (golang + ".yaml")).write_text(
+                'globs: ["*.go"]\n', encoding="utf-8"
+            )
+            (home_dir / (golang + ".local.yaml")).write_text(
+                "enabled: false\n", encoding="utf-8"
+            )
+            (legacy / (py + ".yaml")).write_text(
+                'globs: ["*.py"]\n', encoding="utf-8"
+            )
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertEqual(d["_ecosystems"]["bash"]["globs"], ["*.sh"])
+            self.assertEqual(d["_ecosystems"]["go"]["enabled"], False)
+            self.assertEqual(d["_ecosystems"]["go"]["layer"], "team")
+            self.assertEqual(d["_ecosystems"]["python"]["globs"], ["*.py"])
+            record = f"ecosystems/{shell}.yaml"
+            both = [w for w in d["_warnings"] if record in w]
+            self.assertEqual(len(both), 1, d["_warnings"])
+            self.assertIn(f"docs/conventions/{record}", both[0])
+            self.assertIn(f".claude/{record}", both[0])
+            self.assertFalse(
+                any(f"ecosystems/{py}." in w for w in d["_warnings"]),
+                d["_warnings"],
+            )
+
     def test_only_a_listed_lane_id_reads_its_ecosystem_record(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
@@ -584,6 +624,203 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(
                 d["_files"], [f"{root.as_posix()}/docs/conventions/code-metrics.yaml"]
             )
+
+    def _personal(
+        self,
+        tmp: str,
+        new: str | None,
+        old: str | None,
+        user: str | None,
+        config_file: str | None = None,
+        option: str | None = None,
+    ):
+        home = Path(tmp) / "home"
+        root = Path(tmp) / "repo"
+        (root / "docs" / "conventions").mkdir(parents=True)
+        paths = {
+            "new": root / "docs" / "conventions" / "code-metrics.local.yaml",
+            "old": root / ".claude" / "code-metrics.local.yaml",
+            "user": home / ".claude" / "code-metrics.yaml",
+            "config_file": home / "cfg" / "code-metrics.yaml",
+        }
+        for name, text in (
+            ("new", new),
+            ("old", old),
+            ("user", user),
+            ("config_file", config_file),
+        ):
+            if text is not None:
+                paths[name].parent.mkdir(parents=True, exist_ok=True)
+                paths[name].write_text(text, encoding="utf-8")
+        extra = () if option is None else ("--user-file", option)
+        result = run("--home", str(home), "--repo-root", str(root), *extra)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout), result.stderr, paths
+
+    def test_the_personal_layer_reads_the_docs_conventions_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(tmp, "size:\n  file_lines: 610\n", None, None)
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 610, "layer": "local"}
+            )
+            self.assertEqual(d["_files"], [paths["new"].as_posix()])
+            self.assertEqual(err, "")
+
+    def test_an_old_personal_file_alone_applies_with_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(tmp, None, "size:\n  file_lines: 620\n", None)
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 620, "layer": "local"}
+            )
+            warnings = [w for w in d["_warnings"] if str(paths["old"]) in w]
+            self.assertEqual(len(warnings), 1, d["_warnings"])
+            self.assertIn(str(paths["new"]), warnings[0])
+            self.assertEqual(err.count(str(paths["old"])), 1)
+
+    def test_with_both_personal_files_the_new_one_wins_and_both_are_named(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp, "size:\n  file_lines: 610\n", "size:\n  file_lines: 620\n", None
+            )
+            self.assertEqual(d["size"]["file_lines"], 610)
+            self.assertNotIn(paths["old"].as_posix(), d["_files"])
+            self.assertTrue(
+                any(
+                    str(paths["old"]) in w and str(paths["new"]) in w
+                    for w in d["_warnings"]
+                ),
+                d["_warnings"],
+            )
+
+    def test_an_unparsable_new_personal_file_leaves_the_old_one_applied(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp, "size: { file_lines: 610 }\n", "size:\n  file_lines: 620\n", None
+            )
+            self.assertEqual(d["size"]["file_lines"], 620)
+            self.assertTrue(
+                any(
+                    str(paths["old"]) in w and "outside the YAML subset" in w
+                    for w in d["_warnings"]
+                ),
+                d["_warnings"],
+            )
+
+    def test_an_old_user_global_file_alone_applies_as_userconfig_with_a_warning(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(
+                tmp, None, None, "size:\n  file_lines: 700\n  mode: iso-8.2.115\n"
+            )
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"],
+                {"value": 700, "layer": "userConfig"},
+            )
+            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
+            self.assertEqual(len(warnings), 1, d["_warnings"])
+            self.assertIn("still read as the userConfig layer", warnings[0])
+            self.assertIn(
+                "the file the config_file userConfig option names", warnings[0]
+            )
+            self.assertNotIn(str(paths["new"]), warnings[0])
+            self.assertEqual(err.count(str(paths["user"])), 1)
+
+    def test_the_userconfig_layer_reads_the_file_the_option_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(
+                tmp,
+                None,
+                None,
+                None,
+                "size:\n  file_lines: 710\n",
+                "~/cfg/code-metrics.yaml",
+            )
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"],
+                {"value": 710, "layer": "userConfig"},
+            )
+            self.assertEqual(d["_files"], [paths["config_file"].as_posix()])
+            self.assertEqual(err, "")
+
+    def test_the_userconfig_layer_sits_under_team_and_personal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp,
+                "size:\n  file_lines: 610\n",
+                None,
+                None,
+                "size:\n  file_lines: 710\n  mode: iso-8.2.115\n",
+                "~/cfg/code-metrics.yaml",
+            )
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 610, "layer": "local"}
+            )
+            self.assertEqual(
+                d["_provenance"]["size.mode"],
+                {"value": "iso-8.2.115", "layer": "userConfig"},
+            )
+
+    def test_the_option_names_a_missing_file_so_the_old_file_applies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, _, paths = self._personal(
+                tmp,
+                None,
+                None,
+                "size:\n  file_lines: 700\n",
+                None,
+                "~/cfg/code-metrics.yaml",
+            )
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"],
+                {"value": 700, "layer": "userConfig"},
+            )
+            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
+            self.assertEqual(len(warnings), 1, d["_warnings"])
+            self.assertIn(f"move it to {paths['config_file']}", warnings[0])
+
+    def test_with_both_user_files_the_option_file_wins_and_both_are_named(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d, err, paths = self._personal(
+                tmp,
+                None,
+                None,
+                "size:\n  file_lines: 700\n  mode: iso-8.2.115\n",
+                "size:\n  file_lines: 710\n",
+                str(Path(tmp) / "home" / "cfg" / "code-metrics.yaml"),
+            )
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"],
+                {"value": 710, "layer": "userConfig"},
+            )
+            self.assertEqual(
+                d["_provenance"]["size.mode"],
+                {"value": "file-lines", "layer": "bundled default"},
+            )
+            self.assertNotIn(paths["user"].as_posix(), d["_files"])
+            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
+            self.assertEqual(len(warnings), 1, d["_warnings"])
+            self.assertIn(
+                f"is not read because {paths['config_file']} exists", warnings[0]
+            )
+            self.assertEqual(err.count(str(paths["user"])), 1)
+
+    def test_an_unset_or_relative_option_supplies_no_userconfig_file(self) -> None:
+        for option, warned in (
+            ("", False),
+            ("${user_config.config_file}", False),
+            ("cfg/code-metrics.yaml", True),
+        ):
+            with self.subTest(option=option), tempfile.TemporaryDirectory() as tmp:
+                d, _, _ = self._personal(
+                    tmp, None, None, None, "size:\n  file_lines: 710\n", option
+                )
+                self.assertEqual(
+                    d["_provenance"]["size.file_lines"],
+                    {"value": 1000, "layer": "bundled default"},
+                )
+                relative = [w for w in d["_warnings"] if "not an absolute path" in w]
+                self.assertEqual(len(relative), int(warned), d["_warnings"])
 
     def test_all_layers_absent_is_the_bundled_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

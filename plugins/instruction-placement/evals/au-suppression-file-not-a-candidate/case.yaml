@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: au-suppression-file-not-a-candidate
+graders:
+  - name: 'surface-excluded'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\binstruction-placement\.yaml\b)(?=[^\n]*(?:\bexclud|\bnot (?:a )?candidate|\bdropped\b|\bleft out\b|\bskipped\b|\bnot proposed\b|\bout of the candidate set\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the audit run does with the stated repository. PASS only if it satisfies every point: (1) Raises no finding on docs/conventions/instruction-placement.yaml and says the detector''s candidate on it is dropped because that file holds the suppression entries and is excluded from the scan set; (2) Still counts that file in the detector''s coverage numbers rather than removing it from what was read; (3) Suppresses the Deploy conventions finding, reporting its reason, date (2026-11-02) and the team layer; (4) Still proposes the Lint rules finding with its `paths: **/*.ts` glob, and writes neither docs/conventions/instruction-placement.yaml nor any instruction file. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

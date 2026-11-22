@@ -1,0 +1,9 @@
+kind: script
+run: external-agents review antigravity --council
+sets: [model, brief]
+sees: committed
+briefs: any
+models: any
+model_default: provider
+effort_default: provider
+frontier: []

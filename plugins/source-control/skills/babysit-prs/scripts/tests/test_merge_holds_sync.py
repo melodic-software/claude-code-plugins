@@ -1,5 +1,6 @@
 # test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json .github/standards/trusted-actors/*
-# test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
+# test-scope: plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -17,7 +18,7 @@ workflow change after auto-merge is armed.
   blocks as it writes them from api-budget.bash.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
-  matches over `babysit_risk.Floor.high` (its `trust` and `gate` globs), case
+  matches over `diff_risk.Floor.high` (its `trust` and `gate` globs), case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
   floor, every pr-merge script as `gate` or, for the scripts that apply the
@@ -25,9 +26,9 @@ workflow change after auto-merge is armed.
   the holds, `babysit_merge*` as `trust`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class. The gate's trusted-author
-  lift (`babysit_risk.Floor.author_review`) is exactly the `gate` class, and
+  lift (`diff_risk.Floor.author_review`) is exactly the `gate` class, and
   `pathHold`, which judges only lanes App pull requests, holds all of it.
-- The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
+- The cost paths: the same paths matched as `diff_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
@@ -66,7 +67,7 @@ os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
-import babysit_risk as risk
+import diff_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 # This repository's effective floor: the built-in rows joined to its config.
@@ -136,9 +137,6 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
     return sorted(seen)
 
 
-# The Python that decides the holds: babysit_risk, and every script a floored
-# JS module runs (enable-auto-merge.mjs's VERIFY_SCRIPT), with every module of
-# babysit-prs/scripts/ they import.
 SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
 # A script path in a quoted string, or a bare one a `python`/`python3` command
 # runs, with or without a `.base/` checkout prefix.
@@ -161,7 +159,7 @@ def py_runs(text: str) -> list[str]:
 
 
 def python_closure(js_files: list[str]) -> list[str]:
-    todo = [SCRIPTS / "babysit_risk.py"]
+    todo = [SCRIPTS / "diff_risk.py"]
     # A floor entry for a script not in this tree yet runs nothing here.
     floored = {g for g in FLOOR.all if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | {n for n in js_files if (ROOT / n).is_file()}):
@@ -262,7 +260,7 @@ FLOOR_PATHS = [
     ".github/scripts/pr-merge/rotation.mjs",
     ".github/scripts/pr-merge/rotation.test.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py",
     ".github/scripts/work-resolve-issue/report-outcome.mjs",
     "Docs/Conventions/PR-Pipeline.yaml",
     ".github/actions/other/action.yml",
@@ -437,8 +435,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_person_floor_is_the_same_list(self) -> None:
-        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk `Floor.high`, entry
-        # for entry and in order: the trust and gate globs a person clears.
         script = (
             "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
             % json.dumps(MODULE.as_uri())
@@ -517,7 +513,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 # review clears.
                 name = pathlib.PurePosixPath(path).name
                 gate = name.startswith("babysit_merge") or name in {
-                    "babysit_risk.py",
+                    "diff_risk.py",
                     "babysit_review_evidence.py",
                 }
                 self.assertEqual(held, gate)
@@ -1911,7 +1907,7 @@ def loaded_closure() -> list[str]:
         if (ROOT / p).is_file()
     ]
     py: set[str] = set()
-    todo = [SCRIPTS / "babysit_risk.py", *run]
+    todo = [SCRIPTS / "diff_risk.py", *run]
     while todo:
         file = todo.pop()
         name = file.relative_to(ROOT).as_posix()

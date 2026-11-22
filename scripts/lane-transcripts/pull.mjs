@@ -69,12 +69,6 @@ export const GH_CALL_BUDGET = 1000;
 // is lane-transcript-<job-id>-<run attempt> (upload-lane-transcript), so these
 // are every job-id an upload step passes, by workflow file; a ci-workflows/
 // key is a reusable workflow this repository calls with the transcript key.
-// pull.test.mjs reads the workflows and fails when a workflow, a local
-// job-id, or a reusable's caller is missing here. A renamed job keeps its old
-// job-id beside the new one while uploads under the old name stay inside
-// their retention, so the pull still lists them: drop the old ids (judge,
-// propose, model, scrub-probe) once lane-transcript-* retention (7 days,
-// .github/artifact-retention.json) has passed since the rename merged.
 const LEGS = ["", "-subscription", "-fallback"];
 const legs = (job, suffixes = [""]) => LEGS.flatMap((leg) => suffixes.map((suffix) => `${job}${leg}${suffix}`));
 const AUDIT_UNITS = ["a", "c", "d"].flatMap((group) => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `-${group}${n}`));
@@ -83,9 +77,9 @@ const CHUNKS = ["", "-2", "-3", "-4"];
 const REVIEW_CHUNKS = ["claude-review", "claude-security-review"].flatMap((lane) => CHUNKS.map((chunk) => `-${lane}${chunk}`));
 export const TRANSCRIPT_JOB_IDS = {
   "intake-triage.yml": legs("refine-issue"),
-  "maintenance-audit-lane-runs.yml": [...legs("assess-units", AUDIT_UNITS), ...legs("judge", AUDIT_UNITS)],
-  "maintenance-measure-skill-edit.yml": ["generate-edit-key", "generate-edit", "generate-edit-fallback", "propose-key", "propose", "propose-fallback"],
-  "maintenance-tidy-code-upkeep.yml": [...legs("sweep-areas"), ...legs("model")],
+  "maintenance-audit-lane-runs.yml": legs("assess-units", AUDIT_UNITS),
+  "maintenance-measure-skill-edit.yml": ["generate-edit-key", "generate-edit", "generate-edit-fallback"],
+  "maintenance-tidy-code-upkeep.yml": legs("sweep-areas"),
   "post-merge-test-mutation.yml": [...legs("generate"), ...legs("triage")],
   "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
   "pr-run-activity-read.yml": [
@@ -96,7 +90,7 @@ export const TRANSCRIPT_JOB_IDS = {
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
-  "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub"), ...legs("model"), ...legs("scrub-probe")],
+  "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub")],
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
   "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => CHUNKS.map((chunk) => `${lane}-${job}${chunk}`))),
   // job-id `intake-${{ github.job }}`.
@@ -105,7 +99,6 @@ export const TRANSCRIPT_JOB_IDS = {
   "ci-workflows/intake-triage.yml": ["intake-claude", "intake-triage-subscription", "intake-triage-fallback", "intake-subscription", "intake-fallback"],
 };
 // A re-run uploads under its own attempt number; attempts past 3 are not read.
-// Two workflows can share a job-id (model), so each name is listed once.
 export const ATTEMPTS = 3;
 export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
 

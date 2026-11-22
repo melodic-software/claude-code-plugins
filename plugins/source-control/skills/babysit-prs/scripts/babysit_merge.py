@@ -14,9 +14,9 @@ Contract enforced here (encoded as code, not convention):
 - A merge only happens with `--merge` and only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
   workflow run when its check run carries a failure annotation the review
-  evidence binds a re-run after and the gate re-runs (a `rate-limit` lane-outcome record or
-  the lane's publish failure on GitHub's API rate limit, five hours after the
-  failure; the lane's `install-failed` failure at once), or that an outage lost
+  evidence binds a re-run after and the gate re-runs (a `rate-limit` lane-outcome record,
+  five hours after the failure; the lane's publish failure on GitHub's API
+  rate limit, one hour after; the lane's `install-failed` failure at once), or that an outage lost
   (cancelled, timed out) before its lane posted on the head, at once; once per
   run on the pinned live head. No other failure class is re-run, and the
   re-run never counts as a pass: auto-merge still arms only on SUCCESS.
@@ -82,7 +82,7 @@ Contract enforced here (encoded as code, not convention):
   wiring order: identity, the `gh auth status` credential chokepoint, the kill
   switch, the post-merge check (`babysit_postmerge`), demotion and cap, in
   flight, promotion evidence, eligibility, the review evidence and the diff
-  score (`babysit_merge_policy`, `babysit_review_evidence`, `babysit_risk`).
+  score (`babysit_merge_policy`, `babysit_review_evidence`, `diff_risk`).
   Any refusal is the blocker `unattended merge refused: <reason>` and the
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
@@ -94,7 +94,7 @@ Contract enforced here (encoded as code, not convention):
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready pull request whose
-  score does not hold it (`babysit_risk.holds`), and that is not a native stack
+  score does not hold it (`diff_risk.holds`), and that is not a native stack
   layer (held, with no pin and no enqueue), is
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
@@ -163,7 +163,7 @@ import babysit_merge_policy as merge_policy
 import babysit_merge_settings as merge_settings
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
-import babysit_risk
+import diff_risk
 import babysit_run_cache as run_cache
 import babysit_verify_evidence as verify_evidence
 import babysit_whole_review as whole_review
@@ -186,7 +186,7 @@ from babysit_classify import (
     normalize_self_logins,
 )
 from babysit_feedback import latest_reviews_by_author
-from babysit_risk import LaneEvidence
+from diff_risk import LaneEvidence
 from babysit_gh import (
     GraphQLUnavailableError,
     gh_json_graphql,
@@ -333,16 +333,23 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # the classes `review_evidence.GATE_RERUN_CLASSES` names, so the re-run's
 # attempt binds (`review_evidence.rerun_binds` accepts more: a rejected
 # credential or a kill-switch stop, which the gate leaves to a person).
-# A rate limit is re-run once it has reset. "Reset" is conservative: the
-# shortest plan limit is a five-hour session window
+# A rate limit is re-run once it has reset, and each class resets on its own
+# window. A `rate-limit` is the Claude plan's session limit. "Reset" is
+# conservative: the shortest plan limit is a five-hour session window
 # (https://support.claude.com/en/articles/11145838, checked 2026-10-09), so
 # five hours after the failure that window has reset whenever it started. A
 # weekly limit outlasts it; the re-run then fails again and stays failed,
-# since a run is re-run at most once. A failed install is re-run at once: a
-# slow package mirror is not a window to wait out. So is a run an outage lost
-# (`review_evidence.LOST`), once nothing shows its lane posted on the head. Any
-# class the gate re-runs that is not listed here waits.
+# since a run is re-run at most once. A `publish-rate-limit` is GitHub's
+# installation REST pool; our decision is to wait one hour after the failure
+# (read its reset window at https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations).
+# With both classes on one check the longer wait applies. A failed install is
+# re-run at once: a slow package mirror is not a window to wait out. So is a
+# run an outage lost (`review_evidence.LOST`), once nothing shows its lane
+# posted on the head. Any class the gate re-runs that is not listed here waits
+# the longer plan-window delay.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
+PUBLISH_RATE_LIMIT_RERUN_DELAY = timedelta(hours=1)
+PUBLISH_RATE_LIMIT = "publish-rate-limit"
 NO_WAIT_RERUN_CLASSES = frozenset(
     {review_evidence.INSTALL_FAILED, review_evidence.LOST}
 )
@@ -356,6 +363,22 @@ ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def rerun_delay(classes: frozenset[str]) -> timedelta:
+    """The wait after a failure before the gate re-runs it: the longest delay
+    of any class present, none for a class that waits for nothing."""
+    return max(
+        (
+            timedelta(0)
+            if cls in NO_WAIT_RERUN_CLASSES
+            else PUBLISH_RATE_LIMIT_RERUN_DELAY
+            if cls == PUBLISH_RATE_LIMIT
+            else RATE_LIMIT_RERUN_DELAY
+            for cls in classes
+        ),
+        default=timedelta(0),
+    )
 
 
 def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> bool:
@@ -458,12 +481,16 @@ def rerun_rate_limited_review(
             + "); never re-run"
         )
         return report
-    due = completed + (
-        timedelta(0) if classes <= NO_WAIT_RERUN_CLASSES else RATE_LIMIT_RERUN_DELAY
-    )
+    delay = rerun_delay(classes)
+    due = completed + delay
     if _now() < due:
+        window = (
+            "GitHub's API rate limit"
+            if delay == PUBLISH_RATE_LIMIT_RERUN_DELAY
+            else "the usage limit"
+        )
         report["reason"] = (
-            "waiting for the usage limit to reset; re-run due at "
+            f"waiting for {window} to reset; re-run due at "
             + due.isoformat().replace("+00:00", "Z")
         )
         return report
@@ -3178,7 +3205,7 @@ def _lane_evidence(
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
     changed_paths: Sequence[str] | None,
-    floor: babysit_risk.Floor,
+    floor: diff_risk.Floor,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
@@ -3336,7 +3363,7 @@ def _main_reviews(
     pull_request_heads: Sequence[str] = (),
     *,
     main: bool | None = None,
-    floor: babysit_risk.Floor,
+    floor: diff_risk.Floor,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,
@@ -3651,7 +3678,7 @@ def score_unattended(
 ) -> merge_policy.UnattendedPolicy:
     """Bind the review evidence and score the diff (Design T2, T6) for an
     eligible pull request on a live path; an ineligible one is not scored
-    (T3). A score that holds (`babysit_risk.holds`) refuses the merge as
+    (T3). A score that holds (`diff_risk.holds`) refuses the merge as
     `risk:<score>`."""
     inputs = dict(policy.inputs or {})
     eligible = inputs.get("eligibility")
@@ -3764,7 +3791,7 @@ def score_unattended(
         else {}
     )
     private = json_object(json_object(pr.get("base")).get("repo")).get("private")
-    risk_input = babysit_risk.RiskInput(
+    risk_input = diff_risk.RiskInput(
         files=files,
         files_complete=complete,
         files_capped=merge_policy.files_capped(pr),
@@ -3779,8 +3806,8 @@ def score_unattended(
         floor_rows=config.floor_paths,
         **lane_switches,
     )
-    risk = babysit_risk.score(risk_input)
-    if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+    risk = diff_risk.score(risk_input)
+    if any(r.code == diff_risk.COST_CODE for r in risk.reasons):
         # Read only for a cost hold: an owner decision the body cites clears it.
         decision = merge_policy.cost_decision(
             repo,
@@ -3792,7 +3819,7 @@ def score_unattended(
         )
         if decision:
             details["costDecision"] = decision
-            risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
+            risk = diff_risk.score(replace(risk_input, cost_decision=decision))
     details |= {
         "risk": {
             "score": risk.score.name,
@@ -3821,7 +3848,7 @@ def score_unattended(
     details["wholeReviewWanted"] = whole_review.wanted(policy.reason, risk, lanes)
     inputs.update(risk=risk, comments=comments)
     reason = policy.reason or (
-        f"risk:{risk.score.name}" if babysit_risk.holds(risk) else None
+        f"risk:{risk.score.name}" if diff_risk.holds(risk) else None
     )
     if reader is not None and reason is None and reader.saved:
         # The run's saved listing lacks anything uploaded since; allow only
@@ -3908,15 +3935,15 @@ def _first_line(text: Any) -> str:
     return str(text or "").split("\n", 1)[0].rstrip("\r")
 
 
-def _floor_held(risk: babysit_risk.RiskResult) -> bool:
+def _floor_held(risk: diff_risk.RiskResult) -> bool:
     """Whether the HIGH floor or a trust gate holds the pull request: a
     `high-path:` reason for a floor or configured path, or a `trust-gate:`
     one. An unsafe path scores HIGH with the floor off, so it is not a floor
     hold."""
     return any(
-        r.severity is babysit_risk.Risk.HIGH
-        and r.code.startswith(("high-", babysit_risk.TRUST_GATE_PREFIX))
-        and r.code != babysit_risk.UNSAFE_PATH_CODE
+        r.severity is diff_risk.Risk.HIGH
+        and r.code.startswith(("high-", diff_risk.TRUST_GATE_PREFIX))
+        and r.code != diff_risk.UNSAFE_PATH_CODE
         for r in risk.reasons
     )
 
@@ -3933,14 +3960,14 @@ def _normalized(text: Any) -> str:
     return "\n".join(line.rstrip() for line in lines).rstrip()
 
 
-def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
+def risk_comment_body(risk: diff_risk.RiskResult, head: str) -> str:
     """The reasons comment: a function of the score, the reasons and the head
     only, so an unchanged assessment renders the same body."""
     wait = (
         "A floor path holds it: a human merges it in person, never an agent or a lane."
         if _floor_held(risk)
         else "This pull request waits for one."
-        if babysit_risk.person_reasons(babysit_risk.holding(risk))
+        if diff_risk.person_reasons(diff_risk.holding(risk))
         else "The lanes clear its holding reasons (a size reason holds nothing); "
         "pr-merge judges it again each run."
     )
@@ -4857,7 +4884,7 @@ def unattended_writes(
     (`risk:<score>`). Then the reasons comment for an eligible
     pull request its score holds, on a path not stopped, escalated (`escalate`)
     when a holding reason is one only a person clears
-    (`babysit_risk.person_reasons`) and the comment read before this run
+    (`diff_risk.person_reasons`) and the comment read before this run
     already says the same and has for `merge.risk-escalation-minutes`
     (`_stood_unchanged`), the comment first rewritten to end with
     `RISK_ESCALATION_LINE` (once); once the score no longer holds it, a refusal
@@ -4934,7 +4961,7 @@ def unattended_writes(
             # another base or held by its score leaves the queue.
             own = inputs.get("own_refusal") or (
                 f"risk:{risk.score.name}"
-                if risk is not None and babysit_risk.holds(risk)
+                if risk is not None and diff_risk.holds(risk)
                 else None
             )
             if number in queued and own:
@@ -4963,7 +4990,7 @@ def unattended_writes(
     # score holds only this lane's merge, so a comment or label is noise.
     author = json_object(json_object(inputs.get("pr")).get("user")).get("id")
     quiet = stopped or (config is not None and author in config.self_merging_apps)
-    if not quiet and risk is not None and babysit_risk.holds(risk):
+    if not quiet and risk is not None and diff_risk.holds(risk):
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         body = risk_comment_body(risk, head)
         try:
@@ -4982,12 +5009,7 @@ def unattended_writes(
             )
             escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
             text = _normalized((prior or {}).get("body"))
-            # An escalated comment at this head stays escalated when its
-            # reasons change, so the label never stands beside a comment that
-            # no longer says why. Only a reason a person clears escalates
-            # (babysit_risk.person_reasons, owner rule 2026-10-26); the lanes
-            # clear the rest, so their comment stays the record.
-            person = babysit_risk.person_reasons(babysit_risk.holding(risk))
+            person = diff_risk.person_reasons(diff_risk.holding(risk))
             if (
                 person
                 and prior is not None

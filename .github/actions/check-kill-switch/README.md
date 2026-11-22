@@ -30,7 +30,7 @@ lane, with cause `budget` and the window's reset, while the pacer's projection
 of the header's limit: a run started now would end in a window with less than that share left.
 Both values are read from `rate-limits.json` alone (`start-project` 0.3, `start-run-minutes` 21,
 the p90 of 25 successful issue runs' check-broker start to run end, rounded up). `start-project`
-is a share of the header's limit, like `pace`, not of the planned budget `plan` measures. The `start-gate` share is checked first and
+is a share of the header's limit, like `pace`. The `start-gate` share is checked first and
 still stops on its own. A reading that cannot project, or a value that cannot be read, proceeds
 with a warning. The notice names the projected share, the horizon and the threshold. work-unblock's
 sweep re-fires a budget stop after the reset it names, as for a low budget.
@@ -41,7 +41,9 @@ to the job's horizon, or to the reset when that comes first, leaves under github
 `defer-project` share of the header's limit. The horizon, the p90 of the job's measured run time,
 is the gate's `defer-minutes` when set, else github-token's `defer-run-minutes-<defer-job>`, else
 `defer-run-minutes`. `defer-run-minutes-pr-merge` is 6: the p90 of the 29 first-attempt pr-merge
-arm runs listed on 2026-11-20 is 327 s. The github-token values are read from `resolved-config`'s `limits.api` (`pr-pipeline.yaml`) over `rate-limits.json`
+arm runs listed on 2026-11-20 is 327 s. `defer-run-minutes-review` is 11, for both hosted review
+callers' gates: the p90 of the 418 hosted review runs of 2 minutes or more among the 300 newest of
+each caller, listed on 2026-11-21, is 10.4 minutes. The github-token values are read from `resolved-config`'s `limits.api` (`pr-pipeline.yaml`) over `rate-limits.json`
 (`defer-project` 0.3, `defer-run-minutes` 15: on the mean burn curve of the 16 windows that ran
 out between 2026-11-18 and 2026-11-20, at a median of minute 50, those values start deferring at
 about minute 23, and the mean curve of the 17 windows that did not run out never reaches them). `defer-project` 0
@@ -86,7 +88,10 @@ and the pr-unblock legs (its dispatcher and pr-refine), which fix existing pull 
 which a person or a pull request starts, keep it too.
 
 Set `defer: "true"` instead on a gate that finishes existing work only where a later run that never
-defers recovers it: pr-merge's PR-scoped arm run (`inputs.pr`), whose work the 30-minute sweep does.
+defers recovers it: pr-merge's PR-scoped arm run (`inputs.pr`), whose work the 30-minute sweep does,
+and the two hosted review callers' gates, whose stop notice prints `cause=defer reset=<epoch>`, so
+the lost-run reconciler re-runs the run once that reset is past (reconcile.mjs `DEFER_NOTE`, in its
+own `DEFER_MAX` band).
 There a low budget delays the work rather than throwing it away, which is the reason the paragraph
 above keeps the budget off. CI Status and pr-dispatch-feedback never defer. A budget or defer stop
 ends the run neutral: a notice, no failed step. A job that sets `budget: "true"` or `defer: "true"`

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "instruction-placement: old config path .claude/instruction-placement.md is still read; move it to docs/conventions/instruction-placement.yaml with /instruction-placement:setup apply migrate-config",
+      "why": "the documented warning line"
+    },
+    {
+      "answer": "Warning: `.claude/instruction-placement.md` is an old path, still applied; run `/instruction-placement:setup apply migrate-config` to move it to `docs/conventions/instruction-placement.yaml`.",
+      "why": "paraphrase with all three names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Suppressed: Deploy conventions (team layer, .claude/instruction-placement.md, 2026-11-02).",
+      "why": "applies the old file with no warning"
+    },
+    {
+      "answer": ".claude/instruction-placement.md is an old path; move it to docs/conventions/instruction-placement.yaml.",
+      "why": "near miss: no setup command"
+    },
+    {
+      "answer": "Ignoring .claude/instruction-placement.md; run migrate-config.",
+      "why": "drops the old file and never names the new location"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

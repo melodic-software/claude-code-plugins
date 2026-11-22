@@ -21,11 +21,14 @@ failed read, a list cut short or no such run keeps the FAIL.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- counted FAILs at `max_fails` or more distinct heads of this pull request
-  (tied as in the item after next): `verify:repeated-fail`, whatever a pass
-  says, a FAIL at the head included. Before a FAIL at the head or a pass
-  decides, FAILs of other pull requests in this repository that are not
-  merged, nor a closed lanes App attempt (`_counts`), and close one of its
+- a counted FAIL at the head, under any pull request number, that is not
+  superseded (the next item), with counted FAILs at `max_fails` or more
+  distinct heads of this pull request (tied as in the item after next), that
+  head included: `verify:repeated-fail`. FAILs at other heads alone never
+  cap: a head whose newest verdicts pass, or whose FAIL is superseded, goes
+  on to the items below (owner decision Q245, 2026-11-20). Before a FAIL at
+  the head decides, FAILs of other pull requests in this repository that are
+  not merged, nor a closed lanes App attempt (`_counts`), and close one of its
   issues (its closing issues, or its `Refs:` issue) count too, at their own
   heads, and so does every FAIL of such a pull request whose name carries one
   of those issues, a `Refs:` pull request's FAILs among them (a FAIL among
@@ -43,10 +46,11 @@ failed read, a list cut short or no such run keeps the FAIL.
   at least one from the first FAIL's creation for a pass that records other
   linked issues than each FAIL does (a relink), else at least one body edit
   from the last FAIL's creation (a body fix judged at the same head).
-  A superseded FAIL still counts toward `max_fails`, and the passes then
-  decide as below; the report's `supersededAtHead` names it, for pr-unblock
-  to resolve that FAIL's fail-note threads. Any record, time or read that
-  fails keeps `verify:fail`;
+  Supersession is judged before the cap. A superseded FAIL caps nothing at
+  its own head, and the passes then decide as below; it still counts toward
+  `max_fails` when a later head FAILs. The report's `supersededAtHead` names
+  it, for pr-unblock to resolve that FAIL's fail-note threads. Any record,
+  time or read that fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json) for a pull request that
@@ -77,7 +81,13 @@ failed read, a list cut short or no such run keeps the FAIL.
   body change alone) and, for each counted pass at the head,
   a trusted person edited the body from the last such FAIL's creation to the
   pass run's creation and only trusted people edited the body or connected
-  or disconnected an issue up to its completion (`_body_fixed`). Any
+  or disconnected an issue up to its completion (`_body_fixed`), or every
+  counted FAIL there and every counted pass at the head record the same
+  linked issues and, for each pass, a trusted person recorded an owner
+  decision on one of them from the last such FAIL's creation to the pass
+  run's creation: a spec comment (`_spec_comments`) created then that links
+  an owner-decisions row and quotes the owner (`merge_policy.decision_gaps`;
+  `_spec_amended`). Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -117,7 +127,11 @@ failed read, a list cut short or no such run keeps the FAIL.
   exactly one `source: <producer>` label, a listed human or the lanes App
   sized it small or medium (`counted_size`), and no run's patch stopped over
   the scan job's cap since a listed human last added agent-ready
-  (`patch_cap_stopped`), else `verify:untrusted-spec`. A
+  (`patch_cap_stopped`), or is an issue the lanes App filed whose newest
+  admission record or ready intake-triage verdict names its current title
+  and body and that carries no
+  hold label and no `hold:` body line (`briefed_issue`), else
+  `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -140,9 +154,11 @@ https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 and `verify:too-old` wait for the lanes to judge the head again.
-`verify:repeated-fail` never clears (`VERIFY_FINAL`), so the gate never merges
-such a pull request unattended: the pr-merge lane closes a lanes App one for a
-fresh attempt (`capped_close`), and address-feedback and fix-ci start no
+`verify:repeated-fail` clears at its FAILed head only when that FAIL is
+later superseded there; otherwise it stands (`VERIFY_FINAL`), so
+the gate never merges such a pull request unattended: the pr-merge lane
+closes a lanes App one for a fresh attempt (`capped_close`), and
+address-feedback and fix-ci start no
 round on a pull request at `verify:repeated-fail` (pr-unblock
 verify-cap.mjs). A
 `verify:fail` or `verify:earlier-fail` only waits:
@@ -809,6 +825,30 @@ OWN_AGENT_ISSUE_QUERY = (
     "labels(first:100){totalCount nodes{name}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
+BRIEFED_ISSUE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){title body author{...actor} "
+    "labels(first:100){totalCount nodes{name}} "
+    "comments(first:100){totalCount pageInfo{hasNextPage endCursor} "
+    "nodes{databaseId createdAt updatedAt lastEditedAt body author{...actor} "
+    "editor{...actor}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+ADMISSION_RECORD_MARKER = "<!-- issue-admission-record -->"
+VERDICT_MARKER = "<!-- intake-triage verdict -->"
+VERDICT_CLEAR = "The latest triage verdict holds nothing: "
+VERDICT_CLEAR_OUTCOMES = ("the issue is at `", "admission moved the issue to `")
+JUDGED_RE = re.compile(
+    r"<!-- intake-triage judged title_sha256:([0-9a-f]{64}) body_sha256:([0-9a-f]{64}) -->"
+)
+HEX64_RE = re.compile(r"[0-9a-f]{64}")
+UNTRUSTED_PROVENANCE_LABEL = "provenance: untrusted"
+BRIEF_HOLD_RE = re.compile(
+    "(?:^|(?<=[\n\r\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]))["
+    + "".join(c for c in JS_SPACE if c not in "\r\n")
+    + "]*hold:",
+    re.IGNORECASE | re.ASCII,
+)
 SIZE_FIELD_KEY = "models.issue-dimensions.fields.size"
 AGENT_READY_LABEL = "agent-ready"
 PATCH_CAP_STOP_LINE = (
@@ -1006,6 +1046,143 @@ def own_agent_filing(issue: Any, ids: frozenset[int]) -> bool:
         and is_json_array(nodes)
         and labels.get("totalCount") == len(nodes)
         and one_source_label([json_object(n).get("name") for n in nodes])
+    )
+
+
+def admission_record(comments: list[Any], app_id: int) -> dict[str, Any] | None:
+    """lib/admission-record.mjs readAdmissionRecord over GraphQL comment
+    nodes: the newest record the lanes App (a Bot whose id is `app_id`)
+    posted, or None. An App comment opening with the marker that is not a
+    canonical, never edited record raises ValueError. Pure."""
+    found: list[tuple[float, dict[str, Any]]] = []
+    for comment in map(json_object, comments):
+        author = json_object(comment.get("author"))
+        text = comment.get("body")
+        if (
+            author.get("__typename") != "Bot"
+            or author.get("databaseId") != app_id
+            or not isinstance(text, str)
+            or not text.startswith(ADMISSION_RECORD_MARKER)
+        ):
+            continue
+        try:
+            parsed = json.loads(text[len(ADMISSION_RECORD_MARKER) + 1 :])
+        except ValueError:
+            parsed = None
+        record = json_object(parsed)
+        actor = record.get("actor_id")
+        canonical = ADMISSION_RECORD_MARKER + "\n" + json.dumps(
+            {
+                "v": 1,
+                "actor_id": actor,
+                "title_sha256": record.get("title_sha256"),
+                "body_sha256": record.get("body_sha256"),
+            },
+            separators=(",", ":"),
+        )
+        at = _event_time(comment.get("createdAt"))
+        edited = comment.get("lastEditedAt")
+        if (
+            record.get("v") != 1
+            or type(record.get("v")) is not int
+            or type(actor) is not int
+            or abs(actor) > MAX_SAFE_INTEGER
+            or not all(
+                isinstance(record.get(key), str)
+                and HEX64_RE.fullmatch(record[key]) is not None
+                for key in ("title_sha256", "body_sha256")
+            )
+            or canonical != text
+            or at is None
+            or (edited is not None and edited != comment.get("createdAt"))
+        ):
+            raise ValueError("an admission record is not one as written")
+        found.append((at, record))
+    return max(found, key=lambda item: item[0])[1] if found else None
+
+
+def briefed_issue(issue: Any, app_id: int | None) -> bool:
+    """admit.mjs briefedIssue over `issue` (as `BRIEFED_ISSUE_QUERY` reads
+    it): the lanes App (`app_id`) filed it, its newest admission record
+    (`admission_record`) or intake-triage's verdict (`triage_briefed`) names
+    its current title and body by sha256 (a malformed App record counts
+    neither), its
+    labels read whole hold no `HOLD_STATES` state nor
+    `UNTRUSTED_PROVENANCE_LABEL`, and its body has no `hold:` line
+    (`BRIEF_HOLD_RE`). Pure."""
+    issue = json_object(issue)
+    author = json_object(issue.get("author"))
+    labels = json_object(issue.get("labels"))
+    nodes = labels.get("nodes")
+    if (
+        app_id is None
+        or author.get("__typename") != "Bot"
+        or author.get("databaseId") != app_id
+        or not is_json_array(nodes)
+        or labels.get("totalCount") != len(nodes)
+    ):
+        return False
+    held = {name.lower() for name in (*merge_policy.HOLD_STATES, UNTRUSTED_PROVENANCE_LABEL)}
+    body = issue.get("body") if isinstance(issue.get("body"), str) else ""
+    title = issue.get("title") if isinstance(issue.get("title"), str) else ""
+    if any(str(json_object(n).get("name")).lower() in held for n in nodes) or (
+        BRIEF_HOLD_RE.search(body) is not None
+    ):
+        return False
+    comments = json_object(issue.get("comments")).get("nodes")
+    try:
+        record = admission_record(comments if is_json_array(comments) else [], app_id)
+    except ValueError:
+        return False
+
+    def digest(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+
+    return (
+        record is not None
+        and record["title_sha256"] == digest(title)
+        and record["body_sha256"] == digest(body)
+    ) or triage_briefed(comments if is_json_array(comments) else [], app_id, title, body)
+
+
+def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> bool:
+    """admit.mjs triageBriefed over GraphQL comment nodes: the first lanes App
+    (`app_id`) comment opening with `VERDICT_MARKER`, last edited by none or
+    the App, whose second line opens with `VERDICT_CLEAR` and one of
+    `VERDICT_CLEAR_OUTCOMES`, and whose last line (`JUDGED_RE`) names `title`
+    and `body` by sha256. Pure.
+
+    The owner's standing rule and its triage-verdict reading: row L318 of
+    `docs/owner-decisions.md` in the org's architecture repository, and that
+    repository's pull request 167."""
+
+    def app(actor: Any) -> bool:
+        actor = json_object(actor)
+        return actor.get("__typename") == "Bot" and actor.get("databaseId") == app_id
+
+    own = next(
+        (
+            comment
+            for comment in map(json_object, comments)
+            if app(comment.get("author"))
+            and isinstance(comment.get("body"), str)
+            and comment["body"].startswith(VERDICT_MARKER + "\n")
+        ),
+        None,
+    )
+    if own is None or (own.get("lastEditedAt") is not None and not app(own.get("editor"))):
+        return False
+    lines = own["body"].split("\n")
+    stamp = JUDGED_RE.fullmatch(lines[-1])
+
+    def digest(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+
+    return (
+        any(lines[1].startswith(VERDICT_CLEAR + outcome) for outcome in VERDICT_CLEAR_OUTCOMES)
+        and stamp is not None
+        and stamp[1] == digest(title)
+        and stamp[2] == digest(body)
     )
 
 
@@ -1826,7 +2003,6 @@ class Reader:
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
     )
-    # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
     # `merge.agent-identity`, the lanes App's login: its trusted-list id is
     # the author a size split's sub-issue needs (`_split_child`); unset, no
@@ -1929,6 +2105,9 @@ class Reader:
     _own_agents: tuple[Any, datetime] | None = None
     _size_field: tuple[Any, datetime] | None = None
     _own_agent_issues: dict[int, tuple[Any, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
+    _briefed_issues: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
     _sizes: dict[int, tuple[str | None, tuple[datetime, ...]]] = field(
@@ -3379,6 +3558,43 @@ class Reader:
             and not self._patch_capped(number)
         )
 
+    def _briefed(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which the lanes App wrote,
+        is one intake briefed and no one holds (`briefed_issue`), read live
+        once per Reader under the Actions token with every comment page, as
+        resolve-pr.mjs reads them. A failed or short read raises
+        `_Unreadable`."""
+        number = issue.get("number")
+        app_id = self._lane_app_id()
+        if (
+            type(number) is not int
+            or app_id is None
+            or issue.get("author_type") != "Bot"
+            or issue.get("author_id") != app_id
+        ):
+            return False
+        if number not in self._briefed_issues:
+            with run_cache.track() as taken:
+                run_cache.note(run_cache.now())
+                env = self._env()
+                node = json_object(
+                    self._graphql(
+                        BRIEFED_ISSUE_QUERY, number, "briefed issue", env=env
+                    ).get("issue")
+                )
+                comments = self._whole_comments(
+                    number, node.get("comments"), "the issue", env=env
+                )
+                nodes = json_object(comments).get("nodes")
+                if not is_json_array(nodes) or len(nodes) != comments.get("totalCount"):
+                    raise _Unreadable(f"#{number}: the issue's comments could not be read")
+                node = node | {"comments": comments}
+            self._briefed_issues[number] = (briefed_issue(node, app_id), tuple(taken))
+        briefed, read_at = self._briefed_issues[number]
+        for at in read_at:
+            run_cache.note(at)
+        return briefed
+
     def _drift(self, issue: dict[str, Any], pr: Any, head: Any) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
         wrote, is the upstream-drift workflow's (`drift_issue`) and the pull
@@ -3524,8 +3740,9 @@ class Reader:
         recurring issue naming its schedule row (`_recurring`), or the
         upstream-drift workflow's issue for a pull request `pr` that at
         `head` only modifies its upstream's pages (`_drift`), a main-red
-        incident the monitoring lane filed (`_incident`), or an own-agent
-        filing admission admits (`_own_agent`)."""
+        incident the monitoring lane filed (`_incident`), an own-agent
+        filing admission admits (`_own_agent`), or a lanes App filing intake
+        briefed and no one holds (`_briefed`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -3545,6 +3762,7 @@ class Reader:
             or self._recurring(issue)
             or self._incident(issue)
             or self._own_agent(issue)
+            or self._briefed(issue)
             for issue in issues
         )
 
@@ -4361,10 +4579,14 @@ class Reader:
         refusal: str | None
         detail = unreadable
         head_superseded = False
-        if len(failed) >= self.max_fails:
+        if (
+            head in failed
+            and not (head_superseded := superseded(head))
+            and len(failed) >= self.max_fails
+        ):
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-        elif head in failed and not (head_superseded := superseded(head)):
+        elif head in failed and not head_superseded:
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             heads = failed | elsewhere()[1]
@@ -4383,6 +4605,7 @@ class Reader:
                         number, sha, fail_artifacts, passes, judged_at=head
                     )
                     or self._body_fixed(number, sha, fail_artifacts, passes)
+                    or self._spec_amended(number, sha, fail_artifacts, passes)
                 ),
             )
         ):
@@ -4393,19 +4616,15 @@ class Reader:
             # Every pass of the run that started last must allow
             # (`_newest`), so listing order decides nothing; any unreadable
             # one refuses (`_Unreadable`).
-            live, others = elsewhere()
-            heads = failed | others
-            if len(heads) >= self.max_fails:
-                refusal, detail = REPEATED_FAIL, capped(heads)
-            else:
-                refusals = {
-                    self._pass_refusal(run_id, name, number, head, live, pr, artifact)
-                    for run_id, name, artifact in self._newest(passes)
-                }
-                refusal = next(
-                    (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
-                    None,
-                )
+            live = elsewhere()[0]
+            refusals = {
+                self._pass_refusal(run_id, name, number, head, live, pr, artifact)
+                for run_id, name, artifact in self._newest(passes)
+            }
+            refusal = next(
+                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
+                None,
+            )
         elif unread_pass:
             refusal, detail = UNREADABLE, unread_pass
         elif too_old:
@@ -4854,7 +5073,8 @@ class Reader:
         A relink at a merge-only head needs its body edit from the last
         FAIL's creation, as a body fix does: a FAIL created after an edit
         already judged that edit.
-        A superseded FAIL still counts toward `max_fails`. A record, time or
+        A superseded FAIL still counts toward a later FAILed head's
+        `max_fails`. A record, time or
         read that fails is False."""
         judged_at = judged_at or sha
         fails = fail_artifacts.get(sha, [])
@@ -4960,6 +5180,73 @@ class Reader:
                         number, last, postmerge._time(self._updated.get(run_id))
                     )
                 ):
+                    return False
+        except (_Unreadable, postmerge.PostMergeReadError):
+            return False
+        return True
+
+    def _spec_amended(
+        self,
+        number: int,
+        sha: str,
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]],
+        passes: list[tuple[int, str, Any]],
+    ) -> bool:
+        """Every counted FAIL at `sha` records this pull request, head and
+        verdict, each counted pass at the head records the same linked
+        issues as each FAIL, and for each pass a trusted person
+        (`_trusted_actor`) recorded an owner decision on one of those issues
+        after the last FAIL's creation, up to the pass run's creation: a spec
+        comment (`_spec_comments`) created then that links an owner-decisions
+        row and quotes the owner (`merge_policy.decision_gaps`). A trusted
+        comment without that link, and any issue body edit, amends nothing. The pass judged an amended
+        spec the FAIL never read, which the same change cannot carry; a
+        relink stays `_superseded`'s. A record, time or read that fails is
+        False."""
+        fails = fail_artifacts.get(sha, [])
+        if not passes or not fails:
+            return False
+
+        def decided(text: Any) -> bool:
+            return not merge_policy.decision_gaps(text)
+
+        try:
+            judged: set[frozenset[int]] = set()
+            for run_id, name, artifact in fails:
+                record = self._record(run_id, name, artifact)
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or record.get("verdict") != "fail"
+                ):
+                    return False
+                judged.add(_linked_numbers(record))
+            if len(judged) != 1:
+                return False
+            issues = next(iter(judged))
+            created = [self._fresh_created(r) for r, _, _ in fails]
+            if None in created:
+                return False
+            last = max(c for c in created if c)
+            live = self._live_issues.get(number)
+            if live is None:
+                live = self._live_issues[number] = self._closing_issues(number)
+            amended = []
+            for n in issues & set(live):
+                nodes = json_array(json_object(live[n].get("comments")).get("nodes"))
+                trusted = self._spec_comments(nodes)
+                amended += [
+                    postmerge._time(c.get("createdAt"))
+                    for c in map(json_object, nodes)
+                    if (c.get("databaseId"), c.get("updatedAt")) in trusted
+                    and decided(c.get("body"))
+                ]
+            for run_id, name, artifact in passes:
+                record = self._record(run_id, name, artifact)
+                if _linked_numbers(record) != issues:
+                    return False
+                begun = self._fresh_created(run_id)
+                if begun is None or not any(last < at <= begun for at in amended):
                     return False
         except (_Unreadable, postmerge.PostMergeReadError):
             return False
@@ -5114,9 +5401,9 @@ def lane_risk_refusal(
     humans: Callable[[], frozenset[int]] = frozenset,
 ) -> tuple[str, bool, bool] | None:
     """Why pr-merge's gate would hold the pull request on its risk score,
-    whether only a person clears it (`babysit_risk.person_reasons`), and
+    whether only a person clears it (`diff_risk.person_reasons`), and
     whether a clean whole review of the head would clear it
-    (`babysit_whole_review.wanted`, as the gate asks it), or None: `babysit_risk.score` and `holding` over the inputs the gate builds
+    (`babysit_whole_review.wanted`, as the gate asks it), or None: `diff_risk.score` and `holding` over the inputs the gate builds
     (`babysit_merge.score_unattended`) for a lane pull request, with `config`
     the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
     security finding, a review not bound to the head), a symlink, submodule
@@ -5132,7 +5419,7 @@ def lane_risk_refusal(
     its hold, and a review or trusted list that does not read lifts nothing."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
-    import babysit_risk  # noqa: PLC0415
+    import diff_risk  # noqa: PLC0415
     import babysit_whole_review  # noqa: PLC0415
 
     try:
@@ -5156,7 +5443,7 @@ def lane_risk_refusal(
         files = merge_policy.with_contents(repo, pr, files)
         base = json_object(pr.get("base"))
         private = json_object(base.get("repo")).get("private")
-        risk_input = babysit_risk.RiskInput(
+        risk_input = diff_risk.RiskInput(
             files=files,
             files_complete=complete,
             files_capped=merge_policy.files_capped(pr),
@@ -5172,20 +5459,20 @@ def lane_risk_refusal(
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )
-        risk = babysit_risk.score(risk_input)
-        if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+        risk = diff_risk.score(risk_input)
+        if any(r.code == diff_risk.COST_CODE for r in risk.reasons):
             decision = merge_policy.cost_decision(
                 repo, pr, issue, permission=permission, agent_identity=identity
             )
             if decision:
-                risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
+                risk = diff_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         return f"unreadable: {type(exc).__name__}: {exc}", False, False
-    held = babysit_risk.holding(risk)
+    held = diff_risk.holding(risk)
     paths = [
         r
         for r in held
-        if r.code.startswith("high-path:") and r.code != babysit_risk.UNSAFE_PATH_CODE
+        if r.code.startswith("high-path:") and r.code != diff_risk.UNSAFE_PATH_CODE
     ]
     if paths:
         head = str(json_object(pr.get("head")).get("sha") or "")
@@ -5215,7 +5502,7 @@ def lane_risk_refusal(
     # Scored without the high paths an approval lifted.
     kept = tuple(r for r in risk.reasons if r in held or r not in paths)
     whole = babysit_whole_review.wanted(None, replace(risk, reasons=kept), lanes)
-    return (text, bool(babysit_risk.person_reasons(held)), whole) if text else None
+    return (text, bool(diff_risk.person_reasons(held)), whole) if text else None
 
 
 def lane_queue(

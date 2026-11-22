@@ -91,4 +91,62 @@ assert_exit "--dir naming no directory is a usage error" 1 "$?"
 bash "$SCRIPT" check --head "$HEAD_W" --dir "$REPO" --dir "$WT" >/dev/null 2>&1
 assert_exit "--dir given twice is a usage error" 1 "$?"
 
+STUB_DIR="$TEST_TMPDIR/stubs"
+mkdir -p "$STUB_DIR"
+cat >"$STUB_DIR/gh" <<STUB_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
+if [[ " \$* " == *" -i "* ]]; then
+  [[ -f "$TEST_TMPDIR/response" ]] || exit 1
+  cat "$TEST_TMPDIR/response"
+else
+  printf 'main\n'
+fi
+STUB_EOF
+chmod +x "$STUB_DIR/gh"
+config() { printf 'HTTP/2.0 200 OK\r\n\r\npre_ready:\n  - step: verify\n    enabled: %s\n' "$1" >"$TEST_TMPDIR/response"; }
+from_config() {
+  local head="$1" base="$2"
+  PATH="$STUB_DIR:$PATH" bash "$SCRIPT" record --from-pre-ready --repo acme/app --base "$base" --head "$head" --dir "$WT"
+}
+HEAD_D=$(printf 'd%.0s' $(seq 40)) HEAD_E=$(printf 'e%.0s' $(seq 40)) HEAD_F=$(printf 'f%.0s' $(seq 40))
+HEAD_9=$(printf '9%.0s' $(seq 40))
+
+config false
+: >"$TEST_TMPDIR/calls"
+from_config "$HEAD_D" main
+assert_exit "a default branch that disables verify records skipped" 0 "$?"
+assert_contains "the record read the file at the base" "$(cat "$TEST_TMPDIR/calls")" "ref=main"
+bash "$SCRIPT" check --head "$HEAD_D" --dir "$WT"
+assert_exit "a skip recorded from the config lets the flip go on" 0 "$?"
+
+config true
+out=$(from_config "$HEAD_E" main 2>&1)
+assert_exit "a default branch that keeps verify on refuses the skip" 4 "$?"
+assert_contains "the refusal says verify is not disabled" "$out" "does not disable verify"
+bash "$SCRIPT" check --head "$HEAD_E" --dir "$WT" >/dev/null 2>&1
+assert_exit "a refused skip records nothing" 2 "$?"
+
+config false
+from_config "$HEAD_F" stack/layer-2 >/dev/null 2>&1
+assert_exit "a base other than the default branch refuses the skip" 4 "$?"
+bash "$SCRIPT" check --head "$HEAD_F" --dir "$WT" >/dev/null 2>&1
+assert_exit "a skip refused on a non-default base records nothing" 2 "$?"
+
+rm -f "$TEST_TMPDIR/response"
+from_config "$HEAD_9" main >/dev/null 2>&1
+assert_exit "a base read that fails refuses the skip" 4 "$?"
+bash "$SCRIPT" check --head "$HEAD_9" --dir "$WT" >/dev/null 2>&1
+assert_exit "a skip refused on a read error records nothing" 2 "$?"
+
+config false
+PATH="$STUB_DIR:$PATH" bash "$SCRIPT" record --from-pre-ready --repo acme/app --base main --head "$HEAD_9" --result pass --dir "$WT" >/dev/null 2>&1
+assert_exit "--from-pre-ready with --result is a usage error" 1 "$?"
+PATH="$STUB_DIR:$PATH" bash "$SCRIPT" record --from-pre-ready --base main --head "$HEAD_9" --dir "$WT" >/dev/null 2>&1
+assert_exit "--from-pre-ready without --repo is a usage error" 1 "$?"
+PATH="$STUB_DIR:$PATH" bash "$SCRIPT" check --from-pre-ready --repo acme/app --base main --head "$HEAD_9" --dir "$WT" >/dev/null 2>&1
+assert_exit "check with --from-pre-ready is a usage error" 1 "$?"
+bash "$SCRIPT" check --head "$HEAD_9" --dir "$WT" >/dev/null 2>&1
+assert_exit "no usage error records anything" 2 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1

@@ -1,0 +1,20 @@
+---
+id: improvement-r001
+retired: 2026-11-22
+plugin_version: 0.9.0
+kind: file
+path: .claude/improvement.md
+content_match: '^[[:space:]]*(churn_window|churn_exclude|churn_exclude_defaults|find_[a-z_]+|evidence_sources):'
+action: migrate
+successor: "the team layer moved to <home>/improvement.yaml (reference/config.md): carry every key of the old file's fenced yaml block into that file as plain YAML, keeping any key the new file already sets, resolve the team layer from the new file alone and confirm each moved key resolves the old value, have the operator confirm, then clean"
+note: "old team config file; values move to <home>/improvement.yaml"
+---
+id: improvement-r002
+retired: 2026-11-22
+plugin_version: 0.9.0
+kind: file
+path: .claude/improvement.local.md
+content_match: '^[[:space:]]*(churn_window|churn_exclude|churn_exclude_defaults|find_[a-z_]+|evidence_sources):'
+action: migrate
+successor: "the personal layer moved to <home>/improvement.local.yaml (reference/config.md): confirm git check-ignore covers that path first, carry every key of the old file's fenced yaml block into it as plain YAML, keeping any key the new file already sets, resolve the personal layer from the new file alone and confirm each moved key resolves the old value, have the operator confirm, then clean"
+note: "old personal config file; values move to <home>/improvement.local.yaml"

@@ -427,9 +427,6 @@ async function pushEmptyCommit(github, repo, pull, why, tree) {
   return commit.sha;
 }
 
-// The job token's client (ACTIONS_TOKEN). The step's API_BUDGET_TOKEN names the
-// lane token, so this client is pinned to github-token: its readings and its
-// read-floor plan (github-token's limit-cap) are the job token's.
 export const actionsClient = (env, { latch = rateLimitLatch, fetchImpl } = {}) =>
   createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("github-token", latch), ...(fetchImpl ? { fetchImpl } : {}) });
 

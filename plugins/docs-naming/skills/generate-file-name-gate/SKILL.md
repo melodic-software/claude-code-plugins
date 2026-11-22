@@ -38,9 +38,16 @@ unproven.
 ## Emit
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root <repo> [--out-dir <dir>] [--rule] [--force]
+${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh --root <repo> --user-config '<option>' [--out-dir <dir>] [--rule] [--force]
 ```
 
+- `--user-config` takes this plugin's `file_names` option,
+  `${user_config.file_names}`, on every call, as one single-quoted argument
+  (escape any single quote in it). An empty value or the literal
+  `${user_config.…}` placeholder means unset. **Pointer**: when checking where a
+  saved option value reaches, fetch
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live.
 - `--out-dir` places the pair somewhere other than `scripts/`. The emitted
   checker resolves the repository from its own location, so any depth works.
 - `--rule` also writes `.claude/rules/file-names.md`.
@@ -71,7 +78,7 @@ repository-shaped decision with no single right answer:
   operator place it in their own workflow.
 - **A registry row**, if the repository keeps a list of its gates.
 - **An architecture decision record** for the rule itself. Offer
-  `/architecture:record-decision`; do not write one unprompted.
+  `/architecture:adr`; do not write one unprompted.
 
 If a `REINDEX` row appeared, the repository's `AGENTS.md` or `CLAUDE.md` carries
 a generated instruction-placement rules index, and the new rule file is not in
@@ -110,7 +117,7 @@ exits 0, the checker has been run once and its verdict reported, and every
 
 ## Next
 
-`/architecture:record-decision`
+`/architecture:adr`
 
 For the rule itself, once the gate is wired and green.
 

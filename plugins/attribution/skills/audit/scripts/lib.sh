@@ -31,6 +31,22 @@ json_str() {
   printf '"%s"' "$s"
 }
 
+CFG_USER_CONFIG_KEYS=(budgets.searches_per_candidate budgets.fetches_per_candidate
+  budgets.corpus_fetch_ceiling judge_samples accuracy.nomination_passes
+  accuracy.judge_lens_diversity accuracy.review_agents accuracy.deep_research_on_exhaustion)
+declare -A CFG_USER_CONFIG=()
+
+cfg_user_config() {
+  local key="${1%%=*}" value="${1#*=}" known
+  [[ "$1" == *=* ]] || return 1
+  for known in "${CFG_USER_CONFIG_KEYS[@]}"; do
+    [[ "$key" == "$known" ]] || continue
+    [[ -z "$value" || "$value" == *"\${user_config."* ]] || CFG_USER_CONFIG["$key"]="$value"
+    return 0
+  done
+  return 1
+}
+
 # cfg_layers_init <config-root>: fill CFG_LAYERS with the config cascade in
 # refinement order, user-global then team then personal override, skipping a layer that is
 # not present. The team layer is <home>/attribution.yaml and the personal override
@@ -41,16 +57,23 @@ json_str() {
 # script (CLAUDE_PROJECT_DIR over a corpus root that each one finds its own way).
 # Config-cascade step 2: a home or non-repo root has no team layer or personal override.
 cfg_layers_init() {
-  local config_root="$1" home="docs/conventions" resolved name
+  local config_root="$1" home="docs/conventions" resolved name moved_to="this plugin's userConfig (see How to set these in the attribution README) for budgets, judge_samples and accuracy, and"
+  local repo_files="a repository's <home>/attribution.yaml or attribution.local.yaml"
+  local old="${HOME:-/nonexistent}/.claude/attribution.json"
   CFG_LAYERS=()
-  cfg_layer_add "${HOME:-/nonexistent}/.claude/attribution.json"
-  [[ "$(config_root_classify "$config_root")" == repo ]] || return 0
-  if resolved="$(bash "$_CFG_LIB/resolve-convention-home.sh" --root "$config_root" 2>/dev/null)" && [[ -n "$resolved" ]]; then
-    home="$resolved"
+  cfg_layer_add "$old"
+  [[ "${#CFG_USER_CONFIG[@]}" -eq 0 ]] || CFG_LAYERS+=(userConfig)
+  if [[ "$(config_root_classify "$config_root")" == repo ]]; then
+    if resolved="$(bash "$_CFG_LIB/resolve-convention-home.sh" --root "$config_root" 2>/dev/null)" && [[ -n "$resolved" ]]; then
+      home="$resolved"
+    fi
+    for name in attribution attribution.local; do
+      cfg_layer_add "$config_root/$home/$name.yaml"
+    done
+    repo_files="$config_root/$home/attribution.yaml or attribution.local.yaml"
   fi
-  for name in attribution attribution.local; do
-    cfg_layer_add "$config_root/$home/$name.yaml"
-  done
+  [[ -f "$old" ]] || return 0
+  echo "attribution: $old is a retired location, still read below every other layer until it is moved; run /attribution:setup apply to move its settings to $moved_to $repo_files for every other key" >&2
 }
 
 # cfg_layer_add <path>: append <path> when present and not already a layer (two
@@ -60,6 +83,7 @@ cfg_layer_add() {
   local path="$1" layer
   [[ -f "$path" ]] || return 0
   for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
+    [[ "$layer" != userConfig ]] || continue
     config_root_paths_same "$layer" "$path" && return 0
   done
   if _cfg_is_yaml "$path" && ! bash "$_CFG_LIB/parse-concern-value.sh" --strict "$path" __probe__ >/dev/null 2>&1; then
@@ -86,7 +110,7 @@ cfg_have_unread_layer() {
   local layer
   command -v jq >/dev/null 2>&1 && return 1
   for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    _cfg_is_yaml "$layer" || return 0
+    _cfg_is_yaml "$layer" || [[ "$layer" == userConfig ]] || return 0
   done
   return 1
 }
@@ -99,7 +123,9 @@ cfg_scalar() {
   local -n _cfg_dest="$1"
   local _cfg_key="$2" _cfg_ere="${3:-}" _cfg_layer _cfg_v _cfg_out="" _cfg_src=""
   for _cfg_layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    if _cfg_is_yaml "$_cfg_layer"; then
+    if [[ "$_cfg_layer" == userConfig ]]; then
+      _cfg_v="${CFG_USER_CONFIG[$_cfg_key]-}"
+    elif _cfg_is_yaml "$_cfg_layer"; then
       _cfg_v="$(bash "$_CFG_LIB/parse-concern-value.sh" --strict "$_cfg_layer" "$_cfg_key" 2>/dev/null)" || continue
     else
       command -v jq >/dev/null 2>&1 || continue
@@ -125,6 +151,7 @@ cfg_list() {
   local -n _cfg_arr="$1"
   local _cfg_key="$2" _cfg_layer _cfg_v _cfg_src="" _cfg_bom=$'\xEF\xBB\xBF'
   for _cfg_layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
+    [[ "$_cfg_layer" != userConfig ]] || continue
     if _cfg_is_yaml "$_cfg_layer"; then
       # The flattener prints nothing for `key: []`, so presence is the key's line
       # (after a byte-order mark, the key plain or quoted).

@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-is-read-only",
       "prompt": "/ai-slop:setup check",
-      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (user-global, team, personal override), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
+      "expected_output": "The current effective configuration is reported — each key with the layer supplying it (team, personal override, or an old ~/.claude/ai-slop.json named as an old path), absent layers named, drift flagged (unknown keys, dead globs, unsupported em-dash threshold) — and no file is written.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -23,7 +23,7 @@
       "narration": true,
       "expectations": [
         "Shows the proposed team-layer diff and waits for explicit confirmation before writing",
-        "Writes ONLY docs/conventions/ai-slop.yaml, never the user-global layer or personal override",
+        "Writes ONLY docs/conventions/ai-slop.yaml, never ~/.claude/ai-slop.json or the personal override",
         "Adds the exemption under em_dash_allowed_paths rather than excluded_paths (the file should still be scanned by other rules)"
       ]
     },
@@ -64,6 +64,20 @@
         "Writes the reason alongside the exemption rather than the exemption alone",
         "Names the trade-off between disabled_rules and em_dash_allowed_paths so the choice is informed",
         "Does not change the plugin's shipped default — the exemption lives in the consuming repo's config only"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-moves-old-user-global-file",
+      "prompt": "/ai-slop:setup apply — ~/.claude/ai-slop.json sets vocab_add: [\"synergy\"], the repository has no docs/conventions/ai-slop.local.yaml, and docs/conventions/**/*.local.* is gitignored.",
+      "expected_output": "The skill names ~/.claude/ai-slop.json as an old path read in the personal layer's place, previews docs/conventions/ai-slop.local.yaml carrying vocab_add: [synergy], says the override applies only in this repository, and asks for a yes. After the yes it writes the override, re-runs --show-config to confirm vocab_add now resolves from the override, and only then deletes the old file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names the old file and the personal override as its new location before any write",
+        "Waits for an explicit yes before writing the override or deleting the old file",
+        "Re-runs --show-config and confirms the moved key resolves from docs/conventions/ai-slop.local.yaml before deleting ~/.claude/ai-slop.json",
+        "Does not add a userConfig option or write the team file for the moved settings"
       ]
     }
   ]

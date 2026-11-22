@@ -89,9 +89,10 @@ inputs:
       checkout, and the tool rules name them there. It takes a read skill
       only (ci-context included, and one that hands on a patch with no
       prepare mode, review-threads, dependency-review or merge-base), never
-      a gate; checks, self-checks and verify-scripts only in a skill that
-      hands on a patch with no prepare mode, such as an issue lane's, and
-      tidy only in an issue lane's.
+      a gate; checks and self-checks only in a skill that hands on a patch
+      with no prepare mode or review-threads, or under ci-context;
+      verify-scripts only in a skill that hands on a patch with no prepare
+      mode, or under ci-context; and tidy only in an issue lane's.
     required: false
     default: claude-code-action
 
@@ -200,7 +201,7 @@ runs:
         # the copy at <at>, where the runner leaves it. Sets check_wrappers
         # (their paths at <at>) and check_prompt.
         stage_checks() {
-          local dir=$1 at=$2 check script flags wrapper config
+          local dir=$1 at=$2 check script flags wrapper config part
           check_wrappers=()
           [[ $at =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the checks directory or workspace has a name a rule cannot carry"
@@ -219,6 +220,14 @@ runs:
           if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
             mkdir -p "$dir/plugins/skill-quality"
             cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"
+          fi
+          # check-affected.sh runs the comment-lint hook from this copy, which
+          # sources and reads files across these three directories.
+          if [ -d "$BASE_PATH/plugins/code-tidying/git-hooks" ]; then
+            mkdir -p "$dir/plugins/code-tidying"
+            for part in git-hooks lib scripts; do
+              cp -R "$BASE_PATH/plugins/code-tidying/$part" "$dir/plugins/code-tidying/"
+            done
           fi
           for check in "${checks[@]}"; do
             script=${check%% *}
@@ -473,12 +482,9 @@ runs:
             { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ] || [ "$PREPARE" = merge-base ]; }; } ||
             fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads, dependency-review or merge-base"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
-          # Their wrappers run through Bash, which only the patch skill with
-          # no prepare mode gets with rules of its own, and ci-context bare.
-          # ci-context takes verify-scripts alone: its checks are the PR's own.
-          if ((${#checks[@]})) && { [ "$edits" != patch ] || [ -n "$PREPARE" ]; } ||
+          if { ((${#checks[@]})) && ! { { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ]; }; } || [ "$PREPARE" = ci-context ]; }; } ||
             { ((${#verify[@]})) && [ "$PREPARE" != ci-context ] && { [ "$edits" != patch ] || [ -n "$PREPARE" ]; }; }; then
-            fail "run-claude-cli: checks, self-checks and verify-scripts run only in a skill that hands on a patch with no prepare mode, and verify-scripts under ci-context"
+            fail "run-claude-cli: checks and self-checks run only in a skill that hands on a patch with no prepare mode or review-threads, or under ci-context; verify-scripts only in a skill that hands on a patch with no prepare mode, or under ci-context"
           fi
           [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ && $STAGE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the workspace or the stage directory has a name a rule cannot carry"
@@ -512,6 +518,11 @@ runs:
             allowed+=(Bash Edit Write Agent)
             denied+=("Edit(./.lane/ci/**)" "Write(./.lane/ci/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+            if ((${#checks[@]})); then
+              stage_checks "$STAGE/checks" "$lane/checks"
+              denied+=("Edit(./.lane/checks/**)" "Write(./.lane/checks/**)" "NotebookEdit(./.lane/checks/**)")
+              preamble="$preamble $check_prompt"
+            fi
             # verify-scripts: a base copy of each listed script behind its
             # wrapper, the copy the skill is told to run in place of the
             # checkout's (ci-ci.md, "A digest pin the pull request moved").

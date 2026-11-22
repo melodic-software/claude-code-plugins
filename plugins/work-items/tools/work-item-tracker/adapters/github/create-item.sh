@@ -51,7 +51,7 @@ done
 
 # wit_resolve_repo may call gh; wit_run_gh exits on API error, but inside $() that
 # only exits the subshell — propagate its code rather than continuing with "".
-target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
+target_repo="$(wit_resolve_repo "$repo_override" write)" || exit "$?"
 
 # Native GitHub Issue Type (org-defined Task/Bug/Feature) is a gh 2.94 flag.
 # On older gh, forwarding `--type` dies with `unknown flag` (exit 1) and

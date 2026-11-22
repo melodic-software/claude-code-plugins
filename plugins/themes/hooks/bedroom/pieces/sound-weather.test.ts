@@ -34,6 +34,7 @@ import {
   type Ran,
   type FakeMixer,
   COMMANDS,
+  isCommands,
   runFile,
   mixerChild,
   sky,
@@ -63,7 +64,7 @@ test('in the plugin, /bedroom weather strike (the card\'s bolt) brings one thund
   })
   let calm = EVENING
   while (![0, 1, 2].every(k => strike((minuteOfHalfDay(calm) + k) % 720) === undefined)) calm += 60_000
-  const room = await startRoom($, on, { now: calm, fakes: false, onWrite: (path, text) => (path === COMMANDS ? runFile(mixers.at(-1)!, text, clockNow()) : undefined) })
+  const room = await startRoom($, on, { now: calm, fakes: false, onWrite: (path, text) => (isCommands(path) ? runFile(mixers.at(-1)!, text, clockNow()) : undefined) })
   clockNow = () => room.clock.now()
   const thunder = (): Ran[] => mixers.flatMap(m => m.ran).filter(r => r.words[0] === 'shot' && r.words[1]!.startsWith('thunder/'))
 

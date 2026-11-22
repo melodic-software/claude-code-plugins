@@ -4073,7 +4073,8 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
             "unattended merge path stays at rung off while this record holds.",
             *(
                 [
-                    "It clears itself once a full run passes on main at a later commit: fix main.",
+                    "It clears once a full run passes on main at a later commit, and a lane then",
+                    "closes it: fix main.",
                 ]
                 if failure.signal in SELF_CLEARING_SIGNALS
                 else [

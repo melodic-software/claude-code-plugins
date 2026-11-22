@@ -3,6 +3,20 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [0.22.0] - 2026-11-22
+
+### Changed
+
+- **The personal override moves to `docs/conventions/mutation-testing.local.yaml`**, beside the team file, where the config-cascade contract puts the personal layer. `setup apply local` writes it there and offers the `docs/conventions/**/*.local.*` ignore line.
+- **An old `.claude/mutation-testing.local.md` is still read**: with no new file it supplies the personal layer as before, and with both present the new file wins and each old key is named as overridden or not applied. Every `check`, `apply` and audit run prints one warning line naming the old file, the new location and `/mutation-testing:setup apply local`.
+- **`setup apply` moves the old file** after a preview and a yes: it writes the new file, checks it resolves the same values, then deletes the old one. New eval cases cover the new file only, the old file only and both present.
+
 ## [0.21.4] - 2026-11-21
 
 ### Changed

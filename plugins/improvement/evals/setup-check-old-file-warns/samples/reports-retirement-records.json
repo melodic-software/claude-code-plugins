@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| Retired conventions | FAIL | improvement-r001 .claude/improvement.md (migrate); improvement-r002 .claude/improvement.local.md (migrate) |", "why": "both records in one row" },
+    { "answer": "- improvement-r002: .claude/improvement.local.md\n- improvement-r001: .claude/improvement.md", "why": "either order" }
+  ],
+  "fail": [
+    { "answer": "| Retired conventions | FAIL | improvement-r001 .claude/improvement.md (migrate) |", "why": "personal record missing" },
+    { "answer": "| Retired conventions | UNKNOWN | bash unavailable |", "why": "helper not run" }
+  ]
+}

@@ -3,6 +3,30 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.4] - 2026-11-22
+
+### Changed
+
+- Rechecked the probe-based notes against `playwright-cli` 0.1.25: the video frame-size table (all rows re-measured), the video-flags pointer, the animation-capture probe, the `goto file:///` probe, the `--raw` probe and the `redactUrlParams` probe. Results are unchanged except one: a `run-code` call that left the page clock paused returned under 0.1.25, where the 0.1.22 note said it never returned.
+
+## [2.1.3] - 2026-11-22
+
+### Changed
+
+- `/playwright:playwright` is synced to `@playwright/cli` 0.1.25. The sessions reference now attaches to the user's own browser through the extension with a named session, keeps the user's tabs on detach, and points at upstream's extension section before any tab cleanup.
+
+## [2.1.2] - 2026-11-22
+
+### Fixed
+
+- The once-a-day CLI version check no longer deletes a lock another session has just created: when the lock it found disappears before its age is read, the shared `cli-version-check.mjs` retries instead of treating it as stale.
+
+## [2.1.1] - 2026-11-22
+
+### Fixed
+
+- The once-a-day CLI version check no longer runs twice when two sessions start at the same moment: the shared `cli-version-check.mjs` now reads the clock after it takes its lock ([#18063](https://github.com/melodic-software/claude-code-plugins/issues/18063)).
+
 ## [2.1.0] - 2026-11-21
 
 ### Added

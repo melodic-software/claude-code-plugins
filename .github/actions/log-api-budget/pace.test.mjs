@@ -397,9 +397,10 @@ test("pr-merge reads the pacer in dispatch-post-merge-runs and skips only the sw
   assert.match(jobOf(file, "dispatch-post-merge-runs"), /\n {4}outputs:\n(?: {6}.*\n)*? {6}paced: \$\{\{ steps\.pace\.outputs\.paced \}\}\n/);
   const waiting = steps.filter((step) => /steps\.pace\.outputs/.test(step.s)).map((step) => step.name);
   assert.deepEqual(waiting, [], "no dispatch-post-merge-runs step waits on the pacer");
+  const gateOf = (job) => /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(jobOf(file, job))?.[1] ?? "";
+  assert.match(gateOf("merge"), /\n {6}&& needs\.dispatch-post-merge-runs\.outputs\.paced != 'true'\n/, "merge");
+  assert.doesNotMatch(gateOf("enable-auto-merge"), /outputs\.paced/, "enable-auto-merge arms on a paced tick");
   for (const job of ["merge", "enable-auto-merge"]) {
-    const gate = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(jobOf(file, job))?.[1] ?? "";
-    assert.match(gate, /\n {6}&& needs\.dispatch-post-merge-runs\.outputs\.paced != 'true'\n/, job);
     assert.doesNotMatch(jobOf(file, job), /steps\.pace\./, `${job} reads no pacer of its own`);
   }
 });

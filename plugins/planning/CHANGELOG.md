@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.13.2] - 2026-11-22
+
+### Changed
+
+- `/planning:interview` lists `/docs-hygiene:rename-references` in its `## Next` section for a renamed term the code still uses.
+
+## [5.13.1] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
+## [5.13.0] - 2026-11-22
+
+### Added
+
+- **Wayfind design and prototype fallbacks.** A `design` item that is domain or event-model work now falls back to `/planning:design` when the event-storming plugin is not enabled. A `prototype` item falls back to `/planning:design` when the prototype plugin is not enabled: its resolution comment says no artifact was built, and the decision it settles is recorded as provisional, naming that prototype item. Two new eval cases cover the fallbacks ([#17017](https://github.com/melodic-software/claude-code-plugins/issues/17017)).
+
+### Fixed
+
+- **Wayfind no longer offers an interview after declining to chart.** When the no-fog bail-out routes sharp tickets out, the run ends at that route. The offer to run `/planning:interview` first now applies only to an effort that keeps the map, in the chart step, the Flow section and the Next list.
+
 ## [5.12.2] - 2026-11-21
 
 ### Changed

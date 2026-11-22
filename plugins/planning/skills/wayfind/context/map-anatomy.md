@@ -95,7 +95,9 @@ item").
 - **Interview:** the agreed result as a table, then out of scope, deferred, glossary changes and
   what later items inherit from it.
 - **Prototype:** the verdict (each pass check passed or failed), what it confirms or reverses, and
-  a link to the item's folder on the dossier branch.
+  a link to the item's folder on the dossier branch. When the item fell back to `/planning:design`
+  (SKILL.md work step 5): the decision and a line saying no artifact was built, with no verdict
+  and no folder link.
 - **Task routed to `/wizard:generate`:** what was set up, by name and location (an account, a
   secret's name and where it is stored, a dashboard setting's path), never a value.
 
@@ -105,7 +107,16 @@ A decision that rests on a prototype not yet run is recorded as provisional: its
 line ends `(provisional until [<prototype title>](<prototype URL>))`. When that prototype
 resolves, a pass confirms it (drop the provisional marker); a fail reverses it through the
 supersede sweep (SKILL.md work step 7), with the prototype's fallback as the new item's starting
-point.
+point. A prototype item settled through the `/planning:design` fallback records its own decision
+this way, naming itself, since its artifact was never built. The fallback route is itself
+provisional until a prototype item is first worked without the plugin and shows whether a
+discussion settles its question. That item closes with no verdict, so
+its resolution cannot clear the marker. Only running the prototype clears it. Once the prototype
+plugin is enabled, a `work` session that finds a marker naming a closed prototype item with no
+verdict charts a new prototype item. The new item has the same body and links the closed one, and
+the marker is changed to point at it. That item's verdict then confirms or reverses the decision
+as above. Until then the decision stays provisional, and the map's closing comment (SKILL.md work
+step 8) states it as provisional and names the prototype still to run.
 
 ## Invariants (checked at every `work` session start)
 

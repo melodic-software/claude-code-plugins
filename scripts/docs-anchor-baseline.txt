@@ -72,8 +72,6 @@ plugins/harness-ops/skills/observability/reference/native-explain-usage.md 1
 plugins/harness-ops/skills/plugins/context/gotchas.md 2
 plugins/harness-ops/skills/plugins/context/scope-semantics.md 5
 plugins/implementation/skills/implement-dispatch/SKILL.md 1
-plugins/implementation/skills/implement-dispatch/reference/holdout-tests.md 1
-plugins/implementation/skills/implement/context/replace.md 1
 plugins/instruction-placement/skills/migrate/reference/sources.md 3
 plugins/knowledge/skills/docpage-digest/SKILL.md 1
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md 2

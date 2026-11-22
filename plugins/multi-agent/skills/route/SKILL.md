@@ -1,12 +1,12 @@
 ---
-description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and personal override config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing' or 'is fan-out on Fable', or before a skill launches a workflow that takes args.roles."
-argument-hint: "<<role>|all> [workload] [session=<alias>]"
+description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and personal override config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in; `vendors` with a task picks vendor (Claude, Codex, Gemini), model and effort for one delegated task, defaults first. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing', 'is fan-out on Fable', 'Codex or Gemini for this', 'which vendor and effort for this delegation', or before a skill launches a workflow that takes args.roles."
+argument-hint: "<<role>|all|vendors <task>> [workload] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: session
   summary: Resolve model and effort per agent role for a multi-agent run
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(external-agents models:*)", "Bash(command -v external-agents)"]
 shell: bash
 ---
 
@@ -27,14 +27,45 @@ read it when a note or a user question concerns a key, a layer or the guard.
   resolver then treats the session as frontier, so fan-out stages name
   `fanout.model`.
 
+## Vendors
+
+When the first argument is `vendors`, the rest is the task to place. Read
+[`${CLAUDE_PLUGIN_ROOT}/reference/vendors.md`](${CLAUDE_PLUGIN_ROOT}/reference/vendors.md)
+and follow its rule.
+
+1. For the Claude line, run route.sh as under Run with the role `worker`, the
+   role that runs a delegated task; its single variant is Claude's default.
+   Run `command -v external-agents`. Absent: say that external-agents is not
+   installed, so only Claude is covered, and skip step 2.
+2. Run `external-agents models codex` and `external-agents models antigravity`,
+   one call each. Each prints one JSON document; a `status` other than `ok` makes
+   that vendor unavailable, with its `reason`.
+3. Name the task's class from vendors.md's table (`everyday` or `heavy`) and why.
+4. Write one line per vendor, Claude first:
+
+   ```text
+   <vendor>: model <id|default> @ effort <level|default> (basis: <default | page § section | benchmark>; <one-line reason>)
+   ```
+
+   For Codex and Gemini, `default` means pass no `--model` or no `--effort`, so
+   the CLI's own default runs. The Claude line names the worker's single variant
+   as route.sh prints it (`inherit` means omit the model option), with basis
+   `default` when nothing was raised. A
+   vendor that is unavailable gets `<vendor>: unavailable (<reason>)`.
+
+Never name a model or effort the listing does not show. Which vendor to send the
+task to is the caller's choice among these lines; say which line you would pick
+and why only when asked.
+
 ## Run
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/route.sh $ARGUMENTS
+${CLAUDE_SKILL_DIR}/scripts/route.sh $ARGUMENTS --user-file '${user_config.role_map_file}'
 ```
 
 Append `session=<alias>` when `$ARGUMENTS` carries none and you know your model
-family.
+family. Keep `--user-file` exactly as written: it names the user layer's file,
+and the resolver reads an empty or unsubstituted value as no user layer.
 
 ## Output
 

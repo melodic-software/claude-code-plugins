@@ -342,10 +342,10 @@ JOBS_10="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_CODE_C
 JOBS_20="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_SEC_CHECK" completed success)")"
 expect "a head tested before the rename passes under the job ids" 0 "'$CODE_CHECK' passed on $HEAD" "::error::"
 JOBS_10="$(jobs "$(kill_job success success kill-switch)")"
-expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
+expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started."
 # The kill switch job's name before its rename to Check Kill Switch.
 JOBS_10="$(jobs "$(kill_job success success 'Kill Switch')")"
-expect "a kill switch job under its name before the rename still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
+expect "a kill switch job under its name before the rename still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started."
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
 # The status job named review-status, before its Title Case name, still counts,
@@ -609,9 +609,9 @@ export NOTES_41
 KILL_UNLISTED='{"id":41,"name":"Kill Switch","status":"completed","conclusion":"success","steps":[]}'
 JOBS_10="$(jobs "$KILL_UNLISTED")"
 NOTES_41="$(notes "$(note notice '' 'a kill switch stops this review (lanes: disabled, CLAUDE_REVIEW_DISABLED: unset)')")"
-expect "a kill-switch job listed with no steps counts as a stop on its report notice, and a stop fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started." "::notice::"
+expect "a kill-switch job listed with no steps counts as a stop on its report notice, and a stop fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started." "::notice::"
 NOTES_41="$(notes "$(note notice '' 'a kill switch stops this security review (lanes: disabled)')")"
-expect "the security lane's kill-switch notice counts too" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started." "::notice::"
+expect "the security lane's kill-switch notice counts too" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started." "::notice::"
 NOTES_41="$(notes "$(note notice api-budget 'token=github-token')")"
 expect "a kill-switch job listed with no steps and no report notice fails" 1 "did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 NOTES_41="$(notes "$(note warning '' 'a kill switch stops this review (lanes: disabled)')")"
@@ -625,11 +625,11 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"
 expect "a lane the kill switch stopped fails: the kill switch never waives review" 1 \
-  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 expect "a kill-switch stop with the review listed as skipped fails" 1 "a kill switch was on when it started" "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)")" JOBS_20="$(jobs "$(kill_job success success)")"
-expect "both lanes stopped by the kill switch fail, each named" 1 "'$SEC_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/20): a kill switch was on when it started"
+expect "both lanes stopped by the kill switch fail, each named" 1 "'$SEC_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/20): an API budget defer or a kill switch was on when it started"
 JOBS_20="$PASS_SEC"
 JOBS_10="$(jobs "$(kill_job failure skipped)")"
 expect "a failed kill-switch job fails" 1 "kill-switch job: failure"
@@ -699,7 +699,7 @@ fi
 # in any letter case, as the floor folds case.
 for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
-  .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
+  .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS' \
   .GitHub/Actions/Request-Lane-Token/action.yml vendor/sub/.GitModules docs/CodeOwners Scripts/Sync-Hold-Floor.PY; do
   STUB_FILES="$(files README.md "$changed")"

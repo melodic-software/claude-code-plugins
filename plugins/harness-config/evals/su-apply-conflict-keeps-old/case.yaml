@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: su-apply-conflict-keeps-old
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-file-write
+    type: tool_used
+    tool: 'Write'
+    input_match: 'audit-pass\.local\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-file-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: 'audit-pass\.local\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-old-file-delete
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\b(?:rm|mv|cp|unlink|tee)\b[^\n|;&]*audit-pass\.local\.md|>>?\s*["'']?[^\s"''|;&]*audit-pass\.local\.md|--clean\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-conflict
+    type: regex
+    pattern: '\bconflict\w*\b[\s\S]{0,600}?79e623d5a65b0c5e|79e623d5a65b0c5e[\s\S]{0,600}?\bconflict\w*\b'
+    flags: 'i'
+    target: last_message

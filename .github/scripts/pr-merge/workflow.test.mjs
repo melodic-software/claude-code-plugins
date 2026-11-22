@@ -1,3 +1,9 @@
+// test-scope: .github/actions/check-kill-switch/action.yml .github/actions/check-trusted-base/action.yml
+// test-scope: .github/actions/check-trusted-trigger/action.yml .github/actions/collect-base-activity/action.yml
+// test-scope: .github/actions/log-api-budget/pace.mjs .github/actions/request-lane-token/action.yml
+// test-scope: .github/actions/resolve-config/action.yml .github/actions/select-trusted-text/action.yml
+// test-scope: .github/actions/setup-pinned-node/action.yml .github/actions/setup-runner-isolation/action.yml
+// test-scope: .github/workflows/*.yml
 // pr-merge.yml's main-verification trigger. Expected values come from the
 // owner decision of 2026-10-18 (every merge to main gets a full run, whoever
 // merged), the efficiency plan of 2026-10-26 (items 5 and 7(b): at most one
@@ -517,18 +523,15 @@ const evalIf = (id, event, inputs = {}, needs = {}) => {
   );
 };
 
-// The burn-rate pacer (log-api-budget/pace.mjs) writes paced=true only on a
-// schedule tick, in dispatch-post-merge-runs, which runs only on the schedule and
-// a hand-started sweep. Every other run reaches the sweep jobs with no paced
-// output and runs them as before.
-test("only a paced schedule tick skips the merge and enable-auto-merge sweeps", () => {
+test("a paced schedule tick skips the merge sweep and still arms", () => {
   const paced = (value) => ({ "dispatch-post-merge-runs": { outputs: { paced: value } } });
   const schedule = { event_name: "schedule", event: {} };
   const handSweep = { event_name: "workflow_dispatch", event: { sender: { type: "User" } } };
   const wake = { event_name: "workflow_dispatch", event: { sender: { type: "Bot" } } };
   const unlabeled = { event_name: "pull_request_target", event: { sender: { type: "User" }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: 99 } } } };
+  assert.equal(evalIf("merge", schedule, {}, paced("true")), false, "merge: a paced tick skips");
+  assert.equal(evalIf("enable-auto-merge", schedule, {}, paced("true")), true, "enable-auto-merge: a paced tick still arms");
   for (const id of ["merge", "enable-auto-merge"]) {
-    assert.equal(evalIf(id, schedule, {}, paced("true")), false, `${id}: a paced tick skips`);
     assert.equal(evalIf(id, schedule, {}, paced("false")), true, `${id}: an unpaced tick sweeps`);
     assert.equal(evalIf(id, schedule, {}, paced("")), true, `${id}: a pacer that wrote nothing`);
     assert.equal(evalIf(id, handSweep, { pr: "" }, paced("false")), true, `${id}: a hand-started sweep`);

@@ -1,8 +1,9 @@
+// test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
-import { admissionSettled } from "./admit.mjs";
+import { admissionSettled, judgedLine, triageBriefed } from "./admit.mjs";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2046,6 +2047,56 @@ describe("run", () => {
     assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
   });
 
+  // https://github.com/melodic-software/architecture/pull/167
+  describe("the judged-text stamp", () => {
+    const TEXT = { title: "Fix line 3", body: "## Done when\n\n- [ ] Line 3 says nineteen." };
+    const APP_FILED = { outcome: "refused", reasons: ["the lanes App filed it"], status: NEEDS_DECISION };
+    const posted = async (admission, spec = { ...TEXT, lastEditedAt: null }) => {
+      const fake = fakeGitHub({ comments: [laneComment()] });
+      const github = (method, path, body, ...rest) =>
+        method === "POST" && path === "/graphql" && body?.variables?.number === 7
+          ? spec === null
+            ? Promise.reject(new Error("the read failed"))
+            : Promise.resolve({ data: { repository: { issue: { ...spec, author: null, editor: null, comments: { totalCount: 0, nodes: [] } } } } })
+          : fake.github(method, path, body, ...rest);
+      await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, admitIssue: async () => admission, log: () => {} });
+      return writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments")?.body.body;
+    };
+    const asNode = (body) => ({ body, author: { __typename: "Bot", databaseId: LANES_APP }, lastEditedAt: null, editor: null });
+
+    test("a verdict admission refused ends with the judged text's hashes, which brief that text and no other", async () => {
+      const body = await posted(APP_FILED);
+      assert.equal(body.split("\n").at(-1), judgedLine(TEXT), body);
+      assert.match(body, /^<!-- intake-triage verdict -->\nThe latest triage verdict holds nothing: admission moved the issue to `needs-owner-decision`/);
+      assert.equal(triageBriefed([asNode(body)], LANES_APP, TEXT), true);
+      assert.equal(triageBriefed([asNode(body)], LANES_APP, { ...TEXT, body: `${TEXT.body}\n- [ ] More.` }), false);
+    });
+
+    test("a body edited at the verdict's time is stamped, and one edited after it is not", async () => {
+      assert.equal((await posted(APP_FILED, { ...TEXT, lastEditedAt: "2026-10-22T12:05:00Z" })).split("\n").at(-1), judgedLine(TEXT));
+      const later = await posted(APP_FILED, { ...TEXT, lastEditedAt: "2026-10-22T12:06:00Z" });
+      assert.ok(later.startsWith(`${VERDICT_MARKER}\n`), later);
+      assert.ok(!later.includes("intake-triage judged"), later);
+    });
+
+    test("a failed read still posts the verdict, with no stamp", async () => {
+      const body = await posted(APP_FILED, null);
+      assert.ok(body.startsWith(`${VERDICT_MARKER}\n`), body);
+      assert.ok(!body.includes("intake-triage judged"), body);
+    });
+
+    test("a verdict a person's hold or an unfinished admission left is not stamped", async () => {
+      for (const admission of [
+        { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" },
+        { outcome: "error", reasons: ["admission failed"] },
+      ]) {
+        const body = await posted(admission);
+        assert.ok(body?.startsWith(`${VERDICT_MARKER}\n`), body);
+        assert.ok(!body.includes("intake-triage judged"), body);
+      }
+    });
+  });
+
   // Admission's own comment already says why it parked the issue at
   // status: confirmed, which is no hold, so a verdict comment saying only
   // that adds nothing a reader or a later run reads.
@@ -2121,6 +2172,36 @@ describe("run", () => {
     const [written] = fake.calls.filter(({ method }) => method === "STATUS");
     assert.equal(written.body, "needs-owner-decision");
     assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
+  });
+
+  test("a Work status github-actions[bot] set is handed over, and one a bot the trusted list does not derive set is not", async () => {
+    const field = String(STATUS_CONFIG["field-id"]);
+    for (const [setter, handed] of [[41898282, true], [288071998, false], [209825114, false]]) {
+      const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
+      const github = withFields(fake.github, { 7: { state: "confirmed", setter } });
+      const fields = async () => ({ [field]: setter });
+      await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, log: () => {} });
+      const [written] = fake.calls.filter(({ method }) => method === "STATUS");
+      assert.equal(Boolean(written.fields[field]), handed, String(setter));
+    }
+  });
+
+  test("an explicit bot-setters list hands over a listed non-melodic bot's Work status, and not a derived-only melodic- bot's", async () => {
+    const field = String(STATUS_CONFIG["field-id"]);
+    const dir = tempDir("apply-verdict-setters-");
+    const listPath = path.join(dir, "trusted-actors.json");
+    const list = JSON.parse(readFileSync(TRUSTED, "utf8"));
+    list.actors.push({ id: 4242, login: "melodic-derived[bot]", kind: "bot" });
+    writeFileSync(listPath, JSON.stringify(list));
+    const config = { ...STATUS_CONFIG, "bot-setters": [{ id: 209825114, login: "claude[bot]" }] };
+    for (const [setter, handed] of [[209825114, true], [4242, false], [41898282, false]]) {
+      const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
+      const github = withFields(fake.github, { 7: { state: "confirmed", setter } });
+      const fields = async () => ({ [field]: setter });
+      await run({ env: { ...ENV, TRUSTED_ACTORS_PATH: listPath }, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: config, log: () => {} });
+      const [written] = fake.calls.filter(({ method }) => method === "STATUS");
+      assert.equal(Boolean(written.fields[field]), handed, String(setter));
+    }
   });
 
   // A born-triaged issue filed with the agent-ready label and no Work status:

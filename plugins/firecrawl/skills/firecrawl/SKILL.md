@@ -28,12 +28,12 @@ The `firecrawl --status` line above includes auth state. If it shows unauthentic
 
 ## Purpose
 
-`firecrawl-cli` is the CLI alternative to the `firecrawl-mcp` MCP server. It wraps api.firecrawl.dev with agent defaults: retry/rotation on anti-bot blocks, JS rendering, and an `-o <path>` flag that writes results to disk instead of streaming into the conversation.
+`firecrawl-cli` reaches the same API as the `firecrawl-mcp` MCP server. It wraps api.firecrawl.dev with agent defaults: retry/rotation on anti-bot blocks, JS rendering, and an `-o <path>` flag that writes results to disk instead of streaming into the conversation.
 
-When WebFetch fails on a large page, an MCP equivalent streams the whole document into the
-conversation. This skill writes it to a spill file and lets the agent `Read` only the slice it
-needs. The saving scales with document size, so it is largest on exactly the long pages that
-defeat WebFetch in the first place.
+An MCP tool call returns its whole result into the conversation; this skill writes it to a spill
+file and lets the agent `Read` only the slice it needs. That matters for crawls, batches and long
+pages; a single small page or search read in full can go through the MCP tools
+([context/mcp-or-cli.md](context/mcp-or-cli.md)).
 
 ## When to reach for this skill
 
@@ -84,6 +84,10 @@ rather than an extraction; or when results should land on disk.
 writes output files under the `-o` path only.
 
 The four-part records live in [context/native-web-tools.md](context/native-web-tools.md).
+
+**The Firecrawl MCP tools.** When `mcp__firecrawl__*` tools are connected, use them for one page or
+one search read in full, and this skill's CLI for crawls, batches and large results:
+[context/mcp-or-cli.md](context/mcp-or-cli.md).
 
 ## Core pattern. Write to disk, Read selectively
 
@@ -180,7 +184,7 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 - **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies fail DNS intermittently. Retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
 - **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist. Fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover the Bash tool calls this skill's body issues (what that field governs: the `shell` row of [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)).
 - **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance (the default endpoint: [Self-hosted / Local Development](https://github.com/firecrawl/cli#self-hosted--local-development)). Only override when running against a self-hosted stack.
-- **CLI and `mcp__firecrawl__*` MCP tools overlap**. Running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
+- **CLI and `mcp__firecrawl__*` MCP tools overlap.** Choose per call as [context/mcp-or-cli.md](context/mcp-or-cli.md) says. Give both the same `FIRECRAWL_API_KEY` source, so their configuration does not split.
 
 ## Related
 

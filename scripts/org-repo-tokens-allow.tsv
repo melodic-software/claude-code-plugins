@@ -45,6 +45,7 @@ plugins/education/reference/config.md	melodic-software/claude-code-plugins	1	raw
 plugins/education/schemas/education.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/event-storming/schemas/event-storming.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/explainer-video/schemas/explainer-video.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
+plugins/external-agents/schemas/external-agents.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/formal-verification/schemas/formal-verification.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/go-format/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
 plugins/guardrails/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
@@ -66,6 +67,7 @@ plugins/harness-ops/skills/changelog/context/read-actions.md	melodic-software/cl
 plugins/harness-ops/skills/observability/context/operator-setup-retention.md	melodic-software/provisioning	2	names another repository of the publishing organization in prose or an example
 plugins/implementation/schemas/implementation.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/improvement/README.md	melodic-software/claude-code-plugins	1	names this marketplace's own repository (install, issue target or example)
+plugins/improvement/schemas/improvement.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/improvement/skills/find/context/unattended.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/instruction-placement/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
 plugins/instruction-placement/skills/migrate/reference/sources.md	melodic-software/ci-workflows	3	names another repository of the publishing organization in prose or an example
@@ -154,15 +156,6 @@ plugins/testing/schemas/testing.schema.json	melodic-software/claude-code-plugins
 plugins/testing/skills/audit/SKILL.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/testing/skills/run-e2e/context/e2e-config.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/testing/skills/run-e2e/context/own-driving.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/bash.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/cross-cutting.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/dotnet.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/go.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/markdown.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/powershell.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/python.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/typescript.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/toolchain/reference/ecosystems/yaml.yaml	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/toolchain/reference/resolution-ladder.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
 plugins/verification/schemas/verification.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/visualization/schemas/visualization.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema

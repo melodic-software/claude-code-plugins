@@ -1,5 +1,23 @@
 # Changelog: docs-hygiene plugin
 
+## [4.3.0] - 2026-11-22
+
+### Changed
+
+- When `/domain-driven-design:ubiquitous-language` is available, `/docs-hygiene:rename-references` matches a glossary-driven rename's term inside identifiers the way the ubiquitous-language glossary contract counts a term, so `addLearner` is found for `learner`; such a hit is never Certain. Ordinary renames keep the `\b` anchor. Its `## Next` lists `/docs-naming:audit-file-names` for a whole-tree casing check and `/toolchain:check` when the sweep edited code or config.
+
+## [4.2.9] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
+## [4.2.8] - 2026-11-22
+
+### Fixed
+
+- `rename-references` audit survey describes a line-break Grep pattern run without `multiline` as reported back as a rejected pattern, not a silent loss of the form, and points at the Claude Code changelog for what Grep reports. The instruction to set `multiline: true` for Form 7 and Form 14's Setext alternative is unchanged ([#17832](https://github.com/melodic-software/claude-code-plugins/issues/17832)).
+
 ## [4.2.7] - 2026-11-21
 
 ### Changed

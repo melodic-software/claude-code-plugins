@@ -4,7 +4,7 @@ tags: [toolchain, check, unattended, resolution-ladder, scaffold, no-network]
 max_turns: 30
 timeout_seconds: 600
 allowed_tools: [Skill, Read, Glob, Grep, Bash]
-expected_outcome: "The stated `bash tools/run.sh bash check scripts/app.sh` runs and an `assumed: bash.check-cmd=... (CLAUDE.md:<line>)` line names it; the markdown row's lint cell reads skip (unresolved: markdown.check-cmd); Overall reads INCOMPLETE; no markdownlint, install, Write, Edit or write into .claude/ecosystems/ happens."
+expected_outcome: "The stated `bash tools/run.sh bash check scripts/app.sh` runs and an `assumed: bash.check-cmd=... (CLAUDE.md:<line>)` line names it; the markdown row's lint cell reads skip (unresolved: markdown.check-cmd); Overall reads INCOMPLETE; no markdownlint, install, Write, Edit or write into docs/conventions/ecosystems/ or .claude/ecosystems/ happens."
 ---
 
 /toolchain:check --unattended

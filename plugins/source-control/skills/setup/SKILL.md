@@ -1,11 +1,11 @@
 ---
-description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the user-global, team, and personal-override layers plus the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
-argument-hint: "[check|apply] [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
+description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the team and personal-override layers, plus old-location files and the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, moves old-location config, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, when a run names an old config location, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
+argument-hint: "[check|apply] [layer=team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply] [layer=user|team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]`. Full form: [check|apply] [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
+**Arguments.** `[check|apply] [layer=team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]`. Full form: [check|apply] [layer=team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]
 
 ## Purpose
 
@@ -13,8 +13,10 @@ Inspect and configure the source-control plugin per the uniform setup contract
 (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` reports the effective configuration, `apply` writes it. Two kinds of configuration:
 
-1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
-   team file (`docs/conventions/source-control.yaml`), and a gitignored personal override and merged per key by
+1. The commit-subject / PR-title convention config, layered across the tracked team file
+   (`docs/conventions/source-control.yaml`) and the gitignored personal override
+   (`docs/conventions/source-control.local.yaml`), plus the two old locations still read during
+   the dual-read window, and merged per key by
    [../../reference/config-resolution.md](../../reference/config-resolution.md). Resolved first by
    `/source-control:commit` and `/source-control:pull-request` before they fall back to inference or
    the bundled Conventional Commits default. Conventional Commits is genuinely optional, some orgs
@@ -45,7 +47,7 @@ below, never a cwd-relative path (invoked from a nested directory, a cwd-relativ
 the wrong file). Re-resolve `REPO_ROOT` at the top of every self-contained Bash call, a fresh shell
 does not carry a prior call's variables.
 
-Read all three layers, then report **one effective-configuration table**, a row per key, its
+Read both layers and any old location, then report **one effective-configuration table**, a row per key, its
 resolved value, and which layer supplied it, followed by a per-layer presence line. Never present a
 single layer's value as the effective convention; a reader who cannot see which layer won cannot
 tell why `/source-control:commit` behaves as it does.
@@ -55,10 +57,10 @@ personal override are **not applicable**
 ([../../reference/config-resolution.md](../../reference/config-resolution.md)):
 do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the personal override,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
-or `project root is not inside a git repository`), and resolve user-global only.
-`parse-branch-issue.sh` prints the same note on stderr. Git
+or `project root is not inside a git repository`), and resolve only the old user-global file,
+while it exists. `parse-branch-issue.sh` prints the same note on stderr. Git
 tracked/ignored probes do not apply: there is no consumer repository to answer against.
-`apply layer=team` and `layer=local` refuse; offer `layer=user`.
+`apply` refuses to write; say to run it from the repository that should hold the config.
 
 ```text
 key                        value                       won by
@@ -96,8 +98,15 @@ that keyword with its layer in `won by`.
 
 Per-layer verdicts:
 
-- **User-global** (`~/.claude/source-control.md`): present → report which keys it contributes;
-  absent → INFO. It is outside the repo, so no git check applies to it.
+- **Old locations** (dual-read window): list them with
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" old-files "$REPO_ROOT"` (pass an empty root
+  when team and personal override are not applicable), which prints one
+  `<old path><TAB><new location>` line per file present. Each line → WARN naming the old file, the
+  keys it still supplies, its new location, and `apply` as the remediation, which moves it
+  ([reference/apply-convention.md](reference/apply-convention.md) "Move config off the old
+  locations"). `~/.claude/source-control.md` is still read below team; the old personal override
+  `.claude/source-control.local.md` is read only while the personal YAML is absent, so beside it
+  say its keys are not read. No output → nothing to move.
 - **Team** (`REPO_ROOT/docs/conventions/source-control.yaml`): present → PASS. **FAIL** when
   excluded by `.gitignore`. Teammates would never receive the shared convention; report the matching
   rule. Absent → INFO, remediable by `apply`. Per key, `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$REPO_ROOT" <key>`
@@ -110,32 +119,32 @@ Per-layer verdicts:
   by source-control; name the `## <key>` sections it still carries. `apply` copies every key the
   schema declares into `docs/conventions/source-control.yaml` and removes its section; delete the
   file once it carries none.
-- **Personal override ignore rule** (the recursive `.claude/**/*.local.*`, covering
-  `REPO_ROOT/.claude/source-control.local.md`): probe the ignore rule whether or
+- **Personal override ignore rule** (the recursive `docs/conventions/**/*.local.*`, covering
+  `REPO_ROOT/docs/conventions/source-control.local.yaml`): probe the ignore rule whether or
   not the personal override file exists. The rule's job is to be in place **before** the
   first personal override is written; conditioning the probe on the file already existing
   is the window that produces the exposure. Missing rule → FAIL, remediable by
   `apply` (which writes the line at team-layer bind, not only at `layer=local`).
-  Probe with `git check-ignore --no-index -v -- .claude/nested/personal-override.local.md`
+  Probe with `git check-ignore --no-index -v -- docs/conventions/nested/personal-override.local.yaml`
   (the path does not need to exist). The sentinel is nested so a leftover
-  `.claude/*.local.*` rule, which still matches the flat personal override path, is not
+  `docs/conventions/*.local.*` rule, which still matches the flat personal override path, is not
   mistaken for the recursive rule. A match counts only when `-v` names a
   repository `.gitignore` as the source. `$GIT_DIR/info/exclude` and
   `core.excludesFile` are operator-local and do not protect a teammate.
-- **Personal override file** (`REPO_ROOT/.claude/source-control.local.md`): when
+- **Personal override file** (`REPO_ROOT/docs/conventions/source-control.local.yaml`): when
   present, PASS only when an ignore rule matches it **and** it is not in the
   index. Two distinct failures hide behind one symptom and need different
   remediations, so probe them separately. See the two-probe form under
-  `apply`. Absent file is OK once the ignore rule itself is present.
-
-  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+  `apply`. Absent file is OK once the ignore rule itself is present. Per key,
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" local-value "$REPO_ROOT" <key>` (or
+  `local-list` for a list key) prints its value.
 
 **FAIL** when the *effective* `subject_pattern` is not machine-checkable. It must be either the
 literal keyword `Conventional Commits` or an anchored regex (`^…`-style); a plain-language
 description cannot be evaluated by `/source-control:commit` or `/source-control:pull-request`. Name the layer that supplied the
 offending value.
 
-With **all three layers absent**: INFO, no declared convention; `/source-control:commit` and `/source-control:pull-request` infer
+With **every layer and old location absent**: INFO, no declared convention; `/source-control:commit` and `/source-control:pull-request` infer
 from the repo's own `CLAUDE.md`/rules/commit-msg hook, then fall back to the bundled Conventional
 Commits default. The remediation is `apply` to persist a convention.
 
@@ -291,29 +300,34 @@ The full write path is normative in
 [reference/apply-convention.md](reference/apply-convention.md). Read it before writing any layer.
 In brief:
 
-- **Target layer.** `layer=` picks `user` / `team` (default) / `local`; infer the layer from the
+- **Target layer.** `layer=` picks `team` (default) / `local`; infer the layer from the
   request's wording and state the pick before writing, the wrong layer either misses teammates or
-  commits a personal preference to shared history. When `REPO_ROOT` is `$HOME` or an ancestor of
-  it, or is not inside a git working tree, refuse `layer=team` and `layer=local` (at home they
-  would write the operator's personal files under a team label; outside a
-  repository there is no team to share with) and offer `layer=user`.
+  commits a personal preference to shared history. There is no user-global layer: `layer=user`
+  is refused, naming `team` or `local` in each repository that needs the value. When `REPO_ROOT`
+  is `$HOME` or an ancestor of it, or is not inside a git working tree, refuse to write (at home
+  the files would land in the operator's home directory under a team label; outside a repository
+  there is no team to share with).
+- **Move config off the old locations.** For each file `check` named at an old location, show a
+  preview of the keys it carries and where each goes, and after a yes copy them into the new
+  location, check the new location resolves the same values, then delete the old file. Never
+  without the yes; a decline leaves the file, still read and still warned about. The spoke's
+  "Move config off the old locations" owns the steps.
 - **Non-interactive** (`subject_pattern=`): an in-place *update*, never a fresh file. Carry every
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
-  non-machine-checkable value, and for a `user` or `local` write omit requested keys the layers below already
-  resolve identically.
+  non-machine-checkable value, and for a `local` write omit requested keys the team layer already
+  resolves identically.
 - **`branch_issue_pattern=`**: alone, it writes or replaces only the `branch_issue_pattern` key of
-  the chosen layer (a quoted scalar in the team YAML; the `## branch_issue_pattern` section, value in
-  backticks, in a markdown layer), leaving every other key untouched; with
+  the chosen layer (a quoted scalar in the YAML), leaving every other key untouched; with
   `subject_pattern=`, both are written in one pass. Reject a value that is not a valid ERE, holds a
   backreference, or has no capture group, then confirm `parse-branch-issue.sh <sample-branch>`
   prints the expected number.
-- **Interactive:** the interview. Anchor at `REPO_ROOT`, read all three layers first, infer before
+- **Interactive:** the interview. Anchor at `REPO_ROOT`, read every layer first, infer before
   asking (declared prose, commit-msg hooks, commit-history consensus over the configurable
   `setup_inference_*` window), interview one decision at a time with a recommendation first, settle
   the optional keys (`trailer_policy`, `pr_body_attribution`, `pr_body_required_sections`,
   including the `none` value and the omission-never-resets trap), write the template, verify per
-  layer (team = tracked and staged; local = ignored and untracked, two independent probes; user =
-  no git command at all), and report the new **effective merge**, not just what was written.
+  layer (team = tracked and staged; local = ignored and untracked, two independent probes), and
+  report the new **effective merge**, not just what was written.
 
 - **Neutral SSOT:** a `team` write may materialize a tool-agnostic flat-scalar YAML file other tools
   consume too, always at the well-known path `docs/conventions/source-control/commit-convention.yml`
@@ -428,7 +442,7 @@ later. Where each plugin variable resolves: the plugins reference,
 - Enforce the convention at commit time, a project's own `commit-msg` hook (when one exists) remains
   the authoritative gate; this config only tells the plugin's skills what shape to draft and
   pre-check against.
-- Write the consumer's `.gitignore`, except the one recursive `.claude/**/*.local.*` line at
+- Write the consumer's `.gitignore`, except the one recursive `docs/conventions/**/*.local.*` line at
   team-layer bind / `apply`. That line must exist before any personal override is written,
   so `apply` appends it when missing and announces the edit. Everything else in
   `.gitignore` stays the consumer's.

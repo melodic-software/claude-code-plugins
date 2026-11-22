@@ -136,13 +136,18 @@ on:
   workflow_dispatch:
     inputs:
       run-id:
-        description: Id of a red pr-require-checks run on main that github-actions[bot] dispatched
-        required: true
+        description: Id of a red pr-require-checks run on main that github-actions[bot] dispatched (required unless close-cleared)
+        required: false
         type: string
       head-sha:
-        description: The run's head SHA (40 lowercase hex digits), which keys the file-demotion-issue's concurrency group
-        required: true
+        description: The run's head SHA (40 lowercase hex digits), which keys the file-demotion-issue's concurrency group (required unless close-cleared)
+        required: false
         type: string
+      close-cleared:
+        description: "'true' only closes the records main has cleared"
+        required: false
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -157,10 +162,8 @@ jobs:
     # The file step's early exits, read from the event before any checkout: a
     # workflow_run event that is not a signal, a full run's pass on attempt 1
     # or action_required, or a run off this repository's main starts no job.
-    # Every canary push run on main runs, to read its push for reverts. A
-    # dispatch always runs; the Read step checks it.
     if: >-
-      github.event_name == 'workflow_dispatch'
+      (github.event_name == 'workflow_dispatch' && inputs.close-cleared != 'true')
       || (github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && contains(fromJSON('["PR Require Checks:schedule", "PR Require Checks:workflow_dispatch", "Post Merge Detect Silent Revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
@@ -223,16 +226,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
       # runs in a worktree of the last green SHA, and for a canary run's push
       # and the commits it reverts; full history for both.
@@ -244,7 +240,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
@@ -1156,7 +1152,7 @@ jobs:
           canary_lift="It lifts once the content whose deletion filed it is on main again, or once a pull request that references this record merges into main with that content in its tree (when nothing was deleted, with a canary run passing at its merge commit); a lane then closes it (babysit_merge_policy.py \`_lift\`)."
           held="The unattended merge path stays at
           rung off while this record holds."
-          rung="$held It clears itself once a full run passes on main at a later commit; the fix issues fix main. A new sighting of the same failure reopens it."
+          rung="$held It clears once a full run passes on main at a later commit, and a lane then closes it; the fix issues fix main. A new sighting of the same failure reopens it."
           if [[ "$signal" == canary && -n "$canary_block" ]]; then
             rung="$held $canary_lift A person's direct close also clears it; a new sighting of the same failure reopens it."
           elif [[ "$signal" == canary ]]; then
@@ -1487,16 +1483,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       # Full history, so the revert's fit to main's tip is checked in memory.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1566,13 +1555,17 @@ jobs:
   close-cleared:
     name: Close The Records Main Cleared
     if: >-
-      github.event_name == 'workflow_run'
+      (github.event_name == 'workflow_dispatch' && inputs.close-cleared == 'true')
+      || (github.event_name == 'workflow_run'
       && github.event.workflow_run.name == 'PR Require Checks'
       && github.event.workflow_run.event == 'schedule'
       && github.event.workflow_run.head_branch == 'main'
-      && github.event.workflow_run.head_repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    concurrency:
+      group: post-merge-close-cleared
+      cancel-in-progress: false
     permissions:
       actions: read # list green full runs and canary runs on main
       contents: read # read merge.agent-identity, files and commits on main
@@ -1581,16 +1574,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       # main's tip, for babysit_lift.py close; no code from outside main runs.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1599,7 +1585,7 @@ jobs:
           path: .base
           persist-credentials: false
       - name: Write the source-control trust settings
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control

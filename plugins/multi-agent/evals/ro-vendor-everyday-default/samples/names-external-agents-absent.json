@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "external-agents is not installed, so Codex and Gemini are not covered; this answer covers Claude only.",
+      "why": "names the missing plugin"
+    },
+    {
+      "answer": "Codex and Gemini: not installed (external-agents plugin missing).",
+      "why": "reverse order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "codex: model default @ effort default (basis: default; everyday task)",
+      "why": "claims Codex coverage"
+    }
+  ]
+}

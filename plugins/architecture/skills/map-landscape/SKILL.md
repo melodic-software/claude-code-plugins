@@ -232,7 +232,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
 - The question is the modules inside one deployable: `/architecture:map-components`.
 - The question is module-design friction: `/architecture:improve`.
 - The question is how the code behaves: `/discovery:explore`.
-- The landscape settles a decision worth keeping: `/architecture:record-decision`.
+- The landscape settles a decision worth keeping: `/architecture:adr`.
 
 ## Gotchas
 

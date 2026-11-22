@@ -58,19 +58,12 @@
 # There is deliberately NO bare *.yaml / *.yml entry. Both used to be here, and
 # both were a coverage claim this repo could not honor. Every .yml in the repo
 # already sits under .github/*, so the entry bought nothing; *.yaml additionally
-# swept in 13 files that NO lane reads —
-# plugins/toolchain/reference/ecosystems/*.yaml (9) and
-# docs/contracts/ecosystem-commands/examples/*.yaml (4). Verified absent, not
-# merely unattributed: there is no yamllint step anywhere in .github or scripts;
-# every check-jsonschema step names its files and none names these;
-# validate-plugin-contracts.mjs does not mention yaml at all; and
-# `git ls-files 'plugins/toolchain/**/*.test.sh'` is empty. The generic hygiene
-# steps (typos, editorconfig-checker, gitleaks) read the bytes but validate
-# nothing about these files' contract. So they now fail loud, which is this
-# tool working. The four ecosystem-commands examples have since earned a lane:
-# docs/contracts/ecosystem-commands/examples.test.sh names each one and checks
-# it against ecosystem.schema.json, so they map to that suite, not to an entry
-# here. The toolchain ecosystem YAMLs still have none.
+# swept in YAML files that NO lane read, such as
+# docs/contracts/ecosystem-commands/examples/*.yaml (4). Those four examples
+# have since earned a lane: docs/contracts/ecosystem-commands/examples.test.sh
+# names each one and checks it against ecosystem.schema.json, so they map to
+# that suite, not to an entry here. A new YAML file with no lane fails loud,
+# which is this tool working.
 .github/*
 .gitattributes
 scripts/.gitattributes

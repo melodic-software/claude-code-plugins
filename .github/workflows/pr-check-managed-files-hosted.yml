@@ -45,6 +45,7 @@ on:
       - .github/ISSUE_TEMPLATE/bug-report.yml
       - .github/ISSUE_TEMPLATE/feature-request.yml
       - .github/ISSUE_TEMPLATE/task.yml
+      - .github/PULL_REQUEST_TEMPLATE.md
       - .github/actionlint.yaml
       - .github/standards/dependabot-policy/policy.json
       - .github/standards/github-actions-conventions/vocabulary.json
@@ -61,6 +62,7 @@ on:
       - .github/standards/trusted-actors/trusted-actors.json
       - .github/standards/trusted-actors/trusted-actors.schema.json
       - .github/workflows/maintenance-check-links-online.yml
+      - .github/workflows/pr-automerge-dependabot-hosted.yml
       - .github/workflows/pr-check-managed-files-hosted.yml
       - .github/workflows/pr-review-hosted.yml
       - .github/workflows/pr-review-security-hosted.yml
@@ -84,6 +86,7 @@ on:
       - docs/standards/design-for-change.md
       - docs/standards/deterministic-work-execution.md
       - docs/standards/documentation-and-citations.md
+      - docs/standards/filing-prs-and-issues.md
       - docs/standards/issue-tracker.md
       - docs/standards/reference-dont-duplicate.md
       - docs/standards/simpler-code.md

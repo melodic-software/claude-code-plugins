@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 // Expected values come from the reconciler's spec: a CI run on a PR's current
 // head whose newest attempt ended cancelled, timed_out or startup_failure,
 // with no newer run of that workflow on the head, is re-run once; at most 3
@@ -19,7 +20,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2817,6 +2818,75 @@ test("the second stopped lane goes on the next pass, after the first has its re-
   assert.deepEqual(reruns, [301]);
 });
 
+const RESET_S = NOW / 1000 + 600;
+const deferNote = (reset = RESET_S) => [{ annotation_level: "notice", message: `a kill switch stops this review (lanes: kill-switch cause=defer reset=${reset}, CLAUDE_REVIEW_DISABLED: unset)` }];
+const deferredJobs = (reset) => stoppedJobs().map((job) => (job.id === 312 ? { ...job, notes: deferNote(reset) } : job));
+const deferredRun = (id, head, opts = {}, reset = RESET_S) => stoppedRun(id, head, opts, deferredJobs(reset));
+const bothDeferred = (n, reset) => [redChecks(100 + n, sha(n)), deferredRun(200 + n, sha(n), {}, reset), deferredRun(300 + n, sha(n), { path: SECURITY_REVIEW }, reset)];
+
+test("a deferred review waits until RATE_RESET_GRACE_MS past the reset its notice names, then is re-run whole, recorded", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const before = await reconcile({ pulls: [pr(1)], runs: bothDeferred(1), env: SWITCHES_OFF, now: RESET_S * 1000 + 60_000 });
+  assert.equal(before.code, 0);
+  assert.deepEqual(before.reruns, [], "inside the grace, so the one re-run is not spent in the window that deferred it");
+  assert.equal(before.outputs.clean, "", "the next tick runs, not paced");
+  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]).startsWith(`reconcile: #1: review run 201 (${REVIEW}) was deferred on the GITHUB_TOKEN budget; waiting for the rate-limit reset at`)));
+  assert.ok(before.calls.includes(`GET /repos/${REPO}/check-runs/312/annotations?per_page=100`), "the gate job's notice is read for the reset");
+  const after = await reconcile({ pulls: [pr(1)], runs: bothDeferred(1), env: SWITCHES_OFF, now: RESET_S * 1000 + 61_000 });
+  assert.deepEqual(after.reruns, [201, 301]);
+  assert.deepEqual(after.failedJobReruns, []);
+  assert.deepEqual(records(after.outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, ""]);
+});
+
+test("deferred reviews take their own band, so they go beside a full set of re-run places", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [windowsLost(1), windowsLost(2), windowsLost(3), ...bothDeferred(4), ...bothDeferred(5)];
+  const { code, reruns, outputs } = await reconcile({ pulls: [1, 2, 3, 4, 5].map((n) => pr(n)), runs, env: SWITCHES_OFF, now: RESET_S * 1000 + 61_000 });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [401, 402, 403, 204, 304, 205, 305]);
+  assert.equal(outputs["record-4"], `reconcile-rerun-305-2-${sha(5)}`, "past the three places' uploads");
+  assert.ok(!log.mock.calls.some((c) => String(c.arguments[0]).includes("#4: deferred")));
+});
+
+test("the defer band starts at most DEFER_MAX re-runs a pass, a head's two lanes together, and the rest wait with no clean", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const heads = Array.from({ length: DEFER_MAX / 2 + 1 }, (_, i) => i + 1);
+  const { code, reruns, outputs } = await reconcile({ pulls: heads.map((n) => pr(n)), runs: heads.flatMap((n) => bothDeferred(n)), env: SWITCHES_OFF, now: RESET_S * 1000 + 61_000 });
+  assert.equal(code, 0);
+  assert.equal(reruns.length, DEFER_MAX);
+  assert.deepEqual(records(outputs).length, 3);
+  assert.equal(outputs[`record-${DEFER_MAX}`], `reconcile-rerun-${300 + DEFER_MAX / 2}-2-${sha(DEFER_MAX / 2)}`);
+  assert.equal(outputs[`record-${DEFER_MAX + 1}`], "");
+  assert.equal(outputs.clean, "");
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === `reconcile: #${DEFER_MAX / 2 + 1}: its deferred reviews wait, only 0 of ${DEFER_MAX} recovery places left this pass`));
+});
+
+test("the workflow has one scanned upload step for each record the plan can name", () => {
+  const text = readFileSync(new URL("../../workflows/maintenance-reconcile-lost-runs.yml", import.meta.url), "utf8");
+  const uploads = [...text.matchAll(/^ {6}- name: Record re-run ([0-9]+)$/gm)].map((m) => Number(m[1]));
+  assert.deepEqual(uploads, Array.from({ length: RECORD_SLOTS }, (_, i) => i + 1));
+  for (const n of uploads) {
+    assert.match(text, new RegExp(`name: \\$\\{\\{ steps\\.plan\\.outputs\\.record-${n} \\}\\}`), `record-${n}`);
+  }
+});
+
+test("a stopped review with no defer notice takes a re-run place now, as a switch stop does", async () => {
+  const runs = [windowsLost(1), windowsLost(2), windowsLost(3), ...bothLanesStopped(4)];
+  const { reruns } = await reconcile({ pulls: [1, 2, 3, 4].map((n) => pr(n)), runs, env: SWITCHES_OFF });
+  assert.deepEqual(reruns, [401, 402, 403]);
+});
+
+test("the hosted callers print the gate's cause and reset in the stop notice the reconciler reads", () => {
+  for (const file of [REVIEW, SECURITY_REVIEW]) {
+    const text = readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
+    const line = /echo "::notice::a kill switch stops this (?:security )?review \(.*"$/m.exec(text)?.[0];
+    assert.ok(line, file);
+    const shown = line.replace("${CAUSE:-unreadable}", "defer").replace("${RESET:-none}", "1800000000");
+    assert.equal(DEFER_NOTE.exec(shown)?.[1], "1800000000", file);
+    assert.match(text, /^ {10}RESET: \$\{\{ steps\.kill\.outputs\.reset \}\}$/m, file);
+  }
+});
+
 test("a lane's own switch keeps its re-run, with no read, and leaves the other lane's", async () => {
   const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1)), stoppedRun(301, sha(1), { path: SECURITY_REVIEW })];
   const { code, reruns, calls } = await reconcile({ pulls: [pr(1)], runs, env: { CLAUDE_REVIEW_DISABLED: "true" } });
@@ -2907,7 +2977,7 @@ test("a review run that changed since the plan is left alone", async () => {
 
 test("the review-stop note is the text ci-status writes", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
-  assert.ok(workflow.includes(`did not run on $HEAD_SHA ($url): ${REVIEW_STOP_NOTE}.`));
+  assert.ok(workflow.includes(`did not run on $HEAD_SHA ($url): an API budget defer or ${REVIEW_STOP_NOTE}.`));
 });
 
 // Recorded from https://github.com/melodic-software/claude-code-plugins/actions/runs/44114943906 (check run 134151640257).

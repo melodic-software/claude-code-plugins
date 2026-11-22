@@ -278,7 +278,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md"' EXIT
+trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md" "$out.cl" "$out.voc"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -525,6 +525,78 @@ else
     bash "$tools/scripts/check-comment-hygiene.sh" "$merge_base" "${changed[@]}"
 fi
 
+comment_lint=plugins/code-tidying/git-hooks/comment-lint.sh
+comment_lint_merge_base_diff() {
+  local d="$out.cl" f home head
+  head="$(git rev-parse HEAD)" &&
+    git -c init.defaultBranch=lint init --quiet --template= "$d" &&
+    printf '%s\n' "$(cd "$(git rev-parse --git-common-dir)/objects" && pwd -P)" >"$d/.git/objects/info/alternates" &&
+    git -C "$d" update-ref --no-deref HEAD "$merge_base" &&
+    git -C "$d" read-tree "$head" || return 2
+  copy_from_merge_base() {
+    if git cat-file -e "$merge_base:$1" 2>/dev/null; then
+      mkdir -p "$d/$(dirname "$1")" && git show "$merge_base:$1" >"$d/$1"
+    fi
+  }
+  copy_from_merge_base AGENTS.md && copy_from_merge_base CLAUDE.md || return 2
+  home="$(bash "$tools/plugins/code-tidying/lib/resolve-convention-home.sh" --root "$d" --ref "$merge_base" 2>/dev/null)" || home=""
+  [[ -n "$home" && "$home" != /* && "$home" != *..* ]] || home=docs/conventions
+  for f in code-tidying.yaml code-tidying.local.yaml; do
+    copy_from_merge_base "${home%/}/$f" || return 2
+  done
+  (cd "$d" && AI_AGENT=ci sh "$tools/$comment_lint")
+}
+if ((${#changed[@]} == 0)); then
+  skip comment-lint "no changed files"
+elif [[ ! -f "$tools/$comment_lint" ]]; then
+  skip comment-lint "no $comment_lint beside this script"
+elif ! python3 -c 'import pygments' >/dev/null 2>&1; then
+  skip comment-lint "python3 with pygments not installed"
+else
+  run_check comment-lint \
+    "AI_AGENT=ci sh $comment_lint --worktree for uncommitted edits, else scripts/check-comment-lint.sh with HEAD_SHA, BASE_REF and GITHUB_EVENT_NAME=pull_request" \
+    comment_lint_merge_base_diff
+fi
+
+vocabulary=scripts/check-vocabulary.py
+vocabulary_senses=scripts/vocabulary-senses.json
+declare -a vocabulary_files=() vocabulary_links=()
+for f in ${changed[@]+"${changed[@]}"}; do
+  case "$(git ls-tree HEAD -- "$f" | cut -d' ' -f1)" in
+  100644 | 100755) vocabulary_files+=("$f") ;;
+  120000) vocabulary_links+=("$f") ;;
+  *) ;;
+  esac
+done
+vocabulary_staged() {
+  local d="$out.voc" f
+  for f in "${vocabulary_files[@]}"; do
+    mkdir -p "$d/$(dirname "$f")" && git show "HEAD:$f" >"$d/$f" || return 2
+  done
+  mkdir -p "$d/scripts" && cp "$tools/$vocabulary" "$tools/$vocabulary_senses" "$d/scripts/" || return 2
+  (cd "$d" && python3 -I "$vocabulary" -- "${vocabulary_files[@]}")
+}
+if ! command -v python3 >/dev/null 2>&1; then
+  skip vocabulary "python3 not installed"
+elif [[ ! -f "$tools/$vocabulary" || ! -f "$tools/$vocabulary_senses" ]]; then
+  skip vocabulary "no $vocabulary and $vocabulary_senses beside this script"
+elif grep -qxE 'scripts/(check-vocabulary\.py|vocabulary-senses\.json)' <<<"$all_raw"; then
+  if ((foreign)); then
+    skip vocabulary "the branch changes the checker or its senses file; CI runs the branch's copy"
+  elif ! git diff --quiet HEAD; then
+    skip vocabulary "the branch changes the checker or its senses file, and the whole-tree scan would read uncommitted edits a push does not send"
+  else
+    run_check vocabulary "python3 -I scripts/check-vocabulary.py" python3 -I "$tools/$vocabulary"
+  fi
+elif ((${#vocabulary_files[@]} == 0)); then
+  skip vocabulary "no changed regular file"
+else
+  for f in ${vocabulary_links[@]+"${vocabulary_links[@]}"}; do
+    skip "vocabulary: $f" "a symlink, which CI scans through to its target"
+  done
+  run_check vocabulary "python3 -I scripts/check-vocabulary.py ${vocabulary_files[*]}" vocabulary_staged
+fi
+
 # machine-specific-paths: the scan the workflow's check-machine-paths composite
 # (melodic-software/ci-workflows) runs, over the changed files of the types it
 # scans. The regex bodies come from the merge-base's guardrails plugin copy of
@@ -666,6 +738,19 @@ run_check as-of-recheck "scripts/check-as-of-recheck.sh --check" \
 
 run_check cost-figures "scripts/check-cost-figures.sh --check" \
   "$tools/scripts/check-cost-figures.sh" --check
+
+rv=plugins/guardrails/git-hooks/reference-verify.sh
+if [[ -f "$tools/$rv" ]]; then
+  run_check reference-verify "sh $rv --base $base" sh "$tools/$rv" --base "$base"
+else
+  skip reference-verify "no $rv in this repository"
+fi
+lf=plugins/bash-format/git-hooks/lint-full.sh
+if [[ -f "$tools/$lf" ]]; then
+  run_check lint-full "sh $lf --base $base" sh "$tools/$lf" --base "$base"
+else
+  skip lint-full "no $lf in this repository"
+fi
 
 # A file added to, changed in or removed from a plugin can make a cluster of
 # byte-identical copies across plugins that the registry does not list, or

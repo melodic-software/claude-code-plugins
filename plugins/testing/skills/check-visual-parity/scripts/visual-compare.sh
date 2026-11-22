@@ -21,8 +21,10 @@
 # config    Prints `pixel_tolerance=<n> source=<layer> reason=<text>`. Layers:
 #           the team docs/conventions/testing.yaml read from origin's default
 #           branch (the working tree only when there is no origin),
-#           ~/.claude/testing.yaml, <repo>/.claude/testing.local.yaml and the
-#           --user option. The lowest valid value wins, so a personal layer can
+#           <repo>/docs/conventions/testing.local.yaml and the --user option.
+#           Old locations, read with a warning: ~/.claude/testing.yaml, and
+#           <repo>/.claude/testing.local.yaml when the new personal file is
+#           absent. The lowest valid value wins, so a personal layer can
 #           lower the team value and never raise it. An invalid layer is named
 #           on stderr and dropped; a config value never makes this exit 2.
 # manifest  Writes <d>/manifest.json: the sha256 of every PNG in <d>, the OS,
@@ -352,7 +354,7 @@ default_ref() {
 }
 
 cmd_config() {
-  local repo="" user="" have_user=0 ref team_name file i name best=-1 n v team_reason="" reason
+  local repo="" user="" have_user=0 ref team_name file personal old i name best=-1 n v team_reason="" reason
   while (($#)); do
     case "$1" in
       --repo)
@@ -387,9 +389,20 @@ cmd_config() {
     team_name="team (working tree, no origin)"
     read_tree_layer team "$repo/$file" "$repo"
   fi
-  read_tree_layer personal-override "$repo/.claude/testing.local.yaml" "$repo"
+  personal="$repo/docs/conventions/testing.local.yaml" old="$repo/.claude/testing.local.yaml"
+  if [[ -f "$personal" ]]; then
+    [[ ! -f "$old" ]] ||
+      warn "$personal and $old both exist; using $personal, ignoring the old file: move any setting it still holds into $personal"
+  elif [[ -f "$old" ]]; then
+    warn "$old is an old location, still read for now; move it to $personal"
+    personal="$old"
+  fi
+  read_tree_layer personal-override "$personal" "$repo"
   file="${HOME:-}/.claude/testing.yaml"
-  [[ -z "${HOME:-}" || ! -f "$file" ]] || read_layer user-global "$file" "$repo" "$file"
+  if [[ -n "${HOME:-}" && -f "$file" ]]; then
+    warn "$file is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $repo/docs/conventions/testing.local.yaml"
+    read_layer user-global "$file" "$repo" "$file"
+  fi
   # An unrendered ${user_config.pixel_tolerance}, or an empty one, is unset.
   # shellcheck disable=SC2016 # the placeholder's opening is literal text
   if ((have_user)) && [[ -n "$user" && "$user" != '${'* ]]; then

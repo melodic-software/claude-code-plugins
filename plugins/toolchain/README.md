@@ -2,8 +2,8 @@
 
 A Claude Code plugin for **polyglot build/test/lint verification**. Detect the
 ecosystems a change touches and run the right build, test, and lint commands for
-each, with the consuming project's own documented commands overriding portable
-defaults. Four skills: three for mechanical verification of changed code, and
+each, running only the commands the consuming project records or its build files
+imply. Four skills: three for mechanical verification of changed code, and
 `/toolchain:ratchet`, which holds a count at a checked-in CI ceiling.
 
 | Skill | Role |
@@ -21,14 +21,14 @@ restatement here.
 
 Command resolution follows the marketplace-wide ecosystem-commands convention
 (`docs/contracts/ecosystem-commands/README.md`; schema `ecosystem.schema.json`):
-your repo's tracked `.claude/ecosystems/<ecosystem>.yaml` files are authoritative
-when present, and the plugin's bundled portable defaults are the last resort of
-an attended run. An unattended run (`--unattended`, a headless or lane run, or
-one that cannot tell whether a person is present) runs only a recorded, stated
-or inferred command and reports any other key as `skip (unresolved: ...)`.
-Testing structure and commit conventions still come from your own `CLAUDE.md` and
-rules. All command tables and per-ecosystem context ship inside the plugin via
-`${CLAUDE_PLUGIN_ROOT}`; state and artifacts go to your project's own tree.
+your repo's tracked `docs/conventions/ecosystems/<ecosystem>.yaml` files are authoritative
+when present; otherwise an attended run infers commands from your build files or
+asks. The plugin ships no default command. An unattended run (`--unattended`, a
+headless or lane run, or one that cannot tell whether a person is present) runs
+only a recorded, stated or inferred command. Either kind of run reports a key
+nothing resolves as `skip (unresolved: ...)`. Testing structure and commit
+conventions still come from your own `CLAUDE.md` and rules. State and artifacts
+go to your project's own tree.
 
 ## Install
 
@@ -39,7 +39,7 @@ rules. All command tables and per-ecosystem context ship inside the plugin via
 
 ## Configuration
 
-Ecosystem command surfaces live in tracked `.claude/ecosystems/*.yaml` files;
+Ecosystem command surfaces live in tracked `docs/conventions/ecosystems/*.yaml` files;
 `/toolchain:setup apply` interviews for and persists them (`/toolchain:setup check`
 reports the effective configuration).
 

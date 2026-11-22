@@ -1,5 +1,5 @@
 ---
-description: "A plain prune request routes to audit, which proposes an implementation entry for removal with a reason and removes nothing. SKILL.md routes a prune request with no action token to audit; audit is read-only and curate removes only what a person accepted. Hard because the user asks to prune and the entry plainly does not belong. Needs --scaffold --allow-tools Write Edit."
+description: "A plain prune request routes to the read-only prune proposal: it presents an implementation entry for removal with a reason and removes nothing until a person accepts it. SKILL.md routes a prune request to prune, which writes only entries a person accepted. Hard because the user asks to prune and the entry plainly does not belong. Needs --scaffold --allow-tools Write Edit."
 tags: [domain-driven-design, ubiquitous-language, outcome, prune, hard]
 max_turns: 15
 timeout_seconds: 600

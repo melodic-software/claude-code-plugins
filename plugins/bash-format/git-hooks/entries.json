@@ -25,15 +25,6 @@
       "rewrites": false,
       "resolved": true,
       "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
-    },
-    {
-      "name": "lint-full",
-      "event": "pre-push",
-      "script": "lint-full.sh",
-      "tools": ["shellcheck"],
-      "rewrites": false,
-      "resolved": true,
-      "assets": ["lib/git-hooks/resolve-tool.sh", "git-hooks/adapters.sh"]
     }
   ]
 }

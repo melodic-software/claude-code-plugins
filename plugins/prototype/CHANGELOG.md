@@ -3,6 +3,24 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.2] - 2026-11-22
+
+### Changed
+
+- The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [0.47.1] - 2026-11-22
+
+### Fixed
+
+- The notes panel no longer drops a click on a note row when the list re-renders while the mouse button is down, for instance when the server pushes a state change. The row is selected and its Edit, Withdraw and Move or resize actions show, where before they stayed hidden. Only a primary-button press holds the re-render, and the hold ends when the pointer leaves the list, a context menu opens or the window loses focus, so the list never freezes after a right-click or a drag into the mockup.
+
+## [0.47.0] - 2026-11-21
+
+### Added
+
+- A sent note on the notes host page now has Edit and Withdraw. An edit goes to the session as that note's new text under the same seq (`POST /api/note/edit`); a withdraw tells the session and lists the note as withdrawn, not pending, with no marker, and leaves it out of `status`, the watcher's unhandled notes and Copy all notes (`POST /api/note/withdraw`, `note.schema.json` x-version 8).
+
 ## [0.46.0] - 2026-11-21
 
 ### Added

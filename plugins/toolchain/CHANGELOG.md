@@ -3,6 +3,42 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.0] - 2026-11-22
+
+### Changed
+
+- Ecosystem records move to the convention home, `docs/conventions/ecosystems/<ecosystem>.yaml`, with the personal override beside them as `<ecosystem>.local.yaml`. `/toolchain:check` and `/toolchain:lint` read the new home first and the legacy `.claude/ecosystems/` file of a name absent there; with both present the new file wins and the report names both paths. `/toolchain:setup` writes only the new home, warns on each legacy file, and `apply` moves legacy files there (`git mv` for a tracked one). The recommended `.gitignore` line is `docs/conventions/**/*.local.*`.
+
+## [3.0.0] - 2026-11-22
+
+### Changed
+
+- `/toolchain:check` keeps its retry, seed and slow-test reporting rules in the skill, written for
+  any test runner. The description now says what the skill runs: the project's own commands only.
+
+### Removed
+
+- **No bundled ecosystem defaults.** The nine bundled ecosystem files (`bash`, `cross-cutting`,
+  `dotnet`, `go`, `markdown`, `powershell`, `python`, `typescript`, `yaml`) are deleted, and so are
+  `/toolchain:check`'s six per-language context pages. `/toolchain:check` and `/toolchain:lint` run
+  only a command the repository records in `.claude/ecosystems/<id>.yaml`, one its build files
+  imply, or, in an attended run, one the person gives when asked. A key nothing resolves reads
+  `skip (unresolved: <ecosystem>.<key>)` and runs nothing. The resolution ladder has three rungs.
+  `/toolchain:setup apply` drafts records from the repository alone.
+  ([#16032](https://github.com/melodic-software/claude-code-plugins/issues/16032))
+- **Migration.** A repository with no ecosystem record used to get the bundled commands in an
+  attended run. It now gets inferred commands, a question, or an unresolved skip. To keep a
+  command, record it with `/toolchain:setup apply <ecosystem>`. Checks only the bundled files ran
+  are dropped on purpose: the spelling check (`typos`), the editorconfig check
+  (`editorconfig-checker`) and the offline link check (`lychee --offline`) from the cross-cutting
+  file, and the workflow lint (`actionlint`) from the yaml file. Record them in
+  `.claude/ecosystems/cross-cutting.yaml` or `.claude/ecosystems/yaml.yaml` to keep them. The secret
+  scan stays: `/toolchain:lint` runs it from the skill.
+- **Coverage.** With no bundled file to supply globs, an ecosystem id is covered when it is
+  recorded, stated in the repository's instructions, or inferred from its build files. In a
+  repository with no ecosystem record, a changed file's own type also infers its id, so it reads
+  `skip (unresolved: ...)` rather than going unchecked in silence.
+
 ## [2.1.1] - 2026-11-21
 
 ### Changed

@@ -151,7 +151,7 @@ diff before.yml after.yml
 TOKEN=$(playwright-cli --raw cookie-get session_id)
 ```
 
-- **Pointer**: what `--raw` keeps, the "Raw output" section of `vendor/SKILL.md`. Probe: under 0.1.23, `--raw snapshot` printed the snapshot YAML and `--raw click` printed a snapshot link. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: what `--raw` keeps, the "Raw output" section of `vendor/SKILL.md`. Probe: under 0.1.25, `--raw snapshot` printed the snapshot YAML and `--raw click` printed a snapshot link. **As of**: 2026-11-22. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Open parameters
 
@@ -165,7 +165,7 @@ playwright-cli open --mobile                   # generic mobile device (Pixel 10
 playwright-cli open --device="iPhone 15"       # specific device profile
 playwright-cli attach --cdp=chrome             # attach to running Chrome
 playwright-cli attach --cdp=http://localhost:9222
-playwright-cli attach --extension              # via Playwright MCP Bridge extension
+playwright-cli attach --extension=chrome       # user's browser via Playwright Extension
 ```
 
 Session isolation with `-s=<name>`: see [sessions.md](sessions.md). `--headed` on Windows: see [windows-quirks.md](windows-quirks.md).

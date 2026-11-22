@@ -23,9 +23,10 @@ A request for the risk rating alone goes to `/review:merge-risk`.
 Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide. `<option>` is this plugin's `medium` option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "<option>" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "<option>" [--setting '<name>=<value>' ...] [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
 ```
 
+- `--setting '<name>=<value>'` once for each digest option below that reads as a value, never for one that reads empty or as an unsubstituted placeholder. Keep the whole argument inside the single quotes and write each `'` in the value as `'\''`, so no value ends the quoting: `digest_policy` `${user_config.digest_policy}`, `digest_max_files` `${user_config.digest_max_files}`, `digest_max_changed_lines` `${user_config.digest_max_changed_lines}`, `digest_blast_radius` `${user_config.digest_blast_radius}`, `digest_risk_paths` `${user_config.digest_risk_paths}`, `digest_opt_in_label` `${user_config.digest_opt_in_label}`.
 - `--requested` when the reader asked for the digest. That is the explicit tier, so the action is `build`.
 - `--event ready` when the run comes at the pull request's ready flip.
 - `--blast-radius` when a plan or `/review:quality-gate downstream` assessed one.

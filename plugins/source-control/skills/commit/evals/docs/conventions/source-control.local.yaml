@@ -1,0 +1,2 @@
+subject_pattern: '^[A-Z]+-\d+: .+'
+pr_title_pattern: Same as `subject_pattern`.

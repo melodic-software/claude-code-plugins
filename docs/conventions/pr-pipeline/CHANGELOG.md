@@ -1,5 +1,102 @@
 # Changelog for the PR pipeline convention
 
+## [12.0.0] - 2026-11-22
+
+### Changed
+
+- The contract names the diff risk scorer by its new module, `diff_risk.py`, in place of `babysit_risk.py`.
+
+### Removed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `limits.api.<pool>.limit-cap`, so a `pr-pipeline.yaml` that sets it fails validation; delete it. Every pool's read floor is a share of its live `x-ratelimit-limit` header, so GITHUB_TOKEN no longer plans to a 1,000-request budget, and ci-status's `API_BUDGET_LIMIT_CAP` and `BABYSIT_READ_FLOOR_HEADER_LIMIT` are gone ([#18194](https://github.com/melodic-software/claude-code-plugins/issues/18194)).
+
+## [11.9.1] - 2026-11-22
+
+### Fixed
+
+- Every `Resolve main's tip` step now reads main's tip with the job's own token instead of an anonymous `git ls-remote`, which GitHub refused with HTTP 403 from shared runner addresses. 94 steps use the ci-workflows `resolve-branch-tip` action; the 3 in the two release workflows that hold the release App key carry the same read inline, so those workflows run no ci-workflows action. A timeout or a 5xx is retried within 3 tries, and a 401 or 403 fails at once. pr-merge's carry readers take the action's `unambiguous-sha`, set only while no tag is named main. `download-full-history` sends the job token for its unshallow and base-ref fetches too.
+
+- pr-verify and pr-review-main judge a pull request whose single file diff is over one chunk (300000 bytes) instead of giving no verdict. `split-diff.py` cuts such a file at its hunks into pieces of at most one chunk, each under the file's header and no two in one chunk, and the manifest lists each piece as `piece <i> of <n>`; the chunk prompts and the final judge say so. A file with one hunk over a chunk with its header, and a diff over `MAX_CHUNKS` chunks, still get no verdict.
+
+## [11.9.0] - 2026-11-22
+
+### Changed
+
+- address-feedback and fix-ci run the check-affected self-check over their uncommitted work before they hand it on, as resolve-issue does; the runner stages checks and self-checks under prepare: review-threads and ci-context.
+
+## [11.8.4] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
+## [11.8.3] - 2026-11-22
+
+### Fixed
+
+- The merge gate's risk score counts a text file the files API sends no patch for (an over-size diff) as reviewed when a local clone holding the base and head counts its changed lines as text in `git diff <base>...<head>`, the diff both review lanes read with `--text`. Such a file scores `no-patch:<path>` and no longer holds for a person as `unreviewed-patch:<path>`. A file git calls binary, or whose git diff cannot be read, still holds.
+
+## [11.8.2] - 2026-11-22
+
+### Fixed
+
+- A schedule or dispatch demotion record no longer stays open after main recovers past it until the next scheduled full run. When `pr-merge.yml`'s post-merge check proves an open record recovered, `dispatch-post-merge-runs` sends `post-merge-file-demotion-issues.yml` a `close-cleared` dispatch, and its `close-cleared` job closes the record with a comment naming the green run and its commit. The job runs one at a time. The close is github-actions[bot]'s, so it leaves the post-merge floor at the record's recovery, and a later red main files a new record. The record body now says a lane closes it once it clears.
+
+## [11.8.1] - 2026-11-22
+
+### Fixed
+
+- A pr-verify FAIL on a new head now posts its fail-note when an earlier head's note is still open on the same file. verify-notes decided a note was already posted from `commit_id`, which GitHub moves to the newest head on a note that is not outdated; it now reads `original_commit_id`, which stays at the head the note was posted on.
+
+## [11.8.0] - 2026-11-22
+
+### Changed
+
+- pr-merge's enable-auto-merge job runs on a paced schedule tick too; only the merge sweep job still skips a tick the burn-rate pacer paces (owner decision, 2026-11-22). A PR-scoped arm defers in the same tight windows the pacer paces, so on 2026-11-21 no sweep armed a green PR for 450 minutes in 16 gaps (longest 54). Arming on paced ticks bounds a gap at one tick, about 195 minutes a day replayed, for about 35 calls a paced tick.
+
+## [11.7.1] - 2026-11-22
+
+### Changed
+
+- The unattended-merge paragraph states that a CRITICAL an earlier head's
+  main-run security review recorded stops holding once the pinned head's own
+  main-run security review binds with no CRITICAL finding; until then it holds,
+  so a push no review has covered cannot clear it.
+
+## [11.7.0] - 2026-11-22
+
+### Changed
+
+- pr-verify also takes the body of an issue the lanes App filed as its spec when intake-triage's own verdict briefed it: the lanes App's verdict comment (`<!-- intake-triage verdict -->`, by its account id, last edited by no other account) says the triage verdict holds nothing because the issue is ready or admission moved it, and its last line names the issue's current title and body by sha256. The verdict writer stamps that line on a ready verdict whose body was not edited after the triage run judged it. A held verdict, one a person's Work status set holds, one admission did not finish, or one waiting on a blocked-by edge counts nothing, and the veto set from the admission-record rule still applies.
+
+## [11.6.0] - 2026-11-22
+
+### Changed
+
+- pr-verify takes the body of an issue the lanes App filed as its spec once intake briefed it and no one vetoed it (the owner's standing rule, 2026-11-22). Briefed: the lanes App's newest admission record (`<!-- issue-admission-record -->`, by its account id, canonical and never edited) names the issue's current title and body by sha256. Vetoed: the issue carries a hold label (`needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec`) or `provenance: untrusted`, or its body has a `hold:` line (`briefedIssue` in `admit.mjs`). A marker in anyone else's comment, an edit after the record, or a label list that cannot be read whole keeps the body out of the spec.
+
+## [11.5.2] - 2026-11-22
+
+### Changed
+
+- `models.issue-status.bot-setters` is optional. When it is absent, the Work status readers derive the bot setters from `trusted-actors.json`: github-actions[bot] plus every `kind: bot` actor whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`, in list order. When it is set, its entries are the bot setters, each counting while the trusted-actor list holds it as that bot. This repository's config no longer sets the key, so a standards sync that adds or removes a melodic- App needs no hand edit.
+
+## [11.5.1] - 2026-11-21
+
+### Fixed
+
+- The issue lane's in-slot re-check (`check-blockers.mjs` with `RECHECK=true`) now reads the issue before its blocked_by list, so a session-owned, container or wayfind label, or a `provenance: untrusted` label, added while the run waited for its slot stops the run as admission does. Before, an empty blocked_by list let the run proceed without looking at the issue's labels.
+
+## [11.5.0] - 2026-11-21
+
+### Added
+
+- Both hosted review callers' gates defer a first attempt (`defer: "true"`, `defer-job: review`) while the GITHUB_TOKEN window is projected to run short before the review ends, reading their horizon from the new `defer-run-minutes-review` (github-token default 11, the p90 of 418 hosted review runs) through `pr-pipeline.yaml`'s `limits.api` over `rate-limits.json`. Their stop notice now prints `cause=<cause> reset=<epoch>`. The lost-run reconciler reads that notice: it waits until a minute past the reset, then re-runs the deferred run once, recorded, in its own band of at most 12 re-runs a pass beside the 3 places other recovery takes; the reconciler workflow uploads up to 15 records a pass. The re-run's attempt 2 never defers ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+### Fixed
+
+- pr-verify's repeated-fail cap (`merge.max-verify-fails`, `verify:repeated-fail`) closes a pull request only when its current head itself has a FAIL that is not superseded (owner decision Q245, [#17646](https://github.com/melodic-software/claude-code-plugins/issues/17646)). FAILs at superseded heads no longer close it: a pass at the head goes on to the normal pass decision. pr-merge's `capped_close` and pr-unblock's `verify-cap.mjs` read the same reader, so both follow it; the README's Verifier verdict section, the schema and `pr-pipeline.yaml` say so. pr-unblock's address-feedback and fix-ci dispatchers no longer record a capped head as handled, so a head whose FAIL a later pass supersedes is dispatched again; the dispatch record's version is 7, so heads an earlier version recorded at the cap are read again.
+
 ## [11.4.1] - 2026-11-21
 
 ### Changed

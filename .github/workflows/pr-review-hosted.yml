@@ -81,16 +81,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -104,6 +97,7 @@ jobs:
             /.github/actions/setup-pinned-node/
             /.node-version
             /.github/actions/log-api-budget/
+            /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
@@ -111,12 +105,25 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
+      - name: Read the defer override from the base config
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
+
+      # A first attempt defers (cause defer) while the GITHUB_TOKEN window is
+      # projected to run short before the review ends; the stop below names
+      # the reset, and the lost-run reconciler re-runs the run once after it
+      # (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
+      # A re-run attempt never defers.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          defer: "true"
+          defer-job: review
+          resolved-config: ${{ runner.temp }}/defer-config.json
 
       # Skips the run while Actions or npm installs list an outage, with a
       # logged reason; fails open (.github/actions/check-upstream-status).
@@ -132,9 +139,10 @@ jobs:
         env:
           REASON: ${{ steps.kill.outputs.reason }}
           CAUSE: ${{ steps.kill.outputs.cause }}
+          RESET: ${{ steps.kill.outputs.reset }}
           LANE_SWITCH: ${{ vars.CLAUDE_REVIEW_DISABLED }}
         run: |
-          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause ${CAUSE:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable} cause=${CAUSE:-unreadable} reset=${RESET:-none}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
 
       # A skip fails this job, so the run is a failed first attempt: the
       # lost-run reconciler re-runs it once GitHub Actions is operational
@@ -184,16 +192,9 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        env:
-          TIP_BRANCH: main
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
-              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
-            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
-            sleep "$((RANDOM % (2 * i + 1)))"
-          done
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        with:
+          branch: main
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -304,7 +305,7 @@ jobs:
         **/CODEOWNERS
         docs/conventions/pr-pipeline.yaml
         **/.gitmodules
-        plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
+        plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py

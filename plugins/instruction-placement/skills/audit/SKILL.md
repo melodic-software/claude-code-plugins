@@ -207,11 +207,14 @@ operator's `declined` decision must survive a re-audit.
 
 ## The suppression surface
 
-Before ranking, resolve the tracked suppression surface `.claude/instruction-placement.md` across
-its three layers ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md))
-and suppress every candidate whose `finding_id` it carries. That file is how a decline reaches a
-checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
-operator already made elsewhere.
+Before ranking, resolve the tracked suppression file `<home>/instruction-placement.yaml` across
+its layers (`<home>` is the convention home that the marked pointer region in the root `AGENTS.md`
+or `CLAUDE.md` binds, `docs/conventions` when no region binds one, not the memory-tier home the
+artifact above is written under), old paths included while they exist, and print the old-path warning for each one found
+([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md)
+"Layers and merge semantics"). Suppress every candidate whose `finding_id` it carries. That file is
+how a decline reaches a checkout the findings artifact never does, so a sweep that ignores it
+re-proposes decisions the operator already made elsewhere.
 
 Derive a candidate's `anchor/v1` and `finding_id` by running `detect.sh identity`, never by hand.
 `--file` is the repo-relative path:
@@ -224,8 +227,8 @@ Derive a candidate's `anchor/v1` and `finding_id` by running `detect.sh identity
 Three obligations, none optional. **Read, never write**: `realign` composes an entry behind its
 per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
 contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
-this run's scope. **Exclude the surface and its layers**, because auditing the file that records the
-decisions would make recording one perturb the next run. That exclusion is applied to the candidate
+this run's scope. **Exclude the surface, its layers and its old-path files**, because auditing the
+file that records the decisions would make recording one perturb the next run. That exclusion is applied to the candidate
 set after the detector has run, not to the corpus: the corpus document above stays the one owner of
 what is swept, and the detector's coverage numbers keep counting every file it read.
 

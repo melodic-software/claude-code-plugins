@@ -16,9 +16,9 @@
 // (API_BUDGET_HOLD=1, outage posture element 2), a notice names it and the
 // exit is the caller's. The stop also goes in the
 // job's stop file, so later steps, the gh wrapper's included, keep it. A response under the pool's
-// read-floor share of its planned budget left (planOf) logs a warning once;
+// read-floor share of the header's limit left logs a warning once;
 // belowFloor lets a caller skip a read it can do without. The stop reads only
-// the header's remaining and limit and GitHub's refusals, never the plan: a
+// the header's remaining and limit and GitHub's refusals: a
 // remaining at or under the pool's stop-floor share of the header's limit
 // stops the pool until its reset, as a remaining of 0 does.
 //
@@ -114,7 +114,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // (rate-guard.test.mjs holds the two equal).
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1, "stop-floor": 0.02 };
 export const BUILT_IN_LIMITS = Object.freeze({
-  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6 },
+  "github-token": { ...SHARES, pace: 0.2, "pace-pr-merge": 0.3, "start-gate": 0.1, "start-project": 0.3, "start-run-minutes": 21, "defer-project": 0.3, "defer-run-minutes": 15, "defer-run-minutes-pr-merge": 6, "defer-run-minutes-review": 11 },
   "lanes-app": SHARES,
   graphql: SHARES,
   "owner-token": SHARES,
@@ -129,7 +129,7 @@ const COUNT = (value) => Number.isInteger(value) && value >= 1;
 // optional, the share of the header's limit left at which the latch stops;
 // start-gate, optional, check-kill-switch's share under which a lane does not
 // start, which that gate reads from rate-limits.json alone.
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, "limit-cap": COUNT, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT, "defer-project": SHARE, "defer-run-minutes": COUNT, "defer-run-minutes-pr-merge": COUNT };
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "stop-floor": SHARE, pace: SHARE, "pace-pr-merge": SHARE, "start-gate": SHARE, "start-project": SHARE, "start-run-minutes": COUNT, "defer-project": SHARE, "defer-run-minutes": COUNT, "defer-run-minutes-pr-merge": COUNT, "defer-run-minutes-review": COUNT };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 // Fields rate-limits.json holds that pr-pipeline.yaml's limits.api cannot set
 // (its schema rejects them): their one reader takes the file's value alone.
@@ -438,23 +438,6 @@ const intHeader = (get, name) => {
   return /^\d{1,12}$/.test(value) ? Number(value) : null;
 };
 
-// The budget a pool plans to: the header's limit, at most limitCap (null for
-// none). used is what the header says this window spent, and left what the
-// plan has after it, below zero once used passes the plan.
-export function planOf({ limit, remaining }, limitCap = null) {
-  const planned = limitCap === null ? limit : Math.min(limit, limitCap);
-  const used = limit - remaining;
-  return { planned, used, left: planned - used };
-}
-
-// One response's decision: latched (exhausted), the reset in epoch seconds
-// and where it came from, the pool to stop ("*" for every pool: a secondary
-// limit is not per resource), and low (under readFloor of the planned budget
-// left, planOf with limitCap). Only the header's remaining and GitHub's
-// refusals latch: a remaining of 0, or, with stopFloor, a remaining at or under
-// stopFloor of the header's limit whose header reset is still ahead.
-// headers is a Headers or a plain object of lower-case names; body is the
-// parsed body, or its text.
 const parseBody = (body) => {
   if (typeof body !== "string") {
     return body;
@@ -484,7 +467,7 @@ export function serverErrorHold({ status, headers, body }) {
   return !texts.some((text) => SIGNALS.message.test(text)) && !errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
 }
 
-export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null, stopFloor = null, floorGraceMs = 0 } = {}) {
+export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, stopFloor = null, floorGraceMs = 0 } = {}) {
   const get = headerReader(headers);
   const graphqlPool = poolOf(url) === "graphql";
   const parsed = parseBody(body);
@@ -504,8 +487,7 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const tooMany = status === 429;
   const floored = stopFloor !== null && limit > 0 && remaining !== null && reset !== null && reset * 1000 > now + floorGraceMs && remaining <= stopFloor * limit;
   const latched = remaining === 0 || floored || retryAfter !== null || message || graphql || tooMany;
-  const plan = limit > 0 && remaining !== null ? planOf({ limit, remaining }, limitCap) : null;
-  const low = readFloor !== null && plan !== null && plan.left < readFloor * plan.planned;
+  const low = readFloor !== null && limit > 0 && remaining !== null && remaining < readFloor * limit;
   if (!latched) {
     return { latched, low, reset_source: null, reset: null, pool: null };
   }
@@ -782,9 +764,8 @@ export function createRateLimitLatch({
     // body is read only for serverErrorHold's cause, never for the stop.
     const classifiesBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const needsBody = classifiesBody || response.status >= 500;
-    const limitCap = margin(pool, "limit-cap", token);
     const stopFloor = margin(pool, "stop-floor", token);
-    const options = { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor, floorGraceMs };
+    const options = { now: now(), readFloor: margin(pool, "read-floor", token), stopFloor, floorGraceMs };
     // The in-process stop holds either way; a later step only sees a
     // recorded one, so a failed write is named. Each distinct stop is set
     // and written once.
@@ -866,8 +847,7 @@ export function createRateLimitLatch({
       warned.add(pool);
       const get = headerReader(response.headers);
       const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
-      const { planned, left } = planOf({ limit, remaining }, limitCap);
-      log(`::warning::GitHub's ${pool} API has under its read floor left (${left} of the planned ${planned}; header remaining ${remaining} of ${limit}); reads continue`);
+      log(`::warning::GitHub's ${pool} API has under its read floor left (${remaining} of ${limit}); reads continue`);
     }
     return verdict;
   }
