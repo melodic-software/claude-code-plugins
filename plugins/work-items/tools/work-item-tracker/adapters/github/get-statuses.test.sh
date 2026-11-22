@@ -65,8 +65,6 @@ cat >"$PLAIN_ANSWER" <<'JSON'
   "i3":null}}}
 JSON
 
-# Ids: 100 a listed human; 200 the lanes App; 300 a bot-setter listed with its login;
-# 400 a bot-setter the list holds under another login; 999 an account the list lacks.
 ACTORS="$TMP_ROOT/actors.json"
 cat >"$ACTORS" <<'JSON'
 {
@@ -75,7 +73,8 @@ cat >"$ACTORS" <<'JSON'
     { "id": 100, "login": "alice", "kind": "human" },
     { "id": 200, "login": "lanes-app[bot]", "kind": "bot" },
     { "id": 300, "login": "melodic-x[bot]", "kind": "bot" },
-    { "id": 400, "login": "melodic-y[bot]", "kind": "bot" }
+    { "id": 400, "login": "other-y[bot]", "kind": "bot" },
+    { "id": 500, "login": "melodic-automation-lanes[bot]", "kind": "bot" }
   ]
 }
 JSON
@@ -84,13 +83,6 @@ cat >"$MODEL" <<'YAML'
 models:
   issue-status:
     field-id: 777
-    bot-setters:
-      - id: 41898282
-        login: "github-actions[bot]"
-      - id: 300
-        login: "melodic-x[bot]"
-      - id: 400
-        login: "melodic-z[bot]"
     options:
       "1": needs-human
       "2": agent-ready
@@ -164,20 +156,33 @@ answer "$TRUSTED" \
   "i5=$(issue agent-ready "$(ev add 100 needs-human)" "$(ev change 200 agent-ready)")" \
   "i6=$(issue "" "$(ev add 100 needs-human)" "$(ev remove 300)")" \
   "i7=$(issue needs-human "$(ev add 999 needs-human)" "$(ev add 100 ready 888)")" \
-  "i8=$(issue "" "$(ev add 100 needs-human)" "$(ev remove 999)")"
+  "i8=$(issue "" "$(ev add 100 needs-human)" "$(ev remove 999)")" \
+  "i9=$(issue ready "$(ev add 100 needs-owner-decision)" "$(ev change 500 ready)")" \
+  "i10=$(issue ready "$(ev add 100 needs-human)" "$(ev change 41898282 ready)")"
 ids=()
-for n in 1 2 3 4 5 6 7 8; do ids+=("github:o/r#$n"); done
+for n in 1 2 3 4 5 6 7 8 9 10; do ids+=("github:o/r#$n"); done
 BINDING="$TRUST_BINDING" ANSWER="$TRUSTED" run --field "Work status" "${ids[@]}"
 assert_eq "trusted read → exit 0" "0" "$RC"
 st() { jq -r --arg id "github:o/r#$1" '.statuses[$id] | tostring' <<<"$OUT"; }
 assert_eq "a human's hold stands over an unlisted account's ready" "needs-human" "$(st 1)"
 assert_eq "a bot-setter's agent-ready does not count, so the human's hold stands" "needs-human" "$(st 2)"
-assert_eq "a bot-setter the list holds with the same id and login counts for ready" "ready" "$(st 3)"
-assert_eq "a bot-setter the list holds under another login does not count" "needs-owner-decision" "$(st 4)"
+assert_eq "a listed melodic- bot counts for ready" "ready" "$(st 3)"
+assert_eq "a listed bot with no melodic- prefix does not count" "needs-owner-decision" "$(st 4)"
 assert_eq "the lanes App's agent-ready counts" "agent-ready" "$(st 5)"
 assert_eq "a counted removal reads null" "null" "$(st 6)"
 assert_eq "an unlisted account's hold alone reads null; another field's event is not read" "null" "$(st 7)"
 assert_eq "an uncounted removal leaves the counted hold standing" "needs-human" "$(st 8)"
+assert_eq "melodic-automation-lanes[bot] is no bot setter" "needs-owner-decision" "$(st 9)"
+assert_eq "github-actions[bot] counts for ready without a list entry" "ready" "$(st 10)"
+
+LISTED_MODEL="$TMP_ROOT/listed-model.yaml"
+awk '{ print } /^    field-id: 777$/ { print "    bot-setters:\n      - id: 400\n        login: \"other-y[bot]\"\n      - id: 999\n        login: \"stranger[bot]\"" }' "$MODEL" >"$LISTED_MODEL"
+BINDING="$TRUST_BINDING" ANSWER="$TRUSTED" MODEL_FILE="$LISTED_MODEL" run --field "Work status" "${ids[@]}"
+assert_eq "a model with bot-setters → exit 0" "0" "$RC"
+assert_eq "an explicit bot-setter the list holds as that bot counts, without the melodic- prefix" "ready" "$(st 4)"
+assert_eq "a derived-only melodic- bot the explicit list leaves out does not count" "needs-human" "$(st 3)"
+assert_eq "an explicit bot-setter the list does not hold does not count" "needs-human" "$(st 1)"
+assert_eq "github-actions[bot] the explicit list leaves out does not count" "needs-human" "$(st 10)"
 
 assert_contains "the trusted query, passed as a file, reads the field events" "$(cat "$LOG")" "timelineItems(last: 100"
 assert_contains "the trusted query defines its fragments" "$(cat "$LOG")" "fragment who on Actor"
@@ -218,7 +223,7 @@ bad="$TMP_ROOT/bad-model-field.yaml"
 sed 's/field-id: 777/field-id: abc/' "$MODEL" >"$bad"
 MODEL_FILE="$bad" trust_fails 3 "a model whose field-id is not an id"
 bad="$TMP_ROOT/bad-model-setter.yaml"
-sed '/login: "melodic-x\[bot\]"/d' "$MODEL" >"$bad"
+sed '/login: "other-y\[bot\]"/d' "$LISTED_MODEL" >"$bad"
 MODEL_FILE="$bad" trust_fails 3 "a bot-setter without a login"
 bad="$TMP_ROOT/bad-model-options.yaml"
 sed '/"[0-9]": /d' "$MODEL" >"$bad"
