@@ -1856,6 +1856,11 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
         fake = self.amended(at="2026-10-13T00:00:00Z")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_a_failed_closing_issues_read_keeps_it(self) -> None:
+        fake = self.amended()
+        fake.fail.add("graphql")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
     def test_a_pass_on_other_linked_issues_keeps_it(self) -> None:
         fake = self.amended()
         fake.records[named(EARLIER, "fail")]["linked_issues"] = [
