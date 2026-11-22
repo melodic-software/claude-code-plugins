@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.1] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
 ## [1.10.0] - 2026-11-22
 
 ### Added
