@@ -196,11 +196,15 @@ computed it.
 ## The durable judgment record
 
 **Offer** to persist a `REJECTED` or `ABLATION-CONCLUDED-KEEP` finding as a suppression entry in the
-consuming repo's tracked `.claude/overengineering.md`:
+consuming repo's tracked team file, `<home>/overengineering.yaml`:
 
 - Show the exact entry before writing it, and write only on an explicit yes under the per-item gate.
 - The `reason` is the operator's own words; ask for them rather than recycling audit prose.
 - Write it to the team-tracked layer: a personal-layer entry does not suppress.
+- Write it to the file that supplies the team layer now. When `<home>/overengineering.yaml` is absent
+  and the old `.claude/overengineering.md` exists, that is the old file's fenced block: creating the
+  new file for one entry would stop the old file applying and drop every setting in it. Print the
+  dual-read warning for the old file with the write.
 - Entry keys, the constituents-authoritative rule and the layering are
   `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`'s. A `REALIGNED` finding needs no entry.
 

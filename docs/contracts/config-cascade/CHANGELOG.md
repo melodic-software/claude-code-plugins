@@ -11,6 +11,11 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **The `overengineering` row reads `<home>/overengineering.yaml`.** The team file moves to the
+  convention home with a schema and the personal override to `<home>/overengineering.local.yaml`;
+  the plugin keeps no user-global file. Each old `.claude` file is still read, with a warning,
+  until the new file for its layer exists, and a later change removes those reads. The plugin
+  leaves the later-adoption list. The layering axis is unchanged, so `contract_version` stays.
 - **The `docs-naming` row reads `userConfig`, not `~/.claude/docs-naming.json`.** Its per-person
   layer is the `file_names` option; the old user files are read only while it is unset or invalid,
   with a warning, until a later change removes the read. The layering axis is unchanged, so

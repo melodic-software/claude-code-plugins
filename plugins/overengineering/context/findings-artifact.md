@@ -639,8 +639,9 @@ unwalked layers only.
 ## The durable judgment record
 
 The artifact is memory-tier and ephemeral; an operator's judgment must outlive it. So a judgment is
-**offered** persistence as a suppression entry in the consuming repository's **tracked**
-`.claude/overengineering.md`, per `docs/contracts/finding-suppression/`, written by realign behind
+**offered** persistence as a suppression entry in the consuming repository's **tracked** team file,
+`<home>/overengineering.yaml`, or the old `.claude/overengineering.md` while the dual-read window
+in `reference/consumer-config.md` has it supply the team layer, per `docs/contracts/finding-suppression/`, written by realign behind
 the **same per-item gate** that authorized the remediation.
 
 - **Offered, never taken.** A producer that wrote a suppression entry unprompted would record an
