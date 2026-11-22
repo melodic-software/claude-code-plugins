@@ -1554,16 +1554,19 @@ the rules that only tighten in
   change (the merge gate's own cutoff), or a failed read, fetch or diff reviews again. The diff is
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
-  boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
+  boundaries with each file whole, except that a file over 300000 bytes is cut at its hunks into
+  pieces, each under the file's header and no two in one chunk (`split-diff.py`); each chunk is
+  reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
-  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single file
-  over 300000 bytes, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
+  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single hunk
+  over 300000 bytes with its file's header, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
   review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
   until a dynamic chunk count lifts it
   ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
   diff also writes `manifest.txt` in the data directory, every file of the whole diff with its
-  chunk and status (added, modified, deleted, or renamed with both paths), up to what one Read
+  chunk, `piece <i> of <n>` for each piece of a cut file, and status (added, modified, deleted,
+  or renamed with both paths), up to what one Read
   returns whole (`PART_BYTES`). Each chunked prompt names that file, tells the reviewer to read
   it as untrusted data, and asks for a finding naming both paths when a change references a file
   another chunk holds; the paths, which the pull request's author chose, never enter the prompt,
@@ -2784,7 +2787,9 @@ sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
-whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk
+whole but one over 300000 bytes, cut at its hunks into pieces the manifest lists as
+`piece <i> of <n>` (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`),
+and a file with one hunk over a chunk gets no verdict; each chunk
 gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
 (`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when
