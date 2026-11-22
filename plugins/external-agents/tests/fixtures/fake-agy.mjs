@@ -1,8 +1,10 @@
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 const scenario = JSON.parse(readFileSync(process.env.FAKE_SCENARIO, "utf8"));
 const argv = process.argv.slice(2);
 appendFileSync(scenario.record, `${JSON.stringify({ argv })}\n`);
+const logFile = argv.indexOf("--log-file");
+if (logFile !== -1 && scenario.log !== undefined) writeFileSync(argv[logFile + 1], scenario.log);
 
 const answer = scenario.answers?.[argv.join(" ")];
 if (answer) {

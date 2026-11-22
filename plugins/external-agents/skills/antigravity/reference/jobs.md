@@ -7,7 +7,7 @@ The newest `jobs.keep` finished jobs per group are kept. Codex and agy jobs shar
 
 ```bash
 external-agents status            # every job in this repository, newest first
-external-agents status <job>      # one job: status line, then id, use, mode, times, exit code, thread_id, CLI version, paths
+external-agents status <job>      # one job: status line, then id, use, mode, fence, add_dirs, model, effort, times, exit code, thread_id, CLI version, paths
 external-agents result <job>      # status line, then agy's final message
 external-agents cancel <job>      # stop a running job and its process tree
 ```
