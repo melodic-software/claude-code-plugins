@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.6.3] - 2026-11-22
+
+### Changed
+
+- The babysit-prs diff risk scorer is now `scripts/diff_risk.py` (was `babysit_risk.py`), with its tests in `tests/test_diff_risk.py` and `tests/test_diff_risk_cost.py`, so the deterministic diff risk score is named apart from `/review:merge-risk`'s merge-risk rating. The hold floor lists the new path.
+
+- The babysit-prs rate guard's read floor is a share of the live `x-ratelimit-limit` header for every pool: GITHUB_TOKEN no longer plans to rate-limits.json's `limit-cap` of 1,000, and `BABYSIT_READ_FLOOR_HEADER_LIMIT` is gone.
+
 ## [13.6.2] - 2026-11-22
 
 ### Fixed

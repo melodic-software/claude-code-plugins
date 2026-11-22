@@ -77,7 +77,7 @@ Failed-then-fixed retries:
 
 ## Hallucination-guard catches
 
-`not collected: cli-flag-verify runs at push time in guardrails' reference-verify git hook`
+`not collected: cli-flag-verify runs in guardrails' reference-verify pre-PR check`
 (data-sources.md 4.5).
 
 ## Drift candidates

@@ -737,7 +737,7 @@ test("a commit outside its plugin, or writing a link or submodule, is refused", 
 });
 
 const SECURITY_SKILL = "plugins/review/skills/security-review/SKILL.md";
-const RISK_SCORER = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
+const RISK_SCORER = "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py";
 
 test("the hold paths come from the security review's generated hold-paths block, and a missing or empty block throws", () => {
   const globs = loadHoldPaths();

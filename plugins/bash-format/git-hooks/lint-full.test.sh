@@ -142,6 +142,22 @@ y/big.sh:2: warning: stub finding [SC2154]
 $HINT|--norc --extended-analysis=false -s bash -f gcc -S info -
 -x -f gcc -S warning -- x/big.sh" "$(stub "$REPO")"
 
+base_stub() {
+  local out rc
+  : >"$WORK/sc.log"
+  out="$(cd "$1" && PATH="$WORK/sc-stub:$PATH" SC_STUB_LOG="$WORK/sc.log" bash "$CHECK" --base "$2" </dev/null 2>&1)"
+  rc=$?
+  printf '%s|%s|%s' "$rc" "$out" "$(sort "$WORK/sc.log")"
+}
+new_repo
+git -C "$REPO" branch fork-point
+big "$REPO/big.sh" 2000
+line2 "$REPO/big.sh" 'echo "stub: finding"'
+commit
+expect "--base lints a script over 2,000 lines the branch adds, from its merge-base with the ref" "1|big.sh:2: warning: stub finding [SC2154]
+$HINT|-x -f gcc -S warning -- big.sh" "$(base_stub "$REPO" fork-point)"
+expect "--base at the tip lints nothing" "0||" "$(base_stub "$REPO" HEAD)"
+
 if ! command -v shellcheck >/dev/null 2>&1 ||
   ! [[ "$(shellcheck --version)" =~ version:\ ([0-9]+)\.([0-9]+) ]] ||
   ((BASH_REMATCH[1] == 0 && BASH_REMATCH[2] < 10)); then

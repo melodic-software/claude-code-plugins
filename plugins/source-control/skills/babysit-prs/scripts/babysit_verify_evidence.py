@@ -5401,9 +5401,9 @@ def lane_risk_refusal(
     humans: Callable[[], frozenset[int]] = frozenset,
 ) -> tuple[str, bool, bool] | None:
     """Why pr-merge's gate would hold the pull request on its risk score,
-    whether only a person clears it (`babysit_risk.person_reasons`), and
+    whether only a person clears it (`diff_risk.person_reasons`), and
     whether a clean whole review of the head would clear it
-    (`babysit_whole_review.wanted`, as the gate asks it), or None: `babysit_risk.score` and `holding` over the inputs the gate builds
+    (`babysit_whole_review.wanted`, as the gate asks it), or None: `diff_risk.score` and `holding` over the inputs the gate builds
     (`babysit_merge.score_unattended`) for a lane pull request, with `config`
     the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
     security finding, a review not bound to the head), a symlink, submodule
@@ -5419,7 +5419,7 @@ def lane_risk_refusal(
     its hold, and a review or trusted list that does not read lifts nothing."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
-    import babysit_risk  # noqa: PLC0415
+    import diff_risk  # noqa: PLC0415
     import babysit_whole_review  # noqa: PLC0415
 
     try:
@@ -5443,7 +5443,7 @@ def lane_risk_refusal(
         files = merge_policy.with_contents(repo, pr, files)
         base = json_object(pr.get("base"))
         private = json_object(base.get("repo")).get("private")
-        risk_input = babysit_risk.RiskInput(
+        risk_input = diff_risk.RiskInput(
             files=files,
             files_complete=complete,
             files_capped=merge_policy.files_capped(pr),
@@ -5459,20 +5459,20 @@ def lane_risk_refusal(
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )
-        risk = babysit_risk.score(risk_input)
-        if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+        risk = diff_risk.score(risk_input)
+        if any(r.code == diff_risk.COST_CODE for r in risk.reasons):
             decision = merge_policy.cost_decision(
                 repo, pr, issue, permission=permission, agent_identity=identity
             )
             if decision:
-                risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
+                risk = diff_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         return f"unreadable: {type(exc).__name__}: {exc}", False, False
-    held = babysit_risk.holding(risk)
+    held = diff_risk.holding(risk)
     paths = [
         r
         for r in held
-        if r.code.startswith("high-path:") and r.code != babysit_risk.UNSAFE_PATH_CODE
+        if r.code.startswith("high-path:") and r.code != diff_risk.UNSAFE_PATH_CODE
     ]
     if paths:
         head = str(json_object(pr.get("head")).get("sha") or "")
@@ -5502,7 +5502,7 @@ def lane_risk_refusal(
     # Scored without the high paths an approval lifted.
     kept = tuple(r for r in risk.reasons if r in held or r not in paths)
     whole = babysit_whole_review.wanted(None, replace(risk, reasons=kept), lanes)
-    return (text, bool(babysit_risk.person_reasons(held)), whole) if text else None
+    return (text, bool(diff_risk.person_reasons(held)), whole) if text else None
 
 
 def lane_queue(

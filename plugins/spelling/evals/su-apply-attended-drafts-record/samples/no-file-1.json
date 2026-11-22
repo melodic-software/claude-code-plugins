@@ -16,7 +16,7 @@
     {
       "answer": [
         "notes.txt",
-        ".claude/ecosystems/spelling.yaml"
+        "docs/conventions/ecosystems/spelling.yaml"
       ],
       "why": "wrote the spelling record"
     }

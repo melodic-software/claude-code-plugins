@@ -64,7 +64,23 @@ declined="$(git config --type=bool --get checks.guardrails.reference-verify.decl
 [[ $? -eq 1 ]] && declined="$(git config --type=bool --get checks.git-hooks.declined 2>/dev/null)"
 [[ "$declined" == true ]] && exit 0
 
-checks_init pre-push "$@" || exit 0
+base_ref=""
+if [[ "${1:-}" == --base ]]; then
+  base_ref="${2:-}"
+  shift 2 2>/dev/null || shift
+  if [[ -z "$base_ref" ]]; then
+    printf '%s\n' 'reference-verify.sh: --base needs a ref' >&2
+    exit 2
+  fi
+  checks_init pre-push "$@" </dev/null || exit 0
+  if ! fork="$(git merge-base "$base_ref" HEAD 2>/dev/null)"; then
+    printf 'reference-verify.sh: no merge-base of HEAD and %s, so nothing was checked\n' "$base_ref" >&2
+    exit 1
+  fi
+  printf '%s %s\n' "$fork" "$(git rev-parse HEAD)" >"$CHECKS_TMP/push-ranges"
+else
+  checks_init pre-push "$@" || exit 0
+fi
 checks_require_tool jq "https://jqlang.org/download/"
 
 # The dispatcher and the verifiers: beside an installed copy, else the
@@ -428,9 +444,9 @@ else
   remote="${CHECKS_ARGS%% *}"
   [[ -n "$remote" ]] || remote=origin
   while read -r BASE TIP <&3; do
-    nearest_pushed_base
+    [[ -n "$base_ref" ]] || nearest_pushed_base
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-    pushed_merge_bases
+    [[ -n "$base_ref" ]] || pushed_merge_bases
     if tip_is_checkout; then
       check_range
       continue
@@ -463,8 +479,8 @@ fi
 printf 'guardrails: correct each flag or skill reference above, or fix the failure a reference-verify line names, commit the fix, then push again.\n' >&2
 if grep -q ': cli-flag-verify: ' "$out"; then
   printf '%s\n' \
-    'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, run /guardrails:setup to stop this' \
-    'entry in this clone: it declines it (install.mjs decline --entry reference-verify) and removes its registration.' >&2
+    'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, stop this check in this clone:' \
+    'git config checks.guardrails.reference-verify.declined true' >&2
 fi
 printf '%s\n' 'guardrails: git -c checks.skipmissing=jq skips this check only while jq is missing; it never skips a finding.' >&2
 exit 1

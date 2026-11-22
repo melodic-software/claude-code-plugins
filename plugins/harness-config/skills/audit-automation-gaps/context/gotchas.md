@@ -49,7 +49,7 @@ nothing left to prevent (the event's exit-code row is read live, per the record 
 candidate is not a REJECT
 at **Too slow** or **Already enforced**; it is malformed. A report-only check is never re-stated
 as an advisory per-edit hook: flag it with its check-placement home (a git `pre-commit` hook on
-changed lines, `pre-push` when its measured run is over the commit budget but within 60 s, CI
+changed lines, the pre-PR check when its measured run is over the commit budget, CI
 beyond), the same placement the shift-left carve-out's second conjunct requires.
 
 ## An `exit 2` gate on `PermissionRequest` is silently inert

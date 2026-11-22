@@ -4,7 +4,7 @@ tags: [toolchain, setup, apply, ambiguous, scaffold, no-network]
 max_turns: 30
 timeout_seconds: 600
 allowed_tools: [Skill, Read, Glob, Grep, Bash, Write, Edit]
-expected_outcome: "The reply asks which of the test and test:ci scripts (and which linter, if any) to use; no .claude/ecosystems/typescript.yaml or python.yaml is created."
+expected_outcome: "The reply asks which of the test and test:ci scripts (and which linter, if any) to use; no docs/conventions/ecosystems/typescript.yaml or python.yaml is created."
 ---
 
 /toolchain:setup apply typescript

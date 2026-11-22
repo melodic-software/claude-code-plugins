@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "It runs at push time in the `reference-verify` git hook.",
+      "answer": "It runs in the `reference-verify` pre-PR check.",
       "why": "push time"
     },
     {
