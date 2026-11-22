@@ -84,8 +84,8 @@ The plugin ships no rules of its own.
 
 ## Git hook entries
 
-The plugin ships three git-hook entries (`git-hooks/entries.json`), two at pre-commit and one at
-pre-push:
+The plugin ships two pre-commit git-hook entries (`git-hooks/entries.json`), and one check that
+is not an entry:
 
 - `format` rewrites. At commit it refuses a partly staged shell script the shfmt adapter governs,
   untouched; runs shfmt over the staged `.sh` and `.bash` files it governs; and re-stages what
@@ -97,9 +97,19 @@ pre-push:
   output. Identical staged scripts are linted once when nothing path-dependent can differ. A script
   over 2,000 lines is linted with `--extended-analysis=false`, on ShellCheck 0.10 or later, which
   keeps the commit fast and leaves its dataflow checks to `lint-full`.
-- `lint-full` reports, at pre-push. It runs ShellCheck with dataflow analysis on each pushed script
-  over 2,000 lines, as the pushed tip holds it, and blocks the push only on a finding on a line the
-  push adds. A script the push does not change, or one of 2,000 lines or fewer, is not linted again.
+- `git-hooks/lint-full.sh` reports, in `/source-control:pull-request`'s pre-PR check and in
+  this marketplace's CI (its Lint Shell job), since it is over the 3 s push budget (11.8 s on a
+  44-file change). `lint-full.sh --base <default branch>` runs ShellCheck with dataflow analysis
+  on each script over 2,000 lines the branch changes from its merge-base with that ref, as the
+  branch tip holds it, and fails only on a finding on a line the branch adds. A script the branch
+  does not change, or one of 2,000 lines or fewer, is not linted again.
+
+A clone that installed the retired `lint-full` entry keeps running it at pre-push, and
+`/bash-format:setup check` no longer lists it. Remove the `pre-push.d/bash-format.lint-full`
+marker and the `bash-format/lint-full.sh` copy under `git rev-parse --git-path hooks` (local plain
+hooks), a `bash-format-lint-full` job in `lefthook.yml` or `lefthook-local.yml`, a
+`.husky/pre-push` line that runs `lint-full.sh`, and `.githooks/bash-format/lint-full.sh`
+(shared). A lefthook remote drops the job on its next fetch.
 
 They reach every author, not only Claude, once
 `/bash-format:setup apply install-git-hooks [scope=local|shared]` registers them with the

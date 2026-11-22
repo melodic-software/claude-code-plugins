@@ -26,6 +26,8 @@ plugin-options-docs run plugin-options-docs
 spoke-plugin-root run spoke-plugin-root
 as-of-recheck run as-of-recheck
 cost-figures run cost-figures
+reference-verify run reference-verify
+lint-full run lint-full
 changed-skills run changed-skills
 comment-hygiene run comment-hygiene
 comment-lint run comment-lint

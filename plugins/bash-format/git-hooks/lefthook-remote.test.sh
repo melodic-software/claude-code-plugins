@@ -42,12 +42,9 @@ lr_expect_pass "a clean formatted script passes both entries"
 git -C "$REPO" add big.sh
 git -C "$REPO" commit -q -m big --no-verify
 git -C "$REPO" push -q origin main >/dev/null 2>&1
-lr_push
-lr_expect_pass "lint-full: a push with no new finding passes"
 printf 'cd /tmp\n' >>"$REPO/big.sh"
 git -C "$REPO" commit -q -am big-finding --no-verify
 lr_push
-lr_expect_block "lint-full: a finding a push adds to a script over 2,000 lines blocks" bash-format-remote-lint-full 'big.sh:2002: .*SC2164'
-lr_skip pre-push bash-format-remote-lint-full push
+lr_expect_pass "pre-push: a finding a push adds to a script over 2,000 lines does not block, since lint-full left pre-push"
 
 lr_done

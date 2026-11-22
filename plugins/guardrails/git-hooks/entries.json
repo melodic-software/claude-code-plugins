@@ -39,23 +39,6 @@
         "lib/path-detection/hardcoded-path-patterns.sh",
         "lib/path-detection/machine-path-patterns.sh"
       ]
-    },
-    {
-      "name": "reference-verify",
-      "event": "pre-push",
-      "script": "reference-verify.sh",
-      "tools": ["jq"],
-      "rewrites": false,
-      "assets": [
-        "hooks/run-guards.sh",
-        "hooks/abort-boundary.sh",
-        "hooks/hook-utils.sh",
-        "hooks/cli-flag-verify.sh",
-        "hooks/skill-reference-verify.sh",
-        "hooks/stale-path-verify.sh",
-        "lib/verification/verify-cli-flag.sh",
-        "lib/verification/cli-flag-cache.sh"
-      ]
     }
   ]
 }

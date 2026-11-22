@@ -27,8 +27,12 @@ and what reaches the model.
    changes files during the session (a formatter).
 2. **git hook** when the check must cover every author: humans, other agents, and Claude Code
    sessions alike. A Claude Code hook sees only Claude Code's own tool calls.
-3. **Which git hook, by measured duration:** within the commit budget, `pre-commit`; over the
-   commit budget but within 60 s, `pre-push`; beyond 60 s, CI only.
+3. **Which git hook, by measured duration:** within the 3 s commit budget, `pre-commit`; over
+   it, the pre-PR check (`/source-control:pull-request` runs it once per head before the pull
+   request opens) or CI. `pre-push` holds only guardrails `pre-push-content`, the secrets and
+   machine-path scan of the pushed commits, within its own 3 s budget: it is the one check whose
+   failure cannot be undone once the commits reach a public repository. Basis: a course
+   instructor's 3 s guidance ([ADR 0072](../../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md)) and the [measured timings](#duration-budgets).
 4. **Report-only findings never reach the model per edit.** A shipped hook must not send a
    report-only check's findings to the model on a per-edit `PostToolUse` event. A per-edit report fires on
    in-between states the model is about to change anyway, and it can lead the model to make
@@ -447,8 +451,8 @@ marketplace comes from these rows.
 | Budget | Value | Basis |
 |---|---|---|
 | Per-batch formatter (`PostToolBatch`) | 1 s median per fire | judgment from the measured spread; revisit after the rollout's per-batch measurements |
-| Commit (`pre-commit` set) | 10 s for all 11 shipped `pre-commit` entries run in a row | judgment from the measured set: 0.91 s on 1 file, 1.91 s on 10, 9.6 s on a 45-file mixed set and 96.3 s on a 44-file set (per-check timings below); 10 s keeps the mixed set inside and `reference-verify`'s 12.2 s on 44 files outside, as its move to `pre-push` decided |
-| Push (`pre-push`) | 60 s | judgment from the measured spread; beyond it, CI only |
+| Commit (`pre-commit` set) | 3 s for all 11 shipped `pre-commit` entries run in a row, measured on a 10-file commit | a course instructor's 3 s guidance ([ADR 0072](../../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md)); measured timings: 0.91 s on 1 file and 1.91 s on 10 (per-check timings below). Over it, the pre-PR check or CI |
+| Push (`pre-push`) | 3 s, one entry: guardrails `pre-push-content` | the same guidance; measured 0.17 s on a 28-file push. Over it, the pre-PR check or CI |
 
 ### Measured rows
 
@@ -458,7 +462,7 @@ marketplace comes from these rows.
 | guardrails `commit-msg-convention` entry, one message | commit-msg | 10 ms median (9-11) | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `pre-commit-content` entry, staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.036-0.040); 10 files 0.311 s (0.298-0.337); 44 files 1.277 s (1.206-1.450), re-measured 1.302 s (1.209-1.467) once it was the only guardrails `pre-commit` entry | reference host (Linux, WSL2) | 2026-10-16 |
 | code-tidying `comment-lint` entry (pygments 2.19.2, installed local copy, `comment_lint: report`), staged sets from real `origin/main` commits (code files 1 of 1, 6 of 10, 24 of 44) | pre-commit | 1 file 0.331 s (0.325-0.348); 10 files 0.422 s (0.412-0.438); 44 files 0.939 s (0.927-1.055) | reference host (Linux, WSL2, 32 CPUs) | 2026-11-14 |
-| guardrails `reference-verify` entry, the 44-file `origin/main` commit (37 of its files are `.md`/`.sh`) as one pushed range | pre-push | 10.6 s median (10.1-12.5); 15.7 s on the first run in a clone, which builds the deleted-path cache | reference host (Linux, WSL2) | 2026-10-16 |
+| guardrails `reference-verify` entry, the 44-file `origin/main` commit (37 of its files are `.md`/`.sh`) as one pushed range | pre-PR check (moved from pre-push) | 10.6 s median (10.1-12.5); 15.7 s on the first run in a clone, which builds the deleted-path cache | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `reference-verify` entry at `pre-commit`, before the move, same staged sets (1 file is not `.md`/`.sh`) | pre-commit until it moved to pre-push: 44 files is over the commit budget | 1 file 0.018 s (0.017-0.019); 10 files 1.169 s (1.109-1.271), 11.0 s on the first run in a clone; 44 files 12.2 s (10.6-17.0) | reference host (Linux, WSL2) | 2026-10-16 |
 | `scripts/check-affected.sh --no-fetch` (this repository) | pre-push until moved to CI / on-demand (over budget on native Windows) | 15.5 s median on a 28-file range; 0.52 s on one file | reference host (Linux, WSL2) | 2026-10-15 |
 | actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse until removed; now pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
@@ -503,8 +507,8 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | `scripts/check-affected.sh` lint tier, which includes the `plugin-imports` boundary check | CI / on-demand (previously pre-push) | 4.0 s (4.0-4.1); 18.6 s (18.2-18.6) | 1 file; 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | `scripts/check-plugin-imports.sh` alone | CI / on-demand (previously pre-push) | 1.24 s (1.21-1.30), 10 runs | whole tree | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | guardrails `pre-push-content` | pre-push | 0.17 s (0.15-0.19), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
-| guardrails `reference-verify` | pre-push | 1.25 s (1.18-1.27), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
-| bash-format `lint-full`, dataflow analysis on the pushed scripts over 2,000 lines | pre-push | 11.8 s (10.7-13.0), 5 runs, largest ShellCheck process 5.38 GB | 44 files (`83fb17c179` on its parent as one pushed range, work tree at the tip) | Linux, WSL2, 24 CPUs | 2026-11-17 |
+| guardrails `reference-verify` | pre-PR check (moved from pre-push) | 1.25 s (1.18-1.27), 5 runs | 28 files, one unpushed commit | Linux, WSL2, 24 CPUs | 2026-11-16 |
+| bash-format `lint-full`, dataflow analysis on the pushed scripts over 2,000 lines | pre-PR check (moved from pre-push) | 11.8 s (10.7-13.0), 5 runs, largest ShellCheck process 5.38 GB | 44 files (`83fb17c179` on its parent as one pushed range, work tree at the tip) | Linux, WSL2, 24 CPUs | 2026-11-17 |
 | `scripts/check-affected.sh --tests` | CI only | 4.5 s, 0 suites; 94.7 s (89.5-96.5), 10 suites; 164.3 s (159.4-165.8), 24 suites | 1 file (`151a7b0c0c`, data); 1 file (script edit); 28 files | Linux, WSL2, 24 CPUs | 2026-11-16 |
 | `scripts/check-affected.sh --no-fetch` lint tier (before optimization) | CI / on-demand | 191.0 s (3 files, `8da0aa01d2`); 328.0 s (32 files, `81495b571d`) | 3 files; 32 files | Windows, Git Bash (`git 2.55.0.windows.3`) | 2026-11-21 |
 | `scripts/check-cross-plugin-source-drift.sh --check` (before; after) | CI / on-demand | 86.6 s; 2.9-6.5 s | whole tree | Windows, Git Bash | 2026-11-21 |
@@ -513,19 +517,14 @@ copies of `hook-utils.sh`), 45 files (`5fdcd660b4`, 24 `.mjs`, 12 workflows); 28
 | `scripts/check-cost-figures.sh --check` (before; after) | CI / on-demand | 20.1 s; 7.1 s | whole tree | Windows, Git Bash | 2026-11-21 |
 | `scripts/check-as-of-recheck.sh --check` (before; after) | CI / on-demand | 6.5 s; 3.1 s | whole tree | Windows, Git Bash | 2026-11-21 |
 | guardrails `pre-push-content` | pre-push | 0.54 s (3 files); 0.67 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
-| guardrails `reference-verify` | pre-push (skipped on Windows in this repository's `lefthook.yml`) | 43.6-66.8 s (3 files); 47.5 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
+| guardrails `reference-verify` | pre-PR check (moved from pre-push) | 43.6-66.8 s (3 files); 47.5 s (32 files) | `8da0aa01d2`; `81495b571d` | Windows, Git Bash | 2026-11-21 |
 
-On Linux WSL2, `guardrails` `pre-push-content` (0.17 s) and `reference-verify` (1.25 s) total
-1.42 s on the 28-file sample, while `scripts/check-affected.sh` alone took 18.6 s.
-On native Windows Git Bash, process-spawn overhead pushes `scripts/check-affected.sh` to
-191-328 s (over both the 60 s push budget and, combined with `reference-verify`, GitHub's 360 s
-idle SSH timeout for `git-receive-pack`) and `reference-verify` alone to 44-67 s. This
-repository's `lefthook.yml` therefore sets `skip_lfs: true`, keeps
-`guardrails-remote-pre-push-content` (~0.5-0.7 s on Windows) active everywhere, skips
-`guardrails-remote-reference-verify` on Windows hosts (preserving its 1.25 s run on Linux), and
-leaves `scripts/check-affected.sh` to CI and on-demand runs. Change-scoped tests stay in CI: `--tests`
-adds 1.0 s on a change that selects no suite, 90.7 s on a one-file script edit and 145.7 s on the
-28-file change, so a typical push goes over the 60 s budget.
+On Linux WSL2, `reference-verify` took 1.25 s on the 28-file sample and 10.6 s on 44 files,
+and `lint-full` 11.8 s on 44 files, both over the 3 s push budget, so both run in CI and the pre-PR
+check. On native Windows Git Bash, process-spawn overhead pushes `scripts/check-affected.sh`
+to 191-328 s and `reference-verify` to 44-67 s. Change-scoped tests stay in CI: `--tests` adds
+1.0 s on a change that selects no suite, 90.7 s on a one-file script edit and 145.7 s on the
+28-file change, so the pre-PR check never runs them.
 
 The shipped `pre-commit` set took 96.3 s on the 44-file sample, a real `origin/main` commit, over
 the commit budget and the push budget. bash-format's `shell-check` alone measured 98.9 s:
@@ -535,6 +534,5 @@ of two scripts: 12.5 s for the 6,383-line `lib/hook-utils.test.sh` and 11.3 s fo
 `block-root-delete-target.sh`, 2.9 s each without it. The `lint` entry now runs ShellCheck in
 parallel lanes and turns dataflow analysis off above 2,000 lines, the size the ShellCheck manual
 names for it; 3.0 s. Those scripts' dataflow checks (SC2218, SC2319, SC2320 and SC2324) move to the
-`lint-full` pre-push entry, which lints each pushed script over 2,000 lines with full analysis in
-11.8 s on that sample. Added to `reference-verify`'s 10.6 s on the same sample (the 2026-10-16
-row above), that is 22.4 s, inside the 60 s push budget.
+`lint-full` check, which lints each changed script over 2,000 lines with full analysis in
+11.8 s on that sample, in the pre-PR check.
