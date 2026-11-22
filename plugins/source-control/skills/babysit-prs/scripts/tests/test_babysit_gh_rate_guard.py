@@ -72,7 +72,6 @@ class SharedVectors(unittest.TestCase):
                     body=given["body"],
                     now=table["vector_now"],
                     read_floor=floor,
-                    limit_cap=vector.get("limit_cap"),
                 )
                 self.assertEqual(got, vector["expect"])
 
@@ -487,51 +486,6 @@ class HeadroomShares(GuardCase):
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertFalse(gh.low_headroom())
 
-    def test_github_token_read_floor_counts_against_the_per_repo_cap(self) -> None:
-        # GitHub documents GITHUB_TOKEN at 1,000 requests an hour per
-        # repository, whatever x-ratelimit-limit reports; the floor is a share
-        # of that, and the calls spent so far (limit - remaining) count.
-        cap = 1000  # rate-limits-for-the-rest-api, "GITHUB_TOKEN" section
-        floor = self.shares("github-token")["read-floor"]
-        at_floor = 5000 - cap + int(floor * cap)
-        for remaining, low in ((at_floor, False), (at_floor - 1, True)):
-            with self.subTest(remaining=remaining):
-                gh.reset_rate_guard()
-                self.answer(0, head(200, **core(remaining)) + "{}")
-                gh.gh_capture(["api", "repos/o/r/pulls/1"])
-                self.assertEqual(gh.low_headroom("github-token"), low)
-                # The writer pause still reads the header's own numbers.
-                self.assertFalse(gh.writes_paused("github-token"))
-
-    def test_the_github_token_cap_is_read_from_the_defaults_file(self) -> None:
-        defaults = json.loads(RATE_LIMITS.read_text(encoding="utf-8"))
-        defaults["github-token"]["limit-cap"] = 2000
-        floor = self.shares("github-token")["read-floor"]
-        # Under the file's 1000 cap this reads low; under 2000 it does not.
-        remaining = 5000 - 1000 + int(floor * 1000) - 1
-        with tempfile.TemporaryDirectory() as tmp:
-            path = pathlib.Path(tmp, "rate-limits.json")
-            path.write_text(json.dumps(defaults), encoding="utf-8")
-            with mock.patch.object(gh, "LIMITS_DEFAULTS", path):
-                gh.reset_rate_guard()
-                self.answer(0, head(200, **core(remaining)) + "{}")
-                gh.gh_capture(["api", "repos/o/r/pulls/1"])
-                self.assertFalse(gh.low_headroom("github-token"))
-
-    def test_the_cap_is_github_token_only(self) -> None:
-        cap = file_default("limit-cap", "github-token")
-        floor = self.shares("lanes-app")["read-floor"]
-        os.environ["API_BUDGET_TOKEN"] = "lanes-app"
-        self.answer(0, head(200, **core(5000 - cap + int(floor * cap) - 1)) + "{}")
-        gh.gh_capture(["api", "repos/o/r/pulls/1"])
-        self.assertFalse(gh.low_headroom("lanes-app"))
-
-    def test_a_header_limit_under_the_cap_is_used_as_is(self) -> None:
-        floor = self.shares("github-token")["read-floor"]
-        self.answer(0, head(200, **core(int(floor * 500), limit=500)) + "{}")
-        gh.gh_capture(["api", "repos/o/r/pulls/1"])
-        self.assertFalse(gh.low_headroom("github-token"))
-
     def test_planned_to_the_header_limit_2766_of_5000_left_sends_the_read(
         self,
     ) -> None:
@@ -539,25 +493,12 @@ class HeadroomShares(GuardCase):
         # https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120
         # refused with 2,766 of 5,000 left; planned to the header's 5,000 the
         # floor is 500 left, so that read goes out.
-        for flag, sent in (("1", 2), ("", 1)):
-            with self.subTest(flag=flag):
-                gh.reset_rate_guard()
-                self.sent.clear()
-                self.answer(0, head(200, **core(2766)) + "{}")
-                self.answer(0, head(200, **core(2765)) + "{}")
-                gh.gh_capture(["api", "repos/o/r/pulls/1"])
-                env = {
-                    gh.READ_FLOOR_STOP_ENV: "1",
-                    gh.READ_FLOOR_HEADER_LIMIT_ENV: flag,
-                }
-                with mock.patch.dict(os.environ, env):
-                    if flag:
-                        gh.gh_capture(["api", "repos/o/r/pulls/2"])
-                    else:
-                        with self.assertRaises(gh.ReadsFloored):
-                            gh.gh_capture(["api", "repos/o/r/pulls/2"])
-                self.assertEqual(len(self.sent), sent)
-                self.answers.clear()
+        self.answer(0, head(200, **core(2766)) + "{}")
+        self.answer(0, head(200, **core(2765)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        with mock.patch.dict(os.environ, {gh.READ_FLOOR_STOP_ENV: "1"}):
+            gh.gh_capture(["api", "repos/o/r/pulls/2"])
+        self.assertEqual(len(self.sent), 2)
 
     def test_planned_to_the_header_limit_the_floor_is_500_of_5000(self) -> None:
         for remaining, low in ((500, False), (499, True)):
@@ -565,8 +506,7 @@ class HeadroomShares(GuardCase):
                 gh.reset_rate_guard()
                 self.answer(0, head(200, **core(remaining)) + "{}")
                 gh.gh_capture(["api", "repos/o/r/pulls/1"])
-                with mock.patch.dict(os.environ, {gh.READ_FLOOR_HEADER_LIMIT_ENV: "1"}):
-                    self.assertEqual(gh.low_headroom("github-token"), low)
+                self.assertEqual(gh.low_headroom("github-token"), low)
 
     def test_below_the_writer_pause_a_write_is_not_sent(self) -> None:
         pause = self.shares("github-token")["writer-pause"]
@@ -749,10 +689,6 @@ class FailClosed(GuardCase):
             "a share as text": json.dumps(
                 {"github-token": token | {"read-floor": "0.1"}}
             ),
-            "a fractional limit-cap": json.dumps(
-                {"github-token": token | {"limit-cap": 1.5}}
-            ),
-            "a limit-cap of 0": json.dumps({"github-token": token | {"limit-cap": 0}}),
         }
         for name, text in cases.items():
             with self.subTest(name), tempfile.TemporaryDirectory() as tmp:

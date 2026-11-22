@@ -81,9 +81,6 @@
 #                               API_BUDGET_READ_FLOOR of the planned budget
 #                               left, warns once (unset: no floor; ci-status
 #                               sets it to the read-floor default);
-#                               the plan is the header's limit, at most
-#                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
-#                               sets github-token's limit-cap default)
 #   api_budget_emit <token>...  the hub collector's notice for each refused
 #                               (403/429) reading and for the last reading of
 #                               each resource and reset, as one token reads
@@ -510,8 +507,7 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
   | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
       | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
   | ($rem == 0 or $ra != null or $msg or $gql or $many) as $latched
-  | (if $in.cap != null and $lim != null then ([$lim, $in.cap] | min) else $lim end) as $planned
-  | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $planned - ($lim - $rem) < $in.floor * $planned) as $low
+  | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $rem < $in.floor * $lim) as $low
   | if ($latched | not) then {latched: false, low: $low, reset_source: null, reset: null, pool: null}
     else (($in.now / 1000) | floor) as $n
     | [(if $ra != null then [$n + $ra, "retry-after"] else empty end),
@@ -547,11 +543,11 @@ api_budget_observe() {
   start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
   [[ -n $start ]] || return 0
   verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
-    --arg floor "${API_BUDGET_READ_FLOOR:-}" --arg cap "${API_BUDGET_LIMIT_CAP:-}" '($raw | split("\n")) as $l
+    --arg floor "${API_BUDGET_READ_FLOOR:-}" '($raw | split("\n")) as $l
     | ($l[0] | split(" ")[1] | tonumber) as $status
     | ([$l[1:$start - 1][] | sub("\r$"; "") | capture("^(?<k>[^:]+):[ \t]*(?<v>.*)$") | {(.k | ascii_downcase): .v}] | add // {}) as $headers
     | {status: $status, headers: $headers, body: ($l[$start:] | join("\n")), now: $now, pool: $pool,
-       floor: ($floor | tonumber? // null), cap: ($cap | tonumber? // null)}
+       floor: ($floor | tonumber? // null)}
     | . as $in | ($in | '"$API_BUDGET_CLASSIFY"') as $v | ($in | '"$API_BUDGET_SERVER_ERROR"') as $s
     | "\($v.latched) \($v.low) \($v.reset_source) \($v.reset) \($v.pool) \(if $s then $in.status else "-" end)"' 2>/dev/null) || return 0
   read -r latched low source reset stop server <<<"$verdict"
