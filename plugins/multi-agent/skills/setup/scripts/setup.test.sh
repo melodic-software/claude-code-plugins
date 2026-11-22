@@ -199,6 +199,11 @@ assert_contains "user layer goes to the option's file" "$out" "wrote: $T/user/ro
 state=absent
 [[ -e "$T/user/home/.claude/multi-agent.yaml" ]] && state=present
 assert_eq "nothing is written under ~/.claude" absent "$state"
+out="$(run user apply --layer user --write --user-file \~/role-map.yaml fanout.model=sonnet)"
+assert_contains "a leading ~/ expands against the home" "$out" "wrote: $T/user/home/role-map.yaml (user layer)"
+run user apply --layer user --write --user-file role-map.yaml fanout.model=sonnet >/dev/null
+assert_eq "a relative option is refused" 2 "$?"
+assert_contains "the refusal asks for an absolute path in /config" "$(cat "$T/user.err")" 'set an absolute path in /config'
 
 fixture mig
 mkdir -p "$T/mig/home/.claude" "$T/mig/repo/.claude"

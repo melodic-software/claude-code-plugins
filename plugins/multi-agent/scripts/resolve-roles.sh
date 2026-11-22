@@ -326,6 +326,11 @@ dual_read() {
 }
 
 [[ "$USER_FILE" == "\${user_config."* ]] && USER_FILE=""
+[[ -n "$USER_HOME_DIR" && "$USER_FILE" == \~/* ]] && USER_FILE="$USER_HOME_DIR/${USER_FILE#\~/}"
+if [[ -n "$USER_FILE" && "$USER_FILE" != /* ]]; then
+  NOTES+=("user-config layer skipped: the role_map_file option '${USER_FILE//[^[:print:]]/?}' is not an absolute path; set an absolute path in /config")
+  USER_FILE=""
+fi
 OLD_USER=""
 [[ -n "$USER_HOME_DIR" ]] && OLD_USER="$USER_HOME_DIR/.claude/multi-agent.yaml"
 user_where="the file the role_map_file option names (set it in /config)"

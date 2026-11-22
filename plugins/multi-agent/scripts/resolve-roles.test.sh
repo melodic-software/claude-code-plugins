@@ -183,6 +183,15 @@ assert_contains "new layers: source names user-config and personal-override" "$o
 assert_contains "new layers: the personal row names the home path" "$out" '"layer":"personal-override","path":"'"$T/newlayers/repo/docs/conventions/multi-agent.local.yaml"'","state":"read"'
 assert_lacks "new layers: no old-path warning" "$out" 'old path'
 
+fixture tilde
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/tilde/home/user.yaml"
+out="$(run tilde worker --session-model opus --user-file \~/user.yaml)"
+assert_contains "tilde: a leading ~/ reads the file under the home" "$out" '"layer":"user-config","path":"'"$T/tilde/home/user.yaml"'","state":"read"'
+out="$(run tilde worker --session-model opus --user-file user.yaml)"
+assert_eq "relative: the resolver still exits 0" 0 "$?"
+assert_contains "relative: the note asks for an absolute path" "$out" "user-config layer skipped: the role_map_file option 'user.yaml' is not an absolute path; set an absolute path in /config"
+assert_contains "relative: the user layer is absent" "$out" '"layer":"user-config","path":"","state":"absent"'
+
 fixture oldonly
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/oldonly/home/.claude/multi-agent.yaml"
 printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/oldonly/repo/.claude/multi-agent.local.yaml"

@@ -93,6 +93,9 @@ done
 [[ -n "$ROOT" ]] || ROOT="$(config_root_resolve)"
 CLASS="$(HOME="$HOME_DIR" config_root_classify "$ROOT")"
 [[ "$USER_FILE" == "\${user_config."* ]] && USER_FILE=""
+[[ -n "$HOME_DIR" && "$USER_FILE" == \~/* ]] && USER_FILE="$HOME_DIR/${USER_FILE#\~/}"
+[[ -z "$USER_FILE" || "$USER_FILE" == /* ]] ||
+  die "the role_map_file option '$USER_FILE' is not an absolute path; set an absolute path in /config"
 LOCATE=(--root "$ROOT" --home "$HOME_DIR")
 [[ -n "$USER_FILE" ]] && LOCATE+=(--user-file "$USER_FILE")
 OLD_USER=""
