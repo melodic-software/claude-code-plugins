@@ -274,7 +274,9 @@ install object on a requires entry, by npm ci --ignore-scripts --no-audit
 --no-fund in each lockfile's directory. It installs once per distinct install
 into <root>/.npm-seed/<key>, makes the seed's files read-only, and hard-links
 that node_modules into the worktree (cp -al), so worktrees on one install share
-one copy on disk; the step's header lists when it installs in place instead.
+one copy on disk. It installs in place instead without flock, node or a working
+cp -al, when package.json declares workspaces, an install lifecycle script or a
+file:/link: dependency, or when the seed install fails.
 Seeds unused for WORKTREE_CREATE_NPM_SEED_DAYS (default 14) are removed; with
 WORKTREE_CREATE_NPM_SEED=0 no seed is used. Waiting for the seed lock and
 installing share one cap, WORKTREE_CREATE_DEPS_CAP_SECONDS (default 45); npm
