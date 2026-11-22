@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/overengineering/schemas/overengineering.schema.json",
   "title": "Overengineering team config",
   "description": "Schema for a repository's <home>/overengineering.yaml, the team layer of the overengineering plugin's settings; the personal override <home>/overengineering.local.yaml takes the same shape. Keys, layers and merge rules: plugins/overengineering/reference/consumer-config.md.",
   "type": "object",
