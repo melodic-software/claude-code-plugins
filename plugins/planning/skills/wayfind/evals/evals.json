@@ -427,7 +427,7 @@
     {
       "id": 35,
       "name": "event-model-design-item-falls-back-to-planning-design",
-      "prompt": "/planning:wayfind work 'Map: order fulfilment' (#900). The claimed item 'Model the order lifecycle events' (#903, wayfind: design) asks which domain events an order goes through from placement to delivery. The event-storming plugin is not enabled in this repository. Work it.",
+      "prompt": "/planning:wayfind work 'Map: order fulfillment' (#900). The claimed item 'Model the order lifecycle events' (#903, wayfind: design) asks which domain events an order goes through from placement to delivery. The event-storming plugin is not enabled in this repository. Work it.",
       "expected_output": "The item is domain/event-model work, which would route to /event-storming:methodology or /event-storming:simulation, but the event-storming plugin is not enabled, so the item falls back to /planning:design. The skill does not settle the event model itself inline and does not stop for the missing plugin.",
       "files": [],
       "expectations": [
