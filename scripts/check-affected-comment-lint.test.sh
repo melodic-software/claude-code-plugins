@@ -88,4 +88,17 @@ run -- --uncommitted
 check "an uncommitted comment the posture disallows fails comment-lint under --uncommitted" \
   '[[ $RC == 1 && $ERR == *"FAIL comment-lint"* && $ERR == *"tool.sh:8:"* ]]'
 
+git_test_config "$repo" reset -q --hard lint-base
+mkdir -p "$repo/team-conventions"
+git_test_config "$repo" mv docs/conventions/code-tidying.yaml team-conventions/code-tidying.yaml
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conventions`.\n<!-- END GENERATED: convention-home -->\n' >"$repo/AGENTS.md"
+git_test_config "$repo" add AGENTS.md
+git_test_config "$repo" commit -q -m home-base
+git_test_config "$repo" branch -q home-base
+cp "$planted" "$repo/tool.sh"
+git_test_config "$repo" commit -q -am planted-tool-home
+run -- --base home-base
+check "a merge-base whose AGENTS.md points at a non-default home reads its comment_lint level there" \
+  '[[ $RC == 1 && $ERR == *"FAIL comment-lint"* && $ERR == *"tool.sh:8:"* ]]'
+
 test_harness::report
