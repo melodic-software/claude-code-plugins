@@ -318,7 +318,9 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
   const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
-  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
+  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", noProfile.file], "#18250: with no profile inline settings pass as a file, which Windows PowerShell 5.1 cannot mangle");
+  assert.deepEqual(JSON.parse(readFileSync(noProfile.file, "utf8")), JSON.parse(own), "the file holds the launcher's own settings unchanged");
+  assert.ok(!noProfile.command.includes("{"), "no inline JSON in the printed line");
 });
 
 test("apply without --for is a usage error and writes nothing, so a folder shared by other sessions is never chosen by default", () => {

@@ -703,7 +703,7 @@ function profileGate(name, opts, where, env, verb) {
   return { p, gate, lines };
 }
 
-/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
+/** Writes the session file for name, or for inline --with JSON, which Windows PowerShell 5.1 would strip the quotes from, and returns what claude is started with; launch and start share it. */
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };
@@ -729,8 +729,15 @@ function launchSettings(name, opts, where, env, io) {
     }
     for (const line of lines) io.err(line);
   } else if (own && !opts.with.trim().startsWith("{")) result.file = resolve(opts.with);
+  else if (own) {
+    const text = JSON.stringify(own);
+    result.file = sessionFile(where, "with", text);
+    if (!opts.dryRun) {
+      replaceFile(result.file, `${text}\n`);
+      sweepSessions(where, result.file);
+    }
+  }
   if (result.file) result.settingsArgs.push("--settings", result.file);
-  else if (own) result.settingsArgs.push("--settings", JSON.stringify(own));
   return result;
 }
 
