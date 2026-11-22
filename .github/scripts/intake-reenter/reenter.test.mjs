@@ -231,7 +231,14 @@ test("a decision on a field-only needs-human hold with no labels replies once ho
 });
 
 test("a decision gets no hold reply where the issue is ready, admitted, deferred or in triage, since a release would not re-enter it either", async () => {
-  for (const labels of [["needs-human", "agent-ready"], ["needs-human", "needs-triage"], ["needs-human", "status: ready"], ["needs-human", "admission-deferred"]]) {
+  for (const labels of [
+    ["needs-human", "agent-ready"],
+    ["needs-human", "needs-triage"],
+    ["needs-human", "status: ready"],
+    ["needs-human", "admission-deferred"],
+    ["needs-human", "needs-owner-decision", "agent-ready"],
+    ["needs-human", "needs-owner-decision", "needs-triage"],
+  ]) {
     const w = world({ labels, comments: [{ id: 1, user: OWNER, body: DECISION }] });
     assert.equal(await run(w, 1), 0, labels.join());
     assert.deepEqual(w.writes, [], labels.join());

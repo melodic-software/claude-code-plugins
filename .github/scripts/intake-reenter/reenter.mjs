@@ -474,6 +474,10 @@ export async function main({ env = process.env, github, log = console.log, statu
         return 0;
       }
       if (kind !== "info" && labels.includes(NEEDS_HUMAN)) {
+        if (movesElsewhere(labels)) {
+          log(`intake-reenter: ${NEEDS_HUMAN} holds the issue and it is not parked for a decision; nothing changed`);
+          return 0;
+        }
         return await replyHeld({ client, repository, base, issue, own, log });
       }
     }
