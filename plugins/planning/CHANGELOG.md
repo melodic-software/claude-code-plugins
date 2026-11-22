@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.13.2] - 2026-11-22
+
+### Changed
+
+- `/planning:interview` lists `/docs-hygiene:rename-references` in its `## Next` section for a renamed term the code still uses.
+
 ## [5.13.1] - 2026-11-22
 
 ### Changed
