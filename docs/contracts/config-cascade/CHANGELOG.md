@@ -11,6 +11,11 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **The `overengineering` row reads `<home>/overengineering.yaml`.** The team file moves to the
+  convention home with a schema and the personal override to `<home>/overengineering.local.yaml`;
+  the plugin keeps no user-global file. Each old `.claude` file is still read, with a warning,
+  until the new file for its layer exists, and a later change removes those reads. The plugin
+  leaves the later-adoption list. The layering axis is unchanged, so `contract_version` stays.
 - **The `bugs` row reads `userConfig` and `docs/conventions/bugs.local.md`.** Its per-person
   gotchas come from the file the `gotchas_file` option names, and its personal override moves from
   `.claude/bugs.local.md` (retirement record `bugs-r001`). Both old files are read while the new

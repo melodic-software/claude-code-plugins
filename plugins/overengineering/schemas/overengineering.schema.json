@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Overengineering team config",
+  "description": "Schema for a repository's <home>/overengineering.yaml, the team layer of the overengineering plugin's settings; the personal override <home>/overengineering.local.yaml takes the same shape. Keys, layers and merge rules: plugins/overengineering/reference/consumer-config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "protected_categories": {
+      "type": "object",
+      "description": "Which categories carry the FLAG-FOR-HUMAN cap, keyed by category id. off is applied from the team layer only.",
+      "additionalProperties": {
+        "oneOf": [
+          { "enum": ["on", "off"] },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["match"],
+            "properties": {
+              "match": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 },
+                "description": "Path globs or kind-prefixed identifiers. On a bundled id they add to the method's patterns; on any other id they declare a consumer category."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Overrides for the analogical threshold rows; null disables a row.",
+      "additionalProperties": false,
+      "properties": {
+        "accuracy_floor": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "default": 0.5 },
+        "false_positive_attention": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "default": 0.1 },
+        "exercise_frequency_days": { "type": ["integer", "null"], "minimum": 0, "default": 90 },
+        "staleness_age_days": { "type": ["integer", "null"], "minimum": 0, "default": 30 },
+        "staleness_unevaluated_days": { "type": ["integer", "null"], "minimum": 0, "default": 7 },
+        "inactivity_window_days": { "type": ["integer", "null"], "minimum": 0, "default": 56 }
+      }
+    },
+    "observation_window": {
+      "type": "object",
+      "description": "The rollback ladder's rung-2 observation window; the longer of the two applies, and both 0 is rejected at runtime.",
+      "additionalProperties": false,
+      "properties": {
+        "days": { "type": "integer", "minimum": 0, "default": 30 },
+        "release_cycles": { "type": "integer", "minimum": 0, "default": 1 }
+      }
+    },
+    "delta_noise_budget": {
+      "type": "object",
+      "description": "What overengineering:delta lists rather than counts, per delta class.",
+      "additionalProperties": false,
+      "properties": {
+        "new_finding_verdicts": {
+          "oneOf": [
+            { "const": "all" },
+            {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["KEEP", "RETIRE", "DOWNGRADE", "CONSOLIDATE", "UNPROVEN", "FLAG-FOR-HUMAN"] }
+            }
+          ]
+        },
+        "unproven_head": { "type": "integer", "minimum": 0, "default": 3 },
+        "verdict_change": { "enum": ["boundary", "any", "off"], "default": "boundary" },
+        "closed_findings": { "enum": ["unexpected", "all", "off"], "default": "unexpected" },
+        "member_verdicts": { "enum": ["count", "surface", "off"], "default": "count" },
+        "max_items": { "type": "integer", "minimum": 1, "default": 20 }
+      }
+    },
+    "suppressions": {
+      "type": "object",
+      "description": "The durable judgment record, keyed by finding_id; entry shape per docs/contracts/finding-suppression/. A personal-layer entry does not suppress.",
+      "propertyNames": { "pattern": "^[0-9a-f]{16}$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["check", "claim", "sites", "reason", "date"],
+        "properties": {
+          "check": { "type": "string", "minLength": 1 },
+          "claim": { "type": "string", "minLength": 1 },
+          "sites": {
+            "description": "Each site's surface and its anchor; quote the \"anchor/v1\" key, since the shared YAML-subset parser accepts a plain key of letters, digits, _ and - only.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["surface"],
+              "properties": {
+                "surface": { "type": "string", "minLength": 1 }
+              },
+              "patternProperties": {
+                "^anchor/v[0-9]+$": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "date": { "description": "The judgment's date, YYYY-MM-DD." }
+        }
+      }
+    }
+  }
+}
