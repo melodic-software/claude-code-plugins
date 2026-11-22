@@ -58,8 +58,8 @@ Three things still go out in round 1 and are not intake questions:
   success is measured are not settled (user, round 1). Say yes to run it first.` It is never a
   `My recommendation:` block, which an intake round does not show; the wayfind line is still
   registered at ask-time;
-- a candidate a lookup found for an unknown Problem field, stated with its source and a request to
-  confirm or correct it ([`problem-framing.md`](../../../context/problem-framing.md) "Candidates
+- a candidate for an unknown Problem field, drawn from the repository, the conversation or a
+  lookup, stated with its source and a request to confirm or correct it ([`problem-framing.md`](../../../context/problem-framing.md) "Candidates
   for an unknown field");
 - a fact a lookup settled, stated with its source.
 
