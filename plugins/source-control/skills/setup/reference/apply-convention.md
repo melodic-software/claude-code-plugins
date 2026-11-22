@@ -414,14 +414,16 @@ ends with one home per value, never two. Run it in `apply` after `check`, once p
 1. **Preview.** Read the old file's `## <key>` sections and show, in one preview, each key, its
    value, and where it goes:
    - `REPO_ROOT/.claude/source-control.local.md` → `docs/conventions/source-control.local.yaml`.
-   - `~/.claude/source-control.md` → `docs/conventions/source-control.local.yaml` by default, since
-     the file held one person's values; the operator may name this repository's
-     `docs/conventions/source-control.yaml` instead in the same answer. Its keys apply in every
-     repository the operator works in, so the preview also says the old file is kept until the
-     operator says it may go (in that answer, or once the other repositories have moved).
-   - A key the new file already sets: show both values; the new file's value stays unless the
-     operator picks the old one in the same answer. Name any key the schema does not declare; it
-     is not carried.
+   - `~/.claude/source-control.md` → this repository's `docs/conventions/source-control.yaml` (the
+     team layer) by default; the operator may name `docs/conventions/source-control.local.yaml`
+     instead in the same answer. Its keys apply in every repository the operator works in, so the
+     preview also says the old file is kept until the operator says it may go (in that answer, or
+     once the other repositories have moved).
+   - The move never changes a resolved value. The old user-global file is the lowest layer, and
+     the personal YAML wins over team, so a key any layer above the old file already sets
+     (the target, or for a personal target the tracked team YAML) is shown with both values and
+     not carried; the resolved value stays unless the operator picks the old one in the same
+     answer. Name any key the schema does not declare; it is not carried.
 2. **Ask once, then write.** One confirmation covers the whole preview. Without a yes, write
    nothing; the file stays, still read and still warned about. Before writing the personal YAML,
    the `docs/conventions/**/*.local.*` ignore rule must match the nested sentinel from step 6; a
@@ -429,11 +431,13 @@ ends with one home per value, never two. Run it in `apply` after `check`, once p
    shape of step 5 (a bullet list becomes a YAML sequence, a regex is single-quoted), carrying
    every key the new file already holds, and run step 6's verification for the layer written; a
    failed verification stops the move and keeps the old file.
-3. **Check the values match.** For each moved key, read it back from the new file
-   (`convention-key.sh value`, or `local-value`, `list` and `local-list`) and compare it with the
-   old value, and for `branch_issue_pattern` run `parse-branch-issue.sh <sample-branch> --explain`
-   from `REPO_ROOT` and confirm the number, and that the layer named is the new file or a higher
-   layer that already set the key. A mismatch stops the move: report it and keep the old file.
+3. **Check the values match.** Before writing, record each key's resolved value across all layers
+   (config-resolution.md), and for `branch_issue_pattern` the number
+   `parse-branch-issue.sh <sample-branch> --explain` prints from `REPO_ROOT`. After writing, read
+   each moved key back from the new file (`convention-key.sh value`, or `local-value`, `list` and
+   `local-list`) and compare it with the old value, then resolve every key again, with the old file
+   set aside, and compare with the recorded value, except a key the operator chose to change. A
+   mismatch stops the move: report it and keep the old file.
 4. **Delete the old file** only after every key matched, and, for `~/.claude/source-control.md`,
    only when the operator said it may go; report its path. Re-run
    `old-files` last; a moved file no longer appears.

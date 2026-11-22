@@ -134,7 +134,10 @@ run_cfg() {
       bash "$PARSER" "$branch" "$pattern" 2>"$errfile")
   fi
   rc=$?
-  err=$(grep -v -- "$OLD_LOCATION_NOTE" "$errfile")
+  err=$(<"$errfile")
+  if [[ -f "${CASE_HOME}/.claude/source-control.md" || -f "${CASE_REPO}/.claude/source-control.local.md" ]]; then
+    err=$(grep -v -- "$OLD_LOCATION_NOTE" "$errfile")
+  fi
   local err_ok=1
   if [[ "$err_check" == "empty" ]]; then
     [[ -z "$err" ]] || err_ok=0

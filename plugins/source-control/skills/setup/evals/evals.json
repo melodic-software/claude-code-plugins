@@ -106,7 +106,7 @@
     },
     {
       "id": 9,
-      "name": "user-global-write-runs-no-repo-git-checks",
+      "name": "user-layer-refused-writes-nothing",
       "prompt": "/source-control:setup apply layer=user subject_pattern=Conventional Commits",
       "expected_output": "Refuses layer=user before writing anything: there is no user-global layer, so ~/.claude/source-control.md is neither created nor modified, and no git command runs against it. The refusal says a value meant for every repository goes in each repository's team file (layer=team, docs/conventions/source-control.yaml) or, for one person, its personal override (layer=local, docs/conventions/source-control.local.yaml). It does not silently write the team or local layer in place of the refused one, and does not claim any value was written, staged, or committed.",
       "files": [],
@@ -290,7 +290,7 @@
     },
     {
       "id": 23,
-      "name": "apply-at-home-root-refuses-team-and-local-but-writes-user",
+      "name": "apply-at-home-root-refuses-every-layer",
       "prompt": "/source-control:setup apply layer=team subject_pattern=Conventional Commits\n\nThe session's project root is the operator's home directory. Afterwards the operator re-runs with layer=user.",
       "expected_output": "layer=team refuses before writing anything: at home the team path sits in the operator's home directory, so a team write would edit the operator's personal config under a team label. The refusal names the reason (`project root is the home directory (or an ancestor of it)`) and says to run apply from the repository that should hold the config; it does not offer layer=user. layer=local refuses for the same reason. The re-run with layer=user is refused too: there is no user-global layer, so it points to layer=team or layer=local in each repository, writes nothing (~/.claude/source-control.md is neither created nor modified), and runs no git command against it.",
       "files": [],
