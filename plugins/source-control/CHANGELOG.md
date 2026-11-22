@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.3.11] - 2026-11-22
+
+### Changed
+
+- The babysit scripts' Work status read derives the bot setters from the trusted-actor list when `models.issue-status` sets no `bot-setters`: github-actions[bot] plus every `kind: bot` actor whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`. A config that sets `bot-setters` keeps that explicit list, each entry counting while the trusted-actor list holds it as that bot. This repository's pipeline config no longer carries the key.
+
+### Fixed
+
+- The babysit merge gate clears `verify:earlier-fail` for a pass at a head of the same change when a trusted person recorded an owner decision on a linked issue after the FAIL's run and before the pass's run was created: a new spec comment that links an owner-decisions row and quotes the owner after `verbatim:`. An issue body edit does not count, since the body may carry a decision the FAIL already read. A FAIL against a done-when item the owner later amended no longer blocks the pull request forever. An amendment without that link, an untrusted edit or comment, a pass judged before the amendment, and any failed read keep the refusal ([#18023](https://github.com/melodic-software/claude-code-plugins/pull/18023)).
+
+## [13.3.10] - 2026-11-22
+
+### Changed
+
+- `skills/pull-request/scripts/target-repo.sh` is now a generated copy of the shared `lib/target-repo.sh`, which the work-items GitHub adapter also carries; its resolution order is unchanged.
+
 ## [13.3.9] - 2026-11-21
 
 ### Fixed

@@ -3,6 +3,7 @@
 // come from the contract (pr-run-activity.md, "Skill activities" and
 // "prepare: merge-base"): a writing skill gets the signed-commit tool and the
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
+// test-scope: .github/actions/resolve-config/package.json .github/scripts/apply-patch/* plugins/skill-quality/*
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -368,6 +369,28 @@ test("a listed check's copy carries the base's skill-quality scripts", () => {
     assert.equal(readFileSync(path.join(copy, "metadata-registry.txt"), "utf8"), "category\n");
   } finally {
     rmSync(path.join(base, "plugins", "skill-quality"), { recursive: true });
+  }
+});
+
+test("a listed check's copy carries the base's code-tidying comment-lint files", () => {
+  const tidying = path.join(base, "plugins", "code-tidying");
+  const files = {
+    "git-hooks/comment-lint.sh": "echo base hook\n",
+    "lib/git-hooks/check-lib.sh": "echo base lib\n",
+    "scripts/comment-settings.sh": "echo base settings\n",
+  };
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(tidying, rel)), { recursive: true });
+    writeFileSync(path.join(tidying, rel), body);
+  }
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    for (const [rel, body] of Object.entries(files)) {
+      assert.equal(readFileSync(path.join(checksDir, "plugins", "code-tidying", rel), "utf8"), body, rel);
+    }
+  } finally {
+    rmSync(tidying, { recursive: true });
   }
 });
 

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "WARN: read .claude/improvement.md (old location); move it to docs/conventions/improvement.yaml with /improvement:setup apply.", "why": "one warning line with all three" },
+    { "answer": "| Old files | WARN | .claude/improvement.md is read as the team layer |\n\nRun /improvement:setup apply to move it to docs/conventions/improvement.yaml.", "why": "spread over the report" }
+  ],
+  "fail": [
+    { "answer": "WARN: .claude/improvement.md is an old location.", "why": "no new location, no command" },
+    { "answer": "INFO: .claude/improvement.md moves to docs/conventions/improvement.yaml via /improvement:setup apply.", "why": "no warning" },
+    { "answer": "WARN: move .claude/improvement.md to docs/conventions/improvement.yaml.", "why": "no setup command" }
+  ]
+}

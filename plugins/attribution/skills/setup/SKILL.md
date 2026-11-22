@@ -46,7 +46,7 @@ deliberate human choice.
 | Argument | Action |
 |---|---|
 | *(empty)* or `check` | **Read-only.** Report the effective config, which layer supplies each value, and what a proposed change would alter. Writes nothing |
-| `apply` | Write the agreed keys to `<home>/attribution.yaml`, the team layer, or to `<home>/attribution.local.yaml` when the user asks for the personal override |
+| `apply` | Write the agreed keys to `<home>/attribution.yaml`, the team layer, or to `<home>/attribution.local.yaml` when the user asks for the personal override, and move the old user-global file (below) |
 
 `check` is the default and never writes. `apply` writes only after the user has seen a `check`
 report naming every key it will change and the layer it will change it in. On a first run in a
@@ -83,24 +83,74 @@ migrated file, and then `apply` runs
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`.
 Re-run detection last and report the final state.
 
-## The three layers
+## The old user-global file
+
+`~/.claude/attribution.json` is retired. While it exists the detectors still read it, below
+`userConfig`, and each run names it on stderr, pointing here. `check` names it whenever
+`test -f "$HOME/.claude/attribution.json"` passes, reports it WARN, and lists each key it sets with
+the new home that key moves to:
+
+- `budgets.*`, `judge_samples` and `accuracy.*`: the `userConfig` option of the same name with
+  `.` written `_` (`budgets.corpus_fetch_ceiling` is `budgets_corpus_fetch_ceiling`).
+- Every other key is a repository convention: the personal override
+  `<home>/attribution.local.yaml` by default, since the file held one person's settings, or the
+  team file when the operator asks for it. The old file applied in every repository and the new
+  file applies only in this one; say so in the preview.
+- `verification` and `verification_skills` never applied from the old file: they are read only
+  from the team file on the default branch. Say so, and offer the team file or dropping them.
+
+`apply` moves it in four gated steps. The file's content is untrusted input, never executed or
+interpolated.
+
+1. Preview every key, its value and its new home, and get a yes.
+2. Write the repository keys with the per-key edit below. For the `userConfig` keys, print the
+   values and point the operator at the documented configure routes for
+   `attribution@<marketplace>` that the plugin README's
+   [How to set these](../../README.md#how-to-set-these) lists:
+   [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)
+   or [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+   Never write `pluginConfigs` or user settings, and never uninstall to reconfigure.
+3. Check that the new homes resolve the same values. A repository key's source in
+   `--show-config` must name the new file with the old value. For a key no detector reports
+   (`separation.*`), read it from the new file with
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/parse-concern-value.sh" --strict <file> <key>`. We verify a
+   moved `userConfig` option only in a later `/attribution:setup check`, never in the run that
+   printed it: the check passes when that later run shows each moved option's value below equal
+   to the old value; until then, stop here and leave the old file in place. When a changed value
+   takes effect: [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+   An empty or unsubstituted value is unset.
+   `budgets_searches_per_candidate` `${user_config.budgets_searches_per_candidate}`,
+   `budgets_fetches_per_candidate` `${user_config.budgets_fetches_per_candidate}`,
+   `budgets_corpus_fetch_ceiling` `${user_config.budgets_corpus_fetch_ceiling}`,
+   `judge_samples` `${user_config.judge_samples}`,
+   `accuracy_nomination_passes` `${user_config.accuracy_nomination_passes}`,
+   `accuracy_judge_lens_diversity` `${user_config.accuracy_judge_lens_diversity}`,
+   `accuracy_review_agents` `${user_config.accuracy_review_agents}`,
+   `accuracy_deep_research_on_exhaustion` `${user_config.accuracy_deep_research_on_exhaustion}`.
+4. With every value matching, show the path and get a yes, then delete the old file with `rm`.
+   Re-run `check` and report that the file is gone.
+
+A key the schema does not know is reported and never carried. Deleting the old file before every
+value resolves from its new home would drop a setting, so never skip step 3.
+
+## The layers
 
 Per the config-cascade convention, resolved in this order, each optional, a later layer refining
 an earlier one:
 
 | Order | Layer | Path | Belongs to |
 |---|---|---|---|
-| 1 | user-global | `~/.claude/attribution.json` | the operator, across every repo |
+| 1 | `userConfig` | this plugin's options, the per-user keys only | the operator, across every repo |
 | 2 | team | `<repo>/<home>/attribution.yaml` | the repository, tracked |
 | 3 | personal override | `<repo>/<home>/attribution.local.yaml` | one operator in one repo, gitignored |
 
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
-`apply` writes only the team layer and the personal override, never the user-global file. Before it
+`apply` writes only the team layer and the personal override, never `userConfig`. Before it
 writes the personal override, `git check-ignore -q "<root>/<home>/attribution.local.yaml"` must exit 0; when
 it does not, say the file would be tracked and get the operator's choice before writing.
 
-All three absent is a valid state: the bundled defaults apply. Merge is **per-key override**.
+All three unset is a valid state: the bundled defaults apply. Merge is **per-key override**.
 A later layer replaces a value key by key, and a key absent from a later layer keeps the earlier
 value. Never write a layer that restates the whole config to change one key; that turns every
 key the personal override does not mention into an accidental decision.

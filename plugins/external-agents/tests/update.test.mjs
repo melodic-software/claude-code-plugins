@@ -193,6 +193,18 @@ describe("what update checks, from the provider record", () => {
     assert.deepEqual(configKeys(codex), ["approval_policy", "sandbox_mode", "model_reasoning_effort"]);
   });
 
+  test("a record with no login_status says login was not checked and stays ready", async () => {
+    const root = join(scratch, "no-login-record");
+    mkdirSync(join(root, "providers"), { recursive: true });
+    const text = readFileSync(join(here, "..", "providers", "codex.yaml"), "utf8");
+    writeFileSync(join(root, "providers", "codex.yaml"), text.replace(/^login_status:\n {2}args: \[login, status\]\n/m, ""));
+    const w = world();
+    const got = await update({ ...w.opts, providersRoot: root, fetch: web().fetch });
+    assert.equal(lines(got)[0], "codex: ready");
+    assert.ok(lines(got).includes("login: not checked (no login_status in the record)"), got.stdout);
+    assert.equal(got.code, 0);
+  });
+
   test("the release source follows the install channel the binary's path shows", () => {
     assert.equal(versionSource(codex, join(scratch, "AppData", "Roaming", "npm", "codex.cmd")), "npm:@openai/codex");
     assert.equal(versionSource(codex, join(scratch, "lib", "node_modules", "@openai", "codex", "bin", "codex.js")), "npm:@openai/codex");

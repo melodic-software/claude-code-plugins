@@ -30,11 +30,12 @@ read it when a note or a user question concerns a key, a layer or the guard.
 ## Run
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/route.sh $ARGUMENTS
+${CLAUDE_SKILL_DIR}/scripts/route.sh $ARGUMENTS --user-file '${user_config.role_map_file}'
 ```
 
 Append `session=<alias>` when `$ARGUMENTS` carries none and you know your model
-family.
+family. Keep `--user-file` exactly as written: it names the user layer's file,
+and the resolver reads an empty or unsubstituted value as no user layer.
 
 ## Output
 

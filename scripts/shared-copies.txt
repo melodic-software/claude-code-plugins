@@ -199,6 +199,7 @@ lib/check-retirements.sh plugins/harness-ops/lib/check-retirements.sh
 lib/check-retirements.sh plugins/attribution/lib/check-retirements.sh
 lib/check-retirements.sh plugins/docs-naming/lib/check-retirements.sh
 lib/check-retirements.sh plugins/guardrails/lib/check-retirements.sh
+lib/check-retirements.sh plugins/improvement/lib/check-retirements.sh
 lib/state-key.sh plugins/harness-config/lib/state-key.sh
 lib/state-key.sh plugins/harness-memory/lib/state-key.sh
 lib/state-key.sh plugins/harness-ops/lib/state-key.sh
@@ -1035,3 +1036,5 @@ docs/contracts/config-cascade/locations.md plugins/overengineering/reference/con
 docs/contracts/config-cascade/locations.md plugins/plugin-quality/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/source-control/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/testing/reference/config-locations.md
+lib/target-repo.sh plugins/source-control/skills/pull-request/scripts/target-repo.sh
+lib/target-repo.sh plugins/work-items/tools/work-item-tracker/adapters/github/target-repo.sh

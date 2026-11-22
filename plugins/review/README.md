@@ -79,7 +79,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:council [--yes] [--unattended]`**. Council review: a panel of configured members (provider, model,
   brief, effort), chosen for the change by ordered rules over its paths, size tier and merge
   risk, writes one ranked findings report in fanout's shape. Claude members run as
-  `brief-reviewer`; Codex members run `external-agents review codex`, the command the
+  `brief-reviewer`; Codex and Antigravity members run `external-agents review codex` or `antigravity`, the command the
   `external-agents` plugin puts on the Bash `PATH`, and are skipped when it is not enabled. A member that cannot run
   as configured is reported, never replaced. One round by default; above one
   (`council_max_rounds`), `/review:fanout fix` runs between rounds and later rounds review only

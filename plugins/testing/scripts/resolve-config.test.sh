@@ -236,12 +236,15 @@ assert_eq "with both, the docs block is the team layer and the .claude file is s
 assert_eq "no key from the ignored .claude file merges in" "py-unittest" "$(records adapters.disable)"
 assert_eq "the personal override still merges over the docs block" "warn" "$(records rules.zero-assertion)"
 assert_contains "both present: one warning names both paths" "$(errs)" "$DOCS and $REPO/.claude/testing.yaml both exist; using the docs block"
-assert_eq "and it is one line" 1 "$(errs | wc -l | tr -d ' ')"
+assert_contains "the old personal override draws its own warning" "$(errs)" \
+  "$REPO/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
+assert_eq "one line each" 2 "$(errs | wc -l | tr -d ' ')"
 rm -f "$REPO/.claude/testing.local.yaml"
 rm -f "$DOCS"
 run
 assert_eq "a .claude file alone is the team layer" "$REPO/.claude/testing.yaml" "$(records layer)"
-assert_eq "with no warning" "" "$(errs)"
+OLD_TEAM_WARN="resolve-config: warning: $REPO/.claude/testing.yaml is an old location, still read for now; move it to docs/conventions/testing.yaml"
+assert_eq "with one warning naming where to move it" "$OLD_TEAM_WARN" "$(errs)"
 cat >"$DOCS" <<'EOF'
 # Testing
 
@@ -261,7 +264,7 @@ EOF
 run
 assert_eq "a docs file with no block falls back to the .claude file" "$REPO/.claude/testing.yaml" "$(records layer)"
 assert_eq "using its keys" "bash-bats" "$(records adapters.disable)"
-assert_eq "without a warning" "" "$(errs)"
+assert_eq "with the old-location warning only" "$OLD_TEAM_WARN" "$(errs)"
 rm -f "$REPO/.claude/testing.yaml"
 run
 assert_eq "no block and no .claude file prints nothing" "0:" "$rc:$out"
@@ -359,7 +362,8 @@ assert_eq "no key from either ignored file merges in" "yaml-team/**" "$(records 
 assert_eq "the personal override still merges over testing.yaml" "warn" "$(records rules.zero-assertion)"
 assert_contains "one warning names testing.yaml and the docs file" "$(errs)" "$TY and $DOCS both exist; using $TY"
 assert_contains "one warning names testing.yaml and the .claude file" "$(errs)" "$TY and $REPO/.claude/testing.yaml both exist; using $TY"
-assert_eq "two warnings, one line each" 2 "$(errs | wc -l | tr -d ' ')"
+assert_contains "one warning names the old personal override" "$(errs)" "$REPO/.claude/testing.local.yaml is an old location"
+assert_eq "three warnings, one line each" 3 "$(errs | wc -l | tr -d ' ')"
 printf '# Testing\n\nProse only.\n' >"$DOCS"
 rm -f "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"
 assert_eq "a docs file of prose with no block draws no warning" "" "$(errs)"
@@ -414,16 +418,36 @@ assert_eq "userConfig supplies a value when no file sets the key" \
   "e2e_driver	playwright	userConfig
 reuse_running_instance	false	userConfig" "$(head -2 <<<"$out")"
 printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
+erun
+assert_eq "the old user-global file still applies where userConfig sets nothing" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
+assert_eq "with one warning naming it and where to move it" \
+  "resolve-config: warning: $HOME/.claude/testing.yaml is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to docs/conventions/testing.local.yaml" "$err"
+erun --user e2e_driver=auto
+assert_eq "a userConfig value equal to the default does not hide it" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
 erun --user e2e_driver=playwright
-assert_eq "the user-global file wins over userConfig" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
+assert_eq "userConfig wins over the old user-global file" "e2e_driver	playwright	userConfig" "$(head -1 <<<"$out")"
 printf "e2e_driver: 'harness'  # the repo's own specs\n" >"$TY"
 erun --user e2e_driver=playwright
-assert_eq "testing.yaml wins over the user-global file" "e2e_driver	harness	$TY" "$(head -1 <<<"$out")"
-printf 'e2e_driver: chrome\r\n' >"$REPO/.claude/testing.local.yaml"
+assert_eq "testing.yaml wins over userConfig" "e2e_driver	harness	$TY" "$(head -1 <<<"$out")"
+rm -f "$HOME/.claude/testing.yaml"
+PY="$REPO/docs/conventions/testing.local.yaml"
+printf 'e2e_driver: chrome\r\n' >"$PY"
 erun
-assert_eq "the personal override wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
+assert_eq "the personal override wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$PY" "$(head -1 <<<"$out")"
 assert_eq "with nothing on stderr" "" "$err"
-rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
+printf 'e2e_driver: run\nreuse_running_instance: true\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "beside the home file, the old personal override is not read" \
+  "e2e_driver	chrome	$PY
+reuse_running_instance	auto	default" "$(head -2 <<<"$out")"
+assert_eq "and one warning names both" \
+  "resolve-config: warning: $PY and $REPO/.claude/testing.local.yaml both exist; using $PY, ignoring the old file: move any setting it still holds into $PY" "$err"
+rm -f "$PY"
+erun
+assert_eq "alone, the old personal override still applies" "e2e_driver	run	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
+assert_contains "with a warning naming where to move it" "$err" \
+  "$REPO/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
+rm -f "$REPO/.claude/testing.local.yaml"
 
 # An invalid value never stops the run: the file, key and value are named, and
 # the key takes its default, never a lower layer's value.
@@ -432,11 +456,11 @@ erun --user e2e_driver=playwright
 assert_eq "an unknown value in testing.yaml exits 0" 0 "$rc"
 assert_eq "and resolves the default, not the lower userConfig value" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
 assert_contains "naming the file, key and value" "$err" "$TY: e2e_driver: unknown value 'cdp'"
-printf 'e2e_driver: run\n' >"$REPO/.claude/testing.local.yaml"
+printf 'e2e_driver: run\n' >"$PY"
 erun
-assert_eq "a valid higher layer still wins over an invalid one" "e2e_driver	run	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
+assert_eq "a valid higher layer still wins over an invalid one" "e2e_driver	run	$PY" "$(head -1 <<<"$out")"
 assert_eq "and the lower layer is never read" "" "$err"
-rm -f "$REPO/.claude/testing.local.yaml"
+rm -f "$PY"
 erun --user 'reuse_running_instance=maybe'
 assert_eq "an unknown userConfig value resolves the default" "reuse_running_instance	auto	default" "$(sed -n 2p <<<"$out")"
 assert_contains "naming userConfig" "$err" "userConfig: reuse_running_instance: unknown value 'maybe'"
@@ -486,7 +510,7 @@ rm -f "$REPO/.claude/testing.local.yaml"
 # feature_map_dir is retired: a line left in a layer resolves nothing, warns
 # nothing and stops neither mode.
 printf 'feature_map_dir: docs/map\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
-printf 'feature_map_dir: .claude/skills/feature-map\n' >"$REPO/.claude/testing.local.yaml"
+printf 'feature_map_dir: .claude/skills/feature-map\n' >"$PY"
 erun
 assert_eq "a leftover feature_map_dir prints only the other keys" \
   "0:e2e_driver	auto	default
@@ -496,7 +520,7 @@ assert_eq "and warns nothing" "" "$err"
 run
 assert_eq "nor stops the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
 assert_eq "which prints no record for it" "" "$(records feature_map_dir)"
-rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+rm -f "$PY" "$TY"
 
 # browser_driver: one command name, same layer order as e2e_driver.
 bd() { grep '^browser_driver	' <<<"$out"; }
@@ -693,6 +717,32 @@ erun --user nonsense
 assert_eq "--user without <key>=<value> is a usage error" 2 "$rc"
 erun --user other_key=x
 assert_eq "--user names only a run-e2e key" 2 "$rc"
+reset
+
+mkdir -p "$REPO/config"
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `config`.\n<!-- END GENERATED: convention-home -->\n' >"$REPO/AGENTS.md"
+printf 'paths:\n  exclude: [bound-team/**]\n' >"$REPO/config/testing.yaml"
+printf 'paths:\n  exclude: [bound-personal/**]\ne2e_driver: chrome\n' >"$REPO/config/testing.local.yaml"
+printf 'paths:\n  exclude: [unbound/**]\n' >"$REPO/docs/conventions/testing.yaml"
+run
+assert_eq "the bound home supplies the team layer and the personal override" \
+  "0:$REPO/config/testing.yaml $REPO/config/testing.local.yaml" "$rc:$(records layer)"
+assert_eq "and docs/conventions is not read" "bound-team/** bound-personal/**" "$(records paths.exclude)"
+assert_eq "with no warning" "" "$(errs)"
+erun
+assert_eq "the e2e keys read the bound home too" "e2e_driver	chrome	$REPO/config/testing.local.yaml" "$(head -1 <<<"$out")"
+rm -f "$REPO/config/testing.yaml" "$REPO/config/testing.local.yaml"
+printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
+run
+assert_eq "an old personal override alone still applies" "0:warn" "$rc:$(records rules.zero-assertion)"
+assert_contains "naming the bound home as where to move it" "$(errs)" "move it to config/testing.local.yaml"
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `missing`.\n<!-- END GENERATED: convention-home -->\n' >"$REPO/AGENTS.md"
+run
+assert_eq "a broken convention-home pointer stops the scan config" 2 "$rc"
+erun
+assert_eq "but never the e2e keys" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
+assert_contains "which name it" "$err" "the convention-home pointer in $REPO does not resolve"
+rm -rf "$REPO/AGENTS.md" "$REPO/config"
 reset
 
 # --- the whole suite again under mawk -----------------------------------------

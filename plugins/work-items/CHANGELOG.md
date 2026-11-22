@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.14.2] - 2026-11-22
+
+### Changed
+
+- `get-statuses` under Work status trust derives the bot setters from the trust list when the model sets no `bot-setters`: github-actions[bot] plus every `kind: bot` entry whose login starts with `melodic-`, other than `melodic-automation-lanes[bot]`. A model that sets `bot-setters` keeps that explicit list, each entry counting while the trust list holds it as that bot.
+
+## [15.14.1] - 2026-11-22
+
+### Fixed
+
+- In a fork checkout, the GitHub tracker adapter no longer follows `gh`'s default repository, which a stock `gh repo clone` of a fork records as upstream. With no `--repo`, it resolves the repository with the same `target-repo.sh` that `/source-control:pull-request` uses (canonical `lib/target-repo.sh`): the pushable fork wins, and remotes naming two or more GitHub repositories with no fork and no `gh repo set-default` exit `3` with that fix, instead of creating or listing items on whichever repository `gh` picks by remote name. Each resolution prints `target repository: <owner>/<repo>` on stderr.
+
 ## [15.14.0] - 2026-11-21
 
 ### Added

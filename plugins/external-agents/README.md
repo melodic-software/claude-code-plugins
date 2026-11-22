@@ -11,7 +11,7 @@ none of its text or code is copied).
 ## Status
 
 In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work, and
-`/external-agents:codex` drives them.
+`/external-agents:codex` and `/external-agents:antigravity` drive them.
 
 ## Surface
 
@@ -20,6 +20,9 @@ In progress: `run`, `review`, `status`, `result`, `cancel` and `update` work, an
   outside this plugin reads its install path or its scripts.
 - **`/external-agents:codex`**: hands a task, an investigation or a review to Codex
   as a background job, and reads back, resumes or cancels its jobs.
+- **`/external-agents:antigravity`**: the same for Google's Antigravity CLI (`agy`). agy runs
+  read-only unless you opt in to writes with `antigravity.uses.task.mode: write`, because agy's
+  write mode has no network isolation.
 - No hooks, no agents and no `commands/` folder: nothing runs until you or a council run asks.
 
 claude.ai organization plugin sync skips this plugin, because it ships a top-level `bin/`

@@ -393,7 +393,7 @@ REPO_PREFIX="${REPO_PREFIX//$'\r'/}"
 CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
 tc_layers=0 tc_read=0
 for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/docs/conventions/testing.yaml" "$CFG_ROOT/docs/conventions/testing.md" \
-  "$CFG_ROOT/.claude/testing.yaml" "$CFG_ROOT/.claude/testing.local.yaml"; do
+  "$CFG_ROOT/docs/conventions/testing.local.yaml" "$CFG_ROOT/.claude/testing.yaml" "$CFG_ROOT/.claude/testing.local.yaml"; do
   [[ -f "$f" ]] && tc_layers=$((tc_layers + 1))
 done
 tc_extra=()

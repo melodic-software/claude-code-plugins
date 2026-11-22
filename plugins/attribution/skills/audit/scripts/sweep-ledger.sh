@@ -61,6 +61,10 @@ Usage:
   sweep-ledger.sh --topic SLUG status
   sweep-ledger.sh [--topic SLUG] --show-config
 
+  --user-config budgets.corpus_fetch_ceiling=N
+               the plugin's userConfig value, the layer below the team file;
+               empty or an unsubstituted ${user_config.*} token leaves it unset
+
   init         create the ledger with a sweep id, or report that it exists (a resume)
   close        record a closed file; refuses a missing field or a file already closed
   spend        add N fetches to the running total
@@ -88,6 +92,14 @@ while [[ $# -gt 0 ]]; do
   --topic | --dispositions | --pointer-liveness | --semantic-diff | --in-span | --carve-out)
     require_opt_value "sweep-ledger.sh" "$@"
     OPT["${1#--}"]="$2"
+    shift 2
+    ;;
+  --user-config)
+    require_opt_value "sweep-ledger.sh" "$@"
+    cfg_user_config "$2" || {
+      echo "sweep-ledger.sh: --user-config takes <key>=<value> for one of: ${CFG_USER_CONFIG_KEYS[*]}" >&2
+      exit 2
+    }
     shift 2
     ;;
   --show-config)
