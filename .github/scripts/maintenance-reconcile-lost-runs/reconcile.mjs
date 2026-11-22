@@ -156,8 +156,8 @@
 //   name; the merge gate binds that attempt 2 (babysit_review_evidence
 //   `_rate_held`). A first attempt the defer gate stopped (its gate job's
 //   DEFER_NOTE, cause=defer with the window's reset) waits until
-//   RATE_RESET_GRACE_MS past that reset, so the first pass after it, a few
-//   minutes past the reset when the hourly tick follows it, re-runs it. Those
+//   RATE_RESET_GRACE_MS past that reset, so the first pass after it, which
+//   the hourly tick holds until just past the reset (wait-reset.mjs), re-runs it. Those
 //   re-runs take the DEFER_MAX band, not the places below; their attempt 2
 //   never defers.
 // Other lost lane runs (a review lane run lost any other way, refine) are listed

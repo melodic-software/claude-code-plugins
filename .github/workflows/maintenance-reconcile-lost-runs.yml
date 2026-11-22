@@ -93,7 +93,7 @@ jobs:
     name: Reconcile
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 65
     permissions:
       actions: write # list runs and re-run a lost run
       checks: read # a cut job's annotations: whether it lost its runner; a held pr-verify run's notice
@@ -116,6 +116,20 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
+      # The token window's reset drifts through the hour, so a scheduled tick
+      # waits until just past it and every pass is the recovery pass the
+      # defer gates rely on
+      # (https://github.com/melodic-software/claude-code-plugins/issues/17460).
+      # It reads the budget after the wait, in the new window.
+      - name: Wait for the token window's reset
+        id: reset
+        continue-on-error: true
+        timeout-minutes: 52
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/wait-reset.mjs
+
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -128,6 +142,7 @@ jobs:
       # The base config's limits.api, in resolve-config's output shape, for
       # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
+        if: steps.reset.outputs.post-reset != 'true'
         continue-on-error: true
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
@@ -143,6 +158,7 @@ jobs:
       # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
+        if: steps.reset.outputs.post-reset != 'true'
         continue-on-error: true
         env:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
