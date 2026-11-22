@@ -26,9 +26,27 @@ runs the check first, then the write flow. `apply` takes the target layer as its
 The config resolves across three layers, lowest first: the user layer (`userConfig`) → team
 (`${CLAUDE_PROJECT_DIR}/docs/conventions/mutation-testing.yaml`, a YAML file validated by
 `${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → personal override
-(`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
+(`${CLAUDE_PROJECT_DIR}/docs/conventions/mutation-testing.local.yaml`, the same keys, gitignored),
+later layers overriding scalars and unioning lists. Both files sit where
+[config locations](../../reference/config-locations.md) puts the team and personal layers.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+**The old personal file is still read for now.** `.claude/mutation-testing.local.md`, the personal
+override of earlier releases, holds the same keys in a `yaml` block. While it exists:
+
+- With no `docs/conventions/mutation-testing.local.yaml`, its block is the personal layer, and its
+  values apply as before.
+- With both present, the YAML file is the personal layer and the old file is not merged. Each key
+  the old file sets is named: `overridden` when the YAML file sets it too, else `not applied`, so
+  no setting in it is dropped silently.
+- Every `check`, `apply` and audit run prints one warning line naming the old file, the new
+  location and the command that moves it:
+  `WARN: old personal override .claude/mutation-testing.local.md; move it to docs/conventions/mutation-testing.local.yaml with /mutation-testing:setup apply local`.
+  With both present, the line also says the YAML file won.
+
+[Moving the old personal file](#moving-the-old-personal-file) is the one way to clear the warning.
+Dropping the old-path read is a later change, made once no run reports the old file.
+
+This plugin still reports as retired, or reads, the other `.claude/` paths named here; keep config where this page says it is read.
 
 The team file of earlier releases, .claude/mutation-testing.md, is retired and never read as a
 layer. While it exists, `check` probe 6 reports it as INFO, which gates nothing, naming `apply` as the move, or, once
@@ -101,7 +119,10 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
    time. `apply` writes a config that replaces it. The retired .claude/mutation-testing.md
-   present → INFO, as the merge model says; it never counts as a layer here.
+   present → INFO, as the merge model says; it never counts as a layer here. The old personal file
+   `.claude/mutation-testing.local.md` present → INFO, which gates nothing, naming the values it
+   supplied or, with the YAML personal file present, each of its keys as `overridden` or `not
+   applied`, as the merge model says; print the merge model's warning line above the table.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
    scopes a run to nothing or to everything. A `test-command` without `{tests}` as a standalone
@@ -154,8 +175,9 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    (is it ignored?). Untracked → FAIL, naming the `git add` that fixes it; ignored → FAIL with the
    matching pattern. Checking only `check-ignore` is the trap: immediately after `apply` writes them
    the files are untracked but not ignored, so `check-ignore` is silent and the probe would report
-   success on two files no teammate will ever receive. The `.local.md` personal overrides are expected to be
-   both untracked and ignored. INFO, not FAIL. A file that does not exist is not probed: probe 6
+   success on two files no teammate will ever receive. The personal files
+   (`docs/conventions/mutation-testing.local.yaml`, the old `.claude/mutation-testing.local.md`
+   and a personal arid draft) are expected to be both untracked and ignored. INFO, not FAIL. A file that does not exist is not probed: probe 6
    already reports the missing config as INFO, and probe 8 the missing record.
 
 ## `apply` (idempotent)
@@ -217,8 +239,9 @@ unambiguous; ask only where the answer is genuinely the user's.
    so the tree they are left with is a choice rather than a surprise.
 10. **Verify after remediation.** Re-run the `check` probes on what was written, including both
     halves of probe 9, tracked *and* not-ignored, then offer the personal override convention: personal
-    config overrides in `.claude/mutation-testing.local.md`, and recommend the recursive
-    `.claude/**/*.local.*` line in `.gitignore` if not already covered. State plainly that the same personal override pattern does **not**
+    config overrides in `docs/conventions/mutation-testing.local.yaml`, and recommend the recursive
+    `docs/conventions/**/*.local.*` line in `.gitignore` if not already covered, keeping
+    `.claude/**/*.local.*` for the old personal file and a personal arid draft. State plainly that the same personal override pattern does **not**
     give personal suppressions effect: an arid entry in a `.local.md` is a draft until promoted to
     the team layer.
 
@@ -228,10 +251,12 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 Steps 1 to 10 are the `team` flow. The other two layers change what is written:
 
-- **`local`** writes to `.claude/mutation-testing.local.md` only, and only the keys the user wants
-  to override, without the template's team-shared header. It skips step 8, since a personal
-  suppression entry would not suppress, and step 9, since the personal override is meant to stay untracked. Before writing, run `git check-ignore -v .claude/mutation-testing.local.md`;
-  when nothing ignores it, offer the `.claude/**/*.local.*` line in `.gitignore` and write it only on
+- **`local`** writes to `docs/conventions/mutation-testing.local.yaml` only, and only the keys the
+  user wants to override, as plain YAML without the template's team-shared header. When the old
+  `.claude/mutation-testing.local.md` exists, it first runs
+  [Moving the old personal file](#moving-the-old-personal-file). It skips step 8, since a personal
+  suppression entry would not suppress, and step 9, since the personal override is meant to stay untracked. Before writing, run `git check-ignore -v docs/conventions/mutation-testing.local.yaml`;
+  when nothing ignores it, offer the `docs/conventions/**/*.local.*` line in `.gitignore` and write it only on
   the user's acceptance.
 - **`user`** writes no file and no setting, and of `check` it runs only probe 6, so it runs no
   test command. It runs step 1, then settles only the two `userConfig` keys: `operators` as step 4
@@ -265,6 +290,28 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
   because nothing in the repository was written, so `git status` is unchanged, and that a
   repository's tool, diff target, mutate paths and test command still come from its team or local
   file or the audit's fallback.
+
+### Moving the old personal file
+
+`apply` at the `team` or `local` layer runs this before its own writes whenever
+`.claude/mutation-testing.local.md` exists. `apply user` writes no file, so it names
+`/mutation-testing:setup apply local` as the move instead. The move ends with one personal file,
+never two:
+
+1. **Name and preview.** Name the old file and show the YAML the move would write to
+   `docs/conventions/mutation-testing.local.yaml`: every key of the old file's `yaml` block with its
+   value unchanged. When the YAML file already exists, it keeps its own values: the preview lists
+   each old key it also sets as `overridden`, with both values, and each old key it lacks as one
+   that would start to apply, and lets the user pick which of those to carry over.
+2. **Ask.** Write nothing until the user says yes. On no, or in an unattended run, change nothing:
+   the old file stays, and so does the warning.
+3. **Write**, at either layer only after running
+   `git check-ignore -v docs/conventions/mutation-testing.local.yaml` and the ignore-line offer the
+   `local` bullet describes, so the new file is never left exposed to the index.
+4. **Check it resolves the same.** Read the personal layer back from the new file and compare each
+   carried key's value with the preview. On any difference, stop, leave the old file in place and
+   name the key, the expected value and the value read.
+5. **Delete the old file**, then re-run probe 6 and confirm the warning line is gone.
 
 ## Output
 

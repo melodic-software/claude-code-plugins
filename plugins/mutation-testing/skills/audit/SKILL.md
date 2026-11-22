@@ -188,7 +188,8 @@ Resolve the config first, then refuse, with the specific remediation, when any l
 Under `--exercised`, run them in the order [The exercised scope](#the-exercised-scope---exercised) gives.
 
 - **Config.** Read and merge every layer the setup skill's [config merge model](../setup/SKILL.md#the-config-merge-model)
-  names. **No config at any layer** → fall back to defaults, never refuse. **Tool with no shipped
+  names, printing its warning line when the old personal file exists. **No config at any layer** →
+  fall back to defaults, never refuse. **Tool with no shipped
   adapter** (checked first, installed or not) → keep the layer, name the id as having no shipped
   adapter, refuse to run it and offer `tool: manual`, never an install. **Tool unavailable** → name
   the install command and offer `tool: manual`; refuse only when the user declines both. Read
