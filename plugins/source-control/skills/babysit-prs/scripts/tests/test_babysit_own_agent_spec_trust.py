@@ -126,7 +126,9 @@ class FakeGitHub:
         config: str,
         comments: list[dict[str, Any]] | None = None,
         issue_events: list[dict[str, Any]] | None = None,
+        briefed: list[dict[str, Any]] | None = None,
     ):
+        self.briefed = briefed or []
         self.comments = comments or []
         self.issue_events = issue_events or []
         self.issue = issue
@@ -137,6 +139,16 @@ class FakeGitHub:
         self.config = config
         self.reads: dict[str, int] = {}
         self.tokens: dict[str, Any] = {}
+
+    def comment_page(self, start: int) -> dict[str, Any]:
+        """The briefed comments from `start`, 100 to a page, the cursor the
+        next page's start."""
+        end = start + 100
+        return {
+            "totalCount": len(self.briefed),
+            "pageInfo": {"hasNextPage": end < len(self.briefed), "endCursor": str(end)},
+            "nodes": self.briefed[start:end],
+        }
 
     def served(
         self, name: str, args: list[str], kwargs: dict[str, Any], answer: Any
@@ -170,6 +182,16 @@ class FakeGitHub:
             if f"query={ve.OWN_AGENT_ISSUE_QUERY}" in args:
                 answer = {"data": {"repository": {"issue": self.issue}}}
                 return self.served("issue", args, kwargs, answer)
+            if f"query={ve.BRIEFED_ISSUE_QUERY}" in args:
+                page = self.comment_page(0)
+                issue = self.issue | {"comments": page}
+                answer = {"data": {"repository": {"issue": issue}}}
+                return self.served("briefed", args, kwargs, answer)
+            if f"query={ve.COMMENT_PAGE_QUERY}" in args:
+                after = next(a for a in args if a.startswith("after="))
+                page = self.comment_page(int(after.removeprefix("after=")))
+                answer = {"data": {"repository": {"issue": {"number": ISSUE, "comments": page}}}}
+                return self.served("comment-page", args, kwargs, answer)
             if f"query={ve.merge_policy.ISSUE_STATUS_QUERY}" in args:
                 nodes = {"timelineItems": {"nodes": self.events}}
                 answer = {"data": {"repository": {"issue": nodes}}}
@@ -239,6 +261,7 @@ def judge(
     identity: str | None = IDENTITY,
     comments: list[dict[str, Any]] | None = None,
     issue_events: list[dict[str, Any]] | None = None,
+    briefed: list[dict[str, Any]] | None = None,
 ) -> tuple[bool, FakeGitHub]:
     names = ["source: improvement"] if labels is None else labels
     issue = {
@@ -261,6 +284,7 @@ def judge(
         config,
         comments,
         issue_events,
+        briefed,
     )
     with (
         mock.patch.dict("os.environ", {}, clear=False) as env,
@@ -812,6 +836,145 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
             ).read_text()
         )
         self.assertNotIn(ACTIONS_ID, rules["own-agents"]["identities"])
+
+
+BRIEF_BODY = "## Done when\n\n- [ ] The thing is done.\n"
+BRIEF_TITLE = "Tidy the thing"
+
+
+def record_comment(
+    author: dict[str, Any] = APP,
+    title: str = BRIEF_TITLE,
+    body: str = BRIEF_BODY,
+    edited: str | None = None,
+    at: str = BEFORE,
+) -> dict[str, Any]:
+    """An admission record comment as GraphQL answers it, its text as
+    lib/admission-record.mjs recordBody writes it."""
+
+    def digest(text: str) -> str:
+        return ve.hashlib.sha256(text.encode()).hexdigest()
+
+    record = {
+        "v": 1,
+        "actor_id": APP_ID,
+        "title_sha256": digest(title),
+        "body_sha256": digest(body),
+    }
+    text = f"{ve.ADMISSION_RECORD_MARKER}\n{json.dumps(record, separators=(',', ':'))}"
+    return {"createdAt": at, "lastEditedAt": edited, "body": text, "author": author}
+
+
+def brief(**kwargs: Any) -> bool:
+    """The gate's judgment of a lanes App filing with no `source:` label, so
+    the own-agent rule never decides it, and the record comments given."""
+    kwargs.setdefault("labels", [])
+    kwargs.setdefault("briefed", [record_comment()])
+    return judge(**kwargs)[0]
+
+
+class ABriefedFilingNoOneHoldsIsTrusted(unittest.TestCase):
+    """The owner's standing rule: a lanes App filing intake briefed (its
+    newest admission record names its title and body as they are) that no
+    one holds is spec."""
+
+    def test_a_briefed_filing_is_trusted(self) -> None:
+        self.assertIs(brief(), True)
+
+    def test_an_older_record_for_other_text_does_not_matter(self) -> None:
+        older = record_comment(body="old", at="2026-11-09T00:00:00Z")
+        self.assertIs(brief(briefed=[older, record_comment()]), True)
+
+    def test_an_unbriefed_or_held_filing_is_refused(self) -> None:
+        held = f"{BRIEF_BODY}Hold: wait for the owner\n"
+        for why, kwargs in {
+            "no admission record": {"briefed": []},
+            "the record in a listed human's comment": {
+                "briefed": [record_comment(author=HUMAN)]
+            },
+            "the record in github-actions' comment": {
+                "briefed": [record_comment(author=ACTIONS)]
+            },
+            "an edited record": {"briefed": [record_comment(edited=AFTER)]},
+            "a newer record for other text": {
+                "briefed": [record_comment(), record_comment(body="new", at=AFTER)]
+            },
+            "the body changed after the record": {"body": f"{BRIEF_BODY}More.\n"},
+            "held needs-human": {"labels": ["needs-human"]},
+            "held Needs-Owner-Decision": {"labels": ["Needs-Owner-Decision"]},
+            "provenance: untrusted": {"labels": ["provenance: untrusted"]},
+            "a hold: body line": {
+                "body": held,
+                "briefed": [record_comment(body=held)],
+            },
+            "labels cut short": {"labels_total": 101},
+            "filed by another bot": {"author": OTHER_BOT},
+        }.items():
+            with self.subTest(why):
+                self.assertIs(brief(**kwargs), False)
+
+    def test_a_record_150_comments_back_still_counts(self) -> None:
+        chatter = {"createdAt": AFTER, "lastEditedAt": None, "body": "ok", "author": APP}
+        self.assertIs(brief(briefed=[record_comment(), *[chatter] * 150]), True)
+
+    def test_a_record_on_the_second_page_counts(self) -> None:
+        chatter = {"createdAt": BEFORE, "lastEditedAt": None, "body": "ok", "author": APP}
+        last = record_comment(at=AFTER)
+        self.assertIs(brief(briefed=[*[chatter] * 150, last]), True)
+
+    def test_a_comment_list_that_stays_short_is_unreadable(self) -> None:
+        fake_short = [record_comment()] * 2
+        with mock.patch.object(FakeGitHub, "comment_page", lambda self, start: {"totalCount": 5, "pageInfo": {"hasNextPage": False}, "nodes": fake_short}):
+            with self.assertRaises(ve._Unreadable):
+                brief()
+
+    def test_a_malformed_app_record_refuses(self) -> None:
+        bad = record_comment() | {"body": f"{ve.ADMISSION_RECORD_MARKER}\n{{}}"}
+        self.assertIs(brief(briefed=[bad, record_comment()]), False)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheGateAndPrVerifyAgreeOnABrief(unittest.TestCase):
+    def test_briefed_issue_matches_admit_briefed_issue(self) -> None:
+        held = f"{BRIEF_BODY}  hold: later\n"
+        issues = {
+            "briefed": ({}, [record_comment()]),
+            "no record": ({}, []),
+            "a human's record": ({}, [record_comment(author=HUMAN)]),
+            "edited record": ({}, [record_comment(edited=AFTER)]),
+            "body changed": ({"body": "other"}, [record_comment()]),
+            "needs-spec": ({"labels": {"totalCount": 1, "nodes": [{"name": "needs-spec"}]}}, [record_comment()]),
+            "hold line": ({"body": held}, [record_comment(body=held)]),
+            "cut labels": ({"labels": {"totalCount": 3, "nodes": []}}, [record_comment()]),
+        }
+        nodes = {
+            why: {
+                "title": BRIEF_TITLE,
+                "body": BRIEF_BODY,
+                "author": APP,
+                "labels": {"totalCount": 0, "nodes": []},
+            }
+            | extra
+            | {"comments": comments}
+            for why, (extra, comments) in issues.items()
+        }
+        script = (
+            f"import {{ briefedIssue }} from {json.dumps(ADMIT.as_uri())};"
+            f" const nodes = {json.dumps(nodes)};"
+            f" console.log(JSON.stringify(Object.values(nodes).map((n) => briefedIssue(n, {APP_ID}))));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        for (why, node), expected in zip(nodes.items(), js, strict=True):
+            with self.subTest(why):
+                gate = node | {"comments": {"nodes": node["comments"]}}
+                self.assertIs(ve.briefed_issue(gate, APP_ID), expected)
+        self.assertEqual(js, [True, False, False, False, False, False, False, False])
 
 
 if __name__ == "__main__":

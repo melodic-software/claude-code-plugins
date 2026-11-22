@@ -1,3 +1,4 @@
+// test-scope: docs/upstream/*
 // Expected values come from the verdict rules in
 // docs/conventions/pr-pipeline/README.md ("Verifier verdict"): only a successful pr-require-checks pull_request run of this
 // repository starts a verdict, for exactly one open same-repository PR into
@@ -28,6 +29,7 @@ import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
+import { recordBody } from "../lib/admission-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
@@ -2567,6 +2569,50 @@ test("an own-agent filing's body is spec only while no other account edited it, 
     ["no source label", node(app, null, []), null],
     ["two source labels", node(app, null, ["source: improvement-find", "source: upstream"]), null],
     ["a malformed source label", node(app, null, ["source:improvement-find"]), null],
+  ]) {
+    assert.deepEqual(await specBody(issue, null), [[8, expected]], name);
+  }
+});
+
+test("a lanes App filing is spec once its admission record names it as it is and no one holds it", async () => {
+  const BODY = "## Done when\n\n- [ ] Line 3 says nineteen.";
+  const TITLE = "Fix line 3";
+  const app = { __typename: "Bot", login: "some-app", databaseId: VECTORS.app_id };
+  const human = { __typename: "User", login: "someone", databaseId: VECTORS.humans[0] };
+  const record = (author, text = { title: TITLE, body: BODY }, edited = null) => ({
+    databaseId: 900,
+    createdAt: "2026-11-17T00:00:00Z",
+    updatedAt: edited ?? "2026-11-17T00:00:00Z",
+    lastEditedAt: edited,
+    body: recordBody({ actorId: VECTORS.app_id, ...text }),
+    author,
+    editor: edited ? author : null,
+  });
+  const node = ({ comments = [record(app)], labels = [], body = BODY, author = app, editor = null, total } = {}) => ({
+    ...ISSUE,
+    number: 8,
+    title: TITLE,
+    body,
+    lastEditedAt: editor ? "2026-11-18T00:00:00Z" : null,
+    author,
+    editor,
+    labels: { totalCount: total ?? labels.length, nodes: labels.map((name) => ({ name })) },
+    comments: { totalCount: comments.length, nodes: comments },
+  });
+  for (const [name, issue, expected] of [
+    ["briefed, no hold", node(), BODY],
+    ["no admission record", node({ comments: [] }), null],
+    ["the record in a listed human's comment", node({ comments: [record(human)] }), null],
+    ["the record in github-actions[bot]'s comment", node({ comments: [record({ __typename: "Bot", login: "github-actions", databaseId: 41898282 })] }), null],
+    ["the body edited after the record", node({ body: `${BODY}\n- [ ] More.`, editor: human }), null],
+    ["the record names another title", node({ comments: [record(app, { title: "Other", body: BODY })] }), null],
+    ["an edited record", node({ comments: [record(app, undefined, "2026-11-17T01:00:00Z")] }), null],
+    ["held needs-human", node({ labels: ["needs-human"] }), null],
+    ["held Needs-Owner-Decision", node({ labels: ["Needs-Owner-Decision"] }), null],
+    ["provenance: untrusted", node({ labels: ["provenance: untrusted"] }), null],
+    ["a hold: body line", node({ body: `${BODY}\nHold: wait for the owner`, comments: [record(app, { title: TITLE, body: `${BODY}\nHold: wait for the owner` })] }), null],
+    ["labels not read whole", node({ total: 60 }), null],
+    ["filed by a listed human's bot twin, not the App", node({ author: { __typename: "Bot", login: "other", databaseId: 99 } }), null],
   ]) {
     assert.deepEqual(await specBody(issue, null), [[8, expected]], name);
   }
