@@ -57,7 +57,7 @@ if [[ "\$1" == --version ]]; then echo "$1 (Claude Code)"; exit 0; fi
 if [[ "\$1 \$2" == "plugin test" ]]; then
   echo "\$3" >>"$f/calls.log"
   echo "tested \$3"
-  [[ "\$3" == plugins/failing ]] && exit 1
+  if [[ "\$3" == plugins/failing ]]; then echo "(fail) masks a token at 100% [12.50ms]" >&2; exit 1; fi
   exit $2
 fi
 exit 64
@@ -137,7 +137,10 @@ hooks_json passing "$MOD"
 stub_claude 2.1.300 0
 run 1 "a failing mod fails the run when a later mod passes"
 assert_output_contains "failure line beside a passing mod" "Mod tests failed."
-expected=$'=== claude plugin test plugins/failing ===\ntested plugins/failing\n=== claude plugin test plugins/passing ===\ntested plugins/passing'
+assert_output_contains "a failing mod's annotation names the plugin and the failing test" \
+  "::error title=Mod tests failed::plugins/failing: masks a token at 100%25"
+assert_output_contains "the failure lists the failing plugins" "Failing mod plugins: plugins/failing"
+expected=$'=== claude plugin test plugins/failing ===\ntested plugins/failing\n(fail) masks a token at 100% [12.50ms]\n::error title=Mod tests failed::plugins/failing: masks a token at 100%25\n=== claude plugin test plugins/passing ===\ntested plugins/passing'
 if [[ "$LAST_OUTPUT" == "$expected"* ]]; then
   pass "each mod's output prints under its own header, in order"
 else

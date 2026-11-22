@@ -50,14 +50,28 @@ modes:
   write:
     enforcement: sandbox
     args:
-      run: [--mode, auto]
-      resume: [--mode, auto]
+      run: [--mode, accept-edits]
+      resume: [--mode, accept-edits]
     settings:
+      enableTerminalSandbox: true
+      toolPermission: proceed-in-sandbox
       allowNonWorkspaceAccess: false
     settings_arg: --settings
-    fallback_warning:
-      pattern: "--mode auto is not available"
-      severity: notice
+    add_dir:
+      arg: --add-dir
+      commands: [run, resume]
+    unsandboxed:
+      auto:
+        args:
+          run: [--mode, auto]
+          resume: [--mode, auto]
+        settings:
+          allowNonWorkspaceAccess: false
+        fallback_warning:
+          pattern: "--mode auto is not available"
+          severity: notice
+          log_arg: --log-file
+          applied: "SetCycleMode called: auto"
 soft_deny:
   - kind: json_array_nonempty
     field: denied_actions

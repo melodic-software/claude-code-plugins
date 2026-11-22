@@ -4,7 +4,7 @@ tags: [harness-ops, observability, reference-answer, hard]
 max_turns: 20
 timeout_seconds: 400
 allowed_tools: [Skill, Read, Glob, Grep, Bash]
-expected_outcome: "The answer says the dollar figure is a list-rate estimate, not the bill, and that cli-flag-verify runs at push time in guardrails' reference-verify git hook rather than as a PostToolUse hook after each edit."
+expected_outcome: "The answer says the dollar figure is a list-rate estimate, not the bill, and that cli-flag-verify runs in guardrails' reference-verify pre-PR check rather than as a PostToolUse hook after each edit."
 ---
 
 /harness-ops:observability two questions, no report needed:

@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { bodyView, ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { bodySectionNames, bodyView, ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, localTemplate, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, templateHeadings, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -82,6 +82,12 @@ function fakeApi(overrides = {}) {
     listCheckRuns: async (sha) => (overrides.checks ?? {})[sha] ?? [],
     listModelRounds: async () => Object.values(overrides.checks ?? { [HEAD]: [] }),
     createIssueComment: async (pr, body) => posted.push({ pr, body }),
+    async readPath(path) {
+      if (!Object.hasOwn(overrides.paths ?? {}, path)) {
+        throw Object.assign(new Error(`GET ${path} returned 404`), { status: 404 });
+      }
+      return overrides.paths[path];
+    },
   };
 }
 
@@ -2769,6 +2775,75 @@ test("refreshableSections offers the listed sections only, never Follow-ups, a g
   assert.deepEqual(refreshableSections(null, ["Summary"]), []);
 });
 
+const ORG_TEMPLATE = [
+  "Closes #",
+  "",
+  "<!--",
+  "Every `##` section below must be filled with real content.",
+  "## Not a section",
+  "-->",
+  "",
+  "## Summary",
+  "",
+  "<!-- What changes and why. -->",
+  "",
+  "## Fix",
+  "",
+  "```",
+  "## Code, not a heading",
+  "```",
+  "",
+  "## Verification",
+  "",
+  "## Related",
+  "",
+].join("\n");
+const ORG_SECTIONS = ["Summary", "Fix", "Verification", "Related"];
+
+test("templateHeadings reads the template's ## headings outside comments and fences", () => {
+  assert.deepEqual(templateHeadings(ORG_TEMPLATE), ORG_SECTIONS);
+  assert.deepEqual(templateHeadings(null), []);
+});
+
+test("localTemplate takes .github over the root over docs, matching the name in any case", (t) => {
+  const dir = tempDir("address-feedback-template-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  assert.equal(localTemplate(dir), null);
+  mkdirSync(join(dir, "docs"));
+  writeFileSync(join(dir, "docs", "pull_request_template.md"), "## Docs\n");
+  assert.equal(localTemplate(dir), "## Docs\n");
+  writeFileSync(join(dir, "pull_request_template.md"), "## Root\n");
+  assert.equal(localTemplate(dir), "## Root\n");
+  mkdirSync(join(dir, ".github"));
+  writeFileSync(join(dir, ".github", "PULL_REQUEST_TEMPLATE.md"), "## Hidden folder\n");
+  assert.equal(localTemplate(dir), "## Hidden folder\n");
+});
+
+test("bodySectionNames takes the listed sections, then the base's template, then the owner's default template", async (t) => {
+  const dir = tempDir("address-feedback-names-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const org = fakeApi({
+    paths: {
+      "/repos/o/.github/contents/.github": [{ type: "file", name: "PULL_REQUEST_TEMPLATE.md", path: ".github/PULL_REQUEST_TEMPLATE.md" }],
+      "/repos/o/.github/contents/.github/PULL_REQUEST_TEMPLATE.md": { content: Buffer.from(ORG_TEMPLATE).toString("base64") },
+    },
+  });
+  const names = (listed, readPath = org.readPath, log) => bodySectionNames({ listed, root: dir, readPath, owner: "o", log });
+  assert.deepEqual(await names("Fix\nVerification\n"), ["Fix", "Verification"], "an explicit list wins");
+  assert.deepEqual(await names(""), ORG_SECTIONS, "no list and no base template: the owner's default template");
+  assert.deepEqual(await names("", fakeApi().readPath), [], "no template anywhere: every section, as with no list");
+  const logged = [];
+  const failing = async () => {
+    throw Object.assign(new Error("GET returned 502"), { status: 502 });
+  };
+  assert.equal(await names("", failing, (line) => logged.push(line)), null, "an unreadable default template turns the refresh off");
+  assert.match(logged[0], /o\/\.github pull request template is unreadable/);
+  writeFileSync(join(dir, "pull_request_template.md"), "<!-- ## Hidden -->\nFill this in.\n");
+  assert.deepEqual(await names(""), ORG_SECTIONS, "a base template that names no section falls through to the owner's");
+  writeFileSync(join(dir, "pull_request_template.md"), "## Why\n\n## Verification\n");
+  assert.deepEqual(await names(""), ["Why", "Verification"], "the base's own template outranks the owner's");
+});
+
 test("runRecord pins each offered section's text by SHA-256 and never copies the text", () => {
   const file = { head_sha: HEAD, pr_paths: [], copy_paths: [], threads: [], body_sections: [{ heading: "Verification", text: "\nRan the unit suite.\n" }] };
   const run = JSON.parse(runRecord(file));
@@ -2783,16 +2858,17 @@ test("main select writes the offered sections to the thread file unless pr_body_
   writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }));
   const pull = join(dir, "pull.json");
   writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body: REFRESH_BODY }));
-  const go = async (name, extra) => {
+  const go = async (name, extra, api = fakeApi()) => {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
-    await main(["select"], env, { plan: noPlan, api: fakeApi(), log: () => {} });
+    await main(["select"], env, { plan: noPlan, api, log: () => {} });
     return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
   };
   const [threads, run] = await go("on", { BODY_SECTIONS: "Verification" });
   assert.deepEqual(threads.body_sections, [{ heading: "Verification", text: "\nRan the unit suite.\nLeft out: nothing\n" }]);
   assert.deepEqual(run.body_sections.map((section) => section.heading), ["Verification"]);
-  for (const [name, extra] of [["off", { BODY_REFRESH: "false" }]]) {
-    const [offThreads, offRun] = await go(name, extra);
+  const unreadable = { ...fakeApi(), readPath: async () => Promise.reject(Object.assign(new Error("GET returned 502"), { status: 502 })) };
+  for (const [name, extra, api] of [["off", { BODY_REFRESH: "false" }], ["unreadable-template", {}, unreadable]]) {
+    const [offThreads, offRun] = await go(name, extra, api);
     assert.equal("body_sections" in offThreads, false, name);
     assert.equal("body_sections" in offRun, false, name);
   }

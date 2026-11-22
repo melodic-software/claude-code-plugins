@@ -2983,7 +2983,7 @@ class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
     pool's reset when it comes within that wait. gh is faked at the
     subprocess seam under the real rate guard; each `gh api -i` answer
     carries GitHub's rate-limit headers: 1 of 5000 left until the wait,
-    4990 after it (github-token plans to its 1000 limit-cap)."""
+    4990 after it."""
 
     CLOCK = 1_800_000_000
 
@@ -7035,7 +7035,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.lanes = unattended.UNBOUND
         self.queued = [unattended.PR]
         self._lane_evidence = mock.Mock(return_value=(self.lanes, self.comments))
-        with mock.patch.object(merge.babysit_risk, "score") as score:
+        with mock.patch.object(merge.diff_risk, "score") as score:
             code, out = self.lane()
         self.assert_no_merge(code)
         self._lane_evidence.assert_not_called()

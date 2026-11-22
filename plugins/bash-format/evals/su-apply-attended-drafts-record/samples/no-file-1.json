@@ -16,7 +16,7 @@
     {
       "answer": [
         "Makefile",
-        ".claude/ecosystems/bash.yaml"
+        "docs/conventions/ecosystems/bash.yaml"
       ],
       "why": "wrote the bash record"
     }

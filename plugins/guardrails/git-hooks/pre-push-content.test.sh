@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/hooks/yaml-subset.awk plugins/guardrails/lib/verification/*.sh
-# Contract tests for the guardrails pre-push entry git-hooks/pre-push-content.sh:
-# a secret or machine-specific path that a pushed commit adds blocks with
-# "<path>:<line>: <message> (commit <id>)", also when a later commit of the same
-# push removes it again; a pushed commit with nothing to find, the same token
-# under an exempt path, a commit the remote's tracking refs already hold, the
-# remote's lines and files a merge brings in and a deletion do not block; a merge's own
-# conflict resolution is judged, in a file another parent holds as a symlink
-# too, and its git process count does not grow with the other side's diff; a
-# NUL file is judged whole; a symlink a commit turns into a regular file is
-# judged whole and the reverse is not judged; a declined entry checks nothing; --worktree
-# covers uncommitted files; and through the plugin's vendored installer a real
-# `git push` of a dossier/<key>-<slug> branch (the dossier_branch_prefix
-# default) to a bare remote fails on a planted token and passes once that
-# commit is dropped from the range. The entry's run time on a 20-commit push is
-# printed and held to the check-placement convention's 60 s pre-push budget.
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs
 # test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/commit-msg-convention.sh
@@ -324,7 +309,6 @@ got="$(cd "$REPO" && bash "$CHECK" --worktree 2>&1 >/dev/null)"
 expect "--worktree judges an untracked file" "1|draft.md:1: secret or credential pattern: GitHub PAT" \
   "$?|$(head -1 <<<"$got")"
 
-# The run time on a representative push: 20 commits, each changing two files.
 new_repo
 for i in $(seq 1 20); do
   printf 'entry %s\n' "$i" >>"$REPO/notes.md"
@@ -332,12 +316,20 @@ for i in $(seq 1 20); do
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m "part $i" --no-verify
 done
-start=$SECONDS
+expect "the entry passes a clean 20-commit push" "0|" "$(new_push)"
+
+new_repo
+for i in $(seq 1 28); do
+  printf '# Part %s\n\nSome prose for part %s.\n' "$i" "$i" >"$REPO/part-$i.md"
+done
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m "28 files" --no-verify
+start=$(date +%s%N)
 got="$(new_push)"
-took=$((SECONDS - start))
-echo "measured: pre-push-content took ${took} s on a 20-commit, 40-file-change push"
-expect "the entry passes the 20-commit push" "0|" "$got"
-expect "the entry runs within the 60 s pre-push budget" yes "$( ((took < 60)) && echo yes)"
+took_ms=$((($(date +%s%N) - start) / 1000000))
+echo "measured: pre-push-content took ${took_ms} ms on one 28-file commit"
+expect "the entry passes the 28-file push" "0|" "$got"
+expect "the 28-file push runs within check-placement's 3 s pre-push budget" yes "$( ((took_ms <= 3000)) && echo yes)"
 
 # End to end through the plugin's vendored installer and a real git push.
 new_repo

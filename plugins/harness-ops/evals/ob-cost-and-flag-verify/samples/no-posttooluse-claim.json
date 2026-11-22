@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "cli-flag-verify runs at push time in guardrails' reference-verify git hook rather than as a PostToolUse hook after each edit.",
+      "answer": "cli-flag-verify runs in guardrails' reference-verify pre-PR check rather than as a PostToolUse hook after each edit.",
       "why": "expected outcome"
     },
     {

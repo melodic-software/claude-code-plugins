@@ -3,6 +3,19 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-22
+
+### Changed
+
+- A `skip (prerequisite missing: <name>)` cell for an entry with an `install` object names the provisioning step that installs it, the source-control plugin's `provision-prerequisites.sh`. The check still installs nothing. A test fails if the not-run rules in `check`, its gates and `lint` stop naming that step.
+- The unattended "write nothing" rule in `check`, `lint` and the resolution ladder names the legacy `.claude/ecosystems/` beside `docs/conventions/ecosystems/`.
+
+## [3.1.0] - 2026-11-22
+
+### Changed
+
+- Ecosystem records move to the convention home, `docs/conventions/ecosystems/<ecosystem>.yaml`, with the personal override beside them as `<ecosystem>.local.yaml`. `/toolchain:check` and `/toolchain:lint` read the new home first and the legacy `.claude/ecosystems/` file of a name absent there; with both present the new file wins and the report names both paths. `/toolchain:setup` writes only the new home, warns on each legacy file, and `apply` moves legacy files there (`git mv` for a tracked one). The recommended `.gitignore` line is `docs/conventions/**/*.local.*`.
+
 ## [3.0.0] - 2026-11-22
 
 ### Changed

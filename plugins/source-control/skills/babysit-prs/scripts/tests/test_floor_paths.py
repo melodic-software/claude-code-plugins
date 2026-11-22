@@ -19,8 +19,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
 import babysit_review_evidence as evidence
-import babysit_risk as risk
-from babysit_risk import ChangedFile, FloorRowError, LaneEvidence, floor_for, floor_rows
+import diff_risk as risk
+from diff_risk import ChangedFile, FloorRowError, LaneEvidence, floor_for, floor_rows
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 PIPELINE = (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
@@ -91,19 +91,19 @@ def _score(path: str, rows, reviewed: bool):
 
 
 class TheEffectiveFloorDidNotMove(unittest.TestCase):
-    """Computed from babysit_risk.py on main before the rows moved. A floor
+    """Computed from the floor on main before the rows moved. A floor
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
         self.assertEqual(len(FLOOR.classes), 153)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "1eae4679d3b4014bdac1b13894384430c670072d37d9f0d0469acb2527aae94c",
+            "6c27e2fc928250da301ce99ded6909e036cc9141abee02f9a5605b4919245800",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "5100a7b58dc7e278786c01caee509a523f472285ed6e286c522d2c030b35591e",
+            FLOOR.high: "1ba28249eaa1b1cf0779c00715bd6e6981b5c147e536cf658ec18d80703dd8d0",
             FLOOR.review: "3a4f09674325df7c18de2011f4933c02da302be76d69f38154de325c408374f1",
             FLOOR.author_review: "ee05c62fe22aff1975c0bf1c655310f7b6d234fb24061a1d3791cef3aeb4287f",
         }

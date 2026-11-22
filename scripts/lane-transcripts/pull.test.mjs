@@ -1,3 +1,5 @@
+// test-scope: .github/workflows/*.yml
+// test-scope: scripts/lane-transcripts/* .github/actions/open-lane-output/* .github/actions/seal-lane-output/*
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
@@ -819,6 +821,71 @@ test("a row's failure class stays null when its run attempt's records disagree, 
   });
   assert.equal(run(["pull-outcomes", "--sink", sink], { deps }).code, 0);
   assert.deepEqual(readRows(sink).map((r) => [r.failure_class, r.failure_class_source]), [[null, "disagree"], ["overloaded", "lane-outcome"]]);
+});
+
+const twoLegRows = (sink, jobIds) => writeRows(sink, jobIds.map((jobId, i) => ({ artifact_id: i + 1, run_id: 801, run_attempt: 1, job_id: jobId, created_at: iso(NOW - 3600_000), date: "2026-11-02", transcript: null })));
+const pullTwoLegs = (sink, records) => {
+  const deps = outcomeDeps({
+    runs: { "pr-verify.yml": [laneRun(801)] },
+    jobs: { 801: records.map((_, i) => laneJob(i + 1, { name: `leg-${i + 1}` })) },
+    annotations: Object.fromEntries(records.map((record, i) => [i + 1, [annotation(laneRecord(record))]])),
+  });
+  assert.equal(run(["pull-outcomes", "--sink", sink], { deps }).code, 0);
+  return readRows(sink).map((r) => [r.job_id, r.failure_class, r.failure_class_source]);
+};
+
+test("in an attempt with one failed and one successful job, each row takes its own job's record by jobId", () => {
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  twoLegRows(sink, ["check-intent", "judge"]);
+  const rows = pullTwoLegs(sink, [{ jobId: "check-intent", class: "rate-limit" }, { jobId: "judge", outcome: "success", class: undefined }]);
+  assert.deepEqual(rows, [
+    ["check-intent", "rate-limit", "lane-outcome"],
+    ["judge", null, "lane-outcome"],
+  ]);
+});
+
+test("two jobs failing with different classes each keep their own class by jobId", () => {
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  twoLegRows(sink, ["check-intent", "judge"]);
+  const rows = pullTwoLegs(sink, [{ jobId: "check-intent", class: "rate-limit" }, { jobId: "judge", class: "overloaded" }]);
+  assert.deepEqual(rows, [
+    ["check-intent", "rate-limit", "lane-outcome"],
+    ["judge", "overloaded", "lane-outcome"],
+  ]);
+});
+
+test("records with no jobId set every row of the attempt as before, and a row no jobId matches falls back to them alone", () => {
+  const old = sinkDir();
+  mkdirSync(old, { recursive: true });
+  twoLegRows(old, ["check-intent", "judge"]);
+  assert.deepEqual(pullTwoLegs(old, [{ class: "rate-limit" }, { outcome: "success", class: undefined }]), [
+    ["check-intent", null, "disagree"],
+    ["judge", null, "disagree"],
+  ]);
+  const agreeing = sinkDir();
+  mkdirSync(agreeing, { recursive: true });
+  twoLegRows(agreeing, ["check-intent", "judge"]);
+  assert.deepEqual(pullTwoLegs(agreeing, [{ class: "rate-limit" }, { class: "rate-limit" }]), [
+    ["check-intent", "rate-limit", "lane-outcome"],
+    ["judge", "rate-limit", "lane-outcome"],
+  ]);
+  const mixed = sinkDir();
+  mkdirSync(mixed, { recursive: true });
+  twoLegRows(mixed, ["check-intent", "judge", "report"]);
+  assert.deepEqual(pullTwoLegs(mixed, [{ jobId: "check-intent", class: "rate-limit" }, { jobId: "elsewhere", class: "auth" }, { class: "overloaded" }]), [
+    ["check-intent", "rate-limit", "lane-outcome"],
+    ["judge", "overloaded", "lane-outcome"],
+    ["report", "overloaded", "lane-outcome"],
+  ]);
+  const unmatched = sinkDir();
+  mkdirSync(unmatched, { recursive: true });
+  twoLegRows(unmatched, ["check-intent", "report"]);
+  assert.deepEqual(pullTwoLegs(unmatched, [{ jobId: "check-intent", class: "rate-limit" }]), [
+    ["check-intent", "rate-limit", "lane-outcome"],
+    ["report", null, "none"],
+  ]);
 });
 
 test("pull-outcomes lists each lane workflow once, stops at its own budget without touching the transcript pull's state, and resumes at the workflow it stopped on", () => {

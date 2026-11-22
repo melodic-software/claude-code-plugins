@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/hooks/block-no-verify.sh .lefthook/*/guardrails-* .lefthook/remote-entry.sh lefthook-remote.yml plugins/*/git-hooks/lefthook-remote.yml lib/git-hooks/lefthook-remote-harness.sh .github/scripts/pr-require-checks/install-lefthook.sh
+# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/hooks/block-no-verify.sh .lefthook/*/guardrails-* .lefthook/remote-entry.sh lefthook-remote.yml plugins/*/git-hooks/lefthook-remote.yml lib/git-hooks/lefthook-remote-harness.sh .github/scripts/pr-require-checks/install-lefthook.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../lib/git-hooks/lefthook-remote-harness.sh
@@ -60,24 +60,13 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$REPO" add NOTES.md
   lr_commit "ABC-4: cite"
   lr_push
-  lr_expect_block "pre-push: a pushed unresolved skill reference blocks, from the refs on stdin" \
-    guardrails-remote-reference-verify 'NOTES\.md:1: skill-reference-verify'
-  git -C "$REPO" config checks.guardrails.reference-verify.declined true
-  lr_push
-  lr_expect_pass "pre-push: with the entry declined, the same push passes"
-  git -C "$REPO" config --unset checks.guardrails.reference-verify.declined
-  # shellcheck disable=SC2016 # the backticks are Markdown, not a substitution
-  printf 'Run `/alpha:gone`.\n' >"$REPO/LATER.md"
+  lr_expect_pass "pre-push: an unresolved skill reference does not block, since reference-verify left pre-push"
   printf 'b\ntoken=ghp_%s\n' "$(printf 'B%.0s' {1..36})" >"$REPO/later.md"
-  git -C "$REPO" add LATER.md later.md
+  git -C "$REPO" add later.md
   git -C "$REPO" commit -q --no-verify -m "ABC-5: later" >/dev/null 2>&1
-  git -C "$REPO" switch -q -c side-content
-  err="$(git -C "$REPO" push origin main 2>&1)"
-  expect "pre-push: both stdin jobs block in one push, each from the refs on stdin" "1|yes|yes" \
-    "$?|$(grep -q 'LATER.md:1: skill-reference-verify' <<<"$err" && echo yes)|$(grep -q 'later.md:2: secret or credential pattern' <<<"$err" && echo yes)"
-  expect "pre-push: only reference-verify names a per-clone skip; the content scan names none" "1|" \
-    "$(grep -cx '      skip: true' <<<"$err")|$(grep -e '^guardrails-remote-pre-push-content failed' -e '- name: guardrails-remote-pre-push-content$' <<<"$err")"
-  git -C "$REPO" switch -q main
+  lr_push
+  expect "pre-push: a pushed token blocks from the refs on stdin, naming no per-clone skip" "1|yes|yes" \
+    "$((LR_RC != 0))|$(grep -q 'later\.md:2: secret or credential pattern' <<<"$LR_ERR" && echo yes)|$(no_skip "$LR_ERR" guardrails-remote-pre-push-content)"
 elif [[ "${LEFTHOOK_REMOTE_REQUIRE_TOOLS:-}" == 1 || "${LEFTHOOK_REMOTE_REQUIRE:-${GUARDRAILS_REQUIRE_LEFTHOOK:-}}" == 1 ]]; then
   expect "jq is on PATH for the pre-push and guard cases" yes no
 else

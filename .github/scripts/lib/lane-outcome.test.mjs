@@ -34,9 +34,16 @@ test("an unknown class in the enum's kebab shape is kept as written, with the re
 // report-check-run posts validRecord's result, which limit-stop.mjs reads back
 // through validRecord: a record must survive the second read unchanged.
 test("a validated record reads back unchanged", () => {
-  for (const fields of [{ class: "later-class" }, { class: "review-unposted" }, { outcome: "success", shellFailed: true }]) {
+  for (const fields of [{ class: "later-class" }, { class: "review-unposted" }, { outcome: "success", shellFailed: true }, { class: "max-turns", jobId: "check-intent-2" }]) {
     const once = validRecord({ ...BASE, ...fields, unknownKey: 1 });
     assert.deepEqual(validRecord(JSON.parse(JSON.stringify(once))), once, JSON.stringify(fields));
+  }
+});
+
+test("a jobId in the transcript artifact's job-key shape is kept, and any other is dropped with the record kept", () => {
+  assert.equal(validRecord({ ...BASE, class: "max-turns", jobId: "check-intent" }).jobId, "check-intent");
+  for (const jobId of ["check intent", "a/b", "-lead", "x".repeat(101), 7, null]) {
+    assert.deepEqual(validRecord({ ...BASE, class: "max-turns", jobId }), { ...BASE, class: "max-turns" }, String(jobId));
   }
 });
 

@@ -195,7 +195,7 @@ class LaneEvidenceReadTests(unittest.TestCase):
                 frozenset(),
                 lambda login: "write",
                 (),
-                merge.babysit_risk.floor_for(),
+                merge.diff_risk.floor_for(),
             )
 
     def test_a_failed_check_read_raises_before_bind(self) -> None:

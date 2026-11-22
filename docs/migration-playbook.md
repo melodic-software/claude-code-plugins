@@ -239,7 +239,7 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 A consumer-tool seam (a language, framework, tool, library or command choice) resolves through the
 [ecosystem-resolution contract](contracts/ecosystem-resolution/README.md) instead, where two rules
 differ: step 4 is an unresolved report that names the choice and skips the step, never a generic
-default; and for an ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) only, "a merged pull
+default; and for an ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`) only, "a merged pull
 request counts as acceptance" of a lane's proposed record, in place of the operator's confirmation
 in step 2.
 
@@ -304,7 +304,7 @@ or the shape of what it emits. A skill is an explicit **skip** when it is pure-r
 from a knowledge corpus with no decision contract, such as `playbooks:fable-5` or `tdd`). A **hook**
 plugin is a skip only in the case its rationale actually describes: deterministic, silent-always-on,
 guarded by `.test.sh`, **no skill carrying a judgment-bearing contract**. The condition is the
-absence of that contract, not the invocation mode. Stating it by invocation mode does not work: a
+absence of that contract, not the invocation mode. Stating it by invocation mode does not work, because a
 `setup` skill sets `disable-model-invocation: true`, so "no model-invoked skill" is satisfied by a
 plugin that ships one, admitting as a skip the very plugin the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
 silently regress, which is precisely the contract the skip exists to excuse the absence of. The

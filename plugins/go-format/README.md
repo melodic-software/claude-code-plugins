@@ -9,7 +9,7 @@ only failure, and the pre-commit entry reports it.
 
 Formatting and linting are separate concerns. The plugin ships a format adapter (goimports) and
 no lint adapter, so its hooks run nothing for Go linting. A repository that lints Go records its
-linter as `lint-cmd` in `.claude/ecosystems/go.yaml` (`/toolchain:setup apply go`), and
+linter as `lint-cmd` in `docs/conventions/ecosystems/go.yaml` (`/toolchain:setup apply go`), and
 `/toolchain:lint` or `/toolchain:check` runs it on request. The hooks never run a record's
 command.
 

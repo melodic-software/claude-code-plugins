@@ -20,7 +20,8 @@ const isStrings = (v) => Array.isArray(v) && v.every((s) => typeof s === "string
 const isStringMap = (v) => isMap(v) && Object.values(v).every((s) => typeof s === "string");
 
 const TOP = ["schema", "product", "docs_index", "config_reference", "help", "models", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
-const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface"];
+const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface", "add_dir", "unsandboxed"];
+const VARIANT = ["args", "settings", "fallback_warning"];
 const OUTPUT = {
   jsonl_events: {
     text: ["final_message_arg", "thread_event", "thread_field", "turn_ok_event", "item_event", "item_prefix"],
@@ -43,6 +44,21 @@ export function validateProvider(record) {
     for (const key of Object.keys(value)) if (!allowed.includes(key)) problems.push(`${at ? `${at}.` : ""}${key}: unknown key`);
   };
   const optional = (value, ok, path, what) => value === undefined || need(ok(value), path, what);
+  const checkFence = (spec, at, settingsArg) => {
+    optional(spec.args, (v) => isMap(v) && Object.entries(v).every(([k, list]) => COMMANDS.includes(k) && isStrings(list)), `${at}.args`, `expected argument lists keyed by ${COMMANDS.join(", ")}`);
+    if (spec.settings !== undefined) {
+      need(isMap(spec.settings), `${at}.settings`, "expected a mapping written to a settings file");
+      need(isText(settingsArg), `${at}.settings_arg`, "expected the flag that takes the settings file");
+    }
+    const warning = spec.fallback_warning;
+    if (warning === undefined) return;
+    known(warning, ["pattern", "severity", "log_arg", "applied"], `${at}.fallback_warning`);
+    need(isText(warning?.pattern), `${at}.fallback_warning.pattern`, "expected a stderr substring");
+    need(SEVERITY.includes(warning?.severity), `${at}.fallback_warning.severity`, `expected one of ${SEVERITY.join(", ")}`);
+    optional(warning?.log_arg, isText, `${at}.fallback_warning.log_arg`, "expected the flag that sets the CLI's log file");
+    optional(warning?.applied, isText, `${at}.fallback_warning.applied`, "expected a log substring");
+    need((warning?.log_arg === undefined) === (warning?.applied === undefined), `${at}.fallback_warning.applied`, "log_arg and applied are set together");
+  };
   if (!isMap(record)) return ["record: expected a mapping"];
   known(record, TOP, "");
   need(record.schema === 1, "schema", "expected 1");
@@ -124,17 +140,22 @@ export function validateProvider(record) {
     }
     known(spec, MODE, at);
     need(ENFORCEMENT.includes(spec.enforcement), `${at}.enforcement`, `expected one of ${ENFORCEMENT.join(", ")}`);
-    optional(spec.args, (v) => isMap(v) && Object.entries(v).every(([k, list]) => COMMANDS.includes(k) && isStrings(list)), `${at}.args`, `expected argument lists keyed by ${COMMANDS.join(", ")}`);
-    if (spec.settings !== undefined) {
-      need(isMap(spec.settings), `${at}.settings`, "expected a mapping written to a settings file");
-      need(isText(spec.settings_arg), `${at}.settings_arg`, "expected the flag that takes the settings file");
-    }
-    if (spec.fallback_warning !== undefined) {
-      known(spec.fallback_warning, ["pattern", "severity"], `${at}.fallback_warning`);
-      need(isText(spec.fallback_warning?.pattern), `${at}.fallback_warning.pattern`, "expected a stderr substring");
-      need(SEVERITY.includes(spec.fallback_warning?.severity), `${at}.fallback_warning.severity`, `expected one of ${SEVERITY.join(", ")}`);
-    }
+    checkFence(spec, at, spec.settings_arg);
     optional(spec.prompt_preface, isText, `${at}.prompt_preface`, "expected text");
+    if (spec.add_dir !== undefined) {
+      known(spec.add_dir, ["arg", "commands"], `${at}.add_dir`);
+      need(isText(spec.add_dir?.arg), `${at}.add_dir.arg`, "expected the flag that adds a writable directory");
+      need(isStrings(spec.add_dir?.commands) && spec.add_dir.commands.every((c) => COMMANDS.includes(c)), `${at}.add_dir.commands`, `expected a list drawn from ${COMMANDS.join(", ")}`);
+    }
+    if (spec.unsandboxed !== undefined) {
+      need(mode === "write" && isMap(spec.unsandboxed), `${at}.unsandboxed`, "expected a mapping of opt-in names, on the write mode only");
+      for (const [name, variant] of Object.entries(isMap(spec.unsandboxed) ? spec.unsandboxed : {})) {
+        const where = `${at}.unsandboxed.${name}`;
+        need(HELP_NAME.test(name) && isMap(variant), where, "expected a lowercase name holding a mapping");
+        known(variant, VARIANT, where);
+        checkFence(variant ?? {}, where, spec.settings_arg);
+      }
+    }
   }
   known(record.modes, ["read-only", "write"], "modes");
 

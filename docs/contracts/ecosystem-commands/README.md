@@ -2,7 +2,7 @@
 
 A versioned, marketplace-wide contract for how a consuming repository declares its per-ecosystem
 build/test/lint command surface, and how plugins resolve it. The consumer tracks one YAML file per
-ecosystem under `.claude/ecosystems/`; every plugin that needs to know "what command builds / tests /
+ecosystem under `docs/conventions/ecosystems/`; every plugin that needs to know "what command builds / tests /
 lints `<ecosystem>` in this repo" reads those files instead of baking its own table.
 
 This directory is the source of truth: `ecosystem.schema.json` (per-file schema), `CHANGELOG.md`
@@ -24,7 +24,7 @@ The contract covers exactly one layer and deliberately excludes the other:
 - **Canonical verb, one concern, owned here.** Which tool and flags constitute "lint Python in this
   repo" (`uv run ruff check . --no-fix`). When the verb changes, every surface that runs it must
   change together; divergence is always a bug. The verb belongs in exactly one place per repo: the
-  `.claude/ecosystems/<ecosystem>.yaml` file.
+  `docs/conventions/ecosystems/<ecosystem>.yaml` file.
 - **Context binding, several concerns, owned elsewhere.** Which file set, when, with what wrapper:
   git hooks bind verbs to staged files (`{staged_files}` templating), CI binds them to the full
   solution with gate-specific flags, an agent binds them to a targeted project or single test.
@@ -42,7 +42,7 @@ One file per ecosystem, named by ecosystem identifier (lowercase kebab-case; the
 identifier):
 
 ```text
-.claude/ecosystems/
+docs/conventions/ecosystems/
   dotnet.yaml            # tracked, team truth
   dotnet.local.yaml      # gitignored, personal override
   python.yaml
@@ -55,38 +55,46 @@ Resolution per ecosystem, additive per key: **user-global → team file → pers
 layer overrides earlier layers key-by-key and never replaces the base file wholesale (the same
 resolution the extensibility contract specifies for tracked rich config, and the same
 vendor-defaults-plus-drop-in-overrides shape the UAPI configuration-files specification
-standardizes). Recommended consumer `.gitignore` line: the recursive `.claude/**/*.local.*`.
+standardizes). Recommended consumer `.gitignore` line: the recursive `docs/conventions/**/*.local.*`.
 
-The drop-in folder form is deliberate: each ecosystem is an independent slice with its own lifecycle,
+The drop-in folder form is deliberate because each ecosystem is an independent slice with its own lifecycle,
 so adding one is a new file, retiring one is a deletion, and a toolchain change is a single-file diff.
 
-## Seam classification (recorded deviation)
+## Location (recorded deviations)
 
-Extensibility contract v2.1 seam 2 names tracked rich config by *plugin* (`.claude/<plugin>.md|yaml`
-or `.claude/<plugin>/**`). This contract intentionally names the folder by **concern**
-(`.claude/ecosystems/`) instead, a recorded PRECEDENT-EXTENSION one increment past the folder form:
+The records live in the repository's convention home, beside every other plugin setting
+([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md),
+[ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)),
+so any agent or tool reads them without reaching into one provider's folder. The folder is named by
+**concern**, not by plugin: the concern is consumed by more than one plugin (`toolchain`, `review`,
+`code-metrics`, `verification`), and plugin boundaries are the volatile axis.
 
-- The concern is consumed by more than one plugin (`implementation`, `review`, any future
-  verification-adjacent plugin). Plugin-naming would couple every other consumer, and the consuming
-  repo's tracked files, to one plugin's name.
-- Plugin boundaries are the volatile axis (skills move between plugins across restructures); the
-  concern name is the stable one. A plugin split must not force consumer repos to migrate config.
+Two deviations from the [config-cascade contract](../config-cascade/README.md) are declared here:
 
-General rule this instance establishes: **when a tracked-config concern is consumed by more than one
-plugin, name the folder by concern and record the contract in `docs/contracts/<name>/`**, per
-`docs/migration-playbook.md` "Extensibility contract v2.1".
+- **Folder form.** The cascade gives a new surface one `<home>/<concern>.yaml` file and no folder
+  form. This surface keeps one file per ecosystem under `docs/conventions/ecosystems/`, for the
+  drop-in reason above. The path is fixed at `docs/conventions/`, whatever home the repository
+  binds.
+- **User-global file.** The cascade has no user-global file layer and moves per-person values into
+  `userConfig`. Readers still honor `~/.claude/ecosystems/<ecosystem>.yaml` until that layer
+  migrates in its own change.
 
-The directory is `.claude/`-scoped but not Claude-walled: it is ordinary tracked YAML any agent or
-script can read. Agent-agnostic discovery is satisfied by the consuming repo citing the path from its
-own agent-neutral instructions (`AGENTS.md`), per the agents-md convention of routing command truth
-by reference.
+## Legacy location
+
+Records used to live under `.claude/ecosystems/`. Until every repository holding records has moved
+them, a reader that finds no team or personal file of a name under `docs/conventions/ecosystems/`
+reads that file from `.claude/ecosystems/`, so a repository not yet moved keeps its commands. With a
+file of the same name at both, the `docs/conventions/` file wins and the reader names both paths in
+one warning. `/toolchain:setup apply` moves legacy files with `git mv`. The legacy read ends in the
+next major version of this contract, released once that sweep is complete.
 
 ## Resolution ladder (plugin behavior)
 
 Plugins resolve the command surface per the convention-resolution ladder
 (`docs/migration-playbook.md` "Convention-resolution ladder"):
 
-1. `.claude/ecosystems/<ecosystem>.yaml` present → use it. It is authoritative.
+1. `docs/conventions/ecosystems/<ecosystem>.yaml` present (or its legacy file, per "Legacy
+   location") → use it. It is authoritative.
 2. Absent → infer from the repo's build files (solution files, `pyproject.toml`, `package.json`, …)
    and **persist the inference** by offering to write the file (the owning plugin's re-runnable
    `setup` action is the writer).
@@ -207,6 +215,31 @@ drift warning. A resolver never installs a declared prerequisite, in any run; th
 text it shows and never runs. Declaring a runtime package here, rather than installing it inside a
 command string (an `npm ci` in `test-cmd`), keeps an unattended run from installing anything.
 
+#### Provisioning
+
+An entry may carry an `install` object, `{manager: npm, lockfile: <repo-relative path>}`, and
+nothing else: no free-form command. The provisioning step, the source-control plugin's
+`scripts/provision-prerequisites.sh`, runs `npm ci --ignore-scripts --no-audit --no-fund` in the
+directory of each `install` entry's lockfile, so no package's install script runs, and runs nothing
+for an entry without `install`, which stays report-only. The worktree helper runs the step when it
+creates a worktree. A resolver never runs it: the check still only probes, and an entry the step
+could not install still reads `skip (prerequisite missing: <name>)`.
+
+When no record in the repository declares any `install` entry, the step still installs a root
+`npm-shrinkwrap.json` or `package-lock.json` the same way and prints a notice to declare it; this
+fallback ends in the next major version of this contract, with the legacy-location read, once every
+repository holding records declares its lockfiles.
+
+```yaml
+requires:
+  check-cmd:
+    - name: ajv
+      probe: "test -f $REPO_ROOT/tools/node_modules/ajv/package.json"
+      install:
+        manager: npm
+        lockfile: tools/package-lock.json
+```
+
 ## Consumers
 
 Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `test-changed-cmd`, `check-cmd`, `lint-cmd`, `fix-cmd`,
@@ -214,19 +247,22 @@ Execution consumers of the verb keys (`build-cmd`, `test-cmd`, `test-changed-cmd
 `review` `ecosystem-specialist`). `verification:confirm` is an execution consumer only when the
 `toolchain` plugin is not enabled: it then runs the project's build, test and lint commands itself,
 taken from the project's `CLAUDE.md` and rules rather than the verb keys, and before each command
-reads that command's `requires` (and a gate's own `requires`) from `.claude/ecosystems/`, applying
+reads that command's `requires` (and a gate's own `requires`) from `docs/conventions/ecosystems/`, applying
 the `opt-in`, `probe`, `run-from`, `name` and `hint` rules of "Command prerequisites"
 (`plugins/verification/skills/confirm/SKILL.md:140`, `:144`). This table records plugins that read
 lane membership without running a verb:
 
 | Plugin | Keys | Use |
 |---|---|---|
-| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset stops the run with exit 2 and `/code-metrics:setup check` shows FAIL, where this contract says plugins should fail soft. |
+| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset is ignored with a warning, and `/code-metrics:setup check` shows FAIL for it. |
+| `source-control` | `requires.*[].install`, `gates[].requires[].install`, and each such entry's `name` | The provisioning step (`scripts/provision-prerequisites.mjs`, run by `scripts/provision-prerequisites.sh` at worktree creation) installs each declared lockfile with scripts off, and, while no record declares one, the root lockfile with a notice. No verb is run. A record with no `install` key is not parsed; one with an `install` key outside the YAML subset is named on stderr and skipped. |
 
-**Claim:** `code-metrics` consumes `globs` and `enabled` from `.claude/ecosystems/<lane>.yaml` and
-no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: an ecosystem
-file outside the supported YAML subset stops the run with exit 2
-(`plugins/code-metrics/scripts/resolve-config.py:450-455`) instead of failing soft. Parseable but
+**Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<lane>.yaml` and
+no other ecosystem-commands key. It fails soft, as the tolerant-reader paragraph above asks: an
+ecosystem file outside the supported YAML subset is warned about and read as absent
+(`plugins/code-metrics/scripts/resolve-config.py:132-141`, `:478-483`), and
+`/code-metrics:setup check` reports it as FAIL
+(`plugins/code-metrics/skills/setup/scripts/setup-check.sh:227-228`). Parseable but
 schema-invalid content is not validated. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
 merge form", the paragraph on consumer ecosystems files. **Recheck:** when that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
 

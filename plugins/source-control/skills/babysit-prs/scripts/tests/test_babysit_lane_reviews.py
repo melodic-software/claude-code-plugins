@@ -1,6 +1,6 @@
 """The gate's risk hold enable-auto-merge reads (`lane_risk_refusal`).
 
-Expected values come from the gate's own scoring rules in babysit_risk.py,
+Expected values come from the gate's own scoring rules in diff_risk.py,
 which native auto-merge would otherwise skip: only a regular file that stays
 regular may rate below HIGH (`_mode_problems`), so a symlink or a submodule
 pointer holds; the security lane's open CRITICAL findings hold
@@ -29,7 +29,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
-from babysit_risk import ChangedFile, LaneEvidence  # noqa: E402
+from diff_risk import ChangedFile, LaneEvidence  # noqa: E402
 
 REPO = "example-org/example-repo"
 HEAD = "a" * 40

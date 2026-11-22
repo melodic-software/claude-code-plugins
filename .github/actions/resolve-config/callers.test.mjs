@@ -4004,7 +4004,7 @@ test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read with
     }).catch(() => {});
     return { calls: existsSync(file) ? readFileSync(file, "utf8") : null, notices, reads: branches.length };
   };
-  const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { status: 403, response: { headers: { "retry-after": "0" } } });
+  const limited = () => Object.assign(new Error("API rate limit exceeded for installation"), { name: "HttpError", status: 403, response: { headers: { "retry-after": "0" } } });
   const tip = { data: { commit: { sha: GATE_TIP } } };
   const waited = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [limited(), tip]);
   assert.equal(waited.reads, 2, "getBranch is read again after the wait");
@@ -4013,14 +4013,62 @@ test("pr-run-activity-read.yml: the leak scan waits out a rate-limited read with
   const unset = await run({}, [limited(), tip]);
   assert.equal(unset.reads, 1, "no budget: no second read");
   assert.equal(unset.calls, "1\n");
-  const other = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [Object.assign(new Error("Not Found"), { status: 404, response: { headers: {} } }), tip]);
-  assert.equal(other.reads, 1, "a 404 is not a rate limit");
+  const other = await run({ WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) }, [new TypeError("no answer"), tip]);
+  assert.equal(other.reads, 1, "a throw that is no HttpError is not read again");
+});
+
+const gateReadTries = () => Number(/const GATE_READ_TRIES = (\d+);/.exec(scanSteps().find((s) => s.id === "leak-scan").with.script)?.[1]);
+const httpError = (status, headers = {}) => Object.assign(new Error(`HTTP ${status}`), { name: "HttpError", status, response: { headers } });
+function failingGateApi(gate, fails, error = () => httpError(502, { "retry-after": "0" })) {
+  let left = fails;
+  return gateApi(gate, {
+    tip: async () => {
+      if (left-- > 0) throw error();
+      return { data: { commit: { sha: GATE_TIP } } };
+    },
+  });
+}
+
+test("leak scan: a gate read's HttpError is tried again up to GATE_READ_TRIES, reaching the judge, and holds once the tries are spent", async (t) => {
+  const tries = gateReadTries();
+  assert.ok(Number.isInteger(tries) && tries > 1, "the cap is one named constant over one try");
+  const env = { WAIT_SECONDS: String(WAIT_BUDGET_SECONDS.workResolveIssue) };
+  const gate = read("../../../lib/publish-gate.mjs");
+  const recovered = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), gate, { env, github: failingGateApi(gate, tries - 1) });
+  assert.equal(recovered.failed, null);
+  assert.equal(recovered.clean, "true", "the judge ran on the read that succeeded");
+  const caught = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${KEY}\n`), gate, { env, github: failingGateApi(gate, 1) });
+  assert.match(caught.failed, /^leak-scan: Anthropic key; .*\nrotate this credential$/);
+  for (const [name, plant] of [
+    ["a patch", ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n")],
+    ["no patch", () => {}],
+  ]) {
+    const github = failingGateApi(gate, tries);
+    const spent = await scanWith(t, plant, gate, { env, github });
+    assert.equal(spent.clean, "false", name);
+    assert.match(spent.failed, /^leak-scan: no finished scan \(HttpError\)/, name);
+    assert.deepEqual(github.calls.map(([call]) => call), Array(tries).fill("getBranch"), `${name}: ${tries} reads, no gate fetched`);
+    assert.equal(spent.outputs.refused, undefined, `${name}: a spent read is no fault`);
+    const refused = evaluate(workflow("pr-run-activity-read.yml").jobs.scan.outputs.refused, {
+      "steps.decode.outputs.refused": "",
+      "steps.leak-scan.outputs.refused": spent.outputs.refused ?? "",
+      "steps.open.outcome": "success",
+      "steps.decode.outcome": "success",
+      "steps.leak-scan.outcome": "failure",
+    });
+    assert.equal(refused, "output", `${name}: the scan job's refused output`);
+  }
+  const short = failingGateApi(gate, 1, () => httpError(403));
+  const limited = await scanWith(t, () => {}, gate, { env: { WAIT_SECONDS: "30" }, github: short });
+  assert.deepEqual(short.calls.map(([call]) => call), ["getBranch"], "no read before the minute");
+  assert.match(limited.failed, /^leak-scan: no finished scan \(HttpError\)/);
+  assert.equal(limited.outputs.refused, undefined);
 });
 
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
-async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {}, seed = {} } = {}) {
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {}, seed = {}, github: api = null } = {}) {
   const root = tempDir("leak-scan-test-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -4049,8 +4097,8 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   const outputs = {};
   let failed = null;
   const warnings = [];
-  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message), warning: (message) => warnings.push(message) };
-  const github = gateApi(gate);
+  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message), warning: (message) => warnings.push(message), notice: () => {} };
+  const github = api ?? gateApi(gate);
   const env = {
     // Hostile run job outputs beside the tip: the gate must come from getBranch.
     BASE_SHA: "b".repeat(40),
@@ -4272,6 +4320,7 @@ test("leak scan: a missing default branch tip or head, or a gate that imports be
   );
   assert.equal(outputs.clean, "false");
   assert.match(failed, /no finished scan/);
+  assert.equal(outputs.refused, undefined, "no head holds");
   assert.doesNotMatch(failed, /rotate/, "no credential was found");
   // A gate that loads and passes everything, but imports beyond node builtins, is refused.
   const evil = 'import "data:text/javascript,export default 1";\nexport const findSecret = () => null;\n';
@@ -4311,11 +4360,13 @@ test("leak scan: a failed getBranch, a malformed tip or no default branch fails 
     assert.equal(outputs.clean, "false", name);
     assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match", name);
     assert.deepEqual(github.calls.map(([call]) => call), ["getBranch"], `${name}: no gate fetched`);
+    assert.equal(outputs.refused, undefined, `${name} holds`);
   }
   // An event that names no default branch asks for nothing.
   const github = gateApi("");
-  const { failed } = await run(github, { repo: { owner: "o", repo: "r" }, payload: {} });
+  const { outputs, failed } = await run(github, { repo: { owner: "o", repo: "r" }, payload: {} });
   assert.match(failed, /^leak-scan: no finished scan/);
+  assert.equal(outputs.refused, undefined, "no default branch holds");
   assert.deepEqual(github.calls, []);
 });
 
@@ -4502,10 +4553,7 @@ test("leak scan: a key only the patch's binary hunk carries blocks, and a patch 
   assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match");
 });
 
-// A fault names no credential, so it retries (refused `fault`), only once the
-// patch's text was judged or the run left no patch, and with no binary hunk's
-// bytes unread. A label with credential: false that is no fault still holds.
-test("leak scan: a scan fault retries only for a judged patch with no unread binary hunk, or a run with no patch, and a throw never replaces a hit", async (t) => {
+test("leak scan: only a judged text patch that does not apply retries; an unfinished scan holds, and a throw never replaces a hit", async (t) => {
   const textDiff = "diff --git a/gone.txt b/gone.txt\n--- a/gone.txt\n+++ b/gone.txt\n@@ -1 +1 @@\n-a\n+b\n";
   const gate = read("../../../lib/publish-gate.mjs");
   const throwing = (first) => gate.replace("export function* changedBytes(git, from, to) {\n", `export function* changedBytes(git, from, to) {\n${first}\n  throw new Error("git died");\n`);
@@ -4527,10 +4575,10 @@ test("leak scan: a scan fault retries only for a judged patch with no unread bin
   const patchless = await scanWith(t, () => {}, "import 'data:text/javascript,1';\n");
   assert.ok(!existsSync(join(patchless.temp, "patch", "patch.diff")), "the run left no patch file");
   assert.match(patchless.failed, /^leak-scan: no finished scan/);
-  assert.equal(patchless.outputs.refused, "fault", "a throw with no patch to judge");
+  assert.equal(patchless.outputs.refused, undefined, "a throw with no patch to judge leaves the reply unjudged");
   const text = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), throwing(""));
   assert.match(text.failed, /^leak-scan: no finished scan/);
-  assert.equal(text.outputs.refused, "fault", "a throw past the apply stage on a scanned text-only patch");
+  assert.equal(text.outputs.refused, undefined, "a git error past the apply stage leaves the files the patch makes unjudged");
   const binary = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.from([0, 1, 0])), throwing(""));
   assert.match(binary.failed, /^leak-scan: no finished scan/);
   assert.equal(binary.outputs.refused, undefined, "a throw past the apply stage on a binary hunk holds");

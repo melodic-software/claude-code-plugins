@@ -444,9 +444,55 @@ def moved_heading(name: str, hop: int) -> str:
     return f"{name} (h{hop})"
 
 
+STANDING_FILE = "standing-rules.md"
+STANDING_PREFIX = "- Standing rules: "
+STANDING_SECTIONS = ("Current rules", "Standing preferences")
+STANDING_FILE_RE = re.compile(
+    rf"^{ARCHIVE_DIR}/(?!\.\.?/)[^\s#/`]+/{re.escape(STANDING_FILE)}$"
+)
+
+
+def standing_rel(chain_root: str) -> str:
+    """`archive/<chain-root-stem>/standing-rules.md`: a role chain's
+    standing-rules file, relative to the handoffs directory."""
+    return f"{ARCHIVE_DIR}/{_stem(chain_root)}/{STANDING_FILE}"
+
+
+def standing_pointer(body: list[str]) -> tuple[str, str] | None:
+    """`(file, heading)` when a section body is only a standing-rules pointer,
+    `- Standing rules: archive/<chain>/standing-rules.md#<heading>`."""
+    content = [line.strip() for line in body if line.strip()]
+    if len(content) != 1 or not content[0].startswith(STANDING_PREFIX):
+        return None
+    file, sep, heading = content[0][len(STANDING_PREFIX) :].partition("#")
+    if not sep or not STANDING_FILE_RE.match(file.strip()):
+        return None
+    return file.strip(), heading.strip()
+
+
+def section_of(text: str, heading: str) -> list[str] | None:
+    """The body of `## <heading>` in `text`, None when it has no such heading."""
+    lines = text.splitlines()
+    return next(
+        (
+            lines[at + 1 : end]
+            for title, at, end in section_spans(lines, 0)
+            if title == heading
+        ),
+        None,
+    )
+
+
 def follow(body: list[str], name: str, base: Path) -> list[str] | None:
-    """A section body, or, when the body is only a move pointer for `name`, the
-    pointed body (None when unreachable)."""
+    """A section body, or, when the body is only a move pointer for `name` or a
+    standing-rules pointer, the pointed body (None when unreachable)."""
+    standing = standing_pointer(body) if name in STANDING_SECTIONS else None
+    if standing is not None:
+        try:
+            text = (base / standing[0]).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        return section_of(text, standing[1])
     content = [line for line in body if line.strip()]
     pointer = MovePointer.parse(content[0]) if len(content) == 1 else None
     if pointer is None or not pointer.moves(name):

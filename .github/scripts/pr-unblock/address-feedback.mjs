@@ -1640,6 +1640,68 @@ export function refreshableSections(body, names = []) {
     .map(({ heading, text }) => ({ heading, text }));
 }
 
+const TEMPLATE_DIRS = [".github", "", "docs"];
+const TEMPLATE_NAME = "pull_request_template.md";
+
+export function templateHeadings(text) {
+  return bodySections(String(text ?? "").replace(/<!--[\s\S]*?-->/g, ""))
+    .sections.map((section) => section.heading.trim())
+    .filter((heading) => HEADING_NAME.test(heading));
+}
+
+export function localTemplate(root) {
+  for (const dir of TEMPLATE_DIRS) {
+    let names;
+    try {
+      names = readdirSync(join(root, dir));
+    } catch {
+      continue;
+    }
+    const name = names.find((entry) => entry.toLowerCase() === TEMPLATE_NAME);
+    if (name && lstatSync(join(root, dir, name)).isFile()) {
+      return readFileSync(join(root, dir, name), "utf8");
+    }
+  }
+  return null;
+}
+
+export async function orgTemplate(readPath, owner) {
+  const base = `/repos/${encodeURIComponent(owner)}/.github/contents`;
+  for (const dir of TEMPLATE_DIRS) {
+    let entries;
+    try {
+      entries = await readPath(dir ? `${base}/${dir}` : base);
+    } catch (error) {
+      if (error.status === 404) {
+        continue;
+      }
+      throw error;
+    }
+    const entry = Array.isArray(entries) ? entries.find((item) => item.type === "file" && String(item.name).toLowerCase() === TEMPLATE_NAME) : undefined;
+    if (entry) {
+      return Buffer.from((await readPath(`${base}/${entry.path}`)).content ?? "", "base64").toString("utf8");
+    }
+  }
+  return null;
+}
+
+export async function bodySectionNames({ listed, root, readPath, owner, log = () => {} }) {
+  const names = String(listed ?? "").split("\n").filter((name) => name.trim() !== "");
+  if (names.length > 0) {
+    return names;
+  }
+  const local = templateHeadings(localTemplate(root));
+  if (local.length > 0) {
+    return local;
+  }
+  try {
+    return templateHeadings(await orgTemplate(readPath, owner));
+  } catch (error) {
+    log(`body refresh off: the ${owner}/.github pull request template is unreadable (${error.message})`);
+    return null;
+  }
+}
+
 /** The read-only body view's caps: code points per section, and sections. A PR body holds at most 65,536 characters, so the view stays far under the thread file's 1 MiB cap. */
 export const BODY_VIEW_LIMITS = { text: 8000, sections: 30 };
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it replaces
@@ -2305,7 +2367,8 @@ export async function main(argv, env, { api, actions, plan, log = (line) => cons
     // pr_body_refresh from the base's source-control.yaml (unset is on), and
     // its pr_body_required_sections list.
     if (result.file && env.BODY_REFRESH !== "false") {
-      const sections = refreshableSections(result.body, String(env.BODY_SECTIONS ?? "").split("\n"));
+      const names = await bodySectionNames({ listed: env.BODY_SECTIONS, root: ".base", readPath: client.readPath, owner: env.GITHUB_REPOSITORY.split("/")[0], log });
+      const sections = names === null ? [] : refreshableSections(result.body, names);
       if (sections.length > 0) {
         result.file.body_sections = sections;
       }

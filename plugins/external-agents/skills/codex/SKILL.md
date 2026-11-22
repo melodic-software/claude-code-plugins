@@ -29,7 +29,7 @@ and never look up the plugin's install path. Delegate only when the user asks fo
 
 | Action | Command | Read |
 |---|---|---|
-| `run` (default): a task (may write) or an investigation (read-only) | `external-agents run codex --use task\|investigate --prompt-file <file>` | [reference/run.md](reference/run.md) |
+| `run` (default): a task (may write) or an investigation (read-only) | `external-agents run codex --use task\|investigate [--add-dir <dir>]... --prompt-file <file>` | [reference/run.md](reference/run.md) |
 | `review`: Codex reviews this branch, read-only | `external-agents review codex --base <ref> [--brief-file <file>]` | [reference/run.md](reference/run.md#review) |
 | `status`, `result`, `cancel` | `external-agents status [<job>]`, `result <job>`, `cancel <job>` | [reference/jobs.md](reference/jobs.md) |
 | `update`: readiness, CLI facts, version and routing check | `external-agents update codex` | [reference/update.md](reference/update.md) |
@@ -55,6 +55,10 @@ Write the prompt with the Write tool to a file in a gitignored scratch folder (t
 convention, else the session scratchpad) and pass it with `--prompt-file`; the command keeps its
 own copy in the job folder. Name the files and paths Codex should read; never paste file contents,
 diffs or logs into the prompt. Codex reads them itself inside its sandbox.
+
+Before a write task, list every directory outside the worktree it will write, pass each with
+`--add-dir` and name them in the prompt; pass none when the worktree is enough
+([reference/run.md](reference/run.md#run)).
 
 ## Background runs
 

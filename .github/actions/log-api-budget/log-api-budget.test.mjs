@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -575,7 +576,7 @@ test("api_budget_classify decides every rate-guard vector", () => {
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
   assert.ok(vectors.vectors.length > 0, "rate-guard.vectors.json holds vectors");
   for (const vector of vectors.vectors) {
-    const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor, cap: vector.limit_cap ?? null };
+    const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor };
     const out = withDir((dir) => bash(dir, 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) }));
     assert.deepEqual(JSON.parse(out.stdout), vector.expect, `${vector.name}: ${out.stderr}`);
   }
@@ -1567,29 +1568,15 @@ test("each job that holds the job token and calls no guarded client ends with th
   }
 });
 
-// 950 used of a header limit of 5000 leaves 50 of a planned 1000, under a
-// floor of 100; without the cap the same reading is far over its floor.
-test("gh guard: API_BUDGET_LIMIT_CAP plans the floor to the cap, and only the header's remaining stops", () =>
+test("gh guard: the floor is a share of the header limit: 4050 of 5000 reads on, 499 warns once, and only the header's remaining stops", () =>
   withDir((dir) => {
-    const capped = guarded(dir, ["200 4050 - {}", "200 4050 - {}"], "gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1", API_BUDGET_LIMIT_CAP: "1000" });
-    assert.equal(capped.calls.length, 2);
-    assert.equal(capped.stderr.match(/::warning::/g)?.length, 1);
-    assert.equal(capped.status, 0);
+    const out = guarded(dir, ["200 4050 - {}", "200 499 - {}", "200 499 - {}"], "gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1" });
+    assert.equal(out.calls.length, 3);
+    assert.equal(out.stderr, "::warning::GitHub's core API has under its read floor left; reads continue\n");
+    assert.equal(out.status, 0);
+    const over = withDir((fresh) => guarded(fresh, ["200 4050 - {}"], "gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1" }));
+    assert.equal(over.stderr, "", "950 used of 5000 does not warn");
   }));
-
-test("gh guard: with no API_BUDGET_LIMIT_CAP the floor is a share of the header limit", () =>
-  withDir((dir) => {
-    const out = guarded(dir, ["200 4050 - {}"], "gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1" });
-    assert.equal(out.stderr, "");
-  }));
-
-// ci-status runs on GITHUB_TOKEN, so its cap is github-token's limit-cap
-// default, pinned here as the floor is below.
-test("ci-status sets the shell limit cap to github-token's limit-cap default", () => {
-  const cap = /\n {6}API_BUDGET_LIMIT_CAP: "?([0-9]+)"?\n/.exec(CI);
-  assert.ok(cap, "ci-status sets API_BUDGET_LIMIT_CAP");
-  assert.equal(Number(cap[1]), apiLimits({ resolvedPath: "" })["github-token"]["limit-cap"]);
-});
 
 // ci-status's shell wrapper reads no rate-limits.json, so its floor is set in the
 // job env, pinned here to the rate-limits.json default the Node guard reads.

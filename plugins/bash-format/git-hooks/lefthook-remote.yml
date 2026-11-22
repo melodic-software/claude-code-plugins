@@ -10,9 +10,3 @@ pre-commit:
           - name: bash-format-remote-lint
             script: bash-format-lint.sh
             runner: sh
-pre-push:
-  jobs:
-    - name: bash-format-remote-lint-full
-      script: bash-format-lint-full.sh
-      runner: sh
-      use_stdin: true
