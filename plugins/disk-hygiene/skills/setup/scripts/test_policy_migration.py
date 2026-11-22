@@ -86,30 +86,73 @@ class PolicyMigrationTests(unittest.TestCase):
         self.assertFalse(self.new_user.exists())
         self.assertFalse(self.new_team.exists())
 
-    def test_move_and_finish_end_in_one_home(self) -> None:
+    def engine(self, *argv: str) -> dict:
+        data = self.home.parent / "data"
+        data.mkdir(exist_ok=True)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            hygiene.main([*argv, "--data-root", str(data)])
+        return json.loads(out.getvalue())
+
+    def remove(self, row: dict, token: str | None = None) -> dict:
+        data = self.home.parent / "data"
+        snapshot = str(data / "snapshot.json")
+        target, path = row["remove"]["target"], row["remove"]["path"]
+        self.engine(
+            "scan", "--target", target, "--max-depth", "1", "--output", snapshot
+        )
+        preview = self.engine(
+            "preview", "--snapshot", snapshot, "--tier", "high", "--path", path
+        )
+        self.assertEqual("ready-for-explicit-approval", preview["status"])
+        return self.engine(
+            "apply",
+            "--execute",
+            "--snapshot",
+            snapshot,
+            "--plan",
+            str(data / "plan-high.json"),
+            "--confirm-tier",
+            "high",
+            "--approval-token",
+            token or preview["approval_token"],
+            "--report",
+            str(data / "report-high.json"),
+        )
+
+    def test_move_and_verify_end_in_one_home_through_the_engine(self) -> None:
         self.assertEqual(2, self.run_step("move")[0])
         code, _ = self.run_step("move", "--yes", "--user-target", str(self.new_user))
         self.assertEqual(0, code)
         self.assertEqual(TEAM_POLICY, hygiene.yaml_subset.load(str(self.new_team)))
-        self.assertTrue(self.old_user.is_file())
-        code, report = self.run_step(
-            "finish", "--yes", "--user-target", str(self.new_user)
-        )
+        code, report = self.run_step("verify", "--user-target", str(self.new_user))
         self.assertEqual(1, code)
-        self.assertTrue(self.old_user.is_file())
-        self.assertFalse(self.old_team.exists())
         self.assertIn("--user-policy", report["files"][0]["result"])
-        code, _ = self.run_step("finish", "--yes", "--user-policy", str(self.new_user))
+        code, report = self.run_step("verify", "--user-policy", str(self.new_user))
         self.assertEqual(0, code)
+        self.assertEqual(["verified"] * 2, [row["result"] for row in report["files"]])
+        self.assertTrue(self.old_user.is_file())
+        self.assertTrue(self.old_team.is_file())
+        for row in report["files"]:
+            self.assertEqual("completed", self.remove(row)["status"])
         self.assertFalse(self.old_user.exists())
+        self.assertFalse(self.old_team.exists())
+        self.assertEqual([], self.run_step("check")[1]["files"])
         policy = hygiene.load_policy(None, self.project, str(self.new_user))
         self.assertEqual("uac-prompt", policy["elevation"])
         self.assertEqual([], policy["policy_warnings"])
 
+    def test_the_engine_keeps_an_old_file_without_the_previews_token(self) -> None:
+        self.run_step("move", "--yes", "--user-target", str(self.new_user))
+        report = self.run_step("verify", "--user-policy", str(self.new_user))[1]
+        team = [row for row in report["files"] if row["layer"] == "team"][0]
+        result = self.remove(team, token="0" * 24)
+        self.assertEqual("invalid-or-blocked", result["status"])
+        self.assertIn("approval token", result["error"])
+        self.assertTrue(self.old_team.is_file())
+
     def test_an_option_naming_the_old_file_is_never_deleted(self) -> None:
-        code, report = self.run_step(
-            "finish", "--yes", "--user-policy", str(self.old_user)
-        )
+        code, report = self.run_step("verify", "--user-policy", str(self.old_user))
         self.assertEqual(1, code)
         self.assertEqual(["team"], [row["layer"] for row in report["files"]])
         self.assertTrue(self.old_user.is_file())
@@ -124,8 +167,10 @@ class PolicyMigrationTests(unittest.TestCase):
         team = [row for row in report["files"] if row["layer"] == "team"][0]
         self.assertIn("new file exists", team["result"])
         self.assertEqual("version: 1\n", self.new_team.read_text(encoding="utf-8"))
-        self.run_step("finish", "--yes")
-        self.assertTrue(self.old_team.is_file())
+        code, report = self.run_step("verify")
+        team = [row for row in report["files"] if row["layer"] == "team"][0]
+        self.assertEqual("refused: the new file resolves differently", team["result"])
+        self.assertNotIn("remove", team)
 
     def test_a_home_project_dir_moves_only_the_user_file(self) -> None:
         self.old_user.write_text(json.dumps(TEAM_POLICY), encoding="utf-8")
@@ -135,13 +180,11 @@ class PolicyMigrationTests(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual(["userConfig"], [row["layer"] for row in report["files"]])
         self.assertFalse((self.home / "docs").exists())
-        code, _ = self.run_step(
-            "finish", "--yes", "--user-policy", str(self.new_user), project=self.home
+        code, report = self.run_step(
+            "verify", "--user-policy", str(self.new_user), project=self.home
         )
         self.assertEqual(0, code)
-        self.assertFalse(self.old_user.exists())
-        policy = hygiene.load_policy(None, self.home, str(self.new_user))
-        self.assertEqual([], policy["policy_warnings"])
+        self.assertEqual(["verified"], [row["result"] for row in report["files"]])
 
     def test_a_team_row_through_a_symlink_is_refused(self) -> None:
         outside = self.project.parent / "outside"
@@ -158,22 +201,12 @@ class PolicyMigrationTests(unittest.TestCase):
         source.write_text(json.dumps(TEAM_POLICY), encoding="utf-8")
         self.old_team.unlink()
         self.old_team.symlink_to(source)
-        for step in ("move", "finish"):
+        for step in ("move", "verify"):
             code, report = self.run_step(step, "--yes")
             team = [row for row in report["files"] if row["layer"] == "team"][0]
             self.assertIn("is a symlink", team["result"])
         self.assertFalse(self.new_team.exists())
         self.assertTrue(self.old_team.is_symlink())
-
-    def test_the_engine_removes_only_an_old_policy_file(self) -> None:
-        other = self.project / ".claude" / "settings.json"
-        other.write_text("{}", encoding="utf-8")
-        for path, project in ((other, self.project), (self.old_team, None)):
-            with self.assertRaises(hygiene.HygieneError):
-                hygiene.remove_old_policy_file(path, project)
-            self.assertTrue(path.is_file())
-        hygiene.remove_old_policy_file(self.old_team, self.project)
-        self.assertFalse(self.old_team.exists())
 
 
 if __name__ == "__main__":

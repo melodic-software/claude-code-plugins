@@ -12,11 +12,12 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 reports, `apply` resolves. Targets and modes arrive as `/disk-hygiene:clean` arguments. The
 tunables are two `userConfig` options, the `disk_hygiene_enabled` toggle and `policy_file`,
 plus the standing policy layers. `apply` writes only when it moves an old policy file (step 7),
-and only after a yes.
+and only after a yes; the old file is then removed only through `/disk-hygiene:clean`'s gated
+apply.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 points at each remediation. Neither prompts, except for the yes `apply` asks before step 7
-moves a file.
+moves a file and the clean skill's own confirmation before it removes the old one.
 
 ## `check` (read-only)
 
@@ -188,9 +189,9 @@ fails closed like every other guard-relevant unknown in this plugin.
    WARN for each file it lists: `~/.claude/disk-hygiene.json` and
    `<project>/.claude/disk-hygiene.json` are old locations. The clean engine still reads each
    one while no new file supplies its layer, and warns on every scan. Name the old file and the
-   `new` file it moves to. A row with `new_exists: true` is not moved again: `finish` deletes the
-   old file when the new one resolves the same, and otherwise the user merges it by hand and
-   reruns `apply`. No row is a PASS.
+   `new` file it moves to. A row with `new_exists: true` is not moved again: `verify` clears the
+   old file for removal when the new one resolves the same, and otherwise the user merges it by
+   hand and reruns `apply`. No row is a PASS.
 
 ## `apply` (idempotent)
 
@@ -232,11 +233,17 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
   2. When a row has `set_option: true`, set `policy_file` to that row's `new` path through the
      headless route in the plugin-reconfiguration convention (above), and print what it reports.
      Done when the command reports the value saved; on a refusal, stop before step 3.
-  3. `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/policy_migration.py" finish --yes --project-dir "${CLAUDE_PROJECT_DIR}" --user-policy "<new user path>"`.
-     It checks that each new file resolves the same policy as its old file, then deletes the
-     old file. It never deletes a file it refused. Done when every row's `result` reads
-     `old file deleted` or `refused: ...`.
-  Report each row's `result`. A refused row keeps its old file, and the engine keeps reading it.
+  3. `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/policy_migration.py" verify --project-dir "${CLAUDE_PROJECT_DIR}" --user-policy "<new user path>"`.
+     Read-only: it checks that each new file resolves the same policy as its old file. Done when
+     every row's `result` reads `verified` or `refused: ...`.
+  4. For each `verified` row, remove its old file through the clean skill's gated apply lane, never
+     with `rm` or this script: run `/disk-hygiene:clean --execute --max-depth 1 "<remove.target>"`
+     and plan only `remove.path` in tier `high`, citing the `verify` row (the new file resolves the
+     same policy) as its evidence. The clean skill's preview and its apply confirmation are this
+     removal's yes; a declined confirmation keeps the old file. Done when the clean run's report
+     lists `remove.path` as removed, or the user declined.
+  Report each row's `result` and each removal. A refused or kept row keeps its old file, and the
+  engine keeps reading it.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

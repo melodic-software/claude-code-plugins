@@ -3,14 +3,17 @@
 
 Three steps, each one command, so the setup skill can put a preview and a yes
 before any write and set the ``policy_file`` option between the write and the
-delete:
+check:
 
   check   read-only: name each old file, the new file it moves to, and whether
           the move can run
   move    with --yes: write each new file from its old one (the user file is
           copied as it is, the project file becomes YAML), leaving the old files
-  finish  with --yes: for each old file whose new file exists, check the policy
-          resolves the same from the new file, then delete the old file
+  verify  read-only: for each old file whose new file exists, check the policy
+          resolves the same from the new file, and name the target directory and
+          path the clean engine's gated apply removes it from
+
+This script deletes nothing.
 
 The user file moves to the file the ``policy_file`` option names (--user-policy,
 its value), else --user-target, else ``~/.config/disk-hygiene/policy.json``. The
@@ -214,9 +217,7 @@ def move(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return done
 
 
-def finish(
-    rows: list[dict[str, Any]], user_policy: str | None, project_dir: Path | None
-) -> list[dict[str, Any]]:
+def verify(rows: list[dict[str, Any]], user_policy: str | None) -> list[dict[str, Any]]:
     option = hygiene.user_policy_path(user_policy, [])
     done = []
     for row in rows:
@@ -243,18 +244,15 @@ def finish(
             if not same:
                 outcome["result"] = "refused: the new file resolves differently"
             else:
-                try:
-                    hygiene.remove_old_policy_file(old, project_dir)
-                    outcome["result"] = "old file deleted"
-                except (OSError, hygiene.HygieneError) as exc:
-                    outcome["result"] = f"refused: {exc}"
+                outcome["result"] = "verified"
+                outcome["remove"] = {"target": str(old.parent), "path": old.name}
         done.append(outcome)
     return done
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="policy_migration.py")
-    parser.add_argument("step", choices=("check", "move", "finish"))
+    parser.add_argument("step", choices=("check", "move", "verify"))
     parser.add_argument("--project-dir")
     parser.add_argument("--user-policy")
     parser.add_argument("--user-target")
@@ -263,7 +261,7 @@ def main(argv: list[str]) -> int:
         args = parser.parse_args(argv)
     except SystemExit:
         return 2
-    if args.step != "check" and not args.yes:
+    if args.step == "move" and not args.yes:
         print(json.dumps({"error": f"{args.step} writes files; pass --yes"}))
         return 2
     project = (
@@ -272,8 +270,8 @@ def main(argv: list[str]) -> int:
     rows = plan(project, args.user_policy, args.user_target)
     if args.step == "move":
         rows = move(rows)
-    elif args.step == "finish":
-        rows = finish(rows, args.user_policy, project)
+    elif args.step == "verify":
+        rows = verify(rows, args.user_policy)
     print(json.dumps({"step": args.step, "files": rows}, indent=2))
     refused = any(str(row.get("result", "")).startswith("refused") for row in rows)
     return 1 if refused else 0
