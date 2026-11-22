@@ -30,7 +30,7 @@ lane, with cause `budget` and the window's reset, while the pacer's projection
 of the header's limit: a run started now would end in a window with less than that share left.
 Both values are read from `rate-limits.json` alone (`start-project` 0.3, `start-run-minutes` 21,
 the p90 of 25 successful issue runs' check-broker start to run end, rounded up). `start-project`
-is a share of the header's limit, like `pace`, not of the planned budget `plan` measures. The `start-gate` share is checked first and
+is a share of the header's limit, like `pace`. The `start-gate` share is checked first and
 still stops on its own. A reading that cannot project, or a value that cannot be read, proceeds
 with a warning. The notice names the projected share, the horizon and the threshold. work-unblock's
 sweep re-fires a budget stop after the reset it names, as for a low budget.

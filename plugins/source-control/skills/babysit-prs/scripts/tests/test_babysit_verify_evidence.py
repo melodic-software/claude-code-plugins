@@ -2983,7 +2983,7 @@ class ARefusalBelowTheReadFloorWaitsForTheReset(unittest.TestCase):
     pool's reset when it comes within that wait. gh is faked at the
     subprocess seam under the real rate guard; each `gh api -i` answer
     carries GitHub's rate-limit headers: 1 of 5000 left until the wait,
-    4990 after it (github-token plans to its 1000 limit-cap)."""
+    4990 after it."""
 
     CLOCK = 1_800_000_000
 
