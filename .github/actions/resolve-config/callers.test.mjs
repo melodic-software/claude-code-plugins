@@ -4320,6 +4320,7 @@ test("leak scan: a missing default branch tip or head, or a gate that imports be
   );
   assert.equal(outputs.clean, "false");
   assert.match(failed, /no finished scan/);
+  assert.equal(outputs.refused, undefined, "no head holds");
   assert.doesNotMatch(failed, /rotate/, "no credential was found");
   // A gate that loads and passes everything, but imports beyond node builtins, is refused.
   const evil = 'import "data:text/javascript,export default 1";\nexport const findSecret = () => null;\n';
@@ -4359,11 +4360,13 @@ test("leak scan: a failed getBranch, a malformed tip or no default branch fails 
     assert.equal(outputs.clean, "false", name);
     assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match", name);
     assert.deepEqual(github.calls.map(([call]) => call), ["getBranch"], `${name}: no gate fetched`);
+    assert.equal(outputs.refused, undefined, `${name} holds`);
   }
   // An event that names no default branch asks for nothing.
   const github = gateApi("");
-  const { failed } = await run(github, { repo: { owner: "o", repo: "r" }, payload: {} });
+  const { outputs, failed } = await run(github, { repo: { owner: "o", repo: "r" }, payload: {} });
   assert.match(failed, /^leak-scan: no finished scan/);
+  assert.equal(outputs.refused, undefined, "no default branch holds");
   assert.deepEqual(github.calls, []);
 });
 

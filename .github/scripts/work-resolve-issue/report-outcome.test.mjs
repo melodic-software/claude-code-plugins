@@ -5552,7 +5552,7 @@ test("a spent gate-read retry holds as scan-refused-output with class security-r
     assert.equal(final.action, "hand-back", name);
     assert.equal(final.stop, "scan-refused-output", name);
     assert.equal(final.status, "needs-human", name);
-    assert.notEqual(final.stop, "retry-spent", name);
+    assert.equal(parseReason(final.comment).reason, "security", name);
   }
 });
 
