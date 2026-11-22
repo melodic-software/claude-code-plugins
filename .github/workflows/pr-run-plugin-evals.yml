@@ -2247,6 +2247,7 @@ jobs:
           HEAD_SHA: ${{ inputs.head-sha }}
           TARGET: ${{ inputs.target }}
           COST_CAP: ${{ inputs.cost-cap-usd }}
+          OPT_IN: ${{ inputs.subscription-opt-in }}
           CASE: ${{ inputs.case }}
           TAGS: ${{ inputs.tag }}
         run: |
@@ -2256,6 +2257,10 @@ jobs:
           [[ $target =~ ^plugins/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "::error::target must be a plugin directory, plugins/<name>"; exit 1; }
           if ! [[ $COST_CAP =~ ^[1-9][0-9]*$ ]] || ((COST_CAP > 12)); then
             echo "::error::cost-cap-usd is required in compare mode, a whole number of US dollars from 1 to 12; nothing ran"
+            exit 1
+          fi
+          if [ "$OPT_IN" = "true" ] && ((COST_CAP > 5)); then
+            echo "::error::subscription-opt-in caps cost-cap-usd at 5 per pass, so a run on plan usage stays small; split the cases across dispatches; nothing ran"
             exit 1
           fi
           read -ra tags <<<"$TAGS"

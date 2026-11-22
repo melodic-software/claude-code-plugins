@@ -158,6 +158,10 @@ test("compare mode runs the with-plugin arm on the API key, the subscription tok
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
   assert.ok(passes("1") && passes("12"));
   for (const value of ["", "0", "13", "2.5"]) assert.ok(!passes(value), value);
+  const optInGuard = /if \[ "\$OPT_IN" = "true" \] .*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
+  const optInPasses = (optIn, cap) => spawnSync("bash", ["-c", optInGuard], { env: { OPT_IN: optIn, COST_CAP: cap } }).status === 0;
+  assert.ok(optInPasses("true", "5") && optInPasses("false", "12"), "the opt-in cap binds only on opt-in");
+  assert.ok(!optInPasses("true", "6"), "an opted-in run above 5 per pass runs nothing");
   const filter = /read -ra tags <<<"\$TAGS"\n\s+if \[ -z "\$CASE" \].*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
   const selects = (env) => spawnSync("bash", ["-c", filter], { env }).status === 0;
   assert.ok(!selects({ CASE: "", TAGS: "" }), "no case and no tag runs nothing");
