@@ -208,7 +208,9 @@ operator's `declined` decision must survive a re-audit.
 ## The suppression surface
 
 Before ranking, resolve the tracked suppression surface `<home>/instruction-placement.yaml` across
-its layers, old paths included while they exist, and print the old-path warning for each one found
+its layers (`<home>` is the convention home that the marked pointer region in the root `AGENTS.md`
+or `CLAUDE.md` binds, `docs/conventions` when no region binds one, not the memory-tier home the
+artifact above is written under), old paths included while they exist, and print the old-path warning for each one found
 ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md)
 "Layers and merge semantics"). Suppress every candidate whose `finding_id` it carries. That file is
 how a decline reaches a checkout the findings artifact never does, so a sweep that ignores it

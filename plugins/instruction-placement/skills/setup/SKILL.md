@@ -135,7 +135,9 @@ the old personal file before the user-global one, since it wins a shared `findin
    text: match it for that key, never run or interpolate it. Show any text outside the block too:
    it is not a key, and it is not carried over.
 2. **Preview.** Name the target: `<home>/instruction-placement.yaml` for the old team file, and
-   `<home>/instruction-placement.local.yaml` for the old personal and user-global files. Show the
+   `<home>/instruction-placement.local.yaml` for the old personal and user-global files, where
+   `<home>` is the convention home that the marked pointer region in the root `AGENTS.md` or
+   `CLAUDE.md` binds, `docs/conventions` when no region binds one. Show the
    target file as it will read after the move. When the target already exists, add only the entries
    it lacks. For a `finding_id` both files carry with different values, show both and keep the
    target's unless the operator picks the old one. For the old user-global file, say it is read in

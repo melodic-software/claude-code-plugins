@@ -58,7 +58,9 @@ spine is recomputed next run, and one from another checkout describes a tree thi
 
 **The suppression surface** is where an operator's decline lives: the tracked
 `<home>/instruction-placement.yaml`, resolved across its cascade layers, old paths included while
-they exist, with the old-path warning printed for each
+they exist, with the old-path warning printed for each. `<home>` is the convention home that the
+marked pointer region in the root `AGENTS.md` or `CLAUDE.md` binds, `docs/conventions` when no
+region binds one, not the memory-tier home the baseline lives under
 ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md) "Layers
 and merge semantics"). It is tracked because
 that is the only mechanism that crosses checkouts: git moves the file, and a memory-tier baseline

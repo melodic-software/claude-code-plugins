@@ -81,7 +81,10 @@ operator is asked again. So a decline has **two** writes, and the second is what
 1. **`declined` into the findings artifact.** Unchanged, and still the record this branch's run
    reads.
 2. **An entry on the tracked suppression surface**, `<home>/instruction-placement.yaml`.
-   Git carries that file to every checkout whose branch holds the commit, which is the only mechanism
+   Here and below, `<home>` is the convention home that the marked pointer region in the root
+   `AGENTS.md` or `CLAUDE.md` binds, `docs/conventions` when no region binds one
+   (`consumer-config.md` "Layers and merge semantics"). It is not the memory-tier home the findings
+   artifact lives under, which is gitignored and checkout-local. Git carries that file to every checkout whose branch holds the commit, which is the only mechanism
    that crosses checkouts at all.
 
 The entry's five required keys, its `finding_id`, and the layer rules are owned by the two documents
@@ -135,7 +138,7 @@ with no `*` (how such a rule matches:
 
 ## Prerequisites
 
-Read the artifact from the home `findings-artifact.md` "Where it lives" defines.
+Read the artifact from the memory-tier home `findings-artifact.md` "Where it lives" defines.
 
 If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall back
 to another path or another branch's artifact: findings cite line ranges, and a range derived
@@ -182,7 +185,7 @@ and "Resolving repositories" say. What differs here:
   repository resolves to. Select the entry on the branch `instruction-placement/realign` in
   `git -C <root> worktree list --porcelain`, never another worktree of the clone, and run the whole
   procedure there: `--root` set to it on every `glob-tools.sh`, `render-index.sh` and
-  `verify-load.sh` call, the worktree's branch as the branch identity for the home and the branch
+  `verify-load.sh` call, the worktree's branch as the branch identity for the memory-tier home and the branch
   match, every edit under it, and a decline's suppression entry written to its
   `<home>/instruction-placement.yaml`, not this checkout's. A repository with no worktree on that
   branch, or no artifact in it, is reported as "no audit run" and skipped.
