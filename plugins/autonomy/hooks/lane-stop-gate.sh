@@ -48,7 +48,10 @@
 #      create so concurrent presenters cannot both win (a different session
 #      replaying the same id is refused), and TTL-bounded — it lives for the
 #      claiming session's whole life (every /loop cycle's stop stays gated),
-#      retired by TTL and the launcher's relaunch sweep, never by a single stop;
+#      retired by its 31-day TTL (GATE_ARM_TTL_DAYS in lane-stop-gate-lib.sh,
+#      past the 30-day /loop expiry at
+#      https://code.claude.com/docs/en/changelog#2-1-330)
+#      and the launcher's relaunch sweep, never by a single stop;
 #   3. user settings.json, located only from this script's own install path;
 #   4. the in-script defaults (enabled=false, sentinel=LANE-STOP-OK, no marker).
 #
@@ -274,7 +277,7 @@ chomp_nl LAST
 # launcher. TTL keeps a crashed lane's record from outliving its usefulness; the
 # session claim makes a replayed id (e.g. one a lane leaked and a repo env block
 # later serves to a different session) worthless.
-GATE_ARM_TTL_SECONDS=$((7 * 86400))
+GATE_ARM_TTL_SECONDS=$((GATE_ARM_TTL_DAYS * 86400))
 GATE_ARM_JSON=""
 
 # Does this session own the record whose claim sidecar is <claim path>?

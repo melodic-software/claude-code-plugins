@@ -547,6 +547,39 @@ if is_block "$OUT"; then fail "an expired arm record wrongly engaged the gate: $
 if [[ -f "$REC_4" ]]; then fail "an expired arm record was not dropped"; else ok "an expired arm record is dropped on sight"; fi
 if [[ -e "$REC_4.claim" ]]; then fail "an expired record's claim sidecar outlived it"; else ok "an expired record's claim sidecar is dropped with it"; fi
 
+NOW_EPOCH="$(date +%s)"
+ARM_ID_4B="aaaabbbbcccc0008"
+bash "$ARM" --id "$ARM_ID_4B" --cwd "$WORK" 2>/dev/null
+REC_4B="$DATA_DIR/lane-arms/$ARM_ID_4B"
+jq -c --argjson t "$((NOW_EPOCH - 8 * 86400))" '.armed_at = $t' <"$REC_4B" >"$REC_4B.new" && mv -f "$REC_4B.new" "$REC_4B"
+OUT="$(run_bare "$(build_input Stop "no token" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_4B")"
+if is_block "$OUT"; then ok "an arm record aged 8 days still engages the gate (31-day TTL)"; else fail "an arm record aged 8 days wrongly expired: $OUT"; fi
+if [[ -f "$REC_4B" ]]; then ok "an arm record aged 8 days is kept"; else fail "an arm record aged 8 days was dropped"; fi
+
+ARM_ID_4C="aaaabbbbcccc0032"
+bash "$ARM" --id "$ARM_ID_4C" --cwd "$WORK" 2>/dev/null
+REC_4C="$DATA_DIR/lane-arms/$ARM_ID_4C"
+jq -c --argjson t "$((NOW_EPOCH - 32 * 86400))" '.armed_at = $t' <"$REC_4C" >"$REC_4C.new" && mv -f "$REC_4C.new" "$REC_4C"
+OUT="$(run_bare "$(build_input Stop "no token" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_4C")"
+if is_block "$OUT"; then fail "an arm record aged 32 days wrongly engaged the gate: $OUT"; else ok "an arm record aged 32 days does not engage the gate (31-day TTL)"; fi
+if [[ -f "$REC_4C" ]]; then fail "an arm record aged 32 days was not dropped"; else ok "an arm record aged 32 days is dropped on sight"; fi
+
+age_file_days() {
+  local t=$((NOW_EPOCH - $2 * 86400)) stamp
+  stamp="$(TZ=UTC printf '%(%Y%m%d%H%M)T' "$t")"
+  : >"$1"
+  TZ=UTC touch -t "$stamp" "$1"
+}
+SWEEP_KEEP="$DATA_DIR/lane-arms/sweepkeep0008aaaa"
+SWEEP_GONE="$DATA_DIR/lane-arms/sweepgone0032aaaa"
+age_file_days "$SWEEP_KEEP" 8
+age_file_days "$SWEEP_GONE" 32
+bash "$ARM" --id "sweepfresh00aaaa" --cwd "$WORK" 2>/dev/null
+if [[ -f "$SWEEP_KEEP" ]]; then ok "the arm helper's sweep keeps a file aged 8 days (31-day TTL)"; else fail "the arm helper's sweep dropped a file aged 8 days"; fi
+if [[ -e "$SWEEP_GONE" ]]; then fail "the arm helper's sweep kept a file aged 32 days"; else ok "the arm helper's sweep drops a file aged 32 days (31-day TTL)"; fi
+
 # --- Case 35: a post-nudge (down-lane) stop is allowed; record still survives
 # The record is not consumed here either — the session may /loop onward.
 ARM_ID_5="1234abcd5678efab"
