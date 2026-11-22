@@ -17,14 +17,6 @@
     {
       "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nWhich surface would you like for this interview: the terminal or the page? I'll start round 1 once you choose.",
       "why": "turns the offer into a question and stops before round 1"
-    },
-    {
-      "answer": "Round 1.\n\nQ1: **How many delivery attempts does the sender make before giving up?**\nMy recommendation: five attempts.\nBasis: verified, user, this message (one POST, no retries)\n\nIs there something else that would change this recommendation?",
-      "why": "no offer line naming the default and the alternatives"
-    },
-    {
-      "answer": "Asking here, one round at a time. A local page or a shared session is also available; say which to switch.\n\nIf you would rather answer on a page, the local page shows each question as a form, and a shared session lets a teammate answer too; say \"page\" or \"shared\" at any point.\n\n### Round 1: intake\n\nScope check: 1 of 27 questions registered\n\n❓ Q1: **Which quality bar is this for: a throwaway prototype, an internal tool, or production?**\n\nContext:\n- The bar sets how deep the retry and alerting questions go (judgment).\n\nDiscovery: the quality bar.\n\nIs there something else that would change these recommendations?",
-      "why": "a second line repeats and expands the surface offer"
     }
   ]
 }

@@ -5,9 +5,9 @@ focus: last_message
 ---
 
 Find the round's questions on these four decisions: the date range one export covers, how amounts
-are written across currencies, who may export, and how large exports are built. A separate
-question that defers the large-export mechanism to planning does not replace the large-export
-question.
+are written across currencies, who may export, and how a large export reaches the person (built
+inside the web request, or outside it and offered once ready). A separate question that defers
+the build mechanism (the job runner, the file store) to planning does not replace that question.
 
 PASS only if each of the four has a question, and each of those four questions has all of:
 
