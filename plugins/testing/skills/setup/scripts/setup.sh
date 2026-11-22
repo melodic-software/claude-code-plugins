@@ -143,6 +143,20 @@ old_plan() {
     notes="  not copied: $new is not gitignored; add the line $HOME_REL/**/*.local.* to .gitignore first"$'\n'
     return
   fi
+  # A user-global file shares its new location with the repository's old
+  # personal file, which the readers stop reading once that location exists.
+  local repo_old=""
+  if [[ -n "${HOME:-}" ]]; then
+    case "$old" in
+    "$HOME/.claude/testing.yaml") repo_old="$ROOT/.claude/testing.local.yaml" ;;
+    "$HOME/.claude/testing/e2e.md") repo_old="$ROOT/.claude/testing/e2e.local.md" ;;
+    *) ;;
+    esac
+  fi
+  if [[ -n "$repo_old" && ! -e "$new" && -f "$repo_old" ]]; then
+    notes="  not copied: copy $repo_old first; creating $new stops it being read"$'\n'
+    return
+  fi
   if [[ "$kind" == doc ]]; then
     if [[ -e "$new" ]]; then
       notes="  not copied: $new exists and is read in its place; copy what you still need by hand"$'\n'
@@ -195,7 +209,7 @@ old_section() {
     [[ "$plan" == none ]] || printf '    %s\n' "${text//$'\n'/$'\n'    }"
     printf '%s' "$notes"
     [[ "$plan" == none ]] ||
-      printf '  to copy, once the user says yes: setup.sh apply --copy-old %s (the old file stays)\n' "$(q "$old")"
+      printf '  to copy, once the user says yes: setup.sh apply --copy-old %q (the old file stays)\n' "$old"
   done <<<"$rows" | strip_control_bytes
 }
 

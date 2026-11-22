@@ -360,8 +360,18 @@ run_m apply --copy-old "$M/.claude/testing/e2e.md"
 assert_eq "--copy-old copies a Markdown file whole" "0:recording: video" "$rc:$(cat "$M/docs/conventions/testing/e2e.md")"
 run_m apply --copy-old "$M/.claude/testing/e2e.md"
 assert_eq "a Markdown file whose new location exists is not copied again" 2 "$rc"
+printf 'rules:\n  rule-weak-oracle: off\n' >"$M/.claude/testing.local.yaml"
 run_m apply --copy-old "$HOME/.claude/testing.yaml"
-assert_eq "the user-global keys with no userConfig option go to the personal override" "0:adapters:
+assert_eq "the user-global file is not copied while it would stop the old personal file being read" "2:" \
+  "$rc:$(cat "$M/docs/conventions/testing.local.yaml" 2>/dev/null)"
+assert_contains "and the note says to copy that file first" "$out" "not copied: copy $M/.claude/testing.local.yaml first"
+run_m apply --copy-old "$M/.claude/testing.local.yaml"
+assert_eq "the old personal file copies first" "0:rules:
+  rule-weak-oracle: off" "$rc:$(cat "$M/docs/conventions/testing.local.yaml")"
+run_m apply --copy-old "$HOME/.claude/testing.yaml"
+assert_eq "then the user-global keys with no userConfig option append to the personal override" "0:rules:
+  rule-weak-oracle: off
+adapters:
   disable: [py-unittest]" "$rc:$(cat "$M/docs/conventions/testing.local.yaml")"
 run_m apply --copy-old "$M/elsewhere.yaml"
 assert_eq "--copy-old refuses a file the old paths section does not list" 2 "$rc"

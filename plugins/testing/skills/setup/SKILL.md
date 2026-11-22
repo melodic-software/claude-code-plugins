@@ -92,7 +92,10 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    file's top-level YAML keys the new file lacks. A copy leaves out three things the section names
    for the user to handle by hand: a key both files set, a key of `~/.claude/testing.yaml` with a
    `userConfig` option (set the option), and a Markdown file whose new location exists. A personal (`.local.`) location must be
-   gitignored before a copy. The old file always stays in place.
+   gitignored before a copy. A user-global file (`~/.claude/testing.yaml`, `~/.claude/testing/e2e.md`)
+   is not copied while its new location is absent and the repository's old personal file for that
+   location exists: creating the location would stop that file being read, so copy it first. The
+   old file always stays in place.
 3. **lint**: one row per rule for each language the repository's tracked test files use. The script
    reads the lint config as text: a rule named there, or its plugin referenced beside a recommended
    config, reads as present. Treat a `PRESENT` row from the recommended-config path as likely rather
@@ -158,10 +161,11 @@ missing launcher.
    configured is dropped without the user confirming. For each file the old paths section names
    with a copy preview, show that preview and ask whether to copy it. On a yes, run the command
    the section prints for that file, one file per yes; `--copy-old` takes no answer flags and
-   writes nothing else:
+   writes nothing else. Pass the old path exactly as the section prints it: it is already quoted
+   for the shell.
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply --copy-old '<old file>'
+   bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply --copy-old <old file as printed>
    ```
 
 2. Ask only what the repository cannot answer: folders or files to leave out, test files the
