@@ -1926,8 +1926,6 @@ const TIDY = {
   cutoffs: { "max-files": 10, "max-lines": 300, "max-areas": 1, "shared-paths": [".github/"] },
 };
 
-// Only the runner that stages a skill's edit tools grants these, and the read
-// runner does so only for applied-by.patch without ci-context.
 for (const [key, value] of [
   ["checks", ["scripts/check-x.sh"]],
   ["self-checks", ["scripts/check-x.sh"]],
@@ -1943,8 +1941,7 @@ for (const [key, value] of [
     assert.deepEqual(unblock(config)[key], value);
   });
 
-  // ci-context stages base copies of verify-scripts as wrappers, so only that key resolves there.
-  if (key === "verify-scripts") {
+  if (key === "verify-scripts" || key === "self-checks") {
     test(`${key} on a read skill with prepare: ci-context resolves and is carried`, () => {
       assert.deepEqual(unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value)))[key], value);
     });

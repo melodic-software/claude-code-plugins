@@ -40,7 +40,8 @@ through sections 2 to 6 of the hub, unless step 8 applies.
    says. A candidate goes on like a lesson under step 5, and through section 4's proof, so a check
    it becomes still has to fail on the old code and pass on the new before it is proposed.
 7. A lesson mined from reviews is project scope. A rule only a reviewer applies, or a change to how
-   severe a finding is, takes the `automated-review` rung: a `REVIEW.md` line, no new setting.
+   severe a finding is, takes the `automated-review` rung: a line in the review-criteria file that
+   rung names, no new setting.
 8. With `--repo`, find the current checkout's repository as the read does: run
    `/source-control:pull-request view <n>` without `--repo` and take `<owner>/<repo>` from its
    `url`; a failed view means the checkout's repository has no such PR. When that differs from

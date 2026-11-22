@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.2.9] - 2026-11-22
+
+### Changed
+
+- References to the architecture plugin's decision-record skill name `/architecture:adr`.
+
 ## [4.2.8] - 2026-11-22
 
 ### Fixed

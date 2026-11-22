@@ -4,6 +4,14 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.4.0] - 2026-11-22
+
+- Changed: the `automated-review` rung writes to the repository's review-criteria index when it
+  has one, else a repository-owned `CODING_STANDARDS.md`, else `REVIEW.md`, and skips a file a
+  standards-sync bot owns. When every candidate is skipped, it writes nothing locally and reports
+  the rule as a proposal for the repository the bot syncs `REVIEW.md` from. No rung moves or is
+  renamed.
+
 ## [3.3.1] - 2026-11-18
 
 - Changed: the `compiler-setting` row and the last "Where boundary rules live" entry no longer
