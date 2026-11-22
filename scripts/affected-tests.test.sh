@@ -1243,6 +1243,23 @@ if grep -q '^deleted: eco/gone.sh' "$TMP_ROOT/each/000002.err" && [[ ! -s "$TMP_
 else
   fail "--each-from: eco/gone.sh should be deleted with no suite: $(cat "$TMP_ROOT/each/000002.err" "$TMP_ROOT/each/000002.out")"
 fi
+rm -rf "$TMP_ROOT/each-corpus" && mkdir -p "$TMP_ROOT/each-corpus"
+printf '%s\n' 000000:scripts/zzorphan-tool.sh 000001:plugins/alpha/README.md >"$TMP_ROOT/each-corpus.list"
+(cd "$repo" && bash scripts/affected-tests.sh --unmapped-corpus --each-from "$TMP_ROOT/each-corpus.list" --each-out "$TMP_ROOT/each-corpus" 2>/dev/null)
+RC=$?
+each_same=1
+for keyed in 000000:scripts/zzorphan-tool.sh 000001:plugins/alpha/README.md; do
+  one_out="$(cd "$repo" && bash scripts/affected-tests.sh --explain --unmapped-corpus -- "${keyed#*:}" 2>"$TMP_ROOT/each-one.err")"
+  one_mark="$(grep -m1 -oE '^(no-suite|deleted|UNMAPPED):' "$TMP_ROOT/each-one.err")"
+  each_mark="$(grep -m1 -oE '^(no-suite|deleted|UNMAPPED):' "$TMP_ROOT/each-corpus/${keyed%%:*}.err")"
+  [[ "$one_out" == "$(cat "$TMP_ROOT/each-corpus/${keyed%%:*}.out")" && -n "$one_mark" && "$one_mark" == "$each_mark" ]] || each_same=0
+done
+if [[ "$RC" -eq 0 && "$each_same" -eq 1 && -s "$TMP_ROOT/each-corpus/000000.out" ]] &&
+  grep -q '^UNMAPPED:' "$TMP_ROOT/each-corpus/000000.err" && grep -q '^no-suite:' "$TMP_ROOT/each-corpus/000001.err"; then
+  ok "--each-from: an unmapped code file selects its corpus under --unmapped-corpus and a no-suite path says no-suite, as their own runs do"
+else
+  fail "--each-from: unmapped and no-suite answers differ from their own runs (rc=$RC): $(head -n2 "$TMP_ROOT"/each-corpus/*.err)"
+fi
 run_sel "$repo" --each-from "$TMP_ROOT/each.list"
 if [[ "$RC" -eq 2 ]]; then
   ok "--each-from without --each-out is a usage error (exit 2)"
