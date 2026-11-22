@@ -62,13 +62,14 @@ reason, and covers the rest.
 A benchmark supports a step above the default only when its page is read live during this run,
 shows a date within the last 6 months, and lists the candidate models by name. Cite the page and
 the rows read; a lead inside a row's stated error range is no lead. Read the scores live; this file
-records none.
+records none. A page the run cannot read (refused, empty, or not loaded) gives no support: the
+reply names it as unread, never drops it silently.
 
 | Benchmark | Page | Measures | Checked |
 |---|---|---|---|
 | Terminal-Bench 4.1 | [tbench.ai leaderboard](https://www.tbench.ai/leaderboard) | agents doing terminal tasks; each row names the agent harness (Claude Code, Codex, Antigravity CLI) and the effort it ran at | 2026-11-22: rows for Claude 5.5 and Fable 5.2, GPT-6.x and Gemini 4.x, model release dates up to Nov 18, 2026 |
 | CursorBench 4.1 | [cursor.com/cursorbench](https://cursor.com/cursorbench) | agents on ambiguous multi-file tasks taken from real Cursor sessions | 2026-11-22: changelog entry Nov 18, 2026 (CursorBench 4.1); a vendor missing from its rows gets no support from it |
-| WebDev Arena | [arena.ai WebDev leaderboard](https://arena.ai/leaderboard/code/webdev) | developers' head-to-head votes on built web apps; web front-end work only | 2026-11-22: page dated Nov 20, 2026, Claude, GPT and Gemini models in its top rows |
+| WebDev Arena | [arena.ai WebDev leaderboard](https://arena.ai/leaderboard/code/webdev) | developers' head-to-head votes on built web apps; web front-end work only | 2026-11-22: page dated Nov 20, 2026, Claude, GPT and Gemini models in its top rows; it answers 403 to plain HTTP fetches, so read it with a browser-rendering scraper when the session has one |
 
 Checked and not used on 2026-11-22: SWE-bench (no date on the page, no current models in the data
 read), Artificial Analysis coding index and SWE-Bench Pro (no date shown), Aider polyglot (last
