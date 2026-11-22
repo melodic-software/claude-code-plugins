@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 """Contract tests for the shape-4 writer, shape-4 `amend` and the slot budgets.
 Expected values come from reference/structure.md ("Shape 4"), the 24,600-byte cap, the Read tool's
 58,500-byte page cap, and the slot budgets: the 95th percentile of the Resumption
