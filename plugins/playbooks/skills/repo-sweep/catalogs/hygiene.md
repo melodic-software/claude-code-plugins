@@ -274,15 +274,15 @@ migrations in the working tree for the step commit.
 One step: audit, then realign, then check.
 
 Run realign whenever the audit reported a finding the user decided, accepted or declined, so it can
-offer the `.claude/instruction-placement.md` suppression entry for each decline. When realign writes
+offer the `<home>/instruction-placement.yaml` suppression entry for each decline. When realign writes
 that file, the change is the step commit even if every finding was declined. When there are no
 findings, realign is skipped: the checklist done line and the `Playbook-Step` trailers list only
 the skills that ran (audit and check), because `history.sh` reads each listed `skill@version` as run.
 
 Claim: `instruction-placement:realign` writes a declined finding to the tracked
-`${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`, on an explicit yes. Basis:
-`instruction-placement` 0.15.22 `skills/realign/SKILL.md` (`Recording a decline so it survives the
-checkout`). As of: 2026-09-29. Recheck: realign changes the decline write or the suppression
+`<home>/instruction-placement.yaml` (default home `docs/conventions`), on an explicit yes. Basis:
+`instruction-placement` 1.10.0 `skills/realign/SKILL.md` (`Recording a
+decline so it survives the checkout`). As of: 2026-11-22. Recheck: realign changes the decline write or the suppression
 file path.
 
 ### progressive-disclosure

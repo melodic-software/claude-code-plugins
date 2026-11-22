@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-22
+
+### Fixed
+
+- The once-a-day CLI version check no longer runs twice when two sessions start at the same moment: the shared `cli-version-check.mjs` now reads the clock after it takes its lock ([#18063](https://github.com/melodic-software/claude-code-plugins/issues/18063)).
+
 ## [1.1.0] - 2026-11-21
 
 ### Added

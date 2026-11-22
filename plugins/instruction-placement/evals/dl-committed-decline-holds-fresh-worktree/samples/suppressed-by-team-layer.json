@@ -9,8 +9,8 @@
       "why": "table row"
     },
     {
-      "answer": "| `9c1e0b7a44d2f310` (Deploy conventions, `demote`, `narrower-scope:path-scoped-rule`, CLAUDE.md `71d0c3aa`) | tracked `.claude/instruction-placement.md` | Suppressed. Reason: \"Ops reads this section during incidents; it stays always-loaded.\" (2026-11-02) |",
-      "why": "smoke reply: layer named as the tracked file"
+      "answer": "| `9c1e0b7a44d2f310` (Deploy conventions, `demote`, `narrower-scope:path-scoped-rule`, CLAUDE.md `71d0c3aa`) | tracked `docs/conventions/instruction-placement.yaml` | Suppressed. Reason: \"Ops reads this section during incidents; it stays always-loaded.\" (2026-11-02) |",
+      "why": "layer named as the tracked file"
     }
   ],
   "fail": [

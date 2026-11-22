@@ -5,7 +5,55 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.21.3",
+  "version": "0.22.0",
+  "userConfig": {
+    "budgets_searches_per_candidate": {
+      "type": "number",
+      "title": "Searches per candidate",
+      "description": "Web searches the audit may run for one candidate. Empty: 3. A repository's attribution.yaml or attribution.local.yaml overrides it.",
+      "min": 0
+    },
+    "budgets_fetches_per_candidate": {
+      "type": "number",
+      "title": "Fetches per candidate",
+      "description": "Page fetches the audit may run for one candidate. Empty: 5. A repository's attribution.yaml or attribution.local.yaml overrides it.",
+      "min": 0
+    },
+    "budgets_corpus_fetch_ceiling": {
+      "type": "number",
+      "title": "Fetch ceiling per run",
+      "description": "Page fetches allowed across one whole audit or sweep. Empty: 200. A repository's attribution.yaml or attribution.local.yaml overrides it.",
+      "min": 0
+    },
+    "judge_samples": {
+      "type": "number",
+      "title": "Judges per candidate",
+      "description": "Blind judges per candidate. Empty: 3; a value below 3 is raised to 3 for any finding that could become fix-eligible. A repository's attribution.yaml or attribution.local.yaml overrides it.",
+      "min": 1
+    },
+    "accuracy_nomination_passes": {
+      "type": "number",
+      "title": "Nomination passes",
+      "description": "Nomination dispatches per run. Empty: 2. A repository's attribution.yaml or attribution.local.yaml overrides it.",
+      "min": 1
+    },
+    "accuracy_judge_lens_diversity": {
+      "type": "boolean",
+      "title": "Judge lens diversity",
+      "description": "Give each judge a different lens. Empty: true. A repository's attribution.yaml or attribution.local.yaml overrides it."
+    },
+    "accuracy_review_agents": {
+      "type": "number",
+      "title": "Review agents",
+      "description": "Adversarial reviewers per copy-rubric STANDS verdict, 0 for none. Empty: 1. A repository's attribution.yaml or attribution.local.yaml overrides it.",
+      "min": 0
+    },
+    "accuracy_deep_research_on_exhaustion": {
+      "type": "boolean",
+      "title": "Deep research on exhaustion",
+      "description": "Let a budget-exhausted candidate escalate to /discovery:research when that plugin is installed. Empty: false. A repository's attribution.yaml or attribution.local.yaml overrides it."
+    }
+  },
   "license": "MIT",
   "keywords": [
     "provenance",
