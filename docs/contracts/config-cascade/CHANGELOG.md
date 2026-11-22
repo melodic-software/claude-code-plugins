@@ -11,6 +11,12 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`instruction-placement` moves to the location axis.** Its row names the team file
+  `<home>/instruction-placement.yaml` and the personal override `<home>/instruction-placement.local.yaml`,
+  with no `userConfig` option and no user-global file; the old `.claude/` and `~/.claude/` paths are
+  still read, with a warning, until `/instruction-placement:setup apply migrate-config` moves them
+  (#18012). It leaves the not-yet-migrated list. The layering axis is unchanged, so
+  `contract_version` stays.
 - **`locations.md` lists where plugin config lives.** One editable page of the four layers, the
   `.local` naming and the paths outside the contract, pointing at this README's sections. Plugins
   that teach a config location carry a generated copy at `reference/config-locations.md`. The

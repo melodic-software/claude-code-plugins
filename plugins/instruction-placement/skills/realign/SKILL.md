@@ -80,7 +80,7 @@ operator is asked again. So a decline has **two** writes, and the second is what
 
 1. **`declined` into the findings artifact.** Unchanged, and still the record this branch's run
    reads.
-2. **An entry on the tracked suppression surface**, `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`.
+2. **An entry on the tracked suppression surface**, `<home>/instruction-placement.yaml`.
    Git carries that file to every checkout whose branch holds the commit, which is the only mechanism
    that crosses checkouts at all.
 
@@ -93,11 +93,15 @@ in the table above. Do not invent a format here. Four rules bind the write:
 - **A reason is required, and it is theirs, not yours.** An entry with no stated reason cannot be
   reviewed or retired later. If the operator gives none, ask once; if they still give none, record
   `declined` in the artifact only and say the decline will not survive this checkout.
-- **Team layer only.** Write `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md` (on a
-  multi-repository run, the worktree's: "Over several repositories"), never
-  `~/.claude/**` and never the `.local.md` personal override: a personal-layer entry the team layer does not
-  carry is reported `personal-only, not applied` and suppresses nothing, so writing one would look
-  like recording a decision while recording none.
+- **Team layer only.** Write `<home>/instruction-placement.yaml` at the repository root (on a
+  multi-repository run, the worktree's: "Over several repositories"), and name that path in the
+  shown entry. Never write `~/.claude/**`, an old path, or the `.local.yaml` personal override: a
+  personal-layer entry the team layer does not carry is reported `personal-only, not applied` and
+  suppresses nothing, so writing one would look like recording a decision while recording none.
+  When the old `.claude/instruction-placement.md` still supplies the team layer, ask the operator to
+  run `/instruction-placement:setup apply migrate-config` first: an entry written to the new file
+  alone makes the old file's entries stop applying. If they decline, write the new file and name
+  each old entry that stops applying.
 - **Say that it needs committing.** The file is tracked, and an uncommitted entry has reached no
   other worktree yet. Name that rather than implying the decision is already everywhere.
 
@@ -137,9 +141,10 @@ If it is absent, say no audit has been run for this branch and offer to run one.
 to another path or another branch's artifact: findings cite line ranges, and a range derived
 elsewhere points at different text here. Name such a file a leftover and run a fresh audit instead.
 
-Then, **before the first finding is presented**, resolve `.claude/instruction-placement.md` across
-its three layers and drop every finding the merged surface covers, reporting each as suppressed with
-its reason, date, and contributing layer. Match on the `finding_id` the artifact's `Suppression key`
+Then, **before the first finding is presented**, resolve `<home>/instruction-placement.yaml` across
+its layers, old paths included while they exist, with the old-path warning printed for each
+(`consumer-config.md` "Layers and merge semantics"), and drop every finding the merged surface
+covers, reporting each as suppressed with its reason, date, and contributing layer. Match on the `finding_id` the artifact's `Suppression key`
 already carries; **do not derive one here.** This skill has no detector stream, and a second
 derivation is a second heading parse whose disagreement produces a decline nothing ever matches.
 
@@ -179,7 +184,7 @@ and "Resolving repositories" say. What differs here:
   procedure there: `--root` set to it on every `glob-tools.sh`, `render-index.sh` and
   `verify-load.sh` call, the worktree's branch as the branch identity for the home and the branch
   match, every edit under it, and a decline's suppression entry written to its
-  `.claude/instruction-placement.md`, not this checkout's. A repository with no worktree on that
+  `<home>/instruction-placement.yaml`, not this checkout's. A repository with no worktree on that
   branch, or no artifact in it, is reported as "no audit run" and skipped.
 - **The quote check runs once.** It reads docs pages, not a repository: run it once, with no
   arguments, before the first repository's artifact is read.

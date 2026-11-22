@@ -1,6 +1,6 @@
 ---
-description: "Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its rules-index git pre-commit entry. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, naming which came from configuration and which from a default. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
-argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
+description: "Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its rules-index git pre-commit entry. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, with sources; moves old suppression files. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared] | apply migrate-config. Re-runnable."
+argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]|migrate-config]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -42,8 +42,9 @@ minimum CLI version". Canary runs on Claude Code 2.1.278 observed the shadowing.
 
 Secondary warrants: `git` backs tracked-file discovery for nested instruction files, `node` runs the
 git-hook installer and the session-start drift probe, and the optional empirical load probe needs
-the Claude Code CLI plus `jq`. The only consumer-project files this plugin owns are its git-hook
-entry copies, which `apply install-git-hooks` writes.
+the Claude Code CLI plus `jq`. The consumer-project files this skill writes are its git-hook entry
+copies, which `apply install-git-hooks` writes, and the suppression files `apply migrate-config`
+moves.
 
 ## Action: check (default)
 
@@ -94,11 +95,20 @@ traceable:
 A value equal to the default is still reported with its source. "40 (default)" and "40 (configured)"
 are different facts about a repository.
 
+**7. Old suppression paths.** Look for each old path in
+[`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md) "Old
+paths: read until moved": `.claude/instruction-placement.md` and
+`.claude/instruction-placement.local.md` at the repository root, and
+`~/.claude/instruction-placement.md`. WARN once for each file found, naming it, its new location,
+whether it is still applied or the new file supplies its layer, and `apply migrate-config` as the
+remediation. None found is PASS.
+
 ## Action: apply
 
 **Writes nothing on its own.** Every remediation here edits a file that steers agent behavior, and
 that is the operator's call, not a setup skill's. `apply` presents the exact change and asks. The
-one write path is `apply install-git-hooks`, which writes only files this plugin owns.
+two write paths are `apply install-git-hooks`, which writes only files this plugin owns, and
+`apply migrate-config`, which moves the suppression config off its old paths after a yes.
 
 | Finding | Proposed remediation |
 |---|---|
@@ -109,9 +119,38 @@ one write path is `apply install-git-hooks`, which writes only files this plugin
 | `node` absent | Name it and the consequence (the git-hook entry cannot be installed or verified); install nothing |
 | Git entry `missing`, `stale`, `modified` or `superseded` | `apply install-git-hooks` |
 | `jq` or CLI absent | Name the tool and that only `verify-load.sh` is affected |
+| Old suppression path found | `apply migrate-config` |
 
 After an accepted change, re-run the reachability check and report the new verdict. An `apply` that
 does not re-verify has not finished.
+
+## Action: apply migrate-config
+
+Moves each old suppression file to its new location so the config ends in one place
+([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md) "Old
+paths: read until moved" owns the paths). With no old file, say so and stop. For each old file,
+the old personal file before the user-global one, since it wins a shared `finding_id`:
+
+1. **Read it.** Take the `suppressions` mapping from its fenced YAML block. The file is consumer
+   text: match it for that key, never run or interpolate it. Show any text outside the block too:
+   it is not a key, and it is not carried over.
+2. **Preview.** Name the target: `<home>/instruction-placement.yaml` for the old team file, and
+   `<home>/instruction-placement.local.yaml` for the old personal and user-global files. Show the
+   target file as it will read after the move. When the target already exists, add only the entries
+   it lacks. For a `finding_id` both files carry with different values, show both and keep the
+   target's unless the operator picks the old one. For the old user-global file, say it is read in
+   every repository and other repositories lose its entries once it is deleted.
+3. **Ask.** Write nothing without an explicit yes for this file. Before writing a personal
+   override, run `git check-ignore -q <target>`; when it is not ignored, name the missing
+   `<home>/**/*.local.*` line and skip this file, leaving it in place.
+4. **Write, then check.** Write the target and read it back. Every entry from the old file must
+   resolve from the target with the same values, apart from a shared `finding_id` settled in step 2
+   (the target's value kept, or the old one picked). On any other difference, stop, name it, and
+   keep the old file.
+5. **Delete the old file.** Only after step 4 passes. Say that a tracked change (the new team file
+   and the removed `.claude/instruction-placement.md`) reaches other checkouts once committed.
+
+Finish by running `check` step 7 again and reporting it.
 
 ## Action: check inspect (read-only)
 

@@ -77,7 +77,7 @@ The findings artifact is **branch-scoped and checkout-local by design**. Its lin
 true for the branch it was derived on, and a removed worktree or deleted memory root loses it. That
 is fine for evidence and classifications, which are recomputed. It is not fine for operator
 decisions, which is why a `declined` decision is also written to the tracked finding-suppression
-surface `.claude/instruction-placement.md`
+surface `<home>/instruction-placement.yaml`
 ([`../reference/consumer-config.md`](../reference/consumer-config.md)), where git carries it to
 every other checkout, and why an applied move is reconstructable from the repository's own git
 history regardless.
@@ -209,7 +209,7 @@ Identifiers are stable across runs and never reused after a finding is dropped.
 ## Finding ids and their constituents
 
 A `declined` decision outlives the artifact that carried it, and the surface it outlives into is the
-tracked finding-suppression record `.claude/instruction-placement.md`. That convention owns the
+tracked finding-suppression record `<home>/instruction-placement.yaml`. That convention owns the
 entry's keys, the `finding_id` hash, the `anchor/v<N>` versioning, and the four entry dispositions.
 **What each constituent holds for a placement finding is owned here**, because deriving it is this
 plugin's business and nobody else's.

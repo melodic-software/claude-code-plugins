@@ -57,7 +57,10 @@ the home `findings-artifact.md` defines. Memory tier and checkout-local, which i
 spine is recomputed next run, and one from another checkout describes a tree this one lacks.
 
 **The suppression surface** is where an operator's decline lives: the tracked
-`.claude/instruction-placement.md`, resolved across the three cascade layers. It is tracked because
+`<home>/instruction-placement.yaml`, resolved across its cascade layers, old paths included while
+they exist, with the old-path warning printed for each
+([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md) "Layers
+and merge semantics"). It is tracked because
 that is the only mechanism that crosses checkouts: git moves the file, and a memory-tier baseline
 never reaches another worktree. Read it, honor every entry it merges to, and
 **never write it**: `realign` owns that write, behind its per-item gate.
@@ -118,7 +121,8 @@ else noticing between `check` runs.
 Each step names what "done" looks like, so a partial run is visible rather than assumed complete.
 
 1. Resolve the home, read this branch's spine baseline and findings artifact,
-   and resolve the suppression surface across its three layers; a missing surface is the ordinary
+   and resolve the suppression surface across its layers, old paths included while they exist,
+   printing the old-path warning for each; a missing surface is the ordinary
    no-suppressions state. All four baseline/artifact combinations resolve explicitly, none an error:
 
    | Baseline | Artifact | Disposition |

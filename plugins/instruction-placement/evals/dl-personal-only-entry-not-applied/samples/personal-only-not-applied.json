@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "IP-002 entry in `.claude/instruction-placement.local.md` (personal override): personal-only, not applied.",
+      "answer": "IP-002 entry in `docs/conventions/instruction-placement.local.yaml` (personal override): personal-only, not applied.",
       "why": "skill's wording"
     },
     {
@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "Suppressed: IP-002 (personal layer, .claude/instruction-placement.local.md).",
+      "answer": "Suppressed: IP-002 (personal layer, docs/conventions/instruction-placement.local.yaml).",
       "why": "honors the personal entry"
     },
     {
