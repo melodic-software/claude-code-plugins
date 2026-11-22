@@ -211,10 +211,12 @@ select_one() {
 }
 
 select_chunk() {
-  local out="$1" chunk="$2" rc=0 line
-  if ((AUDIT_DEADLINE == 0 || $(date +%s) < AUDIT_DEADLINE + AUDIT_SELECT_GRACE)); then
-    timeout 900 bash "$SELECTOR" "$AUDIT_UNMAPPED_FLAG" --each-from "$chunk" --each-out "$out/sel" \
-      >/dev/null 2>"$chunk.err" || rc=$?
+  local out="$1" chunk="$2" rc=0 line limit=900
+  ((AUDIT_DEADLINE == 0)) || limit=$((AUDIT_DEADLINE + AUDIT_SELECT_GRACE - $(date +%s)))
+  if ((limit > 0)); then
+    ((limit >= 30)) || limit=30
+    timeout "$limit" bash "$SELECTOR" "$AUDIT_UNMAPPED_FLAG" --each-from "$chunk" --each-out "$out/sel" \
+      >/dev/null 2>"$out/logs/select-${chunk##*/}.log" || rc=$?
   fi
   while IFS= read -r line; do
     [[ "$rc" -eq 0 && -f "$out/sel/${line%%:*}.out" && -f "$out/sel/${line%%:*}.err" ]] || select_one "$out" "$line"
@@ -281,7 +283,7 @@ cmd_trace() {
   cat "$out"/reads/* 2>/dev/null | sort -u >"$out/files"
   mkdir -p "$out/chunks" || exit 2
   awk -v dir="$out/chunks" '{ printf "%06d:%s\n", NR - 1, $0 > (dir "/" sprintf("%05d", int((NR - 1) / 250))) }' "$out/files"
-  find "$out/chunks" -type f ! -name '*.err' | sort |
+  find "$out/chunks" -type f | sort |
     xargs -d '\n' -r -P "$jobs" -I{} bash -c "select_chunk \"\$1\" \"\$2\"" _ "$out" {}
 
   # edges.tsv: suite, file it read. selected.tsv: file, suite a change to it

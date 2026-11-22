@@ -32,7 +32,8 @@
 #                                                answer each <key>:<path> line of LIST as its own
 #                                                one-file diff, building the tree index once:
 #                                                DIR/<key>.out the suites, DIR/<key>.err its
-#                                                no-suite, deleted or UNMAPPED line
+#                                                no-suite, deleted or UNMAPPED line; a path whose
+#                                                own run exits 2 is left unanswered
 #   scripts/affected-tests.sh --replay <range> [--against <ref>]
 #                                                select every first-parent commit of <range> against
 #                                                its parent; with --against, diff each selection with
@@ -1697,6 +1698,9 @@ run_each() {
   local i f s
   for i in "${!changed[@]}"; do
     f="${changed[i]}"
+    if [[ -z "$SCOPES_LIST" && " ${SCOPE_SUITES[*]-} " == *" $f "* ]] && ! (check_scope_globs "$f") 2>/dev/null; then
+      continue
+    fi
     SUITES=()
     select_for "$f"
     select_scoped "$f"

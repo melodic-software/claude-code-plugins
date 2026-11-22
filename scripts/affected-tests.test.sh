@@ -1695,6 +1695,15 @@ if [[ "$RC" -eq 2 ]] && contains "$out" "plugins/alpha/tests/stale.test.sh decla
 else
   fail "R8: a stale glob in a changed suite was not refused (rc=$RC): $out"
 fi
+rm -rf "$TMP_ROOT/each-stale" && mkdir -p "$TMP_ROOT/each-stale"
+printf '%s\n' 000000:plugins/alpha/tests/stale.test.sh 000001:plugins/alpha/tests/scan.test.sh >"$TMP_ROOT/each-stale.list"
+(cd "$repo" && bash scripts/affected-tests.sh --each-from "$TMP_ROOT/each-stale.list" --each-out "$TMP_ROOT/each-stale" 2>/dev/null)
+RC=$?
+if [[ "$RC" -eq 0 && ! -e "$TMP_ROOT/each-stale/000000.out" && -e "$TMP_ROOT/each-stale/000001.out" ]]; then
+  ok "R8: --each-from leaves a suite with a glob matching nothing unanswered, as its own run exits 2, and answers the rest"
+else
+  fail "R8: --each-from should skip only the stale-glob suite (rc=$RC): $(ls "$TMP_ROOT/each-stale")"
+fi
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/tests/scan.test.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]]; then
