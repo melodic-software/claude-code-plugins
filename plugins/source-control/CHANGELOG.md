@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.4.0] - 2026-11-22
+
+### Changed
+
+- The babysit merge gate trusts an issue the lanes App filed whose newest admission record, posted by the lanes App's account id, canonical and never edited, names its current title and body by sha256, and that carries no hold label, no `provenance: untrusted` and no `hold:` body line (`briefed_issue`), read live at each judgment, matching pr-verify's `briefedIssue`.
+
 ## [13.3.11] - 2026-11-22
 
 ### Changed
