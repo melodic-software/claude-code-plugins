@@ -86,9 +86,14 @@ trusted-actors list, not posted through an App, unedited or last edited by a lis
 `status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
 a decision, whether admission parked it there or a person confirmed it, or on a
 `needs-reporter-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
-nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
-at `needs-owner-decision`, removing that label the same way. A listed human's change of the Work
+status label and adds `needs-triage`. A decision on an issue that carries `needs-human`, on its
+label or its Work status field, re-enters nothing and gets one reply from `github-actions[bot]`
+saying how a listed human releases the hold; a listed human's removal of `needs-human` re-enters an
+issue with no `status:` label or at `needs-owner-decision`, removing that label the same way. A
+listed human's comment whose first line opens with "decision recorded" in any other case or
+punctuation, and that answered nothing else, gets one reply naming the exact first line. Each reply
+opens with a marker (`<!-- intake-reenter:needs-human-decision -->`,
+`<!-- intake-reenter:decision-form -->`) and is posted once per issue. A listed human's change of the Work
 status field from a hold state to none or `needs-triage`, on an issue with no status label but
 `needs-triage`, re-enters it too, writing no label: the claim is a comment marked with the field
 event that left the hold, which a re-run of that release finds, and the field is set to
@@ -3631,6 +3636,15 @@ jobs; 6 dispatches hand the issue off whatever reached intake. It holds the job'
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 
+On the daily run, the same job's
+[`done-check.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/done-check.mjs) lists the
+open issues at Work status confirmed that a merged `Refs:` pull request parked for a done-check
+(the admission rule below), in one digest issue from `github-actions[bot]` whose first line is
+`<!-- intake-done-check-digest -->`. It creates the digest when the list first fills, rewrites its
+body when the list changes, closes it as completed when the list is empty and reopens it when the
+list fills again; closing it as not planned mutes it. It closes no listed issue and writes no Work
+status. A read that fails fails the step and writes nothing.
+
 ## The monitoring lane
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
@@ -4129,7 +4143,9 @@ comment, or since it opened when it has neither. The issue is parked at `status:
 An agent checks the work: it closes the issue when the pull request finished it, or posts a
 `**Decision recorded.**` comment saying what is left, which intake-reenter sends back through
 intake with the cutoff past that pull request. Each pass reads its issues in one GraphQL call (at
-most 50 issues a call); a read that fails admits as though no such pull request merged.
+most 50 issues a call); a read that fails admits as though no such pull request merged. The lane
+sweep's daily triage-sweep job lists the issues parked this way in one digest issue, so a session
+finds them.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,
