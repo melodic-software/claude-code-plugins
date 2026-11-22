@@ -252,11 +252,45 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
 // The worst user patterns the guard accepts: each tries many lengths at every start.
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
-// A wall-clock bound depends on the machine, so the test checks how cost grows instead: five times
-// the text costs about five times as much when it is linear, twenty-five times when quadratic. Load
-// on a shared runner can slow any timing, so each pass times both sizes back to back and the pass
-// with the least excess counts: a quadratic pattern has the excess in every pass. The few
-// milliseconds of slack cover a pattern whose whole cost is under a millisecond.
+const SMALL_TEXT = 10_000
+const SIZE_RATIO = 5
+const LARGE_TEXT = SIZE_RATIO * SMALL_TEXT
+const GROWTH_BOUND = 2 * SIZE_RATIO
+const SLACK_MS = 10
+const MIN_PASSES = 2
+const MAX_PASSES = 5
+
+const excessOverLinear = (cost: (n: number) => number) => {
+  let quietestSmall = Infinity
+  let quietestLarge = Infinity
+  let excess = Infinity
+  for (let pass = 0; pass < MAX_PASSES && (pass < MIN_PASSES || excess >= SLACK_MS); pass++) {
+    quietestSmall = Math.min(quietestSmall, cost(SMALL_TEXT))
+    quietestLarge = Math.min(quietestLarge, cost(LARGE_TEXT))
+    excess = quietestLarge - GROWTH_BOUND * quietestSmall
+  }
+  return excess
+}
+
+const slowedBy = (cost: (n: number) => number, slowdowns: number[]) => {
+  let call = 0
+  return (n: number) => cost(n) * (slowdowns[call++] ?? 1)
+}
+
+const quadraticCost = (n: number) => (n / 1000) ** 2
+const linearCost = (n: number) => n / 1000
+
+test('excessOverLinear flags a quadratic cost, even when a loaded small run in one pass hides the growth within that pass', () => {
+  expect(excessOverLinear(quadraticCost)).toBeGreaterThanOrEqual(SLACK_MS)
+  expect(excessOverLinear(slowedBy(quadraticCost, [1, 2, 3, 1]))).toBeGreaterThanOrEqual(SLACK_MS)
+  expect(excessOverLinear(slowedBy(quadraticCost, [3, 1]))).toBeGreaterThanOrEqual(SLACK_MS)
+})
+
+test('excessOverLinear passes a linear cost whose large runs stay slowed for three passes before a quiet one', () => {
+  const slowdowns = [...Array.from({ length: 3 }, () => [1, 4]).flat(), 1, 1]
+  expect(excessOverLinear(slowedBy(linearCost, slowdowns))).toBeLessThan(SLACK_MS)
+})
+
 test('runs each of the worst accepted extra patterns in time linear in the text length', { timeoutMs: 60_000 }, () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
@@ -268,14 +302,7 @@ test('runs each of the worst accepted extra patterns in time linear in the text 
     for (const input of inputs(n)) maskText(input, [pattern], M)
     return performance.now() - start
   }
-  for (const pattern of extras) {
-    let excess = Infinity
-    for (let pass = 0; pass < 5 && excess >= 10; pass++) {
-      const small = cost(pattern, 10_000)
-      excess = Math.min(excess, cost(pattern, 50_000) - 10 * small)
-    }
-    expect(excess).toBeLessThan(10)
-  }
+  for (const pattern of extras) expect(excessOverLinear((n) => cost(pattern, n))).toBeLessThan(SLACK_MS)
 })
 
 test('masks a token right after a color code and keeps every escape intact', () => {

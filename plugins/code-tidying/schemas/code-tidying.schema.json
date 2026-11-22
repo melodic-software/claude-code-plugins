@@ -51,6 +51,12 @@
       "default": [],
       "description": "Extra comments the comment lint passes: each item is an extended regular expression matched against a comment's text, for markers a repository's own tools read. Team file only."
     },
+    "comment_adr_dir": {
+      "type": "string",
+      "minLength": 1,
+      "default": "docs/adr",
+      "description": "Repository-relative folder of the decision records an ADR pointer comment names; the comment lint passes a pointer only when its record exists there. A value outside the repository is ignored and the default applies. Team file only."
+    },
     "upkeep_cadence": {
       "enum": ["daily", "weekly"],
       "default": "daily",

@@ -26,9 +26,12 @@ that resets within 60 s ([`.github/actions/log-api-budget/rate-guard.mjs`:580](h
 past that ([`.github/actions/log-api-budget/rate-guard.mjs`:590](https://github.com/melodic-software/claude-code-plugins/blob/ab3b3a2e03fd9a6fab6df6c708196c75cea4f71f/.github/actions/log-api-budget/rate-guard.mjs#L590)), with a notice instead of an error
 under `API_BUDGET_HOLD=1`.
 Part 2 changed both (see Remaining). The listing helper [`.github/scripts/pr-merge/retry-call.bash`:39](https://github.com/melodic-software/claude-code-plugins/blob/222d80236d0c900bd3f1c183f99514cfd026719d/.github/scripts/pr-merge/retry-call.bash#L39) meets
-element 1, but only pr-merge uses it. Every workflow's `Resolve main's tip` step tries its
-`git ls-remote` up to 3 times, after waits of up to 2 and 4 s with full jitter, and fails red when
-no try yields a SHA ([`.github/workflows/pr-verify.yml`:144](https://github.com/melodic-software/claude-code-plugins/blob/d9098daa3d43f08b328fd46e340abb848e0591fa/.github/workflows/pr-verify.yml#L144)).
+element 1, but only pr-merge uses it. Every workflow's `Resolve main's tip` step is the
+ci-workflows `resolve-branch-tip` action, or in the two release workflows that hold the release App
+key the same read inline: an authenticated `git ls-remote`, tried up to 3 times after waits of up
+to 2 and 4 s with full jitter on a timeout or a 5xx only, failing red at once on a 401 or 403 and
+when no try yields a SHA
+([`resolve.sh`](https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/resolve-branch-tip/resolve.sh)).
 
 ## work-resolve-issue
 
