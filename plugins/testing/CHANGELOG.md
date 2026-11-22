@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.12.0] - 2026-11-22
+
+### Added
+
+- `/testing:setup check` and `apply` print an old paths section. It names each testing config file at an old path (`.claude/testing.yaml`, `.claude/testing.local.yaml`, `~/.claude/testing.yaml`, `.claude/testing/e2e.md`, `.claude/testing/e2e.local.md`, `~/.claude/testing/e2e.md`, `.claude/testing/worst-case.md`), says where to move it, and previews a copy. After the user says yes, `setup.sh apply --copy-old <old file>` copies that file's keys into the new location and leaves the old file in place. It never copies a key the new file already sets or one that has a `userConfig` option, and it writes to a `.local.` file only when that file is gitignored ([#18052](https://github.com/melodic-software/claude-code-plugins/issues/18052)).
+
 ## [5.11.0] - 2026-11-22
 
 ### Changed
