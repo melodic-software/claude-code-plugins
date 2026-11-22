@@ -98,9 +98,12 @@ installed and enabled, and otherwise reports
 `judge pass not run: testing plugin not installed or not enabled`. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
 
 `/testing:run-e2e` reads these optional keys only when it drives the app itself; a run through `/app-control:drive` takes its tools from the control skill. `recording` (`video | gif | off`, default `off`) and
-`browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`, which
-this plugin reads until it migrates; then the file moves where
-[config locations](reference/config-locations.md) says.
+`browser_mode` (`headed | headless`, default `headless`) live in `<home>/testing/e2e.md`, with a
+personal override at `<home>/testing/e2e.local.md`; the worst-case catalog extension is
+`<home>/testing/worst-case.md`. `<home>` is your convention home, `docs/conventions` by default.
+The old `.claude/testing/` files are still read, with a warning naming where to move each one;
+[the run-e2e config page](skills/run-e2e/context/e2e-config.md#convention-home-and-old-paths)
+lists them.
 `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
 (`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
 layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
@@ -168,10 +171,10 @@ its test scan. Keep the team's scan config where it is (the `docs/conventions/te
 `reuse_running_instance` only in `docs/conventions/testing.yaml`, or in a personal layer on a
 machine that runs this release.
 
-Its `worst-case` action also reads an optional `.claude/testing/worst-case.md`, after the bundled
+Its `worst-case` action also reads an optional `<home>/testing/worst-case.md`, after the bundled
 catalog in `run-e2e/context/worst-case.md`: the project's own worst-case values, field limits and
-data formats, read as data. It reads that path until the plugin migrates; then the file moves where
-[config locations](reference/config-locations.md) says. The action renders a target with that data, reverts what it injected
+data formats, read as data. An old `.claude/testing/worst-case.md` is still read when no `<home>`
+file exists, with a warning naming where to move it. The action renders a target with that data, reverts what it injected
 (proven with `cmp` snapshots), and reports what breaks without editing component code.
 
 `/testing:audit` and the `test-weaken` hook read the testing config through the same cascade
