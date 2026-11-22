@@ -3,6 +3,13 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-22
+
+### Changed
+
+- A `skip (prerequisite missing: <name>)` cell for an entry with an `install` object names the provisioning step that installs it, the source-control plugin's `provision-prerequisites.sh`. The check still installs nothing. A test fails if the not-run rules in `check`, its gates and `lint` stop naming that step.
+- The unattended "write nothing" rule in `check`, `lint` and the resolution ladder names the legacy `.claude/ecosystems/` beside `docs/conventions/ecosystems/`.
+
 ## [3.1.0] - 2026-11-22
 
 ### Changed
