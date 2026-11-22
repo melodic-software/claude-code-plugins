@@ -246,7 +246,7 @@ assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 idr="$(mktemp -d "$TMP/x.XXXX")"
 mkdir -p "$idr/docs"
 cat >"$idr/CLAUDE.md" <<'EOF'
-## Test files
+## Test conventions
 
 Name each test after the behavior it checks.
 EOF
@@ -274,7 +274,7 @@ ident() { bash "$SCRIPT" identity --root "$idr" "$@" 2>&1; }
 
 out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
 assert_eq "identity: demote golden vector" \
-  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t6ba7505f\t59fbc0aa07e33ac2\tTest files')" "$out"
+  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t958d10fb\t866c7f4e04652643\tTest conventions')" "$out"
 
 out="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
 assert_eq "identity: nested promote golden vector" \
@@ -285,7 +285,7 @@ b="$(ident --file docs/deployment.md --start 3 --lane promote --destination nest
 assert_eq "identity: output is byte-identical across runs" "$a" "$b"
 
 cat >"$idr/CLAUDE.md" <<'EOF'
-## Test files
+## Test conventions
 
 Name each test after the behavior it checks, and a paragraph
 was rewritten and lengthened inside the section.
@@ -294,7 +294,7 @@ Another paragraph appeared.
 EOF
 out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
 assert_eq "identity: editing a paragraph inside the section leaves the anchor and id unchanged" \
-  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t6ba7505f\t59fbc0aa07e33ac2\tTest files')" "$out"
+  "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t958d10fb\t866c7f4e04652643\tTest conventions')" "$out"
 
 ident --file CLAUDE.md --start 1 --lane bogus --destination path-scoped-rule >/dev/null
 assert_eq "identity: a bad lane is a usage error" "2" "$?"

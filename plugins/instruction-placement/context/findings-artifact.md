@@ -111,10 +111,10 @@ as `—` rather than omitted, so a diff between runs stays aligned.
 
 - **Status:** pending
 - **Lane:** demote
-- **Source:** `CLAUDE.md` lines 88–121, heading path `["Test files"]`
+- **Source:** `CLAUDE.md` lines 88–121, heading path `["Test conventions"]`
 - **Suppression key:** `check` `instruction-placement/audit/demote`; `claim`
-  `narrower-scope:path-scoped-rule`; `anchor/v1` `6ba7505f`; `finding_id` `59fbc0aa07e33ac2`
-- **Destination:** path-scoped rule `.claude/rules/test-files.md`
+  `narrower-scope:path-scoped-rule`; `anchor/v1` `958d10fb`; `finding_id` `866c7f4e04652643`
+- **Destination:** path-scoped rule `.claude/rules/test-conventions.md`
 - **Proposed `paths:`** `["**/*.test.*"]`
 - **Glob validation:** 412 tracked files matched; 3.1% of tracked files; budget ok; brackets ok
 - **Ladder rung:** 4 — scope narrower than the repo, keyed to a file kind

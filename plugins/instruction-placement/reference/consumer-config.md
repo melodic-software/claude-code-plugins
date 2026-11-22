@@ -97,12 +97,12 @@ A YAML file, checked against
 
 ```yaml
 suppressions:
-  59fbc0aa07e33ac2:
+  866c7f4e04652643:
     check: instruction-placement/audit/demote
     claim: narrower-scope:path-scoped-rule
     sites:
       - surface: CLAUDE.md
-        anchor/v1: "6ba7505f"
+        anchor/v1: "958d10fb"
     reason: "Kept always-loaded on purpose: contributors read it before their first commit."
     date: 2026-09-06
   3f63ad6cc4466c0a:
@@ -120,7 +120,7 @@ repository runs in CI rejects an unknown top-level key. An entry missing any req
 reported as malformed and does not suppress.
 
 **The entries above are derived, not illustrative.** Their `anchor/v1` values are this plugin's
-anchor over the enclosing heading paths `## Test files` and `## Deployment` → `### Release checklist`;
+anchor over the enclosing heading paths `## Test conventions` and `## Deployment` → `### Release checklist`;
 their keys are the finding-suppression contract's `finding_id` over the same constituents. The
 derivation of both is owned by `context/findings-artifact.md` under "Finding ids and their
 constituents". Anyone editing an example re-derives the anchor and then the key with `scripts/detect.sh identity`,
