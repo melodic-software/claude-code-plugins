@@ -1,3 +1,4 @@
+// test-scope: .github/actions/resolve-config/package.json
 // The `models` block: schema, cross-checks, resolution, the arguments and
 // settings a profile becomes, and what the live config gives every model run.
 // The live expectations are written by hand: --model opus and 75 turns for a
@@ -432,8 +433,6 @@ for (const [why, status, code, text, dims] of [
   });
 }
 
-// Whether the trusted-actor list holds a melodic- bot-setter is read per
-// issue, never a config error, so the config loads with any list or none.
 test("issue-status: a melodic- bot-setter the trusted-actor list does not hold still loads", () => {
   const files = withModels(statusModels({ ...STATUS, "bot-setters": [{ id: 1234, login: "melodic-unlisted[bot]" }] }));
   assert.equal(fixtureSlot({ ...files, trustedActors: LIVE.trustedActors }).applies, true);

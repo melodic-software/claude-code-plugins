@@ -106,8 +106,8 @@ record decisions kept outside this repository.
 |---|---|---|---|---|---|
 | A fresh practice repository, separate from the crash course one | Starts the cohort on a clean copy | Inference: leftover work confuses later lessons | Same | **already have**: the follow-along experiment | none |
 | Clone over HTTPS or SSH | Picks a clone protocol | Inference: learners stall on setup | Either works | **no change** | none |
-| A command-line fork: one fresh commit, a new public repository, scripts that still reach the course repository | Copies the course without a platform fork | Inference: learners need their own remote for issues and pull requests | Same | **already have** in the experiment | none |
-| Your own issues and pull requests are the ticket tracker | Keeps tickets beside the code | Inference: one place for work | A fork checkout with an `upstream` remote could send our tracker and pull-request writes to the course's public repository | **adapt**: write paths pin the target repository in fork checkouts | [#15375](https://github.com/melodic-software/claude-code-plugins/pull/15375) |
+| A command-line fork: a new public repository holding the course's `main` with its history (one fresh commit before ai-hero-cli 0.13.0), scripts that still reach the course repository | Copies the course without a platform fork | Inference: learners need their own remote for issues and pull requests | Same | **already have** in the experiment, forked before 0.13.0 with one commit ([ai-hero-cli changelog](https://github.com/mattpocock/ai-hero-cli/blob/main/CHANGELOG.md)) | none |
+| Your own issues and pull requests are the ticket tracker | Keeps tickets beside the code | Inference: one place for work | A fork checkout with an `upstream` remote could send our tracker and pull-request writes to the course's public repository | **adapt**: write paths pin the target repository in fork checkouts, and the work-item tracker resolves it with the pull-request skill's resolver, so a fork checkout targets the fork | [#15375](https://github.com/melodic-software/claude-code-plugins/pull/15375) |
 | Public, so hosted CI runs free | Avoids CI charges | Inference: private repositories run out of included minutes | Larger runners bill even on public repositories | **already have**: the pull-request pipeline's cost hold covers larger runners ([pr-pipeline](../conventions/pr-pipeline/README.md)) | none |
 | The same sample app as the crash course | Builds new skills on a known codebase | Inference: a new app adds noise | Same | **already have** | none |
 | Install, seed, then start the app; ignore install warnings | Gets the app running | Inference: warnings scare learners | Same | **already have** in the experiment; ignoring audit warnings fits a throwaway repository only | none |
@@ -122,7 +122,7 @@ record decisions kept outside this repository.
 | Keep your code at his checkpoint so your agent's results match his | Aligns starting states | Inference: different code gives different results | One run from the same commit does not show a difference is ours | **adapt** in the experiment: the same commit is necessary, not sufficient; compare several runs from one checkpoint | none |
 | A reset command replaces your work with a checkpoint | Jumps to a lesson's start | Inference: learners fall behind | Same | **already have**: commit first, as the crash course rows decided | none |
 | A cherry-pick command keeps your commits and adds the lesson's on top | Keeps local work, at the cost of conflicts | Inference: learners want to keep their changes | Our pull-request `ready` updates a branch by merging the base, or by a lease-pinned rebase only on an attended run that allows a rewrite; an unattended run never rewrites | **already have** | none |
-| Cherry-picking keeps your own model choice while taking his changes | Protects local settings from checkpoint updates | Inference: learners customize the model | His runner hard-codes the model in a tracked file his checkpoints also edit, so a changed model conflicts | **hold**: rechecked 2026-11-18 at two later course commits: the runner still hard-codes the model in a tracked file, so the conflict stands and there is nothing to take | none |
+| Cherry-picking keeps your own model choice while taking his changes | Protects local settings from checkpoint updates | Inference: learners customize the model | His runner hard-codes the model in a tracked file his checkpoints also edit, so a changed model conflicts | **no change**: rechecked 2026-11-18 at the course branch tip that workshops 07 and 08 use: the runner still hard-codes the model in a tracked file, so the conflict stands and there is nothing to take | none |
 | A pull command merges announced fixes and keeps your work | Delivers course fixes | Inference: course code has bugs | Not our case | **already have** | none |
 | Install, migrate and seed again after a reset | Brings dependencies and schema in line with the code | Inference: a reset changes source only | Nothing re-runs these after a checkout | **already have**: the open check, whether `/app-control:drive ready` spots pending migrations, stays with the crash-course absorption | none |
 
@@ -137,8 +137,6 @@ record decisions kept outside this repository.
   counts default WSL as no isolation level and WSL2 with the per-command sandbox as `L1`
   ([#16702](https://github.com/melodic-software/claude-code-plugins/pull/16702)); the stack for a
   Windows-only machine is still to be decided.
-- Cherry-picking against a hard-coded runner model: rechecked 2026-11-18 at two later course
-  commits; the hold in the lesson table stands.
 
 ## License notice
 

@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+const { join } = require("node:path");
+const { pathToFileURL } = require("node:url");
+
+const argv = process.argv.slice(2);
+
+import(pathToFileURL(join(__dirname, "..", "scripts", "external-agents.mjs")).href)
+  .then(({ main }) => main(argv))
+  .then((code) => { process.exitCode = code; })
+  .catch((error) => {
+    if (argv[0] === "review") {
+      const product = /^[a-z][a-z0-9-]*$/.test(argv[1] || "") ? argv[1] : "external-agents";
+      const reason = String((error && error.message) || error).replace(/\s+/g, " ").trim();
+      process.stdout.write(`${product}: failed (${reason})\n`);
+    }
+    process.stderr.write(`${(error && error.stack) || error}\n`);
+    process.exitCode = 1;
+  });

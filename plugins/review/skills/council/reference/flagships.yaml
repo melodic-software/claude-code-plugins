@@ -7,5 +7,9 @@
 # codex
 #   Unresolved: the Codex adapter reads no model list. Recheck when the Codex
 #   plugin's review commands document one.
+# antigravity
+#   Unresolved: the adapter reads no model list. Recheck when the runner
+#   resolves one from `agy models`.
 claude: fable
 codex: unresolved
+antigravity: unresolved

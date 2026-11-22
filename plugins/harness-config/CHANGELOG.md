@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.7.1] - 2026-11-21
+
+### Changed
+
+- `draft-auto-mode-rules` now offers the `allow` rules that `/auto-mode-setup` (Claude Code 2.1.329 and later) drafts from recent auto mode denials as input to the `allow` section. Its reference records what the command reads and writes.
+
 ## [5.7.0] - 2026-11-21
 
 ### Changed

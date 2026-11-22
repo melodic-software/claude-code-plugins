@@ -47,6 +47,24 @@ const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
 // The lanes App counts through trustedOption already, agent-ready included.
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
+export function statusBotSetters(trustedActors, config) {
+  const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
+  const explicit = config?.["bot-setters"];
+  if (Array.isArray(explicit)) {
+    return explicit
+      .filter(
+        ({ id, login }) =>
+          (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||
+          actors.some((actor) => actor?.id === id && actor?.login === login && actor?.kind === "bot"),
+      )
+      .map(({ id, login }) => ({ id, login }));
+  }
+  const melodic = actors.filter(
+    (actor) => actor?.kind === "bot" && typeof actor.login === "string" && actor.login.startsWith("melodic-") && actor.login !== LANES_APP_LOGIN,
+  );
+  return [ACTIONS_BOT, ...melodic.map(({ id, login }) => ({ id, login }))];
+}
+
 // The state the issue's Work status field holds, or null when no trusted
 // account set it. `facts` and `trustedActors` are issueDimensions'. A listed
 // human or the lanes App counts for every state; a `bot-setters` account for
@@ -80,11 +98,8 @@ export function issueStatusSetter(facts, config, trustedActors) {
       "unmapped-status",
       `issue field ${fieldId} (Work status) holds option ${option}, which models.issue-status does not map`,
     );
-  const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
-  const listed = ({ id, login }) =>
-    (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||
-    actors.some((actor) => actor?.id === id && actor?.login === login && actor?.kind === "bot");
-  const botSetter = (id) => (config["bot-setters"] ?? []).some((entry) => entry.id === id && listed(entry));
+  const bots = statusBotSetters(trustedActors, config);
+  const botSetter = (id) => bots.some((entry) => entry.id === id);
   const row = facts.fieldValues.find((value) => value.field === fieldId);
   if (Array.isArray(facts.fieldEvents)) {
     const people = trustedSetters(trustedActors);
@@ -138,13 +153,6 @@ export function issueStatusSetter(facts, config, trustedActors) {
   return { state: state === PERSON_ONLY_STATE ? null : state, setter };
 }
 
-// What the schema cannot check: no two options name one state, every state has
-// labels no other state has, order lists every state once and ends on the
-// floor, and the field is none of models.issue-dimensions'. Each `bot-setters`
-// entry is github-actions[bot] or a `melodic-` bot other than the lanes App,
-// and no id is listed twice. `field-events-since`, when set, is a real UTC
-// time in the form the schema's pattern allows. Whether the trusted-actor list still holds an
-// entry is issueStatus's to read, not a config error.
 export function checkStatus(config, dimensions) {
   const reject = (message) => {
     throw new Rejection("undefined-status", `models.issue-status${message}`);
