@@ -41,7 +41,7 @@ def render(text: str) -> str:
     body = text.strip()
     if not body:
         raise Fail(2, f"{SOURCE} is empty")
-    return "\n".join([BEGIN, "", body, "", END])
+    return "\n".join([BEGIN, body, END])
 
 
 def splice(text: str, block: str) -> str:
