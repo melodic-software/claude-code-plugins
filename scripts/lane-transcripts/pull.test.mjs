@@ -1,3 +1,5 @@
+// test-scope: .github/workflows/*.yml
+// test-scope: scripts/lane-transcripts/* .github/actions/open-lane-output/* .github/actions/seal-lane-output/*
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
