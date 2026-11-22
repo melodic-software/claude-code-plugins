@@ -226,7 +226,7 @@ describes the person's workflow around the skill rather than what the skill does
 names no second step keeps the name: `in` before a place (`continue-in-background`), or `or`
 between alternatives the skill itself weighs (`reuse-or-replace`).
 
-`/name:name` doubling is a naming defect, not an idiom, because one of the two names is failing at its job,
+`/name:name` doubling is a naming defect, not an idiom: one of the two names is failing at its job,
 the namespace not naming the domain or the skill not naming its action. Fix it by, in preference
 order: rename the skill to its real action verb; rename the plugin to its domain noun; decompose,
 when the single skill hides distinct discovery intents (the split rule in the migration playbook's
@@ -861,8 +861,8 @@ subaction and carries no `install-` prefix: guardrails `identity-domains` and `r
 
 **Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
 install path recorded in the consumer's repo, declines to install. It uses this shape, not a
-plugin-specific rationale: print the consumer-run command; do not add an `apply install-<tool>`
-subaction that cannot install; name every reason that applies; at least one always does.
+plugin-specific rationale: print the consumer-run command; do not invent `apply install-<tool>` to
+paper over the gap; name every reason that applies; at least one always does.
 
 1. The hook resolves the tool on `PATH`, so the install it can use is machine-level (a global bin
    directory such as `$GOPATH/bin`, cargo, Homebrew, a pre-built binary); a dependency recorded
