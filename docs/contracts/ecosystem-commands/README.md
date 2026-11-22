@@ -242,6 +242,7 @@ lane membership without running a verb:
 | Plugin | Keys | Use |
 |---|---|---|
 | `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset stops the run with exit 2 and `/code-metrics:setup check` shows FAIL, where this contract says plugins should fail soft. |
+| `source-control` | `requires.*[].install`, `gates[].requires[].install`, and each such entry's `name` | The provisioning step (`scripts/provision-prerequisites.mjs`, run by `scripts/provision-prerequisites.sh` at worktree creation) installs each declared lockfile with scripts off. No verb is run. A record with no `install` key is not parsed; one with an `install` key outside the YAML subset is named on stderr and skipped. |
 
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `.claude/ecosystems/<lane>.yaml` and
 no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: an ecosystem
