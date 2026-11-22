@@ -61,7 +61,8 @@ dc_is_excluded_path() {
 DC_NOLANE_EXTS=" rs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh hxx swift lua ex exs erl hs ml mli dart pl pm zig nim clj cljs groovy vue svelte sql pyi r tf proto m mm s asm sol "
 
 # In-skill fallback glob table. A consumer repo that ships
-# .claude/ecosystems/<eco>.yaml has richer globs; this table is the common path
+# an ecosystem record (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md)
+# has richer globs; this table is the common path
 # because most repos do not. `install-hint` is deliberately not consumed — it
 # names an ecosystem's lint tools, never a dead-code detector.
 #

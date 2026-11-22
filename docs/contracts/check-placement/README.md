@@ -166,7 +166,7 @@ own key. Each rule is a migration line, like an earlier name.
 
 A plugin whose entries pick their adapter per repository
 ([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)) adds a top-level `ecosystems`
-array of the `.claude/ecosystems/<id>.yaml` ids whose records its setup reports, and
+array of the `docs/conventions/ecosystems/<id>.yaml` ids whose records its setup reports, and
 `"resolved": true` on each such entry. For a resolved entry the installer reads the tools from the
 entry script's `--resolve` rows, run under `sh`, which run nothing; `tools` is the fallback when the
 script cannot answer.
@@ -186,7 +186,7 @@ plugin ships, for a file its tool's own config opts in, through the vendored
 `lib/git-hooks/resolve-tool.sh` (canonical in `lib/`, copied into each format and lint plugin and
 beside each installed entry). A file no adapter's config governs gets nothing.
 
-- **Records never run from a hook.** A `.claude/ecosystems/<id>.yaml` record's `fix-cmd` and
+- **Records never run from a hook.** A `docs/conventions/ecosystems/<id>.yaml` record's `fix-cmd` and
   `lint-cmd` ([ecosystem-commands](../ecosystem-commands/README.md)) run only when a person asks
   `/toolchain:lint` or `/toolchain:check`. No check of a record's contents can bound what its
   command executes, so a hook runs none, however the record matches the default branch. Setup

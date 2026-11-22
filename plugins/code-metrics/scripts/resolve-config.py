@@ -37,11 +37,13 @@ exclude glob the matcher cannot compile) is named with its file, key and value
 and dropped: the key resolves from a valid higher layer, else the bundled
 default, never from a lower layer.
 
-The consumer's ecosystem files (`.claude/ecosystems/<lane>.yaml`, the
+The consumer's ecosystem files (`docs/conventions/ecosystems/<lane>.yaml`, the
 marketplace-wide ecosystem-commands convention) resolve through that
 convention's three layers (`~/.claude/ecosystems/<lane>.yaml`, then the
 repository's `<lane>.yaml` and `<lane>.local.yaml`) for their `globs` and
-`enabled` keys. Only a lane in the resolved
+`enabled` keys. A repository file absent from `docs/conventions/ecosystems/`
+is read from the legacy `.claude/ecosystems/`; with both present the first
+wins and a warning names both. Only a lane in the resolved
 `lanes` mapping reads its ecosystem file: the bundled lanes, plus any id a
 layer lists under `lanes`. A record whose id no layer lists creates no lane.
 
@@ -115,7 +117,8 @@ pathglob = _module("pathglob")
 
 CONTROL = re.compile(r"[\n\r\t]")
 # The ecosystem-commands convention's identifier form (lowercase kebab-case).
-# A listed lane id names a file under `.claude/ecosystems/`, so anything else
+# A listed lane id names a record file
+# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md), so anything else
 # (a slash, `..`) is refused rather than joined into a path.
 LANE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 STRING_LISTS = {"suppressions.correctness_rules"}
@@ -269,6 +272,20 @@ def layer_paths(home: str, root: str, stem: str) -> list[tuple[str, str]]:
         ("team", os.path.join(root, ".claude", f"{stem}.yaml")),
         ("local", os.path.join(root, ".claude", f"{stem}.local.yaml")),
     ]
+
+
+def ecosystem_layer_paths(
+    home: str, root: str, lane: str, warnings: list[str]
+) -> list[tuple[str, str]]:
+    """A lane record's layers: the convention home, else the legacy .claude/ecosystems."""
+    paths = [("user-global", os.path.join(home, ".claude", "ecosystems", f"{lane}.yaml"))]
+    for layer, name in (("team", f"{lane}.yaml"), ("local", f"{lane}.local.yaml")):
+        new = f"{root}/docs/conventions/ecosystems/{name}"
+        old = f"{root}/.claude/ecosystems/{name}"
+        if os.path.isfile(new) and os.path.isfile(old):
+            warnings.append(f"{new} and {old} both exist; using {new}")
+        paths.append((layer, new if os.path.isfile(new) else old))
+    return paths
 
 
 def old_layer_paths(home: str, root: str) -> dict[str, str]:
@@ -689,7 +706,7 @@ def main(argv: list[str]) -> int:
         layer_files = surface_layer_paths(args.home, root, warnings, args.user_file)
 
     def discovered(lane: str) -> list[tuple[str, str]]:
-        return layer_paths(args.home, root, os.path.join("ecosystems", lane))
+        return ecosystem_layer_paths(args.home, root, lane, warnings)
 
     ecosystem_paths = None if args.layers else discovered
     try:

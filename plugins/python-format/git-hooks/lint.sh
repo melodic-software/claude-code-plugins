@@ -11,7 +11,8 @@
 #
 # The command resolves per file through lib/git-hooks/resolve-tool.sh to the
 # Ruff adapter in adapters.sh where a Ruff config governs the file, else to
-# nothing; a .claude/ecosystems/ record is never run here. Its output becomes
+# nothing; an ecosystem record is never run here
+# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#hooks-run-the-shipped-adapter). Its output becomes
 # "<path>:<line>: <message>" lines, repo-relative, and only those on added
 # lines block (stderr, exit 1). A linter that exits non-zero with no parseable
 # finding fails closed. A partly staged file is refused, since the linter reads

@@ -3,7 +3,7 @@
 `remove-comments` never assumes a tool. `../../../scripts/comment-tooling-probe.sh`
 asks the environment at scope time and the run states the layer it operated at. Every layer is
 optional; each row below names what its absence costs, so the reader can decide whether to install
-it. The consumer's own `.claude/ecosystems/*.yaml` (the ecosystem-commands convention) is read as an
+it. The consumer's own `docs/conventions/ecosystems/*.yaml` (the ecosystem-commands convention) is read as an
 enrichment where it exists, never as the source of truth for presence: a probe stays true across
 convention churn, and most repositories ship no such file.
 

@@ -7,7 +7,7 @@
   ],
   "fail": [
     {
-      "answer": [".claude/ecosystems/python.yaml"],
+      "answer": ["docs/conventions/ecosystems/python.yaml"],
       "why": "configured an ecosystem the argument did not name"
     }
   ]

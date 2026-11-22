@@ -13,7 +13,7 @@ with `-c`, so that SHA-shaped hex is not read as a misspelling) merges with it t
 keys. Pointer: the Sources list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
 
 The hooks run only this typos adapter (`git-hooks/adapters.sh`). They never run a command from a
-`.claude/ecosystems/spelling.yaml` record; `/toolchain:lint` and `/toolchain:check` run its
+`docs/conventions/ecosystems/spelling.yaml` record; `/toolchain:lint` and `/toolchain:check` run its
 `lint-cmd` on request, and `/spelling:setup check` says when one exists.
 
 ## Git pre-commit entry

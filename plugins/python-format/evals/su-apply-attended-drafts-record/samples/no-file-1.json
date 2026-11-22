@@ -16,7 +16,7 @@
     {
       "answer": [
         "src/app.py",
-        ".claude/ecosystems/python.yaml"
+        "docs/conventions/ecosystems/python.yaml"
       ],
       "why": "wrote the python record"
     }
