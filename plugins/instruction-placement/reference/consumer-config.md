@@ -1,8 +1,8 @@
 # instruction-placement: consumer configuration
 
-Owner doc for this plugin's tracked configuration file: `.claude/instruction-placement.md` in the
+Owner doc for this plugin's tracked configuration file: `<home>/instruction-placement.yaml` in the
 consuming repository, layered per the consuming marketplace's config-cascade convention. Every layer
-is optional, and all three absent is a valid state that means no suppressions.
+is optional, and all of them absent is a valid state that means no suppressions.
 
 The surface carries one key today, `suppressions`: the durable record of the findings an operator has
 declined. It is declared here rather than in the plugin's `README.md` because the cascade's boundary
@@ -27,15 +27,20 @@ carries it.
 
 ## Layers and merge semantics
 
-Three layers, resolved in this order:
+The config-cascade layers, lowest first
+([the layers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers)):
 
-| Order | Layer | Path |
+| Order | Layer | Source |
 |---|---|---|
-| 1 | user-global | `~/.claude/instruction-placement.md` |
-| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md` |
-| 3 | personal override (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.local.md` |
+| 0 | plugin default | no suppressions |
+| 1 | `userConfig` | none: a decline is a repository's judgment, so no `userConfig` option holds one (see above) |
+| 2 | team (tracked) | `<home>/instruction-placement.yaml` |
+| 3 | personal override (gitignored) | `<home>/instruction-placement.local.yaml` |
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+Every path is relative to the repository root (`git rev-parse --show-toplevel`; on a
+multi-repository run, the worktree that run names). `<home>` is the convention home that the marked
+pointer region in the root `AGENTS.md` or `CLAUDE.md` binds, and `docs/conventions` when no region
+binds one. [Config locations](config-locations.md) lists where every plugin's config lives.
 
 **Merge form: per-key override**, declared here as the cascade convention requires. Entries merge per
 `finding_id`: a later layer's entry for one id wins for that id only, and every id it does not
@@ -50,12 +55,45 @@ from the team layer is the team's unsuppressed state. Whenever a personal layer 
 output, the run names the contributing layer. That reporting is what makes the class hold, and it is
 behavioral rather than declarative.
 
+### Old paths: read until moved
+
+Three old paths are still read while they exist, so no entry in them is lost, and every run prints
+one warning line for each one it finds:
+
+| Old path | Read as | Read when | Move to |
+|---|---|---|---|
+| `.claude/instruction-placement.md` | team | `<home>/instruction-placement.yaml` is absent | `<home>/instruction-placement.yaml` |
+| `.claude/instruction-placement.local.md` | personal | `<home>/instruction-placement.local.yaml` is absent | `<home>/instruction-placement.local.yaml` |
+| `~/.claude/instruction-placement.md` | personal, below `.claude/instruction-placement.local.md` per `finding_id` | `<home>/instruction-placement.local.yaml` is absent | `<home>/instruction-placement.local.yaml` |
+
+An old file holds its `suppressions` in the fenced YAML block of a Markdown file; the keys are the
+same. The old user-global file moves to the personal override, not to `userConfig`, by the placement
+rule: a decline is a per-repository judgment, and a personal-layer entry suppresses nothing on its
+own, so the move keeps every result the same.
+
+The warning names the old file, the new location, and the command that moves it:
+
+```text
+instruction-placement: old config path <old> is still read; move it to <new> with /instruction-placement:setup apply migrate-config
+```
+
+When the new file for that layer exists too, the new file wins and the old one is not applied. The
+warning then names both files and lists the old file's `finding_id`s that the new file lacks or
+holds with different values, so nothing in the old file drops out unseen:
+
+```text
+instruction-placement: old config path <old> is not applied because <new> supplies this layer; ids only in the old file: <ids, or none>; ids that differ: <ids, or none>; merge them with /instruction-placement:setup apply migrate-config
+```
+
+`/instruction-placement:setup apply migrate-config` moves each old file to its new location behind
+a preview and a yes, checks the new location resolves the same entries, and then deletes the old
+file, so the config ends in one place. Dropping the old-path reads is a separate later change, made
+once no run reports an old file.
+
 ## File format
 
-Markdown with a fenced YAML block, human-readable in review and greppable from a shell.
-
-````markdown
-# instruction-placement suppressions
+A YAML file, checked against
+[`schemas/instruction-placement.schema.json`](../schemas/instruction-placement.schema.json):
 
 ```yaml
 suppressions:
@@ -76,9 +114,9 @@ suppressions:
     reason: "Owned by the release runbook; promoting it would fork the source of truth."
     date: 2026-09-06
 ```
-````
 
-Unknown keys are inert per the cascade's soft-degradation rule. An entry missing any required key is
+Unknown keys are inert at runtime per the cascade's soft-degradation rule; the schema check a
+repository runs in CI rejects an unknown top-level key. An entry missing any required key is
 reported as malformed and does not suppress.
 
 **The entries above are derived, not illustrative.** Their `anchor/v1` values are this plugin's
@@ -123,10 +161,12 @@ Three obligations this plugin takes on top of the convention:
   contributing layer, and every entry that did *not* suppress: each `personal-only, not applied` and
   each malformed one. A scoped run reports what it examined: it evaluates only entries with a site in
   its scope and marks the rest **not evaluated this run**.
-- **Team layer only, and never user-global.** A decline is written to
-  `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md` so git carries it to every checkout. The
-  convention forbids editing a user-scope file to record a suppression, and this plugin never writes
-  `~/.claude/**`. A personal draft there is read, reported, and left for the operator to promote.
+- **Team layer only.** A decline is written to `<home>/instruction-placement.yaml` so git carries
+  it to every checkout, never to the personal override, an old path, or `~/.claude/**`. The
+  convention forbids editing a user-scope file to record a suppression. A personal draft is read,
+  reported, and left for the operator to promote. Moving config is not recording a decline:
+  `setup apply migrate-config` writes the personal override from an old personal or user-global
+  file, and deletes each old-path file, every step after the operator's yes.
 
 **Declared deviation: a fifth disposition for a scoped run.** The convention requires a skill to
 resolve every entry to exactly one of four dispositions. `instruction-placement:audit` accepts a
@@ -138,20 +178,23 @@ inside the scope still resolves to one of the convention's four. A full run neve
 deviation is additive and reporting-only: no entry suppresses on it, and no entry escapes a
 disposition because of it.
 
-`.claude/instruction-placement.md` and its layers are **excluded from the audit's own scan set**.
-Otherwise recording a decline would change the instruction layer the next run sweeps, and any
-idempotence claim about that run would be unfalsifiable.
+`<home>/instruction-placement.yaml`, `<home>/instruction-placement.local.yaml`, and every old-path
+file still read under "Old paths: read until moved" are **excluded from the audit's own scan set**. Otherwise
+recording a decline would change the instruction layer the next run sweeps, and any idempotence
+claim about that run would be unfalsifiable.
 
 ## Consumer `.gitignore`
 
 The personal override is gitignored by the cascade's one recursive line, which covers every current and
-future surface at once:
+future surface at once, with `<home>` written out (the default home shown):
 
 ```gitignore
-.claude/**/*.local.*
+docs/conventions/**/*.local.*
 ```
 
-No skill in this plugin writes the consumer's `.gitignore`.
+No skill in this plugin writes the consumer's `.gitignore`. When the personal override would not be
+ignored, `setup apply migrate-config` names the missing line and leaves the personal file where it
+is.
 
 ## Trades recorded, so they are not silently re-litigated
 

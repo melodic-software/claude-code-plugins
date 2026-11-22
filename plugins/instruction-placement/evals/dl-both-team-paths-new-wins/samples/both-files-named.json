@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "instruction-placement: old config path .claude/instruction-placement.md is not applied because docs/conventions/instruction-placement.yaml supplies this layer; ids only in the old file: 4d7f2a90c1e3b856; ids that differ: none; merge them with /instruction-placement:setup apply migrate-config",
+      "why": "the documented warning line"
+    },
+    {
+      "answer": "| `.claude/instruction-placement.md` | not applied: `docs/conventions/instruction-placement.yaml` wins; `4d7f2a90c1e3b856` (Lint rules) is only in the old file |",
+      "why": "table row naming both files and the id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Suppressed: Lint rules (4d7f2a90c1e3b856, team layer, docs/conventions/instruction-placement.yaml).",
+      "why": "credits the new file with the old file's entry"
+    },
+    {
+      "answer": "docs/conventions/instruction-placement.yaml supplies the team layer; .claude/instruction-placement.md is not applied.",
+      "why": "near miss: never lists the id only the old file carries"
+    },
+    {
+      "answer": "Changed: Lint rules (4d7f2a90c1e3b856).",
+      "why": "silent about both files"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
