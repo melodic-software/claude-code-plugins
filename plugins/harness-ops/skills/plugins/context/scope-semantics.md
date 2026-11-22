@@ -342,9 +342,9 @@ typed command applies plugin MCP server changes in place there. Removal is the o
 and only through the Agent SDK's `reload_plugins` control request: on Claude Code 2.1.330, in a
 `-p` stream-json session with a scratch config directory, a removed plugin's MCP server dropped out
 of `mcp_status` and its process exited after that request. The typed command in the same kind of
-session left the server connected and replied that plugin MCP server changes take effect in the
-next session. As of 2026-11-22; recheck when a release or the page below says the typed command
-disconnects a removed plugin's server. Which session kinds qualify, the version floor,
+session left the server connected. Probe: pull request #18167 (issue #17910). Re-run the probe
+when a release or the page below says the typed command disconnects a removed plugin's server.
+Which session kinds qualify, the version floor,
 and which input sources are refused are read live. Whether a loop whose skill body is already in
 context can reach the command is unprobed; `lanes` `context/refresh.md` owns that limit.
 
