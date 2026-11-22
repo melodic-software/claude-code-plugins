@@ -500,6 +500,21 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     assert.equal(got.stdout, "antigravity: failed (exit 1; prompt is empty)\n");
   });
 
+  test("a signed-out run (agy 1.5.14's envelope) opens the auth breaker and the next run skips", async () => {
+    const now = () => Date.UTC(2026, 10, 22, 12, 0, 0);
+    const signedOut = { conversation_id: "", status: "ERROR", response: "", error: "authentication failed or timed out", finished_reason: "error" };
+    const w = world({ envelope: signedOut, stderr: "Authentication required. Please visit the URL to log in:\nError: authentication timed out.\n", exit: 1 });
+    assert.equal((await run(agy(w, { use: "investigate", prompt: "x", now }))).job.status, "failed");
+    assert.equal(readBreaker(w.dataDir, "antigravity")?.class, "auth");
+    assert.match((await run(agy(w, { use: "investigate", prompt: "x", now }))).stdout, /^antigravity: unavailable: /);
+  });
+
+  test("a RESOURCE_EXHAUSTED error opens the usage-limit breaker (the wording is judgment: none was captured from agy 1.5.14)", async () => {
+    const w = world({ envelope: { status: "ERROR", error: "429 RESOURCE_EXHAUSTED: quota exceeded" }, exit: 1 });
+    await run(agy(w, { use: "investigate", prompt: "x", now: () => Date.UTC(2026, 10, 22, 12, 0, 0) }));
+    assert.equal(readBreaker(w.dataDir, "antigravity")?.class, "usage-limit");
+  });
+
   test("a notice-level fallback warning never changes the status", async () => {
     const w = world({ envelope: { status: "SUCCESS", response: "done" }, stderr: "warning: --mode auto is not available for this account; continuing in the default mode.\n" }, { local: "schema: 1\n" });
     const got = await run(agy(w, { use: "investigate", prompt: "x" }));
