@@ -40,7 +40,7 @@ playwright-cli -s=<name> delete-data  # remove persistent profile data
 
 If a headless session reports the browser is not open after a pause, run `open` again and redo any in-memory setup. Before a long pause mid-flow, raise the idle limit with `open --idle-timeout=<ms>`.
 
-- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live; for the change, fetch the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). **As of**: 2026-11-22. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live, or fetch upstream's [session-management reference, "Browser Session Commands"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/session-management.md#browser-session-commands); correlate with the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20).
 
 ## Implicit session via env
 
@@ -95,13 +95,12 @@ To work in the user's own browser profile (their tabs and logins), attach throug
 ```bash
 playwright-cli attach --extension=chrome --session=checkout-review
 playwright-cli -s=checkout-review goto https://app.example.com
-playwright-cli -s=checkout-review detach                # leave the session's tabs open
-playwright-cli -s=checkout-review detach --close-tabs   # close them
+playwright-cli -s=checkout-review detach
 ```
 
-The session controls only its own tabs. Plain `detach` leaves them for the user. `--close-tabs` closes every tab of the session, the tabs the user picked for it included, so use it only when the user no longer needs them.
+Preserve the user's tabs: end the session with plain `detach`, and close its tabs only when the user says they no longer need them.
 
-- **Pointer**: the extension's browser choice, the tab-group flags (`--session-color`, `--no-tab-group`) and the error when the extension is missing, in the "Attach via browser extension" section of `vendor/references/session-management.md`; for the change, the [v0.1.25 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.25).
+- **Pointer**: before any cleanup of the session, and for the browser choice, the tab-group flags and the error when the extension is missing, fetch upstream's [session-management reference, "Attach via browser extension"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/session-management.md#attach-via-browser-extension) live; correlate with the [v0.1.25 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.25).
 
 ## Patterns
 
