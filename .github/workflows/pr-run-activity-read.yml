@@ -2587,10 +2587,9 @@ jobs:
       # output, held to its closed set, so a forged one can only hand the
       # PR to a person.
       collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
-      # Set only by this job's own steps: `patch`, an oversize patch the carry
-      # step scanned clean; `fault`, a scan fault after the patch's text was
-      # judged, with no binary hunk's bytes unread, or in a run that left no
-      # patch; `output`, any other refusal. A forged run job output can add
+      # Set only by this job's own steps; each value's meaning and route is its
+      # scan-refused-* row in https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/work-resolve-issue/stop-routes.json
+      # A forged run job output can add
       # one, or forge that clean and turn an oversize hold into a retry.
       refused: >-
         ${{ steps.decode.outputs.refused
