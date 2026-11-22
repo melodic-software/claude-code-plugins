@@ -58,8 +58,8 @@ name: Maintenance Reconcile Lost Runs
 # It does nothing while githubstatus.com shows Actions as anything but
 # operational, or the page cannot be read, so it adds no load mid-incident. At
 # most 3 re-runs are in flight at once, auto-merge PRs first, beside at most
-# 12 re-runs a pass of hosted reviews the defer gate stopped, each once its
-# window's reset is a minute past, and its writes
+# 12 re-runs a pass of hosted reviews and pr-verify runs a defer gate stopped,
+# each once its window's reset is a minute past, and its writes
 # are at least a second apart. A lost pull_request review or refine lane run is listed in
 # the run summary for a person: those lanes, or the lanes token broker, refuse
 # a re-run github-actions[bot] starts. No model, and no PR code is checked out.
@@ -70,7 +70,7 @@ name: Maintenance Reconcile Lost Runs
 
 on:
   schedule:
-    - cron: "4 * * * *"
+    - cron: "4,19,34,49 * * * *"
   workflow_dispatch:
     inputs:
       force:
@@ -116,8 +116,20 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
+      # One pass per token window, just after its reset
+      # (https://github.com/melodic-software/claude-code-plugins/issues/17460).
+      - name: Check the token window's reset
+        id: reset
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reset-tick.mjs
+
       - name: Check the kill switch
         id: kill
+        if: steps.reset.outputs.due != 'false'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -128,6 +140,7 @@ jobs:
       # The base config's limits.api, in resolve-config's output shape, for
       # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
+        if: steps.reset.outputs.due != 'false' && steps.reset.outputs.post-reset != 'true'
         continue-on-error: true
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
@@ -143,6 +156,7 @@ jobs:
       # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
+        if: steps.reset.outputs.due != 'false' && steps.reset.outputs.post-reset != 'true'
         continue-on-error: true
         env:
           RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
@@ -151,15 +165,13 @@ jobs:
           PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
-      # A dispatch skips its work when a full pass finished under
-      # MIN_GAP_MINUTES ago, the schedule's cadence, unless dispatched with
-      # force; the next tick reads the same runs. A read that fails runs the
-      # pass (.github/scripts/maintenance-reconcile-lost-runs/recent-pass.mjs).
-      - name: Skip a dispatch right after a full pass
+      - name: Skip a run right after a full pass
         id: recent
+        if: steps.reset.outputs.due != 'false'
         continue-on-error: true
         env:
           MIN_GAP_MINUTES: "60"
+          PASS_AFTER: ${{ steps.reset.outputs.pass-after }}
           FORCE: ${{ inputs.force }}
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
@@ -167,7 +179,7 @@ jobs:
 
       - name: Find lost runs
         id: plan
-        if: steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
+        if: steps.reset.outputs.due != 'false' && steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
         env:
           MODE: plan
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
@@ -477,7 +489,7 @@ jobs:
           retention-days: 2
 
       - name: Re-run lost runs
-        if: steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
+        if: steps.reset.outputs.due != 'false' && steps.pace.outputs.paced != 'true' && steps.recent.outputs.skip != 'true'
         env:
           MODE: act
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json

@@ -71,6 +71,8 @@ const CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key l
 // The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const PROBE_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
+const DEFER_STEPS = ["Read the defer override from the base config", "Check the token budget", "Note the deferral"];
+const NOT_DEFERRED = " && steps.defer.outputs.cause != 'defer'";
 const ifOf = (job, base) => `${base}${job === KEY ? KEY_SKIP : ""}`;
 const KEY_CLASS = "${{ steps.judge.outputs.lane-class }}";
 const REPORT_IF = "steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'";
@@ -247,7 +249,10 @@ test("the resolver runs before the trigger gate, and the agree step only after t
     assert.ok(index("Check the trigger", job) < index("Assert the gate and the resolver agree", job), job);
     assert.match(step("Resolve the pull request", job), /^ {8}if: steps\.kill\.outputs\.proceed == 'true'$/m, job);
     assert.match(step("Check the trigger", job), /^ {8}if: steps\.pr\.outputs\.proceed == 'true'$/m, job);
-    assert.match(step("Assert the gate and the resolver agree", job), /^ {8}if: steps\.gate\.outputs\.proceed == 'true'$/m, job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(step("Assert the gate and the resolver agree", job))?.[1], `steps.gate.outputs.proceed == 'true'${job === KEY ? NOT_DEFERRED : ""}`, job);
+    for (const name of DEFER_STEPS) {
+      assert.equal(index(name, job) !== -1, job === KEY, `${job}: only the first leg defers (${name})`);
+    }
     // Every judging step hangs off agree, and so does the missing-verdict failure.
     assert.match(step("Fail without a verdict", job), /steps\.agree\.outcome == 'success'/, job);
   }
@@ -700,6 +705,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
           !PROBE_STEPS.includes(s.name) &&
           // The credit gate: only the key leg can be out of credit.
           !CREDIT_STEPS.includes(s.name) &&
+          !DEFER_STEPS.includes(s.name) &&
           // Each leg's credential call, checked above.
           s.name !== "Check the credential",
       )
@@ -707,6 +713,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
         lines(s.block)
           .replace(`\n${CARRY_ENV.join("\n")}`, "")
           .replace(`if: steps.agree.outcome == 'success'${NOT_CARRIED}`, "if: steps.agree.outcome == 'success'")
+          .replace(NOT_DEFERRED, "")
           .replace(KEY_SKIP, "")
           .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")

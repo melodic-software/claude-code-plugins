@@ -24,8 +24,9 @@ from any workflow in the repository holding `actions: write`.
 
 1. **A scripted dispatcher.**
    [`pr-unblock-dispatch.yml`](../../.github/workflows/pr-unblock-dispatch.yml) runs on a push to
-   `main`, on a half-hourly schedule five minutes after each lost-run reconciler tick, and on a
-   listed human's `workflow_dispatch`, only on `refs/heads/main`, with no model and no App token:
+   `main`, on a half-hourly schedule five minutes after the lost-run reconciler's :04 and :34
+   ticks, and on a listed human's `workflow_dispatch`, only on `refs/heads/main`, with no model
+   and no App token:
    its `GITHUB_TOKEN` holds `actions: write` and three reads. It checks the kill switch, checks a
    hand run or any re-run with `check-trusted-trigger` (`require-pr: false`,
    `require-kind: human`; that mode handles no `schedule` event, so a scheduled run's re-run stops

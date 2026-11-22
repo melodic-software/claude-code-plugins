@@ -226,11 +226,43 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-verify $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-verify"; } || true
 
+      - name: Read the defer override from the base config
+        if: steps.gate.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
+
+      # The budget read sits after the resolver and the trigger gate, so only
+      # a run that would judge defers: most runs skip there and spend little.
+      # A first attempt defers while the GITHUB_TOKEN window is projected to
+      # run short before the judgment ends; a re-run attempt never defers
+      # (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
+      # The kill switch step above already read both switches, so this one
+      # passes them as off and decides on the budget alone.
+      - name: Check the token budget
+        id: defer
+        if: steps.gate.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: "false"
+          repo-value: "false"
+          defer: "true"
+          defer-job: check-intent
+          resolved-config: ${{ runner.temp }}/defer-config.json
+
+      - name: Note the deferral
+        id: note-defer
+        if: steps.defer.outputs.cause == 'defer'
+        env:
+          RESET: ${{ steps.defer.outputs.reset }}
+        run: |
+          echo "::notice title=pr-verify::deferred: the GITHUB_TOKEN window is projected to run short before this judgment ends; nothing is judged, and the lost-run reconciler re-runs this run once after the reset (cause=defer reset=${RESET})"
+
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
       - name: Assert the gate and the resolver agree
         id: agree
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.defer.outputs.cause != 'defer'
         env:
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
