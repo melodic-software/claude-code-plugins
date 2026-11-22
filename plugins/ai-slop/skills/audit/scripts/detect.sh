@@ -185,7 +185,6 @@ if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
-# CFG_LAYERS and OLD_PATH_NOTE: lib/config-layers.sh owns which layer files apply.
 resolve_config_layers "$REPO_ROOT" "$SHOW_CONFIG"
 
 # jq reads the user-global JSON layer; the YAML layers need no jq.

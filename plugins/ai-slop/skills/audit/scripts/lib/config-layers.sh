@@ -1,16 +1,7 @@
 # shellcheck shell=bash
-# Which config-cascade layer files detect.sh reads, in order. Sourceable; not
-# invoked directly. resolve_config_layers <repo-root> <show-config> sets
-# CFG_LAYERS (the team file, then the personal layer) and OLD_PATH_NOTE (the
-# warning about the old user-global file, or empty). It prints the warning to
-# stderr unless <show-config> is 1, when the --show-config report prints it
-# beside the layers instead.
 
 _CONFIG_LAYERS_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../lib" 2>/dev/null && pwd)"
 
-# Config-cascade step 2: a home or non-repo root has no team layer or personal
-# override, and a team file or personal override that is the user-global file is
-# not read a second time.
 # shellcheck source=../../../../lib/config-root.sh
 source "$_CONFIG_LAYERS_LIB/config-root.sh"
 
@@ -20,8 +11,6 @@ resolve_config_layers() {
   CFG_LAYERS=()
   OLD_PATH_NOTE=""
   if [[ "$(config_root_classify "$repo_root")" == repo ]]; then
-    # The team layer is <home>/ai-slop.yaml and the personal layer
-    # <home>/ai-slop.local.yaml (ADR 0075).
     conv_home="docs/conventions"
     if home="$(bash "$_CONFIG_LAYERS_LIB/resolve-convention-home.sh" --root "$repo_root" 2>/dev/null)" && [[ -n "$home" ]]; then
       conv_home="$home"
