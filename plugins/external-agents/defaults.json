@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "codex": {
+    "timeout_seconds": 1800,
+    "uses": {
+      "task": { "mode": "write" },
+      "investigate": { "mode": "read-only" },
+      "review": { "mode": "read-only" }
+    },
+    "council": { "enabled": true }
+  },
+  "antigravity": {
+    "timeout_seconds": 1800,
+    "uses": {
+      "task": { "mode": "read-only" },
+      "investigate": { "mode": "read-only" },
+      "review": { "mode": "read-only" }
+    },
+    "council": { "enabled": true }
+  },
+  "breaker": { "cooldown_hours": 24 },
+  "jobs": { "keep": 50 }
+}

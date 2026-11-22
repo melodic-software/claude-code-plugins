@@ -25,18 +25,16 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
   the sweep runs `lens`, and the arm check fails. Run every arm with the same `--model`, one whose
   role map resolves two or more distinct fan-out tiers (`opus` or `fable`). When the real
   `multi-agent` bundled defaults change, update the stub's JSON to match.
-- The X arms cannot pass as committed. Every command of `codex@openai-codex` 1.0.6,
-  `/codex:review` included, sets `disable-model-invocation: true`, so the model cannot start
-  Codex through those commands, and fanout runs it through
-  `scripts/codex-review.sh` instead (#12495). A `claude plugin eval` run also loads
-  only the plugins under its target and gets a temporary home, so the Codex plugin and its login
-  are absent
+- The X arms cannot pass as committed. Fanout runs Codex through the `external-agents review
+  codex` command, which only the `external-agents` plugin puts on the Bash `PATH`. A
+  `claude plugin eval` run loads only the plugins under its target and gets a temporary home, so
+  that plugin and the Codex login are absent
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
   Never copy the Codex login into a run's home: the model under test could read it. Run the X
   arms outside `claude plugin eval`, one `claude -p --output-format stream-json --verbose
-  --permission-mode auto` per run with the case's scaffold, prompt and `--plugin-dir` plugins, on
-  a host where the Codex plugin is installed and logged in, keep the stream as the run's trace, and
-  stop each run's Codex broker and app-server when it ends. Grade `arm-check` on the final message,
+  --permission-mode auto` per run with the case's scaffold, prompt and `--plugin-dir` plugins
+  (`external-agents` among them), on a host where the Codex CLI is installed and logged in, and
+  keep the stream as the run's trace. Grade `arm-check` on the final message,
   `codex-ran` on the trace, and `recall` and `false-positive` on the copied report. A run is valid
   only when `arm-check` and `codex-ran` both pass.
 - Run the L and M arms with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
@@ -99,9 +97,9 @@ its ## Surfaces section.` (with code spans around the path, the line name and th
 - Codex sentence for `l` and `m`: `Leave out the Codex surface even when it is installed.`
 - Codex sentence for `mx` and `lx`: `Run the Codex surface as one of the orchestrators, and report
   it in ## Surfaces by the status its script prints.` The skill runs it through
-  `scripts/codex-review.sh`, and lists Codex under `Ran` only when the script printed
-  `codex: ran`. The arm check reads the reply's `Ran` list; `codex-ran` confirms the script's status
-  in the trace.
+  `external-agents review codex`, and lists Codex under `Ran` only when the command printed
+  `codex: ran`. The arm check reads the reply's `Ran` list; `codex-ran` confirms the command's
+  status in the trace.
 
 The copy gives the file graders one fixed path, since the persisted file's name carries a
 timestamp. The reply's last lines give the arm check its input.

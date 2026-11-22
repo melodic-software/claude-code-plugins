@@ -3,8 +3,9 @@
 or on its runner install.
 
 The re-run fires only for a failure annotation the review evidence accepts a
-re-run after and the gate re-runs (a `rate-limit` lane-outcome record or this lane's publish
-failure on GitHub's API rate limit, five hours after the failure; this lane's
+re-run after and the gate re-runs (a `rate-limit` lane-outcome record, five
+hours after the failure; this lane's publish failure on GitHub's API rate
+limit, one hour after; this lane's
 `install-failed` failure at once), only on the pinned live head, and only on a
 run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
 """
@@ -288,6 +289,55 @@ class RerunRateLimitedReview(unittest.TestCase):
             )
             self.assertTrue(report["rerun"], (check["name"], text, report))
             self.assertEqual(len(posts), 1)
+
+    def test_a_publish_rate_limit_waits_one_hour(self) -> None:
+        publish = evidence_tests.PUBLISH_RATE_LIMIT["message"]
+        report, posts = self._run(annotations=[publish], now="2026-10-09T11:01:00Z")
+        self.assertTrue(report["rerun"], report)
+        self.assertEqual(len(posts), 1)
+        report, posts = self._run(annotations=[publish], now="2026-10-09T10:30:00Z")
+        self.assertFalse(report["rerun"])
+        self.assertIn("2026-10-09T11:00:00Z", report["reason"])
+        self.assertIn("GitHub's API rate limit", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_a_rate_limit_still_waits_five_hours(self) -> None:
+        report, posts = self._run(now="2026-10-09T12:00:00Z")
+        self.assertFalse(report["rerun"])
+        self.assertIn("2026-10-09T15:00:00Z", report["reason"])
+        self.assertEqual(posts, [])
+        report, posts = self._run(now="2026-10-09T15:00:00Z")
+        self.assertTrue(report["rerun"], report)
+        self.assertEqual(len(posts), 1)
+
+    def test_a_publish_rate_limit_beside_a_rate_limit_waits_the_longer(self) -> None:
+        publish = evidence_tests.PUBLISH_RATE_LIMIT["message"]
+        report, posts = self._run(
+            annotations=[publish, RATE_LIMITED], now="2026-10-09T12:00:00Z"
+        )
+        self.assertFalse(report["rerun"])
+        self.assertIn("2026-10-09T15:00:00Z", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_a_publish_rate_limit_beside_an_install_failure_waits_an_hour(
+        self,
+    ) -> None:
+        publish = evidence_tests.PUBLISH_RATE_LIMIT["message"]
+        report, posts = self._run(
+            annotations=[publish, INSTALL_FAILED], now="2026-10-09T10:30:00Z"
+        )
+        self.assertFalse(report["rerun"])
+        self.assertIn("2026-10-09T11:00:00Z", report["reason"])
+        self.assertEqual(posts, [])
+
+    def test_a_publish_rate_limit_on_a_rerun_attempt_is_never_rerun(self) -> None:
+        publish = evidence_tests.PUBLISH_RATE_LIMIT["message"]
+        report, posts = self._run(
+            job=_job(run_attempt=2), annotations=[publish], now="2026-10-10T10:00:00Z"
+        )
+        self.assertFalse(report["rerun"])
+        self.assertIn("re-run at most once", report["reason"])
+        self.assertEqual(posts, [])
 
     def test_a_publish_failure_the_evidence_refuses_is_never_rerun(self) -> None:
         primary = evidence_tests.PUBLISH_RATE_LIMIT["message"]

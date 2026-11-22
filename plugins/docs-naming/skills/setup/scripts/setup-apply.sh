@@ -45,6 +45,7 @@ TEMPLATE="$SCRIPT_DIR/../templates/docs-naming.json"
 # shellcheck source=../../../lib/layer-yaml.sh
 . "$SCRIPT_DIR/../../../lib/layer-yaml.sh"
 LEGACY_REL=".claude/docs-naming.json"
+ADDITIVE_KEYS='["roots","exempt_basenames","exempt_paths","exempt_extensions","tiers","sweep_exclude","sweep_exclude_sites"]'
 
 die() {
   printf 'setup-apply: %s\n' "$1" >&2
@@ -61,17 +62,33 @@ jqr() {
 
 ROOT=""
 WANT_DEFAULTS=0
+WANT_USER_VALUE=0
 PAIRS=""
+HOME_DIR="${HOME:-}"
+USER_CONFIG="${CLAUDE_PLUGIN_OPTION_FILE_NAMES:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --defaults)
     WANT_DEFAULTS=1
     ;;
+  --user-config-value)
+    WANT_USER_VALUE=1
+    ;;
   --root)
     shift
     [[ $# -gt 0 ]] || die "--root needs a directory"
     ROOT="$1"
+    ;;
+  --home)
+    shift
+    [[ $# -gt 0 ]] || die "--home needs a directory"
+    HOME_DIR="$1"
+    ;;
+  --user-config)
+    shift
+    [[ $# -gt 0 ]] || die "--user-config needs a value"
+    USER_CONFIG="$1"
     ;;
   -h | --help)
     usage
@@ -92,8 +109,61 @@ $1"
 done
 
 command -v jq >/dev/null 2>&1 || die "jq is required and is not on PATH"
+
+if [[ "$WANT_USER_VALUE" -eq 1 ]]; then
+  [[ "$WANT_DEFAULTS" -eq 0 && -z "$PAIRS" ]] || die "--user-config-value writes nothing and takes no --defaults or <key>=<value>"
+  case "$USER_CONFIG" in
+  '${user_config.'*) USER_CONFIG="" ;;
+  *) [[ -n "${USER_CONFIG//[[:space:]]/}" ]] || USER_CONFIG="" ;;
+  esac
+  value='{}'
+  if [[ -n "$USER_CONFIG" ]]; then
+    value="$(printf '%s' "$USER_CONFIG" | jqr -c -s -e 'if length == 1 and (.[0] | type) == "object" then (.[0] | if (.file_names | type) == "object" then .file_names else . end) else error("not one object") end' 2>/dev/null)" ||
+      die "the file_names option is not one JSON object; fix it before copying keys into it: $USER_CONFIG"
+  fi
+  found=0
+  added_any=0
+  for old in "$HOME_DIR/.claude/docs-naming.json" "$HOME_DIR/.claude/docs-hygiene.json"; do
+    [[ -n "$HOME_DIR" && -f "$old" ]] || continue
+    unread_note=""
+    [[ "$found" -eq 1 ]] && unread_note=" (not in effect today: $HOME_DIR/.claude/docs-naming.json is read instead; drop them from the value if unwanted)"
+    found=1
+    keys="$(jqr -c -e '.file_names // {} | if type == "object" then . else error("file_names is not an object") end' "$old" 2>/dev/null)" ||
+      die "the old user file is not valid JSON with a file_names object: $old"
+    added="$(jqr -r -n --argjson v "$value" --argjson o "$keys" --argjson add "$ADDITIVE_KEYS" '
+      ($o | keys_unsorted) as $ok
+      | [$ok[] | select(. as $k | $v | has($k) | not)] as $new
+      | [$ok[] | select(. as $k
+          | ($add | index($k)) != null and ($v[$k] | type) == "array" and ($o[$k] | type) == "array"
+          and (([$o[$k][] | tojson] - [$v[$k][] | tojson]) | length) > 0)] as $lists
+      | [(if ($new | length) > 0 then "adds " + ($new | join(", ")) else empty end),
+         (if ($lists | length) > 0 then "adds entries to " + ($lists | join(", ")) else empty end)]
+      | join("; ")')" ||
+      die "cannot compare $old with the option"
+    value="$(jqr -c -n --argjson v "$value" --argjson o "$keys" --argjson add "$ADDITIVE_KEYS" '
+      reduce $add[] as $k ($o + $v;
+        if ($v[$k] | type) == "array" and ($o[$k] | type) == "array" then
+          .[$k] = reduce $o[$k][] as $x ($v[$k]; if (map(tojson) | index($x | tojson)) != null then . else . + [$x] end)
+        else . end)')" || die "cannot merge $old"
+    if [[ -n "$added" ]]; then
+      added_any=1
+      printf 'from: %s %s%s\n' "$old" "$added" "$unread_note"
+    else
+      printf 'from: %s adds no key or list entry the option lacks\n' "$old"
+    fi
+  done
+  if [[ "$found" -eq 0 ]]; then
+    printf 'nothing to copy: no old user file under %s/.claude\n' "$HOME_DIR"
+    exit 0
+  fi
+  [[ "$added_any" -eq 1 ]] || printf 'already copied: the file_names option carries every key and list entry the old files set\n'
+  printf 'value: %s\n' "$value"
+  printf 'values.json: %s\n' "$(jqr -c -n --arg v "$value" '{file_names: $v}')"
+  exit 0
+fi
+
 [[ -f "$TEMPLATE" ]] || die "bundled defaults missing at $TEMPLATE"
-[[ "$WANT_DEFAULTS" -eq 1 || -n "$PAIRS" ]] || die "nothing to do: pass --defaults or at least one <key>=<value>"
+[[ "$WANT_DEFAULTS" -eq 1 || -n "$PAIRS" ]] || die "nothing to do: pass --defaults, --user-config-value or at least one <key>=<value>"
 
 if [[ -z "$ROOT" ]]; then
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || ROOT=""

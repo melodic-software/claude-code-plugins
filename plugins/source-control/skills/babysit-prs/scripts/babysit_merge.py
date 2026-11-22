@@ -14,9 +14,9 @@ Contract enforced here (encoded as code, not convention):
 - A merge only happens with `--merge` and only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
   workflow run when its check run carries a failure annotation the review
-  evidence binds a re-run after and the gate re-runs (a `rate-limit` lane-outcome record or
-  the lane's publish failure on GitHub's API rate limit, five hours after the
-  failure; the lane's `install-failed` failure at once), or that an outage lost
+  evidence binds a re-run after and the gate re-runs (a `rate-limit` lane-outcome record,
+  five hours after the failure; the lane's publish failure on GitHub's API
+  rate limit, one hour after; the lane's `install-failed` failure at once), or that an outage lost
   (cancelled, timed out) before its lane posted on the head, at once; once per
   run on the pinned live head. No other failure class is re-run, and the
   re-run never counts as a pass: auto-merge still arms only on SUCCESS.
@@ -333,16 +333,23 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # the classes `review_evidence.GATE_RERUN_CLASSES` names, so the re-run's
 # attempt binds (`review_evidence.rerun_binds` accepts more: a rejected
 # credential or a kill-switch stop, which the gate leaves to a person).
-# A rate limit is re-run once it has reset. "Reset" is conservative: the
-# shortest plan limit is a five-hour session window
+# A rate limit is re-run once it has reset, and each class resets on its own
+# window. A `rate-limit` is the Claude plan's session limit. "Reset" is
+# conservative: the shortest plan limit is a five-hour session window
 # (https://support.claude.com/en/articles/11145838, checked 2026-10-09), so
 # five hours after the failure that window has reset whenever it started. A
 # weekly limit outlasts it; the re-run then fails again and stays failed,
-# since a run is re-run at most once. A failed install is re-run at once: a
-# slow package mirror is not a window to wait out. So is a run an outage lost
-# (`review_evidence.LOST`), once nothing shows its lane posted on the head. Any
-# class the gate re-runs that is not listed here waits.
+# since a run is re-run at most once. A `publish-rate-limit` is GitHub's
+# installation REST pool; our decision is to wait one hour after the failure
+# (read its reset window at https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github-app-installations).
+# With both classes on one check the longer wait applies. A failed install is
+# re-run at once: a slow package mirror is not a window to wait out. So is a
+# run an outage lost (`review_evidence.LOST`), once nothing shows its lane
+# posted on the head. Any class the gate re-runs that is not listed here waits
+# the longer plan-window delay.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
+PUBLISH_RATE_LIMIT_RERUN_DELAY = timedelta(hours=1)
+PUBLISH_RATE_LIMIT = "publish-rate-limit"
 NO_WAIT_RERUN_CLASSES = frozenset(
     {review_evidence.INSTALL_FAILED, review_evidence.LOST}
 )
@@ -356,6 +363,22 @@ ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def rerun_delay(classes: frozenset[str]) -> timedelta:
+    """The wait after a failure before the gate re-runs it: the longest delay
+    of any class present, none for a class that waits for nothing."""
+    return max(
+        (
+            timedelta(0)
+            if cls in NO_WAIT_RERUN_CLASSES
+            else PUBLISH_RATE_LIMIT_RERUN_DELAY
+            if cls == PUBLISH_RATE_LIMIT
+            else RATE_LIMIT_RERUN_DELAY
+            for cls in classes
+        ),
+        default=timedelta(0),
+    )
 
 
 def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> bool:
@@ -458,12 +481,16 @@ def rerun_rate_limited_review(
             + "); never re-run"
         )
         return report
-    due = completed + (
-        timedelta(0) if classes <= NO_WAIT_RERUN_CLASSES else RATE_LIMIT_RERUN_DELAY
-    )
+    delay = rerun_delay(classes)
+    due = completed + delay
     if _now() < due:
+        window = (
+            "GitHub's API rate limit"
+            if delay == PUBLISH_RATE_LIMIT_RERUN_DELAY
+            else "the usage limit"
+        )
         report["reason"] = (
-            "waiting for the usage limit to reset; re-run due at "
+            f"waiting for {window} to reset; re-run due at "
             + due.isoformat().replace("+00:00", "Z")
         )
         return report

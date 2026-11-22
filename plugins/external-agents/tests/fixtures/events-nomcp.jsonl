@@ -1,0 +1,10 @@
+Reading additional input from stdin...
+{"type":"thread.started","thread_id":"00000000-0000-7000-8000-000000000003"}
+{"type":"turn.started"}
+2026-11-21T10:05:28.332634Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer resource_metadata=\"https://mcp.example.com/api/auth/.well-known/oauth-protected-resource\"" })
+2026-11-21T10:05:29.207073Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest("http/request failed: error sending request for url (http://127.0.0.1:12345/mcp)")))
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll check which MCP servers are available in this session."}}
+2026-11-21T10:05:31.483640Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest("http/request failed: error sending request for url (http://127.0.0.1:12345/mcp)")))
+2026-11-21T10:05:34.507847Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest("http/request failed: error sending request for url (http://127.0.0.1:12345/mcp)")))
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Available MCP server namespaces:\n\n- `mcp__example_one`\n- `mcp__example_two`"}}
+{"type":"turn.completed","usage":{"input_tokens":68687,"cached_input_tokens":68352,"cache_write_input_tokens":0,"output_tokens":395,"reasoning_output_tokens":0}}

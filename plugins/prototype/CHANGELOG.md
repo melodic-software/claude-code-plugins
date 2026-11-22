@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-11-21
+
+### Added
+
+- A sent note on the notes host page now has Edit and Withdraw. An edit goes to the session as that note's new text under the same seq (`POST /api/note/edit`); a withdraw tells the session and lists the note as withdrawn, not pending, with no marker, and leaves it out of `status`, the watcher's unhandled notes and Copy all notes (`POST /api/note/withdraw`, `note.schema.json` x-version 8).
+
 ## [0.46.0] - 2026-11-21
 
 ### Added

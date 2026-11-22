@@ -31,11 +31,33 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/opt/plugins/cache/review/skills/setup/scripts/setup-apply.mjs\" --check"
+            "command": "node \"/opt/marketplace/plugins/review/skills/setup/scripts/setup-apply.mjs\" --check"
           }
         }
       ],
       "why": "the plugin's settings check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "external-agents review codex --base origin/main --brief-file \"/opt/marketplace/plugins/review/skills/fanout/context/codex-adversarial-brief.md\""
+          }
+        }
+      ],
+      "why": "the briefed Codex review runs no reviewed code"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/marketplace/plugins/review/skills/council/scripts/council-plan.mjs\" member --product codex --output /work/run/codex-adv.txt --exit 0"
+          }
+        }
+      ],
+      "why": "the plugin's member parse of a Codex run"
     },
     {
       "answer": [

@@ -45,6 +45,7 @@ plugins/education/reference/config.md	melodic-software/claude-code-plugins	1	raw
 plugins/education/schemas/education.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/event-storming/schemas/event-storming.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/explainer-video/schemas/explainer-video.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
+plugins/external-agents/schemas/external-agents.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/formal-verification/schemas/formal-verification.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/go-format/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
 plugins/guardrails/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
