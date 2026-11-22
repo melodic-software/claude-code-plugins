@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-11-22
+
+### Changed
+
+- Lane records resolve from `docs/conventions/ecosystems/<lane>.yaml` (and `<lane>.local.yaml`), falling back to the legacy `.claude/ecosystems/` file of a name absent there; with both present the new file wins and one warning names both. `/code-metrics:setup check` reports records at either location and warns on a legacy file the new home shadows.
+
 ## [1.6.0] - 2026-11-22
 
 ### Added
