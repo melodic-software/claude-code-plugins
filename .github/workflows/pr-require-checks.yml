@@ -1990,6 +1990,13 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh artifact-retention {0}
         run: scripts/check-artifact-retention.sh --check
 
+      - name: Check no workflow nears the known-failing template size
+        id: workflow_template_size
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh workflow-template-size {0}
+        run: scripts/check-workflow-template-size.sh --check
+
       # Workflow, job, step and action names against melodic-software/standards'
       # github-actions-conventions naming lint, which the action runs from
       # standards main. It checks out standards under the workspace, so it
@@ -2042,6 +2049,7 @@ jobs:
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
             artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
+            workflow-template-size=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_template_size.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
