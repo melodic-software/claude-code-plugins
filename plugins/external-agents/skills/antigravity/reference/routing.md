@@ -1,7 +1,8 @@
 # Routing: model and effort
 
-This skill holds no model names and no effort defaults. A run passes a model only when the user
-names one or `antigravity.model` is set, and an effort only when `antigravity.effort` is set;
+This skill holds no model names and no effort defaults. A run passes a model or an effort only
+when the user names one, a heavy whole-task delegation calls for one (see [run.md](run.md)), or
+`antigravity.model` or `antigravity.effort` is set;
 otherwise agy's own default model decides, so runs follow whatever agy ships. Which model and effort each agent role in a
 multi-agent run uses is `/multi-agent:route`'s config, not this skill's.
 

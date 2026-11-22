@@ -162,8 +162,9 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   }
 
   const model = plan.model ?? settings.model;
+  const effort = plan.effort ?? settings.effort;
   const promptInArgv = record.prompt.form.includes("{prompt}");
-  guardValues(record, binary, { model, profile: settings.profile, effort: settings.effort, base: plan.base, thread: plan.thread }, promptInArgv && plan.prompt !== null);
+  guardValues(record, binary, { model, profile: settings.profile, effort, base: plan.base, thread: plan.thread }, promptInArgv && plan.prompt !== null);
 
   const login = record.login_status && query(binary, record.login_status.args, { env: ctx.env, cwd: ctx.cwd });
   if (login && login.code === null) throw new Stop("failed", `could not check the login state: ${login.error?.message ?? "the query was stopped"}`);
@@ -187,7 +188,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   if (spec.settings) writeFileSync(paths.settings, `${JSON.stringify(spec.settings)}\n`);
 
   const args = buildArgs(record, binary, {
-    command: plan.command, baseArgs: plan.baseArgs, mode: plan.mode, thread: plan.thread, base: plan.base, model, profile: settings.profile, effort: settings.effort,
+    command: plan.command, baseArgs: plan.baseArgs, mode: plan.mode, thread: plan.thread, base: plan.base, model, profile: settings.profile, effort,
     finalPath: paths.final, settingsPath: paths.settings, dir: plan.diffBase ? folder : null, prompt: promptInArgv ? prompt : prompt === null ? null : "",
   });
   if (binary.shell) {
@@ -199,7 +200,7 @@ async function launch({ ctx, record, config, settings, notices }, plan) {
   const version = query(binary, record.version.args, { env: ctx.env, cwd: ctx.cwd });
   const timeoutSeconds = settings.timeout_seconds ?? 1800;
   const job = {
-    id, product, use: plan.use, mode: plan.mode, argv: [binary.path, ...(binary.args ?? []), ...args],
+    id, product, use: plan.use, mode: plan.mode, model: model ?? null, effort: effort ?? null, argv: [binary.path, ...(binary.args ?? []), ...args],
     cli_version: version.code === 0 ? version.stdout.trim().split(/\r?\n/)[0] || null : null,
     cwd: ctx.cwd, started_at: new Date(ctx.now()).toISOString(), ended_at: null, exit_code: null, status: "running", reason: null,
     pid: null, pid_started_at: null, runner_pid: process.pid, runner_started_at: pidStartTime(process.pid), thread_id: plan.thread ?? null, final_message_path: paths.final, log_path: paths.log, stderr_path: paths.stderr, notices,
@@ -309,7 +310,7 @@ export async function run(opts) {
       thread = match.thread_id;
     }
     const mode = modeFor(record, state.settings, opts.use, opts.mode, state.notices);
-    const { job, message } = await launch(state, { use: opts.use, mode, command: thread ? "resume" : "run", model: opts.model, prompt: opts.prompt, thread });
+    const { job, message } = await launch(state, { use: opts.use, mode, command: thread ? "resume" : "run", model: opts.model, effort: opts.effort, prompt: opts.prompt, thread });
     return { code: exitFor(job.status), stdout: `${runLine(job)}\n${body(message)}`, stderr: errLines(job, state), job };
   } catch (error) {
     return stopped(opts.product, error, false, state);
@@ -346,7 +347,7 @@ export async function review(opts) {
     const preface = record.review.brief_preface?.replace(/\{[a-z_]+\}/g, (token) => tokens[token] ?? token);
     const prompt = briefed ? [preface, brief].filter(Boolean).join("\n\n") : brief;
     const { job, message } = await launch(state, {
-      use: "review", mode: "read-only", command: native ? "review" : "run", model: opts.model, prompt, baseArgs: briefed ? record.review.brief_args : undefined,
+      use: "review", mode: "read-only", command: native ? "review" : "run", model: opts.model, effort: opts.effort, prompt, baseArgs: briefed ? record.review.brief_args : undefined,
       base: native && !briefed ? opts.base : undefined, diffBase: native ? undefined : opts.base, thread: null, scope,
     });
     const ran = (job.status === "ok" || (job.status === "blocked-by-mode" && !job.reason)) && message.trim() !== "";
@@ -404,7 +405,7 @@ const guarded = (fn) => (opts = {}) => {
 export const status = guarded((opts) => {
   if (opts.jobId) {
     const { job } = find(opts);
-    const fields = ["id", "use", "mode", "started_at", "ended_at", "exit_code", "thread_id", "cli_version", "log_path", "final_message_path"];
+    const fields = ["id", "use", "mode", "model", "effort", "started_at", "ended_at", "exit_code", "thread_id", "cli_version", "log_path", "final_message_path"];
     return { code: EXIT.ok, stdout: `${runLine(job)}\n${fields.map((f) => `${f}: ${job[f] ?? ""}`).join("\n")}\n`, stderr: "", job };
   }
   const ctx = context(opts);

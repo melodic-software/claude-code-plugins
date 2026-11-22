@@ -194,6 +194,24 @@ describe("run", () => {
     assert.deepEqual(cliArgs(job).slice(8), ["-m", "my-model", "-p", "work", "-c", 'model_reasoning_effort="high"', "-"]);
   });
 
+  test("a per-run model and effort override config, keep the sandbox and approval policy, and are recorded on the job", async () => {
+    const w = world({ stdout: clean, final: "done" }, { local: "schema: 1\ncodex:\n  model: my-model\n  effort: low\n" });
+    const { job } = await run({ ...w.opts, use: "task", model: "other-model", effort: "xhigh", prompt: "fix it" });
+    assert.deepEqual(cliArgs(job).slice(4), ["--sandbox", "workspace-write", "-c", 'approval_policy="never"', "-m", "other-model", "-c", 'model_reasoning_effort="xhigh"', "-"]);
+    assert.equal(job.model, "other-model");
+    assert.equal(job.effort, "xhigh");
+    const shown = status({ ...w.opts, jobId: job.id }).stdout;
+    assert.match(shown, /^model: other-model$/m);
+    assert.match(shown, /^effort: xhigh$/m);
+  });
+
+  test("a per-run effort that is not a plain word is refused before anything starts", async () => {
+    const w = world({ stdout: clean, final: "done" });
+    const got = await run({ ...w.opts, use: "task", effort: 'high" -c x="y', prompt: "fix it" });
+    assert.match(got.stdout, /^codex: refused: effort .* is not a plain word/);
+    assert.deepEqual(launched(w), []);
+  });
+
   test("config is read from the convention home the repository's pointer region binds", async () => {
     const w = world({ stdout: clean, final: "done" }, { local: "schema: 1\ncodex:\n  model: from-the-default-home\n" });
     gitRepo(w.cwd, { "a.txt": "two\n" });
@@ -445,6 +463,14 @@ describe("a CLI that prints one JSON result (envelope)", () => {
     assert.equal(got.job.thread_id, "conv-1");
     assert.equal(got.stdout, "antigravity: ok\nit is slow because\n");
     assert.equal(readFileSync(got.job.final_message_path, "utf8"), "it is slow because");
+  });
+
+  test("a per-run effort reaches agy as --effort", async () => {
+    const w = world({ envelope: { status: "SUCCESS", response: "ok", conversation_id: "conv-1" } });
+    const got = await run(agy(w, { use: "investigate", effort: "high", prompt: "why?" }));
+    const args = cliArgs(got.job);
+    assert.deepEqual(args.slice(args.indexOf("--model"), -1), ["--model", "m1", "--effort", "high"]);
+    assert.equal(got.job.effort, "high");
   });
 
   test("a non-empty denied_actions array is blocked-by-mode", async () => {

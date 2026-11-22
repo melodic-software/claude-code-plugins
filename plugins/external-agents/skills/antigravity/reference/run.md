@@ -3,7 +3,7 @@
 ## Run
 
 ```bash
-external-agents run antigravity --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--resume <thread-id>|--last]
+external-agents run antigravity --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--effort <level>] [--resume <thread-id>|--last]
 ```
 
 - **Pick the use from the request.** `task` with `--mode write` when agy should change files;
@@ -13,9 +13,11 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
   `antigravity.uses.task.mode: write` from the user. `--mode write` never lifts a read-only
   ceiling; under one, the run is read-only and prints the notice naming that key. Pass
   `--mode read-only` to run a task without writes.
-- **Model and effort.** Pass `--model` only when the user names one for this run. Otherwise pass
-  nothing: `antigravity.model` and `antigravity.effort` from config apply when set, and agy's own
-  default applies when not. Choosing one: [routing.md](routing.md).
+- **Model and effort.** By default pass neither: `antigravity.model` and `antigravity.effort` from config
+  apply when set, and agy's own default applies when not. Pass `--model` or `--effort` for one
+  run when the user names one, or when a heavy whole-task delegation calls for a different choice
+  and the sources in [routing.md](routing.md) support it. The levels this agy offers are in `models.txt` and `agy.txt` in the `cli facts:` folder. Name the override and its basis in
+  the reply.
 - **Resume** continues an agy conversation this plugin started. `--resume <thread-id>` takes a
   `thread_id` from `external-agents status <job>`; a thread that is not in this repository's job
   files is refused. `--last` resumes this plugin's newest job with a thread in this repository. A
@@ -46,7 +48,7 @@ warnings, a foreign `CLAUDE_PLUGIN_DATA`). Relay every notice.
 ## Review
 
 ```bash
-external-agents review antigravity --base <ref> [--brief-file <file>] [--model <model>]
+external-agents review antigravity --base <ref> [--brief-file <file>] [--model <model>] [--effort <level>]
 ```
 
 - Always read-only, whatever any config says. `<ref>` must be a commit that shares history with
