@@ -356,17 +356,20 @@ const holdHow = (own) => {
   return own.some((name) => isStatusLabel(name)) ? HOW_FIELD_REPOST : HOW_FIELD;
 };
 
+const movesElsewhere = (labels) =>
+  labels.some((name) => [AGENT_READY, NEEDS_TRIAGE, DEFERRED].includes(name) || (isStatusLabel(name) && name !== CONFIRMED && !DECISION_LABELS.includes(name)));
+
 const replyHeld = ({ own, ...rest }) =>
   replyOnce({ ...rest, marker: HOLD_MARKER, body: holdReply(holdHow(own)), what: `${NEEDS_HUMAN} holds the issue, so a decision re-enters nothing` });
 
 async function replyUnanswered({ client, repository, base, issue, comment, humans, ids, labels, own, log }) {
   const user = comment.user ?? {};
-  if (user.type === "User" && humans.has(user.id) && comment.performed_via_github_app == null) {
+  if (openIssue(issue) && user.type === "User" && humans.has(user.id) && comment.performed_via_github_app == null) {
     const exact = isDecisionComment({ comment, lastEditedAt: null, lastEditorId: null }, humans);
     if (!exact && LOOSE_DECISION.test(firstLine(comment.body))) {
       return replyOnce({ client, repository, base, issue, log, marker: FORM_MARKER, body: FORM_REPLY, what: "a decision whose first line is not exactly **Decision recorded.** re-enters nothing" });
     }
-    if (exact && labels.includes(NEEDS_HUMAN)) {
+    if (exact && labels.includes(NEEDS_HUMAN) && !movesElsewhere(labels)) {
       const { kept } = await selectTrustedIssueComments({ github: client, repository, issueNumber: issue.number, ids });
       const item = kept.find((one) => one.comment.id === comment.id);
       if (item && isDecisionComment(item, humans)) {

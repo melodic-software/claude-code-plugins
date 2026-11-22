@@ -230,6 +230,22 @@ test("a decision on a field-only needs-human hold with no labels replies once ho
   assert.equal(w.field(), "needs-human");
 });
 
+test("a decision gets no hold reply where the issue is ready, admitted, deferred or in triage, since a release would not re-enter it either", async () => {
+  for (const labels of [["needs-human", "agent-ready"], ["needs-human", "needs-triage"], ["needs-human", "status: ready"], ["needs-human", "admission-deferred"]]) {
+    const w = world({ labels, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await run(w, 1), 0, labels.join());
+    assert.deepEqual(w.writes, [], labels.join());
+  }
+});
+
+test("a decision in either form on a closed issue gets no reply", async () => {
+  for (const body of [DECISION, "Decision recorded (owner): option 1."]) {
+    const w = world({ labels: ["needs-human"], state: "closed", comments: [{ id: 1, user: OWNER, body }] });
+    assert.equal(await run(w, 1), 0, body);
+    assert.deepEqual(w.writes, [], body);
+  }
+});
+
 test("a stranger's decision, or a listed human's plain comment, on a needs-human issue gets no reply", async () => {
   for (const [name, user, body] of [
     ["stranger", STRANGER, DECISION],
