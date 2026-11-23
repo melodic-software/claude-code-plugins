@@ -6,7 +6,7 @@ graders:
   - name: 'writes-ledger'
     type: 'file_exists'
     path: '**/.work/coupling/coupling-ledger.md'
-    arm: 'both'
+    arm: 'with-only'
   - name: 'no-edit-branch-or-pr'
     type: 'tool_used'
     tool: 'Edit'

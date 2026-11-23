@@ -92,7 +92,21 @@ test("under --ablation none a case needs no delta and is judged on its score", (
   assert.deepEqual([verdicts(doc)[0].verdict, verdicts(doc)[0].score], ["FAIL", 0.5]);
 });
 
-const HISTORY_YAML = "name: writes-a-test\ncontext:\n  scaffold_script: scaffold.sh\n  history_file: secret-history.jsonl\n";
+test("a case whose unscored with-arm graders miss the threshold fails, though its score passes", () => {
+  const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
+  assert.equal(verdicts(doc)[0].verdict, "PASS", "every indicator passed");
+  doc.cases[0].arms.with[0].graders[0].passed = false;
+  assert.deepEqual(
+    [verdicts(doc)[0].verdict, verdicts(doc)[0].reason],
+    ["FAIL", "score 1.00 against threshold 0.80, but its unscored with-arm graders passed 0.50 (fires)"],
+  );
+  assert.match(verdicts(doc, { redact: true })[0].reason, /\(\(redacted\)\)$/);
+  doc.cases[0].arms.with[0].graders[0].passed = true;
+  doc.cases[0].arms.without = doc.cases[0].arms.without.map((run) => ({ ...run, graders: [{ name: "fires", passed: false, scored: false }] }));
+  assert.equal(verdicts(doc)[0].verdict, "PASS", "a without-arm indicator never gates");
+});
+
+const HISTORY_YAML ="name: writes-a-test\ncontext:\n  scaffold_script: scaffold.sh\n  history_file: secret-history.jsonl\n";
 const singleArmDoc = (score) => {
   const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
   delete doc.cases[0].arms.without;

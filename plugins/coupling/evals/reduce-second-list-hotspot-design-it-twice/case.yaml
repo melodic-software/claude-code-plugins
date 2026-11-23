@@ -8,7 +8,7 @@ graders:
     tool: 'Bash'
     input_match: 'derivable-list\.py'
     min: 1
-    arm: 'both'
+    arm: 'with-only'
   - name: 'list-not-edited'
     type: 'tool_used'
     tool: 'Edit'

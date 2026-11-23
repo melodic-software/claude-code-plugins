@@ -8,13 +8,13 @@ graders:
     tool: 'Bash'
     input_match: 'buffer\.sh(?:\\")?\s+append\b'
     min: 1
-    arm: 'both'
+    arm: 'with-only'
   - name: 'session-source-id'
     type: 'tool_used'
     tool: 'Write'
     input_match: '^(?=[\s\S]*"file_path":"[^"]*\.work/codify/notes/)(?=[\s\S]*\\"source_id\\":\s*\\"session:)'
     min: 1
-    arm: 'both'
+    arm: 'with-only'
   - name: 'no-proposal-or-install'
     type: 'tool_used'
     tool: 'Write'

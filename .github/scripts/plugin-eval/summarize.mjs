@@ -199,6 +199,12 @@ export function verdicts(result, { redact = false, caseYaml = () => null } = {})
       return notComparable("the case carries no score");
     }
     const scored = `score ${fixed(row.score)} against threshold ${fixed(threshold)}`;
+    const indicators = list(c?.arms?.with).flatMap((run) => list(run?.graders).filter((g) => g?.scored === false));
+    const shown = indicators.length ? indicators.filter((g) => g?.passed === true).length / indicators.length : 1;
+    if (row.score >= threshold && shown < threshold) {
+      const missed = [...new Set(indicators.filter((g) => g?.passed !== true).map((g) => String(g?.name)))].join(", ");
+      return { ...row, verdict: FAIL, reason: `${scored}, but its unscored with-arm graders passed ${fixed(shown)} (${said(missed)})` };
+    }
     return { ...row, verdict: row.score >= threshold ? PASS : FAIL, reason: singleArm ? `ran single-arm by design (context.history_file), so no delta: ${scored}` : scored };
   });
 }

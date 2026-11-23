@@ -15,7 +15,7 @@ graders:
     tool: 'Write'
     input_match: '"file_path":"[^"]*/coupling/[^"/]+/[^"]+'
     min: 1
-    arm: 'both'
+    arm: 'with-only'
   - name: 'findings-not-under-reviews'
     type: 'tool_used'
     tool: 'Write'
