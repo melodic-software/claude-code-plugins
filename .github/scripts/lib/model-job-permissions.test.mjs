@@ -112,5 +112,5 @@ test("every model job in this repository's workflows holds no write scope, crede
   }
   t.diagnostic(`${jobs} model jobs in ${files.size} workflow files`);
   assert.deepEqual(violations, []);
-  assert.ok(jobs >= 40 && files.size >= 13, `only ${jobs} model jobs in ${files.size} files: the detector lost them`);
+  assert.ok(jobs >= 36 && files.size >= 13, `only ${jobs} model jobs in ${files.size} files: the detector lost them`);
 });

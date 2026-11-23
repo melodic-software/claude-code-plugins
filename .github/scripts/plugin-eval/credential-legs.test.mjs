@@ -47,10 +47,11 @@ for (const [file, text] of [
           assert.equal(present, keySet && !keyOff && !gate.skipKey, `${file} key set=${keySet} off=${keyOff} skip=${gate.skipKey}`);
           for (const o of present ? outcomes : [{ handoff: "", reason: "" }]) {
             states++;
-            const stepCtx = { "steps.credential.outputs.present": outputs.present, "steps.judge.outputs.handoff": o.handoff };
+            const stepCtx = { "steps.credential.outcome": "success", "steps.credential.outputs.present": outputs.present, "steps.judge.outputs.handoff": o.handoff };
             assert.equal(runs(stop.if, stepCtx), !present || o.handoff === "true", `${file} present=${present} outcome=${o.reason || "finished"}`);
           }
         }
     assert.ok(states > 8, `${states} states`);
+    assert.equal(runs(stop.if, { "steps.credential.outcome": "skipped" }), false, `${file}: a step that failed before the credential check is not blamed on the key`);
   });
 }

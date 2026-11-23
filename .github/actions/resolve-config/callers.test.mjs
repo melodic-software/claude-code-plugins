@@ -10425,7 +10425,7 @@ for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
     assert.equal(steps.find((s) => s.id === "next"), undefined, "no next leg");
     assert.equal(jobs[keyId].outputs?.["next-leg"], undefined);
     const stop = steps.find((s) => s.name === "Stop at the key's stop");
-    assert.equal(stop.if, "${{ always() && (steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}");
+    assert.equal(stop.if, "${{ always() && (steps.credential.outcome == 'success' && steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}");
     assert.match(stop.run, new RegExp(`::${stopLevel}::The API key stopped`));
     assert.equal(/exit 1/.test(stop.run), stopLevel === "error", `${file}: a measuring pass fails, a suite run warns`);
     for (const step of steps.filter((s) => /plugin-eval\/eval-handoff\.mjs/.test(String(s.run ?? "")))) {

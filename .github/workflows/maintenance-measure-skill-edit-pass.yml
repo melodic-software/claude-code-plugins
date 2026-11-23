@@ -538,7 +538,7 @@ jobs:
 
       - name: Stop at the key's stop
         id: stop
-        if: ${{ always() && (steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}
+        if: ${{ always() && (steps.credential.outcome == 'success' && steps.credential.outputs.present != 'true' || steps.judge.outputs.handoff == 'true') }}
         timeout-minutes: 1
         env:
           REASON: ${{ steps.judge.outputs.handoff-reason || needs.check-key-credit.outputs.next-reason || 'no-key' }}
