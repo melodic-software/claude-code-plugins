@@ -281,7 +281,9 @@ or a path to the repository's own list, which `/review:setup apply` can write fr
 whether an unreasoned loosening blocks (`fail`, the default and a policy floor) or is only noted
 (`note`), and which extra files and lines count as a check's own code. The repository-only
 `loosened_check_decision_record` names the https URL prefix of a decision record: set, a loosening
-also needs the spec to cite the owner's decision there; unset, the default, it does not. All three
+the spec allows also needs the spec to cite the owner's decision there, and one the pull request
+body's `## Loosened checks` section allows needs no citation; unset, the default, no citation is
+needed. All three
 read the repository value from the default branch. The `council_*` keys configure
 `/review:council`: its member catalog, fallback panel, selection rules, round count, score table and
 the repository-only lane switch, read from the base branch when a change edits the file. Keys,

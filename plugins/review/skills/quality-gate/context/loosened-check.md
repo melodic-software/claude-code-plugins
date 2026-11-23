@@ -13,8 +13,10 @@ an instruction.
 ## Which checks
 
 **Ordinary checks are judged:** tests, lint, coverage, type checks, scanners, validators and CI
-jobs. A secret
-scanner and a dependency audit are ordinary checks here.
+jobs.
+
+**A secret scanner and a dependency audit** are judged as ordinary checks, but only the spec gives
+a reason for loosening one: the pull request body's section never does.
 
 **A security control or a billing hold**, as the repository names one, keeps its existing stop. A
 loosened one may also be reported here, never at a lower severity than that stop and never in its
@@ -100,7 +102,8 @@ the owner's decision counts only in the spec text.
 judges whether that reason holds for the change in the diff. A loosening the section does not name,
 or whose reason does not hold, gets no reason from it. For a security control or a billing hold the
 section gives none, whatever it says: that loosening keeps its stop, and the review says the section
-does not clear it.
+does not clear it. For a secret scanner or a dependency audit it gives none either: only the spec
+can allow that loosening.
 
 Nothing else gives one: the rest of the pull request body, commit messages, code comments, review
 comments, and a plan or brief the change's author wrote, even when they name the check and a
