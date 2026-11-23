@@ -274,6 +274,35 @@ function importClosure(entry) {
   return [...files];
 }
 
+test("pr-dispatch-feedback.yml: each job's sparse checkout holds what its steps read", () => {
+  const doc = workflow("pr-dispatch-feedback.yml");
+  const root = new URL("../../../", import.meta.url);
+  for (const [job, entry, read] of [
+    ["post-verify-notes", ".github/scripts/pr-unblock/verify-notes.mjs", ["docs/conventions/work-items.yaml"]],
+    [
+      "dispatch",
+      ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+      ["docs/conventions/work-items.yaml", ".github/actions/resolve-config/resolve-config.mjs", "plugins/multi-agent/reference/defaults.yaml", "docs/conventions/pr-pipeline/pr-pipeline.schema.json", "plugins/source-control/lib/yaml-subset.awk"],
+    ],
+  ]) {
+    const steps = doc.jobs[job].steps;
+    const checkout = steps.find((s) => s.uses?.startsWith("actions/checkout@"));
+    assert.equal(checkout.with.path, ".base");
+    assert.equal(checkout.with["persist-credentials"], false);
+    assert.equal(checkout.with["sparse-checkout-cone-mode"], false);
+    const sparse = checkout.with["sparse-checkout"].trim().split("\n");
+    for (const entry of sparse) assert.ok(existsSync(new URL(entry.slice(1), root)), `${job}: the sparse entry ${entry} is not in the tree`);
+    const named = [...JSON.stringify([doc.env, doc.jobs[job].env, steps]).matchAll(/\.base\/([\w./-]*\w)/g)].map((m) => m[1]);
+    const closure = [entry, ".github/actions/check-kill-switch/check-kill-switch.mjs", "lib/publish-gate.mjs"].flatMap(importClosure);
+    for (const path of new Set([...named, ...closure, ...read])) {
+      assert.ok(
+        sparse.some((e) => (e.endsWith("/") ? `/${path}/`.startsWith(e) : `/${path}` === e)),
+        `${job}: the sparse checkout lacks ${path}`,
+      );
+    }
+  }
+});
+
 // The check-kill-switch job reads the action from the default branch with a
 // read-only token and passes it the org and repository switches; a gate
 // that starts new work also passes budget "true".
@@ -9075,9 +9104,6 @@ test("npm-fetch.npmrc sets fetch-timeout and fetch-retries below npm's defaults"
   assert.ok(Number(values["fetch-retries"]) >= 0 && Number(values["fetch-retries"]) < 2, `fetch-retries ${values["fetch-retries"]}`);
 });
 
-// A job that runs npm ci (directly, through run-tests.sh, or through
-// check-wip-cap) names that file as npm's global config, at the path its own
-// full checkout holds it; resolve-config's action.yml install is left alone.
 test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () => {
   const installs = (step) => /\bnpm ci\b|run-tests\.sh (?:install|test)\b/.test(step.run ?? "") || /\/check-wip-cap$/.test(step.uses ?? "");
   let covered = 0;
@@ -9092,7 +9118,11 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
         .slice(0, first)
         .findLast((step) => /^actions\/checkout@/.test(step.uses ?? "") && !/pull_request\.head\.|workflow_run\.head_sha/.test(step.with?.ref ?? ""));
       assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
-      assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
+      const sparse = checkout.with?.["sparse-checkout"]?.trim().split("\n");
+      assert.ok(
+        !sparse || sparse.some((entry) => (entry.endsWith("/") ? "/.github/npm-fetch.npmrc".startsWith(entry) : entry === "/.github/npm-fetch.npmrc")),
+        `${file} ${id}: its sparse checkout lacks .github/npm-fetch.npmrc`,
+      );
       const dir = checkout.with?.path ? `${checkout.with.path}/` : "";
       const value = job.env?.npm_config_globalconfig ?? doc.env?.npm_config_globalconfig;
       assert.equal(value, `\${{ github.workspace }}/${dir}.github/npm-fetch.npmrc`, `${file} ${id}`);
