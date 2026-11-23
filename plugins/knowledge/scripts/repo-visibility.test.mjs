@@ -12,7 +12,6 @@ const gitConfig = path.join(base, "gitconfig");
 const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")));
 const env = { ...inherited, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", GIT_CEILING_DIRECTORIES: base };
 
-/** Real git through the script's isolated runner. */
 const runGit = gitRunner(env);
 
 /** Real git with the caller's environment passed through, as the script ran it before isolation. */
@@ -101,7 +100,6 @@ before(() => {
 
 after(() => rmSync(base, { recursive: true, force: true }));
 
-/** Sets `vars` on process.env for one call, restoring it after. */
 function withEnv(vars, fn) {
   const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
   Object.assign(process.env, vars);
