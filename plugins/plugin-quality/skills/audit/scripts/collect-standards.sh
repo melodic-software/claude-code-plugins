@@ -120,7 +120,6 @@ cite() {
 }
 
 emit_probe() {
-  # name status convention component note
   printf 'probe: %s status=%s convention=%s component=%s note=%s\n' \
     "$1" "$2" "$3" "$4" "$5"
   if [[ "$2" == "finding" || "$2" == "basis-missing" ]]; then
@@ -139,9 +138,6 @@ topic_rel() {
   fi
 }
 
-# topic_ready <topic> [<needle>] - sets t_rel, t_file and, given a needle,
-# t_cite (the needle's line in the topic). Emits topic-absent or basis-missing
-# and returns 1 when the topic cannot be graded.
 topic_ready() {
   t_rel="$(topic_rel "$1")"
   t_file="$ROOT/$t_rel"
@@ -157,7 +153,6 @@ topic_ready() {
   fi
 }
 
-# --- invocation-mode -------------------------------------------------------
 if topic_ready invocation-mode "The key is written"; then
   if [[ "$(basename "$COMPONENT")" != "SKILL.md" ]]; then
     emit_probe invocation-mode not-applicable "$t_rel:$t_cite" - "not a skill file"
@@ -195,8 +190,6 @@ if [[ -z "$(cite "$ROOT/$(topic_rel seam-phrasing)" "$seam_needle")" ]]; then
   seam_needle="explicit installed-ness"
 fi
 if topic_ready seam-phrasing "$seam_needle"; then
-  # Exempt: the owning plugin and any manifest `dependencies` entry, one name
-  # per line from the nearest plugin.json above the component.
   exempt="|$(exempt_plugins | paste -sd'|' -)|"
   # shellcheck disable=SC2016 # the backticks are the invocation token, not an expansion
   seam_out="$(
@@ -259,7 +252,6 @@ if topic_ready untrusted-content "DATA, never instructions"; then
   fi
 fi
 
-# --- windows-path-emit -----------------------------------------------------
 if topic_ready windows-path-emit "path-conversion suppressor"; then
   export_line="$(grep -n -E '(export|declare[[:space:]]+-x|typeset[[:space:]]+-x)[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)' "$COMPONENT" | head -n 1 | cut -d: -f1 || true)"
   if [[ -n "$export_line" ]]; then
@@ -269,7 +261,6 @@ if topic_ready windows-path-emit "path-conversion suppressor"; then
   fi
 fi
 
-# --- hook-budget -----------------------------------------------------------
 if topic_ready hook-budget; then
   emit_probe hook-budget not-applicable "$t_rel" - "cost is measured, not grep-graded; the hook lens owns it"
 fi
