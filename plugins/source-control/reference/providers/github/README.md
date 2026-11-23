@@ -202,9 +202,11 @@ follows this cadence:
   `gh run watch <id> --exit-status -i 60` (the default is every 3 s), or REST reads of
   `repos/<owner>/<repo>/pulls/<n>` and `commits/<sha>/check-runs`. Never loop `gh pr view` and
   never run `gh pr checks --watch`. 60 s is a floor per watcher, not a budget: with several
-  watchers, poll every 2 s × watchers × requests per poll or slower, which keeps them near a third
-  of the hourly REST budget (ten pull-request monitors at about seven requests a poll: 140 s,
-  passed as the monitor's `--interval`).
+  watchers, poll every 2 s × watchers × counted requests per poll or slower, which keeps them near
+  a third of the hourly REST budget. A `304 Not Modified` answer to a conditional request is not
+  counted, so the pull-request monitor's seven reads count only when their answer changed: none on
+  an idle poll, two measured on a poll while CI ran. Ten monitors at up to three counted requests a
+  poll fit its 60 s default; pass a larger `--interval` only past that.
 - **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
   decide.
 - **Writes.** One at a time, at least 1 s apart, never in a retry loop. Secondary limits cap
@@ -217,5 +219,6 @@ follows this cadence:
 Pointer: [best practices for using the REST API](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api),
 [REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
 [GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
-As-of: 2026-10-17. Recheck trigger: either rate-limits page changes a figure, or a `gh` release
-changes the `run watch` or `pr checks --watch` interval or adds retries.
+As-of: 2026-11-23. Recheck trigger: either rate-limits page changes a figure, the best-practices
+page changes what a 304 counts against, or a `gh` release changes the `run watch` or
+`pr checks --watch` interval or adds retries.
