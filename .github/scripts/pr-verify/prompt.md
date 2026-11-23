@@ -53,7 +53,10 @@ DIFF_PARTSCHUNK_NOTE
   `fail` when no issue has any. An issue's `person_checks` lists done-when items of its `body`
   that the refinement records, or that its owner marks with `Person check:`, as checks a person
   runs: no pull request delivers them, so judge the diff without them. An item marked
-  `Person check:` that `person_checks` does not list is judged like any other. An issue's `credited_siblings`, on a `closes` entry, lists the pull
+  `Person check:` that `person_checks` does not list is judged like any other. When an issue's
+  `person_checks` is not empty, return `pass-notes`, never `pass`, with one note per item naming
+  it as a person check and the evidence the pull request body offers for it, or that it offers
+  none. An issue's `credited_siblings`, on a `closes` entry, lists the pull
   requests this one's body names on a `Siblings:` line that merged into the base with a `Refs:`
   line naming that issue, each with its `number` and its `body`, which says the part it delivered:
   that part is present at the base, so judge the diff without the done-when items those bodies
