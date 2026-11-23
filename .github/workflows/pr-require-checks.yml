@@ -3098,6 +3098,16 @@ jobs:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: scripts/check-plugin-profiles.sh
 
+      - name: Report skill links against the accepted table
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: |
+          {
+            echo '### Skill links against the accepted table (report only)'
+            echo '```text'
+            scripts/check-skill-links.sh 2>&1 || echo "::warning::check-skill-links could not run (exit $?)"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies, the declared prerequisites and the plugin profiles cannot be affected — reporting success."
