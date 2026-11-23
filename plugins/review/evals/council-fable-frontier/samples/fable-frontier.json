@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "`top` resolves claude/flagship to fable and the report marks it frontier. correctness and design run on opus, named explicitly at dispatch, so they do not inherit the Fable session model and are not marked frontier."},
+    {"answer": "Members: correctness -> opus, design -> opus, top -> fable (frontier). The default members always get model opus passed on the Agent call.", "why": "list form"},
+    {"answer": "Fable runs only for top, via claude/flagship, and the panel block shows it as frontier; the correctness and design members stay on Opus.", "why": "fable before top"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "All three members run on Fable, since the session runs on Fable.", "why": "all inherit"},
+    {"answer": "top resolves claude/flagship to opus; correctness and design run on opus too.", "why": "flagship wrong, no frontier"},
+    {"answer": "top runs on fable; correctness and design also run on fable.", "why": "defaults on fable, no frontier mark"}
+  ]
+}

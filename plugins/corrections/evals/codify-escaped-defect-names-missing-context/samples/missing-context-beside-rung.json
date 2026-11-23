@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Rung: `unit-test` (criterion items 1, 3).\nMissing context: the pricing rules file, never opened in either session."},
+    {"answer": "The model did not have the pricing rules in front of it. So beside the rung (`static-check`), the fix is also context: load that file.", "why": "missing context before rung"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Rung: `unit-test`. Add a null-price test. Proof: exit 1 on the old ref, exit 0 now.", "why": "rung without missing context"},
+    {"answer": "Missing context: the pricing rules file was never opened.", "why": "no rung"}
+  ]
+}

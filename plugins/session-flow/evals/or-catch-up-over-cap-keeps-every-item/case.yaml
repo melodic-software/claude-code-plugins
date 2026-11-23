@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: or-catch-up-over-cap-keeps-every-item
+description: 'A catch-up from stated facts with seven action items, more than fit in the default 250-word cap: /session-flow:orient catch-up keeps the cap on What happened only and lists every action item in full, and with no video skill loaded it says nothing about a video. Rules: skills/orient/SKILL.md, "Catch-up scope".'
+tags: [orient, catch-up, word-cap]
+plugins: ["../.."]
+expected_outcome: 'The reply opens with Needs you stating 7 action items, keeps What happened short, then covers all seven decisions by name, each with a recommendation and what happens if unanswered, even though the reply runs past 250 words. No item is dropped, counted ("and three more"), merged or replaced by a link, and no video is offered.'
+execution:
+  prompt: '/session-flow:orient catch-up. There is no repository here; work from these facts. Since my last message five subagents returned: the API tests pass, the docs build is green, the migration dry run found no conflicts, the load test held 2,000 requests per second, and the changelog draft is ready. Seven decisions wait on me: which billing provider to adopt, whether to approve deleting the staging database, whether to rotate the deploy key, which of two logo variants to ship, whether to grant the bot write access to the docs repository, whether to delay the launch by a week, and whether to approve the force-push to the release branch.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: opens-with-seven-needs-you
+    type: regex
+    pattern: '^(?:[^\n]{0,60}\n+)?[\s#*_>-]*Needs you\b[\s\S]{0,200}?\b(?:7|seven)\b'
+    flags: i
+    target: last_message
+    arm: both
+  - name: every-action-item-listed
+    type: regex
+    pattern: '^(?=[\s\S]*\bbilling\b)(?=[\s\S]*\bstaging\b)(?=[\s\S]*\bdeploy key\b)(?=[\s\S]*\blogo\b)(?=[\s\S]*(?:\bbot\b|\bwrite access\b))(?=[\s\S]*(?:\bdelay|\blaunch\b))(?=[\s\S]*\bforce.?push)'
+    flags: i
+    target: last_message
+    arm: both
+  - name: no-item-folded-into-count
+    type: regex
+    pattern: '\band (?:\d+|two|three|four|five|six) (?:more|others)\b|\b(?:\d+|two|three|four|five|six) (?:more|other) (?:items|decisions)\b'
+    flags: i
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: items-carry-recommendation
+    type: regex
+    pattern: '(?:[\s\S]*?\brecommend){7}'
+    flags: i
+    target: last_message
+    arm: both
+  - name: items-carry-if-unanswered
+    type: regex
+    pattern: '(?:[\s\S]*?(?:\bif (?:you )?(?:do not|don.t|never) (?:answer|reply|respond|decide)|\bif unanswered\b|\bunanswered\b|\bif (?:there is )?no answer\b|\bwithout (?:an )?answer\b|\bif (?:you stay )?silent\b)){7}'
+    flags: i
+    target: last_message
+    arm: both
+  - name: what-happened-stays-short
+    type: regex
+    pattern: 'What happened[\s\S]{0,2000}?\b(?:billing|staging|deploy key|logo|force.?push)'
+    flags: i
+    target: last_message
+    arm: both
+  - name: no-video-offer
+    type: regex
+    pattern: '\bvideos?\b'
+    flags: i
+    match: not_contains
+    target: last_message
+    arm: both
