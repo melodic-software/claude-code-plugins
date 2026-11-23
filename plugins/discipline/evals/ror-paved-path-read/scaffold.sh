@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a standards index whose paved-path row lists the jobs registry as the way to run scheduled jobs.
 set -euo pipefail
 
 here="$(pwd -P)"

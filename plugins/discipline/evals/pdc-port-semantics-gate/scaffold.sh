@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a vendored Python token bucket and an empty TypeScript services package for a port.
 set -euo pipefail
 
 here="$(pwd -P)"

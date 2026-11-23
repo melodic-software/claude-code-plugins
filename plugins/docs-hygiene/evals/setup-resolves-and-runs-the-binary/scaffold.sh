@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a real markdownlint-cli2 0.24.0 (the version the marketplace's package.json pins) in node_modules/.bin and no markdownlint configuration.
 set -euo pipefail
 
 git init -q

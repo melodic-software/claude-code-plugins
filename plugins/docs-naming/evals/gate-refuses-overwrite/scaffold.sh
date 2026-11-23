@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a git repo with a docs-naming team config and an older, hand-edited
-# file-name checker already in scripts/, with no suite beside it.
 set -euo pipefail
 
 git init -q -b main

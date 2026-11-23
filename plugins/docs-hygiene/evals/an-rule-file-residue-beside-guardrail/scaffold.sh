@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a payments conventions page mixing residue lines with legitimate lines that look like residue.
 set -euo pipefail
 
 mkdir -p docs/conventions config

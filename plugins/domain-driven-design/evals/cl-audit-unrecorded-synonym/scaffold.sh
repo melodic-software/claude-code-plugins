@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A one-context billing repository whose glossary defines Invoice (Avoid: bill) while the code also
-# names the same record PaymentDemand, a name the glossary never recorded.
 set -euo pipefail
 mkdir -p docs src/billing
 cat >README.md <<'MD'

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Three docs restate the commit-subject rule in different words; the working notes hold a
-# verify result of WARN-borderline and a plan. The default branch sets verification: light.
 set -euo pipefail
 
 git init -q -b main

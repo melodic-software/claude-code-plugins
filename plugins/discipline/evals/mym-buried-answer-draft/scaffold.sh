@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a drafted reply whose answer sits at the bottom under history, a tangent and an unclear "it".
 set -euo pipefail
 
 mkdir -p drafts

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a pull request template and a summary of this branch's changes.
 set -euo pipefail
 
 here="$(pwd -P)"

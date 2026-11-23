@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a repository whose standards manifest marks the lint workflow upstream-managed.
 set -euo pipefail
 
 here="$(pwd -P)"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a repo whose release doc cites a skill's private reference file and heading anchor beside legal slash, SKILL.md and scripts/ cites.
 set -euo pipefail
 
 mkdir -p .claude/skills/release-notes/reference .claude/skills/release-notes/scripts docs .github/workflows

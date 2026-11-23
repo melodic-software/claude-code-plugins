@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a project glossary the re-pitch should draw its terms from.
 set -euo pipefail
 
 mkdir -p docs

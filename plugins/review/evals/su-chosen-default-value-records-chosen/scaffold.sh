@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git working tree with a conforming standards index and no docs/conventions/review.yaml, so the
-# settings writer takes its create path and writes on the first call.
 set -euo pipefail
 
 git init -q .

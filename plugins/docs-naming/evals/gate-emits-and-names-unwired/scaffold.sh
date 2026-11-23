@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a git repo with a docs-naming team config, a docs tree holding one
-# offending name, and a CI workflow the gate is not yet wired into.
 set -euo pipefail
 
 git init -q -b main

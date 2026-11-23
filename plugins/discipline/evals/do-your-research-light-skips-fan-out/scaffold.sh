@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A sandbox repository whose default branch, pushed to a local bare origin, sets
-# `verification: light` in docs/conventions/discipline.yaml, plus a small textkit package with a
-# test, and a feature branch that changes it.
 set -euo pipefail
 
 git init -q -b main

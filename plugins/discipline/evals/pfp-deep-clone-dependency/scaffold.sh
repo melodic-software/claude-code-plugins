@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a Node 20 project and a plan that reaches for lodash by habit to deep-clone config.
 set -euo pipefail
 
 mkdir -p notes src

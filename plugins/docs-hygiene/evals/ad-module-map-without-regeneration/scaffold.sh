@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed an agent-facing module map that restates the import graph of six modules with no way to regenerate or recheck it.
 set -euo pipefail
 
 mkdir -p docs/agents src/billing src/catalog src/orders src/shipping src/notify src/shared

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a finished migration to the jobs registry whose paved-path entry still names plain cron.
 set -euo pipefail
 
 here="$(pwd -P)"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a migration whose config edits the assistant can make and whose console steps it cannot.
 set -euo pipefail
 
 here="$(pwd -P)"

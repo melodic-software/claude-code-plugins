@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seed a finished but shallow incident write-up. The digest it was written from hides the cause;
-# only the raw log shows one tenant failing after one config change.
 set -euo pipefail
 
 mkdir -p logs notes scripts

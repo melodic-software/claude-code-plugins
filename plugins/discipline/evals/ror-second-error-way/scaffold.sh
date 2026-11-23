@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed two modules on an established Result error model and one new module that throws instead.
 set -euo pipefail
 
 mkdir -p src/lib notes

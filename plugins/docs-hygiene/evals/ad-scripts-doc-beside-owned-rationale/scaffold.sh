@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a docs page that restates package.json scripts beside one that restates config but owns a buried rate-limit rationale.
 set -euo pipefail
 
 mkdir -p docs config src

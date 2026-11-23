@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed handlers that all retry by convention, including a new non-idempotent card charge.
 set -euo pipefail
 
 mkdir -p docs notes src/handlers src/lib

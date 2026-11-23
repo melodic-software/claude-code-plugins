@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed release tagging rules written out in two files with drifted wording and no declared owner.
 set -euo pipefail
 
 mkdir -p docs .github

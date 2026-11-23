@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A small currency package: convert_amount is defined in one file and called from two others.
 set -euo pipefail
 
 git init -q -b main .

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a package.json and a note of pending recommendations whose specifics it contradicts.
 set -euo pipefail
 
 mkdir -p notes

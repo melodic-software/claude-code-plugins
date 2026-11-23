@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed three checked-out repos, the shared lint action, and the pending recommendations note.
 set -euo pipefail
 
 here="$(pwd -P)"

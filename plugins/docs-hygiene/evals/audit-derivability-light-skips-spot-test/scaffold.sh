@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A sandbox repository whose default branch, pushed to a local bare origin, sets
-# `verification: light` for docs-hygiene. docs/build.md restates the Makefile's targets in prose,
-# a load-bearing delete or convert-to-pointer candidate that the standard level would spot-test.
 set -euo pipefail
 
 git init -q -b main

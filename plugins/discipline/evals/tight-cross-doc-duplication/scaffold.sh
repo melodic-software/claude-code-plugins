@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed two wordy docs that both state the same refund policy.
 set -euo pipefail
 set -o noclobber
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a repo whose review skill moved to code-review, leaving stale references in several forms.
 set -euo pipefail
 
 mkdir -p .claude/skills/plan .claude/skills/code-review .claude/skills/ship .claude/rules .claude/agents docs

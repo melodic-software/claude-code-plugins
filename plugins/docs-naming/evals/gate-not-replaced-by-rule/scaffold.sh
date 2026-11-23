@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a git repo with a docs-naming team config and a conforming docs tree.
 set -euo pipefail
 
 git init -q -b main

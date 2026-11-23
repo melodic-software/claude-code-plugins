@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A small retry scheduler whose repository sets an invalid explore_output value in
-# docs/conventions/discovery.yaml.
 set -euo pipefail
 
 git init -q -b main .

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a small HTTP client whose source holds the real timeout default and config path.
 set -euo pipefail
 
 here="$(pwd -P)"

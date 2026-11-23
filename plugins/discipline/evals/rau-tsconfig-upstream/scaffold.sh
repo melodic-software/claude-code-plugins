@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seed a TypeScript 5.4 project whose tsconfig holds a deprecated flag, an ADR-backed divergence
-# and an unexplained one.
 set -euo pipefail
 
 mkdir -p docs/adr src/app src/legacy

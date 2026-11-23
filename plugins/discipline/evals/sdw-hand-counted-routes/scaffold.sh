@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a routes file, two allowlist versions, and a summary whose hand-tallied counts are wrong.
 set -euo pipefail
 
 mkdir -p src config notes

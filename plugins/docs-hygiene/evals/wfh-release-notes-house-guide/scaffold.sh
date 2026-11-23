@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Seeds a CLI repo whose prose rules live in a contributor writing guide, with no STYLE.md.
 
 mkdir -p docs/contributing src
 cat >README.md <<'MD'

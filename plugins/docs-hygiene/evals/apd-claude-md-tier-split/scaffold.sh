@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a project CLAUDE.md mixing a safety rule, a billing-directory convention and a twice-a-year key-rotation procedure.
 set -euo pipefail
 
 mkdir -p services/billing/src services/catalog/src web/src

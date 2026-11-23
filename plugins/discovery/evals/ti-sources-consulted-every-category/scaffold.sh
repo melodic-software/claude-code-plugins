@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A payment client whose MAX_RETRIES value is explained only in a commit message that cites an
-# incident ticket. No design docs and no tracker are reachable from the workspace.
 set -euo pipefail
 
 export GIT_AUTHOR_NAME=eval GIT_AUTHOR_EMAIL=eval@example.invalid

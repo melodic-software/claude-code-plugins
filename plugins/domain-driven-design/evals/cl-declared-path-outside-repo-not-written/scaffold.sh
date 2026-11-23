@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A claims repository with a local glossary whose AGENTS.md also declares a glossary in a sibling
-# repository that does not exist.
 set -euo pipefail
 
 git init -q -b main

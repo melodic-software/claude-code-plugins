@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a small, correct migration with its schema, requirement and rollback.
 set -euo pipefail
 set -o noclobber
 

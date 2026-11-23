@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a padded support doc and no prose-terseness standard.
 set -euo pipefail
 set -o noclobber
 

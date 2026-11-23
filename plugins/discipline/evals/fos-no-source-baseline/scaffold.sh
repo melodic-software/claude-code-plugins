@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a repository with only a short CONTRIBUTING file and one changed module.
 set -euo pipefail
 
 here="$(pwd -P)"

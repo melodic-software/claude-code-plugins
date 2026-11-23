@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed the synccli tool whose source and docs settle the flag and the free-tier limit.
 set -euo pipefail
 
 here="$(pwd -P)"

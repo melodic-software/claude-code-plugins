@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A small payments repository: enough for a blindspot scan to have a target once intake is answered.
 set -euo pipefail
 
 git init -q -b main .

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A small payments repository with three things a newcomer adding partial refunds would miss: a
-# second caller that assumes a refund is always the whole order, a history commit explaining why
-# amounts are integer cents, and a money helper every module routes through.
 set -euo pipefail
 
 export GIT_AUTHOR_NAME=eval GIT_AUTHOR_EMAIL=eval@example.invalid

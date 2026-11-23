@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a requirement and a "done" paginate() that is 0-based and skips size validation.
 set -euo pipefail
 
 mkdir -p docs src notes

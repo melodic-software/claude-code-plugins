@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a commit-subject rule owned by a conventions doc and recapped inline by three agent-facing files.
 set -euo pipefail
 
 mkdir -p docs/conventions .claude/agents .claude/skills/ship prompts

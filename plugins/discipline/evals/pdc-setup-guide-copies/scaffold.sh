@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seed a setup guide that copies a vendor flag table, cites an internal script, closes a
-# capability list, and records one observed CI error the project owns.
 set -euo pipefail
 
 mkdir -p docs scripts/_internal

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a finished incident write-up the user's feedback turns into a much larger goal.
 set -euo pipefail
 
 mkdir -p logs notes

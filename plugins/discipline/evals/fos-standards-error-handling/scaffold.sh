@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a standards index with three docs and one new module that breaks two of them.
 set -euo pipefail
 
 mkdir -p docs/standards src

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed docs/conventions/discipline.yaml with lever_scope: always (an invalid repository value).
 set -euo pipefail
 
 here="$(pwd -P)"

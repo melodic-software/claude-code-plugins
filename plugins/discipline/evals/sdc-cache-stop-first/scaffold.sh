@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a cache module whose invalidate_user() was just written and is wrong.
 set -euo pipefail
 set -o noclobber
 

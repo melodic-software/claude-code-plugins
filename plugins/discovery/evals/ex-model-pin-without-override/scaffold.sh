@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A small textkit package with one test, committed, so /discovery:explore has something to read.
 set -euo pipefail
 
 git init -q -b main

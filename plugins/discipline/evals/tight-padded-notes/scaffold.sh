@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed padded deploy notes (with three rules that must survive) and a verbose helper.
 set -euo pipefail
 
 mkdir -p docs src

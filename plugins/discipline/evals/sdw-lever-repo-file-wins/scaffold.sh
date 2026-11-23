@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed docs/conventions/discipline.yaml with lever_scope: deterministic (the repository layer, over a non-trivial user option).
 set -euo pipefail
 
 here="$(pwd -P)"

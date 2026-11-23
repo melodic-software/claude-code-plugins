@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a repository that declares a standards index and holds no code yet.
 set -euo pipefail
 
 here="$(pwd -P)"

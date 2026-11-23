@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A skill directory before and after a rewrite: the retention paragraph moved from SKILL.md into
-# reference/retention.md, the 50 MB rotation threshold was dropped, and cuts.md lists the one
-# intended cut (the tidy-logs filler line).
 set -euo pipefail
 
 mkdir -p before after/reference

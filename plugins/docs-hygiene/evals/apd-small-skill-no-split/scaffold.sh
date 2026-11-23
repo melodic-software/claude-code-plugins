@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed one short, single-purpose skill with no bundled files.
 set -euo pipefail
 
 mkdir -p .claude/skills/changelog-entry

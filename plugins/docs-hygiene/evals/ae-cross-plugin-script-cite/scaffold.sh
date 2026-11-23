@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a two-plugin marketplace where one plugin's skill path-cites the other's script, and CI calls the same script.
 set -euo pipefail
 
 mkdir -p .claude-plugin .github/workflows \

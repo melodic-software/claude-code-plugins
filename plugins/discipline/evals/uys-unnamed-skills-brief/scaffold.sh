@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seed a subagent brief that names no skill for a task a listed skill owns.
 set -euo pipefail
 
 mkdir -p docs notes
