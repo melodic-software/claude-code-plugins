@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; everyday coding task)",
+      "why": "contract line"
+    },
+    {
+      "answer": "- `claude: model opus @ effort medium` (basis: consensus; both boards read)",
+      "why": "bulleted contract line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run it on Claude.",
+      "why": "no contract line"
+    }
+  ]
+}

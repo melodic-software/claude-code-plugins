@@ -6,8 +6,8 @@ follows it. Each CLI's flags, modes, model list and effort levels belong to the 
 plugin; this file reads them only through `external-agents models <product>`, never through that
 plugin's files.
 
-This file ships no model names. Every model and effort comes from the live listing or an upstream
-page read at run time.
+This file ships no model names, scores, rankings or prices. Every model, effort and benchmark
+result comes from a live listing or a page read through the shared cache at run time.
 
 ## The rule
 
@@ -17,16 +17,27 @@ page read at run time.
 2. **Go higher only for a heavy whole-task delegation**: a change across many files, a long
    unattended task, a hard bug in an existing codebase, or a security audit. Then raise effort one
    step above the vendor's default, or to the level the vendor's own effort guidance gives that
-   kind of task, and keep the default model unless an upstream page or a benchmark below names a
-   better one for this kind of task. Basis: the section or benchmark that supports the step.
+   kind of task, and keep the default model unless an upstream page or the trust model below names
+   a better one for this work type. Basis: the section or consensus that supports the step.
 3. **Never below the default for code.** Work that changes code, verifies a change or is likely to
    hit edge cases never gets a lower effort than the vendor's default.
 4. **Only levels the CLI accepts.** A Codex or Gemini effort must appear in that product's
    `external-agents models` output (`efforts`, or the model's own `efforts`); a model must be one
    of its `models[].id`.
+5. **Tool skills own MCP vs CLI.** Routing never ranks a tool's MCP server against its CLI. When a
+   task involves that choice, routing names that tool's own skill to decide.
 
 The caller passes the chosen values to `external-agents run` or `review` as `--model` and
 `--effort` for that run only, and names the override and its basis in its reply.
+
+## Work types
+
+| Work type | Covers |
+|---|---|
+| `coding` | implementation, debugging, refactoring, tests, terminal workflows, game development |
+| `web-ui` | browser front-end layout, interactive UI, styling, web app design |
+| `knowledge` | synthesis, research, analysis, writing, domain reasoning |
+| `image` | image generation and visual asset creation |
 
 ## Task classes
 
@@ -57,26 +68,39 @@ A product whose `external-agents models` output has a `status` other than `ok`, 
 without `external-agents`, gets no recommendation: the output names it as unavailable with the
 reason, and covers the rest.
 
-## Benchmarks
+## Benchmarks and trust model
 
-A benchmark supports a step above the default only when its page is read live during this run,
-shows a date within the last 6 months, and lists the candidate models by name. Cite the page and
-the rows read; a lead inside a row's stated error range is no lead. Read the scores live; this file
-records none. A page the run cannot read (refused, empty, or not loaded) gives no support: the
-reply names it as unread, never drops it silently.
+Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:
+[`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)). Every
+page is fetched through `fetch-boards` (wrapping the shared docs cache; default freshness window
+one day, overridable per row via `freshness_seconds`), read in isolation by the Read-only
+`multi-agent:board-reader` agent into closed-schema `VerdictRecord` entries
+([`../schemas/verdict-record.schema.json`](../schemas/verdict-record.schema.json)), and counted by
+`vendor-decide`, which stamps `source_id`, `page_date` and `read` state from the fetch manifest.
 
-| Benchmark | Page | Measures | Checked |
-|---|---|---|---|
-| Terminal-Bench 4.1 | [tbench.ai leaderboard](https://www.tbench.ai/leaderboard) | agents doing terminal tasks; each row names the agent harness (Claude Code, Codex, Antigravity CLI) and the effort it ran at | 2026-11-22: rows for Claude 5.5 and Fable 5.2, GPT-6.x and Gemini 4.x, model release dates up to Nov 18, 2026 |
-| CursorBench 4.1 | [cursor.com/cursorbench](https://cursor.com/cursorbench) | agents on ambiguous multi-file tasks taken from real Cursor sessions | 2026-11-22: changelog entry Nov 18, 2026 (CursorBench 4.1); a vendor missing from its rows gets no support from it |
-| WebDev Arena | `https://arena.ai/leaderboard/code/webdev` (written as code: it answers 403 to link checkers) | developers' head-to-head votes on built web apps; web front-end work only | 2026-11-22: page dated Nov 20, 2026, Claude, GPT and Gemini models in its top rows; it answers 403 to plain HTTP fetches, so read it with a browser-rendering scraper when the session has one |
+Trust-model rules enforced by `vendor-decide`:
 
-Checked and not used on 2026-11-22: SWE-bench (no date on the page, no current models in the data
-read), Artificial Analysis coding index and SWE-Bench Pro (no date shown), Aider polyglot (last
-updated November 20, 2025), LiveCodeBench (leaderboard did not load).
-
-- **Recheck trigger**: a listed page shows no date within 6 months, drops a vendor's current
-  models, or moves; or a new benchmark covering all three vendors is proposed.
+- **Consensus to move off Claude**: work leaves Claude only on the consensus of all trusted
+  sources for that work type (at least two independent leading sources), for a pair proven on this
+  machine, under an active trial, or for work Claude cannot do.
+- **Independence**: two boards from one publisher count as one source; one `task_set` hosted on
+  two sites counts as one source.
+- **Error range**: a lead counts only outside the board's stated error range; a score with no
+  error range is support-only.
+- **Current models**: a board that does not test a vendor's current model ids abstains for that
+  vendor.
+- **Provider-own results**: a provider's own published results (`provider_own: true`) are
+  support-only and support only that provider's own models.
+- **Freshness and page dates**: a page must be dated within 6 months (a dated row, release column
+  or changelog entry counts as the page date). Undated or older pages are ineligible.
+- **Source maturity**: new sources start `support-only` and become `permanent` once they pass
+  longevity, accuracy and coverage.
+- **Degradation on fetch failure**: a cached copy served after a failed fetch is flagged stale
+  with its age and shown as support-only. A gone page (404, 410, off-site redirect) is unread,
+  named as unread in the reply, and its work type stays on its default.
+- **Ties**: on a tie across trusted sources, list every tied vendor with its published token
+  counts (no prices) and apply the configured tiebreak; with none set, the caller keeps its
+  vendor.
 
 ## Where to read the specifics
 
@@ -86,3 +110,6 @@ updated November 20, 2025), LiveCodeBench (leaderboard did not load).
 - **Pointer**: when deciding whether evidence justifies changing a model, fetch
   [choosing a model: decide whether to upgrade or change models](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#decide-whether-to-upgrade-or-change-models)
   live.
+- **Pointer**: for costs and pricing (never restated here), fetch
+  [Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs) and
+  [Pricing](https://platform.claude.com/docs/en/about-claude/pricing) live.

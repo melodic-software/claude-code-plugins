@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; fewer than two independent leading sources because cursorbench was unread)",
+      "why": "stays on claude default"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "codex: model sparrow-1 @ effort high (basis: consensus; terminal-bench lead)",
+      "why": "moved off claude on one board"
+    },
+    {
+      "answer": "claude: model inherit @ effort medium (basis: consensus)",
+      "why": "claimed consensus with unread board"
+    }
+  ]
+}
