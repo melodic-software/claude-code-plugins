@@ -1919,6 +1919,7 @@ class StaleReferences(ValidatorTestCase):
         self.eval_dir.mkdir(parents=True)
         write(plugins / "demo" / "skills" / "real" / "SKILL.md", "---\nname: real\n---\n")
         write(plugins / "demo" / "agents" / "helper.md", "---\nname: helper\n---\n")
+        write(plugins / "demo" / "agents" / "code-reviewer.md", "---\nname: cr\n---\n")
         write(plugins / "discovery" / "agents" / "explorer.md", "---\nname: x\n---\n")
 
     def ref_case(self, prompt_line="/demo:real go", tags="[smoke]", context="",
@@ -2024,7 +2025,9 @@ class StaleReferences(ValidatorTestCase):
             + self.tool_grader("explorer", "Agent", '"subagent_type":"discovery:explorer"')
             + self.tool_grader("prose", "Agent", "Intent: not stated")
             + self.tool_grader("open-prefix", "Agent", "discovery:explore")
-            + self.tool_grader("slash-skill", "Agent", "/demo:real\\b"),
+            + self.tool_grader("slash-skill", "Agent", "/demo:real\\b")
+            + self.tool_grader("hyphen-wildcard", "Agent", "demo:code-.*")
+            + self.tool_grader("optional-suffix", "Agent", "demo:code-review(er)?"),
         )
         write(case_dir / "scaffold.sh", "#!/usr/bin/env bash\ntrue\n")
         result = self.validate_without_node()

@@ -1102,7 +1102,7 @@ LEADING_REFERENCE = re.compile(
 TAG_REFERENCE = re.compile(r"^([A-Za-z][\w-]*):([A-Za-z][\w-]*)$")
 HOLE = "\x00"
 LITERAL_REFERENCE = re.compile(
-    r"(?<![\w.:\x00-])(/?)([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?![\w:(\[.?*+{\x00])"
+    r"(?<![\w.:\x00-])(/?)([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?![\w:(\[.?*+{\x00-])"
 )
 LOOKAROUNDS = ("(?=", "(?!", "(?<=", "(?<!")
 GROUP_OPENER = re.compile(r"\((?:\?:|\?P?<[A-Za-z_]\w*>)?(?!\?)")
