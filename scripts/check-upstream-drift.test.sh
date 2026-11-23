@@ -63,8 +63,6 @@ path_without() {
   NO_PATH="$dir"
 }
 
-# --- fixture builders --------------------------------------------------------
-
 # page_lines: the default page. Line 3 is the marker, line 7 the alpha row (a
 # drift input), line 8 a link to another repository, line 12 the beta unit in
 # the Map section.
@@ -105,8 +103,6 @@ setup() {
     tree_file "$NEW" "$@"
   fi
 }
-
-# --- running and asserting ---------------------------------------------------
 
 RC=0
 OUT=""
@@ -166,8 +162,6 @@ no_err() {
 out_lacks() {
   if [[ "$OUT" != *"$2"* ]]; then ok "$1: stdout lacks '$2'"; else fail "$1: stdout carries '$2' $(state)"; fi
 }
-
-# --- cases -------------------------------------------------------------------
 
 # Usage and help.
 setup

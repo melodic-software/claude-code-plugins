@@ -309,7 +309,6 @@ jobs:
           scripts/release-plugins.sh 2>"$errors" | tee "$report" || rc=$?
           cat "$errors" >&2
           [ "$rc" = 0 ] || exit "$rc"
-          # release-plugins.sh skips a plugin whose fragments fail validation; surface each one.
           skipped="$(sed -n 's/^release-plugins\.sh: skipped \([^:]*\):.*/\1/p' "$errors" | paste -sd ' ' -)"
           read -ra names <<<"$skipped"
           for name in "${names[@]}"; do
@@ -372,8 +371,6 @@ jobs:
           else
             gh api -X POST "$refs" -f ref=refs/heads/release/plugins -f sha="$oid" --silent
           fi
-          # The release already landed on release/plugins; a failed cleanup only
-          # leaves the staging branch, which the next run deletes first.
           gh api -X DELETE "$refs/heads/$stage" --silent || echo "::warning::Could not delete $stage; the next run removes it."
           echo "Wrote release commit $oid."
       - name: Open or update the release pull request
@@ -385,9 +382,6 @@ jobs:
           REPORT: ${{ steps.release.outputs.report }}
           SKIPPED: ${{ steps.release.outputs.skipped }}
         run: |
-          # release-plugins.sh prints one line per plugin:
-          #   <name>: <old> -> <new> (<bump>) from <n> fragment(s): <path>...
-          #   <name>: no release; deleted <n> bump: none fragment(s): <path>...
           released_re='^([^:]+): ([^ ]+) -> ([^ ]+) \(([a-z]+)\) from [0-9]+ fragment\(s\): (.*)$'
           none_re='^([^:]+): no release; deleted [0-9]+ bump: none fragment\(s\): (.*)$'
           code_list() { local p out="" ps; read -ra ps <<<"$1"; for p in "${ps[@]}"; do out+="${out:+<br>}\`$p\`"; done; printf '%s' "$out"; }
@@ -422,8 +416,6 @@ jobs:
           else
             gh pr create --repo "$GITHUB_REPOSITORY" --base main --head release/plugins --title "$title" --body-file "$body"
           fi
-      # With nothing released there is no new body to write, so name the skipped
-      # plugins on the open release pull request, once per set.
       - name: Name the skipped plugins on the open release pull request
         if: steps.decide.outputs.rebuild == 'true' && steps.release.outputs.released == '0' && steps.release.outputs.skipped != ''
         env:

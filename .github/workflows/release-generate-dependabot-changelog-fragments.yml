@@ -48,8 +48,6 @@ concurrency:
 
 jobs:
   generate-changelog-fragments:
-    # A push runs it only when one of its commits is Dependabot's, by the
-    # author scripts/dependabot-fragments.sh walks.
     name: Generate Changelog Fragments
     if: >-
       github.ref == 'refs/heads/main'
@@ -129,8 +127,6 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
           permission-pull-requests: write
-      # The branch is rebuilt from main with every pending fragment, so an open
-      # pull request that already holds exactly them is left alone for its CI.
       - name: Write the fragments and open the pull request
         if: steps.find.outputs.count != '0'
         env:
@@ -151,7 +147,6 @@ jobs:
           while IFS= read -r path; do
             base64 -w0 "$path" | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
           done <<<"$want"
-          # Cut the branch from main, then write the one signed commit on it.
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
             gh api -X PATCH "$refs/heads/$branch" -f sha="$MAIN_SHA" -F force=true --silent
           else

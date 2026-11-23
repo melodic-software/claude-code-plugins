@@ -1882,7 +1882,6 @@ describe("decide", () => {
       assert.match(result.reasons.join("; "), /no trusted-human acceptance criteria/);
     });
 
-    // Its other criteria still apply: a hold or a person's label still holds it.
     test("a drift issue a person or the lane holds is not admitted", () => {
       assert.deepEqual(run(driftIssue({ labels: [{ name: READY }, { name: NEEDS_DECISION }] })), {
         verdict: "refuse",
@@ -2876,7 +2875,6 @@ describe("admit() with the Work status field", () => {
     assert.deepEqual(writes(fake.calls), [RECORD, STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY)]);
   });
 
-  // An admitted issue is never admitted again: no second record, no second run.
   test("an issue whose field reads agent-ready beside a stale status: ready label is left alone, with no record", async () => {
     const fake = fakeGitHub();
     const result = await admit(withStatus(fake, { 7: { state: AGENT_READY } }));

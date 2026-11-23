@@ -190,7 +190,6 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
     return noteUnreported(call, repo, { log, run: runInfo, unreported, summary });
   }
 
-  // The range since main's last green full run, and each merge's own full run.
   const runs = await fullRuns(call, repo, env);
   const green = lastGreen(runs, env.RUN_SHA);
   const base = green ? { sha: green.head_sha, url: green.html_url } : null;
