@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/*/scripts/check-hook-registration.sh
 # test-scope: plugins/discovery/hooks/hooks.json plugins/multi-agent/hooks/hooks.json
+# test-scope: plugins/discovery/hooks/webfetch-truncation.mjs plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,10 +49,11 @@ fi
 for script in "${carriers[@]}"; do
   root="${script%/scripts/check-hook-registration.sh}"
   plugin="${root##*/}"
+  hook_file="$(sed -n 's/^HR_HOOK=//p' "$script")"
   fixture() {
     local dir="$WORK/$plugin-$1"
-    mkdir -p "$dir/scripts" "$dir/lib"
-    cp -R "$root/hooks" "$dir/"
+    mkdir -p "$dir/scripts" "$dir/lib" "$dir/hooks"
+    cp "$root/hooks/hooks.json" "$root/hooks/$hook_file" "$dir/hooks/"
     cp "$script" "$dir/scripts/"
     cp "$HERE/hook-registration-check.sh" "$dir/lib/"
     [[ $# -lt 2 ]] || printf '%s\n' "$2" >"$dir/hooks/hooks.json"
