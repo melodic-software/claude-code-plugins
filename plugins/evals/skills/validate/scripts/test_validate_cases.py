@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # test-scope: plugins/evals/skills/*/SKILL.md
 # test-scope: plugins/evals/evals/*
+# test-scope: plugins/evals/scripts/case_skills.py
 """Fixture suite for validate-cases.py.
 
 Every fixture is built in a temporary directory from the inline strings here, so
@@ -1148,6 +1149,72 @@ class SkillBashGrant(ValidatorTestCase):
         self.assertNotIn("pre-computed", self.bash_case("Read, 'Bash(node *)'").stdout)
         self.skill("setup", "---\ndescription: x\n---\n\nRead the doc.\n")
         self.assertNotIn("pre-computed", self.bash_case("Read, Skill").stdout)
+
+    def test_skills_named_order_and_bare_tag_handling(self):
+        pre = "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        self.skill("prompt-skill", pre)
+        self.skill("tag-skill", pre)
+        self.skill("yaml-tag-skill", pre)
+        self.case(
+            "order-slash",
+            prompt="---\ntags: [tag-skill]\nallowed_tools: [Read, Skill]\n---\n\n"
+            "/sample:prompt-skill go\n",
+            case_yaml='schema_version: "1.1"\nname: order-slash\n'
+            "tags: [yaml-tag-skill]\n",
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        self.case(
+            "order-tags",
+            prompt="---\ntags: [sample:prompt-skill, tag-skill]\n"
+            "allowed_tools: [Read, Skill]\n---\n\nCheck this.\n",
+            case_yaml='schema_version: "1.1"\nname: order-tags\n'
+            "tags: [yaml-tag-skill]\n",
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        result = self.validate_without_node()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(
+            "WARN order-slash/prompt.md: skills/prompt-skill/SKILL.md has a pre-computed",
+            result.stdout,
+        )
+        self.assertNotIn("order-slash/prompt.md: skills/tag-skill", result.stdout)
+        self.assertIn(
+            "WARN order-tags/prompt.md: skills/tag-skill/SKILL.md has a pre-computed",
+            result.stdout,
+        )
+        self.assertNotIn("order-tags/prompt.md: skills/prompt-skill", result.stdout)
+        self.assertNotIn("order-tags/prompt.md: skills/yaml-tag-skill", result.stdout)
+
+    def test_leading_other_plugin_slash_skill_still_warns(self):
+        self.skill(
+            "setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        )
+        result = self.bash_case("Read, Skill", prompt_line="/other:setup check")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("skills/setup/SKILL.md has a pre-computed", result.stdout)
+
+    def test_dotted_skill_name_warns(self):
+        self.skill(
+            "setup.v2", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        )
+        slash = self.bash_case("Read, Skill", prompt_line="/sample:setup.v2 check")
+        self.assertIn("skills/setup.v2/SKILL.md has a pre-computed", slash.stdout)
+        bare_tag = self.bash_case(
+            "Read, Skill", prompt_line="Check this.", tags="[setup.v2]"
+        )
+        self.assertIn("skills/setup.v2/SKILL.md has a pre-computed", bare_tag.stdout)
+
+    def test_check_skill_bash_stops_at_first_hit(self):
+        pre = "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        self.skill("first", pre)
+        self.skill("second", pre)
+        result = self.bash_case(
+            "Read, Skill", prompt_line="/sample:first check", tags="[second]"
+        )
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual(1, result.stdout.count("pre-computed"))
+        self.assertIn("skills/first/SKILL.md has a pre-computed", result.stdout)
+        self.assertNotIn("skills/second/SKILL.md", result.stdout)
 
 
 class PluginsContainment(ValidatorTestCase):

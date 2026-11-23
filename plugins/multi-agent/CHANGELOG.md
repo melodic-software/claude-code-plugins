@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.1] - 2026-11-23
+
+### Changed
+
+- `scripts/check-hook-registration.sh` now runs the shared hook registration check (`lib/hook-registration-check.sh`, generated from the repository's `lib/`); its rows, wording and exit codes are unchanged.
+
 ## [3.3.0] - 2026-11-22
 
 ### Added

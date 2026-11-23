@@ -102,6 +102,13 @@ each root's drive gives the same figure in bytes.
 
 ### Step 4a: Guards, then remove the worktree
 
+In a sandboxed session, remove only the worktree this session created by name. Run the
+stranded-work and carried-file guards (guard 1 and guard 2's carried-file comparison). Skip
+`worktree-claim.sh stale` for this session's own claim. The
+[`WorktreeRemove` gate](../../../hooks/worktree-remove-gate.sh) refuses locks naming another
+session. Run `down`, then `ExitWorktree`, whose hook does the reap, and report every other
+candidate as described in [Sandboxed sessions](../SKILL.md#sandboxed-sessions).
+
 ```bash
 # Orphaned directory (scan class `empty`, or `husk` proposed `yes`): remove it —
 # ONLY after it has passed every qualifying test for its class below. Absence

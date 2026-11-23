@@ -27,11 +27,8 @@ emit() {
 count_lines() { wc -l | tr -d ' '; }
 count_files() { find "$@" -type f 2>/dev/null | count_lines; }
 count_dirs() { find "$@" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | count_lines; }
-# count_depth2 DIR FIND-ARGS...: entries exactly two levels under DIR.
 count_depth2() { find "$1" -mindepth 2 -maxdepth 2 "${@:2}" 2>/dev/null | count_lines; }
-# emit_file LABEL PATH: one line when PATH is a regular file.
 emit_file() { if [[ -f "$2" ]]; then emit "$1" 1 "$2"; fi; return 0; }
-# emit_tree LABEL DIR GLOB FIND-ARGS...: count files under DIR when it exists.
 emit_tree() {
   local label="$1" dir="$2" glob="$3"
   shift 3

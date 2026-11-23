@@ -1,21 +1,5 @@
 # shellcheck shell=bash
-#   shfmt_governed <path>       0 when an .editorconfig section naming shell
-#                               files governs the repo-relative path (walk up
-#                               to the repository root)
-#   editorconfig_shell_section_here <dir>
-#                               the walk predicate: 0 hit, 1 none, 2 stop
-#   shfmt_rewrite <file>        shfmt in place; sets SHFMT_NOTE when it left
-#                               the file as written for a reason worth saying
-#
-# shfmt runs only for a file an .editorconfig section governs: `[*.sh]`,
-# `[*.bash]`, a brace list naming sh or bash, or a path-prefixed form. A bare
-# `[*]` is not an opt-in (most repos set only line endings or a charset there),
-# and a path-only section such as `[scripts/**]` is not either: matching those
-# means reimplementing EditorConfig globbing, so the safe bias is to leave the
-# file alone. A `root = true` config with no shell section ends the walk, as
-# EditorConfig's own search does.
 
-# $1 is the text inside the brackets.
 section_applies_to_shell() {
   [[ "$1" =~ \*\.(sh|bash)([^[:alnum:]]|$) || "$1" =~ [{,](sh|bash)[,}] ]]
 }
@@ -56,22 +40,6 @@ shfmt_note() {
   SHFMT_NOTE+="${SHFMT_NOTE:+ }$1"
 }
 
-# Subscript guard. shfmt parses an unquoted array subscript as arithmetic,
-# because a static parser cannot tell an associative array from an indexed one,
-# and spaces its operators: `${m[a-b]}` becomes `${m[a - b]}`, a different key
-# (https://github.com/mvdan/sh/issues/956 and the "Caveats" section of the
-# mvdan/sh README). The guard compares the source text of every subscript
-# before and after the rewrite, in syntax-tree order, and puts the original
-# bytes back when any of them differs.
-# The tree is the same on both sides, because shfmt reads the spaced and the
-# unspaced form as one expression, so the subscripts pair up one to one. A
-# span is widened over the blanks beside it before the compare: the tree's
-# span leaves out the padding in `${m[ key ]}`, which is part of an
-# associative key and which shfmt drops. Offsets are bytes, so the slicing runs
-# under LC_ALL=C. A file holding a NUL byte cannot be held in a bash variable
-# and is not guarded. A tree that cannot be read on either side, or that
-# yields a different number of subscripts, fails closed: the rewrite is put
-# back, since an unchecked rewrite may have changed a key.
 SUBSCRIPT_ORIG=""
 SUBSCRIPT_GUARD=0
 subscript_guard_begin() {
@@ -82,17 +50,11 @@ subscript_guard_begin() {
   SUBSCRIPT_GUARD=1
 }
 
-# subscript_spans <file> <reader>: prints "start end line" for each array
-# subscript of the script on stdin; fails when the tree cannot be read. The
-# caller's pipefail carries a shfmt failure out of the pipeline, which runs
-# shfmt and jq side by side rather than one after the other.
 subscript_spans() {
   shfmt "$2" --filename "$1" 2>/dev/null |
     jq -r '.. | objects | select(.Index? | type == "object") | .Index | "\(.Pos.Offset) \(.End.Offset) \(.Pos.Line)"' 2>/dev/null
 }
 
-# subscript_text <source> <start> <end>: sets SUBSCRIPT_TEXT to the span
-# widened over the blanks on both sides.
 SUBSCRIPT_TEXT=""
 subscript_text() {
   local src="$1" s="$2" e="$3"
@@ -101,7 +63,6 @@ subscript_text() {
   SUBSCRIPT_TEXT="${src:s:e-s}"
 }
 
-# subscript_guard_end <file> <reader>
 subscript_guard_end() {
   local file="$1" reader="$2" LC_ALL=C new="" spans span s e l was now i base="${1##*/}"
   local n=0 named="" first_was="" first_now="" noun="the array subscript" key="a different key"
@@ -142,19 +103,6 @@ subscript_guard_end() {
   shfmt_note "bash-format: shfmt would rewrite $noun $named, $key if the array is associative, so $base was left as written. Quote the key ([\"$first_was\"]) if the array is associative; if it is indexed, write it as shfmt prints it ([$first_now])."
 }
 
-# The flag probe. --apply-ignore (shfmt 3.8+, 2024-02) makes shfmt honor
-# `ignore = true` editorconfig rules for a directly named file, which it
-# otherwise skips, so a repo's opt-out for generated or vendored scripts holds.
-# Older shfmt rejects the flag and cannot honor those rules anyway, so it gets
-# a plain in-place format.
-#
-# The version is decided by PROBING the flag, not by inferring it from a failed
-# format run: retrying without the flag after any failure would discard the
-# repo's `ignore = true` opt-out and re-format a file the consumer asked shfmt
-# to leave alone. Only a confirmed unsupported-flag rejection (the Go flag
-# parser's "flag provided but not defined", or a wrapper's "unknown flag",
-# naming apply-ignore) takes the plain path. Any other probe failure says
-# nothing about the flag, so the file is left untouched and the skip is said.
 SHFMT_PROBED=0
 SHFMT_APPLY_IGNORE=0
 SHFMT_READER=""

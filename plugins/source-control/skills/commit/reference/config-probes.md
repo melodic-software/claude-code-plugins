@@ -1,16 +1,8 @@
 # Repository-context probes: why each one is shaped as it is
 
-Detail behind the `## Repository context. Gather first` section in [SKILL.md](../SKILL.md). The
-hub keeps the commands, the probe list and the combination table; this file keeps the reasons.
-
-## The two pipes in the git calls
-
-**The two pipes are the bound and belong in the command.** A read-time cap ("read only the summary
-line") comes too late for whatever the command has already returned inline; `head` and `tail`
-truncate before the result exists. What a result returns inline, and when it arrives as a saved file
-instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-These are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies
-to the `## Pre-computed context` block does not apply here.
+Detail behind the `## Repository context. Probe the config layers` section in
+[SKILL.md](../SKILL.md). The hub keeps the commands, the probe list and the combination table; this
+file keeps the reasons.
 
 ## Why probes 2 to 4 omit `--exclude-standard`
 
@@ -31,7 +23,7 @@ case as unknown is exactly what readmits a file the resolution rules exclude.
 
 ## Why the git lines stay out of pre-compute
 
-Keep the repository-context git lines out of `## Pre-computed context`, so the skill stays
+Keep the probe git lines out of `## Pre-computed context`, so the skill stays
 invocable from inside a worktree. The composition record is the
 [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation).
 

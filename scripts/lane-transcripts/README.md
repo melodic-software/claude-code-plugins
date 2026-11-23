@@ -1,7 +1,7 @@
 # lane-transcripts
 
 The transcript puller. CI keeps each lane leg's transcript for 7 days as a sealed artifact
-([`upload-lane-transcript`](../../.github/actions/upload-lane-transcript/README.md)); this copies
+(ci-workflows' [`upload-lane-transcript`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/upload-lane-transcript/action.yml)); this copies
 them to a private sink outside CI, opens them with the private key, and keeps the sink's retention.
 It runs four times a night on the laptop. Needs Node 22 or later, `gh` signed in, and `unzip`.
 

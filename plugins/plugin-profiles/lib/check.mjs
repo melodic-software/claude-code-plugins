@@ -17,6 +17,7 @@
 import { readFileSync } from "node:fs";
 import { excludedAlwaysOn } from "./plan.mjs";
 import { ALWAYS_ON, alphabetical, ignoredLine, resolveCatalog } from "./profile-files.mjs";
+import { skillLinkReports } from "./skill-links.mjs";
 
 export class CheckError extends Error {}
 
@@ -69,7 +70,7 @@ function excludeProblems(catalog) {
   return [...catalog.profiles.values()].flatMap((p) => excludedAlwaysOn(catalog, p).map((id) => `profile ${p.name} excludes always-on member ${id}`));
 }
 
-export function checkProfiles({ files, catalog, installed }) {
+export function checkProfiles({ files, catalog, installed, skills }) {
   const shipped = files.filter((f) => f.level === "shipped");
   const others = files.filter((f) => f.level !== "shipped");
   const shippedCatalog = resolveCatalog(shipped);
@@ -94,5 +95,9 @@ export function checkProfiles({ files, catalog, installed }) {
   for (const id of installed) {
     if (governed.has(marketplaceOf(id)) && !named.has(id)) reports.push(`Installed, and no profile names it (an apply switches it off unless the repository enables it): ${id}`);
   }
-  return { failures, reports };
+  return {
+    failures,
+    reports,
+    ...(skills && skillLinkReports(skills, skills.tree ? shipped : files, skills.tree ? shippedCatalog : fullCatalog, catalog)),
+  };
 }

@@ -147,8 +147,6 @@ if name="$(github_repo_name "$remote")"; then
   subject="$name"
 fi
 
-# write_record <status> <reason> <tier> <tool>: each array comes from its
-# $TMP/<key>.tsv row file.
 write_record() {
   local status="$1" reason="$2" tier="$3" tool="$4"
   local dest body key sep=""
@@ -213,7 +211,6 @@ refuse() {
   exit 0
 }
 
-# clear_drawn: empty the entity, attribute and relationship rows before a refusal.
 clear_drawn() {
   : >"$ENTS"
   : >"$ATTRS"
@@ -261,7 +258,6 @@ entity_id() {
   fi
 }
 
-# file lists
 : >"$TMP/prisma.txt"
 : >"$TMP/sql.txt"
 : >"$TMP/cs.txt"
@@ -299,7 +295,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   esac
 done < <(git -C "$repo" ls-files)
 
-# Unshipped mechanisms. A hit refuses the whole record after mechanisms are listed.
 scan_unshipped() {
   local rel line
   while IFS= read -r rel || [[ -n "$rel" ]]; do
@@ -335,7 +330,6 @@ if [[ -s "$TMP/sql.txt" ]]; then
   add_mech sql-migration migration yes "$first_sql"
 fi
 
-# --- Prisma -----------------------------------------------------------------
 parse_prisma() {
   local rel="$1" module
   module="$(module_of "$rel")"
@@ -580,13 +574,6 @@ if [[ -s "$TMP/sql.txt" ]]; then
       printf '\n'
     } >>"$TMP/sql-replay.sql"
   done < <(sort "$TMP/sql.txt")
-  # One replay across every migration file. The sentinel carries the path so
-  # evidence and module follow the file that declared the row. Readable
-  # statements: CREATE TABLE (inline and table-level FOREIGN KEY, UNIQUE and
-  # PRIMARY KEY), CREATE UNIQUE INDEX, DROP INDEX, DROP TABLE, and ALTER TABLE
-  # ADD COLUMN, DROP COLUMN, DROP CONSTRAINT of a constraint this replay
-  # recorded, ADD [CONSTRAINT n] FOREIGN KEY, UNIQUE and PRIMARY KEY. Any other
-  # ALTER TABLE action sets the flag and the tier is not used.
   awk -v ents="$SQL_ENTS" -v attrs="$SQL_ATTRS" -v rels="$SQL_RELS" -v flag="$TMP/sql-flag" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function stripq(s) {
@@ -942,7 +929,6 @@ if [[ -s "$TMP/sql.txt" ]]; then
   fi
 fi
 
-# --- EF fluent --------------------------------------------------------------
 ef_seen=0
 ef_bad=0
 ef_why=""
@@ -962,11 +948,6 @@ EF_OPT=""
 cfg_entity=""
 cfg_builder=""
 
-# One awk pass over the tracked .cs files, one row per property declared in a
-# class body: module, class, property, declared type (tab separated). Braces set
-# the enclosing class; a property is the header before a "{" that has a type, a
-# name and no "(" or "=". Anything else (fields, methods, positional record
-# members) has no row, so a lookup that needs it finds nothing and the chain refuses.
 ef_load_decls() {
   [[ "$ef_decls_ready" -eq 0 ]] || return 0
   ef_decls_ready=1
@@ -1025,9 +1006,6 @@ ef_load_decls() {
   ' >>"$EF_DECLS")
 }
 
-# ef_decl_type <module> <class> <property>: the declared type when the class
-# declares that property with exactly one type, preferring the module's own
-# declarations over the rest of the repository; nothing otherwise.
 ef_decl_type() {
   EF_M="$1" EF_C="$2" EF_P="$3" awk -F'\t' '
     $2 == ENVIRON["EF_C"] && $3 == ENVIRON["EF_P"] { any[$4] = 1; if ($1 == ENVIRON["EF_M"]) here[$4] = 1 }
@@ -1039,8 +1017,6 @@ ef_decl_type() {
   ' "$EF_DECLS"
 }
 
-# ef_lambda_member <call> <text>: sets EF_MEMBER to P when the text holds
-# call(x => x.P) with the same variable on both sides; fails otherwise.
 ef_lambda_member() {
   local re="$1"'[[:space:]]*\([[:space:]]*\(?('"$ef_id"')\)?[[:space:]]*=>[[:space:]]*('"$ef_id"')\.('"$ef_id"')[[:space:]]*\)'
   EF_MEMBER=""
@@ -1048,8 +1024,6 @@ ef_lambda_member() {
   [[ -n "$EF_MEMBER" ]]
 }
 
-# ef_nav_target <module> <class> <property> <collection|reference>: sets EF_NAV
-# to the entity a navigation property points at, from its declared type.
 ef_nav_target() {
   local ty re
   ef_load_decls
@@ -1066,10 +1040,6 @@ ef_nav_target() {
   [[ -n "$EF_NAV" ]]
 }
 
-# ef_optional <module> <class> <property>: sets EF_OPT from a foreign-key
-# property's declared type, as EF Core does: nullable is optional, a non-nullable
-# value type is required. A type whose nullability depends on the project
-# (plain string, an enum) or a property that is not declared fails.
 ef_optional() {
   local ty
   ef_load_decls
@@ -1081,9 +1051,6 @@ ef_optional() {
   esac
 }
 
-# ef_config_class <flattened source>: sets cfg_entity and cfg_builder when the
-# file declares exactly one IEntityTypeConfiguration<T> class whose Configure
-# takes an EntityTypeBuilder<T> parameter; both empty otherwise.
 ef_config_class() {
   local needle='IEntityTypeConfiguration<' rest re
   cfg_entity=""
@@ -1203,7 +1170,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     esac
     from="$(entity_id "$module" "$fk_entity")"
     to="$(entity_id "$module" "$pk_entity")"
-    # entities (once)
     for entity in "$fk_entity" "$pk_entity"; do
       eid="$(entity_id "$module" "$entity")"
       esc_id="$(json_escape "$eid")"
@@ -1234,9 +1200,6 @@ if [[ -n "$prisma_flag" ]]; then
   refuse "$prisma_flag"
 fi
 
-# Winner. An unreadable tier refuses the record only when it is the winner. A
-# tier that loses and cannot be read is left out of the mismatch comparison and
-# reported as not compared.
 winner_tool="none"
 winner_tier="none"
 if [[ -s "$TMP/prisma.txt" ]]; then
@@ -1280,7 +1243,6 @@ elif [[ -s "$TMP/sql.txt" ]]; then
   cat "$SQL_RELS" >>"$RELS"
 fi
 
-# Mark fk:yes on each attribute a relationship names among its columns.
 mark_fk() {
   awk '
     FNR == NR && /"from":/ {
@@ -1315,11 +1277,7 @@ if [[ -s "$RELS" && -s "$ATTRS" ]]; then
   mark_fk
 fi
 
-# Mismatch rows compare the relationships of every shipped tier that was read.
-# Then only the winner's rows stay: relationships whose tool is the winner, and
-# entities and attributes whose evidence file has the winner's extension.
 
-# field(line, key): the string value of "key" in one JSON row, "" when absent.
 AWK_FIELD='
   function field(line, key,    re, s, i) {
     re = "\"" key "\":\""
@@ -1383,8 +1341,6 @@ awk -v winner="$winner_tool" -v mismatches="$MISMATCHES" "$AWK_FIELD"'
 ' "$RELS"
 fi
 
-# keep_rows <file> <key> <value> <contains>: keep the rows whose "key" field
-# equals the value (contains=0) or holds it (contains=1).
 keep_rows() {
   awk -v key="$2" -v want="$3" -v contains="$4" "$AWK_FIELD"'
     {
@@ -1412,10 +1368,8 @@ esac
 keep_rows "$ENTS" evidence "$ext" 1
 keep_rows "$ATTRS" evidence "$ext" 1
 
-# A module is listed only when the winning tier declared an entity in it.
 sed -n 's/.*"module":"\([^"]*\)".*/{"id":"\1"}/p' "$ENTS" | sort -u >"$MODS"
 
-# Stable order
 for f in "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"; do sort -o "$f" "$f"; done
 
 write_record drawn "" "$winner_tier" "$winner_tool"

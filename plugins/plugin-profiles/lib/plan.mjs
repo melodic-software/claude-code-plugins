@@ -31,8 +31,9 @@ const PRECEDENCE = ["managed", "session", "local", "project", "user"];
 const marketplaceOf = (id) => id.slice(id.lastIndexOf("@") + 1);
 const entriesOf = (layers, level) => layers[level]?.enabledPlugins ?? {};
 
-function withDependencies(ids, inventory) {
-  const out = new Set(ids);
+/** Close over dependencies before applying explicit exclusions. */
+export function profileMembers(wanted, inventory, exclude) {
+  const out = new Set(wanted);
   const queue = [...out];
   while (queue.length) {
     for (const dep of inventory.get(queue.pop())?.dependsOn ?? []) {
@@ -42,6 +43,7 @@ function withDependencies(ids, inventory) {
       }
     }
   }
+  for (const id of exclude) out.delete(id);
   return out;
 }
 
@@ -88,8 +90,7 @@ export function plan({ catalog, profile: name, inventory, layers, current = laye
   const pins = pinsFor(target, layers);
 
   const wanted = [...members, ...[...optional].filter((id) => inventory.has(id)), ...repoEnabled];
-  const desired = withDependencies(wanted, inventory);
-  for (const id of exclude) desired.delete(id);
+  const desired = profileMembers(wanted, inventory, exclude);
   const governed = new Set([...members, ...optional, ...exclude, ...leftOut].map(marketplaceOf));
 
   const writes = {};
