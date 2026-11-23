@@ -263,6 +263,13 @@ writing it into a brief, and never pass a `${…}` token from those files to the
 the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Related
+
+- No audit artifact exists for this branch: /instruction-placement:audit.
+- Migrating CLAUDE.md content home to AGENTS.md: /instruction-placement:migrate.
+- Migrating legacy suppression config files: /instruction-placement:setup.
+- Opening a PR for applied moves: /source-control:pull-request.
+
 ## Gotchas
 
 Observed failure modes. Every one leaves a repository that looks migrated and is not.

@@ -304,6 +304,15 @@ If /doctor is available in your session (gate basis: **Boundary, the bundled `do
 
 **`--unattended`:** omit the suggestion and do not run `/doctor`.
 
+## Related
+
+- Deep install tree inventory: /harness-ops:audit-install-state.
+- Plugin fleet enablement and bloat: /harness-ops:plugins-audit.
+- Upstream CLI version regressions: /harness-ops:known-issues.
+- Unmanaged leftover deletion: /disk-hygiene:clean.
+- Paused retention sweep settings fix: /harness-config:audit.
+- Transcript hook timing breakdown: /harness-ops:observability.
+
 ## Gotchas
 
 - **Do not convert this audit into a cleanup.** Big is not the finding; *unswept* is. A healthy

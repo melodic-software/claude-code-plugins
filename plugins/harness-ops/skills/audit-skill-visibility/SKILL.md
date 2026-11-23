@@ -434,9 +434,8 @@ the settings file that did), and says so when there is nothing to fix.
 | What is installed and invocable? | `/harness-ops:inventory` |
 | Is the telemetry pipeline healthy? | `/harness-ops:observability` |
 
-Read-only. It never disables, deletes, or edits a skill, and it never
-recommends deleting one it classified as misconfigured. That class is a
-fix-me, not a removal candidate.
+Read-only. It never disables, deletes, or edits a skill, and it never recommends deleting one it
+classified as misconfigured. That class is a fix-me, not a removal candidate.
 
 ## Boundary, the bundled `doctor` skill and `/skill-doctor`
 
@@ -458,9 +457,8 @@ their cost, right now", and the run-end suggestion offers `/doctor`. Prefer this
 answer has to survive a young usage store, when starved and unwanted must be told apart, or when
 the question is whether skill B fires where skill A ran.
 
-**Mutation gate.** `doctor` disables. This skill never disables, deletes, or edits a skill, so
-never chain into a `doctor` disable on this skill's behalf; report the classification and let the
-user act.
+**Mutation gate.** `doctor` disables. This skill never disables, deletes, or edits a skill, so never chain
+into a `doctor` disable on this skill's behalf; report the classification and let the user act.
 
 **Availability is never assumed.** Settings and the environment can hide either surface; this
 section states what to do when one resolves, never that it is present. What hides each, and the
@@ -474,24 +472,28 @@ If /doctor is available in your session (gate basis: **Boundary, the bundled `do
 
 **`--unattended`:** omit both suggestions and run neither `/skill-doctor` nor `/doctor`.
 
+## Related
+
+- Authored repo listing budget and structure: /skill-quality:check.
+- Installed and invocable capabilities: /harness-ops:inventory.
+- Telemetry pipeline health: /harness-ops:observability.
+- Dead skillOverrides settings entries: /harness-config:audit.
+- Native overlap budget exposure: /harness-ops:audit-native-overlap.
+
 ## Gotchas
 
-- **A short horizon is the normal case, not an error.** Fresh installs, new
-  machines, and ephemeral cloud containers all produce spans below the exposure
-  floor. The correct output there is a withheld verdict, not a smaller number:
-  if a run reports most of the fleet as cold on a days-old install, the report is
-  wrong, not the fleet.
-- **Do not "fix" a fixture that asserts everything is `not-observable`.** That is
-  the honesty floor being tested, and it is the defect this skill exists to
-  prevent.
-- **Never sum two sources.** Native counters and the JSONL store record the same
-  invocation; summing them doubles every count. The reconciliation is MAX across
-  sources at an instant, and it is deliberately not MAX across an entire skill:
-  two same-instant events from one source are two invocations.
+- **A short horizon is the normal case, not an error.** Fresh installs, new machines, and ephemeral
+  cloud containers all produce spans below the exposure floor. The correct output there is a withheld
+  verdict, not a smaller number: if a run reports most of the fleet as cold on a days-old install, the
+  report is wrong, not the fleet.
+- **Do not "fix" a fixture that asserts everything is `not-observable`.** That is the honesty floor being
+  tested, and it is the defect this skill exists to prevent.
+- **Never sum two sources.** Native counters and the JSONL store record the same invocation; summing them
+  doubles every count. The reconciliation is MAX across sources at an instant, and it is deliberately not
+  MAX across an entire skill: two same-instant events from one source are two invocations.
 - **OTEL and native counts legitimately disagree.** Divergence is expected and
   must not be reconciled away. Why the native counter records fewer is this
   plugin's binary reading in
   [reference/usage-counters.md](reference/usage-counters.md#skillusage-machine-global-per-skill).
-- **`misconfigured` never renders as a removal candidate.** Several of its causes
-  are silent misconfigurations, a skill that looks fine and can never be
-  selected. The remedy is a fix.
+- **`misconfigured` never renders as a removal candidate.** Several of its causes are silent
+  misconfigurations, a skill that looks fine and can never be selected. The remedy is a fix.

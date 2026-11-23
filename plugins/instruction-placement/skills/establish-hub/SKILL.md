@@ -135,6 +135,13 @@ nothing was written.
 
 `/source-control:pull-request create`. Lands the hub's new instruction files for review.
 
+## Related
+
+- Hub already tracks CLAUDE.md or AGENTS.md: /instruction-placement:migrate.
+- Writing new agent-loaded prose: /docs-hygiene:write-for-agents.
+- Recording hub architecture decision: /architecture:adr.
+- Moving a checkable rule up the enforcement ladder: /corrections:codify.
+
 ## Gotchas
 
 - **A public hub repository leaks the estate's shape.** The instruction file names the listing
