@@ -69,6 +69,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_policy as policy
 import diff_risk as risk
 
+BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 # This repository's effective floor: the built-in rows joined to its config.
 ROWS = policy.floor_paths_in(
@@ -303,7 +304,7 @@ def _glob_samples(glob: str) -> list[str]:
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
-@unittest.skipUnless(shutil.which("bash"), "bash not installed")
+@unittest.skipUnless(BASH, "bash not installed")
 class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
     """merge-holds.mjs's matchesHoldPath and ci-status's bash `hold_patterns`
     judge each sample path alike (bash's `*` crosses `/`, Node's does not),
@@ -321,12 +322,13 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
                 "--input-type=module",
                 "-e",
                 "import { HOLD_PATH_CLASSES, matchesHoldPath } from %s;"
-                " const [paths, extra] = JSON.parse(process.argv[1]);"
+                ' let text = ""; for await (const chunk of process.stdin) text += chunk;'
+                " const [paths, extra] = JSON.parse(text);"
                 " const globs = [...extra, ...HOLD_PATH_CLASSES.map(([g]) => g)];"
                 " console.log(JSON.stringify(paths.map((p) => globs.some((g) => matchesHoldPath(p, g)))));"
                 % json.dumps(MODULE.as_uri()),
-                json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
             ],
+            input=json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
             capture_output=True,
             text=True,
             check=True,
@@ -334,20 +336,19 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
         line = _hold_patterns_line()
         bash = subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
                 line + "\nshopt -s nocasematch\nwhile IFS= read -r path; do"
                 ' held=false; for pattern in "${hold_patterns[@]}"; do'
                 ' [[ $path != $pattern ]] || held=true; done; echo "$held";'
                 " done",
             ],
-            input="\n".join(paths) + "\n",
+            input=("\n".join(paths) + "\n").encode(),
             capture_output=True,
-            text=True,
             check=True,
         )
         node_held = json.loads(node.stdout)
-        bash_held = [v == "true" for v in bash.stdout.split()]
+        bash_held = [v == b"true" for v in bash.stdout.split()]
         for path, py, js, sh in zip(paths, python, node_held, bash_held, strict=True):
             with self.subTest(path):
                 self.assertEqual(js, sh)
@@ -1238,7 +1239,9 @@ def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
 
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [body, comment, issue, heads, answers, activity] = JSON.parse(text);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
   const tip = "3".repeat(40);
@@ -1276,22 +1279,17 @@ def js_decision(
 ) -> str | None:
     script = NODE_DECISION % (json.dumps(MODULE.as_uri()), json.dumps(HEAD))
     proc = subprocess.run(
-        [
-            "node",
-            "--input-type=module",
-            "-e",
-            script,
-            json.dumps(
-                [
-                    body,
-                    comment,
-                    ISSUE,
-                    DEFAULT_HEADS | heads,
-                    _answers(DEFAULT_HEADS | heads),
-                    _activity(DEFAULT_HEADS | heads),
-                ]
-            ),
-        ],
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps(
+            [
+                body,
+                comment,
+                ISSUE,
+                DEFAULT_HEADS | heads,
+                _answers(DEFAULT_HEADS | heads),
+                _activity(DEFAULT_HEADS | heads),
+            ]
+        ),
         capture_output=True,
         text=True,
         check=True,

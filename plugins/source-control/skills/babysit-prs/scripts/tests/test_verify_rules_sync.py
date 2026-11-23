@@ -825,7 +825,10 @@ def queue_lookup(
     """Run the lookup for PR 41 at the gate's head over `artifacts` as the
     reader's listing, each run read answering `runs`. Returns the records it
     kept, the counted pass's artifact id ('' for none) and its run reads."""
-    for tool in ("bash", "jq", "sha256sum"):
+    bash = merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
+    if bash is None:
+        raise unittest.SkipTest("bash not installed")
+    for tool in ("jq", "sha256sum"):
         if not shutil.which(tool):
             raise unittest.SkipTest(f"{tool} not installed")
     script = LOOKUP_STUBS + queue_lookup_script() + '\nprintf "%s\\n" "$artifact"\n'
@@ -836,11 +839,11 @@ def queue_lookup(
             json.dumps({str(k): v for k, v in runs.items()})
         )
         proc = subprocess.run(
-            ["bash", "-e", "-c", script],
+            [bash, "-e", "-c", script],
             env={
                 **os.environ,
-                "RUNNER_TEMP": tmp,
-                "BABYSIT_VERIFY_LISTING": str(temp / "listing.json"),
+                "RUNNER_TEMP": temp.as_posix(),
+                "BABYSIT_VERIFY_LISTING": (temp / "listing.json").as_posix(),
                 "GITHUB_REPOSITORY": gate.REPO,
                 "pr": str(gate.PR),
                 "head": gate.HEAD,

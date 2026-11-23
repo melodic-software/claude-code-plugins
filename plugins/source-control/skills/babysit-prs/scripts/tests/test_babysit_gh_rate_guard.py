@@ -109,9 +109,9 @@ class SharedStopCauses(unittest.TestCase):
             with self.subTest(vector["name"]), tempfile.TemporaryDirectory() as tmp:
                 budget = pathlib.Path(tmp, "api-budget")
                 budget.mkdir()
-                (budget / "stop").write_text(vector["stop"], encoding="utf-8")
+                (budget / "stop").write_bytes(vector["stop"].encode("utf-8"))
                 if vector["cause"] is not None:
-                    (budget / "cause").write_text(vector["cause"], encoding="utf-8")
+                    (budget / "cause").write_bytes(vector["cause"].encode("utf-8"))
                 gh.reset_rate_guard()
                 with mock.patch.dict(os.environ, {"RUNNER_TEMP": tmp}):
                     got = {
@@ -756,7 +756,7 @@ class TheProcessExitsRed(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             stop = pathlib.Path(temp, "api-budget", "stop")
             stop.parent.mkdir()
-            stop.write_text("core 4102444800\n", encoding="utf-8")
+            stop.write_bytes(b"core 4102444800\n")
             proc = self.run_python(
                 """
                 import babysit_gh as gh
