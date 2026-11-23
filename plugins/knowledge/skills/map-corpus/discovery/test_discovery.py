@@ -111,8 +111,6 @@ class TestParserLlmsTxt(Base):
         urls = out["urls"]
         self.assertEqual(urls, sorted(urls))
         self.assertEqual(out["url_count"], len(urls))
-        # relative resolved; trailing slash deduped; tracking param dropped,
-        # content param kept; anchors/mailto excluded
         self.assertIn("https://agent-plugins.org/spec", urls)
         self.assertEqual(urls.count("https://agent-plugins.org/spec"), 1)
         self.assertIn("https://agent-plugins.org/schema?version=v1", urls)
@@ -398,7 +396,7 @@ class TestLinkMapGate(LinkMapHarness):
 
     def test_unnormalized_seed_rejected(self):
         m = copy.deepcopy(self.linkmap)
-        m["seeds"] = ["https://agent-plugins.org/"]  # trailing slash
+        m["seeds"] = ["https://agent-plugins.org/"]
         path = self.write_map(m, "map-rawseed.json")
         proc = self.run_gate(path, [self.d_llms, self.d_xml], expect_code=2)
         self.assertIn(b"not in normalized form", proc.stderr)

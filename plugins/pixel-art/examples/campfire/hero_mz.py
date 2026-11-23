@@ -8,7 +8,6 @@ import json
 import pathlib
 
 W = H = 48
-# material -> [highlight, base, shadow, line]
 RAMPS = {
     "skin": ["#ffe0c0", "#f4b88c", "#d08860", "#7a3c2c"],
     "ear": ["#f4b88c", "#f4b88c", "#d08860", "#7a3c2c"],
@@ -62,7 +61,6 @@ class Canvas:
             for x in range(W):
                 mat = m[y][x]
                 if mat is None:
-                    # bottom-heavy: prefer the material above (we are below it) for its line color
                     nb = next(filter(None, (get(x + dx, y + dy) for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)))), None)
                     if nb:
                         out[y][x] = char_of[(nb, 3)]
@@ -85,12 +83,10 @@ def draw(direction, step):
     bob = abs(step)
     top = 6 + bob
     side = direction == "left"
-    # cape behind body (visible from back and side)
     if direction == "up":
         c.rect(15, top + 21, 18, 13, "cape")
     if side:
         c.rect(24, top + 21, 7, 12 - abs(step), "cape")
-    # legs
     if side:
         fx, bx = 21 - 4 * step, 21 + 4 * step
         for lx, mat in ((bx, "pants_back"), (fx, "pants")):
@@ -101,11 +97,9 @@ def draw(direction, step):
             lift = (step == -1 and i == 0) or (step == 1 and i == 1)
             c.rect(lx, top + 31, 5, 6 - 2 * lift, "pants")
             c.rect(lx, top + 37 - 2 * lift - bob, 5, 3, "boot")
-    # torso
     tx, tw = (18, 12) if side else (16, 16)
     c.rect(tx, top + 21, tw, 11, "tunic")
     c.rect(tx, top + 28, tw, 2, "belt")
-    # arms
     if side:
         ax = 22 + 2 * step
         c.rect(ax, top + 22, 4, 8, "sleeve")
@@ -115,11 +109,10 @@ def draw(direction, step):
             swing = step * (1 if i == 0 else -1)
             c.rect(ax, top + 22 + max(0, swing), 4, 7, "sleeve")
             c.rect(ax, top + 29 + max(0, swing), 4, 2, "skin")
-    # head
     c.ellipse(24, top + 11, 11.5, 11, "skin")
     if direction == "down":
         c.ellipse(24, top + 8, 12.5, 9, "hair", clip=lambda x, y: y < top + 8 or x < 15 or x > 32)
-        c.rect(15, top + 7, 18, 3, "hair")  # bangs
+        c.rect(15, top + 7, 18, 3, "hair")
         for x in (19, 28):
             c.rect(x, top + 12, 2, 4, "eye")
             c.put(x, top + 12, "white")
@@ -128,7 +121,7 @@ def draw(direction, step):
     else:
         c.ellipse(26, top + 9, 11.5, 10, "hair", clip=lambda x, y: y < top + 8 or x > 25)
         c.rect(14, top + 6, 11, 3, "hair")
-        c.put(12, top + 15, "skin")  # nose
+        c.put(12, top + 15, "skin")
         c.ellipse(25, top + 13, 1.6, 2.5, "ear")
         c.rect(15, top + 12, 2, 4, "eye")
         c.put(15, top + 12, "white")
