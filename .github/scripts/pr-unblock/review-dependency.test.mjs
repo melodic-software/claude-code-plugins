@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -195,6 +196,32 @@ test("select keeps a superseded-looking ci-status red unless only the marker for
     const result = await patchBump(annotations);
     assert.equal(result.decision, "proceed", JSON.stringify(annotations));
     assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
+  }
+});
+
+const gateHold = (pr) => ({
+  annotation_level: "failure",
+  message: `#${pr} is by an author no review lane reviews and changes trust-gate paths: .github/workflows/maintenance-repin-ci-workflows.yml .github/workflows/release-publish-plugins.yml. A person merges it; a person on the trusted-actor list approving this head clears it.`,
+});
+const majorBump = (annotations) =>
+  select({ api: fakeApi({ gateRuns: [supersededRun], annotations }), pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] });
+
+test("select holds a pull request whose only CI Status failure is the trust-gate hold, with no model turn and no security reason", async () => {
+  const result = await majorBump({ 9: [NOTICE, EXIT, gateHold(7), NOTICE] });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.escalationReason, "dependency-gate-hold");
+  assert.equal(result.file, undefined, "no context file, so no model turn");
+  assert.equal(escalationRoute(result.escalationReason), "hold");
+  assert.notEqual(ROUTES[result.escalationReason]["owner-reason"], "security", "a gate hold is not a security finding");
+  assert.doesNotMatch(ROUTES[result.escalationReason].why, /security/i);
+});
+
+test("select hands the model a trust-gate hold for another pull request, or one beside another failure", async () => {
+  const contract = { annotation_level: "failure", message: "check-contract: the title is not a Conventional Commit" };
+  for (const annotations of [{ 9: [EXIT, gateHold(8)] }, { 9: [EXIT, gateHold(7), contract] }, { 9: [EXIT] }, {}]) {
+    const result = await majorBump(annotations);
+    assert.equal(result.decision, "proceed", JSON.stringify(annotations));
+    assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
   }
 });
 
@@ -498,6 +525,9 @@ test("main writes no context or run file when the select skips", async () => {
   await main(["select"], env, { api: fakeApi({ pull: { head: { sha: "f".repeat(40), ref: "dependabot/npm_and_yarn/x" } } }), log: () => {} });
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "proceed=false\nskip-reason=superseded-sha\nescalation-reason=\n");
   assert.equal(existsSync(env.DEPENDENCY_FILE), false);
+  assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
+  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: fakeApi({ gateRuns: [supersededRun], annotations: { 9: [EXIT, gateHold(7)] } }), log: () => {} });
+  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=awaiting-human\nescalation-reason=dependency-gate-hold\n");
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
 });
 

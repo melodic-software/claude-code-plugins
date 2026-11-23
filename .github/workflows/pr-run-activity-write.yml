@@ -722,7 +722,7 @@ jobs:
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
-            dependency-fix-refused) ;;
+            dependency-fix-refused | dependency-gate-hold) ;;
             dependency-escalate-intent | dependency-escalate-design | dependency-escalate-security) ;;
             dependency-escalate-cost | dependency-escalate-none) ;;
             dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
