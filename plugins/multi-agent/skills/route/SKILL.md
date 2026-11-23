@@ -49,8 +49,8 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    `roles.worker.single` variant is Claude's default. When `vendors.routing` is `false`, skip
    steps 3–5, run `${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --settings <tmp-dir>/settings.json`,
    and report that routing is off with no recommendation (work Claude cannot do included; trials
-   pause). Otherwise run `command -v external-agents`; when absent, note that `external-agents` is
-   not installed so only Claude is covered, and skip step 3.
+   pause). Otherwise run `command -v external-agents`; when absent, say in these words that
+   `external-agents` is not installed, so only Claude is covered, and skip step 3.
 3. When `external-agents` is present, run `external-agents models codex` and
    `external-agents models antigravity`, one call each, skipping any vendor whose resolved
    `vendors.<product>.in_use` is `false`. Each prints one JSON document; a `status` other than
@@ -94,9 +94,11 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    <vendor>: model <id|default> @ effort <level|default> (basis: <default | consensus | proven | trial | claude-cannot | page § section>; <one-line reason>)
    ```
 
-   For Codex and Gemini, `default` means pass no `--model` or no `--effort`, so the CLI's own
-   default runs. The Claude line names the worker's single variant as `route.sh` prints it
-   (`inherit` means omit the model option), with basis `default` for everyday tasks, or effort
+   Print the line exactly in this shape: nothing between the model id and `@`, and any note goes
+   in the reason after `basis:`. For Codex and Gemini, `default` means pass no `--model` or no
+   `--effort`, so the CLI's own default runs. The Claude line names the worker's single variant as
+   `route.sh` prints it (`inherit` means omit the model option; say so in the reason, not after
+   the id), with basis `default` for everyday tasks, or effort
    raised per `vendors.md` for heavy tasks citing
    `model-config#choose-an-effort-level` when no benchmark consensus moved the work. Skip a vendor
    marked `in_use: false` silently; an unavailable vendor declared `in_use: true` gets one line

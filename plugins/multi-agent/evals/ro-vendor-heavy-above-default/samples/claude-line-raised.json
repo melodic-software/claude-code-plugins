@@ -7,10 +7,6 @@
     {
       "answer": "- `claude: model opus @ effort xhigh` (basis: model-config § choose an effort level; long unattended task)",
       "why": "bulleted, higher level"
-    },
-    {
-      "answer": "claude: model inherit (leave the model option out) @ effort high (basis: model-config#choose-an-effort-level; multi-file migration)",
-      "why": "contract line with a note after the model id"
     }
   ],
   "fail": [
@@ -21,6 +17,10 @@
     {
       "answer": "claude: model sonnet @ effort high (basis: default; heavy task)",
       "why": "raised effort but basis default"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort high (basis: model-config#choose-an-effort-level; multi-file migration)",
+      "why": "note between the model id and @, or a wording the skill does not print; the skill prints the contract line exactly"
     }
   ]
 }

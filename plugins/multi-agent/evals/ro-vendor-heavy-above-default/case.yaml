@@ -11,7 +11,7 @@ graders:
     arm: 'with-only'
   - name: 'claude-line-raised'
     type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+[^@\n]*@\s*effort\s+(?:high|xhigh|max)\b[^\n]*basis:\s*(?!default)\S'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+\s*@\s*effort\s+(?:high|xhigh|max)\b[^\n]*basis:\s*(?!default)\S'
     flags: 'mi'
     target: 'last_message'
   - name: 'cites-effort-table'
