@@ -6,7 +6,7 @@ graders:
   - name: 'falls-back-to-co-change'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '\bgit\b[^\"]*\blog\b'
+    input_match: '\bgit\b(?:[^"\\]|\\.)*\b(?:log|diff-tree|show)\b(?:[^"\\]|\\.)*--(?:name-only|name-status|numstat|stat)\b'
     min: 1
     arm: 'with-only'
   - name: 'completes-dry-run-without-edits'

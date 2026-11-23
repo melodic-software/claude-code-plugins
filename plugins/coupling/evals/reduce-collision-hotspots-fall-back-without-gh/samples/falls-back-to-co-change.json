@@ -16,6 +16,17 @@
         }
       ],
       "why": "co-change from git log"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=\"90 days ago\" --format=%H --name-only"
+          }
+        }
+      ],
+      "why": "quoted date argument"
     }
   ],
   "fail": [
@@ -29,6 +40,17 @@
         }
       ],
       "why": "stops at the missing gh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -10"
+          }
+        }
+      ],
+      "why": "only the gather block's commit list"
     },
     {
       "answer": [

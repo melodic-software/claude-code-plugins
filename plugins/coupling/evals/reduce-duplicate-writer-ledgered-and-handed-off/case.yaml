@@ -6,7 +6,7 @@ graders:
   - name: 'edits-no-writer'
     type: 'tool_used'
     tool: 'Edit'
-    input_match: '"file_path":"(?![^"]*/\.work/)'
+    input_match: '"file_path":"[^"]*/app/'
     min: 0
     max: 0
     arm: 'both'

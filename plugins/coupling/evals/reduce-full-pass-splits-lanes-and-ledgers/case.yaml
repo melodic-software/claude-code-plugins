@@ -12,6 +12,6 @@ graders:
   - name: 'short-lived-branch'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '\bgit\b[^\"]*\b(?:checkout\s+-b|switch\s+-c)\b'
+    input_match: '\bgit\b(?:[^"\\]|\\.)*\b(?:checkout\s+-[bB]|switch\s+-[cC]|worktree\s+add\b(?:[^"\\]|\\.)*\s-[bB])\s'
     min: 1
     arm: 'with-only'

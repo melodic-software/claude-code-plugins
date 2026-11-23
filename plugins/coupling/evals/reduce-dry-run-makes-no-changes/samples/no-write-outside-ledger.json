@@ -11,6 +11,18 @@
         }
       ],
       "why": "ledger under .work/"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/coupling-paths.txt",
+            "content": "docs/a.md\n"
+          }
+        }
+      ],
+      "why": "scratch path list for derivable-list"
     }
   ],
   "fail": [
