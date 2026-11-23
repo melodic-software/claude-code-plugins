@@ -260,7 +260,6 @@ def user(content: object = "Rename the widget", **fields) -> dict:
     return {"type": "user", "uuid": "u-1", "message": {"role": "user", "content": content}, **fields}
 
 
-# The injected-prefix denylist of the design spike (spike signals.py:25-31).
 SPIKE_INJECTED_PREFIXES = [
     "<local-command-caveat>",
     "<local-command-stdout>",

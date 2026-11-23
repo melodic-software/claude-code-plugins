@@ -1,5 +1,3 @@
-"""Tripwire: the continuation router compacts within a task and hands off at a boundary."""
-
 from __future__ import annotations
 
 from pathlib import Path

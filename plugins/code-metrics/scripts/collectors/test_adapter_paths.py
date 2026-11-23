@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the shared `--paths-from` transport every adapter's collect verb
-reads, through the module loaded by path and through one adapter's command
-line (the bundled line counter, which has no tool to stub)."""
 
 from __future__ import annotations
 
