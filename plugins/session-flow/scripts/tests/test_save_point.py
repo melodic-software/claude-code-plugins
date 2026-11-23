@@ -170,9 +170,6 @@ def projects_root(tmp_path: Path) -> str:
     return (tmp_path / "projects").as_posix()
 
 
-# --- validate: shape detection -------------------------------------------------
-
-
 def test_validate_shape1_legacy_warns_and_exits_zero(tmp_path):
     handoffs = materialize(tmp_path, "legacy-14")
     result = run("validate", str(handoffs / LEGACY))
@@ -227,9 +224,6 @@ def test_validate_not_a_handoff_is_usage_error(tmp_path):
 def test_validate_missing_file_is_usage_error(tmp_path):
     result = run("validate", str(tmp_path / "absent.md"))
     assert result.returncode == 2
-
-
-# --- validate: shape 2 good chain ----------------------------------------------
 
 
 @pytest.mark.parametrize("name", [HOP1, HOP2, HOP3])
@@ -309,9 +303,6 @@ def test_validate_missing_predecessor_beside_file_fails(tmp_path):
     assert "not found beside this file" in out(result)
 
 
-# --- validate: shape 2 failures -----------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("case", "name", "needle"),
     [
@@ -379,9 +370,6 @@ def test_validate_promoted_pointer_stands_in_for_one_entry(tmp_path, pointers, p
     )
     result = run("validate", str(hop2), "--strict-transcript")
     assert (result.returncode == 0) is passes, out(result)
-
-
-# --- validate: relocation is a warning, misidentification is a failure -------------
 
 
 def test_validate_relocated_file_warns_and_exits_zero(tmp_path):
@@ -696,9 +684,6 @@ def test_validate_reports_a_non_integer_shape_as_not_an_integer(tmp_path):
     assert "handoff_shape 'two' is not an integer" in out(result), out(result)
 
 
-# --- emit ---------------------------------------------------------------------------
-
-
 def _section_body(path: Path, title: str) -> str:
     lines = path.read_text(encoding="utf-8").split("\n")
     start = lines.index(f"## {title}") + 1
@@ -796,9 +781,6 @@ def test_emit_and_validate_survive_cp1252_pipe(tmp_path):
     assert rail_lines(out(emitted)) == 2
     validated = run("validate", str(handoffs / HOP1), "--strict-transcript", env=env)
     assert validated.returncode == 0, out(validated) + err(validated)
-
-
-# --- new ------------------------------------------------------------------------------
 
 
 def make_repo(
@@ -1093,7 +1075,6 @@ def test_new_hop2_carries_amendments_below_the_opening_ask(tmp_path):
     hop2 = handoffs / HOP2
     carried = hop2.read_text(encoding="utf-8")
     assert amendment in carried, carried
-    # Carried above the pointer, where an amendment belongs.
     assert carried.index(amendment) < carried.index(
         f"Opening ask: see {HOP1} § Original goal"
     )
@@ -1659,8 +1640,6 @@ def test_new_hop2_places_the_new_slot_above_a_carried_superseded_marker(tmp_path
     validated = run("validate", str(hop2), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
 
-    # The placement is only worth anything if the parser agrees: an entry
-    # filled into the slot is live, not superseded.
     body = _section_body(hop2, "Constraints that must hold").split("\n")
     parsed = [
         e
@@ -1745,8 +1724,6 @@ def test_validate_refuses_a_predecessor_symlinked_out_of_the_handoffs_dir(tmp_pa
     assert result.returncode == 1, out(result) + err(result)
     assert "resolves outside this file's directory" in out(result), out(result)
 
-
-# --- fill ---------------------------------------------------------------------------
 
 FILL_VALUES = {
     "goal": "> Do the thing.",
@@ -2070,8 +2047,6 @@ def test_fill_substitutes_a_present_optional_slot(tmp_path):
     validated = run("validate", str(target), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
 
-
-# --- goal region ----------------------------------------------------------------------
 
 GOAL_COPY_LINE = (
     "Type `/goal ` (with a trailing space), then paste everything between the dashed "
@@ -2513,7 +2488,6 @@ def test_fill_slot_pattern_round_trips_through_the_fill_helper(tmp_path):
     ]
     carrying = [line for line in text.split("\n") if module.FILL_MARK in line]
     assert matches
-    # One line carries two slots, so the spans outnumber the lines holding them.
     assert len(matches) > len(carrying)
     for m in matches:
         assert module._fill(m.group(1), m.group(2)) == m.group(0)

@@ -1,7 +1,9 @@
 import { modelDefaultEffort, raiseEffort } from './common.mjs'
+import { applyHarnessGating } from './gating.mjs'
 import {
   loadBoundRecords,
   loadManifest,
+  loadUsage,
   mergeTeamRegistryRows,
   normalizeModels,
   readJson,
@@ -97,46 +99,85 @@ function filterActiveRows(mergedRows, settings, taskType) {
   return { rowById, disabledRows, activeRows }
 }
 
-function selectClaudeCannotImage({
+function orderedCandidateVendors(effectiveVendorOrder, modelsByVendor) {
+  const seen = new Set()
+  const ordered = []
+  for (const v of effectiveVendorOrder) {
+    if (modelsByVendor.has(v) && !seen.has(v)) {
+      seen.add(v)
+      ordered.push(v)
+    }
+  }
+  for (const v of modelsByVendor.keys()) {
+    if (!seen.has(v)) {
+      seen.add(v)
+      ordered.push(v)
+    }
+  }
+  return ordered
+}
+
+function selectNonClaudeCapable({
   modelsByVendor,
   skippedSilentVendors,
+  unavailableInUseVendors,
+  gatedVendors,
+  effectiveVendorOrder,
   failedOutcomes,
   taskType,
+  requireImage,
   notes,
 }) {
-  let anyFailedImage = false
+  let anyFailed = false
   let chosen = null
-  for (const [v, info] of modelsByVendor.entries()) {
-    if (v === 'claude' || skippedSilentVendors.has(v) || info.status !== 'ok' || info.image !== true) {
+  for (const v of orderedCandidateVendors(effectiveVendorOrder, modelsByVendor)) {
+    if (
+      v === 'claude' ||
+      skippedSilentVendors.has(v) ||
+      unavailableInUseVendors.has(v) ||
+      gatedVendors.has(v)
+    ) {
       continue
     }
-    const candModel = info.defaultModel || info.ids[0] || 'default'
-    const candVersion = info.versionByModel.get(candModel.toLowerCase()) || null
-    const candEffort = modelDefaultEffort(info, candModel) || 'default'
-    if (isPairFailed(failedOutcomes, { vendor: v, model: candModel, version: candVersion, effort: candEffort })) {
-      anyFailedImage = true
-      notes.push(`${v} ${candModel} @ ${candEffort} excluded: failed trial for ${taskType}`)
-      continue
+    const info = modelsByVendor.get(v)
+    if (!info || info.status !== 'ok' || info.ids.length === 0) continue
+    if (requireImage && info.image !== true) continue
+
+    const candidateModels = []
+    if (info.defaultModel && info.idSet.has(info.defaultModel.toLowerCase())) {
+      candidateModels.push(info.idCanonical.get(info.defaultModel.toLowerCase()) || info.defaultModel)
     }
-    chosen = {
-      vendor: v,
-      model: candModel,
-      version: candVersion,
-      effort: candEffort,
-      basis: 'claude-cannot',
+    for (const id of info.ids) {
+      if (!candidateModels.includes(id)) candidateModels.push(id)
     }
-    break
+
+    for (const candModel of candidateModels) {
+      const candVersion = info.versionByModel.get(candModel.toLowerCase()) || null
+      const candEffort = modelDefaultEffort(info, candModel) || 'default'
+      if (isPairFailed(failedOutcomes, { vendor: v, model: candModel, version: candVersion, effort: candEffort })) {
+        anyFailed = true
+        notes.push(`${v} ${candModel} @ ${candEffort} excluded: failed trial for ${taskType}`)
+        continue
+      }
+      chosen = {
+        vendor: v,
+        model: candModel,
+        version: candVersion,
+        effort: candEffort,
+        basis: 'claude-cannot',
+      }
+      break
+    }
+    if (chosen) break
   }
-  if (!chosen && anyFailedImage) {
-    notes.push(`every image-capable vendor failed trial for ${taskType}; user chooses`)
-  }
-  return chosen
+  return { chosen, anyFailed }
 }
 
 export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot }) {
   const registry = validateRegistry(readJson(opts.registry, 'registry'))
   const manifestById = loadManifest(opts.manifest)
   const modelsByVendor = normalizeModels(readJson(opts.models, 'models'))
+  const usageByVendor = loadUsage(opts.usage)
 
   const notes = []
   const mergedRows = mergeTeamRegistryRows(registry, opts.registry, notes)
@@ -150,6 +191,14 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     modelsByVendor,
     notes,
   )
+  const { gatedVendors, claudeGated } = applyHarnessGating({
+    modelsByVendor,
+    skippedSilentVendors,
+    unavailableInUseVendors,
+    needsTools: opts.needsTools,
+    contextTokens: opts.context,
+    notes,
+  })
   const { rowById, disabledRows, activeRows } = filterActiveRows(mergedRows, settings, opts.taskType)
   const recordsBySource = loadBoundRecords(
     opts.records,
@@ -161,8 +210,16 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
   )
 
   const claudeModels = modelsByVendor.get('claude')
-  const claudeDefaultModel =
+  let claudeDefaultModel =
     settings.worker.model || (claudeModels && claudeModels.defaultModel) || defaults.model
+  if (
+    claudeModels &&
+    claudeModels.skippedModels &&
+    claudeModels.skippedModels.has(claudeDefaultModel.toLowerCase()) &&
+    claudeModels.ids.length > 0
+  ) {
+    claudeDefaultModel = claudeModels.ids[0]
+  }
   const claudeBaseEffort =
     settings.worker.effort || (claudeModels && claudeModels.defaultEffort) || defaults.effort
   const claudeEffort = opts.taskClass === 'heavy' ? raiseEffort(claudeBaseEffort) : claudeBaseEffort
@@ -177,6 +234,9 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     claudeModels,
     skippedSilentVendors,
     unavailableInUseVendors,
+    gatedVendors,
+    claudeGated,
+    taskType: opts.taskType,
     nowDate,
     notes,
   })
@@ -202,6 +262,7 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     modelsByVendor,
     skippedSilentVendors,
     unavailableInUseVendors,
+    gatedVendors,
     effectiveVendorOrder,
     taskType: opts.taskType,
     notes,
@@ -214,23 +275,6 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     basis = provenPick.basis
   }
 
-  if (basis === 'default' && opts.taskType === 'image' && claudeModels && claudeModels.image === false) {
-    const imagePick = selectClaudeCannotImage({
-      modelsByVendor,
-      skippedSilentVendors,
-      failedOutcomes,
-      taskType: opts.taskType,
-      notes,
-    })
-    if (imagePick) {
-      vendor = imagePick.vendor
-      model = imagePick.model
-      version = imagePick.version
-      effort = imagePick.effort
-      basis = imagePick.basis
-    }
-  }
-
   const clusters = clusterSources(leadingEvaluations, notes)
   if (basis === 'default' && clusters.length >= 2) {
     const effectiveTiebreak = opts.tiebreakSet ? opts.tiebreak : settings.tiebreak
@@ -238,6 +282,7 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
       clusters,
       leadingEvaluations,
       modelsByVendor,
+      usageByVendor,
       failedOutcomes,
       claudeDefaultModel,
       claudeVersion,
@@ -257,12 +302,53 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     }
   }
 
+  if (basis === 'default' && opts.taskType === 'image' && (!claudeModels || claudeModels.image !== true)) {
+    const { chosen, anyFailed } = selectNonClaudeCapable({
+      modelsByVendor,
+      skippedSilentVendors,
+      unavailableInUseVendors,
+      gatedVendors,
+      effectiveVendorOrder,
+      failedOutcomes,
+      taskType: opts.taskType,
+      requireImage: true,
+      notes,
+    })
+    if (chosen) {
+      vendor = chosen.vendor
+      model = chosen.model
+      version = chosen.version
+      effort = chosen.effort
+      basis = chosen.basis
+      if (trialsActive) {
+        notes.push(
+          `trials active for ${opts.taskType}: review the image against the prompt and record verdict via vendor-state record`,
+        )
+      }
+    } else if (anyFailed) {
+      vendor = null
+      model = null
+      version = null
+      effort = null
+      basis = 'user-choice'
+      notes.push(`every image-capable vendor failed trial for ${opts.taskType}; no recommendation made, user chooses`)
+    } else {
+      vendor = null
+      model = null
+      version = null
+      effort = null
+      basis = 'no-capable-vendor'
+      notes.push(`no image-capable vendor available for ${opts.taskType}; no recommendation made`)
+    }
+  }
+
   if (basis === 'default' && trialsActive) {
     const trialPick = selectActiveTrial({
       recordsBySource,
       modelsByVendor,
       skippedSilentVendors,
       unavailableInUseVendors,
+      gatedVendors,
       effectiveVendorOrder,
       failedOutcomes,
       taskType: opts.taskType,
@@ -276,6 +362,38 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
       effort = trialPick.effort
       basis = trialPick.basis
     }
+  }
+
+  if (basis === 'default' && claudeGated) {
+    const { chosen, anyFailed } = selectNonClaudeCapable({
+      modelsByVendor,
+      skippedSilentVendors,
+      unavailableInUseVendors,
+      gatedVendors,
+      effectiveVendorOrder,
+      failedOutcomes,
+      taskType: opts.taskType,
+      requireImage: false,
+      notes,
+    })
+    if (chosen) {
+      vendor = chosen.vendor
+      model = chosen.model
+      version = chosen.version
+      effort = chosen.effort
+      basis = chosen.basis
+    } else {
+      vendor = null
+      model = null
+      version = null
+      effort = null
+      basis = anyFailed ? 'user-choice' : 'no-capable-vendor'
+      notes.push(
+        anyFailed
+          ? `every capable vendor failed trial for ${opts.taskType}; no recommendation made, user chooses`
+          : `no available vendor satisfies required harness tools or context window for ${opts.taskType}; no recommendation made`,
+      )
+    }
   } else if (basis === 'default' && clusters.length < 2) {
     notes.push(
       `fewer than 2 independent leading sources (${clusters.length}); keeping default claude`,
@@ -288,7 +406,7 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     model,
     effort,
     basis,
-    pair_key: `${vendor}:${model}:${version ?? 'null'}:${effort}:${opts.taskType}`,
+    pair_key: vendor ? `${vendor}:${model}:${version ?? 'null'}:${effort}:${opts.taskType}` : null,
     sources: sourcesOut,
     ties: tiesOut,
     notes,

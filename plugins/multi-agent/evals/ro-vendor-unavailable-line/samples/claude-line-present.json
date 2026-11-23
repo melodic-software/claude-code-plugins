@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; everyday coding task)",
+      "why": "standard claude line"
+    },
+    {
+      "answer": "- `claude: model inherit (omit --model) @ effort medium` (basis: default; everyday task)",
+      "why": "line with a note after the model id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use Claude at medium effort.",
+      "why": "no contract line"
+    }
+  ]
+}

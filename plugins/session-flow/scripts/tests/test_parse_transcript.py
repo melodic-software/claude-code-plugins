@@ -1,9 +1,3 @@
-"""Tests for parse_transcript.py — output contract and edge case coverage.
-
-Runs the script as a subprocess to test the CLI interface, not internals.
-Following python/testing.md "Testing standalone scripts" pattern.
-"""
-
 from __future__ import annotations
 
 import json
@@ -44,7 +38,6 @@ def _run_with_event(tmp_path: Path, event: dict) -> dict:
 
 
 def test_missing_args():
-    """No arguments produces error status with exit code 2."""
     result = _run_multi([])
     output = json.loads(result.stdout)
     assert output["status"] == "error"
@@ -52,7 +45,6 @@ def test_missing_args():
 
 
 def test_nonexistent_session(tmp_path):
-    """Nonexistent session ID produces error status."""
     result = _run_script("nonexistent-session", str(tmp_path))
     output = json.loads(result.stdout)
     assert output["status"] == "error"
@@ -60,7 +52,6 @@ def test_nonexistent_session(tmp_path):
 
 
 def test_empty_jsonl(tmp_path):
-    """Empty JSONL file produces pass status with zero counts."""
     jsonl = tmp_path / f"{SESSION_ID}.jsonl"
     jsonl.write_text("")
     result = _run_script(SESSION_ID, str(tmp_path))
@@ -81,7 +72,6 @@ def test_json_line_that_is_not_an_object_is_a_parse_error(tmp_path):
 
 
 def test_single_assistant_turn_extracts_cache_tokens(tmp_path):
-    """Cache tokens are extracted from usage data."""
     data = _run_with_event(
         tmp_path,
         {
@@ -112,7 +102,6 @@ def test_single_assistant_turn_extracts_cache_tokens(tmp_path):
 
 
 def test_assistant_turn_with_null_usage(tmp_path):
-    """Null usage field does not crash token extraction."""
     data = _run_with_event(
         tmp_path,
         {
@@ -134,7 +123,6 @@ def test_assistant_turn_with_null_usage(tmp_path):
 
 
 def test_write_edit_file_paths_extracted(tmp_path):
-    """File paths from Write/Edit tool_use inputs are captured in files_modified."""
     data = _run_with_event(
         tmp_path,
         {
@@ -157,7 +145,6 @@ def test_write_edit_file_paths_extracted(tmp_path):
 
 
 def test_files_modified_dedups_relative_and_absolute_posix(tmp_path):
-    """Same file referenced as relative + absolute under cwd dedups to one entry."""
     cwd = str(tmp_path)
     data = _run_with_event(
         tmp_path,
@@ -192,7 +179,6 @@ def test_files_modified_dedups_relative_and_absolute_posix(tmp_path):
 
 
 def test_files_modified_dedups_windows_backslash_absolute(tmp_path):
-    """Windows-style absolute path collapses to relative form against Windows cwd."""
     data = _run_with_event(
         tmp_path,
         {
@@ -226,7 +212,6 @@ def test_files_modified_dedups_windows_backslash_absolute(tmp_path):
 
 
 def test_files_modified_keeps_path_outside_cwd(tmp_path):
-    """Absolute path outside cwd is preserved (not stripped or dropped)."""
     data = _run_with_event(
         tmp_path,
         {
@@ -250,7 +235,6 @@ def test_files_modified_keeps_path_outside_cwd(tmp_path):
 
 
 def test_files_modified_snapshot_dedups_with_write_event(tmp_path):
-    """file-history-snapshot absolute path deduplicates against a Write relative path."""
     cwd = str(tmp_path)
     events = [
         {
@@ -284,7 +268,6 @@ def test_files_modified_snapshot_dedups_with_write_event(tmp_path):
 
 
 def test_files_modified_no_cwd_keeps_paths_unchanged(tmp_path):
-    """No cwd in any event: paths survive normalization unchanged."""
     data = _run_with_event(
         tmp_path,
         {
@@ -307,7 +290,6 @@ def test_files_modified_no_cwd_keeps_paths_unchanged(tmp_path):
 
 
 def test_queue_operation_counted(tmp_path):
-    """queue-operation enqueue events are counted."""
     events = [
         {
             "type": "queue-operation",
@@ -360,7 +342,6 @@ def test_turn_durations_derived_from_assistant_timestamps(tmp_path):
 
 
 def test_turn_durations_zero_when_single_turn(tmp_path):
-    """A single assistant turn yields zero deltas (no pairs)."""
     data = _run_with_event(
         tmp_path,
         {
@@ -373,9 +354,6 @@ def test_turn_durations_zero_when_single_turn(tmp_path):
 
 
 def test_output_contract_has_required_keys(tmp_path):
-    """Output JSON has all required top-level and nested keys."""
-    # The full stdout (status/summary included) is read here, not just the
-    # inner data dict _run_with_event returns.
     event = {
         "type": "assistant",
         "timestamp": "2026-03-23T18:00:00Z",
@@ -411,11 +389,6 @@ def test_output_contract_has_required_keys(tmp_path):
     assert "cwd" not in data["session"]
 
 
-# -----------------------------------------------------------------------------
-# Multi-session tests
-# -----------------------------------------------------------------------------
-
-
 def _write_assistant_event(
     tmp_path: Path, session_id: str, ts: str = "2026-05-23T00:00:00Z"
 ):
@@ -440,7 +413,6 @@ def _write_assistant_event(
 
 
 def test_multi_session_all_present(tmp_path):
-    """--sessions with N transcripts present → status=pass, aggregate populated."""
     _write_assistant_event(tmp_path, "sid-curr")
     _write_assistant_event(tmp_path, "sid-prev")
     result = _run_multi(["--sessions", "sid-curr", "sid-prev", "--base", str(tmp_path)])
@@ -455,7 +427,6 @@ def test_multi_session_all_present(tmp_path):
     assert output["sessions"][0]["transcript_present"] is True
     assert output["sessions"][1]["transcript_present"] is True
     agg = output["aggregate"]
-    # 2 sessions x 1 assistant turn each = 2
     assert agg["total_assistant_turns"] == 2
     assert agg["total_input_tokens"] == 20
     assert agg["total_output_tokens"] == 10
@@ -463,24 +434,20 @@ def test_multi_session_all_present(tmp_path):
 
 
 def test_multi_session_one_missing(tmp_path):
-    """--sessions with one transcript absent → status=warning, partial aggregate."""
     _write_assistant_event(tmp_path, "sid-curr")
-    # sid-prev intentionally missing
     result = _run_multi(
         ["--sessions", "sid-curr", "sid-prev-missing", "--base", str(tmp_path)]
     )
-    assert result.returncode == 0  # warning still exits 0
+    assert result.returncode == 0
     output = json.loads(result.stdout)
     assert output["status"] == "warning"
     assert output["sessions"][0]["transcript_present"] is True
     assert output["sessions"][1]["transcript_present"] is False
     assert "error" in output["sessions"][1]
-    # Aggregate counts only the present transcript
     assert output["aggregate"]["total_assistant_turns"] == 1
 
 
 def test_multi_session_all_missing_is_error(tmp_path):
-    """--sessions where every transcript is absent → status=error, exit 2."""
     result = _run_multi(
         ["--sessions", "sid-gone-a", "sid-gone-b", "--base", str(tmp_path)]
     )
@@ -514,7 +481,6 @@ def test_a_complete_chain_beside_unrelated_transcripts_scores_one(tmp_path):
 
 
 def test_a_chain_missing_a_transcript_says_so_in_the_ratio(tmp_path):
-    """A walked session whose transcript is gone lowers the ratio."""
     _write_assistant_event(tmp_path, "sid-a")
     result = _run_multi(["--sessions", "sid-a", "sid-b", "--base", str(tmp_path)])
     cov = json.loads(result.stdout)["chain_coverage"]
@@ -552,7 +518,6 @@ def test_fork_sharing_chain_records_is_offered_not_added(tmp_path):
 
 
 def test_unreadable_unrelated_transcript_is_skipped(tmp_path, monkeypatch):
-    """A transcript that vanishes or cannot be read mid-scan must not fail the parse."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("parse_transcript", SCRIPT)
@@ -612,12 +577,10 @@ def test_multi_session_comma_joined(tmp_path):
     assert output["status"] == "pass"
     assert [s["id"] for s in output["sessions"]] == ["sid-curr", "sid-prev"]
     assert all(s["transcript_present"] for s in output["sessions"])
-    # Order carries meaning: the first id is the current session.
     assert output["sessions"][0]["role"] == "current"
 
 
 def test_multi_session_mixed_separators_and_empty_fragments(tmp_path):
-    """Comma and space forms mix, and empty fragments are dropped, not parsed."""
     _write_assistant_event(tmp_path, "sid-a")
     _write_assistant_event(tmp_path, "sid-b")
     _write_assistant_event(tmp_path, "sid-c")
@@ -672,14 +635,12 @@ def test_multi_session_dedupe_preserves_first_seen_order(tmp_path):
 
 
 def test_multi_session_only_separators_is_usage_error(tmp_path):
-    """--sessions , yields no ids at all → the no-session-id usage error."""
     result = _run_multi(["--sessions", ",", "--base", str(tmp_path)])
     assert result.returncode == 2
     assert json.loads(result.stdout)["status"] == "error"
 
 
 def test_notebook_edit_counts_as_file_modification(tmp_path):
-    """NotebookEdit tool_use file_path lands in files_modified."""
     data = _run_with_event(
         tmp_path,
         {
@@ -702,7 +663,6 @@ def test_notebook_edit_counts_as_file_modification(tmp_path):
 
 
 def test_chain_from_strips_inline_yaml_comments(tmp_path):
-    """Inline YAML comments in handoff frontmatter values don't corrupt the chain."""
     handoffs_dir = tmp_path / ".claude" / "handoffs"
     handoffs_dir.mkdir(parents=True)
 
@@ -731,7 +691,6 @@ def test_chain_from_strips_inline_yaml_comments(tmp_path):
 
 
 def test_chain_from_breaks_on_pointer_cycle(tmp_path):
-    """A previous_handoff cycle stops the walk instead of looping forever."""
     handoffs_dir = tmp_path / ".claude" / "handoffs"
     handoffs_dir.mkdir(parents=True)
 
@@ -762,7 +721,6 @@ def test_chain_from_breaks_on_pointer_cycle(tmp_path):
 
 
 def test_multi_edit_counts_as_file_modification(tmp_path):
-    """MultiEdit tool_use file_path lands in files_modified."""
     data = _run_with_event(
         tmp_path,
         {
@@ -785,7 +743,6 @@ def test_multi_edit_counts_as_file_modification(tmp_path):
 
 
 def test_multi_session_subagent_per_session_tagging(tmp_path):
-    """Subagents from each session are tagged with session_id in the aggregate."""
     _write_assistant_event(tmp_path, "sid-a")
     _write_assistant_event(tmp_path, "sid-b")
 
@@ -807,31 +764,26 @@ def test_multi_session_subagent_per_session_tagging(tmp_path):
     result.check_returncode()
     output = json.loads(result.stdout)
     all_subs = output["aggregate"]["all_subagents"]
-    # Each subagent entry MUST carry session_id of its origin
     sids_seen = {sub["session_id"] for sub in all_subs}
     assert "sid-a" in sids_seen
     assert "sid-b" in sids_seen
 
 
 def test_chain_from_walks_handoff_pointers(tmp_path):
-    """--chain-from reads handoff journal-entry frontmatter + walks backwards."""
     # Subdir-prefixed layout: pointers keep a journal/ prefix
     slug = "test-slug"
     journal_dir = tmp_path / "work-notes" / slug / "journal"
     journal_dir.mkdir(parents=True)
 
-    # Older handoff first
     (journal_dir / "20260520T100000Z-handoff-alpha.md").write_text(
         "---\ntype: handoff\nsession_id: sid-oldest\n---\nbody\n"
     )
-    # Newer handoff points at the older one
     (journal_dir / "20260521T110000Z-handoff-beta.md").write_text(
         "---\ntype: handoff\nsession_id: sid-middle\n"
         "previous_handoff: journal/20260520T100000Z-handoff-alpha.md\n"
         "---\nbody\n"
     )
 
-    # Seed transcripts for chained SIDs
     base = tmp_path / "session-data"
     base.mkdir()
     _write_assistant_event(base, "sid-middle")
@@ -841,14 +793,12 @@ def test_chain_from_walks_handoff_pointers(tmp_path):
     result = _run_multi(["--chain-from", str(handoff_file), "--base", str(base)])
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
-    # Chain-walker emits the newest handoff's session_id first, then walks back
     sids = [s["id"] for s in output["sessions"]]
     assert "sid-middle" in sids
     assert "sid-oldest" in sids
 
 
 def test_chain_from_walks_flat_layout_pointers(tmp_path):
-    """--chain-from resolves previous_handoff as a sibling filename (flat handoffs dir)."""
     handoffs_dir = tmp_path / ".claude" / "handoffs"
     handoffs_dir.mkdir(parents=True)
 
@@ -876,8 +826,6 @@ def test_chain_from_walks_flat_layout_pointers(tmp_path):
 
 
 def test_chain_from_resolves_prefixed_pointer_by_basename(tmp_path):
-    """--chain-from resolves a handoffs/-prefixed repo-relative pointer by basename
-    in a flat dir."""
     handoffs_dir = tmp_path / ".work" / "handoffs"
     handoffs_dir.mkdir(parents=True)
 
@@ -905,7 +853,6 @@ def test_chain_from_resolves_prefixed_pointer_by_basename(tmp_path):
 
 
 def test_chain_from_with_current_session_prepend(tmp_path):
-    """--current-session prepends as first SID when not already in chain."""
     slug = "test-slug"
     journal_dir = tmp_path / "work-notes" / slug / "journal"
     journal_dir.mkdir(parents=True)
@@ -937,7 +884,6 @@ def test_chain_from_with_current_session_prepend(tmp_path):
 
 
 def test_chain_from_handoff_without_session_id(tmp_path):
-    """Handoff entry without session_id frontmatter → chain breaks at that entry."""
     slug = "test-slug"
     journal_dir = tmp_path / "work-notes" / slug / "journal"
     journal_dir.mkdir(parents=True)
@@ -951,12 +897,10 @@ def test_chain_from_handoff_without_session_id(tmp_path):
     handoff_file = journal_dir / "20260521T110000Z-handoff-preshape.md"
     result = _run_multi(["--chain-from", str(handoff_file), "--base", str(base)])
     output = json.loads(result.stdout)
-    # No SIDs extracted from the pre-shape entry → empty sessions list → error status
     assert output["status"] == "error"
 
 
 def test_chain_from_nonexistent_file_errors(tmp_path):
-    """Missing --chain-from file → exit 2."""
     result = _run_multi(
         [
             "--chain-from",
@@ -969,19 +913,16 @@ def test_chain_from_nonexistent_file_errors(tmp_path):
 
 
 def test_legacy_positional_still_works(tmp_path):
-    """Positional form preserves existing single-session output shape."""
     _write_assistant_event(tmp_path, "legacy-sid")
     result = _run_script("legacy-sid", str(tmp_path))
     result.check_returncode()
     output = json.loads(result.stdout)
-    # Single-session shape has "data" key (NOT "sessions" + "aggregate")
     assert "data" in output
     assert "sessions" not in output
     assert "aggregate" not in output
 
 
 def test_plugin_usage_counts_plugin_skills_only(tmp_path):
-    """Only `<plugin>:<skill>` Skill invocations count; there is no hooks key."""
 
     def skill(name):
         block = {"type": "tool_use", "name": "Skill", "input": {"skill": name}}
@@ -1022,7 +963,6 @@ def test_plugin_usage_counts_user_typed_commands(tmp_path):
 
 
 def test_multi_session_aggregates_plugin_skills(tmp_path):
-    """--sessions sums plugin_usage across the chain into aggregate."""
     block = {"type": "tool_use", "name": "Skill", "input": {"skill": "a:b"}}
     event = {"type": "assistant", "message": {"content": [block]}}
     for sid in ("sid-curr", "sid-prev"):
