@@ -106,8 +106,8 @@ The pre-PR check is one quick check of the branch's changed files, never a test 
 - Any skip due to "tool missing" → install the tool or document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
 - Any unresolved ecosystem → name it and the files it covers in the PR body as not verified locally, so CI is its only check
 - Every SKIP is reported with its reason
-- Every check skipped → the result is "not verified", never clean: name it in the PR body as not verified locally, so CI is its only check
-- All clean (or only non-applicable skips like "no `.md` changes") → proceed to PR creation
+- Every check skipped, "not applicable" skips included → the result is "not verified", never clean: name it in the PR body as not verified locally, so CI is its only check
+- At least one check ran, and every result is clean or a non-applicable skip like "no `.md` changes" → proceed to PR creation
 
 **This check runs last**, so nothing that edits the tree may run after it.
 
