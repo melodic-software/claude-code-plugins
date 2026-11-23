@@ -120,7 +120,6 @@ import {
   restoredHashOf,
   restoringRecord,
   rollbackRecord,
-  saveRecord,
   stillWritten,
   swapRecord,
 } from "../lib/record.mjs";
@@ -399,6 +398,7 @@ function prepare(opts, where, catalog, records) {
   const settings = readSettings(file);
   const session = opts.target === "session";
   const { path: recPath, found: recFound, record: previous } = session ? { path: null, found: null, record: null } : recordOf(where, file);
+  const recText = recPath && readText(recPath);
   const base = session ? { enabledPlugins: {}, skillOverrides: {} } : baseline(settings.doc, previous);
   const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
   const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
@@ -427,7 +427,7 @@ function prepare(opts, where, catalog, records) {
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
   if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file, [SESSION_SETTINGS_VAR]: file };
   const moved = opts.target === "folder" ? movedRecordsOf(where, file) : [];
-  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded, moved };
+  return { file, settings, recPath, recText, recFound, previous, inv, plan: result, final, pending, edits, loaded, moved };
 }
 
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
@@ -537,11 +537,13 @@ async function consent(opts, gate, interactive, question = "Apply these changes?
   if (!["y", "yes"].includes(await ask(question))) throw new NotApplied("not applied");
 }
 
-/** Saves the record; a finish saves it only while the pending record it read is still there, checked just before the rename, and is false when it is not. */
+/** Saves the record only while each record file still holds what this apply read, checked just before the rename: false when a finish's pending record changed, a SettingsConflict when another apply saved a record since prepare, so apply re-plans over it instead of overwriting it. */
 function claimRecord(p, record, finishing) {
-  if (finishing && !swapRecord(finishing.path, finishing.text, recordText(record))) return false;
-  if (finishing?.path !== p.recPath) saveRecord(p.recPath, record);
-  return true;
+  const text = recordText(record);
+  if (finishing && !swapRecord(finishing.path, finishing.text, text)) return false;
+  if (finishing?.path === p.recPath || swapRecord(p.recPath, p.recText, text)) return true;
+  if (finishing) swapRecord(finishing.path, text, finishing.text);
+  throw new SettingsConflict(`${p.recPath} changed while this apply ran`);
 }
 
 /** Writes the record, then the settings file; false, writing nothing, when the pending record a finish read has changed. */
@@ -568,10 +570,8 @@ function commit(p, opts, where, finishing = null) {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
     const ours = recordText(record);
-    if (finishing) {
-      swapRecord(finishing.path, ours, finishing.text);
-      if (finishing.path !== p.recPath) rollbackRecord(p.recPath, ours, null);
-    } else rollbackRecord(p.recPath, ours, p.recFound === p.recPath ? p.previous : null);
+    if (finishing) swapRecord(finishing.path, ours, finishing.text);
+    if (finishing?.path !== p.recPath) rollbackRecord(p.recPath, ours, p.recText);
     throw error;
   }
   if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);

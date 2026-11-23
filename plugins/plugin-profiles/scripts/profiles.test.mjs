@@ -1153,7 +1153,18 @@ test("#18218: a finish whose settings write fails puts the unfinished record bac
   assert.equal(readFileSync(join(dataRecordsDir(w), name), "utf8"), pending);
   assert.deepEqual(profilesIn(join(w.project, ".git", "plugin-profiles", "records")), ["other-apply"]);
 });
-const esc = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+test("#18218: an apply that another apply finishes before it claims the record re-plans over that record, so clear still puts the file back", () => {
+  const w = world();
+  const during = join(w.root, "during.json");
+  writeFileSync(during, JSON.stringify({ argv: [CLI, "apply", "build", "--for", "folder", "--yes"], cwd: w.project }));
+  w.run(["apply", "review", "--for", "folder", "--yes"], { PP_STUB_DURING_LIST: during });
+  assert.equal(existsSync(during), false, "the other apply ran mid-plan");
+  assert.equal(w.records().length, 1, "a record of what was written survives");
+  assert.equal(w.run(["clear", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+const esc =(text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const gitRecords = (w) => {
   const dir = join(w.project, ".git", "plugin-profiles", "records");
   return existsSync(dir) ? readdirSync(dir) : [];
