@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-// Co-change evidence for /architecture:improve-layout. Reads `git log --no-merges --name-only`
-// once over a window of commits and reports which files change together, the clusters those
-// pairs form, and how each cluster spreads over folders. Read-only: one git command, one JSON
-// object on stdout, the same bytes for the same history and settings.
-//
-//   node co-change.mjs [--repo <dir>] [--home <dir> | --no-config] [--path <prefix>]...
-//                      [--history-commits <n>] [--min-revs <n>] [--min-shared-revs <n>]
-//                      [--min-coupling <n>] [--max-coupling <n>] [--max-changeset-size <n>]
-//                      [--exclude-author <text>]... [--all-authors] [--folder-depth <n>]
-//                      [--min-cluster-size <n>] [--encapsulated-min-focus <x>]
-//                      [--crosscutting-min-spread <n>] [--crosscutting-max-focus <x>]
-//
-// Settings: the `layout` object of <home>/architecture.yaml and <home>/architecture.local.yaml
-// through lib/config-cascade.mjs (home default docs/conventions, relative to --repo), defaults
-// from schemas/architecture.schema.json. A flag overrides its key for this run. --no-config skips
-// both files. --repo is the repository's top folder, and each --path a folder relative to it.
-// Measures and their sources: ../reference/co-change.md.
-//
 // Exit 0 report written, 2 usage or environment (bad flag, git missing, not a git work tree).
 
 import { spawnSync } from "node:child_process";

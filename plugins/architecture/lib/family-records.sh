@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Names of the records and renderings the map-* family writes into
-# architecture_dir.
-#
-# Source this file. is_family_record BASENAME returns 0 when BASENAME is one of
-# them, 1 otherwise. Evidence collectors skip these files: a record's own URLs
-# and hosts are output, not configuration. The names come from each skill's
-# renderer and record; family-records.test.sh asserts the renderers agree.
-#
-# Executing this file prints usage and exits 2.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'family-records.sh: source this file; it is not a command\n' >&2

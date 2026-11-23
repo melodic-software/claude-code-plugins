@@ -508,7 +508,8 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   const scan = stepIn("apply-changelog", "Scan the key's credit-stop marker for credentials");
   assert.match(scan, /^ {8}id: credit-marker-scan$/m);
   assert.equal(ifOf(scan), "always() && steps.credit-marker.outcome == 'success'");
-  assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+  assert.match(scan, /^ {10}gate-path: \.lane-trusted\/lib\/publish-gate\.mjs$/m);
   assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/key-credit-stop\/run-id$/m);
   const upload = stepIn("apply-changelog", "Upload the key's credit-stop marker");
   assert.equal(ifOf(upload), "(always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'");
@@ -597,7 +598,8 @@ test("each leg writes, scans and uploads the start record after the leg", () => 
     assert.match(record, /^ {10}RELEASE: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
     const scan = stepIn(job, "Scan the start record for credentials");
     assert.equal(ifOf(scan), "always() && steps.start.outcome == 'success'");
-    assert.match(scan, /^ {8}uses: \.\/\.lane-trusted\/\.github\/actions\/scan-upload /m);
+    assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+$/m);
+    assert.match(scan, /^ {10}gate-path: \.lane-trusted\/lib\/publish-gate\.mjs$/m);
     const upload = stepIn(job, "Upload the start record");
     assert.equal(ifOf(upload), "(always() && steps.start.outcome == 'success') && steps.start-scan.outputs.clean == 'true'");
     assert.match(upload, /^ {10}name: upstream-apply-changelog-started$/m);

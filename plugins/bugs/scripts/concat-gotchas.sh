@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Always exits 0 so a skill pre-compute injection cannot fail skill load.
 set -u
 
 extract_gotchas() {
@@ -32,7 +31,6 @@ extract_gotchas() {
 }
 
 trim_body() {
-  # Drop leading and trailing blank lines; keep interior blanks.
   awk '
     { lines[NR] = $0 }
     END {
@@ -83,12 +81,7 @@ user_opt=""
 root="${CLAUDE_PROJECT_DIR:-}"
 [[ -n "$root" ]] || root="$(git rev-parse --show-toplevel 2>/dev/null)"
 
-# Config-cascade 1.3 special-root classification: a root that is $HOME or an
-# ancestor of it, or is not inside a git working tree, has no team layer or personal override
-# layer. Otherwise ~/.claude/bugs.md would be read again as the team layer.
 if [[ -n "$root" && -n "${HOME:-}" ]]; then
-  # Fold slashes, trailing slash, and case, as config-cascade step 2 and
-  # source-control's root_is_home_or_ancestor do (Windows paths differ only so).
   rp="$(cd "$root" 2>/dev/null && pwd -P)" || rp="$root"
   hp="$(cd "$HOME" 2>/dev/null && pwd -P)" || hp="$HOME"
   rp="${rp//\\//}"; rp="${rp%/}"; rp="${rp,,}"

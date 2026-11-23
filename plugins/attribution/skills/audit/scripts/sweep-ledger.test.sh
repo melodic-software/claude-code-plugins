@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for sweep-ledger.sh. Fixtures are built inline in a tmpdir.
-#
-# Every case runs from inside a throwaway git repository, so the ledger lands in
-# that repository's .work/ and never in this checkout's. The load-bearing cases are
-# the ones a resumed sweep leans on: spend adding up across separate invocations,
-# the ceiling stopping a sweep, a second checkout seeing a new sweep, and a cache
-# hit coming back as a re-validation rather than as something reusable.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -41,8 +34,6 @@ assert_not_contains() {
   esac
 }
 
-# --- Fixtures --------------------------------------------------------------------
-
 REPO="$TEST_TMPDIR/repo"
 OTHER="$TEST_TMPDIR/other-checkout"
 for d in "$REPO" "$OTHER"; do
@@ -57,7 +48,6 @@ OTHER="$(git -C "$OTHER" rev-parse --show-toplevel)"
 LEDGER="$REPO/.work/t1/sweep-ledger.md"
 OTHER_LEDGER_DIR="$OTHER/.work/t1"
 
-# run <args...>: the script from inside the first checkout, stdout and stderr together.
 run() { (cd "$REPO" && bash "$LEDGER_SH" "$@" 2>&1); }
 run_other() { (cd "$OTHER" && bash "$LEDGER_SH" "$@" 2>&1); }
 
@@ -67,8 +57,6 @@ CLOSE_FIELDS=(--dispositions "convert-to-pointer x1, leave-with-reason x1"
 URL="https://example.com/docs/page"
 SHA_A="$(printf 'a%.0s' {1..64})"
 SHA_B="$(printf 'b%.0s' {1..64})"
-
-# --- Usage -----------------------------------------------------------------------
 
 OUT="$(bash "$LEDGER_SH" --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
@@ -85,8 +73,6 @@ assert_eq "a refused slug writes nothing outside .work" "$([[ -e "$REPO/../escap
 OUT="$(run --topic t1 frobnicate)"
 assert_exit "an unknown subcommand exits 2" "$?" "2"
 
-# --- No ledger: a new sweep ------------------------------------------------------
-
 OUT="$(run --topic t1 status)"
 assert_exit "status with no ledger exits 0" "$?" "0"
 assert_eq "status with no ledger reports a new sweep" "$OUT" \
@@ -96,8 +82,6 @@ assert_eq "status with no ledger creates nothing" "$([[ -e "$REPO/.work" ]] && e
 OUT="$(run --topic t1 spend 1)"
 assert_exit "spend with no ledger is refused, exit 3" "$?" "3"
 assert_contains "spend with no ledger says it is a new sweep" "$OUT" "this is a new sweep"
-
-# --- init ------------------------------------------------------------------------
 
 OUT="$(run --topic t1 init)"
 assert_exit "init exits 0" "$?" "0"
@@ -117,8 +101,6 @@ assert_contains "a second init names the sweep it resumes" "$OUT" "a resume of s
 assert_eq "a second init keeps the sweep line" "$(grep '^- sweep: ' "$LEDGER")" "$SWEEP_LINE"
 assert_contains "status names the sweep" "$(run --topic t1 status)" "sweep: t1-20"
 assert_contains "a second init leaves the recorded spend alone" "$(run --topic t1 status)" "spend: 5 of"
-
-# --- close -----------------------------------------------------------------------
 
 OUT="$(run --topic t1 close docs/a.md --dispositions "leave-with-reason x1" --pointer-liveness live)"
 assert_exit "a close missing fields exits 2" "$?" "2"
@@ -162,8 +144,6 @@ assert_contains "a second file counts" "$OUT" "closed files: 2"
 assert_contains "status lists the first closed file for a resume to skip" "$OUT" "  docs/a.md"
 assert_contains "status lists the second closed file for a resume to skip" "$OUT" "  docs/b.md"
 
-# --- spend: accumulation across invocations (the resume case) --------------------
-
 OUT="$(run --topic t1 spend 7)"
 assert_exit "spend exits 0" "$?" "0"
 assert_contains "spend adds to the running total" "$OUT" "12 so far"
@@ -178,8 +158,6 @@ assert_exit "a non-numeric spend exits 2" "$?" "2"
 OUT="$(run --topic t1 spend -3)"
 assert_exit "a negative spend exits 2" "$?" "2"
 assert_contains "refused spend leaves the total alone" "$(run --topic t1 status)" "spend: 22 of 200"
-
-# --- ceiling -----------------------------------------------------------------------
 
 OUT="$(run --topic t1 status)"
 assert_exit "status under the default ceiling exits 0" "$?" "0"
@@ -205,13 +183,11 @@ OUT="$(run --topic t1 status)"
 assert_exit "spend over the ceiling exits 1" "$?" "1"
 assert_contains "spend over the ceiling is reported as spent" "$OUT" "spend: 34 of 30"
 
-# A team layer's ceiling is refined by the personal override: the later layer wins.
 printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 500' >"$CONV/attribution.local.yaml"
 OUT="$(run --topic t1 status)"
 assert_exit "a later layer raising the ceiling clears the stop" "$?" "0"
 assert_contains "the later layer supplies the ceiling" "$OUT" "spend: 34 of 500"
 
-# With the personal override gone, a lower team ceiling stops the sweep again.
 printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 20' >"$CONV/attribution.yaml"
 rm -f "$CONV/attribution.local.yaml"
 OUT="$(run --topic t1 status)"
@@ -219,8 +195,6 @@ assert_exit "a team ceiling below the spend stops the sweep" "$?" "1"
 assert_contains "the lowered team ceiling applies" "$OUT" "spend: 34 of 20"
 assert_contains "the team ceiling names its layer" "$OUT" "(from $CONV/attribution.yaml)"
 rm -f "$CONV/attribution.yaml" "$CONV/attribution.local.yaml"
-
-# --- cache -------------------------------------------------------------------------
 
 OUT="$(run --topic t1 cache-check "$URL")"
 assert_exit "cache-check on a miss exits 0" "$?" "0"
@@ -250,8 +224,6 @@ assert_exit "a non-http URL exits 2" "$?" "2"
 OUT="$(run --topic t1 cache-add "https://example.com/a b" "$SHA_A")"
 assert_exit "a URL with whitespace exits 2" "$?" "2"
 
-# --- checkout-local ----------------------------------------------------------------
-
 OUT="$(run_other --topic t1 status)"
 assert_exit "status in another checkout exits 0" "$?" "0"
 assert_eq "another checkout sees a new sweep, not this one's ledger" "$OUT" \
@@ -259,8 +231,6 @@ assert_eq "another checkout sees a new sweep, not this one's ledger" "$OUT" \
 OUT="$(run_other --topic t1 cache-check "$URL")"
 assert_exit "another checkout has no cache to look in" "$?" "3"
 
-# A ledger file copied into another checkout is refused, not resumed as the same
-# sweep: it names the checkout it started in.
 mkdir -p "$OTHER_LEDGER_DIR"
 cp "$LEDGER" "$OTHER_LEDGER_DIR/sweep-ledger.md"
 BEFORE="$(cat "$OTHER_LEDGER_DIR/sweep-ledger.md")"
@@ -278,20 +248,14 @@ OUT="$(run_other --topic t1 init)"
 assert_exit "init on a copied ledger exits 3, it is not adopted as a resume" "$?" "3"
 assert_eq "a refused copied ledger is left unchanged" "$(cat "$OTHER_LEDGER_DIR/sweep-ledger.md")" "$BEFORE"
 
-# A ledger with no sweep line (one not started by init) records no checkout and is
-# refused the same way.
 mkdir -p "$REPO/.work/hand"
 printf '%s\n' '# notes kept by hand' >"$REPO/.work/hand/sweep-ledger.md"
 OUT="$(run --topic hand status)"
 assert_exit "a ledger with no sweep line exits 3" "$?" "3"
 assert_contains "a ledger with no sweep line says so" "$OUT" "no sweep line"
 
-# Nothing but the ignored .work/ tree is written: no tracked or untracked file
-# appears in the checkout.
 assert_eq "the ledger is the only thing written, under the ignored .work/" \
   "$(git -C "$REPO" status --porcelain --ignored)" "!! .work/"
-
-# --- --show-config -----------------------------------------------------------------
 
 OUT="$(run --show-config)"
 assert_exit "--show-config exits 0" "$?" "0"
@@ -314,8 +278,6 @@ assert_contains "an unsubstituted userConfig value is unset" "$OUT" "corpus_fetc
 OUT="$(run --user-config stamp_expiry_days=9 --show-config)"
 assert_exit "a repository key passed as userConfig is refused" "$?" "2"
 
-# The script alone, with no lib.sh beside it: the --show-config probe reads
-# "detector unavailable", never an empty configuration.
 ALONE="$TEST_TMPDIR/alone"
 mkdir -p "$ALONE"
 cp "$LEDGER_SH" "$ALONE/sweep-ledger.sh"

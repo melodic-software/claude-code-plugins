@@ -1025,7 +1025,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           filters: |
             shell:
@@ -1434,6 +1434,12 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh config-cascade-semantics {0}
         run: python3 scripts/sync-config-cascade-semantics.py --check
 
+      - name: Check the skill gather blocks against `docs/conventions/gather-block/block.md`
+        id: gather_block
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh gather-block {0}
+        run: python3 scripts/sync-gather-block.py --check
+
       # code-metrics resolves every tunable from one defaults file and restates
       # every key in a reference table with its default. A test pins the setup
       # template to that file leaf for leaf; this gate pins the table, where a
@@ -1643,13 +1649,13 @@ jobs:
           fi
           echo "globs=$globs" >>"$GITHUB_OUTPUT"
       - name: Put the pinned Node in the tool cache so setup-node reads no manifest
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -1666,7 +1672,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -1693,7 +1699,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -1708,7 +1714,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           config: lychee.toml
           exclude: >-
@@ -1737,15 +1743,14 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           config: .editorconfig-checker.json
-          # The Node.js release keyring: binary, a byte-exact upstream copy.
           # The review revert cases' fixtures: byte copies of this repository's
           # history.
           # The chart corpus graph files: TLC writes them with no final newline
           # and the corpus tests compare them byte for byte.
-          exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$|(^|/)plugins/review/evals/revert-[^/]+/fixtures/|(^|/)plugins/formal-verification/skills/chart/scripts/test/corpus/[^/]+/graph\.dot$
+          exclude: (^|/)plugins/review/evals/revert-[^/]+/fixtures/|(^|/)plugins/formal-verification/skills/chart/scripts/test/corpus/[^/]+/graph\.dot$
 
       # The path-scoped readers gate on the filter group of what they read:
       # actionlint and the dependabot and workflow schemas on `run_workflows`
@@ -1757,13 +1762,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -1771,7 +1776,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -1783,12 +1788,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1821,12 +1826,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           # The remove-comments skill's audit action IS a code-comment linter:
           # its detector fixtures and shape library necessarily contain the
@@ -1932,7 +1937,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2005,7 +2010,7 @@ jobs:
         id: workflow_naming
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -2051,6 +2056,7 @@ jobs:
             artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             workflow-template-size=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_template_size.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
+            gather-block=${{ steps.gather_block.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
             line-citations=${{ steps.line_citations.outcome }}
@@ -2332,7 +2338,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -2820,7 +2826,7 @@ jobs:
       # does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
 
@@ -2990,7 +2996,7 @@ jobs:
       # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3290,7 +3296,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -3524,7 +3530,7 @@ jobs:
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3549,7 +3555,7 @@ jobs:
         # verifies the install on one small file whose one source is marked
         # source=/dev/null; the ShellCheck gate in `lint-shell` is what lints
         # the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -3717,14 +3723,14 @@ jobs:
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
       - name: Install pinned typos for the spelling remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        uses: melodic-software/ci-workflows/.github/actions/typos@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           config: _typos.toml
           paths: lefthook-remote.yml
           annotations: 'false'
       - name: Install pinned actionlint for the actionlint remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           paths: .github/workflows/pr-review-approved.yml
           color: 'false'
@@ -3837,7 +3843,7 @@ jobs:
         with:
           filter: blob:none
       - name: Set up Node
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3982,7 +3988,7 @@ jobs:
           echo "This leg tests: $packages"
           echo "PACKAGES=$packages" >>"$GITHUB_ENV"
       - name: Set up Node
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       # One npm cache for every package, keyed on the Node pin and the five
@@ -4191,7 +4197,7 @@ jobs:
         with:
           filter: blob:none
       - name: Set up Node
-        uses: $/.github/actions/setup-pinned-node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -4209,7 +4215,7 @@ jobs:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
       - name: Install and verify ShellCheck toolchain
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -4306,7 +4312,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -4416,7 +4422,7 @@ jobs:
       # less GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
       # 435 s for the job's setup and the steps after the wait, which include
       # the report-ci-status composite
-      # (https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/pr-require-checks/report-ci-status/action.yml):
+      # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/action.yml):
       # check-contract's and aggregate-results' 60 s rate-limit waits, 120 s
       # of own-gate retries, 7 s of status writes and the 90 s rerun wait,
       # plus retry sleeps. It does not
@@ -4952,7 +4958,7 @@ jobs:
     permissions:
       # The composite lists this workflow's runs on the head SHA (its fixed
       # `yield-to-full-run`,
-      # https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129),
+      # https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129),
       # and `rerun-contract-only-siblings` re-runs the red contract-only ones
       # once the full run records `success`. Under an explicit permissions
       # block every unlisted scope defaults to none; write covers the read.
@@ -5425,7 +5431,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       # The cost-hold and lanes-hold steps below run node; pin it to main's
@@ -5448,7 +5454,6 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.node-version
-            /.github/actions/setup-pinned-node/
             /plugins/source-control/skills/babysit-prs/scripts/*.py
             /.github/verify-legacy-fails.json
             /.github/source-control-settings.json
@@ -5476,13 +5481,13 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Write the source-control trust settings
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' && hashFiles('.base/.github/source-control-settings.json') != '' }}
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
       # THE FORMAL-AREA SKILLS MEET THEIR CONTRACT. The default branch's copy of
@@ -7273,7 +7278,7 @@ jobs:
           echo "Results after the ordered-skip check: $results"
           echo "results=$results" >>"$GITHUB_OUTPUT"
       # The contract, the draft policy and the aggregation in one step
-      # (https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/pr-require-checks/report-ci-status/README.md),
+      # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/README.md),
       # under the aggregation step's old name, by which a contract-only run
       # finds the writer step of the full run it carries forward.
       # `!cancelled()` so a failed step above skips neither the contract check
@@ -7285,7 +7290,7 @@ jobs:
       - name: Aggregate lane results
         id: report
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/report-ci-status@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -7298,7 +7303,7 @@ jobs:
           draft: allow
           # The composite fixes yield-to-full-run: 'true' and
           # carry-forward-wait-seconds: '0'
-          # (https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129):
+          # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/action.yml#L128-L129):
           # no carry-forward wait. While a full run on the SHA is in flight a
           # contract-only run holds, up to `yield-wait-seconds`, with this
           # check run in progress, then passes only on a `success` recorded
@@ -7319,7 +7324,7 @@ jobs:
           step-name: Aggregate lane results
       # The composite's step concludes on the lanes alone; the contract and
       # draft results fail the job here
-      # (https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/pr-require-checks/report-ci-status/README.md#consumer-job).
+      # (https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/pr-require-checks/report-ci-status/README.md#consumer-job).
       # Anything but success fails, so an empty or renamed output fails closed.
       - name: Fail on the contract or draft policy
         if: ${{ !cancelled() && (steps.report.outputs.contract != 'success' || steps.report.outputs.draft != 'success') }}

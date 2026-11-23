@@ -137,7 +137,6 @@ PARAMS="$TMP/params.jsonl"
 DIFFS="$TMP/diffs.jsonl"
 UNMAPPED="$TMP/unmapped.jsonl"
 CATALOG="$TMP/catalog.jsonl"
-# Record keys in output order, each paired with the file that holds its rows.
 SECTIONS=(tools "$TOOLS" environments "$ENVS" nodes "$NODES" placements "$PLACES" relationships "$EDGES"
   parameters "$PARAMS" diffs "$DIFFS" unmapped "$UNMAPPED" catalog "$CATALOG")
 for ((i = 1; i < ${#SECTIONS[@]}; i += 2)); do
@@ -193,14 +192,11 @@ refuse() {
   for file in "$ENVS" "$NODES" "$PLACES" "$EDGES" "$PARAMS" "$DIFFS" "$CATALOG"; do
     : >"$file"
   done
-  # The refusal for a read that drew no container keeps the list that explains it.
   [[ "$1" == no-mapped-container ]] || : >"$UNMAPPED"
   write_record refused "$1"
   exit 0
 }
 
-# Record a tool once. A shipped reader marks the repository as read; any other
-# tool marks it for refusal.
 shipped=0
 unshipped=0
 add_tool() {
@@ -245,8 +241,6 @@ is_compose() {
   esac
 }
 
-# The runtime of a Pulumi.yaml: "yaml" only for a program written in the file itself.
-# A main: key, or runtime options such as a compiler, make it something else.
 pulumi_runtime() {
   awk -f - "$1" <<'AWK'
 function unq(s) { gsub(/^["']|["']$/, "", s); return s }
@@ -269,8 +263,6 @@ END { rt = tolower(rt); if (rt !~ /^[a-z0-9._+-]+$/) rt = "unknown"; print (extr
 AWK
 }
 
-# A CloudFormation template names the format version, or holds a Resources
-# section with AWS:: types. A YAML file needs Resources at the left margin.
 is_cfn_template() {
   local file="$1"
   if grep -E -q '^[[:space:]]*"?AWSTemplateFormatVersion"?[[:space:]]*:' "$file"; then
@@ -282,8 +274,6 @@ is_cfn_template() {
   esac && grep -E -q '"?Type"?[[:space:]]*:[[:space:]]*"?AWS::[A-Za-z0-9]+::[A-Za-z0-9]+' "$file"
 }
 
-# A CloudFormation parameter file: the ParameterKey/ParameterValue array, or an
-# object whose first key is Parameters.
 is_cfn_parameter_file() {
   grep -q '"ParameterKey"' "$1" && grep -q '"ParameterValue"' "$1" && return 0
   [[ "$(tr -d '[:space:]' <"$1" | head -c 15)" == '{"Parameters":{' ]] && ! grep -q '"Resources"' "$1"
@@ -340,7 +330,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   *.tf | *.tfvars | *.tf.json | *.tfvars.json)
     printf '%s\n' "$rel" >>"$TMP/tf.txt"
     add_tool terraform yes "$rel"
-    # A Helm release declared in Terraform is Helm, which this skill does not read.
     if grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:' \
       < <(awk 'BEGIN { RS = "\001" } { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, ""); print }' "$repo/$rel"); then
       add_tool helm no "$rel (helm_release)"
@@ -372,7 +361,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   fi
   case "$rel" in
   *.yml | *.yaml)
-    # A template inside a chart belongs to Helm, which the Chart.yaml already declared.
     chart="$(dirname "$(dirname "$rel")")"
     if [[ "$(basename "$(dirname "$rel")")" == templates && (-f "$repo/$chart/Chart.yaml" || -f "$repo/$chart/Chart.yml") ]]; then
       continue
@@ -418,10 +406,6 @@ env_of_compose() {
   esac
 }
 
-# Compose merges a base file with its override, or the files a tracked .env
-# COMPOSE_FILE lists, in that order. The layers of one directory are one
-# environment named for the directory. Any other file beside them has no
-# declared place in the merge, so the record is refused naming it.
 in_dir() {
   local name="$2"
   while [[ "$name" == ./* ]]; do name="${name#./}"; done
@@ -926,10 +910,6 @@ if [[ -s "$TMP/k8s.txt" ]]; then
   fi
 fi
 
-# Run a reader from the repository root over the files a list names, after the
-# redaction and diff helpers. The arguments after the list and the reason a failed
-# run refuses with are the reader's own awk options. A reason the reader flags
-# refuses the record.
 run_reader() {
   local list="$1" unreadable="$2" flag="$TMP/$2.flag" rel files=()
   shift 2
@@ -949,9 +929,6 @@ if [[ -s "$TMP/tf.txt" ]]; then
   run_reader "$TMP/tf.txt" terraform-unreadable -f "$SCRIPT_DIR/terraform-reader.awk"
 fi
 
-# Bicep and ARM share one reader, run once per tool so each tool's environments
-# are diffed only against its own. CloudFormation and Pulumi YAML share one
-# flattener and run once per tool the same way.
 for az_tool in bicep arm; do
   grep -q "\"name\":\"$az_tool\"" "$TOOLS" || continue
   run_reader "$TMP/azure.txt" "$az_tool-unreadable" -v tool="$az_tool" -f "$SCRIPT_DIR/azure-reader.awk"
@@ -965,8 +942,6 @@ if grep -q '"name":"pulumi-yaml"' "$TOOLS"; then
     -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/pulumi-reader.awk"
 fi
 
-# Resources were read and none of them is a container the readers map: an empty
-# environment would look like a full read.
 if [[ ! -s "$PLACES" && -s "$UNMAPPED" ]]; then
   refuse "no-mapped-container"
 fi
@@ -980,7 +955,6 @@ if [[ -n "$containers_file" ]]; then
   while IFS= read -r cname || [[ -n "$cname" ]]; do
     [[ -n "$cname" ]] || continue
     placed="no"
-    # An ECS container that two or more services run is placed as <name>@<service>.
     if grep -F -q -e "\"container\":\"$(json_escape "$cname")\"" -e "\"container\":\"$(json_escape "$cname")@" "$PLACES"; then
       placed="yes"
     fi
@@ -988,7 +962,6 @@ if [[ -n "$containers_file" ]]; then
   done <<<"$names"
 fi
 
-# Collapse duplicate rows: a container can reach the diffs once from each environment's side.
 for ((i = 1; i < ${#SECTIONS[@]}; i += 2)); do
   sort -u -o "${SECTIONS[i]}" "${SECTIONS[i]}"
 done

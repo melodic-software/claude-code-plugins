@@ -1,36 +1,6 @@
 #!/usr/bin/env node
 
-// Signal-envelope check for the trigger-dispatch contract: validates the
-// JSON-fenced `<!-- autonomy:signal:v1 -->` marker record on a queued item's
-// body. This is the contract's enforcement surface — adopters and the
-// conforming-path demo run it against created queue items.
-//
-// Usage: node check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>] [--security-binding <security-binding.json>]
 // Exit 0 = conformant; 1 = findings; 2 = usage/environment error.
-//
-// TWO binding inputs, two governance homes — never one file:
-// --binding is the resolved schema-versioned AUTONOMY binding (repo-local,
-// agent-writable): a temporal signal's `signal.source_surface` must resolve
-// to a surface recorded there, and the surface's `scheduler_class`
-// deterministically branches the `signal.raw_link` form (local-scheduler
-// surfaces have no web origin, so a durable local/artifact URI is legal
-// there and only there). Every additive binding section that records
-// scheduling surfaces (triggers, routines) uses the same `surfaces` map
-// shape; the resolver reads them all uniformly.
-// --security-binding is the guardrails SECURITY binding (settings-as-code
-// home, outside the agents' blast radius): its
-// `admission.classification.temporal` table is where a temporal envelope's
-// stamped `signal.work_class` must trace to — classification can never live
-// in the agent-writable autonomy binding, or the agents it governs could
-// rewrite it. A stamped class without --security-binding fails closed:
-// unverifiable is never conformant.
-//
-// Honest boundary: this checker validates RECORDED evidence consistency —
-// the envelope against the two bindings as written. Resolving
-// `signal.source_surface` from the platform's authenticated run context at
-// emit time (rather than trusting the handler's stamp) is the adapter's
-// obligation under the trigger-dispatch contract, not something a static
-// checker can perform.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -38,16 +8,11 @@ import process from "node:process";
 import { isNormalizedCanonicalUrl, parseUrl } from "./canonical-url.mjs";
 
 const MARKER = "<!-- autonomy:signal:v1 -->";
-// Each supported minor version is added here together with its validation
-// rules — an unknown 1.x must not certify semantics this checker cannot see.
 const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0"]);
 const SURFACE_CLASSES = new Set(["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"]);
 const TRANSPORTS = new Set(["push", "push-lifecycle", "poll"]);
 const PROVENANCES = new Set(["human", "agent", "system"]);
 const WORK_CLASSES = new Set(["C1", "C2", "C3", "C4", "C5"]);
-// Routine identity: <class-token> or <class-token>/<posture-token> — the
-// posture-qualified form is how a multi-posture routine class stamps which
-// posture's classification the signal claims.
 const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
 const REQUIRED_KEYS = [
   "signal.class",
@@ -57,10 +22,7 @@ const REQUIRED_KEYS = [
   "signal.raw_link",
   "signal.traceparent",
 ];
-// W3C Trace Context traceparent: this contract supports version "00" only
-// (and "ff" is forbidden by the spec outright); all-zero trace-id/parent-id
-// invalid; version-00 trace flags define only the sampled bit (00 or 01 —
-// reserved bits must not be set by the authoring adapter).
+// Version-00 traceparent only: https://www.w3.org/TR/trace-context/#traceparent-header
 const TRACEPARENT = /^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-0[01]$/;
 
 const findings = [];
@@ -73,22 +35,13 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
-// Absolute https URL with a host; query and fragment PRESERVED (permalinks and
-// comment anchors need them — the telemetry strip rule is the join key's, not
-// the raw link's).
 function isAbsoluteHttpsUrl(value) {
   const url = parseUrl(value);
   return url !== null && url.protocol === "https:" && url.hostname.length > 0;
 }
 
-// Schemes that can never be durable artifact locators — rejected even when a
-// binding declares them (a declaration cannot make data:/javascript: durable).
 const NON_DURABLE_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
 
-// Durable local/artifact URI for local-scheduler-origin temporal signals:
-// file: and https: qualify by contract; an org artifact-store scheme qualifies
-// only when the binding's surface entry DECLARES it (artifact_schemes) AND the
-// scheme is not in the non-durable set — an undeclared scheme never conforms.
 function isDurableLocalUri(value, surfaceEntry) {
   const url = parseUrl(value);
   if (url === null) return false;
@@ -99,18 +52,6 @@ function isDurableLocalUri(value, surfaceEntry) {
   );
 }
 
-// Canonical run-namespace containment: parse BOTH sides, compare authority
-// explicitly, then test path-segment-boundary containment on the parsed
-// pathnames — the URL parser resolves dot segments for the schemes it
-// knows, so a lexical "/../" traversal cannot slip a canonical-outside link
-// past a string-prefix test. Authority is compared as protocol + host, not
-// WHATWG origin: every non-special scheme (artifact stores like an s3-style
-// URI) serializes origin as "null", so an origin test would equate two
-// different artifact authorities. Anything the parser leaves unresolved, a
-// link carrying embedded credentials, a dot segment surviving in the parsed
-// path (non-special schemes), or a percent-encoded dot in the path (server
-// decoding behavior is unknowable here) is not certifiable evidence,
-// fail-closed.
 function underRunLinkPrefix(link, prefix) {
   const linkUrl = parseUrl(link);
   const prefixUrl = parseUrl(prefix);
@@ -125,10 +66,6 @@ function underRunLinkPrefix(link, prefix) {
   return linkPath === prefixPath || linkPath.startsWith(prefixPath.endsWith("/") ? prefixPath : `${prefixPath}/`);
 }
 
-// Structural gate on the security binding slice this checker consumes: the
-// admission.classification.temporal home. Everything else the binding carries
-// is check-security-binding.mjs's jurisdiction — this gate exists only so an envelope cannot certify against
-// a binding the full checker would reject on these same surfaces.
 function gateSecurityBinding(securityBinding) {
   const violations = [];
   if (!isPlainObject(securityBinding)) {
@@ -169,8 +106,6 @@ function extractEnvelope(body, where) {
     findings.push(`${where}: no ${MARKER} marker record found`);
     return null;
   }
-  // The contract is ONE marker plus ONE fenced record bound to it — a second
-  // marker is a conflict to surface for repair, never something to certify.
   if (body.indexOf(MARKER, markerIndex + MARKER.length) !== -1) {
     findings.push(`${where}: multiple ${MARKER} markers found — exactly one marker record is allowed`);
     return null;
@@ -188,19 +123,6 @@ function extractEnvelope(body, where) {
   }
 }
 
-// Merge every `surfaces` map any top-level binding section records (triggers
-// and routines both do). An id recorded by more than one section is AMBIGUOUS
-// — resolution refuses it rather than silently picking a winner whose
-// scheduler class may differ. Alongside the raw entry we record WHICH
-// top-level section recorded each id — but the section is NOT the
-// routine/detector discriminator: a routine may REUSE a surface the trigger
-// slice already recorded under `triggers` (the binding refuses duplicate ids,
-// so the reused record stays where it is and `routines.enabled` references
-// it). Routine-fired status is the envelope's own `signal.routine` claim,
-// validated against the `routines.enabled` map; the owning section decides
-// only the missing-claim case (a surface recorded under `routines` exists
-// solely to emit routine runs, so a claimless signal from it is
-// nonconformant).
 function collectSurfaces(binding) {
   const surfaces = new Map();
   const sections = new Map();
@@ -254,8 +176,6 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
     findings.push(`${where}: signal.traceparent ${JSON.stringify(traceparent)} is not a valid W3C traceparent`);
   }
 
-  // agent-internal: serialized provenance is REQUIRED — an unverifiable
-  // self-stamped class would bypass admission.
   const parentItem = envelope["signal.parent_item"];
   if (signalClass === "agent-internal" && !isNormalizedCanonicalUrl(parentItem)) {
     findings.push(
@@ -263,23 +183,15 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
     );
   }
 
-  // raw_link form branches DETERMINISTICALLY on the serialized origin.
   const rawLink = envelope["signal.raw_link"];
   const sourceSurface = envelope["signal.source_surface"];
   const routine = envelope["signal.routine"];
   const producerIdentity = envelope["signal.producer_identity"];
-  // A claim that is a routine identity at all; the temporal branches below
-  // validate what it must then agree with.
   const routineIsIdentity = typeof routine === "string" && ROUTINE_IDENTITY.test(routine);
   let localScheduler = false;
   let surfaceEntry = null;
   let sourceSection = null;
   if (signalClass === "temporal") {
-    // signal.routine's shape is checked whenever the KEY is present — an
-    // empty or non-string value is a claim that is neither a conforming
-    // identity nor an absent one, so it fails closed rather than slipping
-    // between the claimed and claimless branches below; whether a routine is
-    // REQUIRED is decided once the source surface resolves.
     if (routine !== undefined && !isNonEmptyString(routine)) {
       findings.push(
         `${where}: signal.routine must be a nonempty routine identity when the key is present — an empty or non-string claim is neither a conforming identity nor an absent one, fail-closed`,
@@ -319,13 +231,6 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
     const stampedClass = typeof workClass === "string" && WORK_CLASSES.has(workClass);
 
     if (surfaceEntry !== null && routine === undefined) {
-      // No routine identity claimed. From a routines-section surface that is
-      // nonconformant (such a surface exists solely to emit routine runs);
-      // from any other surface this is a detector-fired signal — legal, but
-      // it has no admission.classification.temporal home, so a stamped class
-      // can never be attested and fails closed, and a producer identity with
-      // no routine claim pins nothing. An envelope WITHOUT a class stays
-      // legal: admission evaluates it with the work-class axis "*".
       if (sourceSection === "routines") {
         findings.push(`${where}: signal.routine missing (required for temporal signals from a routines-section surface)`);
       } else {
@@ -341,30 +246,6 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
         }
       }
     } else if (surfaceEntry !== null) {
-      // A routine identity is CLAIMED (whatever section recorded the surface
-      // — a routine may reuse a triggers-recorded surface). The claim is
-      // validated against the binding's routines.enabled map (the repo-local
-      // enablement home: the identity must be an enabled routine whose
-      // recorded source_surface agrees), a producer identity is required, and
-      // a stamped class must trace to the SECURITY binding's
-      // admission.classification.temporal entry that ratifies the exact
-      // (routine, source_surface) association — the same rationale as the
-      // agent-internal provenance rule: a self-stamped or wrongly associated
-      // class bypasses admission, so the class rides the protected binding,
-      // never the agent-writable autonomy binding or the agent-writable
-      // scheduled workflow that stamped the identity. The routine, surface,
-      // and producer fields are agent-controlled claims, so consistency among
-      // them proves nothing on its own. Two ratified anchors pin the
-      // producing schedule together, because a run-permalink namespace may be
-      // repo-scoped and SHARED across every schedule: the run_link_prefix
-      // pins the platform-and-repository namespace a raw link must fall
-      // under, while the producer_identity — the workflow/unit reference the
-      // platform injects into the authenticated run context — pins WHICH
-      // schedule within that shared namespace produced the run. An envelope
-      // WITHOUT signal.work_class stays legal: admission evaluates it with
-      // the work-class axis "*". The association check runs only once the
-      // source surface RESOLVED — an unresolved surface already carries its
-      // own finding above.
       if (routineIsIdentity) {
         const enabledEntry =
           routinesEnabled !== null && typeof routinesEnabled[routine] === "object" && routinesEnabled[routine] !== null
@@ -440,9 +321,6 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
       }
     }
   } else {
-    // signal.routine and signal.producer_identity are temporal-only identity
-    // claims; stamped on any other class they fail closed rather than riding
-    // past the protected admission mapping.
     if (routine !== undefined) {
       findings.push(
         `${where}: signal.routine is temporal-only — a routine identity stamped on a ${JSON.stringify(signalClass)} signal smuggles a routine run past the protected temporal admission mapping (a routine run always enters the queue as a temporal-class signal through its ratified scheduling surface; see routines.md)`,
@@ -511,13 +389,6 @@ if (securityBindingPath !== null) {
     console.error(`cannot read security binding ${securityBindingPath}: ${error.message}`);
     process.exit(2);
   }
-  // Structural gate on the supplied security binding — a POINTER to
-  // check-security-binding.mjs, not a substitute for it (the full authority
-  // also verifies evidence this script cannot): an envelope must never
-  // certify against a binding the full checker rejects on the very surfaces
-  // this script consumes. Any gate violation is a finding, so the run exits
-  // nonconformant (fail-closed) even when every envelope matches the
-  // binding's records.
   for (const violation of gateSecurityBinding(resolver.securityBinding)) {
     findings.push(
       `--security-binding ${securityBindingPath}: ${violation} — the supplied security binding is itself invalid, so no envelope can certify against it; repair it and re-run check-security-binding.mjs (the authority, including checks this gate does not repeat)`,
@@ -534,8 +405,6 @@ try {
     checkEnvelope(envelope, target, resolver, bindingPath !== null, securityBindingPath !== null);
   }
 } catch (error) {
-  // A missing or unreadable target is an environment error (exit 2), never a
-  // conformance finding.
   console.error(`cannot read target: ${error.message}`);
   process.exit(2);
 }

@@ -1,15 +1,5 @@
 #!/usr/bin/env node
 
-// Setup-slice apply helper for routine prerequisite resolution.
-// Default mode is propose-only (non-interactive): reports reconcile findings,
-// prose-context proposals into non-security keys, and org-rung stops.
-// `--ratify` writes an additive prerequisite_resolution section after the
-// human (or test harness) has accepted the proposal JSON on stdin / --proposal.
-// Never writes the security binding.
-//
-// Usage:
-//   node apply-prerequisite-resolution.mjs --repo <dir> --surface <id> [--non-interactive]
-//   node apply-prerequisite-resolution.mjs --repo <dir> --ratify --proposal <file>
 // Exit 0 = report / write ok; 1 = failure.
 
 import { spawnSync } from "node:child_process";
@@ -67,8 +57,6 @@ function runCheck(repo, surface) {
   return JSON.parse(result.stdout);
 }
 
-// Every identity row of the check report, paired with the surface report it
-// came from, in report order.
 function* identityRows(check) {
   for (const report of check.surfaces ?? []) {
     for (const row of report.identities ?? []) {
@@ -88,7 +76,6 @@ function collectFindings(check) {
   );
 }
 
-// Judgment-only heuristics for *proposals* — never runtime authority.
 const PROSE_RULES = [
   {
     re: /work-item-tracker|issue tracker|tracker binding/i,
@@ -121,8 +108,6 @@ function proseProposals(repo) {
   });
 }
 
-// Identities with connector entitlements at the org rung; current v1 leaves
-// are all repo-scoped, so this is empty today.
 function orgRungStops(check) {
   return [...identityRows(check)]
     .filter(({ row }) => row.connector_entitlement_rung === "org")
@@ -156,9 +141,6 @@ function writeRatified(repo, proposal) {
       "proposal must not carry a surfaces map — reference existing surface ids via surface_refs",
     );
   }
-  // Detect-diff-reconcile: keep every existing declaration, even one that
-  // contradicts probes (check findings report it); a proposal declaration
-  // replaces only the one with its surface, identity and need.
   const prior = existing.prerequisite_resolution;
   const declarations = [...(prior?.declarations ?? [])];
   for (const decl of proposal.declarations ?? []) {

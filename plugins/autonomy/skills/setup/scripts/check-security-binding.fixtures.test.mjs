@@ -1,17 +1,3 @@
-// Table-driven graded-fixture suite for check-security-binding.mjs. Every
-// top-level fixture under evals/fixtures/security-binding/ is graded: the
-// co-located manifest pins each fixture's expected checker exit code and the
-// substrings the finding (or evaluation-mode verdict) must contain, and this
-// runner FAILS if any top-level fixture lacks a manifest (or quarantine) entry
-// — so a future ungraded fixture cannot be added silently.
-//
-// The checker verifies L2/L3 probe evidence only against a protected root, so
-// every fixture runs with --probe-evidence-root pointed at the fixtures dir.
-// Event-array inputs (evidence-*.json) are not bindings; their entry names the
-// valid binding they pair with and grades evaluation mode via --evidence.
-//
-// Runnable directly (`node check-security-binding.fixtures.test.mjs`) or through
-// the co-located .test.sh wrapper that scripts/run-plugin-tests.sh discovers.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -31,7 +17,6 @@ const quarantined = manifest.quarantined ?? {};
 
 const { counts, pass, fail, finish } = createFixtureHarness();
 
-// --- Self-policing: every top-level fixture is graded or quarantined ---------
 const topLevelFixtures = readdirSync(fixturesDir, { withFileTypes: true })
   .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
   .map((entry) => entry.name)
@@ -44,10 +29,6 @@ for (const name of topLevelFixtures) {
     fail(`covered: ${name}`, "top-level fixture has no manifest (or quarantine) entry — add one so it is graded");
   }
 }
-// Probe transcripts are suite INPUTS (fixtures reference them as probe_evidence
-// and the checker reads them through --probe-evidence-root), so the manifest
-// enumerates them too — same self-policing in both directions: an unlisted
-// on-disk transcript or a listed-but-missing one fails.
 const transcriptsDir = join(fixturesDir, "probe-transcripts");
 const onDiskTranscripts = readdirSync(transcriptsDir, { withFileTypes: true })
   .filter((entry) => entry.isFile())
@@ -64,8 +45,6 @@ for (const name of listedTranscripts) {
   if (!onDiskSet.has(name)) fail(`transcript-exists: ${name}`, "manifest lists a probe transcript that is not on disk");
 }
 
-// Reverse drift: a manifest entry whose fixture (or paired binding/evidence)
-// file has been removed.
 const present = new Set(topLevelFixtures);
 for (const [name, entry] of Object.entries(fixtures)) {
   const referenced = [entry.binding ?? name, entry.evidence].filter(Boolean);
@@ -74,7 +53,6 @@ for (const [name, entry] of Object.entries(fixtures)) {
   else fail(`manifest-refs-exist: ${name}`, `manifest references missing file(s): ${missing.join(", ")}`);
 }
 
-// --- Grade each fixture against the checker ----------------------------------
 for (const [name, entry] of Object.entries(fixtures)) {
   const bindingFile = entry.binding ?? name;
   const args = [checker, join(fixturesDir, bindingFile), "--probe-evidence-root", fixturesDir];
@@ -97,8 +75,6 @@ for (const [name, entry] of Object.entries(fixtures)) {
     continue;
   }
 
-  // Findings print to stderr (exit 1); OK verdicts and evaluation-mode lines
-  // print to stdout (exit 0) — assert each substring against the right stream.
   const stream = entry.exit === 0 ? result.stdout : result.stderr;
   const missing = (entry.findings_substrings ?? []).filter((sub) => !stream.includes(sub));
   if (missing.length > 0) {
@@ -107,8 +83,6 @@ for (const [name, entry] of Object.entries(fixtures)) {
   }
   pass(`grade: ${name}`);
 
-  // `--evidence -` reads the same events from stdin and must print the same verdict.
-  // A fixture whose evidence file is absent grades only the file read; there is nothing to pipe.
   if (entry.evidence && existsSync(join(fixturesDir, entry.evidence))) {
     const viaStdin = spawnSync(
       process.execPath,
