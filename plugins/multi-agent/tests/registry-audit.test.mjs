@@ -155,6 +155,26 @@ test('fetch output with no docs-raw header leaves the row partial and proposes n
   assert.deepEqual(result.proposedChanges, [])
 })
 
+test('fetch output Claude Code saved to a file is named as over the read-back limit and proposes no change', async () => {
+  const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+    reply: (p, o, d) => (o.label.startsWith('fetch:')
+      ? { output: '<persisted-output>\nOutput too large (44KB). Full output saved to: /tmp/x.txt' }
+      : d(p, o)),
+  })
+  assert.equal(by(calls, 'judge:').length, 0)
+  assert.equal(result.rows[0].partial, true)
+  assert.equal(result.fetched[0].reason, 'output-over-readback-limit')
+  assert.deepEqual(result.proposedChanges, [])
+})
+
+test('shipped rows ask the fetcher for --render; team rows do not', async () => {
+  const team = { ...ROWS[1], id: 'team-board', link: 'https://cursor.com/team-board', source: 'team' }
+  const { calls } = await run({ rows: [ROWS[0], team], asOf: '2026-11-23' })
+  const flag = url => data(by(calls, 'fetch:').find(c => data(c.prompt, 'url') === url).prompt, 'render')
+  assert.equal(flag(ROWS[0].link), 'yes')
+  assert.equal(flag(team.link), 'no')
+})
+
 test('a docs-raw header that says state=unread still counts as unreachable', async () => {
   const { result } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
     reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: 'docs-raw: url=' + data(p, 'url') + ' state=unread reason=http-404' } : d(p, o)),

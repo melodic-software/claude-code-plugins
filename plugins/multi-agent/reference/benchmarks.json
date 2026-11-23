@@ -5,12 +5,12 @@
     {
       "id": "terminal-bench",
       "workloads": ["coding"],
-      "link": "https://www.tbench.ai/leaderboard",
+      "link": "https://www.tbench.ai/",
       "publisher": "tbench.ai",
       "provider_own": false,
       "status": "permanent",
       "task_set": "terminal-bench",
-      "expect": "Terminal-Bench"
+      "expect": "| 1 |"
     },
     {
       "id": "cursorbench",
