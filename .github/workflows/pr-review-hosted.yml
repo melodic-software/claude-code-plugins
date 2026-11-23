@@ -409,6 +409,8 @@ jobs:
         .github/scripts/apply-patch/predicates.mjs
         .github/scripts/apply-patch/protected-paths.mjs
         .github/scripts/apply-patch/cdn-paths.mjs
+        lib/cdn-pins/pins.json
+        lib/cdn-pins/sync.mjs
         .github/scripts/lib/run-main.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs

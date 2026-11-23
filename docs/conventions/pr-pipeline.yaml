@@ -1870,6 +1870,10 @@ merge:
         class: enforcement
       - glob: ".github/scripts/apply-patch/cdn-paths.mjs"
         class: enforcement
+      - glob: "lib/cdn-pins/pins.json"
+        class: enforcement
+      - glob: "lib/cdn-pins/sync.mjs"
+        class: enforcement
       - glob: ".github/scripts/lib/run-main.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/fix-ci-context.mjs"
