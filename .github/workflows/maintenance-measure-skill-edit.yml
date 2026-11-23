@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .base/.node-version
 
@@ -273,7 +273,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           leg: start
           role: maintenance
@@ -287,7 +287,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           outcome: skipped
           lane: maintenance-measure-skill-edit
@@ -320,7 +320,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .base/.node-version
 
@@ -444,7 +444,7 @@ jobs:
       - name: Check the API key
         id: key
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           leg: key
           role: maintenance
@@ -454,7 +454,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
 
       - name: Isolate the runner
         if: steps.prompt.outcome == 'success'
@@ -467,7 +467,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && steps.key.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 30
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -504,7 +504,7 @@ jobs:
       - name: Upload the key leg's sealed transcript
         if: always() && steps.run-key.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -530,7 +530,7 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
@@ -550,7 +550,7 @@ jobs:
       - name: Record the key leg
         if: always() && steps.run-key.outcome != 'skipped' && steps.run-key.outcome != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           outcome: ${{ steps.run-key.outcome }}
           execution-file: ${{ steps.run-key.outputs.execution-file }}
@@ -592,7 +592,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: steps.collect.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/proposal/proposal.json
@@ -643,7 +643,7 @@ jobs:
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .base/.node-version
 
@@ -693,7 +693,7 @@ jobs:
 
       - name: Scan the edit for credentials
         id: scan-upload
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/edit/edit.patch
@@ -855,7 +855,7 @@ jobs:
       - name: Scan the win for credentials
         id: scan-upload
         if: steps.decide.outputs.win == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/win-out/
@@ -910,7 +910,7 @@ jobs:
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .base/.node-version
 
@@ -1055,7 +1055,7 @@ jobs:
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .base/.node-version
 
@@ -1108,7 +1108,7 @@ jobs:
       - name: Scan the pull request text for credentials
         id: scan-text
         if: steps.text.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-text/

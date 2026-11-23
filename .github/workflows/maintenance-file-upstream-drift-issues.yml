@@ -54,7 +54,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
         with:
           node-version-file: .node-version
       - name: Report pinned upstream drift
