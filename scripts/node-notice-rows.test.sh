@@ -27,7 +27,6 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 MATCHER='startup|resume|clear|fork'
 HOOKS="$ROOT/plugins/plugin-diagnostics/hooks/hooks.json"
 
-# --- fleet shape ----------------------------------------------------------------
 carriers=()
 probes=()
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
@@ -125,7 +124,6 @@ else
   bad "too few plugins declare session_probe" "$declared"
 fi
 
-# --- the row, run with node absent ------------------------------------------------
 node_absent_cases() {
   WORK="$(mktemp -d)"
   trap 'rm -rf "$WORK"' EXIT
