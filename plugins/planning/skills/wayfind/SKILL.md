@@ -264,7 +264,8 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    *Decisions-so-far* pointer line (closed-as-out-of-scope items have an Out-of-scope line
    instead; closed-as-moot items have only their closing comment); no item resolved-in-comment
    but still open; no Not-yet-specified bullet that an item already charts (delete it). Fix
-   violations before proceeding. An open map whose newest closing comment ends `Handoff: pending`
+   violations before proceeding. An open map whose newest counted closing comment (author rule:
+   [`map-source.md`](../../context/map-source.md), "Closed map") ends `Handoff: pending`
    and whose frontier is empty resumes that handoff (step 8's hand-off to the destination's
    skill) and posts no second closing comment.
 2. **Load the map at low resolution.** Read the map body, its child list and the seed item's
