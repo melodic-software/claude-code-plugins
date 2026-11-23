@@ -64,7 +64,6 @@ failing_git_shim() {
   chmod +x "$fixture/shim/git"
 }
 
-# --- no vendor change passes ------------------------------------------------
 base_fixture f
 echo tweak >"$f/plugins/alpha/README.md"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -74,7 +73,6 @@ else
 fi
 rm -rf "$f"
 
-# --- vendor edit with a bump passes ----------------------------------------
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 set_version "$f" alpha 1.0.1
@@ -85,7 +83,6 @@ else
 fi
 rm -rf "$f"
 
-# --- vendor edit without a bump fails ---------------------------------------
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -97,7 +94,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an ADDED vendor file needs a bump too ----------------------------------
 base_fixture f
 echo 'module.exports = 3;' >"$f/plugins/alpha/vendor/pkg/extra.js"
 git -C "$f" add plugins/alpha/vendor/pkg/extra.js
@@ -108,7 +104,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a DELETED vendor file needs a bump too ---------------------------------
 base_fixture f
 git -C "$f" rm -q plugins/beta/vendor/pkg/index.js
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -137,7 +132,6 @@ else
 fi
 rm -rf "$f"
 
-# --- the same move with both plugins bumped passes --------------------------
 base_fixture f
 git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.js
 set_version "$f" alpha 1.0.1
@@ -149,7 +143,6 @@ else
 fi
 rm -rf "$f"
 
-# --- only the unbumped plugin is named --------------------------------------
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 set_version "$f" alpha 1.0.1
@@ -251,7 +244,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a plugin new in this change set is exempt ------------------------------
 base_fixture f
 plugin "$f" gamma 0.1.0
 git -C "$f" add plugins/gamma
@@ -463,7 +455,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a vendor/ nested deeper than one skill segment is not claimed ----------
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/lookup/scripts/vendor"
 echo 'x' >"$f/plugins/alpha/skills/lookup/scripts/vendor/a.js"
@@ -502,7 +493,6 @@ else
 fi
 rm -rf "$f"
 
-# --- no merge base with HEAD is a loud exit, not a pass ---------------------
 base_fixture f
 base_tip="$(git -C "$f" rev-parse HEAD)"
 git -C "$f" checkout -q --orphan unrelated
@@ -517,7 +507,6 @@ else
 fi
 rm -rf "$f"
 
-# --- usage and unresolvable base ref exit 2 ---------------------------------
 base_fixture f
 expect_exit_2() {
   local label="$1"

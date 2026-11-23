@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/check-stale-base-overlap.sh
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,7 +32,6 @@ make_repo() {
   git -C "$dir" commit -qm 'initial'
 }
 
-# --- usage / missing ref ---
 out="$(bash "$SCRIPT" 2>&1)" && rc=0 || rc=$?
 if [[ $rc -eq 2 && "$out" == *"usage:"* ]]; then
   ok "bare invocation exits 2 with usage"
@@ -41,7 +39,6 @@ else
   fail "bare invocation: rc=$rc out='$out'"
 fi
 
-# --- fresh base ---
 repo="$scratch/fresh"
 make_repo "$repo"
 cd "$repo" || exit 1
@@ -55,7 +52,6 @@ else
   fail "fresh base: rc=$rc out='$out'"
 fi
 
-# --- behind with overlapping path ---
 repo="$scratch/overlap"
 make_repo "$repo"
 cd "$repo" || exit 1
@@ -78,7 +74,6 @@ else
   fail "refresh hint ref: out='$out'"
 fi
 
-# --- behind with disjoint paths ---
 repo="$scratch/disjoint"
 make_repo "$repo"
 cd "$repo" || exit 1
@@ -209,7 +204,6 @@ else
   fail "--warn missing base ref: rc=$rc out='$out'"
 fi
 
-# --- unresolvable base ---
 repo="$scratch/badref"
 make_repo "$repo"
 cd "$repo" || exit 1

@@ -104,7 +104,6 @@ else
 fi
 rm -f "$f"
 
-# --- the POSIX-portable bracket-expression replacement does NOT fire -------
 f="$(tmpsh 'grep -Eq "(^|[^A-Za-z0-9_\$])require($|[^A-Za-z0-9_\$])" "$file"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "the bracket-expression word-boundary replacement does not fire"
@@ -147,7 +146,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- \s \w \S \W \< \> each fire individually -------------------------------
 for esc in '\\s' '\\S' '\\w' '\\W' '\\<' '\\>'; do
   tok="$(one_token_list "$esc")"
   f="$(tmpsh "sed -E 's/${esc}foo${esc}/bar/' \"\$file\"")"
@@ -183,7 +181,6 @@ else
 fi
 rm -f "$f"
 
-# --- P need not be the LAST letter in the flag cluster --------------------
 f="$(tmpsh 'grep -Pn "\\d+" "$file"')" # spellchecker:disable-line
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   fail "grep -Pn (P not last in the cluster) should fail" # spellchecker:disable-line
@@ -225,7 +222,6 @@ else
 fi
 rm -f "$f"
 
-# --- e need not be the only letter in the cluster ("echo -ne") -------------
 f="$(tmpsh "echo -ne 'a\\nb'")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   fail "echo -ne (combined flags) should fail"
@@ -252,7 +248,6 @@ else
 fi
 rm -f "$f"
 
-# --- V need not be the LAST letter in the flag cluster ("sort -Vr") --------
 f="$(tmpsh 'sort -Vr "$file"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   fail "sort -Vr (V not last in the cluster) should fail"
@@ -271,7 +266,6 @@ sort -V; echo done
 CASES
 rm -f "$tok"
 
-# --- sort -V's long-form spellings: --version-sort and --sort=version ------
 tok="$(one_token_list '--version-sort')"
 f="$(tmpsh 'sort --version-sort "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -719,7 +713,6 @@ else
 fi
 rm -f "$f"
 
-# --- an attached NONEMPTY suffix is dual-compatible, not flagged -----------
 f="$(tmpsh "sed -Ei.bak 's/foo/bar/' \"\$file\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "sed -Ei.bak (attached nonempty suffix) is not flagged"
@@ -1327,7 +1320,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- the SHIPPING token list has the class active, not just the mechanism ---
 f="$(tmpsh 'normalized="${normalized//"$soh"/&}"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "the shipped token list must flag the & class, got success: $out"
@@ -1413,7 +1405,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- a genuine declaration mid-file (not necessarily line 1) still works ---
 tok="$(one_token_list '\\b')"
 f="$(tmpsh 'plain_line=1
   # portability-scope: indented declaration still counts
@@ -1617,7 +1608,6 @@ if [[ "$rc" -ne 0 ]] && grep -q 'PORTABILITY:.*SKILL\.md' <<<"$out"; then
 else
   fail "--paths should still flag a baselined file (rc=$rc): $out"
 fi
-# Stale: clean up the file but leave the baseline entry.
 printf '%s\n' 'echo clean' >"$fx/plugins/alpha/skills/demo/SKILL.md"
 out="$(
   cd "$fx" &&
@@ -1629,7 +1619,6 @@ if [[ "$rc" -ne 0 ]] && grep -q 'STALE BASELINE' <<<"$out"; then
 else
   fail "stale baseline entry should fail (rc=$rc): $out"
 fi
-# Stale: missing file under --all.
 rm -f "$fx/plugins/alpha/skills/demo/SKILL.md"
 out="$(
   cd "$fx" &&
@@ -1661,7 +1650,6 @@ else
 fi
 rm -rf "$fx"
 
-# --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
 fixture_tree::build fx --sut "$SCRIPT"
 quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
 out="$(
@@ -3128,7 +3116,6 @@ else
 fi
 rm -f "$f"
 
-# --- the LONG options carry quotes on both sides of the `--`.
 f="$(tmpsh "$(printf '%s\n' \
   'date "--date" tomorrow' \
   'date --"date"=tomorrow' \
