@@ -41,8 +41,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/datamuse.sh"
 
-# The suite drives LIMIT explicitly per case; an inherited one would silently
-# rewrite the default-limit assertions.
 unset LIMIT
 
 FAILED=0
@@ -120,7 +118,6 @@ fi
 
 STUB_EXIT=0
 
-# reset_stub [default-body-json] - fresh request log and a fresh body set.
 reset_stub() {
   rm -rf "$STUB_DATA"
   mkdir -p "$STUB_DATA"
@@ -136,7 +133,6 @@ RC=0
 OUT=""
 ERR=""
 
-# run_datamuse <args...> - runs the script against the stub with LIMIT unset.
 run_datamuse() {
   RC=0
   PATH="$STUB_BIN:$PATH" DATAMUSE_STUB_DATA="$STUB_DATA" DATAMUSE_STUB_EXIT="$STUB_EXIT" \
@@ -145,7 +141,6 @@ run_datamuse() {
   ERR="$(cat "$STDERR_FILE")"
 }
 
-# run_datamuse_limit <limit> <args...> - same, with LIMIT exported.
 run_datamuse_limit() {
   local limit="$1"
   shift
@@ -164,12 +159,9 @@ request_count() { grep -c . "$REQUEST_LOG"; }
 requests_matching() { grep -c -F -e "$1" "$REQUEST_LOG"; }
 row() { sed -n "${1}p" "$STDOUT_FILE"; }
 row_count() { grep -c . "$STDOUT_FILE"; }
-# Number of rows whose tab-separated field count is not 4.
 malformed_rows() { awk -F'\t' 'NF != 4 { n++ } END { print n + 0 }' "$STDOUT_FILE"; }
 
 TAB=$'\t'
-
-# --- argument validation: no request may be issued --------------------------
 
 reset_stub
 run_datamuse
@@ -211,8 +203,6 @@ assert_contains "unknown mode names the mode" "$ERR" "unknown mode: bogus"
 assert_contains "unknown mode also prints the usage banner" "$ERR" "datamuse.sh rhyme"
 assert_eq "unknown mode issues no request" "0" "$(request_count)"
 
-# --- happy path: response parsing and TSV shape -----------------------------
-
 # Realistic md=s payload, plus one sparse entry: Datamuse omits `tags` for some
 # results, and the script's own contract is to default the numeric fields to 0
 # and the tag field to empty rather than to emit `null`.
@@ -251,8 +241,6 @@ run_datamuse near lonely
 assert_eq "API order is preserved, not re-sorted" "beta" "$(row 1 | cut -f1)"
 assert_eq "and the second row is the higher-scoring one" "alpha" "$(row 2 | cut -f1)"
 
-# --- mode -> query-parameter table ------------------------------------------
-
 MODE_QUERIES=(
   "rhyme rel_rhy"
   "near rel_nry"
@@ -274,8 +262,6 @@ for pair in "${MODE_QUERIES[@]}"; do
   assert_contains "$mode requests $key" "$(requests)" "$key=winter"
 done
 
-# --- limits -----------------------------------------------------------------
-
 reset_stub "$RHYME_JSON"
 run_datamuse_limit 50 near grief
 assert_eq "LIMIT override -> exit 0" "0" "$RC"
@@ -291,23 +277,17 @@ reset_stub "$RHYME_JSON"
 run_datamuse_limit 50 syllables disappointment
 assert_contains "syllables pins max=5 even under a LIMIT override" "$(requests)" "max=5"
 
-# --- multi-word arguments ---------------------------------------------------
-
 reset_stub "$RHYME_JSON"
 run_datamuse means cold winter morning
 assert_eq "multi-word argument -> exit 0" "0" "$RC"
 assert_contains "spaces are joined with '+' in the query" "$(requests)" "ml=cold+winter+morning"
 assert_not_contains "no raw space survives into the URL" "$(requests)" "cold winter"
 
-# --- empty results are not an error -----------------------------------------
-
 reset_stub '[]'
 run_datamuse rhyme zzzzz
 assert_eq "empty result set -> exit 0" "0" "$RC"
 assert_eq "empty result set writes no rows" "0" "$(row_count)"
 assert_eq "empty result set writes nothing to stdout" "" "$OUT"
-
-# --- transport failure ------------------------------------------------------
 
 reset_stub "$RHYME_JSON"
 STUB_EXIT=6
@@ -324,8 +304,6 @@ run_datamuse family stranger
 assert_nonzero "family fails when its first request fails" "$RC"
 assert_eq "and family emits no rows" "0" "$(row_count)"
 
-# --- malformed JSON ---------------------------------------------------------
-
 reset_stub 'not json at all'
 run_datamuse rhyme lonely
 assert_nonzero "malformed JSON fails loudly" "$RC"
@@ -336,8 +314,6 @@ reset_stub '{"word":"only","score":1097}'
 run_datamuse rhyme lonely
 assert_nonzero "a JSON object where an array is expected fails" "$RC"
 assert_eq "and emits no rows" "0" "$(row_count)"
-
-# --- family: merge, dedupe, re-sort -----------------------------------------
 
 # The duplicate word carries a DIFFERENT score and tag set in each payload, so
 # the two entries are distinct objects: deduping on the whole object would keep

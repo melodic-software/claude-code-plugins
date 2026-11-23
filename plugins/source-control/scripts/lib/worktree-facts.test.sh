@@ -30,7 +30,6 @@ printf 'x\n' >"$TEST_TMPDIR/repo/f"
 git -C "$TEST_TMPDIR/repo" add f
 git -C "$TEST_TMPDIR/repo" commit -q -m init
 
-# Helper-created and locked.
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/helper" -b helper
 helper_reason="$(HOSTNAME=testhost worktree_lock_reason worktree-create.sh sess-owner)"
 git -C "$TEST_TMPDIR/repo" worktree lock --reason "$helper_reason" "$TEST_TMPDIR/helper"
@@ -52,7 +51,6 @@ fi
 assert_eq "helper lock: the added worktree is linked" "${WT_FACT_LINKED[1]}" "yes"
 assert_eq "main checkout is not linked" "${WT_FACT_LINKED[0]}" "no"
 
-# Added bare, then claimed.
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/plain" -b plain
 claim_reason="$(HOSTNAME=testhost worktree_lock_reason worktree-claim.sh sess-claim)"
 git -C "$TEST_TMPDIR/repo" worktree lock --reason "$claim_reason" "$TEST_TMPDIR/plain"
@@ -91,7 +89,6 @@ assert_eq "list prints the raw quoted reason in the lock_reason column" \
 assert_eq "list prints the raw backslash reason in the lock_reason column" \
   "$(awk -F'\t' -v p="$GIT_TMPDIR/backslash" '$1 == p { print $7 }' <<<"$list_out")" "$backslash_reason"
 
-# Bare hub.
 git init --bare -q "$TEST_TMPDIR/hub.git"
 git -C "$TEST_TMPDIR/hub.git" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
