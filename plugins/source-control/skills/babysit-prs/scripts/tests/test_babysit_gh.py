@@ -1,10 +1,3 @@
-"""GitHub read helpers: discovery axis matrix and the review-thread paginator.
-
-Ports the discovery, author-scope, and review-thread coverage onto
-`babysit_gh`. Network is stubbed by monkeypatching the module's `gh_json` /
-`run_gh` / `list_repos_for_owner` seams; no real gh process is spawned.
-"""
-
 from __future__ import annotations
 
 import pathlib
