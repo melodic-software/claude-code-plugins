@@ -7,11 +7,13 @@ import { fileURLToPath } from "node:url";
 import intakeTriage from "./credential-legs/intake-triage.mjs";
 import auditLaneRuns from "./credential-legs/maintenance-audit-lane-runs.mjs";
 import tidyCodeUpkeep from "./credential-legs/maintenance-tidy-code-upkeep.mjs";
+import postMergeTestMutation from "./credential-legs/post-merge-test-mutation.mjs";
 import prRateMergeRisk from "./credential-legs/pr-rate-merge-risk.mjs";
 import prVerify from "./credential-legs/pr-verify.mjs";
+import upstreamApplyChangelog from "./credential-legs/upstream-apply-changelog.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const DECLARATIONS = [prVerify, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns];
+export const DECLARATIONS = [prVerify, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns, ...postMergeTestMutation, ...upstreamApplyChangelog];
 
 const STEP = /^ {6}- name: (.*)$/;
 const STEP_ID = /^ {8}id: (.*)$/;
