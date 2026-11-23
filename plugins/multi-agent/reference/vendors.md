@@ -120,7 +120,7 @@ A skill step that hands a self-contained brief to a fresh agent can ask
    line back with the new brief, and route runs it without deciding again.
 5. **One sentence per call site**, seam-phrased with its fallback:
    "When `/multi-agent:route` is among the available skills, ask it (`vendors`) which vendor runs
-   this brief and follow its Caller contract; otherwise run it here as before."
+   this step and follow its Caller contract; otherwise run it here as before."
 
 Without the external-agents plugin, route covers only Claude, so the step runs here.
 

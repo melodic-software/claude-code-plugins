@@ -34,7 +34,7 @@ When the first argument is `vendors`, the rest is the task to place. Read
 and follow its rule and trust model.
 
 **Caller-contract requests.** When a skill step asks under the Caller contract in `vendors.md`
-(it passes its brief and names the contract), run step 2 first. When `vendors.routing` or
+(it passes the text to run and cites that section), run step 2 first. When `vendors.routing` or
 `vendors.auto_delegation` resolves `false`, stop there and return only `run here`: no board
 fetch, no recommendation, so the caller runs the step as before. When the caller also passes a
 `delegate:` line this skill printed earlier in the same run, skip steps 1 and 3 to 9 and run that
