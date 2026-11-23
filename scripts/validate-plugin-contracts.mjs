@@ -462,7 +462,6 @@ if (existsSync(autonomyRoot)) {
   for (const path of [...filesIn(autonomyRoot), ...autonomyFragments]) {
     let content = read(path);
     if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
-      // Only the author block is exempt; description/keywords/etc. stay gated.
       const manifest = JSON.parse(content);
       delete manifest.author;
       content = JSON.stringify(manifest);
@@ -513,7 +512,6 @@ for (const path of pluginManifests) {
 // review (docs/migration-playbook.md, criterion 6) denies by default. The pin is
 // required here so review never has to catch it by eye.
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
-// The catalog's plugin entries, or null when there is no catalog.
 const catalogEntries = existsSync(marketplacePath)
   ? [JSON.parse(read(marketplacePath)).plugins ?? []].flat()
   : null;
@@ -523,7 +521,6 @@ if (catalogEntries !== null) {
     const source = entry.source;
     // Documented entry shape: "source": { "source": "archive", "url": ..., "sha256"? : ... }.
     if (typeof source !== "object" || source === null || source.source !== "archive") continue;
-    // The digest is 64 hex characters, uppercase or lowercase.
     if (!/^[0-9a-fA-F]{64}$/.test(String(source.sha256 ?? ""))) {
       fail(
         marketplacePath,
