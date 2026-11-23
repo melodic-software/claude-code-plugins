@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Deterministic steps of the rubric fan-out (context/rubric-fanout.md).
-#
-#   plan     order a `detect.sh --list-targets` file, pack it into batches by
-#            `wc -w`, write batch-NN.txt lists and batch-NN.paths sidecars,
-#            print each batch's digest (list plus listed files' contents),
-#            and write cues.txt: whole-scope and per-batch counts of the
-#            saturation cues (load-bearing, seam) with a saturated verdict
-#   extract  the catalog's `v1: rubric` entries plus "Signs of human writing"
-#   status   per batch: complete, or missing or stale (with the failed check)
-#            plus the batch's current digest
-#   merge    one merged rubric file, written only when every batch is complete;
-#            totals `declined:` result lines, and with cues.txt flags batches
-#            whose cue verdicts disagree on `consistency:` lines
-#
 # Exit: 0 ok; 1 when status or merge finds a batch that is not complete;
 # 2 on usage errors and refusals.
 set -u
@@ -98,11 +84,8 @@ Exit: 0 ok, 1 a batch is not complete, 2 usage error or refusal.
 EOF
 }
 
-# A well-formed decline line; merge strips and totals only these.
 DECLINED_RE='^declined: rule-[a-z0-9-]+ [^ ]+( [Bb][Ee][Aa][Rr][Ii][Nn][Gg])? reason=(saturated|boundary|cap) *$'
 
-# The saturation cues and cue_hits(s, c): the matches of cue c in s, compared
-# lowercase and bounded by [^a-z0-9_] or the string's edge. POSIX awk only.
 # shellcheck disable=SC2016  # an awk program, not a shell expansion
 CUE_AWK='
 function cue_hits(s, c,   re, n, off, st, pre, post) {
@@ -217,8 +200,6 @@ sha256() {
   fi
 }
 
-# read_sidecar <sidecar>: SIDECAR holds its non-empty lines, a trailing CR
-# stripped from each.
 read_sidecar() {
   local p
   SIDECAR=()
@@ -228,15 +209,6 @@ read_sidecar() {
   done <"$1"
 }
 
-# batch_digest <list>: with a batch-NN.paths sidecar, the sha256 of the list's
-# bytes, a fixed separator line, then one sha256 call's output over every
-# listed path that is a readable regular file, so the digest binds the files'
-# contents too. The separator keeps an all-unreadable batch from matching the
-# list-only digest; status reports a batch with an unreadable path as stale
-# before its digest is compared. A FIFO or other non-regular path is never
-# opened. Without a readable regular sidecar, the list's sha256.
-# The list is hashed from stdin: given a file name holding a backslash,
-# sha256sum escapes the name and prefixes the hash with `\`.
 batch_digest() {
   local sidecar="${1%.txt}.paths" p
   local -a files=()
@@ -253,10 +225,6 @@ batch_digest() {
   } | sha256 | cut -d' ' -f1
 }
 
-# sidecar_bad <list> <n>: succeeds when the list's sidecar exists but cannot
-# bind the contents: it is not a readable regular file, its length differs
-# from the list's n entries, or a path it names is not a readable regular
-# file. No sidecar at all is not bad.
 sidecar_bad() {
   local sidecar="${1%.txt}.paths" p
   [[ -e "$sidecar" || -L "$sidecar" ]] || return 1
@@ -269,8 +237,6 @@ sidecar_bad() {
   return 1
 }
 
-# git with core.fsmonitor and hooks off, so a target repository's own config
-# runs no program.
 git_safe() {
   git -c core.fsmonitor= -c core.hooksPath=/dev/null "$@"
 }
@@ -337,9 +303,6 @@ cmd_plan() {
       done < <(git_safe -C "$top" -c core.quotePath=false log --since=90.days --name-only --format= 2>/dev/null |
         awk 'NF { c[$0]++ } END { for (k in c) printf "%d\t%s\n", c[k], k }')
     fi
-    # Keys are relative to the project directory, which may sit below the
-    # toplevel, so each file's repository path is its directory's
-    # `--show-prefix` plus its name. One git call per directory, not per file.
     local -A prefix=()
     local d rel
     ordered="$(for i in "${!keys[@]}"; do
@@ -359,12 +322,6 @@ cmd_plan() {
   *) die "plan: --order must be auto, repo, or mtime" ;;
   esac
 
-  # Pack: add files until the next one would exceed the budget. A file larger
-  # than the budget lands alone, because the batch before it is flushed first.
-  # Each file's absolute path goes to the batch's .paths sidecar. An absolute
-  # path (POSIX or Windows form) is kept as given; a relative one resolves
-  # against the cwd, one cd per directory, or is kept as given when its
-  # directory cannot be entered.
   local -a lists=() plists=() words=() counts=()
   local -A absdir=()
   local cur="" cur_p="" cur_w=0 cur_n=0 w dir ap
@@ -411,10 +368,6 @@ cmd_plan() {
     done <<<"${plists[$b]}"
   done
 
-  # Cue counts over the whole scope, one `<NN><TAB><path>` line per readable
-  # regular file on stdin; awk opens each with getline, so no path is parsed
-  # as an argument and a FIFO never reaches it. scope_digest binds these counts
-  # to the batch digests just printed, so merge can tell when they went stale.
   # shellcheck disable=SC2016  # an awk program, not a shell expansion
   printf '%s' "$scope" | RF_SCOPE="$(printf '%s' "$digests" | sha256 | cut -d' ' -f1)" awk "$CUE_AWK"'
     {
@@ -511,8 +464,6 @@ cmd_extract() {
     esac
   done
   [[ -r "$CATALOG" ]] || die "extract: cannot read catalog: $CATALOG"
-  # A `### rule-` section runs to the next heading and is kept only when its
-  # body carries `- v1: rubric`. The human-writing section is kept whole.
   # shellcheck disable=SC2016  # an awk program, not a shell expansion
   local prog='
     function flush() { if (rubric) printf "%s", buf; buf = ""; rubric = 0; inrule = 0 }
@@ -529,16 +480,11 @@ cmd_extract() {
   fi
 }
 
-# header <result> <name>: the header's value when it appears exactly once;
-# fails otherwise, since merge sums every copy and a joined value can match.
 header() {
   [[ "$(tr -d '\r' <"$1" | grep -c "^$2:")" == 1 ]] || return 1
   tr -d '\r' <"$1" | sed -n "s/^$2:[[:space:]]*//p" | tr -d '[:space:]'
 }
 
-# status_rows <batches> <results>: one `batch=NN status=...` row per list. A
-# missing or stale row ends with the batch's current digest; a complete row
-# ends with `status=complete`.
 status_rows() {
   local batches="$1" results="$2" list nn res d n got reason
   for list in "$batches"/batch-*.txt; do
@@ -548,8 +494,6 @@ status_rows() {
     res="$results/rubric-batch-$nn.md"
     d="$(batch_digest "$list")"
     n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
-    # A sidecar that does not name one readable file per list entry cannot
-    # bind the contents, so the batch needs planning again, not a dispatch.
     reason=""
     sidecar_bad "$list" "$n" && reason=" reason=paths"
     if [[ ! -f "$res" ]]; then
@@ -622,8 +566,6 @@ cmd_merge() {
     files+=("$RESULTS/rubric-batch-$nn.md")
     scope+="$nn"$'\t'"$RESULTS/rubric-batch-$nn.md"$'\n'
   done <<<"$rows"
-  # cues.txt counts the contents plan saw: its scope_digest must still equal
-  # the sha256 over every list's current digest, else its verdicts are stale.
   local list stale=""
   if [[ -f "$BATCHES/cues.txt" && -r "$BATCHES/cues.txt" ]]; then
     cues="$BATCHES/cues.txt"
@@ -640,8 +582,6 @@ cmd_merge() {
       /^files_reviewed:/ { fr += $2 }
       /^files_with_findings:/ { fw += $2 }
       END { printf "files_reviewed: %d\nfiles_with_findings: %d\nbatches: %d\n", fr, fw, ARGC - 1 }' "${files[@]}"
-    # Totals, then consistency flags, then decline totals, each group sorted.
-    # Results come as `<NN><TAB><path>` lines on stdin; cues.txt by ENVIRON.
     # shellcheck disable=SC2016  # an awk program, not a shell expansion
     printf '%s' "$scope" | RF_CUES="$cues" RF_STALE="$stale" RF_DECLINED="$DECLINED_RE" awk "$CUE_AWK"'
       function add(list, b) { return list == "" ? b : list "," b }

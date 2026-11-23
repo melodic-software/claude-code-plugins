@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for collect-flow.sh and render-flow.sh.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -122,7 +121,6 @@ mkdir -p "$depth_md_dir"
 bash "$RENDER" --record "$depth_record" --out "$depth_md_dir" >/dev/null
 assert_contains "artifact states the stopping point" "$(cat "$depth_md_dir/flow.md")" "Depth truncated at 1"
 
-# Hops come in call order: a followed callee's hops sit right after the call that leads to it.
 order="$TEST_TMPDIR/order"
 init_repo "$order"
 mkdir -p "$order/src/Application"
@@ -166,7 +164,6 @@ no_decl="$(bash "$COLLECT" --repo "$order" --entry "Handle" --out "$TEST_TMPDIR/
 assert_equals "a call on publicApi is not a declaration of Handle" "$?" "3"
 assert_contains "the Handle entry is not found" "$no_decl" "refused: entry point not found"
 
-# A call binds only through the receiver's declared type. The hop lines of one call.
 hops_of() { grep -F "\"call\":\"$2\"" "$1"; }
 
 bind="$TEST_TMPDIR/bind"
@@ -313,7 +310,6 @@ mkdir -p "$bind_dir"
 bind_summary="$(bash "$RENDER" --record "$bind_json" --out "$bind_dir")"
 assert_contains "summary separates external hops from interface hops" "$bind_summary" "hops=16 truncated=no unresolved=11 external=8 di=1 handoffs=0"
 
-# A receiver reached through a base class, a partial class in another file, or a base method is inferred.
 infer="$TEST_TMPDIR/infer"
 init_repo "$infer"
 mkdir -p "$infer/src/Application" "$infer/src/Domain"
@@ -384,7 +380,6 @@ mkdir -p "$infer_dir"
 bash "$RENDER" --record "$infer_json" --out "$infer_dir" >/dev/null
 assert_contains "inferred label is on the diagram" "$(cat "$infer_dir/flow.md")" "inferred"
 
-# Entry grammar: Type.Method, an optional HTTP verb, and a refusal that names the accepted forms.
 entry_repo="$TEST_TMPDIR/entry"
 init_repo "$entry_repo"
 mkdir -p "$entry_repo/src/Transport" "$entry_repo/src/Domain"
@@ -596,7 +591,6 @@ else
   fail "reformatted record wrote flow.md" "present"
 fi
 
-# Consecutive identical hops collapse.
 collapse_json="$TEST_TMPDIR/collapse.json"
 cat >"$collapse_json" <<'JSON'
 {

@@ -78,10 +78,6 @@ for (const [key, row] of Object.entries(families)) {
   }
 }
 
-// A leak-scan step earlier in the same steps: { id, path } for a
-// .github/actions/scan-upload step (local, or ci-workflows' at a full commit
-// SHA) or a run step calling its script, with the path it scans;
-// { id: "leak-scan" } for the read runner's own scan.
 const SCAN_ACTION = /^(?:(?:.*\/)?\.github\/actions\/scan-upload|melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40})$/;
 function scanOf(step) {
   const id = step.get("id");
@@ -89,7 +85,6 @@ function scanOf(step) {
   const condition = String(step.get("if") ?? "");
   if (id === "leak-scan") return { id, condition };
   if (SCAN_ACTION.test(String(step.get("uses") ?? ""))) return { id, condition, path: step.get("with", true)?.get?.("path") };
-  if (/scan-upload\/scan-upload\.mjs/.test(String(step.get("run") ?? ""))) return { id, condition, path: step.get("env", true)?.get?.("SCAN_PATHS") };
   return null;
 }
 

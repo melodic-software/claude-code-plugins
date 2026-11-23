@@ -4,9 +4,9 @@ Owner doc for the small set of read-only probes session-flow skills run before t
 else. `discipline:point-dont-copy` pins the duplication threshold at two, so the text lives here and
 each consumer cites it and names the probes it takes.
 
-Consumers: `continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`,
-`workflow`. A skill that needs durable state and is not on that list should route to
-`/session-flow:orient` rather than adding an eighth copy.
+Consumers: `continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro`, `running-retro`.
+A skill that needs durable state and is not on that list should route to `/session-flow:orient`
+rather than adding a seventh copy.
 
 ## Two standing rules
 
@@ -57,7 +57,6 @@ value it uses. The differences below are deliberate, not drift to normalize.
 | `orient` | yes | yes | yes | **`-8`** | no | no |
 | `retro` | yes | yes | yes | `-5` | yes | no |
 | `running-retro` | yes | yes | yes | `-5` | no | no |
-| `workflow` | no | yes | yes | `-5` | no | no |
 
 `orient`'s deeper log is intentional: it synthesizes a situation report and reads further back than
 a skill that only stamps a save-point.

@@ -1,28 +1,4 @@
 #!/bin/sh
-# actionlint lint entry: report what actionlint finds in the GitHub Actions
-# workflow files this change touches, on the lines it adds. It never rewrites
-# a file.
-#
-#   lint.sh             the staged changes (git runs it as pre-commit)
-#   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
-#                       included (the opt-in end-of-turn Stop row)
-#   lint.sh --resolve [<path>...]  print the lint row, or one per path
-#                       (resolve-tool.sh rt_print); runs nothing
-#
-# The command resolves through lib/git-hooks/resolve-tool.sh to the actionlint
-# adapter in adapters.sh for every workflow file; an ecosystem record
-# is never run here (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#hooks-run-the-shipped-adapter). Its output becomes "<path>:<line>: <message>" lines, repo-relative, and only
-# those on added lines block (stderr, exit 1); a finding about a whole
-# workflow carries the line actionlint names for it. actionlint exiting
-# non-zero with no parseable finding fails closed. A partly staged file, or a
-# staged one since deleted from the work tree, is linted as staged, from the
-# index. actionlint reads its config from the work tree, so a commit is refused
-# while that config differs between the index and the work tree. Files under
-# .githooks/ are installed copies and are skipped. A missing actionlint
-# follows the check-placement contract: checks.skipmissing, else fail for an
-# agent and a notice for a person.
-#
-# POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
 */*) here="${0%/*}" ;;

@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.3] - 2026-11-23
+
+### Changed
+
+- `/architecture:adr`, `/architecture:improve` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
 ## [6.0.2] - 2026-11-23
 
 ### Fixed

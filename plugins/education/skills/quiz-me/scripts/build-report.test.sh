@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the quiz-me report builder: hostile diff and PR text
-# renders as inert text, and the page passes the shared validator.
-#
-#   bash plugins/education/skills/quiz-me/scripts/build-report.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 # test-scope: plugins/education/skills/quiz-me/SKILL.md
 set -euo pipefail

@@ -1,6 +1,3 @@
-// Resolve provider logos from the bundled asset directory only. The build is
-// deterministic and offline: a missing optional logo degrades to a text header
-// rather than downloading an unpinned asset at runtime.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

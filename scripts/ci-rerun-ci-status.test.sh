@@ -134,7 +134,7 @@ done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in 'continue-on-error: true' 'uses: actions/checkout@' "if: steps.tip.outputs.sha != ''" 'ref: ${{ steps.tip.outputs.sha }}' 'path: .base' 'persist-credentials: false' \
   '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
-  '/.github/actions/check-kill-switch/' '/.github/actions/setup-pinned-node/' '/.github/actions/scan-upload/' '/lib/publish-gate.mjs' \
+  '/.github/actions/check-kill-switch/' '/lib/publish-gate.mjs' \
   '/.node-version' 'sparse-checkout-cone-mode: false'; do
   if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
 done
@@ -158,7 +158,8 @@ scan_step="$(awk '$0 == "      - name: Scan the upload for credentials" { on = 1
   on && /^      - / { exit }
   on { print }' <<<"$job")"
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for want in $'if: >-\n          steps.find.outputs.record != \'\'\n' 'continue-on-error: true' 'uses: ./.base/.github/actions/scan-upload' \
+for want in $'if: >-\n          steps.find.outputs.record != \'\'\n' 'continue-on-error: true' 'uses: melodic-software/ci-workflows/.github/actions/scan-upload@' \
+  'gate-path: .base/lib/publish-gate.mjs' \
   'path: ${{ runner.temp }}/rerun-ci-status-record.json'; do
   if [[ "$scan_step" == *"$want"* ]]; then ok "the scan step carries '$want'"; else fail "the scan step lacks '$want'"; fi
 done

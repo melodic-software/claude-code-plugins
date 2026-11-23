@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for emit-fix-record.sh: fixtures are built inline in a
-# tmpdir; the "subtracted" checks restate review:fanout's fix-pass-mode.md
-# Step 1 rule (a candidate is retired only when a same-branch record names it
-# by file name AND the first 12 hex of its own sha256).
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -20,8 +16,6 @@ assert_eq() {
 }
 sha12() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -c1-12; }
 
-# Step 1's subtraction test for one candidate against one record: some
-# source-findings entry matches BOTH the candidate's name and its own digest.
 subtracted() {
   local cand="$1" rec="$2" name digest
   name="$(basename "$cand")"
@@ -42,7 +36,6 @@ FB="$HOME_DIR/20260101T000100Z-ai-slop.md"
 printf -- '---\ntype: review-findings\ndate: 2026-01-01T00:00:00Z\nbranch: fix/x\n---\n\n## Findings\n\n| a |\n' >"$FA"
 printf -- '---\ntype: review-findings\ndate: 2026-01-01T00:01:00Z\nbranch: fix/x\n---\n\n## Findings\n\n| b |\n' >"$FB"
 
-# Case group 1: one consumed file, branch from the current checkout.
 R1="$(cd "$REPO" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$FA")"
 rc=$?
 assert_eq "exit 0 on success" "0" "$rc"
@@ -63,19 +56,16 @@ assert_contains "Consumed line names the file" "$(cat "$R1")" "- Consumed (1 fil
 if subtracted "$FA" "$R1"; then pass "consumed file is subtracted (name + digest match)"; else fail "subtraction" "subtracted" "kept"; fi
 if subtracted "$FB" "$R1"; then fail "unnamed file stays in the set" "kept" "subtracted"; else pass "unnamed file stays in the set"; fi
 
-# A rewrite under the same name changes the digest, so it is not retired.
 cp "$FA" "$TEST_TMPDIR/orig.md"
 printf '| new row |\n' >>"$FA"
 if subtracted "$FA" "$R1"; then fail "same name, new content stays" "kept" "subtracted"; else pass "same name, new content stays"; fi
 cp "$TEST_TMPDIR/orig.md" "$FA"
 
-# Case group 2: two consumed files, Not applied rows, explicit branch, no git.
 NA="$TEST_TMPDIR/na.txt"
 printf '| a.md:3 | em dash | reverted: meaning loss | 20260101T000000Z-ai-slop.md |\n' >"$NA"
 R2="$(cd "$TEST_TMPDIR" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$FA" --consumed "$FB" --branch other/b --rows 7 --outcome '`/ai-slop:audit fix` → 6 fixed, 1 reverted' --not-applied-rows "$NA")"
 assert_eq "explicit --branch wins" "branch: other/b" "$(sed -n 4p "$R2")"
 
-# YAML-sensitive branch names are quoted like emit-findings.sh quotes them.
 for pair in 'true|"true"' '123|"123"' '#topic|"#topic"' 'a: b|"a: b"'; do
   RB="$(cd "$TEST_TMPDIR" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$FA" --branch "${pair%%|*}")"
   assert_eq "branch ${pair%%|*} is quoted" "branch: ${pair#*|}" "$(sed -n 4p "$RB")"
@@ -87,14 +77,12 @@ assert_contains "Not applied row is copied through" "$(cat "$R2")" "reverted: me
 assert_contains "Producer-owned line carries rows and outcome" "$(cat "$R2")" '- Producer-owned (7): `/ai-slop:audit fix` → 6 fixed, 1 reverted'
 if subtracted "$FA" "$R2" && subtracted "$FB" "$R2"; then pass "both consumed files match their entries"; else fail "two-file subtraction" "both" "not both"; fi
 
-# Case group 3: a second run never overwrites the first.
 sum1="$(sha12 "$R1")"
 R3="$(cd "$REPO" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$FA")"
 if [[ -f "$R1" && "$(sha12 "$R1")" == "$sum1" ]]; then pass "first record is untouched by a second run"; else fail "first record intact" "$sum1" "changed or gone"; fi
 if [[ -f "$R3" ]]; then pass "second run wrote its own record"; else fail "second record exists" "file" "$R3"; fi
 assert_eq "no stray staging file in the findings home" "0" "$(find "$HOME_DIR" -name 'tmp.*' | wc -l | tr -d ' ')"
 
-# Case group 4: usage errors.
 (cd "$REPO" && bash "$REC" --out-dir "$HOME_DIR" >/dev/null 2>&1)
 assert_eq "no --consumed is a usage error" "2" "$?"
 (cd "$REPO" && bash "$REC" --out-dir "$HOME_DIR" --consumed "$TEST_TMPDIR/missing.md" >/dev/null 2>&1)

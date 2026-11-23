@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained contract tests for uncommitted-md.sh (runs against throwaway git
-# repos under mktemp; never touches the enclosing repository).
 set -uo pipefail
 
 # An inherited absolute GIT_DIR outranks -C and would point fixture writes at the
@@ -48,8 +46,6 @@ make_repo() {
   git -C "$1" config user.name 'uncommitted-md-test' >/dev/null 2>&1
 }
 
-# --- 1. Mixed working tree: .md listed, other extensions and rename origin excluded
-
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 printf 'base\n' >"$REPO/tracked.md"
@@ -72,15 +68,11 @@ assert_contains "rename lists destination" "$out" "new-name.md"
 assert_absent "rename origin excluded" "$out" "old-name.md"
 assert_absent "non-md file excluded" "$out" "code.ts"
 
-# --- 2. Cap applies ------------------------------------------------------------
-
 out=$(cd "$REPO" && bash "$SCRIPT" 1 2>&1)
 rc=$?
 line_count=$(printf '%s\n' "$out" | grep -c .)
 assert_exit "capped run exits 0" 0 "$rc"
 assert_exit "cap of 1 emits 1 line" 1 "$line_count"
-
-# --- 3. Clean tree emits nothing ------------------------------------------------
 
 CLEAN="$TEST_TMPDIR/clean"
 make_repo "$CLEAN"
@@ -92,15 +84,11 @@ rc=$?
 assert_exit "clean tree exits 0" 0 "$rc"
 assert_exit "clean tree emits nothing" 0 "${#out}"
 
-# --- 4. Outside a repo exits 1 (caller supplies fallback text) -------------------
-
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"
 out=$(cd "$NOREPO" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "outside a repo exits 1" 1 "$rc"
-
-# --- Final report ---------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

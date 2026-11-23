@@ -65,10 +65,18 @@ Claude Code itself has no `--profile` flag; the function adds it:
   would. When that conversation ran in a profile, its start notice prints the
   `claude --resume <id>` that reopens it there. The tool cannot tell which conversation
   `-c` picks, so it never guesses.
+- `claude --resume <id>` with `--profile-add <plugin>` reopens that conversation in its profile
+  with an installed plugin the profile switched off, and its dependencies, on for that
+  conversation only.
+  It takes a plugin id, a plugin name, `plugin:skill` or a skill name; an ambiguous one is refused
+  with its candidates, and one that is not installed with its `claude plugin install` line. A later
+  `claude --resume <id>` of that conversation keeps the plugin; `claude -c`, new sessions and
+  handoffs start without it. In a one-session profile the session-start hook tells the model this
+  line, again after compaction, so a pointer to an off plugin leads to the offer.
 - Everything else `claude` does is unchanged.
 
 The function runs the real `claude` untouched
-unless the words start with a flag and include `-r`, `--resume` or `--profile`; then it runs `profiles.mjs start --claude-args`, which takes `--profile <name>` out of
+unless the words start with a flag and include `-r`, `--resume` or `--profile`; then it runs `profiles.mjs start --claude-args`, which takes `--profile <name>` and each `--profile-add <plugin>` out of
 the words, writes the one-session file and starts `claude` with it and every other word. The
 function finds the plugin through `~/.claude/plugin-profiles-state/root`, which the session-start
 hook of the installed plugin writes. To try a copy from a worktree, set `PLUGIN_PROFILES_ROOT` to
@@ -294,6 +302,14 @@ under another marketplace than the catalog's own name (it names the fix), has no
 excludes an `always-on` member without `always_on: false`, or when `interface-design` lacks a `planning` member. For your
 user and repository profiles it reports, without failing, a plugin of the catalog's marketplace
 that the catalog lacks and a plugin of another marketplace that is not installed, and it reports installed plugins that no profile names, which an apply switches off.
+It also reports, never failing, each skill's `## Next` and `## Related` `/plugin:skill` target
+that a profile switches off or hides (`links.next`, `links.related`) and each target that names no
+skill (`links.unresolved`). A profile's members are its plugins, its optional plugins, `always-on`
+unless it opts out, and their manifest dependencies, minus `exclude`. `--skills <plugins dir>`
+checks a repository tree against its shipped profiles instead of the installed plugins against
+yours, and lists catalog plugins no shipped profile names; `--changed <file>` (one path per line)
+lists the lines for the skills and profiles it names first, and with `GITHUB_STEP_SUMMARY` set the
+tree check writes them to the job summary.
 `--catalog` defaults to the `marketplace.json` of the repository the plugin sits in. In this
 repository, CI runs it through `scripts/check-plugin-profiles.sh`.
 

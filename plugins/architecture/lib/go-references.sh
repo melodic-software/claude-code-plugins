@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Reader for Go manifests: go.mod and go.work.
-#
-# WHY. map-dependencies cites a Go module's declared requirements and the local
-# modules its replace directives point at. Both files are line oriented: one
-# directive per line, or a parenthesized block of them.
-#
-# Sourced, not executed. Executing it exits 2.
-#
-#   go_mod_records <go.mod>
-#     One line per fact, tab separated:
-#       module<TAB>path                             the module directive
-#       require<TAB>path<TAB>version<TAB>declaration
-#       replace<TAB>old<TAB>target<TAB>local<TAB>declaration
-#                                                   local is 1 when target
-#                                                   starts with ./, ../ or /
-#       unread<TAB>declaration                      a directive shape skipped
-#   go_work_records <go.work>
-#     use<TAB>dir<TAB>declaration, and unread lines. A go.work replace is
-#     unread: the reader does not apply it.
-#     declaration is the line as written, comment removed. The go, toolchain,
-#     godebug, exclude, retract, tool and ignore directives carry no
-#     dependency and give no line. Any other directive is unread.
-#
-# Portability: bash plus POSIX awk.
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.

@@ -601,7 +601,7 @@ test("skips a PR while a resolve-conflicts run for it is queued or going", async
     workflowRuns: [{ id: 1, status: "queued", display_title: "PR Unblock resolve-conflicts #26" }],
   });
   await run();
-  assert.deepEqual(dispatchedNumbers(api), ["27"], "the Title Case run-name holds as the old one does");
+  assert.deepEqual(dispatchedNumbers(api), ["27"], "a queued run under the Title Case run-name holds its PR");
 });
 
 test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {

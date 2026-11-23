@@ -3032,7 +3032,7 @@ test("a pr-verify pass with stale fail notes sends a pass-only round through the
 test("a pass-only round queues behind a run for the PR still going, but not on a held PR", async (t) => {
   const dir = tempDir("pr-dispatch-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const going = { id: 7, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
+  const going = { id: 7, status: "in_progress", display_title: "PR Unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
   const busy = verifyApi({ workflowRuns: [going] });
   await passMain(dir, busy);
   assert.deepEqual(busy.calls.dispatch.map((request) => request.inputs["verify-pass-head"]), [HEAD]);
@@ -3116,7 +3116,7 @@ test("the stale-stop sweep leaves a passing or newer status, an open thread, a r
     ["no status", { statuses: [] }],
     ["another account's status", { statuses: [{ ...STOP, creator: { login: "someone" } }] }],
     ["an unresolved thread", { threads: [{ isResolved: false, comments: { nodes: [] } }] }],
-    ["a run since the stop", { workflowRuns: [{ id: 7, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:05:00Z" }] }],
+    ["a run since the stop", { workflowRuns: [{ id: 7, status: "completed", display_title: "PR Unblock address-feedback #42", created_at: "2026-10-17T12:05:00Z" }] }],
     ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
   ]) {
     const api = staleApi(options);
@@ -3125,7 +3125,7 @@ test("the stale-stop sweep leaves a passing or newer status, an open thread, a r
     assert.equal(output, "", label);
   }
   // A run from before the stop does not hold it.
-  const older = staleApi({ workflowRuns: [{ id: 6, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T11:00:00Z" }] });
+  const older = staleApi({ workflowRuns: [{ id: 6, status: "completed", display_title: "PR Unblock address-feedback #42", created_at: "2026-10-17T11:00:00Z" }] });
   await sweepMain(t, older);
   assert.equal(older.calls.dispatch.length, 1);
 });

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}], "why": "only the interview fired"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}, {"tool": "Skill", "input": {"skill": "architecture:adr", "args": "X-Event-Id is a UUIDv7 minted at enqueue; alternative weighed: the outbox bigint row id"}}], "why": "the decision was handed to the ADR skill despite off"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "adr"}}], "why": "unqualified name"}
+  ]
+}

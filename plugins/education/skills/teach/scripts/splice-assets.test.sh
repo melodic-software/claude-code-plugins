@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for splice-assets.sh (self-contained, ships with the plugin).
-#
-# Black-box: every case invokes the script as a subprocess and asserts on the exit
-# code, the message stream, and the bytes of the lesson file. Fixtures are built
-# with printf under one mktemp root that an EXIT trap removes.
-#
-# Case 4d is the one exception: it drives `splice-assets.awk` directly. The script
-# validates that every present marker's asset is a readable non-empty regular file
-# before awk opens that same path, so no black-box run can deterministically reach
-# the awk program's read-error branch. Driving the build half on its own is what
-# pins that branch.
 
 set -uo pipefail
 
@@ -37,28 +26,22 @@ assert_same_file() {
   if cmp -s "$2" "$3"; then pass "$1"; else fail "$1" "files differ: $2 vs $3"; fi
 }
 
-# dir_listing <dir>: every entry directly inside <dir>, dotfiles included, sorted.
-# The temp file the script builds is a sibling dotfile of the lesson, so a listing
-# taken before and after a run is what proves none survived.
 dir_listing() {
   find "$1" -mindepth 1 -maxdepth 1 | sort
 }
 
-# run_script <arg>... : sets RC, OUT (stdout), ERR (stderr).
 run_script() {
   RC=0
   OUT=$(bash "$SCRIPT" "$@" 2>"$ERRFILE") || RC=$?
   ERR=$(<"$ERRFILE")
 }
 
-# mk_case <name> : builds <root>/<name>/{concept,assets} and echoes the case root.
 mk_case() {
   local root="$TEST_TMPDIR/$1"
   mkdir -p "$root/concept" "$root/assets"
   printf '%s' "$root"
 }
 
-# --- Case 1: both markers present, both assets spliced ----------------------
 
 C1="$(mk_case c1)"
 L1="$C1/concept/lesson.html"
@@ -72,10 +55,8 @@ run_script "$L1" "$C1/assets"
 C1_LS_AFTER="$(dir_listing "$C1/concept")"
 assert_exit "both markers: exit 0" 0 "$RC"
 assert_same_file "both markers: lesson matches the expected splice" "$L1" "$C1/expected.html"
-# Case 5 (half): no temp file survives a successful run.
 assert_eq "both markers: lesson directory listing unchanged" "$C1_LS_BEFORE" "$C1_LS_AFTER"
 
-# --- Case 2: STYLE marker only, quiz.js absent ------------------------------
 
 C2="$(mk_case c2)"
 L2="$C2/concept/lesson.html"
@@ -87,7 +68,6 @@ run_script "$L2" "$C2/assets"
 assert_exit "style-only lesson: exit 0 with quiz.js absent" 0 "$RC"
 assert_same_file "style-only lesson: only the style marker was replaced" "$L2" "$C2/expected.html"
 
-# --- Case 3: QUIZ marker present, quiz.js missing ---------------------------
 
 C3="$(mk_case c3)"
 L3="$C3/concept/lesson.html"
@@ -100,10 +80,8 @@ C3_LS_AFTER="$(dir_listing "$C3/concept")"
 assert_exit "missing asset: exit 1" 1 "$RC"
 assert_contains "missing asset: stderr names quiz.js" "$ERR" "quiz.js"
 assert_same_file "missing asset: lesson byte-identical" "$L3" "$C3/before.html"
-# Case 5 (half): no temp file survives a refused run.
 assert_eq "missing asset: lesson directory listing unchanged" "$C3_LS_BEFORE" "$C3_LS_AFTER"
 
-# --- Case 3b: asset is a directory, and asset is an empty file --------------
 
 C3B="$(mk_case c3b)"
 L3B="$C3B/concept/lesson.html"
@@ -123,7 +101,6 @@ assert_exit "asset is empty: exit 1" 1 "$RC"
 assert_contains "asset is empty: stderr names lesson.css" "$ERR" "lesson.css"
 assert_same_file "asset is empty: lesson byte-identical" "$L3B" "$C3B/before.html"
 
-# --- Case 3c: a marker occurring twice --------------------------------------
 
 C3C="$(mk_case c3c)"
 L3C="$C3C/concept/lesson.html"
@@ -137,9 +114,6 @@ assert_contains "duplicated marker: stderr names the marker" "$ERR" "/* SPLICE:Q
 assert_contains "duplicated marker: stderr names the count" "$ERR" "occurs 2 times"
 assert_same_file "duplicated marker: lesson byte-identical" "$L3C" "$C3C/before.html"
 
-# --- Case 3d: the same marker twice on ONE line -----------------------------
-# Counting matching LINES rather than occurrences would read this as a single
-# marker, splice it once, and silently drop the second one.
 
 C3D="$(mk_case c3d)"
 L3D="$C3D/concept/lesson.html"
@@ -152,10 +126,6 @@ assert_exit "marker twice on one line: exit 1" 1 "$RC"
 assert_contains "marker twice on one line: stderr names the count" "$ERR" "occurs 2 times"
 assert_same_file "marker twice on one line: lesson byte-identical" "$L3D" "$C3D/before.html"
 
-# --- Case 3e: both markers on ONE line --------------------------------------
-# Each marker line is replaced whole, so a line carrying both could only ever
-# deliver one of the two assets. Caught by the marker-alone rule, which reports
-# the offending line and so names both markers in passing.
 
 C3E="$(mk_case c3e)"
 L3E="$C3E/concept/lesson.html"
@@ -171,9 +141,6 @@ assert_contains "both markers on one line: stderr names the style marker" "$ERR"
 assert_contains "both markers on one line: stderr names the quiz marker" "$ERR" "/* SPLICE:QUIZ */"
 assert_same_file "both markers on one line: lesson byte-identical" "$L3E" "$C3E/before.html"
 
-# --- Case 3f: one marker sharing its line with its own tags -----------------
-# The count is 1 and no line carries both markers, so only the marker-alone rule
-# refuses this. Replacing the line whole would drop the tags with exit 0.
 
 C3F="$(mk_case c3f)"
 L3F="$C3F/concept/lesson.html"
@@ -189,9 +156,6 @@ assert_contains "marker sharing its line with its tags: stderr names the marker"
 assert_same_file "marker sharing its line with its tags: lesson byte-identical" "$L3F" "$C3F/before.html"
 assert_eq "marker sharing its line with its tags: lesson directory listing unchanged" "$C3F_LS_BEFORE" "$C3F_LS_AFTER"
 
-# --- Case 3g: an indented marker line still splices -------------------------
-# The marker-alone rule compares with all whitespace stripped, which is what
-# keeps indentation legal. The positive half of case 3f.
 
 C3G="$(mk_case c3g)"
 L3G="$C3G/concept/lesson.html"
@@ -203,7 +167,6 @@ run_script "$L3G" "$C3G/assets"
 assert_exit "indented marker line: exit 0" 0 "$RC"
 assert_same_file "indented marker line: asset spliced in its place" "$L3G" "$C3G/expected.html"
 
-# --- Case 4: usage errors ---------------------------------------------------
 
 C4="$(mk_case c4)"
 L4="$C4/concept/lesson.html"
@@ -241,9 +204,6 @@ run_script -h
 assert_exit "-h exits 0" 0 "$RC"
 assert_contains "-h prints usage on stdout" "$OUT" "Usage:"
 
-# --- Case 4b: a read-only lesson is a usage error, refused before any write --
-# Writability is validated up front so the "every validation runs before any
-# write" claim in the script header stays literally true.
 
 C4B="$(mk_case c4b)"
 L4B="$C4B/concept/lesson.html"
@@ -260,12 +220,8 @@ else
   assert_contains "read-only lesson: usage on stderr" "$ERR" "Usage:"
   assert_same_file "read-only lesson: lesson byte-identical" "$L4B" "$C4B/before.html"
 fi
-# Restored so the EXIT trap can remove the fixture tree.
 chmod u+w "$L4B"
 
-# --- Case 4c: a failed build exits 1 and leaves no temp file ----------------
-# A stub awk on PATH is the only way to reach the build-failure branch and the
-# temp-file cleanup trap. Nothing else in the suite exercises either.
 
 C4C="$(mk_case c4c)"
 L4C="$C4C/concept/lesson.html"
@@ -287,14 +243,6 @@ assert_contains "failed build: stderr names the build step" "$ERR" "awk"
 assert_same_file "failed build: lesson byte-identical" "$L4C" "$C4C/before.html"
 assert_eq "failed build: no temp file survives" "$C4C_LS_BEFORE" "$C4C_LS_AFTER"
 
-# --- Case 4d: a failed asset read during the build exits nonzero ------------
-# The one case that drives splice-assets.awk rather than the script (header).
-# A directory in place of lesson.css is a read failure the script's validation
-# would refuse first, so the build half is driven on its own here. gawk returns
-# -1 from getline and this program then names the file; mawk, the awk on Ubuntu
-# CI, raises its own fatal read error instead, whose text is not guaranteed to
-# carry the path. Both are nonzero, so only the exit code is asserted
-# unconditionally.
 
 C4D="$(mk_case c4d)"
 L4D="$C4D/concept/lesson.html"
@@ -318,7 +266,6 @@ else
   fail "asset read error: the failing read is reported on stderr (awk's own message)" "stderr was empty"
 fi
 
-# --- Case 6: a CRLF lesson keeps its carriage returns on unspliced lines ----
 
 C6="$(mk_case c6)"
 L6="$C6/concept/lesson.html"
@@ -328,21 +275,15 @@ printf 'window.quiz = 1;\n' >"$C6/assets/quiz.js"
 
 printf '<style>\r\nbody { color: red; }\n</style>\r\n<script>\r\nwindow.quiz = 1;\n</script>\r\n<p>tail</p>\r\n' >"$C6/expected.html"
 
-# Carriage returns are counted as BYTES, with tr rather than grep: Git Bash's grep
-# opens a file in text mode, so a CR pattern can never match and a CR count taken
-# that way would report 0 on every host that matters here.
 cr_bytes() { tr -dc '\r' <"$1" | wc -c; }
 
 CR_BEFORE=$(cr_bytes "$L6")
 run_script "$L6" "$C6/assets"
 CR_AFTER=$(cr_bytes "$L6")
 assert_exit "CRLF lesson: exit 0" 0 "$RC"
-# The two marker lines are gone and the LF-only assets bring no carriage returns,
-# so every remaining CR belongs to an untouched line of the original lesson.
 assert_eq "CRLF lesson: unspliced lines keep their carriage returns" "$((CR_BEFORE - 2))" "$CR_AFTER"
 assert_same_file "CRLF lesson: output is byte-exact" "$L6" "$C6/expected.html"
 
-# --- Case 6b: no trailing newline on either the asset or the lesson ---------
 
 C6B="$(mk_case c6b)"
 L6B="$C6B/concept/lesson.html"
@@ -355,9 +296,6 @@ assert_exit "no trailing newline: exit 0" 0 "$RC"
 assert_same_file "no trailing newline: asset and lesson both gain one" "$L6B" "$C6B/expected.html"
 assert_eq "no trailing newline: output ends in a newline" "" "$(tail -c 1 "$L6B")"
 
-# --- Case 7: a backslash-form assets path (Git Bash only) -------------------
-# The assets path reaches awk through ENVIRON, so its backslashes are not read as
-# escape sequences. Only a Windows host can produce such a path.
 
 if [[ "$(uname -o 2>/dev/null)" == "Msys" ]] && command -v cygpath >/dev/null 2>&1; then
   C7="$(mk_case c7)"

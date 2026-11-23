@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Check or write <home>/docs-hygiene.yaml, the repository layer of the
-// docs-hygiene plugin's settings, against schemas/docs-hygiene.schema.json.
-// <home> is the repository's convention home.
-//
-//   --check  validate the file as it stands and print one line per schema key:
-//            PASS with its value, or WARN when the file's value is invalid and
-//            the key resolves to its default; write nothing.
-//
 // The YAML reader is the plugin's bundled copy under lib/. The usage,
 // the other options, the guarantees and the exit codes are in
 // ../../../lib/setup-apply.mjs.
@@ -17,11 +9,6 @@ import { run } from "../../../lib/setup-apply.mjs";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-// A key whose own value is invalid, or every key when the file does not
-// parse, drops this layer for that key. The repository is the highest layer,
-// so the key resolves to its default, never to the lower userConfig value. A
-// key the schema does not list is reported and leaves the other keys' values
-// in force, as compress reads them.
 function report({ rel, keys, problems, value }) {
   const parseError = problems.some((p) => p.kind === "parse");
   const badKeys = new Set(problems.map((p) => p.key));
