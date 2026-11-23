@@ -13,13 +13,6 @@
 # detector that changed its output format must surface as drift (T3), because
 # both knip and vulture can print a non-finding on stdout in exact finding shape.
 
-# ---------------------------------------------------------------------------
-# Excerpt / shape vocabulary
-# ---------------------------------------------------------------------------
-
-# Tabs are collapsed to spaces because every internal record this skill passes
-# between stages is tab-separated; an excerpt carrying a raw tab would split a
-# field.
 dc_trim_excerpt() {
   local line="$1"
   line="${line//$'\r'/}"
@@ -179,10 +172,6 @@ dc_find_nonempty_node_modules() {
   return 1
 }
 
-# ---------------------------------------------------------------------------
-# Binary resolution — locate, then PROVE by invocation
-# ---------------------------------------------------------------------------
-
 # Resolve a repository-local pinned binary without invoking a package runner.
 # npm creates an extensionless POSIX shim in node_modules/.bin alongside its
 # Windows .cmd launcher; uv/venv creates one in .venv/bin. Walk upward from a
@@ -243,8 +232,6 @@ dc_resolve_local_binary() {
   return 1
 }
 
-# Repo-local first, PATH second: a pinned devDependency is the version that
-# matches the project it is about to judge.
 dc_locate_binary() {
   local found
   dc_resolve_local_binary "$@" && return 0
@@ -252,17 +239,11 @@ dc_locate_binary() {
   printf '%s' "$found"
 }
 
-# Presence proof. A locator hit is a filename; only a successful invocation is
-# evidence the tool runs here.
 dc_binary_invocable() {
   local bin="$1"
   shift
   "$bin" "$@" >/dev/null 2>&1
 }
-
-# ---------------------------------------------------------------------------
-# Detector output parsers — each rejects what it does not recognize
-# ---------------------------------------------------------------------------
 
 # vulture emits `<path>:<line>: <kind> <detail> (NN% confidence)` on stdout.
 # The kind gate is the only thing separating a finding from a look-alike:
@@ -337,8 +318,6 @@ dc_vulture_line_is_input_error() {
   [[ $1 =~ $re ]]
 }
 
-# Returns 0 when any stderr line is NOT an input parse error (degraded),
-# 1 otherwise (empty stderr, or only input parse errors).
 dc_vulture_stderr_is_degraded() {
   local err_file="$1" line
   [[ -s "$err_file" ]] || return 1
@@ -351,8 +330,6 @@ dc_vulture_stderr_is_degraded() {
   return 1
 }
 
-# The input-parse-error lines from the same stderr, one per line, for reporting
-# as notes rather than as run health.
 dc_vulture_unparsed_inputs() {
   local err_file="$1" line
   [[ -s "$err_file" ]] || return 0
@@ -506,10 +483,6 @@ dc_knip_config_module() {
   done
   return 1
 }
-
-# ---------------------------------------------------------------------------
-# grep lane — the portable reference-search floor
-# ---------------------------------------------------------------------------
 
 # Emit `<line><TAB><name><TAB><shape><TAB><text>` for every symbol DEFINITION in
 # one file. The extractor set is this lane's declared coverage: shell functions,
