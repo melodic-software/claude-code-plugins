@@ -1515,12 +1515,11 @@ def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
     )
 
 
-def _ended_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
-    """Whether this attempt failed, or an outage lost it, before its lane job
-    existed."""
+def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether an outage lost this attempt before its lane job existed."""
     jobs = attempt.get("jobs")
     return (
-        attempt.get("conclusion") in LOST_CONCLUSIONS | {"failure"}
+        attempt.get("conclusion") in LOST_CONCLUSIONS
         and isinstance(jobs, list | tuple)
         and not _has_lane_job(lane, jobs)
     )
@@ -1602,16 +1601,23 @@ def _upstream_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> boo
     return _gate_stopped(lane, run_id, attempt, "failure", "failure", UPSTREAM_STOP_RE)
 
 
+def _kill_switch_failed(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
+    """Whether the caller's kill-switch job failed, for any reason, before
+    the lane job existed."""
+    return _gate_stopped(lane, run_id, attempt, "failure", "failure", None)
+
+
 def _gate_stopped(
     lane: str,
     run_id: int,
     attempt: Mapping[str, Any],
     conclusion: str,
     level: str,
-    patterns: Mapping[str, re.Pattern[str]],
+    patterns: Mapping[str, re.Pattern[str]] | None,
 ) -> bool:
     """Whether the caller's one `kill-switch` job, ended `conclusion`, wrote
-    this lane's `patterns` annotation at `level` while no lane job exists."""
+    this lane's `patterns` annotation at `level` (any, when `patterns` is
+    None) while no lane job exists."""
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple) or not all(
         isinstance(job, Mapping) for job in jobs
@@ -1627,6 +1633,8 @@ def _gate_stopped(
         "run_attempt"
     ):
         raise Unbound("evidence-error")
+    if patterns is None:
+        return True
     if not isinstance(kill.get("annotations"), list | tuple):
         raise Unbound("evidence-missing")
     return any(
@@ -1910,7 +1918,11 @@ def _open_findings(
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
                 or _kill_switch_stopped(lane, item["id"], attempt)
-                or _ended_before_lane_job(lane, attempt)
+                or (
+                    attempt.get("conclusion") == "failure"
+                    and _kill_switch_failed(lane, item["id"], attempt)
+                )
+                or _lost_before_lane_job(lane, attempt)
                 or _caller_skipped(lane, attempt)
             ):
                 continue

@@ -2769,6 +2769,7 @@ class SupersededRunTests(Base):
                 (own, None, "success"),
                 (own, "success", "success"),
                 (own, "failure", "success"),
+                (own, "skipped", "failure"),
                 (JOBS[other].split(" / ", 1)[0], "skipped", "success"),
                 ("Wait Refine", "skipped", "success"),
             ):
