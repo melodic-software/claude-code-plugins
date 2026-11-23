@@ -61,13 +61,15 @@ and is replaced whole, never concatenated. Unknown keys are inert. All three lay
 valid. The recommended consumer `.gitignore` line for the personal override is
 `docs/conventions/**/*.local.*`; the plugin never edits your `.gitignore`.
 
-The consumer's `.claude/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve
+The consumer's `docs/conventions/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve
 through that convention's own layers (`~/.claude/ecosystems/<lane>.yaml`, then the repository's
 `<lane>.yaml` and `<lane>.local.yaml`) for their `globs` (which replace the bundled extension map for that
 lane) and `enabled` (a resolved `false` opts the lane out). Only a lane named under `lanes` reads
 its file: the bundled lanes, plus any extra id a layer lists there. A record whose id is not listed
 creates no lane, because a record need not describe a programming language (a lint-only
-`markdown` or `yaml` record is common).
+`markdown` or `yaml` record is common). A record of a name absent from `docs/conventions/ecosystems/`
+is read from the legacy `.claude/ecosystems/`, per the contract's
+[Legacy location](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md#legacy-location).
 
 To add a lane the plugin does not ship, list its id under `lanes` and give it a record with
 `globs`:
@@ -80,7 +82,7 @@ lanes:
 ```
 
 ```yaml
-# .claude/ecosystems/rust.yaml
+# docs/conventions/ecosystems/rust.yaml
 globs: ["**/*.rs"]
 ```
 

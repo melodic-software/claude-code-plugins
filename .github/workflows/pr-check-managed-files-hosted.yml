@@ -45,6 +45,7 @@ on:
       - .github/ISSUE_TEMPLATE/bug-report.yml
       - .github/ISSUE_TEMPLATE/feature-request.yml
       - .github/ISSUE_TEMPLATE/task.yml
+      - .github/PULL_REQUEST_TEMPLATE.md
       - .github/actionlint.yaml
       - .github/standards/dependabot-policy/policy.json
       - .github/standards/github-actions-conventions/vocabulary.json
@@ -85,6 +86,7 @@ on:
       - docs/standards/design-for-change.md
       - docs/standards/deterministic-work-execution.md
       - docs/standards/documentation-and-citations.md
+      - docs/standards/filing-prs-and-issues.md
       - docs/standards/issue-tracker.md
       - docs/standards/reference-dont-duplicate.md
       - docs/standards/simpler-code.md
@@ -118,7 +120,7 @@ jobs:
       - name: Guard managed files
         # The org requires actions pinned to a full commit SHA (reusable
         # workflows may float on main); this pin moves by hand.
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@d7ba00151fa8429aa9a94fb919f1e517c2e74368 # v0.78.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

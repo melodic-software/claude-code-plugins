@@ -10,10 +10,9 @@ name: Maintenance Measure Skill Edit
 #             keeps a case once judged graders are dropped.
 #   measure-baseline, the unchanged skill twice (maintenance-measure-skill-edit-pass.yml), each on its
 #   measure-baseline-again  own runner, 3 runs per case per arm under --max-cost-usd 5.
-#   generate-edit  win-test.py's baseline gates, then run-claude-cli on the key,
-#             subscription and fallback legs in turn (--restricted, read-only
-#             GITHUB_TOKEN, no write token, read-only tools), the first that
-#             finishes returning one edit as structured output.
+#   generate-edit  win-test.py's baseline gates, then run-claude-cli on the API
+#             key (--restricted, read-only GITHUB_TOKEN, no write token,
+#             read-only tools), returning one edit as structured output.
 #   scan      no model, no secret: applies the edit to a fresh checkout and
 #             refuses it outside plugins/<p>/skills/<skill>/, under evals/, or
 #             as select-plugins.mjs refuses a pull request's change.
@@ -41,9 +40,8 @@ name: Maintenance Measure Skill Edit
 # which refuses this caller on any event but workflow_dispatch and any actor
 # or re-runner but a listed human. No job holds a merge right, checks or
 # statuses write, or workflows. Every pass and the proposal run on the
-# maintenance role's chain, as in pr-run-plugin-evals.yml: its API key, then
-# its subscription token, then the central fallback token, one per job or
-# step, each after the one before hands off. How to stop it: set the
+# maintenance role's API key alone, never on a subscription token
+# (docs/review/evals.md); a stopped key ends the run. How to stop it: set the
 # organization or repository lanes kill-switch variable to anything but
 # "false"; every job that spends or writes checks it first, and the broker
 # reads it live.
@@ -80,7 +78,7 @@ jobs:
   check-inputs:
     # The first attempt only: a re-run never spends again.
     name: Check Inputs
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_attempt == '1'
+    if: vars.CLAUDE_EVALS_DISABLED == 'false' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     cache-mode: read
@@ -105,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -241,8 +239,6 @@ jobs:
       base-sha: ${{ needs.check-inputs.outputs.base-sha }}
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
-      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
-      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   measure-baseline-again:
     name: Measure Baseline Again
@@ -260,15 +256,7 @@ jobs:
       base-sha: ${{ needs.check-inputs.outputs.base-sha }}
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
-      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
-      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
-  # The proposer's key-credit gate (ci-workflows select-model-credential, its
-  # start call: check-key-credit's one artifact-list call for the marker
-  # generate-edit uploads after a key leg's credit stop). A credit stop inside the
-  # window names the subscription leg, so the proposal starts on the
-  # subscription with no refused key attempt first. No secret, no model, no
-  # checkout; every failure runs the key. Probing is off.
   check-key-credit:
     name: Check Key Credit
     needs: [check-inputs, measure-baseline, measure-baseline-again]
@@ -285,7 +273,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: start
           role: maintenance
@@ -299,20 +287,15 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: skipped
           lane: maintenance-measure-skill-edit
           lane-id: maintenance-measure-skill-edit
           credential: MAINTENANCE_CLAUDE_API_KEY
           known-failure-class: credit-stop
-          handoff: "true"
+          handoff: "false"
 
-  # The model, with one maintenance credential per leg (the API key, then the
-  # subscription token, then the fallback token), a read-only GITHUB_TOKEN and
-  # nothing else. run-claude-cli runs the CLI with --restricted, which confines
-  # the file tools to the workspace; each leg gets Read, Grep and Glob only, so
-  # its one result is the structured output, which the scan job checks.
   generate-edit:
     name: Generate Edit
     needs: [check-inputs, measure-baseline, measure-baseline-again, check-key-credit]
@@ -337,7 +320,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -458,17 +441,10 @@ jobs:
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' '{"type":"object","properties":{"file":{"type":"string","minLength":1,"maxLength":200},"old_string":{"type":"string","minLength":1,"maxLength":20000},"new_string":{"type":"string","maxLength":20000},"rationale":{"type":"string","maxLength":4000},"findings":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":500}}},"required":["file","old_string","new_string","rationale","findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # Whether the key leg runs, never a secret's value (select-model-credential):
-      # not when the key is empty or check-key-credit named the subscription
-      # leg. The three legs share this job, so each leg's credential call and
-      # next-leg call are steps: the subscription leg runs after the key leg
-      # hands off (a credit stop, or a 401 or 402) or did not run, and the
-      # central fallback token's leg after the subscription leg hands off (a
-      # limit stop, a credit stop, or a 401 or 402) or finds its token empty.
       - name: Check the API key
         id: key
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: key
           role: maintenance
@@ -478,7 +454,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Isolate the runner
         if: steps.prompt.outcome == 'success'
@@ -486,14 +462,12 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The three legs hold one credential each and stay in one job: the model
-      # has Read, Grep and Glob only, no Bash (run-claude-cli's one-job rule).
       - name: Propose the edit on the API key
         id: run-key
         if: steps.prompt.outcome == 'success' && steps.key.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 30
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -527,157 +501,16 @@ jobs:
           json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
           leg-timeout-minutes: "25"
 
-      # The leg after the key's, from its credential decision and the
-      # launcher's handoff. No if:, as the leg steps after it have none: it
-      # names a leg only when every step before it passed.
-      - name: Pick the leg after the key
-        id: next-key
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          state: ${{ steps.key.outputs.state }}
-          handoff: ${{ steps.run-key.outputs.handoff }}
-          handoff-reason: ${{ steps.run-key.outputs.handoff-reason }}
-
-      # Only on the subscription leg's turn: a key leg that finished hands
-      # nothing on, whatever the subscription token holds.
-      - name: Check the credentials
-        id: credential
-        if: steps.next-key.outputs.next-leg == 'subscription'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          leg: subscription
-          role: maintenance
-          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ steps.next-key.outputs.next-reason }}
-
-      - name: Propose the edit
-        id: run
-        if: steps.prompt.outcome == 'success' && steps.credential.outputs.present == 'true'
-        continue-on-error: true
-        timeout-minutes: 30
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: maintenance-measure-skill-edit
-          role: maintenance
-          prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
-          preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
-          subscription-token: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
-          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: |
-            Read
-            Grep
-            Glob
-          allowed-tools: |
-            Read(./hill-climb-data/**)
-            Read(./.base/plugins/**)
-          disallowed-tools: |
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            Skill
-            Read(//proc/**)
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
-          leg-timeout-minutes: "25"
-
-      - name: Pick the leg after the subscription
-        id: next
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          state: ${{ steps.credential.outputs.state }}
-          handoff: ${{ steps.run.outputs.handoff }}
-          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-
-      - name: Check the fallback token
-        id: fallback
-        if: steps.next.outputs.next-leg == 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          leg: fallback
-          role: maintenance
-          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          reason: ${{ steps.next.outputs.next-reason }}
-
-      - name: Propose the edit on the fallback token
-        id: run-fallback
-        if: steps.prompt.outcome == 'success' && steps.fallback.outputs.present == 'true'
-        continue-on-error: true
-        timeout-minutes: 30
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: maintenance-measure-skill-edit
-          role: maintenance
-          prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
-          preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
-          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: |
-            Read
-            Grep
-            Glob
-          allowed-tools: |
-            Read(./hill-climb-data/**)
-            Read(./.base/plugins/**)
-          disallowed-tools: |
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            Skill
-            Read(//proc/**)
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
-          leg-timeout-minutes: "25"
-
       - name: Upload the key leg's sealed transcript
         if: always() && steps.run-key.outputs.execution-file != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
+          hide-trace-ids: "true"
           execution-file: ${{ steps.run-key.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-key
-
-      - name: Upload the sealed transcript
-        if: always() && steps.run.outputs.execution-file != ''
-        continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
-        with:
-          execution-file: ${{ steps.run.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}
-
-      - name: Upload the fallback leg's sealed transcript
-        if: always() && steps.run-fallback.outputs.execution-file != ''
-        continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
-        with:
-          execution-file: ${{ steps.run-fallback.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-fallback
 
       # Read by the next runs' credit gate (check-key-credit): the artifact
       # its `marker` output names (check-key-credit gate.cjs markerName),
@@ -697,8 +530,9 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
@@ -718,7 +552,7 @@ jobs:
       - name: Record the key leg
         if: always() && steps.run-key.outcome != 'skipped' && steps.run-key.outcome != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.run-key.outcome }}
           execution-file: ${{ steps.run-key.outputs.execution-file }}
@@ -731,54 +565,25 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # The subscription leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
-      - name: Record the subscription leg
-        if: always() && steps.run.outcome != 'skipped' && steps.run.outcome != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          outcome: ${{ steps.run.outcome }}
-          execution-file: ${{ steps.run.outputs.execution-file }}
-          log-file: ${{ steps.run.outputs.log-file }}
-          lane: maintenance-measure-skill-edit
-          lane-id: maintenance-measure-skill-edit
-          credential: ${{ steps.run.outputs.credential }}
-          handoff: ${{ steps.run.outputs.handoff }}
-          known-failure-class: ${{ steps.run.outputs.lane-class }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
-
-      # The fallback leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
-      - name: Record the fallback leg
-        if: always() && steps.run-fallback.outcome != 'skipped' && steps.run-fallback.outcome != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
-        with:
-          outcome: ${{ steps.run-fallback.outcome }}
-          execution-file: ${{ steps.run-fallback.outputs.execution-file }}
-          log-file: ${{ steps.run-fallback.outputs.log-file }}
-          lane: maintenance-measure-skill-edit
-          lane-id: maintenance-measure-skill-edit
-          credential: ${{ steps.run-fallback.outputs.credential }}
-          handoff: ${{ steps.run-fallback.outputs.handoff }}
-          known-failure-class: ${{ steps.run-fallback.outputs.lane-class }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.fallback.outputs.fallback-reason }}
+      - name: Stop at the key's stop
+        id: stop
+        if: ${{ always() && steps.prompt.outcome == 'success' && (steps.key.outputs.present != 'true' || steps.run-key.outputs.handoff == 'true') }}
+        timeout-minutes: 1
+        env:
+          REASON: ${{ steps.run-key.outputs.handoff-reason || (needs.check-key-credit.outputs.next-leg == 'subscription' && 'credit-stop') || 'no-key' }}
+        run: |
+          echo "::error::The API key stopped ($REASON), so no edit was proposed; evals never fall back to subscription tokens (docs/review/evals.md)"
+          exit 1
 
       # Read from the launcher's file only after the leg's init message reports
       # dontAsk; the scan job validates it.
       - name: Collect the proposal
         id: collect
-        if: >-
-          steps.run-fallback.outcome == 'success' && steps.run-fallback.outputs.structured-output-file != ''
-          || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
-          || steps.run-key.outcome == 'success' && steps.run-key.outputs.structured-output-file != ''
+        if: steps.run-key.outcome == 'success' && steps.run-key.outputs.structured-output-file != ''
         env:
-          EXECUTION_FILE: ${{ steps.run-fallback.outputs.execution-file || steps.run.outputs.execution-file || steps.run-key.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.run-key.outputs.execution-file }}
           MODE: dontAsk
-          OUTPUT_FILE: ${{ steps.run-fallback.outputs.structured-output-file || steps.run.outputs.structured-output-file || steps.run-key.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.run-key.outputs.structured-output-file }}
         run: |
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           mkdir -p "$RUNNER_TEMP/proposal"
@@ -789,8 +594,9 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: steps.collect.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/proposal/proposal.json
 
       - name: Upload the proposal
@@ -839,7 +645,7 @@ jobs:
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -889,8 +695,9 @@ jobs:
 
       - name: Scan the edit for credentials
         id: scan-upload
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/edit/edit.patch
 
       - name: Upload the edit
@@ -921,8 +728,6 @@ jobs:
       edit-sha256: ${{ needs.scan.outputs.sha256 }}
     secrets:
       MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
-      MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
-      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # No model, no secret. Names the gate that stopped the run, with its
   # numbers; on a win, keeps the edit and each pass's results for 3 days.
@@ -1052,8 +857,9 @@ jobs:
       - name: Scan the win for credentials
         id: scan-upload
         if: steps.decide.outputs.win == 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/win-out/
 
       - name: Upload the win
@@ -1106,7 +912,7 @@ jobs:
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -1251,7 +1057,7 @@ jobs:
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -1304,8 +1110,9 @@ jobs:
       - name: Scan the pull request text for credentials
         id: scan-text
         if: steps.text.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/pr-text/
 
       - name: Request the lane token

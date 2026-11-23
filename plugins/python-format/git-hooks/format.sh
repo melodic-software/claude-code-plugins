@@ -10,7 +10,8 @@
 #
 # The command resolves per file through lib/git-hooks/resolve-tool.sh to the
 # Ruff adapter in adapters.sh where a Ruff config governs the file, else to
-# nothing; a .claude/ecosystems/ record is never run here. A partly staged file
+# nothing; an ecosystem record is never run here
+# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#hooks-run-the-shipped-adapter). A partly staged file
 # is refused before anything is rewritten (re-staging a rewrite would stage its
 # unstaged hunks too), and so is a commit whose Ruff config above a staged file
 # differs between the index and the work tree. A staged file since deleted from

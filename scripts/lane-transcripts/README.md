@@ -1,7 +1,7 @@
 # lane-transcripts
 
 The transcript puller. CI keeps each lane leg's transcript for 7 days as a sealed artifact
-([`upload-lane-transcript`](../../.github/actions/upload-lane-transcript/README.md)); this copies
+(ci-workflows' [`upload-lane-transcript`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/upload-lane-transcript/action.yml)); this copies
 them to a private sink outside CI, opens them with the private key, and keeps the sink's retention.
 It runs four times a night on the laptop. Needs Node 22 or later, `gh` signed in, and `unzip`.
 
@@ -72,12 +72,13 @@ to other issues; the owner's observability decision covers keeping them in this 
 `trace_id` is the first 32 hex digits of SHA-256 over `lane-outcome:<run id>:<attempt>`, the trace
 id every lane-outcome record of that run attempt carries (ci-workflows `docs/lane-outcome.md`,
 "Run context"), so a row joins its records, and any span exported under that trace, by run
-attempt. `failure_class` comes from those records, never from the transcript: it is set when every
-record of the run attempt names the same class (null when they all succeeded), and null otherwise.
-`failure_class_source` says which held: `lane-outcome`, `disagree` (the records differ; a record
-names its lane and credential, not the leg's job-id, so a leg cannot pick its own), or `none` (no
-record held yet). A row pulled before its records is set by the next `pull-outcomes` or
-`backfill`. The `lane_runs` and `lane_outcomes` DuckDB views in
+attempt. `failure_class` comes from those records, never from the transcript. When a record's
+`jobId` equals the row's `job_id`, only the records with that `jobId` count. Otherwise only the
+records with no `jobId` count: an older record names its lane and credential but not the leg's
+job-id, so it counts for every leg of the attempt. The class is set when every counted record names
+the same class (null when they all succeeded), and null otherwise. `failure_class_source` says which
+held: `lane-outcome`, `disagree` (the counted records differ), or `none` (no record counted yet).
+A row pulled before its records is set by the next `pull-outcomes` or `backfill`. The `lane_runs` and `lane_outcomes` DuckDB views in
 `plugins/harness-ops/skills/observability/otel/lane-runs.sql` read both files.
 
 ## What a pull takes

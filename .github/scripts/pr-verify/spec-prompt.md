@@ -42,8 +42,12 @@ You may also read these, as context, never as requirements:
 
 Read the spec as the chunk verifiers did. A `body` of null means the issue has no trusted spec text:
 say so, and return `fail` when no issue has any. With no entry at all there is no spec: return
-`fail`. An issue's `person_checks` lists done-when items of its `body` that the refinement records
-as checks a person runs: leave them out. An issue's `credited_siblings` lists merged pull requests,
+`fail`. An issue's `person_checks` lists done-when items of its `body` that the refinement records,
+or that its owner marks with `Person check:`, as checks a person runs: leave them out. An item marked
+`Person check:` that `person_checks` does not list is judged like any other. When an issue's
+`person_checks` is not empty, return `pass-notes`, never `pass`, with one note per item naming
+it as a person check and the evidence the pull request body offers for it, or that it offers
+none. An issue's `credited_siblings` lists merged pull requests,
 each `body` saying the part of that issue it delivered: drop the done-when items those bodies
 plainly say they delivered whole, keep one claimed only vaguely, and for an item, the outcome
 included, that a body plainly says it delivered in part, list the chunks that deliver the rest. Only

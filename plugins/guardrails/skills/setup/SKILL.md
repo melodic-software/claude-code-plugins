@@ -1,5 +1,5 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only, default) | check inspect (read-only) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable."
+description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only, default) | check inspect (read-only) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
@@ -89,7 +89,7 @@ no toggle.
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined`
    is INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded`
    is a FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line
-   means an installed entry cannot run here (`reference-verify` needs `jq`): list the tool with
+   means an installed entry cannot run here: list the tool with
    its install method from the plugin's `prerequisites.json`, so a lane or cloud setup script
    can provision it before an auto-mode session commits. Outside a git repository, report INFO
    and skip the step.
@@ -176,9 +176,15 @@ manager, so the checks cover every commit, not only Claude's tool calls:
 `commit-msg-convention` (the subject against the team-tracked `subject_pattern`, the pattern
 `block-convention-violation` reads), `pre-commit-content` (secrets and machine-specific paths
 on the lines a commit adds, whatever wrote the file), `pre-push-content` (the same scan on
-each pushed commit, for commits that check never judged) and `reference-verify` (CLI flags,
-`/plugin:skill` references and deleted repository paths on the lines the pushed commits add;
-a `pre-push` entry, since its cost is over the commit budget). The
+each pushed commit, for commits that check never judged). `reference-verify` (CLI flags,
+`/plugin:skill` references and deleted repository paths) is not an entry: over the 3 s push
+budget, it runs in `/source-control:pull-request`'s pre-PR check and in CI. `verify` no longer
+lists a copy an earlier release installed, so look for one and, on the user's yes, remove it
+with your edit tools: the `pre-push.d/guardrails.reference-verify` marker and the
+`guardrails/reference-verify.sh` copy under `git rev-parse --git-path hooks` (local plain
+hooks), a `guardrails-reference-verify` job in `lefthook.yml` or `lefthook-local.yml`, a
+`.husky/pre-push` line that runs `reference-verify.sh`, and `.githooks/guardrails/reference-verify.sh`
+(shared). A lefthook remote needs nothing. The
 installer script only detects, renders and writes files the plugin owns; every step that
 needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
 with your own edit tools. Never runs from bare `apply`.
@@ -235,8 +241,7 @@ registration is a committed change the team reviews. A remote entry stays in the
 `lefthook.yml`, so stop it in this clone alone by skipping its job, `guardrails-remote-<name>`,
 in the clone's gitignored lefthook local config, written as lefthook's docs say at the time
 (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
-[skip](https://lefthook.dev/configuration/skip/)). This is the way out the `reference-verify`
-failure names for a cli-flag finding, which is unverified rather than proven wrong.
+[skip](https://lefthook.dev/configuration/skip/)).
 
 ## `apply read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
 

@@ -93,7 +93,7 @@ done
 exit "$rc"
 STUB
 chmod +x "$WORK/sc-stub/shellcheck"
-sc_stub() { # <repo> -> "<rc>|<stdout and stderr>"
+sc_stub() {
   : >"$WORK/sc.log"
   : >"$WORK/sc.log.dfa-off"
   : >"$WORK/sc.log.argv"
@@ -194,9 +194,6 @@ git -C "$REPO" add -- -x-finding.sh
 expect "a leading-dash name is passed as a path and its finding names it" "1|-x-finding.sh:2: warning: stub finding [SC2154]
 $HINT" "$(sc_stub "$REPO")"
 
-# Identical staged scripts in one directory are linted once; each copy gets the
-# findings under its own path, and its own added lines decide what blocks. b.sh
-# already held line 2, so its copy of the finding there does not block.
 new_repo
 printf '%s\n: stub: finding\necho before\n' "$SHEBANG" >"$REPO/b-copy.sh"
 git -C "$REPO" add b-copy.sh

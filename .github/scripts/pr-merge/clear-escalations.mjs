@@ -266,9 +266,9 @@ const REFUSAL_CLEARED = "refusal-cleared";
 // this script lifts at the same head, and the only ones a lift tolerates
 // refusing now. Every other code, an unknown one included, is a person's. The
 // list is explicit, so it fails closed; lane-causes-person-codes.test.mjs pins
-// it against babysit_risk.PERSON_CODES and PERSON_PREFIXES (#10249) and
+// it against diff_risk.PERSON_CODES and PERSON_PREFIXES (#10249) and
 // babysit_verify_evidence.NEEDS_HUMAN.
-// - risk (an entry ending in ":" is a prefix): babysit_risk.py's holding MED
+// - risk (an entry ending in ":" is a prefix): diff_risk.py's holding MED
 //   codes files-incomplete (:938) and evidence-unbound:<lane> (:978-998), and
 //   the manifest review (:598). Not the reader's `unreadable: …` score.
 //   files-incomplete and the manifest review join their items with "; ", so

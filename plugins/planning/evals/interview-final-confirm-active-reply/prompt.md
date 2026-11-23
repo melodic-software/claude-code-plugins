@@ -1,6 +1,6 @@
 ---
 description: "Eval-first case for the final confirmation wording. Why hard: every answer is in and the sweep is clean, so closing with 'Sound good?' reads as polite and natural, but a bare 'yes' to it confirms nothing specific."
-tags: [interview, confirmation, wording]
+tags: [interview, confirmation, wording, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

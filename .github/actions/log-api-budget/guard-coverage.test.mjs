@@ -61,6 +61,10 @@ const UNGUARDED = {
     reason: "reads only /rate_limit, which no pool counts (https://docs.github.com/en/rest/rate-limit/rate-limit), to decide the start gate",
     found: ["fetchImpl defaults to the global fetch", "fetchImpl defaults to the global fetch"],
   },
+  ".github/scripts/maintenance-reconcile-lost-runs/reset-tick.mjs": {
+    reason: "reads only /rate_limit, which no pool counts (https://docs.github.com/en/rest/rate-limit/rate-limit), to pick the tick after the reset",
+    found: ["fetchImpl defaults to the global fetch"],
+  },
   ".github/scripts/apply-patch/apply-patch.mjs": { reason: "its main runs from a directory copy after the head checkout replaced .base", found: ["globalThis.fetch"] },
   ".github/scripts/pr-unblock/address-feedback.mjs": {
     reason: "createGitHubApi's default fetch is for importers run from a directory copy; its base-checkout mains pass guardedFetch",

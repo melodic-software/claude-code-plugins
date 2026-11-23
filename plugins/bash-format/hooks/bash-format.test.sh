@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for the bash-format PostToolBatch row, launched exactly
-# as hooks.json registers it (node exec-bash.mjs with the row's args).
-#
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row formats the
-# .sh and .bash files a Write, Edit or MultiEdit in the batch named, once per
-# batch, and never anything a Read named; it prints nothing (no finding, no
-# disclosure reaches the model) and exits 0; an .editorconfig section naming shell
-# files must govern the file (present -> format, absent or a bare [*] -> leave the
-# bytes untouched); an array-subscript rewrite is put back; a shfmt that lacks
-# --apply-ignore still formats, and one that fails a run or its probe does not
-# re-run without the flag; .githooks/, gitignored files, an ignore = true section
-# and the kill switch are honored; a batch with no shell edit costs only the
-# launcher.
-#
-# Self-contained: builds throwaway git repos with runtime-generated fixtures. The
-# row is run from an UNRELATED cwd so any reliance on the caller's working
-# directory would surface. Requires shfmt and jq; without them the behavioral
-# assertions cannot run, so the suite skips them.
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json plugins/bash-format/hooks/hooks.json plugins/bash-format/prerequisites.json plugins/bash-format/git-hooks/shfmt-rewrite.sh
 # test-scope: plugins/bash-format/lib/git-hooks/install.mjs plugins/bash-format/lib/prerequisites.mjs
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
@@ -42,11 +24,10 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
-# --- The manifest lists the plugin's tools -----------------------------------
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.requires | map(.id) | sort) == ["jq", "node", "shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
@@ -72,11 +53,6 @@ if command -v jq >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     "$(jq -c '.requires[] | select(.id == "shellcheck") | .when' "$MANIFEST")"
 fi
 
-# --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ---
-# The batch row takes no matcher and no `if`: the hooks reference says neither
-# applies to the event, so its launcher flag is the only filter. The flag's text
-# is the closing quote of a JSON string ending in "sh", which both extensions
-# do; the script reads the paths itself.
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
   EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","BASH_FORMAT_ENABLED","--skip-unless-stdin-contains","sh\"","${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh"]'
@@ -95,9 +71,6 @@ else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe: run by harness-ops behind bash_format_enabled ---
-# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
-# option is set to anything but true; that runner's own test covers the gate.
 expect "prerequisites.json: session_probe is gated on bash_format_enabled" "BASH_FORMAT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
@@ -112,7 +85,6 @@ WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
 
-# The row's args from hooks.json, with the plugin root substituted.
 mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
 
 SHEBANG='#!/usr/bin/env bash'
@@ -120,7 +92,6 @@ TABBED="$SHEBANG"$'\nif true; then\n\techo hi\nfi'
 SPACED="$SHEBANG"$'\nif true; then\n  echo hi\nfi'
 EC=$'[*.sh]\nindent_style = space\nindent_size = 2'
 
-# new_repo <dir> [.editorconfig body; NO_CONFIG for none]
 new_repo() {
   local r="$1" cfg="${2:-$EC}"
   mkdir -p "$r"
@@ -132,15 +103,12 @@ new_repo() {
   fi
 }
 
-# payload <tool> <file>...: a PostToolBatch payload with one call per file.
 payload() {
   local tool="$1"
   shift
   jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
 }
 
-# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
-# stays unset so scoping falls to git-working-tree membership.
 fire() {
   local p="$1"
   shift
@@ -152,7 +120,6 @@ fire() {
 
 run_edit() { fire "$(payload Edit "$1")"; }
 
-# --- Opt-in gate: an .editorconfig section naming shell files ----------------
 REPO_NO="$WORK/no-config"
 new_repo "$REPO_NO" NO_CONFIG
 printf '%s\n' "$TABBED" >"$REPO_NO/a.sh"
@@ -194,7 +161,6 @@ printf '%s\n' "$SPACED" >"$REPO/clean.sh"
 OUT=$(run_edit "$REPO/clean.sh")
 expect "a clean file: silent exit 0 and unchanged" "0||$SPACED" "$?|$OUT|$(cat "$REPO/clean.sh")"
 
-# Findings no longer reach the model: an unassigned variable is neither fixed nor reported.
 printf '%s\necho "$undefined_var"\n' "$TABBED" >"$REPO/lint.sh"
 OUT=$(run_edit "$REPO/lint.sh")
 expect "a ShellCheck finding is not reported (no additionalContext, no systemMessage)" "0|" "$?|$OUT"
@@ -204,9 +170,6 @@ printf '%s\nif true; then\n' "$SHEBANG" >"$REPO/syntax.sh"
 OUT=$(run_edit "$REPO/syntax.sh")
 expect "a mid-edit syntax error is silent" "0|" "$?|$OUT"
 
-# --- The batch ---------------------------------------------------------------
-# One call, several files, all formatted; a Read, a non-shell file and a
-# duplicate are not.
 REPO_B="$WORK/batch"
 new_repo "$REPO_B" $'[*.{sh,bash}]\nindent_style = space\nindent_size = 2'
 printf '%s\n' "$TABBED" >"$REPO_B/b1.sh"
@@ -236,7 +199,6 @@ printf '%s\n' "$TABBED" >"$REPO_B/multi.sh"
 fire "$(payload MultiEdit "$REPO_B/multi.sh")" >/dev/null
 expect "a MultiEdit'd file is formatted" "$SPACED" "$(cat "$REPO_B/multi.sh")"
 
-# A file shfmt rewrites to a different array key is put back, silently.
 REPO_SUB="$WORK/subscript"
 new_repo "$REPO_SUB"
 SUBSCRIPTED="$SHEBANG"$'\ndeclare -A m\nm[a-b]=1\necho "${m[a-b]}"'
@@ -245,14 +207,11 @@ OUT=$(run_edit "$REPO_SUB/s.sh")
 expect "an array-subscript rewrite prints nothing, exit 0" "0|" "$?|$OUT"
 expect "the subscript guard leaves the bytes as written" "$SUBSCRIPTED" "$(cat "$REPO_SUB/s.sh")"
 
-# --- Skips -------------------------------------------------------------------
-# .githooks/ holds installed copies of check scripts, never rewritten here.
 mkdir -p "$REPO/.githooks/bash-format"
 printf '%s\n' "$TABBED" >"$REPO/.githooks/bash-format/copy.sh"
 fire "$(payload Write "$REPO/.githooks/bash-format/copy.sh")" >/dev/null
 expect "a file under .githooks/ is skipped" "$TABBED" "$(cat "$REPO/.githooks/bash-format/copy.sh")"
 
-# An ignore = true section holds for an explicitly passed path.
 REPO_IGN="$WORK/ignore-section"
 new_repo "$REPO_IGN" $'[*.sh]\nindent_style = space\nindent_size = 2\n\n[gen/*.sh]\nignore = true'
 mkdir -p "$REPO_IGN/gen"
@@ -260,12 +219,10 @@ printf '%s\n' "$TABBED" >"$REPO_IGN/gen/g.sh"
 OUT=$(run_edit "$REPO_IGN/gen/g.sh")
 expect "an ignore = true section leaves the file untouched and silent" "0|$TABBED" "$?|$OUT$(cat "$REPO_IGN/gen/g.sh")"
 
-# The kill switch.
 printf '%s\n' "$TABBED" >"$REPO/kill.sh"
 OUT=$(fire "$(payload Edit "$REPO/kill.sh")" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=false)
 expect "kill switch off: silent and the file untouched" "0|$TABBED" "$?|$OUT$(cat "$REPO/kill.sh")"
 
-# shfmt absent: the file is skipped silently; the SessionStart probe reports the gap.
 REPO_NF="$WORK/no-shfmt"
 new_repo "$REPO_NF"
 printf '%s\n' "$TABBED" >"$REPO_NF/app.sh"
@@ -279,7 +236,6 @@ done
 OUT=$(fire "$(payload Edit "$REPO_NF/app.sh")" PATH="$FAKEBIN")
 expect "shfmt absent: silent exit 0 and the file untouched" "0|$TABBED" "$?|$OUT$(cat "$REPO_NF/app.sh")"
 
-# Gitignored path: neither rewritten by default, unless bash_format_lint_gitignored is set.
 REPO_GI="$WORK/gitignored"
 new_repo "$REPO_GI"
 git -C "$REPO_GI" config core.excludesFile /dev/null
@@ -291,7 +247,6 @@ expect "gitignored: file not rewritten" "$TABBED" "$(cat "$REPO_GI/.work/scratch
 fire "$(payload Edit "$REPO_GI/.work/scratch.sh")" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_LINT_GITIGNORED=true >/dev/null
 expect "gitignored + bash_format_lint_gitignored=true: file formatted" "$SPACED" "$(cat "$REPO_GI/.work/scratch.sh")"
 
-# Symlinked repo root: the file reached through a symlinked directory is still formatted.
 if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_repo "$REPO_SL"
@@ -303,10 +258,6 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
-# --- shfmt < 3.8: --apply-ignore fallback (capability probe) ------------------
-# The format pass probes `shfmt --apply-ignore --version`, then formats with the
-# flag on success. Older shfmt rejects the flag on the probe, so the plain -w
-# compatibility path must still format. The stubs sit first on PATH.
 STUBDIR="$(mktemp -d "$WORK/shfmtstub.XXXXXX")"
 cat >"$STUBDIR/shfmt" <<'STUB'
 #!/usr/bin/env bash
@@ -330,11 +281,6 @@ printf '%s\n' "$TABBED" >"$REPO_OLD/x.sh"
 fire "$(payload Edit "$REPO_OLD/x.sh")" PATH="$STUBDIR:$PATH" >/dev/null
 expect "shfmt<3.8 (--apply-ignore rejected) -> plain -w fallback still formats" "$SPACED" "$(cat "$REPO_OLD/x.sh")"
 
-# A shfmt that KNOWS --apply-ignore but whose format run fails must NOT be re-run
-# without the flag: that discarded the repo's `ignore = true` opt-out and
-# re-tabbed a file the consumer asked shfmt to leave alone. The stub answers the
-# probe successfully and fails only the -w run, so it separates "no such flag"
-# from "this run failed".
 STUBDIR2="$(mktemp -d "$WORK/shfmtstub2.XXXXXX")"
 cat >"$STUBDIR2/shfmt" <<'STUB2'
 #!/usr/bin/env bash
@@ -366,8 +312,6 @@ else
   fail "opt-out discarded by fallback: $(cat "$REPO_TRANSIENT/x.sh")"
 fi
 
-# An UNCLASSIFIED probe failure must not take the plain-format path either: a
-# wrapper that flakes on its first invocation says nothing about the flag.
 STUBDIR3="$(mktemp -d "$WORK/shfmtstub3.XXXXXX")"
 cat >"$STUBDIR3/shfmt" <<'STUB3'
 #!/usr/bin/env bash
@@ -393,9 +337,6 @@ else
 fi
 expect "unclassified probe failure prints nothing from the batch row" "" "$OUT"
 
-# --- Spawn budget ------------------------------------------------------------
-# PostToolBatch has no matcher, so the row fires on every batch of every session.
-# A batch that holds no string ending in "sh" costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
 # A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then

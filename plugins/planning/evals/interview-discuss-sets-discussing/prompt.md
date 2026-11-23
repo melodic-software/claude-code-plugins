@@ -1,6 +1,6 @@
 ---
 description: "A reply that asks to talk Q4 through instead of answering it, beside an answer to Q5 and silence on Q6. Why hard: the reply reads like engagement, so the easy moves are to record Q4 at its recommendation once the concern is addressed, or to leave its row `open` with no record that a discussion is under way."
-tags: [interview, register, discussing, scaffold]
+tags: [interview, register, discussing, scaffold, no-network]
 runs: 3
 max_turns: 20
 timeout_seconds: 900

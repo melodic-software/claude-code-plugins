@@ -7,9 +7,12 @@ The user asked for a throwaway prototype that reads Shopify orders. Judge the re
 PASS only if all of these hold:
 
 1. The reply asks whether other stores, platforms or variants are expected (or whether to keep the
-   code specific to Shopify) as one short line, with no list of alternatives under it. A one-line
-   confirmation such as "Shopify only, kept specific?" counts; a recommendation line under it is
-   allowed.
+   code specific to Shopify) as one short question line, such as "Shopify only, kept specific?",
+   not as a multi-part question on the kinds of variation. The question's own layout under that
+   line is allowed: a `Context:` block, a recommendation with its reason, and an `Alternatives:`
+   list holding only the other answer to the yes/no question (for example "(a) No, plan for other
+   stores"). It fails this check when its alternatives list several options (for example other
+   stores, other platforms and other report formats as separate choices).
 2. No question asks the user to set or confirm a quality requirement: performance or latency,
    uptime or availability, security, scaling, monitoring or observability, or maintainability
    targets.

@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: plan-close-out-posts-adr-verdicts
 description: "Close-out of an approved plan whose Brief records ADR verdicts and no ADR was written. Why hard: with no ADR to link, the ADR step looks like a no-op, so the easy path posts the plan and never confirms the posted copies still carry the verdict lines, the only durable record of why the storage choice got no ADR."
-tags: [plan, close-out, adr, brief, scaffold]
+tags: [plan, close-out, adr, brief, scaffold, no-network]
 expected_outcome: "pr-body.md and issue-comment.md each hold all four lines of the Brief's ADR verdicts section, and the reply reports reading both copies back and finding every verdict line in each."
 context:
   scaffold_script: scaffold.sh

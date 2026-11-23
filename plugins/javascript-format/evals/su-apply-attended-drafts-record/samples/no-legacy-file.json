@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/ecosystems/typescript.yaml"
+      ],
+      "why": "wrote the record itself, at the legacy path"
+    }
+  ]
+}

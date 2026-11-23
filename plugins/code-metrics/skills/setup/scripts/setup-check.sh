@@ -189,8 +189,12 @@ resolved_ok=0
 
 ecos=()
 lanes=()
-for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
+for eco in "$REPO_ROOT"/docs/conventions/ecosystems/*.yaml "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue
+  if [[ "$eco" == "$REPO_ROOT/.claude/ecosystems/"* && -f "$REPO_ROOT/docs/conventions/ecosystems/${eco##*/}" ]]; then
+    row WARN "ecosystem .claude/ecosystems/${eco##*/}" "is not read: docs/conventions/ecosystems/${eco##*/} takes its place; delete it"
+    continue
+  fi
   lane="${eco##*/}"
   lane="${lane%.yaml}"
   lane="${lane%.local}"

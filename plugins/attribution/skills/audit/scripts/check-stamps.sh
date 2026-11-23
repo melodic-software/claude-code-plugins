@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# Check verification stamps for expiry, and claim only what parses.
-#
-#   check-stamps.sh [files...] [--paths-file F] [--expiry-days N]
-#                   [--trigger-less] [--as-of YYYY-MM-DD] [--show-config]
-#
-# Reasoning-free (Brief constraint C1): this script reads dates and compares
-# them to a window. Whether a stamped claim is still TRUE is not knowable from
-# a date and is never asserted here — the upstream-drift convention's own
-# framing, that a date is an as-of record and never standing authority.
-#
-# What counts as a stamp, and what does not:
-#
-#   A candidate is a stamp keyword followed, within a short window, by
-#   something date-shaped. BOTH halves are required. A date with no keyword is
-#   not a stamp (a changelog entry is not a verification record) and a keyword
-#   with no date is not one either ("confirmed from a primary source" is
-#   prose). Of the candidates, only an ISO 8601 date is PARSED; every other
-#   date-shaped form is DECLINED with the reason, and counted.
-#
-# The trigger-less check (--trigger-less, config `trigger_less_stamp_check`)
-# ships OFF by default, per the Brief's portable-baseline constraint. It is
-# deliberately coarse: it asks whether the SURFACE — the whole file, which is
-# what the upstream-drift convention scopes a trigger to — states a recheck
-# trigger anywhere, so a file that states one clears every stamp in it. Coarse
-# in the conservative direction: it under-reports rather than inventing
-# findings on a fleet whose stamp forms are not uniformly greppable.
-#
 # Exit: 0 on a clean run (with findings or none), 2 on usage or input error.
 set -uo pipefail
 
@@ -123,8 +96,6 @@ if [[ -n "$AS_OF" && ! "$AS_OF" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
 fi
 [[ -n "$AS_OF" ]] || AS_OF="$(date +%Y-%m-%d)"
 
-# --- Config cascade (user-global -> team -> personal override; JSON user-global, YAML team) -
-
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
@@ -134,9 +105,6 @@ if cfg_have_unread_layer; then
   echo "check-stamps.sh: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
-# The setup skill tells the operator to read per-value provenance out of
-# `--show-config` rather than parsing the layers by hand, so each value carries
-# the layer that supplied it (CFG_SOURCE after each read).
 DEFAULT_EXPIRY_DAYS=180
 EXPIRY_DAYS="" TRIGGER_LESS=""
 cfg_scalar EXPIRY_DAYS stamp_expiry_days
@@ -174,8 +142,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Inputs ----------------------------------------------------------------------
-
 if [[ -n "$PATHS_FILE" ]]; then
   if [[ ! -r "$PATHS_FILE" ]]; then
     echo "check-stamps.sh: cannot read --paths-file: $PATHS_FILE" >&2
@@ -202,14 +168,6 @@ done
 if [[ "${#FILES[@]}" -eq 0 ]]; then
   echo "check-stamps.sh: no files to check" >&2
 fi
-
-# --- Scan ------------------------------------------------------------------------
-#
-# awk emits a tab-separated record stream; the JSON is composed below. Records:
-#   P <file> <line> <iso-date> <days_over> <surface_has_trigger>
-#   D <file> <line> <reason-key> <text>
-# Date arithmetic is days-from-civil (proleptic Gregorian), so no `date -d`
-# dependency and no divergence between GNU and BSD date.
 
 RECORDS="$(LC_ALL=C awk \
   -v as_of="$AS_OF" -v window="$EXPIRY_DAYS" '
@@ -433,8 +391,6 @@ tolower($0) ~ /recheck[ \t]+when[ \t]+[^ \t]|recheck\**:\**[ \t]*[^ \t*]/ {
 
 END { flush() }
 ' ${FILES[@]+"${FILES[@]}"})"
-
-# --- JSON product ----------------------------------------------------------------
 
 reason_text() {
   case "$1" in

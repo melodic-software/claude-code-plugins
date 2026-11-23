@@ -3,6 +3,12 @@
 Notable changes to the ecosystem-resolution contract (SemVer). A guardrail change is a major bump.
 A new record row or detector signal is a minor bump. A wording change is a patch.
 
+## [1.1.1] - 2026-11-22
+
+The ecosystem command record's home is `docs/conventions/ecosystems/<ecosystem>.yaml`, per the
+ecosystem-commands contract 1.7.0; a record still at the legacy `.claude/ecosystems/` is read while
+none of that name is in the new home.
+
 ## [1.1.0] - 2026-11-16
 
 The record table's writer for an ecosystem command record names `/toolchain:setup apply

@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/ecosystems/bash.yaml"
+      ],
+      "why": "wrote the bash record itself, at the legacy path"
+    }
+  ]
+}

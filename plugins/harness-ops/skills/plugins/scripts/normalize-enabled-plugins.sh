@@ -58,18 +58,15 @@ Exit: 0 already sorted, no such --file, or wrote a reorder, or --report-project 
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "normalize-enabled-plugins.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
+# shellcheck source=../../../lib/opt-value.sh
+opt_value_dir="${BASH_SOURCE[0]%/*}"
+[[ "$opt_value_dir" != "${BASH_SOURCE[0]}" ]] || opt_value_dir=.
+source "$opt_value_dir/../../../lib/opt-value.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --file)
-    require_opt_value "$@"
+    require_opt_value normalize-enabled-plugins.sh "$@"
     FILE="$2"
     shift 2
     ;;
@@ -78,7 +75,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --report-project)
-    require_opt_value "$@"
+    require_opt_value normalize-enabled-plugins.sh "$@"
     REPORT_PROJECT="$2"
     shift 2
     ;;

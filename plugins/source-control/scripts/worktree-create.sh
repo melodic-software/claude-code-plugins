@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
 # worktree-create.sh — shared worktree-creation helper (Phase A).
 #
-# Single owner of worktree creation for this plugin: external-root path
-# computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, the branch name
-# (worktree_branch_naming), base-ref resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
-# `git worktree lock` liveness guard (#2257) with an optional --session-id
-# claim token, the `.worktreeinclude` local-file copy, and `npm ci` when the
-# new tree has a package-lock.json. The `.worktreeinclude` copy Claude Code
-# performs for its
-# native worktrees (EnterWorktree / --worktree) is bypassed when a worktree is
-# created with `git worktree add` directly, so this helper reimplements it.
-#
 # Consumers:
 #   - Phase A (now): the `/worktree create` skill routes through this helper,
 #     then calls EnterWorktree(path:) on the printed path to enter the worktree.
@@ -60,18 +50,20 @@
 
 set -uo pipefail
 
+HELPER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || { echo "error: cannot resolve the helper's directory" >&2; exit 4; }
+
 # shellcheck source=lib/worktree-facts.sh
-source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+source "$HELPER_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
 
 PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
-source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
+source "$HELPER_DIR/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
 # Lexical path collapse, shared inside this plugin with the worktree gates and
 # the claim helper. Sourced for worktree_path_normalize alone: the file defines
 # functions only and pulls in no library of its own.
 # shellcheck source=../hooks/worktree-path-lib.sh
-source "${BASH_SOURCE[0]%/*}/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
+source "$HELPER_DIR/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
 # windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
@@ -278,19 +270,23 @@ Options:
                       would otherwise need its own rm.
   -h, --help          Show this help.
 
-Dependencies: when the new worktree has a package-lock.json, the helper runs
-npm ci once per distinct install into <root>/.npm-seed/<key>, makes the seed's
-files read-only, and hard-links that node_modules into the worktree (cp -al),
-so worktrees on one install share one copy on disk. The key hashes
-package-lock.json, package.json, .npmrc, the Node ABI, platform and
-architecture, NODE_ENV and npm_config_* variables. It runs npm ci in the
-worktree instead without flock, node or a working cp -al, when package.json
-declares workspaces, an install lifecycle script or a file:/link: dependency,
-when the seed install fails, or with WORKTREE_CREATE_NPM_SEED=0. Seeds unused
-for WORKTREE_CREATE_NPM_SEED_DAYS (default 14) are removed. Waiting for the
-seed lock and installing share one cap, WORKTREE_CREATE_DEPS_CAP_SECONDS
-(default 45); npm output goes to stderr. A missing npm, a failed install or the
-cap only warns on stderr; the exit code is unchanged.
+Dependencies: the helper runs the provisioning step, provision-prerequisites.sh,
+which installs the lockfiles the tree's ecosystem records declare with an
+install object on a requires entry, by npm ci --ignore-scripts --no-audit
+--no-fund in each lockfile's directory. When no record declares any lockfile,
+it installs the root npm-shrinkwrap.json or package-lock.json the same way and
+prints a notice to declare it; that fallback ends at the ecosystem-commands
+contract's next major version. It installs once per distinct install
+into <root>/.npm-seed/<key>, makes the seed's files read-only, and hard-links
+that node_modules into the worktree (cp -al), so worktrees on one install share
+one copy on disk. It installs in place instead without flock, node or a working
+cp -al, when package.json declares workspaces, an install lifecycle script or a
+file:/link: dependency, or when the seed install fails.
+Seeds unused for WORKTREE_CREATE_NPM_SEED_DAYS (default 14) are removed; with
+WORKTREE_CREATE_NPM_SEED=0 no seed is used. Waiting for the seed lock and
+installing share one cap, WORKTREE_CREATE_DEPS_CAP_SECONDS (default 45); npm
+output goes to stderr. A missing npm, a failed install or the cap only warns on
+stderr; the exit code is unchanged.
 
 Git LFS: when a .gitattributes file in the commit being checked out routes
 paths through filter=lfs, the checkout runs with GIT_LFS_SKIP_SMUDGE=1, so
@@ -299,7 +295,7 @@ store. One stderr line names git lfs pull, and git lfs pull --include <paths>
 for part of the content.
 
 Reuse: a worktree already at the target path, on the branch this run would use,
-is printed as it is (no copy, no npm ci) when its lock names --session-id, when
+is printed as it is (no copy, no provisioning) when its lock names --session-id, when
 it is unlocked (claimed first), or when worktree-claim.sh stale proves its
 session's claim stale (handed over). Anything else there, a live or
 session-less claim, or no --session-id, exits 4. An existing branch checked out
@@ -740,7 +736,7 @@ read_branch_naming() {
   local records key value naming="" default_type=""
   [[ -f "$toplevel/$CONVENTION_YAML_REL" ]] || return 0
   # shellcheck source=../lib/convention-key.sh
-  source "${BASH_SOURCE[0]%/*}/../lib/convention-key.sh" || {
+  source "$HELPER_DIR/../lib/convention-key.sh" || {
     printf '%s: cannot load lib/convention-key.sh; keeping the branch name verbatim\n' "$PROG" >&2
     return 0
   }
@@ -1057,7 +1053,7 @@ reuse_refuse() {
 # reuse_existing_target — return the worktree at $worktree_path when this
 # session may claim it, else refuse. Never returns.
 reuse_existing_target() {
-  local top i idx=-1 reason held_branch old_sid claim="${BASH_SOURCE[0]%/*}/worktree-claim.sh"
+  local top i idx=-1 reason held_branch old_sid claim="$HELPER_DIR/worktree-claim.sh"
   # git's own spelling of the target's top level is the one `worktree list`
   # prints, on every platform. Whole-path equality, never a prefix test: a
   # registered feat-login-form must not answer for feat-login.
@@ -1394,137 +1390,8 @@ if [[ -f "$settings_src" ]]; then
   fi
 fi
 
-# Install the tree's npm dependencies. node_modules is gitignored, so a new
-# worktree has none, and a pre-commit hook that runs a tool from
-# node_modules/.bin (markdownlint-cli2 and the like) fails the first commit.
-# Non-fatal on purpose: the worktree is already usable for reading and editing,
-# so a missing npm, a failed install or the cap warns with the remedy and the
-# exit code stays what creation earned. npm's own output goes to stderr to keep
-# the sole-stdout-line contract. The cap keeps the WorktreeCreate hook (60s
-# timeout in hooks.json) from being killed mid-creation.
-deps_cap="${WORKTREE_CREATE_DEPS_CAP_SECONDS:-45}"
-if [[ "$deps_cap" =~ ^[0-9]+$ ]]; then
-  # 10# reads a leading-zero value such as 08 as decimal, not octal.
-  deps_cap=$((10#$deps_cap))
-else
-  deps_cap=45
-fi
-# Hard links, not a symlink: npm ci empties a symlinked node_modules' target
-# (https://github.com/npm/cli/blob/v12.2.3/lib/commands/ci.js#L122-L129).
-SEED_UNAVAILABLE=200
-deps_started=$SECONDS
-deps_left() {
-  local left=$((deps_cap - (SECONDS - deps_started)))
-  ((left > 0)) || left=0
-  printf '%s' "$left"
-}
-
-npm_seed_key() {
-  node -e '
-const fs = require("fs"), path = require("path"), crypto = require("crypto");
-const wt = process.argv[1];
-const read = (f) => { try { return fs.readFileSync(path.join(wt, f)); } catch { return null; } };
-const raw = read("package.json");
-if (raw) {
-  const p = JSON.parse(raw), s = p.scripts || {};
-  if (p.workspaces || ["preinstall", "install", "postinstall", "prepare", "prepublish"].some((k) => s[k])) process.exit(3);
-  for (const d of ["dependencies", "devDependencies", "optionalDependencies"])
-    for (const v of Object.values(p[d] || {})) if (/^(file|link):/.test(v)) process.exit(3);
-}
-const h = crypto.createHash("sha256");
-for (const f of ["package-lock.json", "package.json", ".npmrc"]) h.update(f + "\0").update(read(f) || "").update("\0");
-h.update([process.versions.modules, process.platform, process.arch].join("-"));
-for (const k of Object.keys(process.env).sort())
-  if (k === "NODE_ENV" || /^npm_config_/i.test(k)) h.update("\0" + k + "=" + process.env[k]);
-process.stdout.write(h.digest("hex"));
-' "$1"
-}
-
-npm_seed_install() {
-  local wt="$1" seeds key seed f rc left
-  [[ "${WORKTREE_CREATE_NPM_SEED:-1}" != 0 ]] || return "$SEED_UNAVAILABLE"
-  command -v flock >/dev/null 2>&1 && command -v node >/dev/null 2>&1 || return "$SEED_UNAVAILABLE"
-  key=$(npm_seed_key "$wt" 2>/dev/null) && [[ -n "$key" ]] || return "$SEED_UNAVAILABLE"
-  seeds="$(dirname "$wt")/.npm-seed"
-  seed="$seeds/$key"
-  mkdir -p "$seeds" && exec 9>"$seed.lock" || return "$SEED_UNAVAILABLE"
-  if ! flock -w "$(deps_left)" 9; then
-    exec 9>&-
-    return "$SEED_UNAVAILABLE"
-  fi
-  if [[ ! -f "$seed/.complete" ]]; then
-    left=$(deps_left)
-    if ((left == 0)); then
-      exec 9>&-
-      return 124
-    fi
-    rm -rf -- "${seed:?}" "${seed:?}.tmp"
-    mkdir -p "$seed.tmp"
-    for f in package.json package-lock.json .npmrc; do
-      [[ -f "$wt/$f" ]] && cp -p -- "$wt/$f" "$seed.tmp/"
-    done
-    printf '%s: installing dependencies with npm ci into the shared seed (capped at %ss)\n' "$PROG" "$deps_cap" >&2
-    # SC2016: $1 expands in the inner bash, which receives the path as an argument.
-    # shellcheck disable=SC2016
-    run_capped "$left" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$seed.tmp" </dev/null >&2
-    rc=$?
-    if ((rc != 0)); then
-      rm -rf -- "${seed:?}.tmp"
-      exec 9>&-
-      ((rc == 124)) && return 124
-      return "$SEED_UNAVAILABLE"
-    fi
-    [[ -d "$seed.tmp/node_modules" ]] && find "$seed.tmp/node_modules" -type f -exec chmod a-w {} + 2>/dev/null
-    : >"$seed.tmp/.complete" && mv -- "$seed.tmp" "$seed"
-  fi
-  rc=0
-  if [[ -d "$seed/node_modules" ]]; then
-    rm -rf -- "${wt:?}/node_modules"
-    cp -al -- "$seed/node_modules" "$wt/node_modules" 2>/dev/null || rc=$SEED_UNAVAILABLE
-  fi
-  touch -- "$seed/.complete"
-  exec 9>&-
-  ((rc == 0)) && printf '%s: linked node_modules from the shared seed %s\n' "$PROG" "$seed" >&2
-  prune_npm_seeds "$seeds"
-  return "$rc"
-}
-
-prune_npm_seeds() {
-  local seeds="$1" days="${WORKTREE_CREATE_NPM_SEED_DAYS:-14}" marker old
-  [[ "$days" =~ ^[0-9]+$ ]] || days=14
-  while IFS= read -r marker; do
-    old=$(dirname "$marker")
-    (exec 8>"$old.lock" && flock -n 8 && rm -rf -- "${old:?}" "${old:?}.lock") 2>/dev/null
-  done < <(find "$seeds" -mindepth 2 -maxdepth 2 -name .complete -mtime +"$((10#$days))" 2>/dev/null)
-}
-
-if [[ -f "$worktree_path/package-lock.json" ]]; then
-  if ! command -v npm >/dev/null 2>&1; then
-    printf '%s: warning: package-lock.json found but npm is not on PATH; dependencies not installed. Run npm ci in %s\n' \
-      "$PROG" "$worktree_path" >&2
-  else
-    npm_seed_install "$worktree_path"
-    deps_rc=$?
-    if ((deps_rc == SEED_UNAVAILABLE)); then
-      deps_rc=124
-      left=$(deps_left)
-      if ((left > 0)); then
-        printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$deps_cap" >&2
-        # SC2016: $1 expands in the inner bash, which receives the path as an argument.
-        # shellcheck disable=SC2016
-        run_capped "$left" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$worktree_path" </dev/null >&2
-        deps_rc=$?
-      fi
-    fi
-    if ((deps_rc == 124)); then
-      printf '%s: warning: npm ci did not finish within %ss and was stopped; node_modules may be partial. Run npm ci in %s\n' \
-        "$PROG" "$deps_cap" "$worktree_path" >&2
-    elif ((deps_rc != 0)); then
-      printf '%s: warning: npm ci failed (exit %d); node_modules may be missing or partial. Run npm ci in %s\n' \
-        "$PROG" "$deps_rc" "$worktree_path" >&2
-    fi
-  fi
-fi
+bash "$HELPER_DIR/provision-prerequisites.sh" --cap "${WORKTREE_CREATE_DEPS_CAP_SECONDS:-45}" \
+  --seed-root "$(dirname "$worktree_path")/.npm-seed" "$worktree_path" </dev/null >&2
 
 if ((branch_exists)); then
   printf '%s: created worktree on existing branch %q\n' "$PROG" "$branch" >&2

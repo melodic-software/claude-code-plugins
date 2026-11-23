@@ -73,14 +73,18 @@ A filter naming an id that is still not covered after that pass goes to rung 3: 
 Resolve each ecosystem independently, and within it each command key the run will execute, in
 order; stop at the first rung that yields it:
 
-1. **Consumer file present → authoritative.** Read `.claude/ecosystems/<ecosystem>.yaml` in the
-   consuming repo. Layer additively, **per key**, in this order. A later layer overrides earlier
-   layers key-by-key and never replaces the base wholesale:
-   `~/.claude/ecosystems/<ecosystem>.yaml` (user-global) → `.claude/ecosystems/<ecosystem>.yaml`
-   (team) → `.claude/ecosystems/<ecosystem>.local.yaml` (personal override). Use the resolved values.
+1. **Consumer file present → authoritative.** Read `docs/conventions/ecosystems/<ecosystem>.yaml`
+   in the consuming repo. Layer additively, **per key**, in this order. A later layer overrides
+   earlier layers key-by-key and never replaces the base wholesale:
+   `~/.claude/ecosystems/<ecosystem>.yaml` (user-global) →
+   `docs/conventions/ecosystems/<ecosystem>.yaml` (team) →
+   `docs/conventions/ecosystems/<ecosystem>.local.yaml` (personal override). Use the resolved
+   values. A team or personal file absent there is read from the legacy `.claude/ecosystems/`;
+   with both present the `docs/conventions/` file wins and the report names both paths
+   (the contract's "Legacy location").
 2. **Absent → infer, then offer to persist.** Infer the command surface from the repo's build files
    (solution files, `pyproject.toml`, `package.json`, …) and **offer to write** the inferred
-   `.claude/ecosystems/<ecosystem>.yaml` via `/toolchain:setup` so the next run reads rung 1.
+   `docs/conventions/ecosystems/<ecosystem>.yaml` via `/toolchain:setup` so the next run reads rung 1.
    An inferred command that runs a tool through a package runner (`npx`, `pnpm dlx`, `yarn dlx`,
    `bunx`, `uvx`) names the package the project's manifest declares, never a shorter name the
    runner could resolve to someone else's package (`@biomejs/biome`, not `biome`), and passes the
@@ -159,12 +163,12 @@ out of a CI workflow file. A malformed record degrades to the stated and inferre
   choose between them: run none, report the key's cell as unresolved, and name every candidate with
   its file below the table.
 - **Install nothing, write nothing.** Install no dependency or tool, write no
-  `.claude/ecosystems/` file, and offer no `/toolchain:setup` persist. To make the next unattended
-  run resolve a key, a person records it with `/toolchain:setup apply <ecosystem>`, or merges a
+  `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` file, and offer no `/toolchain:setup` persist. To make the next
+  unattended run resolve a key, a person records it with `/toolchain:setup apply <ecosystem>`, or merges a
   lane's record pull request.
 
 ## Setup writer
 
 `/toolchain:setup` is the re-runnable writer for rungs 2 and 3. It interviews, infers, and writes
-`.claude/ecosystems/*.yaml` into the consuming repo. Recommend the consumer add
-the recursive `.claude/**/*.local.*` line to `.gitignore`.
+`docs/conventions/ecosystems/*.yaml` into the consuming repo. Recommend the consumer add
+the recursive `docs/conventions/**/*.local.*` line to `.gitignore`.

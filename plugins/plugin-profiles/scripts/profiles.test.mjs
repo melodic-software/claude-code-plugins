@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseProfile } from "../lib/profile-files.mjs";
 import { askPerFolder, main, pickProfile } from "./profiles.mjs";
 import { tempDir, writeTree } from "../tests/temp.mjs";
@@ -318,7 +318,9 @@ test("launch --with merges a launcher's settings into one file the profile wins 
   assert.equal(doc.enabledPlugins["widget@vendor"], true, "an entry the profile leaves alone stays");
   assert.equal(JSON.parse(readFileSync(plain, "utf8")).model, undefined, "the plain file is unchanged");
   const noProfile = launchJson(w, ["--with", own], { PLUGIN_PROFILES_SESSION: "" });
-  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", own], "with no profile the launcher's own settings pass through");
+  assert.deepEqual(noProfile.argv.slice(-2), ["--settings", noProfile.file], "#18250: with no profile inline settings pass as a file, which Windows PowerShell 5.1 cannot mangle");
+  assert.deepEqual(JSON.parse(readFileSync(noProfile.file, "utf8")), JSON.parse(own), "the file holds the launcher's own settings unchanged");
+  assert.ok(!noProfile.command.includes("{"), "no inline JSON in the printed line");
 });
 
 test("apply without --for is a usage error and writes nothing, so a folder shared by other sessions is never chosen by default", () => {
@@ -1124,7 +1126,45 @@ function linkedWorktree(w, local = null) {
 }
 
 const runIn = (w, cwd, args, extra = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...w.env, ...extra }, encoding: "utf8" });
-const esc = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const RACE = pathToFileURL(join(STUB_BIN, "..", "race-settings-write.mjs")).href;
+const runRacing = (w, args) => spawnSync(process.execPath, ["--import", RACE, CLI, ...args], { cwd: w.project, env: w.env, encoding: "utf8" });
+const profilesIn = (dir) => readdirSync(dir).map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")).profile);
+
+test("#18218: a settings write that fails after another apply saved its record leaves that record, with or without a record before", () => {
+  for (const before of [false, true]) {
+    const w = world();
+    if (before) assert.equal(w.run(["apply", "review", "--for", "folder", "--yes"]).status, 0);
+    const r = runRacing(w, ["apply", "build", "--for", "folder", "--yes"]);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /settings write failed/);
+    assert.deepEqual(profilesIn(dataRecordsDir(w)), ["other-apply"]);
+  }
+});
+
+test("#18218: a finish whose settings write fails puts the unfinished record back and leaves another apply's record in the repository", () => {
+  const w = world();
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes", "--defer-off"]).status, 0);
+  const [name] = readdirSync(dataRecordsDir(w));
+  const pending = readFileSync(join(dataRecordsDir(w), name), "utf8");
+  gitInit(w);
+  const r = runRacing(w, ["apply", "build", "--for", "folder", "--finish-pending"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /settings write failed/);
+  assert.equal(readFileSync(join(dataRecordsDir(w), name), "utf8"), pending);
+  assert.deepEqual(profilesIn(join(w.project, ".git", "plugin-profiles", "records")), ["other-apply"]);
+});
+
+test("#18218: an apply that another apply finishes before it claims the record re-plans over that record, so clear still puts the file back", () => {
+  const w = world();
+  const during = join(w.root, "during.json");
+  writeFileSync(during, JSON.stringify({ argv: [CLI, "apply", "build", "--for", "folder", "--yes"], cwd: w.project }));
+  w.run(["apply", "review", "--for", "folder", "--yes"], { PP_STUB_DURING_LIST: during });
+  assert.equal(existsSync(during), false, "the other apply ran mid-plan");
+  assert.equal(w.records().length, 1, "a record of what was written survives");
+  assert.equal(w.run(["clear", "--for", "folder", "--yes"]).status, 0);
+  assert.equal(w.read(), LOCAL_BEFORE);
+});
+const esc =(text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const gitRecords = (w) => {
   const dir = join(w.project, ".git", "plugin-profiles", "records");
   return existsSync(dir) ? readdirSync(dir) : [];
@@ -1831,6 +1871,16 @@ test("#16914: on Windows start spawns the claude.exe on PATH with no shell, and 
   assert.match(cmdOnly.refusal, /found D:\\npm\\claude\.cmd but no claude\.exe/);
   assert.match(claudeCommand({ PATH: "E:\\x" }, "win32", () => false).refusal, /no claude\.exe on PATH/);
   assert.deepEqual(claudeCommand({}, "linux"), { file: "claude" });
+});
+
+test("#18219: on Windows launch prints a PowerShell line that clears the session variables, and keeps argv for scripts", async () => {
+  const { launchCommand } = await import("./profiles.mjs");
+  const argv = ["env", "-u", "PLUGIN_PROFILES_SESSION", "-u", "PLUGIN_PROFILES_SESSION_FILE", "-u", "SESSION_SETTINGS_FILE", "claude", "--settings", "C:\\data\\a b\\it's.json"];
+  assert.equal(
+    launchCommand(argv, "win32"),
+    "Remove-Item Env:PLUGIN_PROFILES_SESSION, Env:PLUGIN_PROFILES_SESSION_FILE, Env:SESSION_SETTINGS_FILE -ErrorAction Ignore; claude --settings 'C:\\data\\a b\\it''s.json'",
+  );
+  assert.equal(launchCommand(["env", "-u", "X", "claude", "--settings", "/tmp/a.json"], "linux"), "env -u X claude --settings /tmp/a.json");
 });
 
 test("#17063: no spawn in the plugin runs through a shell, which prints DEP0190 on Windows", () => {

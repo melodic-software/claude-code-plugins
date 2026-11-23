@@ -5,8 +5,9 @@ next. Other skills and docs point here rather than restating it. The sources beh
 `docs/finding-your-unknowns.md` in the marketplace repository compose their pre-implementation
 demos into one ordered flow, and this ladder adds the design, PRD, and decompose passes. The
 marketplace ships a skill per pass; the composition itself is judgment, not a gate. New work whose
-diff will not be quick to review and cheap to retry starts at the interview; the passes before
-it run only when their unknown is present. Run the passes whose unknowns you actually have, in
+diff will not be quick to review and cheap to retry starts at the interview; the passes listed
+before it run only when their unknown is present, and when each runs around the interview is
+`/planning:interview`'s rule. Run the passes whose unknowns you actually have, in
 this order when you run several:
 
 1. **Blindspot pass**, `/discovery:blindspot`: surface unknown unknowns in the task's
@@ -15,9 +16,7 @@ this order when you run several:
    `/prototype:explore-directions` or `/prototype:pressure-test` when the unknown is
    visual or interactive.
 3. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
-   record. It calls a **PRD**, `/planning:prd`, only when a question shows the change is
-   user-facing, business-driven, and needs alignment on the problem, the users, and the success
-   metrics. When an interview outgrows one session because the effort is too big to hold at
+   record. It routes to a **PRD**, `/planning:prd`, by its own rule. When an interview outgrows one session because the effort is too big to hold at
    once and still too foggy to phrase as decisions, escalate to **wayfind**,
    `/planning:wayfind`, which charts a decision map from the interview's ledger and hands
    back once the fog clears. Wayfind is never the first pass.

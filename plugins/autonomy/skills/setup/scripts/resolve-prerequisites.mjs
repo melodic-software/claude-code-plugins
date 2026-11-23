@@ -1,16 +1,5 @@
 #!/usr/bin/env node
 
-// Deterministic prerequisite resolver for v1 routine identities on a named
-// scheduling surface. Reads the generated identity-prerequisite emission —
-// never leaf prose. No agent session. Never persists a verdict; never writes
-// config. Wall-clock-free JSON on stdout so consecutive runs are byte-identical.
-//
-// Liveness (engine health-check taxonomy row): fail-loud on internal failure
-// (non-zero exit, never a verdict-shaped fallback).
-//
-// Usage:
-//   node resolve-prerequisites.mjs --repo <dir> --surface <id>
-//        [--emission <path>] [--machine-context]
 // Exit 0 = resolution emitted; 1 = usage / internal failure.
 
 import {
@@ -36,10 +25,6 @@ const DEFAULT_EMISSION = join(
 
 const SCHEMA_VERSION = 1;
 
-// The tracker binding: the `tracker` mapping of the default convention home's
-// work-items.yaml (the work-items seam's CONTRACT.md "Setup (binding file)").
-// A repo-root .work-item-tracker.json no longer binds; its presence only names
-// the fix.
 const TRACKER_YAML = "docs/conventions/work-items.yaml";
 const TRACKER_RETIRED = ".work-item-tracker.json";
 const TRACKER_FIX = "run /work-items:setup apply";
@@ -140,20 +125,16 @@ function listDir(path) {
   }
 }
 
-// First candidate (repo-relative, "/"-separated) that exists under the repo
-// root, in candidate order; null when none does.
 function firstExisting(repoRoot, candidates) {
   return candidates.find((rel) => pathExists(join(repoRoot, ...rel.split("/")))) ?? null;
 }
 
-// Minimal YAML scalar read for `enabled: <bool>` — no full YAML dependency.
 function readEnabledFlag(yamlText) {
   const match = yamlText.match(/^\s*enabled\s*:\s*(true|false)\s*(?:#.*)?$/m);
   if (!match) return null;
   return match[1] === "true";
 }
 
-// A probe ran unless its result is unresolvable.
 function probeOutcome(result, fields) {
   return { result, ran: result !== "unresolvable", provenance: { kind: "probe", ...fields } };
 }
@@ -205,14 +186,12 @@ function declarationFor(binding, surface, identity, need) {
   const matches = binding.declarations.filter((d) => {
     if (d.surface && d.surface !== surface) return false;
     if (need === undefined) {
-      // Identity-level: only declarations that name the identity and omit need.
       if (!d.identity || d.identity !== identity) return false;
       if (d.need) return false;
       return true;
     }
     if (d.identity && d.identity !== identity) return false;
     if (d.need && d.need !== need) return false;
-    // A declaration with neither identity nor need is surface-wide for all needs.
     return true;
   });
   matches.sort((a, b) => {
@@ -223,9 +202,6 @@ function declarationFor(binding, surface, identity, need) {
   return matches[0] ?? null;
 }
 
-// The tracker binding's read: the YAML file's `tracker` mapping when it sets
-// one (or the file's own error when it does not parse), else absent with a
-// detail naming the fix.
 function readTrackerBinding(repoRoot) {
   let text = null;
   try {
@@ -267,8 +243,6 @@ function probeTracker(repoRoot) {
   }
   const capsRel = posixJoin("tools", "work-item-tracker", "adapters", provider, "capabilities.json");
   if (!pathExists(join(repoRoot, ...capsRel.split("/")))) {
-    // Presence-gated composition fallback: binding exists but adapter caps
-    // cannot be established → unresolvable (unknown), not absent.
     return probeOutcome("unresolvable", {
       ...TRACKER_PROBE,
       path: capsRel,
@@ -292,11 +266,26 @@ function probeDependencyManifests(repoRoot) {
   return probeOutcome("absent", { probe_class: "repo-file", path: "package.json", detail: "no dependency/build manifest found" });
 }
 
+const ECOSYSTEM_DIRS = ["docs/conventions/ecosystems", ".claude/ecosystems"];
+
 function probeEcosystems(repoRoot) {
-  const dir = join(repoRoot, ".claude", "ecosystems");
-  const entries = listDir(dir);
+  const dirOf = new Map();
+  const listed = [];
+  const shadowed = [];
+  for (const d of ECOSYSTEM_DIRS) {
+    const names = listDir(join(repoRoot, d));
+    if (names === null) continue;
+    listed.push(d);
+    for (const name of names) {
+      if (!dirOf.has(name)) dirOf.set(name, d);
+      else shadowed.push(`${d}/${name} is not read: ${dirOf.get(name)}/${name} takes its place`);
+    }
+  }
+  const withShadowed = (detail) => [detail, ...shadowed].join("; ");
+  const entries = listed.length === 0 ? null : [...dirOf.keys()].sort();
+  const teamDir = entries?.find((name) => name.endsWith(".yaml") && !name.endsWith(".local.yaml"));
+  const rel = teamDir ? dirOf.get(teamDir) : (listed[0] ?? ECOSYSTEM_DIRS[0]);
   if (entries === null) {
-    // Fallback: inference from build files (never bundled defaults).
     const inferred = probeDependencyManifests(repoRoot);
     if (inferred.result === "present") {
       return probeOutcome("present", {
@@ -308,7 +297,7 @@ function probeEcosystems(repoRoot) {
     }
     return probeOutcome("absent", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
+      path: rel,
       detail: "absent; build-file inference also negative",
     });
   }
@@ -321,22 +310,22 @@ function probeEcosystems(repoRoot) {
   if (teamFiles.length === 0 && localOnly.length > 0) {
     return probeOutcome("unresolvable", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems/*.local.yaml",
-      detail: "uncommitted personal layer only; scheduled runs cannot establish",
+      path: `${rel}/*.local.yaml`,
+      detail: withShadowed("uncommitted personal layer only; scheduled runs cannot establish"),
       rung: "uncommitted",
     });
   }
 
   const configured = teamFiles.filter(
-    (name) => readEnabledFlag(readFileSync(join(dir, name), "utf8")) !== false,
+    (name) => readEnabledFlag(readFileSync(join(repoRoot, dirOf.get(name), name), "utf8")) !== false,
   ).length;
   const disabled = teamFiles.length - configured;
 
   if (configured > 0) {
     return probeOutcome("present", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
-      detail: `${configured} enabled ecosystem file(s)`,
+      path: rel,
+      detail: withShadowed(`${configured} enabled ecosystem file(s)`),
       rung: "consumer-authored",
     });
   }
@@ -344,19 +333,18 @@ function probeEcosystems(repoRoot) {
   if (disabled > 0) {
     return probeOutcome("absent", {
       ...TOOLCHAIN_PROBE,
-      path: ".claude/ecosystems",
-      detail: "ecosystem files present but enabled: false (not configured)",
+      path: rel,
+      detail: withShadowed("ecosystem files present but enabled: false (not configured)"),
       rung: "consumer-authored",
     });
   }
 
-  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: ".claude/ecosystems", detail: "no ecosystem yaml files" });
+  return probeOutcome("absent", { ...TOOLCHAIN_PROBE, path: rel, detail: withShadowed("no ecosystem yaml files") });
 }
 
 function probeSourceTree(repoRoot) {
   const dir = firstExisting(repoRoot, ["src", "lib", "app", "pkg", "cmd"]);
   if (dir !== null) return probeOutcome("present", { probe_class: "repo-file", path: dir });
-  // Any non-dotfile besides manifests counts.
   const entries = listDir(repoRoot) ?? [];
   const codeish = entries.filter(
     (name) =>
@@ -377,7 +365,6 @@ function probeDocumentationCorpus(repoRoot) {
 }
 
 function probeActivitySignals(repoRoot) {
-  // Collates CI + tracker + git — absence of any one is negative per leaf.
   const ci = probeCiConfig(repoRoot);
   const tracker = probeTracker(repoRoot);
   const fields = { probe_class: "repo-file", path: "ci+tracker" };
@@ -396,7 +383,6 @@ function probeMcp(repoRoot) {
     detail:
       "enablement gate only partly resolvable from committed surfaces; compose config-audit when installed",
   };
-  // Presence-gated harness-config seam: look for committed settings keys.
   const settingsPath = join(repoRoot, ".claude", "settings.json");
   const settings = readJson(settingsPath);
   if (settings.ok) {
@@ -419,7 +405,6 @@ function probeMcp(repoRoot) {
 }
 
 function probeAdvisoryDatabase(machineContext) {
-  // Curated advisory source is not established by repo-file presence alone.
   return probeOutcome("unresolvable", {
     probe_class: machineContext ? "machine-context" : "harness-context",
     path: "advisory-database",
@@ -442,9 +427,6 @@ function probeUpstreamChangelog(machineContext) {
 function probeMergePath(surface, binding) {
   const recorded = binding.surfaces[surface];
   const fields = { probe_class: "harness-context", path: binding.path };
-  // A recorded scheduling surface that is not advisory-only can carry merge
-  // policy dispositions when the security binding stamps them; presence of
-  // the surface is the repo-local half of the question.
   if (recorded && (recorded.merge_policy_capable === true || recorded.class === "temporal")) {
     return probeOutcome("present", { ...fields, detail: `surface ${surface} recorded in binding` });
   }
@@ -508,7 +490,6 @@ function resolveNeed(need, identity, ctx) {
       probe_ran: probe.ran,
     };
     if (declState === "absent" || declState === "disabled") {
-      // Declaration narrows: disables even when probe finds present.
       effective = "absent";
       provenance = declarationProvenance;
     } else if (declState === "present") {
@@ -528,7 +509,6 @@ function resolveNeed(need, identity, ctx) {
           declaration_rung: rung,
         };
       } else if (!probe.ran || probe.result === "unresolvable") {
-        // Probe could not run — declaration stands, qualified.
         effective = "conditional";
         provenance = { ...declarationProvenance, unprobeable: true };
       } else {
@@ -570,8 +550,6 @@ function resolveIdentity(record, ctx) {
     findings.push(...resolved.findings);
   }
 
-  // Identity-level disable declaration (declarationFor with no need already
-  // keeps only need-less declarations).
   const identityDecl = declarationFor(ctx.binding, ctx.surface, record.identity, undefined);
   if (
     identityDecl &&

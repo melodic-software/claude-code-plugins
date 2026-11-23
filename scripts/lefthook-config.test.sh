@@ -30,16 +30,10 @@ else
   fail "lefthook.yml still runs check-affected on pre-push"
 fi
 
-if grep -q 'name: guardrails-remote-reference-verify' "$CONFIG" &&
-  awk '
-    /name: guardrails-remote-reference-verify/ { in_job = 1; next }
-    in_job && /^ *- name:/ { in_job = 0 }
-    in_job && /run: test -n "\$\{MSYSTEM:-\}\$\{WINDIR:-\}"/ { found = 1 }
-    END { exit !found }
-  ' "$CONFIG"; then
-  ok "lefthook.yml skips guardrails-remote-reference-verify on Windows"
+if ! grep -q 'pre-push:' "$CONFIG"; then
+  ok "lefthook.yml adds no pre-push job of its own"
 else
-  fail "lefthook.yml must skip guardrails-remote-reference-verify on Windows"
+  fail "lefthook.yml must leave pre-push to the guardrails remote's pre-push-content"
 fi
 
 if ! grep -q 'guardrails-remote-pre-push-content' "$CONFIG"; then
@@ -102,12 +96,7 @@ if command -v lefthook >/dev/null 2>&1; then
     if ! grep -q 'skip_lfs: true' <<<"$dump" ||
       ! grep -q 'name: guardrails-remote-pre-push-content' <<<"$dump" ||
       grep -q 'name: check-affected' <<<"$dump" ||
-      ! awk '
-        /name: guardrails-remote-reference-verify/ { in_job = 1; next }
-        in_job && /^ *- name:/ { in_job = 0 }
-        in_job && /test -n "\$\{MSYSTEM:-\}\$\{WINDIR:-\}"/ { found = 1 }
-        END { exit !found }
-      ' <<<"$dump"; then
+      grep -q 'reference-verify' <<<"$dump"; then
       echo "FAIL_DUMP:$dump"
       exit 11
     fi

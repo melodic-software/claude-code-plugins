@@ -8,6 +8,7 @@ import process from "node:process";
 import { test } from "node:test";
 
 import { contractAtPin, fetchAtPin } from "../../lib/ci-workflows-at-pin.mjs";
+import { workflowText } from "../../lib/workflow-text.mjs";
 import { CLI_VERSION, cliArgs, JUDGE, LEG_ENV, legEnv, MANAGED_SETTINGS, promptText, RUN_CLAUDE_CLI_PIN } from "./replay.mjs";
 
 const text = readFileSync(new URL("../../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -19,18 +20,9 @@ const CREDENTIAL_INPUTS = {
   "check-intent-subscription": ["subscription-token", "fallback-ready"],
   "check-intent-fallback": ["fallback-token", "fallback-ready"],
 };
-const jobText = (id) => {
-  const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
-  assert.ok(found, `a job ${id}`);
-  return found[1];
-};
-const step = (job, name) => {
-  const found = jobText(job)
-    .split(/\n(?=      - name: )/)
-    .find((block) => block.startsWith(`      - name: ${name}\n`));
-  assert.ok(found, `a step named ${name} in ${job}`);
-  return found;
-};
+const wf = workflowText(text);
+const jobText = wf.job;
+const step = (job, name) => wf.stepNamed(job, name).text;
 // A `with:` input's one-line value, a `|` list's lines, or a `>-` scalar folded.
 const input = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
 const block10 = (block, key, style) =>

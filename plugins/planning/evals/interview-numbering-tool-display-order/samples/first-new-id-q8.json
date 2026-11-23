@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Round 3.** Alerting for failed deliveries.\nScope check: 9 of 12 questions registered\n\n❓ Q8: **Who is alerted when one endpoint keeps failing?**\n\nContext:\n- The on-call rota is in PagerDuty (your notes).\n\n➡️ My recommendation: **Page on-call**. (verified, your notes)\n\n---\n\n❓ Q9: **What does an alert include?**\n\nContext:\n- x\n\n➡️ My recommendation: **The endpoint and its last status**.\n\nIs there something else that would change these recommendations?",
+      "why": "the first question shown is Q8"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Round 3.** Alerting for failed deliveries.\nScope check: 9 of 12 questions registered\n\n❓ Q10: **Who is alerted when one endpoint keeps failing?**\n\nContext:\n- The on-call rota is in PagerDuty (your notes).\n\n➡️ My recommendation: **Page on-call**. (verified, your notes)\n\n---\n\n❓ Q11: **What does an alert include?**\n\nContext:\n- x\n\n➡️ My recommendation: **The endpoint and its last status**.\n\nIs there something else that would change these recommendations?",
+      "why": "the first new id skips Q8"
+    },
+    {
+      "answer": "❓ Q9: **What does an alert include?**\n\n❓ Q8: **Who is alerted?**",
+      "why": "Q8 is not the first question shown"
+    }
+  ]
+}

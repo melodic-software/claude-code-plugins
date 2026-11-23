@@ -3,9 +3,21 @@
 ## Run
 
 ```bash
-external-agents run antigravity --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--effort <level>] [--resume <thread-id>|--last]
+external-agents run antigravity --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--add-dir <absolute dir>]... [--unsandboxed auto] [--model <model>] [--effort <level>] [--resume <thread-id>|--last]
 ```
 
+- **Decide the write fence before the run.** List every directory outside the worktree the task
+  will write, and pass each one with its own `--add-dir <absolute path>`; pass none when the
+  worktree is enough. Pass exactly those, never a parent folder to be safe. Name the same
+  directories in the prompt, and tell agy to write nowhere else.
+- **Opt out of the sandbox only for a command that needs it.** In the same decision, ask whether
+  the task must run a command outside agy's terminal sandbox: network access, or a system service.
+  Only then pass `--unsandboxed auto`, and say in the prompt which command needs it and why. A
+  task that only edits files and runs local builds or tests stays on the default fence.
+- `--add-dir` and `--unsandboxed` take a write run: on a read-only run, a review, a relative path
+  or a directory that does not exist, the command refuses with exit `2` and starts nothing.
+  `external-agents status <job>` prints the run's `fence:` (`sandbox` or `unsandboxed auto`) and
+  `add_dirs:`.
 - **Pick the use from the request.** `task` with `--mode write` when agy should change files;
   `investigate` when it should only read and answer. The use's configured mode
   (`antigravity.uses.<use>.mode`, bundled values in the plugin's `defaults.json`) is both the
@@ -30,8 +42,17 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
 - **read-only** runs agy's default mode with a per-run settings file; agy refuses every shell
   command and file write it would have to ask about, and the command records each refusal from
   agy's `denied_actions` field. The prompt gets a preface saying so, so name the files to read.
-- **write** runs `--mode auto` with a per-run settings file that turns off agy's access beyond the
-  workspace (`allowNonWorkspaceAccess: false`). Its limits are in the hub's gotchas.
+- **write** (fence `sandbox`, the default) runs `--mode accept-edits` with a per-run settings file
+  that turns on agy's terminal sandbox, lets sandboxed commands proceed, and turns off access
+  beyond the workspace and the `--add-dir` directories. The command records each action agy
+  reports refusing, and records the run `blocked-by-mode`. Before relying on what the mode or a
+  setting allows, read
+  [Execution modes § Auto-approve edits with accept-edits mode](https://antigravity.google/docs/cli/modes#auto-approve-edits-with-accept-edits-mode) and
+  [Terminal sandbox § CLI configuration](https://antigravity.google/docs/sandbox#cli-configuration).
+- **write with `--unsandboxed auto`** (fence `unsandboxed auto`) runs `--mode auto`. Before
+  relying on what it lets agy run outside the sandbox, read
+  [Terminal sandbox § CLI permissions integration](https://antigravity.google/docs/sandbox#cli-permissions-integration).
+  Its limits are in the hub's gotchas.
 
 ### First stdout line
 

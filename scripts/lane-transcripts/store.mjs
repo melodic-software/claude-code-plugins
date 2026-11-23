@@ -183,15 +183,20 @@ export const appendRow = (sink, row) => appendJsonl(paths(sink).metrics, row);
 export const appendOutcome = (sink, row) => appendJsonl(paths(sink).outcomes, row);
 
 /**
- * A row's failure class from the lane-outcome records of its run attempt: set
- * only when every record of that attempt names the same class (a success
- * record names none), since a record names its lane and credential but not the
- * leg's upload job-id. `failure_class_source` says which case held:
- * `lane-outcome` (the records agree; the class is null when all succeeded),
- * `disagree` (they differ, so the class is null) or `none` (no record held).
+ * A row's failure class from the lane-outcome records of its run attempt. When
+ * any record's `jobId` is the row's job id, only those records count;
+ * otherwise only the records with no `jobId` do, so an older record that names
+ * its lane and credential but not the leg's upload job-id counts for every leg
+ * of the attempt. The class is set only when every counted record names the
+ * same one (a success record names none). `failure_class_source` says which
+ * case held: `lane-outcome` (the records agree; the class is null when all
+ * succeeded), `disagree` (they differ, so the class is null) or `none` (no
+ * record counted).
  */
-export function failureClassOf(traceId, outcomesByTrace) {
-  const records = outcomesByTrace.get(traceId) ?? [];
+export function failureClassOf(traceId, outcomesByTrace, jobId) {
+  const held = outcomesByTrace.get(traceId) ?? [];
+  const own = held.filter((o) => typeof jobId === "string" && o.record?.jobId === jobId);
+  const records = own.length > 0 ? own : held.filter((o) => typeof o.record?.jobId !== "string");
   if (records.length === 0) return { failure_class: null, failure_class_source: "none" };
   const classes = new Set(records.map((o) => o.record?.class ?? null));
   if (classes.size > 1) return { failure_class: null, failure_class_source: "disagree" };

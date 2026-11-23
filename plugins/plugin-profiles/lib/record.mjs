@@ -5,7 +5,6 @@
 // https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md):
 //
 //   recordPath(dataDir, settingsFile) -> <dataDir>/records/<sha256 of the settings file's real path>.json
-//   readRecord(path) / saveRecord(path, record) / deleteRecord(path)
 //   baseline(doc, record) -> {enabledPlugins, skillOverrides}: the file's entries with each
 //     recorded before-value put back, as if the earlier profile had been cleared
 //   nextRecord(previous, apply) -> the record after this apply; before-values come from the first write
@@ -81,7 +80,6 @@ export function stillWritten(record, doc) {
 }
 
 export const recordText = (record) => `${JSON.stringify(record, null, 2)}\n`;
-export const saveRecord = (path, record) => replaceFile(path, recordText(record));
 export const restoringRecord = (record, { restoredHash, fromHash }) => ({ ...record, phase: "restoring", restoredHash, fromHash });
 export const deleteRecord = (path) => removeFile(path);
 
@@ -140,6 +138,14 @@ export function swapRecord(path, expected, text) {
     if (error instanceof RecordChanged) return false;
     throw error;
   }
+}
+
+/** Undoes this apply's record write only while the file still holds `ours`: puts back `previousText`, the exact text its claim replaced, or deletes the file when it held none. False when another writer replaced it, which is left as it is. */
+export function rollbackRecord(path, ours, previousText) {
+  if (previousText !== null) return swapRecord(path, ours, previousText);
+  if (readText(path) !== ours) return false;
+  removeFile(path);
+  return true;
 }
 
 export function baseline(doc, record) {

@@ -13,6 +13,7 @@ import { main, paceDecision, paceShare, previousRun } from "./pace.mjs";
 import { apiLimits } from "./rate-guard.mjs";
 import { PACED_LOOKBACK_HOURS, PACED_STEP, SWEEP_MARGIN_MIN } from "../../scripts/work-unblock/label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { workflowText } from "../../scripts/lib/workflow-text.mjs";
 
 const NOW = 1_800_000_000;
 
@@ -254,26 +255,20 @@ test("pace: 0 in the base config turns the pacer off", async () => {
 const PACE_STEP = "Pace the tick on the GITHUB_TOKEN burn rate";
 const WORK_DONE = "Mark this tick's work done";
 const workflow = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-// A job's text, from `  <job>:` to the next job, and its steps, each less the
-// blank and comment lines that lead into the next step.
-const jobOf = (file, job) => new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(workflow(file))?.[1] ?? "";
-const stepsOf = (file, job) =>
-  jobOf(file, job)
-    .split(/\n(?= {6}- name: )/)
-    .slice(1)
-    .map((s) => ({ name: /^ {6}- name: (.*)$/m.exec(s)[1], s: s.replace(/(\n *(#[^\n]*)?)+$/, "") }));
+const jobOf = (file, job) => workflowText(workflow(file)).job(job);
+const stepsOf = (file, job) => workflowText(workflow(file)).steps(job);
 
 // The pacer step and the override read before it, in the one shape every
 // paced lane uses.
 function assertPaceSteps(file, steps) {
   const at = (name) => steps.findIndex((step) => step.name === name);
-  const pace = steps[at(PACE_STEP)]?.s ?? "";
+  const pace = steps[at(PACE_STEP)]?.text ?? "";
   // The base config's limits.api reaches the pacer, so its pace (0 for off)
   // overrides rate-limits.json.
   assert.ok(at(READ_STEP) >= 0 && at(READ_STEP) < at(PACE_STEP), `${file}: the override is read before the pacer`);
-  assert.equal(steps[at(READ_STEP)].s.replace(/^[\s\S]*?\n {8}run: \|\n {10}/, ""), READ_RUN, file);
-  assert.match(steps[at(READ_STEP)].s, /\n {8}continue-on-error: true\n/, file);
-  assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(READ_STEP)].s)?.[1], /\n {8}if: (.*)\n/.exec(pace)?.[1], `${file}: the read runs when the pacer does`);
+  assert.equal(steps[at(READ_STEP)].text.replace(/^[\s\S]*?\n {8}run: \|\n {10}/, ""), `${READ_RUN}\n`, file);
+  assert.match(steps[at(READ_STEP)].text, /\n {8}continue-on-error: true\n/, file);
+  assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(READ_STEP)].text)?.[1], /\n {8}if: (.*)\n/.exec(pace)?.[1], `${file}: the read runs when the pacer does`);
   assert.match(pace, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/pace-config\.json\n/, file);
   assert.match(pace, /\n {8}id: pace\n/, file);
   assert.match(pace, /\n {8}continue-on-error: true\n/, file);
@@ -293,13 +288,13 @@ function assertMarker(file, steps, work, clean, chain) {
   const at = (name) => steps.findIndex((step) => step.name === name);
   assert.equal(work, WORK_DONE, file);
   assert.equal(workflow(file).split(`\n      - name: ${work}\n`).length, 2, `${file}: \`${work}\` is named once`);
-  const marker = /\n {8}if: (.*)\n/.exec(steps[at(work)]?.s ?? "")?.[1];
+  const marker = /\n {8}if: (.*)\n/.exec(steps[at(work)]?.text ?? "")?.[1];
   assert.equal(marker, clean, `${file}: the marker waits on the clean outcome`);
   assert.doesNotMatch(marker, /always\(\)|cancelled\(\)|failure\(\)/, file);
   if (chain.length === 0) return;
-  assert.match(steps[at(chain[0][0])]?.s ?? "", /\n {8}if: .*steps\.pace\.outputs\.paced != 'true'/s, `${file}: ${chain[0][0]} waits on the pacer`);
+  assert.match(steps[at(chain[0][0])]?.text ?? "", /\n {8}if: .*steps\.pace\.outputs\.paced != 'true'/s, `${file}: ${chain[0][0]} waits on the pacer`);
   for (const [name, reads] of chain.slice(1)) {
-    assert.match(/\n {8}if: (.*)\n/.exec(steps[at(name)]?.s ?? "")?.[1] ?? "", reads, `${file}: ${name}`);
+    assert.match(/\n {8}if: (.*)\n/.exec(steps[at(name)]?.text ?? "")?.[1] ?? "", reads, `${file}: ${name}`);
   }
   assert.ok(at(work) > at(chain.at(-1)[0]), `${file}: the marker follows ${chain.at(-1)[0]}`);
 }
@@ -338,7 +333,7 @@ test("each paced timer lane reads the pacer before its work and gates every spen
     const { at, work } = assertPaceSteps(file, steps);
     for (const name of gated) {
       assert.ok(at(name) > at(PACE_STEP), `${file}: ${name} follows the pacer`);
-      assert.match(steps[at(name)].s, /steps\.pace\.outputs\.paced != 'true'/, `${file}: ${name}`);
+      assert.match(steps[at(name)].text, /steps\.pace\.outputs\.paced != 'true'/, `${file}: ${name}`);
     }
     assertMarker(file, steps, work, clean, chain);
   }
@@ -363,7 +358,7 @@ test("work-unblock marks a paced run, and the sweep after it reaches back past a
   const steps = stepsOf("work-unblock.yml", "label-unblocked");
   const at = (name) => steps.findIndex((step) => step.name === name);
   assert.ok(at(PACED_STEP) > at(PACE_STEP), "after the pacer");
-  assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(PACED_STEP)].s)?.[1], "steps.pace.outputs.paced == 'true'");
+  assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(PACED_STEP)].text)?.[1], "steps.pace.outputs.paced == 'true'");
   const crons = [...text.matchAll(/\n {4}- cron: "([0-9]+) ([0-9,-]+) \* \* \*"(?=\n)/g)];
   assert.ok(crons.length > 0, "the schedule is read");
   const hours = (field) => field.split(",").flatMap((part) => {
@@ -395,7 +390,7 @@ test("pr-merge reads the pacer in dispatch-post-merge-runs and skips only the sw
   const index = (name) => merge.findIndex((step) => step.name === name);
   assert.ok(index(work) > index("Run the merge gate on each candidate"), "the marker follows the gate");
   assert.match(jobOf(file, "dispatch-post-merge-runs"), /\n {4}outputs:\n(?: {6}.*\n)*? {6}paced: \$\{\{ steps\.pace\.outputs\.paced \}\}\n/);
-  const waiting = steps.filter((step) => /steps\.pace\.outputs/.test(step.s)).map((step) => step.name);
+  const waiting = steps.filter((step) => /steps\.pace\.outputs/.test(step.text)).map((step) => step.name);
   assert.deepEqual(waiting, [], "no dispatch-post-merge-runs step waits on the pacer");
   const gateOf = (job) => /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(jobOf(file, job))?.[1] ?? "";
   assert.match(gateOf("merge"), /\n {6}&& needs\.dispatch-post-merge-runs\.outputs\.paced != 'true'\n/, "merge");

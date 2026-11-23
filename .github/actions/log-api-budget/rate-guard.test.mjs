@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, DISPATCH_FLOOR_GRACE_MS, entryOf, FALLBACK_NOTE, headerStop, isContentWrite, poolOf, RateLimitStop, RESEND, serverErrorHold, WAIT_BUDGET_SECONDS, waitBudgetMs } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { workflowText } from "../../scripts/lib/workflow-text.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -30,7 +31,6 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
   assert.ok(VECTORS.vectors.length >= 12);
   for (const vector of VECTORS.vectors) {
     assert.deepEqual(Object.keys(vector.input).sort(), ["body", "headers", "status", "url"], vector.name);
-    assert.ok(!("limit_cap" in vector) || Number.isInteger(vector.limit_cap), vector.name);
     assert.deepEqual(Object.keys(vector.expect).sort(), ["latched", "low", "pool", "reset", "reset_source"], vector.name);
     assert.ok(Object.keys(vector.input.headers).every((name) => name === name.toLowerCase()), vector.name);
   }
@@ -38,7 +38,7 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
 
 for (const vector of VECTORS.vectors) {
   test(`vector: ${vector.name}`, () => {
-    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null }), vector.expect);
+    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
   });
 }
 
@@ -50,7 +50,7 @@ test("headerStop is a stop every body's verdict keeps, and none where the body d
   const bodies = [null, ...VECTORS.vectors.map((vector) => vector.input.body)];
   const taken = [];
   for (const vector of VECTORS.vectors) {
-    const options = { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null };
+    const options = { now: NOW, readFloor: READ_FLOOR };
     const early = headerStop(vector.input, options);
     if (!early) {
       continue;
@@ -465,19 +465,19 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   assert.equal(latch.belowFloor("https://api.github.com/graphql"), false);
 });
 
-// github-token's default limit-cap of 1000 sets the floor at 100 left of the
-// planned 1000: 950 used of a header limit of 5000 leaves 50.
-test("the latch reads the pool's limit-cap: past the plan it warns, and a remaining above zero sends on", async () => {
-  const past = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600" }];
-  const gh = fakeGitHub([past, past]);
+test("github-token's read floor is a share of the header's limit: 4050 of 5000 reads on, 499 warns, and a remaining above zero sends on", async () => {
+  const at = (remaining) => [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": "1792751600" }];
+  const gh = fakeGitHub([at(4050), at(499), at(499)]);
   const { latch, lines, failed } = latchFor();
   const fetch = latch.guard(gh.fetch);
   await fetch(URL_A);
+  assert.equal(latch.belowFloor(URL_A), false, "950 used of 5000 is not under the floor");
   await fetch(URL_B);
-  assert.equal(gh.sent.length, 2);
+  await fetch(URL_A);
+  assert.equal(gh.sent.length, 3);
   assert.equal(failed(), 0);
   assert.equal(latch.belowFloor(URL_A), true);
-  assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
+  assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (499 of 5000); reads continue"]);
 });
 
 // stop-floor 0.02 of a header limit of 5000 is 100 left. The reset,
@@ -962,14 +962,12 @@ test("a guard given a token records its readings under that name, and one withou
     }
   }));
 
-// label-unblocked's ACTIONS_TOKEN client runs in a lanes-app step: its guard
-// plans to github-token's limit-cap of 1000, not lanes-app's header limit.
 test("a guard given a token plans to that token's limits.api entry, not API_BUDGET_TOKEN's", async () => {
   const saved = process.env.API_BUDGET_TOKEN;
   process.env.API_BUDGET_TOKEN = "lanes-app";
   try {
     const past = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600" }];
-    const limits = () => ({ "github-token": { "read-floor": 0.1, "limit-cap": 1000 }, "lanes-app": { "read-floor": 0.1 } });
+    const limits = () => ({ "github-token": { "read-floor": 0.9 }, "lanes-app": { "read-floor": 0.1 } });
     const warned = async (options) => {
       const lines = [];
       const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits, stopFile: null });
@@ -985,12 +983,7 @@ test("a guard given a token plans to that token's limits.api entry, not API_BUDG
 });
 
 const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
-const jobOf = (text, id) => {
-  const start = text.indexOf(`\n  ${id}:\n`);
-  assert.ok(start >= 0, `${id} is a job`);
-  const next = text.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
-  return text.slice(start, next < 0 ? undefined : start + 1 + next);
-};
+const jobOf = (text, id) => workflowText(text).job(id);
 const setting = (text, key) => [...text.matchAll(new RegExp(`^ +${key}: ["']?([0-9]+)["']?$`, "gm"))].map((match) => Number(match[1]));
 
 test("ci-status's read deadline is WAIT_BUDGET_SECONDS', and its composite keeps the step waits' default", () => {

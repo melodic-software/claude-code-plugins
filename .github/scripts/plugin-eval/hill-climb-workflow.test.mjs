@@ -11,24 +11,22 @@ import { join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
+import { stepsOf, workflowText } from "../lib/workflow-text.mjs";
+
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const code = (text) => text.replace(/^\s*#.*$/gm, "");
 const main = read("maintenance-measure-skill-edit.yml");
 const pass = read("maintenance-measure-skill-edit-pass.yml");
 // The jobs that mint a lanes App token, each its one effect (AL-Q11).
 const WRITERS = { "push-branch": "apply-skill-edit-branch", publish: "publish-skill-edit-pr" };
-const jobs = (text) =>
-  Object.fromEntries(
-    text
-      .slice(text.indexOf("\njobs:\n"))
-      .split(/\n(?= {2}[a-z0-9-]+:\n)/)
-      .slice(1)
-      .map((block) => [block.match(/^ {2}([a-z0-9-]+):/)[1], block]),
-  );
+const jobs = (text) => {
+  const wf = workflowText(text);
+  return Object.fromEntries(wf.ids.map((id) => [id, wf.job(id)]));
+};
 const step = (block, name) => {
-  const start = block.indexOf(`- name: ${name}\n`);
-  assert.ok(start > 0, `step ${name}`);
-  return block.slice(start).split("\n      - name:")[0];
+  const found = stepsOf(block).find((s) => s.name === name);
+  assert.ok(found, `step ${name}`);
+  return found.text;
 };
 
 test("only push-branch and publish hold id-token, each for its one lane token; every other job reads only", () => {
@@ -139,33 +137,22 @@ test("every ci-workflows action is pinned to one full commit", () => {
   for (const found of pins) assert.equal(found, pin);
   // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.deepEqual(classifier, Array(3).fill(pin));
+  assert.deepEqual(classifier, [pin]);
 });
 
-test("the model steps are read-only, on the maintenance key, then its token, then the fallback token, and frame what they read as data", () => {
-  assert.equal(main.match(/run-claude-cli@/g).length, 3);
+test("the model step is read-only, on the maintenance key alone, and frames what it reads as data", () => {
+  assert.equal(main.match(/run-claude-cli@/g).length, 1);
   assert.doesNotMatch(pass, /run-claude-cli@/);
   const propose = jobs(main)["generate-edit"];
   const key = step(propose, "Propose the edit on the API key");
-  const leg = step(propose, "Propose the edit");
-  const fallback = step(propose, "Propose the edit on the fallback token");
   assert.match(key, /api-key: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n/);
   assert.match(key, /if: steps\.prompt\.outcome == 'success' && steps\.key\.outputs\.present == 'true'\n/);
-  assert.match(leg, /subscription-token: \$\{\{ secrets\.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
-  // Each leg runs on its select-model-credential call's present; the
-  // subscription call runs only on the key's next-leg call naming it, and the
-  // fallback call only on the subscription's (maintenance-measure-skill-edit/
-  // credential-legs.test.mjs holds them to the old conditions).
-  assert.match(leg, /if: steps\.prompt\.outcome == 'success' && steps\.credential\.outputs\.present == 'true'\n/);
-  assert.match(step(propose, "Check the credentials"), /if: steps\.next-key\.outputs\.next-leg == 'subscription'\n/);
-  assert.match(fallback, /fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}\n/);
-  assert.match(fallback, /if: steps\.prompt\.outcome == 'success' && steps\.fallback\.outputs\.present == 'true'\n/);
-  assert.match(step(propose, "Check the fallback token"), /if: steps\.next\.outputs\.next-leg == 'fallback'\n/);
+  assert.doesNotMatch(propose, /CLAUDE_CODE_OAUTH_TOKEN|subscription-token|fallback-token/);
   // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
   assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.check-key-credit\.outputs\.next-leg \}\}/);
   assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}role: maintenance\n {10}key-job: propose\n/);
-  for (const model of [key, leg, fallback]) {
+  for (const model of [key]) {
     assert.match(model, /role: maintenance\n/);
     assert.match(model, /permission-mode: dontAsk\n/);
     assert.match(model, /tools: \|\n {12}Read\n {12}Grep\n {12}Glob\n {10}allowed-tools:/);
@@ -237,7 +224,7 @@ test("the verdict fails and names the gate when win-test.py cannot read a pass f
 
 test("the gate admits only a listed human's first attempt on the default branch", () => {
   const gate = jobs(main)["check-inputs"];
-  assert.match(gate, /if: github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\) && github\.run_attempt == '1'\n/);
+  assert.match(gate, /if: vars\.CLAUDE_EVALS_DISABLED == 'false' && github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\) && github\.run_attempt == '1'\n/);
   const who = step(gate, "Check who started the run");
   assert.match(who, /check-trusted-trigger/);
   assert.match(who, /require-kind: human/);
@@ -245,4 +232,35 @@ test("the gate admits only a listed human's first attempt on the default branch"
   assert.match(step(gate, "Check the run may spend"), /\[ "\$WHO" = true \] \|\| stop untrusted-dispatcher/);
   assert.match(main, /^on:\n {2}workflow_dispatch:\n/m);
   assert.match(pass, /^on:\n {2}workflow_call:\n/m);
+});
+
+test("every eval entry job runs only while CLAUDE_EVALS_DISABLED is exactly false, so an unset or mistyped switch keeps evals off", () => {
+  const evals = read("pr-run-plugin-evals.yml");
+  const head = (text, name) => text.slice(text.indexOf(`\n  ${name}:\n`), text.indexOf(`\n  ${name}:\n`) + 600);
+  const gated = [
+    [evals, "check-key-credit"],
+    [evals, "compare-prepare"],
+    [main, "check-inputs"],
+    [pass, "check-key-credit"],
+  ];
+  for (const [text, name] of gated) {
+    assert.match(head(text, name), /\n {4}if: (?:>-\n {6})?vars\.CLAUDE_EVALS_DISABLED == 'false'/, name);
+  }
+});
+
+test("pass workflow accepts cases through env, passes --cases when set, and rejects case+cases", () => {
+  assert.match(
+    pass,
+    /\n {6}cases:\n {8}description: Exact case names, space-separated; stages a suite copy with only these cases\. Not with case\.\n {8}required: false\n {8}type: string\n {8}default: ""\n/,
+  );
+  const stage = step(pass, "Stage the suite");
+  assert.match(stage, /CASE: \$\{\{ inputs\.case \}\}\n/);
+  assert.match(stage, /CASES: \$\{\{ inputs\.cases \}\}\n/);
+  assert.match(stage, /stage_args=\(--cases "\$CASES"\)/);
+  assert.doesNotMatch(stage.slice(stage.indexOf("run: |")), /\$\{\{\s*inputs\./);
+  const stageGuard = /read -ra cases <<<"\$CASES"\n.*?\n\s+fi\n/s.exec(stage)[0];
+  const checkStage = (env) => spawnSync("bash", ["-c", stageGuard], { env, encoding: "utf8" });
+  assert.equal(checkStage({ CASE: "", CASES: "" }).status, 0);
+  assert.equal(checkStage({ CASE: "", CASES: "c1 c2" }).status, 0);
+  assert.equal(checkStage({ CASE: "c1", CASES: "c2" }).status, 1);
 });

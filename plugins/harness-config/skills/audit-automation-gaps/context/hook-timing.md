@@ -48,7 +48,7 @@ blocking; judge it on turn latency against the resolved budget. A report-only
 check (one that only prints findings) is judged on placement before latency: it never belongs on a
 per-edit `PostToolUse` hook, however fast, because its output reaches the model on in-between
 states and it covers only Claude Code's own edits. Place it in a git `pre-commit` hook on changed
-lines, `pre-push` when its measured run is over the commit budget but within 60 s, or CI beyond
+lines, the pre-PR check when its measured run is over the commit budget, or CI beyond
 that, and flag an existing per-edit one with that placement (house rule:
 [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#the-rubric)).
 A formatter takes the `PostToolBatch` slot only while its median per fire stays at or under 1 s,

@@ -130,8 +130,8 @@ report, and the step applies the agreed fixes itself.
 
 #### Notes
 
-Read-only: tick `report-only <n>` or `no-findings`. Removals, merges and renames go through
-`/domain-driven-design:ubiquitous-language curate` and `/docs-hygiene:rename-references` in their
+Read-only: tick `report-only <n>` or `no-findings`. Removals and merges go through
+`/domain-driven-design:ubiquitous-language prune` after a yes, renames through `/docs-hygiene:rename-references`, each in its
 own change, never in this step.
 
 ### adr-audit

@@ -10,7 +10,7 @@ with a `[tool.ruff]` section governs the file: import sorting where your lint co
 then `ruff format`; `ruff check` for lint. A repository without one is left untouched, and
 `/python-format:setup check` reports the concern unresolved.
 
-The hooks never run a command from your python record (`.claude/ecosystems/python.yaml`, the
+The hooks never run a command from your python record (`docs/conventions/ecosystems/python.yaml`, the
 ecosystem-commands contract in the marketplace repository). That record names any formatter and
 linter you use, and `/toolchain:lint` and `/toolchain:check` run it when you ask.
 

@@ -255,7 +255,7 @@ gates, not passed.
    the hit count, so the arithmetic is checkable rather than asserted.
 2. **Placed where the check-placement rubric puts it.** A report-only duplicate (one that only
    prints findings) goes in a git `pre-commit` hook that blocks the commit on findings in changed
-   lines, or `pre-push` when its measured run is over the commit budget but within 60 s, never in
+   lines, or the pre-PR check when its measured run is over the commit budget, never in
    a per-edit `PostToolUse` hook; a formatter duplicate may also rewrite once per batch from
    `PostToolBatch`, sending the model nothing. CI keeps re-running the check on the change.
    Falsified by a per-edit hook that sends findings to the model, a Claude Code hook that blocks a

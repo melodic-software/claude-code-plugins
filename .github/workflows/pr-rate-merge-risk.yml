@@ -3,10 +3,6 @@ name: PR Rate Merge Risk
 # The report-only merge-risk rating (#13657, owner decision Q57): for each
 # lanes App head that passes pr-require-checks, /review:merge-risk rates the
 # head and this run uploads rating.json as pr-merge-risk-<pr>-<head-sha>.
-# enable-auto-merge.mjs reads it just before it arms that head and writes the
-# `Merge-Risk:` line as the body's last line (merge-risk-line.mjs), so the
-# squash commit carries it. No gate, hold or rung reads the line or this
-# artifact; a run that rates nothing leaves the line `unrated`.
 #
 # It runs beside pr-verify.yml on the same trigger, as its own run, so the
 # PASS pr-verify gates on never waits for a rating. Its controls are
@@ -85,7 +81,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch tip
@@ -96,7 +92,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -146,7 +142,7 @@ jobs:
         if: steps.pr.outputs.proceed == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: start
           role: pr-verify
@@ -162,7 +158,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.pr.outputs.proceed == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: key
           role: pr-verify
@@ -181,7 +177,7 @@ jobs:
         id: credit-skip
         if: steps.credential.outputs.key-skipped == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: skipped
           lane: pr-merge-risk
@@ -286,7 +282,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Isolate the runner
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
@@ -339,7 +335,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -394,7 +390,7 @@ jobs:
       - name: Report the rating's outcome
         if: steps.rate.outcome == 'success' || steps.rate.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.rate.outcome }}
           execution-file: ${{ steps.rate.outputs.execution-file }}
@@ -414,8 +410,10 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.rate.outputs.execution-file != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
+          hide-trace-ids: "true"
           execution-file: ${{ steps.rate.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
@@ -438,8 +436,9 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
@@ -472,8 +471,9 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: ${{ !cancelled() && steps.rating.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/merge-risk-rating/rating.json
 
       # The artifact enable-auto-merge.mjs reads by exact name, counting it
@@ -495,7 +495,7 @@ jobs:
         id: next
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.rate.outputs.handoff }}
@@ -552,7 +552,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch tip
@@ -563,7 +563,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -675,7 +675,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.checker.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: subscription
           role: pr-verify
@@ -692,7 +692,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Isolate the runner
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
@@ -729,7 +729,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -783,7 +783,7 @@ jobs:
       - name: Report the rating's outcome
         if: steps.rate.outcome == 'success' || steps.rate.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.rate.outcome }}
           execution-file: ${{ steps.rate.outputs.execution-file }}
@@ -801,8 +801,10 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.rate.outputs.execution-file != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
+          hide-trace-ids: "true"
           execution-file: ${{ steps.rate.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
@@ -824,8 +826,9 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: ${{ !cancelled() && steps.rating.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/merge-risk-rating/rating.json
 
       - name: Upload the rating
@@ -841,7 +844,7 @@ jobs:
         id: next
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.rate.outputs.handoff }}
@@ -885,7 +888,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch tip
@@ -896,7 +899,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -1008,7 +1011,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.checker.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: fallback
           role: pr-verify
@@ -1024,7 +1027,7 @@ jobs:
 
       - name: Apply the Claude managed settings
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Isolate the runner
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
@@ -1061,7 +1064,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1114,7 +1117,7 @@ jobs:
       - name: Report the rating's outcome
         if: steps.rate.outcome == 'success' || steps.rate.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.rate.outcome }}
           execution-file: ${{ steps.rate.outputs.execution-file }}
@@ -1132,8 +1135,10 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.rate.outputs.execution-file != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
+          hide-trace-ids: "true"
           execution-file: ${{ steps.rate.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
@@ -1155,8 +1160,9 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: ${{ !cancelled() && steps.rating.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/merge-risk-rating/rating.json
 
       - name: Upload the rating

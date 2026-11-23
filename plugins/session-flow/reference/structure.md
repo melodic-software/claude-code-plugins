@@ -25,6 +25,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
 
 - [Shape 3: hot file and per-hop archive](#shape-3-hot-file-and-per-hop-archive)
   - [Shape 4](#shape-4)
+    - [Role chains: the standing-rules file](#role-chains-the-standing-rules-file)
 - [Body sections (shape 2)](#body-sections-shape-2)
   - [Cumulative sections and provenance tags](#cumulative-sections-and-provenance-tags)
   - [Original goal](#original-goal)
@@ -129,6 +130,30 @@ prints the verdict and the rails.
 - **A history pointer** in Review before you continue uses the form of `fill`'s move pointer,
   `archive/<chain-stem>/h<k>-<session8>.md#<heading>`, naming an exact hop file and section;
   `validate` fails one whose file or heading is not on disk.
+
+#### Role chains: the standing-rules file
+
+A role chain is a long-running session for an ongoing role, such as a monitor, whose rules
+outgrow the hot file. Start one with `new --standing-rules`; every later hop keeps it, flag or
+not, because `new` reads the predecessor's `standing_rules` key.
+
+- **Where the rules live.** `fill` moves Current rules and Standing preferences into
+  `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside its hop files, so it is
+  gitignored with the rest of the memory tier. Each section stays in its usual place in the hot
+  file as one line, `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The
+  binding order and the rule mechanics (ids, rewrite in place, `retire`) do not change.
+- **How a resume loads them.** The directive reads `Read @<standing-rules file> then @<hot file>,
+  …`, so the rules load before the hot file. A standing-rules file over one Read page makes the
+  directive say to page it.
+- **History.** Each hop's `fill` rewrites the file, and `new` copies the predecessor's rules into
+  the new hop file as usual. `validate` therefore reads an older hot file's rules from its
+  successor's hop file, and fails a rule that leaves the file without a retirement, as in the hot
+  file. `read --section`, `chain` and other readers that follow a pointer read the file as it is
+  now, the tip's rules.
+- **Changing rules after emit.** `amend` reads the file, applies `sections` and `retire` to the
+  rules there, and writes the file, the hop file and the hot file together.
+- **No forks.** One file serves one line of hops, so `fill` and `amend` refuse a hop when another
+  session's handoff follows the same predecessor. A retry by the same session is not a fork.
 
 ## Body sections (shape 2)
 
@@ -755,7 +780,8 @@ done
 #    emit, the directive); never recompute the path in bash. On stderr it prints
 #    the `budget:` line the slot values are written to. When the invocation
 #    carried purpose text, add --purpose "$PURPOSE" (save-point.md, "The purpose
-#    argument tailors emphasis only").
+#    argument tailors emphasis only"). The first hop of a role chain adds
+#    --standing-rules ("Role chains: the standing-rules file"); later hops need not.
 SAVE_POINT="${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py"
 FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_ROOT" --no-previous)
 #   or, continuing a prior handoff's task:
@@ -892,6 +918,7 @@ chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
 archive_from: <M>                         # first hop-file hop (shape 3 or 4); hop files exist from M on
+standing_rules: archive/<chain-root-stem>/standing-rules.md  # CONDITIONAL — role chains only
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
 next_decision_id: <K>                     # first [D<n>] id this hop may assign; never lowered

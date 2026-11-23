@@ -119,7 +119,7 @@ import {
   restoreEdits,
   restoredHashOf,
   restoringRecord,
-  saveRecord,
+  rollbackRecord,
   stillWritten,
   swapRecord,
 } from "../lib/record.mjs";
@@ -398,6 +398,7 @@ function prepare(opts, where, catalog, records) {
   const settings = readSettings(file);
   const session = opts.target === "session";
   const { path: recPath, found: recFound, record: previous } = session ? { path: null, found: null, record: null } : recordOf(where, file);
+  const recText = recPath && readText(recPath);
   const base = session ? { enabledPlugins: {}, skillOverrides: {} } : baseline(settings.doc, previous);
   const loaded = readLayers({ paths: where.paths, managedFiles: managedSettingsFiles() });
   const layers = { ...loaded, [TARGET_LEVEL[opts.target]]: base };
@@ -426,7 +427,7 @@ function prepare(opts, where, catalog, records) {
   const edits = { enabledPlugins: diff(now, final.enabledPlugins), skillOverrides: diff(settings.doc.skillOverrides ?? {}, final.skillOverrides) };
   if (session) edits.env = { [SESSION_VAR]: opts.name, [SESSION_FILE_VAR]: file, [SESSION_SETTINGS_VAR]: file };
   const moved = opts.target === "folder" ? movedRecordsOf(where, file) : [];
-  return { file, settings, recPath, recFound, previous, inv, plan: result, final, pending, edits, loaded, moved };
+  return { file, settings, recPath, recText, recFound, previous, inv, plan: result, final, pending, edits, loaded, moved };
 }
 
 const changeCount = (p) => Object.keys(p.edits.enabledPlugins).length + Object.keys(p.edits.skillOverrides).length;
@@ -536,11 +537,13 @@ async function consent(opts, gate, interactive, question = "Apply these changes?
   if (!["y", "yes"].includes(await ask(question))) throw new NotApplied("not applied");
 }
 
-/** Saves the record; a finish saves it only while the pending record it read is still there, checked just before the rename, and is false when it is not. */
+/** Saves the record only while each record file still holds what this apply read, checked just before the rename: false when a finish's pending record changed, a SettingsConflict when another apply saved a record since prepare, so apply re-plans over it instead of overwriting it. */
 function claimRecord(p, record, finishing) {
-  if (finishing && !swapRecord(finishing.path, finishing.text, recordText(record))) return false;
-  if (finishing?.path !== p.recPath) saveRecord(p.recPath, record);
-  return true;
+  const text = recordText(record);
+  if (finishing && !swapRecord(finishing.path, finishing.text, text)) return false;
+  if (finishing?.path === p.recPath || swapRecord(p.recPath, p.recText, text)) return true;
+  if (finishing) swapRecord(finishing.path, text, finishing.text);
+  throw new SettingsConflict(`${p.recPath} changed while this apply ran`);
 }
 
 /** Writes the record, then the settings file; false, writing nothing, when the pending record a finish read has changed. */
@@ -566,11 +569,9 @@ function commit(p, opts, where, finishing = null) {
   try {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
-    if (finishing) {
-      swapRecord(finishing.path, recordText(record), finishing.text);
-      if (finishing.path !== p.recPath) deleteRecord(p.recPath);
-    } else if (p.previous && p.recFound === p.recPath) saveRecord(p.recPath, p.previous);
-    else deleteRecord(p.recPath);
+    const ours = recordText(record);
+    if (finishing) swapRecord(finishing.path, ours, finishing.text);
+    if (finishing?.path !== p.recPath) rollbackRecord(p.recPath, ours, p.recText);
     throw error;
   }
   if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);
@@ -703,7 +704,7 @@ function profileGate(name, opts, where, env, verb) {
   return { p, gate, lines };
 }
 
-/** Writes the session file for name (none when null) and returns what claude is started with; launch and start share it. */
+/** Writes the session file for name, or for inline --with JSON, which Windows PowerShell 5.1 would strip the quotes from, and returns what claude is started with; launch and start share it. */
 function launchSettings(name, opts, where, env, io) {
   const own = launcherSettings(opts.with);
   const result = { profile: name, folder: where.projectDir, file: null, prerequisitesMissing: [], settingsArgs: [] };
@@ -729,16 +730,32 @@ function launchSettings(name, opts, where, env, io) {
     }
     for (const line of lines) io.err(line);
   } else if (own && !opts.with.trim().startsWith("{")) result.file = resolve(opts.with);
+  else if (own) {
+    const text = JSON.stringify(own);
+    result.file = sessionFile(where, "with", text);
+    if (!opts.dryRun) {
+      replaceFile(result.file, `${text}\n`);
+      sweepSessions(where, result.file);
+    }
+  }
   if (result.file) result.settingsArgs.push("--settings", result.file);
-  else if (own) result.settingsArgs.push("--settings", JSON.stringify(own));
   return result;
+}
+
+const psQuoted = (word) => (/^[A-Za-z0-9_%+=:./\\-]+$/.test(word) ? word : `'${word.replace(/'/g, "''")}'`);
+
+/** The line a person runs to start claude with argv's settings and without the cleared variables: env -u on POSIX, Remove-Item in PowerShell on Windows, which has no env. */
+export function launchCommand(argv, platform = process.platform) {
+  if (platform !== "win32") return argv.map(quoted).join(" ");
+  const claude = argv.slice(argv.indexOf("claude"));
+  return `Remove-Item ${CLEARED.map((v) => `Env:${v}`).join(", ")} -ErrorAction Ignore; ${claude.map(psQuoted).join(" ")}`;
 }
 
 function launch(opts, where, env, io) {
   const name = opts.name ?? ownProfile(where, env);
   const { settingsArgs, ...rest } = launchSettings(name, opts, where, env, io);
   const result = { ...rest, argv: ["env", ...CLEARED.flatMap((v) => ["-u", v]), "claude", ...settingsArgs] };
-  result.command = result.argv.map(quoted).join(" ");
+  result.command = launchCommand(result.argv);
   if (opts.json) {
     io.out(JSON.stringify(result, null, 2));
     return 0;

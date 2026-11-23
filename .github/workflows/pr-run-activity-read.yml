@@ -298,7 +298,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -372,7 +372,7 @@ jobs:
           && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: start
           role: ${{ inputs.role }}
@@ -404,7 +404,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.skipped-key.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: skipped
           lane: ${{ inputs.lane }}
@@ -662,7 +662,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -1223,7 +1223,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1514,7 +1514,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == ''
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: key
           role: ${{ inputs.role }}
@@ -1527,7 +1527,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback != '' && inputs.fallback != 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: subscription
           role: ${{ inputs.role }}
@@ -1539,7 +1539,7 @@ jobs:
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == 'fallback'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: fallback
           role: ${{ inputs.role }}
@@ -1567,7 +1567,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1632,7 +1632,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1683,7 +1683,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1859,7 +1859,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2426,7 +2426,7 @@ jobs:
           steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
           && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -2587,10 +2587,9 @@ jobs:
       # output, held to its closed set, so a forged one can only hand the
       # PR to a person.
       collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
-      # Set only by this job's own steps: `patch`, an oversize patch the carry
-      # step scanned clean; `fault`, a scan fault after the patch's text was
-      # judged, with no binary hunk's bytes unread, or in a run that left no
-      # patch; `output`, any other refusal. A forged run job output can add
+      # Set only by this job's own steps; each value's meaning and route is its
+      # scan-refused-* row in https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/work-resolve-issue/stop-routes.json
+      # A forged run job output can add
       # one, or forge that clean and turn an oversize hold into a retry.
       refused: >-
         ${{ steps.decode.outputs.refused
@@ -2629,7 +2628,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -2827,13 +2826,6 @@ jobs:
               core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
             }
 
-      # The upload scanner and its gate, from the default branch tip through
-      # the API (as leak-scan loads the gate), into a fresh directory under
-      # RUNNER_TEMP: the gated head's checkout next replaces the workspace,
-      # .base included, so no scan here loads code from it. It runs on every
-      # run, a gate stop included, since the verdict upload follows its scan;
-      # a failure here leaves no scanner, and that scan then withholds the
-      # verdict.
       - name: Stage the upload scanner
         id: stage-scanner
         continue-on-error: true
@@ -2861,11 +2853,8 @@ jobs:
             if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
             const dest = path.join(process.env.RUNNER_TEMP, 'scan-gate');
             fs.mkdirSync(dest);
-            // The scanner may import node: builtins and the gate; the gate only builtins.
-            const files = [
-              ['lib/publish-gate.mjs', []],
-              ['.github/actions/scan-upload/scan-upload.mjs', ['../../../lib/publish-gate.mjs']],
-            ];
+            // The gate may import node: builtins only.
+            const files = [['lib/publish-gate.mjs', []]];
             for (const [file, allowed] of files) {
               sent();
               const { data } = await github.rest.repos.getContent({ ...context.repo, path: file, ref: tip });
@@ -2911,13 +2900,19 @@ jobs:
       # timeout included), fails it with no rotation; every upload and
       # summary after it needs clean == 'true'. A pattern block writes only
       # the rule, the scanned file name or a fixed placeholder, and the line
-      # number to this step's summary, never any of the match. Those two faults find no
-      # credential, so they set refused=fault, which retries, once the patch's
-      # text was judged with no binary hunk's bytes unread, or when the run
-      # left no patch; any other fault holds, and a timeout sets no output, so
-      # it holds too. A 5xx from the gate's two API calls retries in the step,
-      # so a blip does not hold an unjudged patch for a person; a rate-limit
-      # status does not. The one broad label, a
+      # number to this step's summary, never any of the match. A text-only
+      # patch that does not apply finds no credential once its text was
+      # judged, so it sets refused=fault, which retries; a scan that does not
+      # finish holds, with a patch or none, and a timeout sets no output, so it
+      # holds too. The gate's two API reads (getBranch, getContent) go through
+      # patiently(): an HttpError, a 403 or 429 included, is read again up to
+      # GATE_READ_TRIES times, each after the reset or retry-after the answer
+      # names, else one minute (GitHub's rule:
+      # https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately),
+      # while the waits fit rate-limit-wait-seconds;
+      # the step waits, so no lane restart comes before the reset. Once the
+      # tries or the waits are spent, the read's error ends the scan
+      # unfinished, and it holds. The one broad label, a
       # password or secret assignment, is a warning naming the kind of
       # source, never a path.
       - name: Scan the outputs for credentials
@@ -2953,28 +2948,31 @@ jobs:
                 fs.writeFileSync(CALLS_FILE, `${++calls}\n`);
               } catch {}
             };
-            // A read a rate limit refused is sent once more after the reset
-            // its answer names, when the waits, summed, fit WAIT_SECONDS (at
-            // most rate-guard.mjs's WAIT_BUDGET_SECONDS.workResolveIssue,
-            // which rate-guard.test.mjs pins this cap to, inside the step's
-            // timeout): the model's output is finished, and failing here
-            // drops it.
+            // A gate read that fails with an HttpError is sent again, up to
+            // GATE_READ_TRIES sends in all, each after the reset or
+            // retry-after its answer names, else one minute, when the waits,
+            // summed, fit WAIT_SECONDS (at most rate-guard.mjs's
+            // WAIT_BUDGET_SECONDS.workResolveIssue, which rate-guard.test.mjs
+            // pins this cap to, inside the step's timeout): the model's
+            // output is finished, and failing here drops it. The step itself
+            // waits, so no lane restart can come before the reset.
+            const GATE_READ_TRIES = 3;
             let waitLeft = Math.min(/^\d{1,4}$/.test(WAIT_SECONDS ?? '') ? Number(WAIT_SECONDS) : 0, 1200) * 1000;
             const patiently = async (call) => {
-              sent();
-              try {
-                return await call();
-              } catch (error) {
-                const headers = error?.response?.headers ?? {};
-                const after = /^\d+$/.test(headers['retry-after'] ?? '') ? Number(headers['retry-after']) * 1000 : null;
-                const reset = headers['x-ratelimit-remaining'] === '0' && /^\d+$/.test(headers['x-ratelimit-reset'] ?? '') ? Number(headers['x-ratelimit-reset']) * 1000 - Date.now() : null;
-                const wait = Math.max(0, after ?? reset ?? -1) + 1000;
-                if (![403, 429].includes(error?.status) || (after ?? reset) === null || wait > waitLeft) throw error;
-                waitLeft -= wait;
-                core.notice(`leak-scan: a read hit GitHub's rate limit; waiting ${Math.ceil(wait / 1000)} s for its reset, then reading once more`);
-                await new Promise((resolve) => setTimeout(resolve, wait));
+              for (let tries = 1; ; tries++) {
                 sent();
-                return await call();
+                try {
+                  return await call();
+                } catch (error) {
+                  const headers = error?.response?.headers ?? {};
+                  const after = /^\d+$/.test(headers['retry-after'] ?? '') ? Number(headers['retry-after']) * 1000 : null;
+                  const reset = headers['x-ratelimit-remaining'] === '0' && /^\d+$/.test(headers['x-ratelimit-reset'] ?? '') ? Number(headers['x-ratelimit-reset']) * 1000 - Date.now() : null;
+                  const wait = Math.max(0, after ?? reset ?? 59000) + 1000;
+                  if (error?.name !== 'HttpError' || tries >= GATE_READ_TRIES || wait > waitLeft) throw error;
+                  waitLeft -= wait;
+                  core.notice(`leak-scan: a gate read failed (HTTP ${error.status}); waiting ${Math.ceil(wait / 1000)} s, then reading again (try ${tries + 1} of ${GATE_READ_TRIES})`);
+                  await new Promise((resolve) => setTimeout(resolve, wait));
+                }
               }
             };
             // A regular file's bytes, a link's target text; anything else holds none.
@@ -2990,7 +2988,6 @@ jobs:
             };
             let hit = null;
             let scratch = null;
-            let judged = false;
             let binary = false;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
@@ -3100,7 +3097,6 @@ jobs:
               judge('the outcome', outcome);
               judge('lane.json', lane);
               judge('the patch', patch, true);
-              judged = true;
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte
               // the text scan above read; a binary hunk blocks.
@@ -3133,14 +3129,15 @@ jobs:
                 for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);
               }
             } catch (error) {
-              // A throw after a hit never replaces it: the hit still holds.
-              hit ??= { label: `no finished scan (${error.name})`, credential: false, fault: true };
+              // A throw after a hit never replaces it: the hit still holds. A
+              // scan that never finished is no fault: it holds.
+              hit ??= { label: `no finished scan (${error.name})`, credential: false };
             } finally {
               if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
-              if (hit.fault && !binary && (judged || !read(PATCH_FILE))) core.setOutput('refused', 'fault');
+              if (hit.fault && !binary) core.setOutput('refused', 'fault');
               if (hit.fingerprint && process.env.GITHUB_STEP_SUMMARY) {
                 try {
                   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### leak-scan blocked the outputs\n\n${hit.fingerprint}\n`);
@@ -3309,9 +3306,10 @@ jobs:
       # verdict, which the report job reads as a failure.
       - name: Scan the upload for credentials
         id: scan-upload
-        env:
-          SCAN_PATHS: ${{ runner.temp }}/verdict/verdict.json
-        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        with:
+          path: ${{ runner.temp }}/verdict/verdict.json
+          gate-path: ${{ runner.temp }}/scan-gate/lib/publish-gate.mjs
 
       - name: Upload the verdict
         if: steps.scan-upload.outputs.clean == 'true'
@@ -3467,7 +3465,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       # Code from the default branch tip the event names; the checked base
@@ -3607,7 +3605,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
 
       - name: Isolate the runner
         id: isolate
@@ -3627,7 +3625,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3653,7 +3651,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3679,7 +3677,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3705,8 +3703,10 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file) != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
+          hide-trace-ids: "true"
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: reuse-summary${{ inputs.fallback == 'fallback' && '-fallback' || inputs.fallback != '' && '-subscription' || '' }}
@@ -3716,7 +3716,7 @@ jobs:
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           outcome: ${{ steps.summary-key.outcome != 'skipped' && steps.summary-key.outcome || steps.summary-token.outcome != 'skipped' && steps.summary-token.outcome || steps.summary-fallback.outcome }}
           execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file }}
@@ -3757,8 +3757,9 @@ jobs:
         if: >-
           steps.summary-collect.outcome == 'success'
         continue-on-error: true
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/reuse-summary/reuse-summary.json
 
       - name: Upload the reused branch's summary
@@ -3836,7 +3837,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 

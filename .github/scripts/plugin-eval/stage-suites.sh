@@ -2,7 +2,7 @@
 # Validates each chosen plugin's eval suite with validate-cases.py and, on a
 # deterministic run, stages its copy without judged cases. Reads LIST, ROOT and
 # DETERMINISTIC; writes go and suites to GITHUB_OUTPUT.
-# shellcheck disable=SC2154,SC2292 # the step's body verbatim; the step env sets LIST, ROOT and DETERMINISTIC, and the runner GITHUB_OUTPUT
+# shellcheck disable=SC2154,SC2292 # the step's body verbatim; the step env sets LIST, ROOT, DETERMINISTIC and CASES, and the runner GITHUB_OUTPUT
 set -e
 staged=""
 while IFS= read -r plugin; do
@@ -19,13 +19,21 @@ while IFS= read -r plugin; do
     exit 1
   fi
   if [ "$DETERMINISTIC" = true ]; then
-    split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$dir" evals-deterministic)
+    args=()
+    if [[ "${CASES:-}" =~ [^[:space:]] ]]; then
+      args=(--cases "$CASES")
+    fi
+    split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$dir" evals-deterministic "${args[@]}")
     echo "$split"
     if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
       echo "::notice::$plugin has no case with deterministic graders only; skipped."
       continue
     fi
     eval_dir=evals-deterministic
+  elif [[ "${CASES:-}" =~ [^[:space:]] ]]; then
+    split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$dir" evals-selected --cases "$CASES" --keep-judged)
+    echo "$split"
+    eval_dir=evals-selected
   fi
   staged+="$dir"$'\t'"$eval_dir"$'\n'
 done <<<"$LIST"

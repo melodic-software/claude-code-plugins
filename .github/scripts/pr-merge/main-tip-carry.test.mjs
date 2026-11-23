@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { forgetMainTip, onMain } from "./head-ref-map.mjs";
 import { mainCall, TIP } from "./on-main.fixture.mjs";
 import { sharedReads } from "./rotation.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -14,31 +15,22 @@ const text = readFileSync(join(root, ".github/workflows/pr-merge.yml"), "utf8");
 const JOBS = ["dispatch-post-merge-runs", "merge", "enable-auto-merge"];
 const READERS = /node \.base\/\.github\/scripts\/pr-merge\/(carry-run-cache\.mjs read|head-ref-map\.mjs read|lane-records\.mjs read|last-report\.mjs|verify-answers\.mjs)$/m;
 const REPO = "melodic-software/claude-code-plugins";
+const wf = workflowText(text);
 
-const jobBlock = (id) => {
-  const match = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
-  assert.ok(match, `job ${id}`);
-  return match[1];
-};
-const stepsOf = (block) =>
-  block
-    .split(/\n(?=      - name: )/)
-    .slice(1)
-    .map((b) => ({ name: /^      - name: (.*)$/m.exec(b)[1], block: b }));
 test("each job's tip step is the resolve-branch-tip action on main", () => {
   for (const job of JOBS) {
-    const tip = stepsOf(jobBlock(job)).find((s) => s.name === "Resolve main's tip");
+    const tip = wf.steps(job).find((s) => s.name === "Resolve main's tip");
     assert.ok(tip, `${job}: tip step`);
-    assert.match(tip.block, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40} # v\d+\.\d+\.\d+\n {8}with:\n {10}branch: main$/m, job);
+    assert.match(tip.text, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@[0-9a-f]{40} # v\d+\.\d+\.\d+\n {8}with:\n {10}branch: main$/m, job);
   }
 });
 
 test("every onMain reader step of the three jobs gets the job's unambiguous tip", () => {
   for (const job of JOBS) {
-    const readers = stepsOf(jobBlock(job)).filter((s) => READERS.test(s.block));
+    const readers = wf.steps(job).filter((s) => READERS.test(s.text));
     assert.ok(readers.length >= 2, `${job}: readers found`);
     for (const reader of readers) {
-      assert.ok(reader.block.includes("\n          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}\n"), `${job}: ${reader.name}`);
+      assert.ok(reader.text.includes("\n          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}\n"), `${job}: ${reader.name}`);
     }
   }
 });

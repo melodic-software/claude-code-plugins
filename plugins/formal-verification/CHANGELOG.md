@@ -3,6 +3,21 @@
 All notable changes to the `formal-verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6] - 2026-11-22
+
+### Fixed
+
+- `/formal-verification:chart` runs on native Windows: it reads TLC output with CRLF line ends the same as LF, cleans up through Node instead of `/bin/sh`, opens no console window for Java, and sets `TEMP` and `TMP` for the check. The skill's native-Windows run line defers to the launcher's Node version gate.
+- A parent state with one way in gets one arrow to the parent and a start marker to each child.
+- A spec SANY cannot read reports SANY's line and column, not a Java stack trace.
+
+## [0.3.5] - 2026-11-22
+
+### Changed
+
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
 ## [0.3.4] - 2026-11-21
 
 ### Changed

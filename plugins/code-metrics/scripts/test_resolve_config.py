@@ -451,6 +451,46 @@ class DiscoveredLayerTests(unittest.TestCase):
                 args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
             )
 
+    def test_reads_ecosystem_records_from_the_convention_home_first(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            home_dir = root / "docs" / "conventions" / "ecosystems"
+            legacy = root / ".claude" / "ecosystems"
+            home_dir.mkdir(parents=True)
+            legacy.mkdir(parents=True)
+            shell, golang, py = "bash", "go", "python"
+            (home_dir / (shell + ".yaml")).write_text(
+                'globs: ["*.sh"]\n', encoding="utf-8"
+            )
+            (legacy / (shell + ".yaml")).write_text(
+                'globs: ["*.legacy"]\n', encoding="utf-8"
+            )
+            (home_dir / (golang + ".yaml")).write_text(
+                'globs: ["*.go"]\n', encoding="utf-8"
+            )
+            (home_dir / (golang + ".local.yaml")).write_text(
+                "enabled: false\n", encoding="utf-8"
+            )
+            (legacy / (py + ".yaml")).write_text(
+                'globs: ["*.py"]\n', encoding="utf-8"
+            )
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertEqual(d["_ecosystems"]["bash"]["globs"], ["*.sh"])
+            self.assertEqual(d["_ecosystems"]["go"]["enabled"], False)
+            self.assertEqual(d["_ecosystems"]["go"]["layer"], "team")
+            self.assertEqual(d["_ecosystems"]["python"]["globs"], ["*.py"])
+            record = f"ecosystems/{shell}.yaml"
+            both = [w for w in d["_warnings"] if record in w]
+            self.assertEqual(len(both), 1, d["_warnings"])
+            self.assertIn(f"docs/conventions/{record}", both[0])
+            self.assertIn(f".claude/{record}", both[0])
+            self.assertFalse(
+                any(f"ecosystems/{py}." in w for w in d["_warnings"]),
+                d["_warnings"],
+            )
+
     def test_only_a_listed_lane_id_reads_its_ecosystem_record(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"

@@ -1,5 +1,39 @@
 # Changelog for the ecosystem-commands convention
 
+## [1.8.1] - 2026-11-22
+
+Docs-only, no schema shape change: a record sets `tool-pin` only for a tool whose version the
+repository owns itself (a manifest, lockfile, or version input or env its own workflow sets), and
+omits it when the version comes from a shared default, since a copy drifts. This replaces "a pin
+typically mirrors the repo's own CI pin" in the README "Command prerequisites" text and the schema
+description (melodic-software/claude-code-plugins#17311).
+
+## [1.8.0] - 2026-11-22
+
+Additive schema change: a prerequisite entry may carry an optional `install` object,
+`{manager: npm, lockfile: <repo-relative path>}` and no other key. The provisioning step runs
+`npm ci --ignore-scripts --no-audit --no-fund` in that lockfile's directory, at worktree creation
+and never inside a check; an entry without `install` stays report-only. Resolvers still never
+install a declared prerequisite. Before this, a record could say a command's prerequisite was
+missing but nothing could install it (melodic-software/claude-code-plugins#16683). While no record
+in a repository declares an `install` entry, the step installs a root `npm-shrinkwrap.json` or
+`package-lock.json` the same way, with a notice to declare it; that fallback ends in the next major
+version, with the legacy-location read.
+
+## [1.7.0] - 2026-11-22
+
+Location change, additive for readers: records move from `.claude/ecosystems/` to the convention
+home, `docs/conventions/ecosystems/<ecosystem>.yaml`, with the personal override beside them as
+`<ecosystem>.local.yaml`; the user-global `~/.claude/ecosystems/` stays a declared deviation.
+"Location (recorded deviations)" replaces the seam-classification note. Readers try the new home
+first and read the legacy `.claude/ecosystems/` file of the same name when it is absent there, so a
+repository not yet moved keeps its commands; with both present the new file wins and a warning names
+both ("Legacy location"). Migration: `git mv .claude/ecosystems docs/conventions/ecosystems`, or
+`/toolchain:setup apply`, and change the `.gitignore` line to `docs/conventions/**/*.local.*`. The
+legacy read ends in the next major version. No schema change. The Consumers section drops the
+fail-hard divergence 1.3.1 recorded for `code-metrics`: its resolver reads an ecosystem file outside
+the YAML subset as absent, with a warning.
+
 ## [1.6.0] - 2026-11-17
 
 Additive schema change: new optional `test-changed-cmd` key, a change-scoped test command over
