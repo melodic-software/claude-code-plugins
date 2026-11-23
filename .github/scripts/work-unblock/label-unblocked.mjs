@@ -1802,7 +1802,6 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       }
     }
   }
-  // An unreadable open time sorts last.
   const opened = (number) => (Number.isFinite(seen.get(number)) ? seen.get(number) : Number.POSITIVE_INFINITY);
   const order = [...seen.keys()].sort((a, b) => opened(a) - opened(b) || a - b);
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: order, humans, appId });
@@ -2065,7 +2064,6 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const budgetSteps = calls.flatMap((job) => (job?.steps ?? []).filter((step) => step?.conclusion === "success" && BUDGET_STEP.test(String(step?.name))));
     const budget = budgetSteps.length > 0;
     for (const step of budgetSteps) {
-      // A name whose reset is not a plain epoch second names none.
       const until = BUDGET_STEP.exec(step.name)[1] ?? "";
       const seconds = /^[0-9]{1,12}$/.test(until) ? Number(until) : 0;
       if (seconds > 0) {
@@ -2580,7 +2578,6 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
-  // The re-fire records on workflow files `key` other than a breaker trip's.
   const firedOn = (key) => markers.filter((marker) => marker.outcome === "refired" && !marker.breaker && marker.key === key);
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
@@ -2804,7 +2801,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   if (marker?.outcome === "failed") {
     return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
   }
-  // When an agent-ready add that `by` passes last happened.
   const addedSince = (by) =>
     events.filter((event) => isLabel(event, "labeled") && by(event)).reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
   const since = addedSince((event) => event.actor?.login !== bot);
@@ -2856,7 +2852,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
 async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY, upstream = checkUpstreamStatus, maps = NO_MAPS }) {
   let failed = 0;
   const ready = [];
-  // Main's blob SHAs of the lane workflow files, read once per run.
   let key;
   const workflowKey = () =>
     (key ??= (async () => {
@@ -2922,7 +2917,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   // opened it, is work done off the lane: admission's own check, read only
   // for an issue about to be re-fired, and as none when the read fails.
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: open.map((item) => Number(item.number)), humans, appId });
-  // Each issue's comments and events, listed once a sweep.
   const listings = new Map();
   const readsOf = (issue) => {
     if (!listings.has(issue.number)) {
@@ -2941,8 +2935,6 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     }
     return listings.get(issue.number);
   };
-  // The lane runs of each agent-ready issue's newest label, from listings
-  // shared by the issues whose labels fall in the same span (sharedLaneRuns).
   const runsOf = sharedLaneRuns(actions, repo);
   // Least recently decided first (the carried `decided` times; one never
   // decided goes first), so issues a sweep's budget leaves out lead the next
@@ -3246,7 +3238,6 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
   const children = await paginate(github, `${base}/sub_issues`);
-  // The field is read once, for the comment refresh, and reused when the parent stays open.
   let names;
   const namesOf = async () => (names ??= fieldNamesOf(statusOf, parent));
   // A failed refresh never holds back the close below; the sweep's rotation
@@ -3514,12 +3505,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
     const limits = readLimits(resolved);
     const wip = readWip(resolved);
-    // The issue lane's status, read once per run and only when asked.
     let read;
     const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus, routing }));
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing, maps }) : 0;
-    // One close check per issue this run, shared by both passes below.
     const closes = new Map();
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer: writeTo, closes, statusOf: statusTo, maps });
     // Before readmitReady, so a split parent whose last sub-issue closed is
@@ -3528,8 +3517,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number), writer: writeTo });
     } else {
-      // One listing of the open issues, oldest updated first, for the parent
-      // rescan and readmitReady.
       let listed;
       try {
         listed = (await paginate(github, `/repos/${repo}/issues?state=open&sort=updated&direction=asc`)).filter((item) => !item.pull_request && NUMBER.test(String(item.number)));
