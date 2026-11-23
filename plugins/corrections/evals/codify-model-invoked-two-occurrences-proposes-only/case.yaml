@@ -8,7 +8,7 @@ graders:
     tool: 'Bash'
     input_match: 'prove-check\.sh'
     min: 1
-    arm: 'with-only'
+    arm: 'both'
   - name: 'writes-nothing-model-only-proposes'
     type: 'tool_used'
     tool: 'Write'

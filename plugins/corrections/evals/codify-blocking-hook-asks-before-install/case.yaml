@@ -8,7 +8,7 @@ graders:
     tool: 'Write'
     input_match: '"file_path":"[^"]*\.work/codify/[a-z0-9._-]+/[^"/]*-proposal\.md"'
     min: 1
-    arm: 'with-only'
+    arm: 'both'
   - name: 'writes-no-hook'
     type: 'tool_used'
     tool: 'Write'

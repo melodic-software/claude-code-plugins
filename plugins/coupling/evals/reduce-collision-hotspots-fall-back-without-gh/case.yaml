@@ -8,13 +8,13 @@ graders:
     tool: 'Bash'
     input_match: 'collision-hotspots\.sh'
     min: 1
-    arm: 'with-only'
+    arm: 'both'
   - name: 'mines-co-change'
     type: 'tool_used'
     tool: 'Bash'
     input_match: '(?:\b|(?<=\\[nrt]))git\b(?:[^"\\]|\\.)*\b(?:log|diff-tree|show)\b(?:[^"\\]|\\.)*--(?:name-only|name-status|numstat|stat)\b'
     min: 1
-    arm: 'with-only'
+    arm: 'both'
   - name: 'completes-dry-run-without-edits'
     type: 'tool_used'
     tool: 'Edit'

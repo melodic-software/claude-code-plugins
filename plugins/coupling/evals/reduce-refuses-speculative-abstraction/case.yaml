@@ -3,6 +3,10 @@ name: 'reduce-refuses-speculative-abstraction'
 context:
   scaffold_script: scaffold.sh
 graders:
+  - name: 'writes-ledger'
+    type: 'file_exists'
+    path: '**/.work/coupling/coupling-ledger.md'
+    arm: 'both'
   - name: 'no-interface-write'
     type: 'tool_used'
     tool: 'Write'

@@ -15,10 +15,10 @@ graders:
     tool: 'Edit'
     input_match: '"file_path":"[^"]*/src/[^"]*"[\s\S]*archived'
     min: 1
-    arm: 'with-only'
+    arm: 'both'
   - name: 'short-lived-branch'
     type: 'tool_used'
     tool: 'Bash'
     input_match: '(?:\b|(?<=\\[nrt]))git\b(?:[^"\\]|\\.)*\b(?:checkout\s+-[bB]|switch\s+-[cC]|worktree\s+add\b(?:[^"\\]|\\.)*\s-[bB])\s'
     min: 1
-    arm: 'with-only'
+    arm: 'both'
