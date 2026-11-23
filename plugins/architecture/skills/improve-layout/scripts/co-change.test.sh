@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for co-change.mjs: builds fixture repositories with known
-# histories and asserts the hand-computed pair counts, degrees, citing commits,
-# clusters, spread, focus and mixed folders; each filter; the too-little-history
-# report; the settings files through the config cascade; and that two runs give
-# the same bytes.
-#
-#   bash plugins/architecture/skills/improve-layout/scripts/co-change.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node or git missing).
 set -euo pipefail
 

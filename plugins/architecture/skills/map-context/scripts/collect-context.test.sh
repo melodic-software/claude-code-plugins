@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for collect-context.sh: cited config, redaction, actors, thin results.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -23,7 +22,6 @@ init_repo() {
   printf '%s' "$dir"
 }
 
-# Fixture credentials expand from variables so no committed line reads as a live credential to a secret scanner.
 leak_sql="SuperSecret123"
 leak_blob="abcDEF123SECRETKEY"
 SECRETS="$leak_sql s3cr3t-token $leak_blob client-secret-VALUE99 AAAASECRET redis-pass-XYZ P4ss-UNIQUE-991"
@@ -234,7 +232,6 @@ assert_contains "--out: the record lands in the created directory" "$(cat "$TEST
 bash "$RENDER" --record "$TEST_TMPDIR/new-home/architecture/context.json" --out "$TEST_TMPDIR/new-home/architecture" --dialect none >/dev/null 2>&1
 assert_equals "--out: the render step reads the record written into the created directory" "$?" "0"
 
-# An http URL is an external system only under a key that names an integration.
 http_repo="$(init_repo "$TEST_TMPDIR/http-checkout")"
 mkdir -p "$http_repo/src"
 cat >"$http_repo/src/appsettings.json" <<'JSON'
@@ -287,7 +284,6 @@ assert_not_contains "http: a yaml externalDocs url is not an external system" "$
 assert_not_contains "http: mkdocs site_url is not an external system" "$http_rec" "siteurl.docs.example"
 assert_not_contains "http: mkdocs repo_url is not an external system" "$http_rec" "repourl.docs.example"
 
-# A Data Source that names a file is not a server.
 lite_repo="$(init_repo "$TEST_TMPDIR/lite-checkout")"
 mkdir -p "$lite_repo/src"
 cat >"$lite_repo/src/appsettings.json" <<JSON
@@ -311,7 +307,6 @@ done
 assert_contains "sqlite: a real Data Source server is still recorded" "$lite_out" '"host":"sql.lite-control.example"'
 assert_not_contains "sqlite: the real server's password is absent" "$lite_out" "$leak_sql"
 
-# An actor line carrying credential material is skipped whatever shape the credential takes.
 act_token="Tok""en=actor-tkn-7731"
 act_client="Client""Secret=actor-cs-8842"
 act_bearer="Bea""rer actor-bearer-9953"

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for scripts/build-view.mjs: every map kind builds through the
-# shared view builder, passes the interactive profile, keeps hostile record text
-# as data, and narrows to a closure under --from. When a Chrome or Chromium
-# binary is found (CHROME, google-chrome, chromium, or Playwright's headless
-# shell) the pages are also opened from file:// to prove the runtime renders them.
-#
-#   bash plugins/architecture/scripts/build-view.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 

@@ -13,18 +13,6 @@ metadata:
 
 **Arguments.** `[week|session|day|month|since:DATE|all|clean|latency|compare|items|hooks] [--write] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS] [--transcript PATH], compare <session-a> <session-b>, items [--session-map FILE], hooks [--enabled FILE] <transcript.jsonl>...
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Repo slug, `git rev-parse --show-toplevel | sed 's|.*/||'`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`

@@ -21,7 +21,7 @@ import { pathToFileURL } from "node:url";
 // Every variable that carries a credential a pr-verify leg holds or the
 // runner hands a step: the role's three Claude secrets, the names
 // run-claude-cli passes or sets them under (lane.cjs CREDENTIAL_VARIABLES,
-// https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/run-claude-cli/lane.cjs),
+// https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/run-claude-cli/lane.cjs),
 // the job token and the runtime and OIDC request tokens. A job holding another
 // role's secret names it in CAPTURE_PROBE_EXTRA_NAMES, space separated; the
 // result lists every name probed, so its caller can see the names arrived.
