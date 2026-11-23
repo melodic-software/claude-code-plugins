@@ -7,6 +7,9 @@ import { describe, test } from "node:test";
 import { tempDir } from "../lib/test-tmp.mjs";
 import { calibrate, costOf, estimate, failLine, loadYaml, readConfig } from "./check-workflow-template-size.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const REPO = path.resolve(import.meta.dirname, "..");
 const yaml = await loadYaml(REPO);
 
