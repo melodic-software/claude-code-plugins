@@ -3945,11 +3945,12 @@ test("cdn-pins allows only the base registry and its targets, and fails closed w
 
 test("cdn-pins-sync checks the patched blobs and unchanged targets with the base script before pushing", async (t) => {
   const baseDir = cdnTestBase();
-  for (const [why, version, hash, mode] of [
+  for (const [why, version, hash, mode, headMode = 0o644] of [
     ["matching sync", "2.0.0", "sha256-after", 0o644],
     ["wrong hash", "2.0.0", "sha256-stale", 0o644],
     ["wrong version", "3.0.0", "sha256-after", 0o644],
     ["changed mode", "2.0.0", "sha256-after", 0o755],
+    ["executable on both sides", "2.0.0", "sha256-after", 0o755, 0o755],
   ]) {
     const fix = repoWithPatch(t, (repo) => {
       writeRecord(repo, cdnTestRecord(version, "sha256-after"));
@@ -3963,6 +3964,7 @@ test("cdn-pins-sync checks the patched blobs and unchanged targets with the base
         writeFileSync(join(repo, "lib/cdn-pins/package.json"), PKG("2.0.0", { dependencies: { x: "2.0.0", y: "1.0.0" } }));
         writeRecord(repo, cdnTestRecord("1.0.0", "sha256-before"));
         writeFileSync(join(repo, CDN_TEST_TARGET), cdnTestView("1.0.0", "sha256-before"));
+        chmodSync(join(repo, CDN_TEST_TARGET), headMode);
         writeFileSync(join(repo, CDN_TEST_UNCHANGED), cdnTestView("1.0.0", "sha256-unchanged", "y"));
       },
     });

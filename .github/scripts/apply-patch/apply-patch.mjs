@@ -337,7 +337,7 @@ export const CONTENT_RULES = {
   },
   "cdn-pins-sync": async ({ entries, git, context, headSha }) => {
     const wrong = entries.find(({ path, status, oldMode, newMode }) =>
-      !context.cdnPins?.has(path) || status !== "M" || oldMode !== newMode || ![REGULAR, EXECUTABLE].includes(newMode));
+      !context.cdnPins?.has(path) || status !== "M" || oldMode !== REGULAR || newMode !== REGULAR);
     if (wrong) return `${wrong.path} is not an in-place modification of a regular CDN pin file`;
     const root = mkdtempSync(join(tmpdir(), "cdn-pins-check-"));
     try {

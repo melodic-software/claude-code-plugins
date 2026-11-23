@@ -4094,7 +4094,7 @@ jobs:
           sum=$(sha256sum <"$request/request.json")
           [[ ${sum%% *} == "$REQUEST_SHA256" ]]
           mkdir "$result"
-          docker run --rm -i --cap-drop ALL --security-opt no-new-privileges \
+          docker run --rm -i --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
             -v "$request:/request:ro" -v "$result:/result" "$CDN_SYNC_IMAGE" node --input-type=module <<'JS'
           import { execFileSync } from "node:child_process";
           import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";

@@ -1741,9 +1741,10 @@ test("refine: the dispatch waits out a rate-limit reset for WAIT_BUDGET_SECONDS.
   assert.ok(minutes * 60 >= 600 + WAIT_BUDGET_SECONDS.workResolveIssue, `${minutes} min`);
 });
 
-test("the CDN pins sync runs in a digest-pinned container without a token", () => {
+test("the CDN pins sync runs in a digest-pinned container without a token, as the runner user that owns the result directory", () => {
   const sync = workflowText(read(UNBLOCK)).job("review-cdn-pins-sync");
   assert.match(sync, /^    permissions: \{\}$/m);
+  assert.match(sync, /docker run --rm -i --user "\$\(id -u\):\$\(id -g\)" --cap-drop ALL --security-opt no-new-privileges /);
   assert.match(sync, /^          CDN_SYNC_IMAGE: node:[\d.]+-slim@sha256:[a-f0-9]{64}$/m);
   assert.match(sync, /"\$request:\/request:ro"/);
   assert.match(sync, /\[script, "sync", work\]/);
