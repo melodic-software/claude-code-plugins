@@ -263,13 +263,20 @@ test("a run whose step failed, or that recorded only a failed or dropped API cal
   for (const env of [
     { ACT_OUTCOME: "failure" },
     { RUN_RESULT: "cancelled" },
-    { ACT_OUTCOME: "skipped" },
     { API_FAILURES: ENV.API_FAILURES },
     { API_FAILURES: JSON.stringify({ rows: [], dropped: 3 }) },
   ]) {
     const store = memoryStore();
     await run({ ...CLEAN, ...env }, { store });
     assert.equal(store.comments.length, 1, JSON.stringify(env));
+  }
+});
+
+test("a designed skip of the run job or its activity step posts no comment", async () => {
+  for (const env of [{ ACT_OUTCOME: "skipped" }, { RUN_RESULT: "skipped", ACT_OUTCOME: "skipped" }]) {
+    const store = memoryStore();
+    await run({ ...CLEAN, ...env }, { store });
+    assert.equal(store.comments.length, 0, JSON.stringify(env));
   }
 });
 

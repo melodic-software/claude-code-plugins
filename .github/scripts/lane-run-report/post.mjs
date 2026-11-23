@@ -141,8 +141,10 @@ export function reportOf({ activity, attempt, rung = "0", leg = "base", runResul
   };
 }
 
+const CLEAN = new Set(["success", "skipped"]);
+
 export const failed = (section) =>
-  section.runResult !== "success" || section.actOutcome !== "success" || section.failures.rows.length > 0 || section.failures.dropped > 0;
+  !CLEAN.has(section.runResult) || !CLEAN.has(section.actOutcome) || section.failures.rows.length > 0 || section.failures.dropped > 0;
 
 export function renderSection(section) {
   const { activity, attempt, rung, leg } = section.fields;

@@ -1822,7 +1822,7 @@ apart, since it can lag the promote step's push), and posts the check with
 
 Last, when there is a PR, it writes the lane run report,
 [`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs). A clean report
-(the run job's result and `act-outcome` both `success`, and no failed GitHub API call) goes to the
+(the run job's result and `act-outcome` each `success` or `skipped`, and no failed GitHub API call) goes to the
 job summary only. Any other report posts or edits one comment per workflow run through the
 [PR-message module](../../../.github/scripts/lib/pr-messages/pr-messages.mjs) (its
 `lane-run-report` kind in
