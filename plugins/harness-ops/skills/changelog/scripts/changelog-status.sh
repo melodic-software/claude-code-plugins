@@ -77,7 +77,9 @@ cap_releases="${HARNESS_OPS_CHANGELOG_CAP_RELEASES:-10}"
 cap_items="${HARNESS_OPS_CHANGELOG_CAP_ITEMS:-300}"
 
 # shellcheck source=../../../lib/opt-value.sh
-source "${BASH_SOURCE[0]%/*}/../../../lib/opt-value.sh"
+opt_value_dir="${BASH_SOURCE[0]%/*}"
+[[ "$opt_value_dir" != "${BASH_SOURCE[0]}" ]] || opt_value_dir=.
+source "$opt_value_dir/../../../lib/opt-value.sh"
 OPT_VALUE_EXIT=3
 
 while (($#)); do

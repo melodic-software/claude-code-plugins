@@ -73,7 +73,9 @@ fail_write() {
 }
 
 # shellcheck source=opt-value.sh
-source "${BASH_SOURCE[0]%/*}/opt-value.sh"
+opt_value_dir="${BASH_SOURCE[0]%/*}"
+[[ "$opt_value_dir" != "${BASH_SOURCE[0]}" ]] || opt_value_dir=.
+source "$opt_value_dir/opt-value.sh"
 OPT_VALUE_STDIN=1
 
 PLUGIN_DATA=""

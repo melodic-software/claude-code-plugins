@@ -137,7 +137,9 @@ canonical() {
 }
 
 # shellcheck source=../lib/opt-value.sh
-source "${BASH_SOURCE[0]%/*}/../lib/opt-value.sh"
+opt_value_dir="${BASH_SOURCE[0]%/*}"
+[[ "$opt_value_dir" != "${BASH_SOURCE[0]}" ]] || opt_value_dir=.
+source "$opt_value_dir/../lib/opt-value.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
