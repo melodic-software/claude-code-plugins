@@ -1986,7 +1986,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -2047,8 +2047,9 @@ jobs:
       - name: Scan the native-surface results for credentials
         id: scan-native
         if: steps.kill.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/native-baseline/
 
       - name: Report the baseline difference
@@ -2080,7 +2081,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -2164,7 +2165,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -2203,7 +2204,7 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           kill-switch-ok: true
 
-      - name: Open the baseline draft pull request
+      - name: Open the baseline pull request
         id: write
         if: steps.lane-token.outputs.token != ''
         env:

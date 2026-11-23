@@ -6722,7 +6722,10 @@ jobs:
       # exact name from the reader's listing (below), with and without the
       # head-branch digest, stopping at the first name that holds such a run:
       # one run read per artifact taken. The same approval of the head lifts
-      # it. Only in the queue: pr-verify runs only after a pull_request run of
+      # it. A lanes App pull request whose files are exactly the native-surface
+      # baseline needs no pass and no link (merge-holds.mjs baselineOnly, on the
+      # pull request saved at BABYSIT_VERIFY_PULL and LANES_APP_ID).
+      # Only in the queue: pr-verify runs only after a pull_request run of
       # this workflow that succeeded or failed only on holds an approving
       # review of the head lifts, so a ci-status red for anything else there
       # would never get a verdict, and a pull request event reads nothing for it.

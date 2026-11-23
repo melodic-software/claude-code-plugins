@@ -7247,12 +7247,34 @@ def _after_the_read_floor(judge: Callable[[], dict[str, Any]]) -> dict[str, Any]
     return report
 
 
+NATIVE_BASELINE_DETAIL = (
+    f"changes only {merge_policy.NATIVE_BASELINE}: no issue link or verdict "
+    "is read (owner decision Q152 (B))"
+)
+
+
+def _native_baseline(repo: str, pr: dict[str, Any], identity: str | None) -> bool:
+    """Whether `pr` is the lanes App's and changes only the native-surface
+    baseline (`merge_policy.baseline_only`), its files read whole; a read
+    that fails, or a capped list, is not."""
+    if not merge_policy.baseline_only(pr, identity, [merge_policy.NATIVE_BASELINE]):
+        return False
+    if merge_policy.files_capped(pr):
+        return False
+    try:
+        files, complete = merge_policy.changed_files(repo, pr)
+    except Exception:  # noqa: BLE001 - any doubt keeps the link refusal
+        return False
+    paths = [p for f in files for p in (f.path, f.previous_path) if p]
+    return complete and merge_policy.baseline_only(pr, identity, paths)
+
+
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
     """`evidence`'s answer for one pull request, read in full (`main`)."""
     link: dict[str, Any] = {}
     if args.lane_link:
         link["ineligible"] = reader.link_refusal(args.number)
-        if link["ineligible"] is not None:
+        if link["ineligible"] is not None and not args.lane_reviews:
             refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
             return refusal.report() | link
     try:
@@ -7277,8 +7299,16 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         pr = merge_policy.cached_pull_request(
             os.environ.get(PULL_ENV), args.repo, args.number, args.head
         )
-    evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved and not args.shared_listing:
+    baseline = link.get("ineligible") is not None
+    if baseline:
+        if not _native_baseline(args.repo, json_object(pr), config.agent_identity):
+            refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
+            return refusal.report() | link
+        link["ineligible"] = None
+        evidence = Evidence(None, args.head, (), 0, NATIVE_BASELINE_DETAIL)
+    else:
+        evidence = reader.evidence(args.number, args.head, pr)
+    if evidence.refusal is None and reader.saved and not args.shared_listing and not baseline:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:

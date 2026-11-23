@@ -406,8 +406,12 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // maps a ref (BASE, HEAD) to the trusted-actor list's text there.
 // `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
 // each written as given (a string as it is), `evidence` left out when undefined.
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue } = {}) {
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue, pull } = {}) {
   const dir = tempDir("merge-holds-");
+  const env = pull === undefined ? {} : { BABYSIT_VERIFY_PULL: join(dir, "pull"), LANES_APP_ID: "9" };
+  if (pull !== undefined) {
+    writeFileSync(join(dir, "pull"), JSON.stringify(pull));
+  }
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
   writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
@@ -446,7 +450,7 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
-  return main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE }, github }).then(
+  return main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE, ...env }, github }).then(
     (code) => {
       console.log = log;
       return { code, out: lines.join("\n") };
@@ -1158,6 +1162,54 @@ test("in the merge queue, a reader with no FAIL hold lets a passed head through"
   assert.equal(code, 0, out);
   assert.match(out, /^#99: no pr-verify FAIL hold: the reader allows this head\.$/m);
   assert.match(out, /^#99: no verifier hold: pr-verify passed this head\.$/m);
+});
+
+const LANES_USER = { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" };
+
+test("baselineOnly allows the lanes App's pull request whose files are exactly the native-surface baseline", () => {
+  const { baselineOnly, NATIVE_BASELINE } = holdsModule;
+  assert.equal(NATIVE_BASELINE, "docs/upstream/claude-code-native-surfaces.min.json");
+  assert.equal(baselineOnly(LANES_USER, [NATIVE_BASELINE], 9), true);
+  assert.equal(baselineOnly(LANES_USER, [NATIVE_BASELINE], "9"), true);
+  for (const files of [[NATIVE_BASELINE, "docs/a.md"], ["docs/a.md", NATIVE_BASELINE], [NATIVE_BASELINE, "docs/upstream/old.json"], ["docs/upstream/claude-code.md"], [], null, [NATIVE_BASELINE.toUpperCase()]]) {
+    assert.equal(baselineOnly(LANES_USER, files, 9), false, JSON.stringify(files));
+  }
+  for (const [author, appId] of [
+    [{ ...LANES_USER, type: "User" }, 9],
+    [{ ...LANES_USER, login: "melodic-agent[bot]" }, 9],
+    [{ ...LANES_USER, id: 10 }, 9],
+    [{ login: "owner-person", id: 5, type: "User" }, 9],
+    [LANES_USER, undefined],
+    [LANES_USER, ""],
+    [null, 9],
+  ]) {
+    assert.equal(baselineOnly(author, [NATIVE_BASELINE], appId), false, JSON.stringify([author, appId]));
+  }
+});
+
+test("in the merge queue, the lanes App's native-surface baseline needs no verifier pass or link", async () => {
+  const { NATIVE_BASELINE } = holdsModule;
+  const lanes = { user: LANES_USER };
+  const passed = await ci([NATIVE_BASELINE], { body: "No related issue: baseline.", pull: lanes, queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report("verify:missing") } });
+  assert.equal(passed.code, 0, passed.out);
+  assert.match(passed.out, /^#99: no verifier hold: the lanes App's pull request changes only docs\/upstream\/claude-code-native-surfaces\.min\.json/m);
+  assert.match(passed.out, /^#99: no pr-verify FAIL hold: the lanes App's pull request changes only/m);
+  for (const [files, pull] of [
+    [[NATIVE_BASELINE, "docs/a.md"], lanes],
+    [[[NATIVE_BASELINE, "docs/upstream/old.json", "renamed"]], lanes],
+    [[NATIVE_BASELINE], { user: { login: "owner-person", id: 5, type: "User" } }],
+    [[NATIVE_BASELINE], { user: { ...LANES_USER, id: 10 } }],
+    [[NATIVE_BASELINE], undefined],
+  ]) {
+    const held = await ci(files, { body: "No related issue: baseline.", pull, queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report("verify:missing") } });
+    assert.equal(held.code, 1, `${JSON.stringify([files, pull])}: ${held.out}`);
+    assert.match(held.out, /^::error title=pr-verify hold::#99: pr-verify's reader refuses this head's pass \(verify:missing\)/m);
+    assert.doesNotMatch(held.out, /changes only docs\/upstream/);
+  }
+  const veto = { user: { login: "owner-person", id: 5, type: "User" }, body: "do not merge", created_at: "2026-10-23T11:00:00Z", author_association: "OWNER" };
+  const vetoed = await ci([NATIVE_BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
+  assert.equal(vetoed.code, 1, vetoed.out);
+  assert.doesNotMatch(vetoed.out, /no member veto/);
 });
 
 // Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds in the

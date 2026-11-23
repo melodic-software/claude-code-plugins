@@ -688,6 +688,44 @@ class TheHoldLabelsAreTheGates(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheNativeBaselineIsTheGates(unittest.TestCase):
+    """Owner decision Q152 (B): ci-status (`baselineOnly`) and the arm's
+    reader (`baseline_only`) take the same lanes App pull requests, those
+    changing exactly the same one file, with no link or verdict."""
+
+    def test_both_take_the_same_pull_requests(self) -> None:
+        lanes = {"login": "melodic-automation-lanes[bot]", "id": 9, "type": "Bot"}
+        cases = [
+            (lanes, [policy.NATIVE_BASELINE]),
+            (lanes, [policy.NATIVE_BASELINE, "docs/a.md"]),
+            (lanes, [policy.NATIVE_BASELINE, "docs/upstream/old.json"]),
+            (lanes, ["docs/upstream/claude-code.md"]),
+            (lanes, []),
+            ({**lanes, "type": "User"}, [policy.NATIVE_BASELINE]),
+            ({**lanes, "login": "melodic-agent[bot]"}, [policy.NATIVE_BASELINE]),
+        ]
+        script = (
+            f"const {{ baselineOnly, NATIVE_BASELINE }} = await import({json.dumps(MODULE.as_uri())});"
+            "const cases = JSON.parse(process.argv[1]);"
+            "console.log(JSON.stringify([NATIVE_BASELINE, cases.map(([user, files]) => baselineOnly(user, files, 9))]));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        path, answers = json.loads(proc.stdout)
+        self.assertEqual(path, policy.NATIVE_BASELINE)
+        py = [
+            policy.baseline_only({"user": user}, "melodic-automation-lanes[bot]", files)
+            for user, files in cases
+        ]
+        self.assertEqual(answers, py)
+        self.assertEqual(answers.count(True), 1)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
 class TheWideningHoldIsTheGates(unittest.TestCase):
     def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
         cases = list(ACTOR_CASES.values())

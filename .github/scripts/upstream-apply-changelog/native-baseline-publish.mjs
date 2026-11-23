@@ -102,8 +102,8 @@ export async function publishBaseline(read, repository, { release, head, report 
   await read(`${repo}/pulls`, {
     method: "POST",
     body: {
-      title: titleOf(release), head: branch, base: "main", draft: true,
-      body: `Refreshes the native-surface baseline for release ${release}.\n\n${report}`,
+      title: titleOf(release), head: branch, base: "main", draft: false,
+      body: `No related issue: each release's native-surface baseline refresh.\n\nRefreshes the native-surface baseline for release ${release}.\n\n${report}`,
     },
   });
   return true;

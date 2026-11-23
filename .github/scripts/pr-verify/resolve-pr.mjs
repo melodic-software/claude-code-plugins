@@ -12,6 +12,9 @@
 // - the PR is not a draft and not a dependency manager's (a Bot account with
 //   one of DEPENDENCY_MANAGERS' logins), and the run did not start while it
 //   was a draft (draftRun), whose suites all skipped;
+// - it is not the lanes App's pull request changing only the native-surface
+//   baseline (merge-holds.mjs baselineOnly, reason `native-baseline`), which
+//   merges with no verdict (https://github.com/melodic-software/architecture/pull/197);
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under
@@ -70,7 +73,7 @@ import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trust
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
-import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { baselineOnly, NATIVE_BASELINE, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, briefedIssue, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
 import { SPLIT_CHILD_MARKER, splitChildBody, splitScope } from "../intake-triage/size-split.mjs";
@@ -1207,6 +1210,13 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");
+  }
+  if (baselineOnly(pull.user, [NATIVE_BASELINE], laneAppId)) {
+    const files = await github("GET", `/repos/${repository}/pulls/${pull.number}/files?per_page=100`);
+    const paths = Array.isArray(files) ? files.flatMap((file) => [file?.filename, ...(file?.previous_filename ? [file.previous_filename] : [])]) : null;
+    if (baselineOnly(pull.user, paths, laneAppId)) {
+      return skip("native-baseline");
+    }
   }
   // An unreadable draft state throws, as any other failed read here does: the
   // step holds before its judgment (closing), so it writes no verdict, and the

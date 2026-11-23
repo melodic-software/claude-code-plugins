@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { BASELINE, publishBaseline, pushBaseline } from "./native-baseline-publish.mjs";
+import { BODY_HOLD, LANE_HOLD, NATIVE_BASELINE } from "../pr-merge/merge-holds.mjs";
 
 const repository = "owner/repo";
 const release = "2.1.330";
@@ -81,7 +82,11 @@ test("reuses only an existing branch with the expected parent and tree", async (
   assert.deepEqual(different.calls.map(([path]) => path), ["git/trees"]);
 });
 
-test("publishes a draft with the scripted report at the pushed head only once", async () => {
+test("the published path is the one merge-holds.mjs lets merge with no issue or verdict", () => {
+  assert.equal(BASELINE, NATIVE_BASELINE);
+});
+
+test("publishes a ready pull request with the scripted report at the pushed head only once", async () => {
   const ref = { object: { sha: head } };
   const report = "Inventory self-check: **degraded**.\n\nSummary difference\n\nAdded: example.";
   const input = { release, head, report };
@@ -89,9 +94,11 @@ test("publishes a draft with the scripted report at the pushed head only once", 
   assert.equal(await publishBaseline(read, repository, input), true);
   assert.deepEqual(calls, [["pulls", {
     title: `chore(upstream): refresh native surfaces for Claude Code ${release}`,
-    head: branch, base: "main", draft: true,
-    body: `Refreshes the native-surface baseline for release ${release}.\n\n${report}`,
+    head: branch, base: "main", draft: false,
+    body: `No related issue: each release's native-surface baseline refresh.\n\nRefreshes the native-surface baseline for release ${release}.\n\n${report}`,
   }]]);
+  assert.doesNotMatch(calls[0][1].body, LANE_HOLD);
+  assert.doesNotMatch(calls[0][1].body, BODY_HOLD);
   const existing = fake({ ref, pulls: [{ number: 1 }] });
   assert.equal(await publishBaseline(existing.read, repository, input), false);
   assert.deepEqual(existing.calls, []);

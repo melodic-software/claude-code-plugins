@@ -3470,6 +3470,29 @@ def _lane_authored(pr: dict[str, Any], agent_identity: str | None) -> bool:
     )
 
 
+# merge-holds.mjs NATIVE_BASELINE, which test_merge_holds_sync.py keeps equal:
+# the one file a lanes App pull request may change and merge with no linked
+# issue and no pr-verify verdict (owner decision Q152 (B),
+# https://github.com/melodic-software/architecture/pull/197).
+NATIVE_BASELINE = "docs/upstream/claude-code-native-surfaces.min.json"
+
+
+def baseline_only(
+    pr: Mapping[str, Any], agent_identity: str | None, paths: Sequence[str] | None
+) -> bool:
+    """Whether the REST pull request `pr` is `agent_identity`'s Bot and
+    `paths`, every changed path with renamed-from paths, read whole, is
+    exactly NATIVE_BASELINE (merge-holds.mjs baselineOnly)."""
+    user = json_object(pr.get("user"))
+    return bool(
+        agent_identity
+        and user.get("type") == "Bot"
+        and _login_key(user.get("login")) == _login_key(agent_identity)
+        and paths is not None
+        and list(paths) == [NATIVE_BASELINE]
+    )
+
+
 def _opt_in_refusal(
     owner: str,
     name: str,
