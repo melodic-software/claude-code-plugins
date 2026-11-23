@@ -3,6 +3,13 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.0] - 2026-11-23
+
+### Changed
+
+- `codify rules` gives each `delete` a reason (derivable, no-op, duplicate or stale) with what shows it, holds a misplaced rule with a hand-off to `/instruction-placement:audit`, and points stale and conflicting rules to `/harness-config:audit-instructions`.
+- `codify`'s `## Next` names `/toolchain:ratchet` and `/architecture:enforce-boundaries`.
+
 ## [1.9.2] - 2026-11-23
 
 ### Fixed

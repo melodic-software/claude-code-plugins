@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.0] - 2026-11-23
+
+### Changed
+
+- `write`'s `## Next` names `/mutation-testing:audit` on the file to confirm each kill when the tests were written for survivors a mutation run handed over.
+
 ## [5.13.3] - 2026-11-23
 
 ### Changed
