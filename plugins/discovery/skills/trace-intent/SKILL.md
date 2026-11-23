@@ -10,20 +10,6 @@ metadata:
 
 **Arguments.** `<target>`. e.g., /discovery:trace-intent the retry backoff in api/client.ts, /discovery:trace-intent why we chose the local-markdown adapter
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-- Project root, `git rev-parse --show-toplevel`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines, one command per call, so each git read
-reaches the shell on its own. How the harness runs a skill's injected commands is
-[skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
-to say.
-
 ## Purpose
 
 Reconstruct intent from the records outside the code (review threads, tickets, design documents,

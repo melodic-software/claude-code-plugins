@@ -81,7 +81,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch
@@ -94,14 +94,13 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-upstream-status/
             /.github/scripts/maintenance-reconcile-lost-runs/component-status.mjs
-            /.github/actions/setup-pinned-node/
             /.node-version
             /.github/actions/log-api-budget/
             /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -192,7 +191,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: main
       - name: Check out the default branch
@@ -206,7 +205,6 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
-            /.github/actions/setup-pinned-node/
             /.github/scripts/lib/github-client.mjs
             /.github/scripts/pr-review/
             /.github/scripts/pr-unblock/request-budget.mjs
@@ -214,7 +212,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 

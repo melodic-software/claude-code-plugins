@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# The load-bearing cases are the layer list: the user-global JSON (read with jq),
-# then the YAML team layer and personal override, never the repository's old JSON
-# files under .claude/, with every value naming the layer that supplied it.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -29,8 +26,6 @@ source "$SCRIPT_DIR/lib.sh"
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# --- Fixtures --------------------------------------------------------------------
-
 ROOT="$TEST_TMPDIR/repo"
 mkdir -p "$ROOT/.claude" "$ROOT/docs/conventions"
 git init -q "$ROOT"
@@ -47,8 +42,6 @@ layers() { printf '%s\n' ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; }
 v=""
 list=()
 
-# --- The user-global JSON layer, read with jq ----------------------------------------
-
 reset
 printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}, "excluded_paths": ["a/**", "b c/**"]}' >"$USER_JSON"
 cfg_layers_init "$ROOT"
@@ -63,14 +56,11 @@ cfg_list list excluded_paths
 assert_eq "a JSON list is read, one element per entry" "$(printf '%s|' "${list[@]}")" "a/**|b c/**|"
 assert_eq "a JSON list names its layer" "$CFG_SOURCE" "$USER_JSON"
 
-# A JSON list key holding a non-list clears the list.
 printf '%s\n' '{"excluded_paths": false}' >"$USER_JSON"
 cfg_layers_init "$ROOT"
 list=(stale)
 cfg_list list excluded_paths
 assert_eq "a JSON non-list value clears the list" "${#list[@]}|$CFG_SOURCE" "0|$USER_JSON"
-
-# --- The repository's old JSON files are not read; the YAML beside them is --------
 
 reset
 printf '%s\n' '{"stamp_expiry_days": 30}' >"$OLD_TEAM"
@@ -86,8 +76,6 @@ assert_eq "the YAML team layer and personal override are the layers" \
   "$(layers)" "$YAML_TEAM"$'\n'"$YAML_LOCAL"
 cfg_scalar v stamp_expiry_days
 assert_eq "the YAML personal override supplies the value" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
-
-# --- Layer order: user-global, then team, then personal override -------------------
 
 reset
 printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}}' >"$USER_JSON"
@@ -114,8 +102,6 @@ list=(stale)
 cfg_list list excluded_paths
 assert_eq "an empty YAML personal override list clears the team list" "${#list[@]}|$CFG_SOURCE" "0|$YAML_LOCAL"
 
-# --- Validation keeps an earlier valid value standing -----------------------------
-
 reset
 printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: 40' >"$YAML_TEAM"
 printf '%s\n' 'budgets:' '  corpus_fetch_ceiling: many' >"$YAML_LOCAL"
@@ -123,7 +109,6 @@ cfg_layers_init "$ROOT"
 cfg_scalar v budgets.corpus_fetch_ceiling '^[0-9]+$'
 assert_eq "a value failing the pattern leaves the earlier one" "$v|$CFG_SOURCE" "40|$YAML_TEAM"
 
-# A YAML layer outside the parser's subset is named on stderr and skipped whole.
 printf '%s\n' 'budgets: {corpus_fetch_ceiling: 5}' >"$YAML_LOCAL"
 err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
 assert_eq "an unparsable YAML layer is named on stderr" \
@@ -133,7 +118,6 @@ assert_eq "an unparsable YAML layer is not a layer" "$(layers)" "$YAML_TEAM"
 cfg_scalar v budgets.corpus_fetch_ceiling
 assert_eq "an unparsable YAML layer supplies nothing" "$v|$CFG_SOURCE" "40|$YAML_TEAM"
 
-# A list key is present after a byte-order mark and when quoted.
 printf '\xEF\xBB\xBF%s\n' 'excluded_paths: []' >"$YAML_LOCAL"
 printf '%s\n' '"excluded_paths":' '  - "**/fixtures/**"' >"$YAML_TEAM"
 cfg_layers_init "$ROOT"
@@ -193,8 +177,6 @@ cfg_scalar v stamp_expiry_days
 assert_eq "the team file beats the old file" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
 CFG_USER_CONFIG=()
 
-# --- The bound convention home ----------------------------------------------------
-
 reset
 mkdir -p "$ROOT/config"
 # shellcheck disable=SC2016  # the backticks are the pointer line's own markup
@@ -207,8 +189,6 @@ cfg_layers_init "$ROOT"
 cfg_scalar v stamp_expiry_days
 assert_eq "the team YAML is read from the bound home" "$v|$CFG_SOURCE" "10|$ROOT/config/attribution.yaml"
 rm -rf "$ROOT/AGENTS.md" "$ROOT/config"
-
-# --- No team layer outside a repository --------------------------------------------
 
 NONREPO="$TEST_TMPDIR/loose"
 mkdir -p "$NONREPO/docs/conventions"

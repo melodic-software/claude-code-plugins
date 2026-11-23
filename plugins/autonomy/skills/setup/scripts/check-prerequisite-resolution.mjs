@@ -1,14 +1,5 @@
 #!/usr/bin/env node
 
-// Setup-slice check for routine prerequisite resolution. Invokes the
-// deterministic resolver for every scheduling surface recorded in the
-// autonomy binding (or a default surface when none are bound). Read-only.
-//
-// Liveness: engine health-check — runs the resolver end-to-end; non-zero exit
-// on internal failure; never a verdict-shaped fallback.
-//
-// Usage:
-//   node check-prerequisite-resolution.mjs [--repo <dir>] [--surface <id>]
 // Exit 0 = report emitted; 1 = internal failure.
 
 import { spawnSync } from "node:child_process";
