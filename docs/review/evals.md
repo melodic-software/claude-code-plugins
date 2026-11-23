@@ -24,8 +24,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - Only for a new case; a grader, prompt, fixture or scaffold change to a case; or a cut. Nothing
   else requires one (Q4).
-- No run for a description-only case edit, an additive skill edit, or a repair that re-points a
-  renamed reference that `/evals:validate` proves resolves (C2, Q6).
+- No run for a description-only case edit, an additive skill edit, a restated upstream fact swapped
+  for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that
+  re-points a renamed reference that `/evals:validate` proves resolves (C2, Q6).
 - A model release triggers nothing. When a decision rests on a new model, the cases that decision
   cites run under the budget below (Q15).
 - No smoke set on every change and no scheduled suite (Q12).
@@ -36,7 +37,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - The affected cases of the changed skills, in any plugin, and no others (Q8, Q30). For a cut to
   an agent body, the affected cases of each skill that dispatches that agent (Q61).
-- Never a whole suite (C1).
+- Never a whole suite (C1). A suite run always sets `case` or `tag`. The label run runs every
+  suite a PR touches, so do not add the `eval: run` label until it runs only the affected cases
+  (Q42).
 - A legacy `evals.json` set is not evidence. A cut whose skill has only one converts it to
   `case.yaml` cases, or adds a deterministic case, in the same PR (Q38, Q61).
 
@@ -46,11 +49,12 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A cut, or a grader, prompt, fixture or scaffold change, runs its affected deterministic cases in a
   compare run before merge, whose PASS releases the eval hold (Q7).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
-  the same PR. When the behavior cannot be checked without a judge, it merges under the next rule
-  instead (Q45).
-- A PR that adds or edits cases with deterministic graders only, and changes no skill text, merges
-  once `/evals:validate` passes, because compare mode refuses arms that do not differ. One suite
-  run on the default branch, scoped to those cases, follows (Q43, Q56).
+  the same PR (Q45).
+- Two kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
+  cases with deterministic graders only and changes no skill text, because compare mode refuses
+  arms that do not differ (Q43, Q56); and a cut whose changed behavior cannot be checked without a
+  judge (Q45). One suite run on the default branch, scoped to the affected cases, follows. For a
+  judged case, the dispatching session posts the record by hand under [Graders](#graders).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
   follow-up does (Q57).
@@ -66,7 +70,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - One dispatch per affected plugin per head, within the per-run ceiling the workflow's
   `cost-cap-usd` and `max-cost-usd` inputs enforce (Q11).
 - Split an affected set that exceeds one run's ceiling into several dispatches by case glob; never
-  drop affected cases to fit (Q36).
+  drop affected cases to fit (Q36). Each passing dispatch posts a record that would release the
+  eval hold, so a split PR's hold also carries a `reason=eval-split` line, which the release step
+  does not lift ([loop-lane hold convention](../contracts/loop-lane/README.md)); the dispatching
+  session removes `do-not-merge` once every dispatch has passed.
 - Re-run only on a new head that changes affected files (Q11).
 
 ## Reading a result
