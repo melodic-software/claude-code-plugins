@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// One surface model and one menu model (PR C, audit F11 and F12), against `share.sh ensure-running` with the fake
-// cloudflared. Every dialog surface closes with one x named for what it closes, and focus goes back to what opened it;
-// the Ask Claude panel is a bottom sheet only at phone width (720 px), the one breakpoint, so at 900 px it is a side
-// drawer; Help lists the same entries as More in the same words, and a guest's desktop Help has Settings, which opens
-// their own card. The canonical chrome (reference/html-chrome.html): that card carries the System/Light/Dark toggle,
-// opening on System, no accent or palette picker renders and the owner's settings set no theme for everyone, and the
-// Discussion composer is the chrome's comment box.
-//   node plugins/planning/shared/tests/ui_surfaces.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the consistency audit's F11 and F12 (one close control, an x whose name says what it closes;
-// one breakpoint at 720 px; one menu model; guest Settings on desktop) and the texts this suite writes, never the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
@@ -29,7 +18,6 @@ async function main() {
     const owner = await rec.open(A.ownerUrl, DESK);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
 
-    // ---------- F11: one x on every surface, named for it; it closes and focus goes back ----------
     const SURFACES = [[".vf-gear", ".vf-settings", "Close Session settings"], [".vf-sharebtn", ".vf-share", "Close Invite people"],
       [".vf-keysbtn", ".vf-keys", "Close Help"], [".vf-introbtn", ".vf-intropop", "Close Why you're here"]];
     for (const [opener, pop, name] of SURFACES) {
@@ -42,7 +30,6 @@ async function main() {
       ok(`  it closes and focus goes back to ${opener}`, await until(owner, ([sel, o]) => document.querySelector(sel).hidden && document.activeElement?.matches(o), [pop, opener]));
     }
 
-    // ---------- F9: every Copy goes through one path: the clipboard and a toast, the button's words unchanged ----------
     await owner.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(A.ownerUrl).origin });
     await owner.click(".vf-sharebtn");
     await owner.locator(".vf-share button", { hasText: "Copy link" }).click();
@@ -51,7 +38,6 @@ async function main() {
       && (await owner.evaluate(() => navigator.clipboard.readText())) === (await owner.inputValue(".vf-share .vf-share-url")));
     await owner.keyboard.press("Escape");
 
-    // ---------- F11: one breakpoint: at 900 px Ask Claude is a side drawer, not a bottom sheet ----------
     const mid = await rec.open(A.localUrl, { context: { viewport: { width: 900, height: 800 } } });
     await joinAs(mid, "Mia");
     await mid.click(".vf-asktop");
@@ -62,7 +48,6 @@ async function main() {
     await mid.getByRole("button", { name: "Close Ask Claude", exact: true }).click();
     ok("  its x closes it and focus goes back to Ask Claude", await until(mid, () => document.querySelector(".vf-drawer").hidden && document.activeElement?.matches(".vf-asktop")));
 
-    // ---------- F12: Help and More are one menu; a guest's desktop Help has Settings ----------
     const gus = await rec.open(A.localUrl, DESK);
     await joinAs(gus, "Gus");
     await gus.click(".vf-keysbtn");
@@ -72,7 +57,6 @@ async function main() {
     await gus.locator(".vf-keys .vf-hitem", { hasText: "Settings" }).click();
     ok("  Settings opens Gus's own card: his name, theme and devices", await until(gus, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && /Gus/.test(c.getAttribute("aria-label") || "") && !!c.querySelector(".rv-theme"); }),
       await gus.evaluate(() => document.querySelector(".vf-pcard")?.getAttribute("aria-label")));
-    // ---------- the canonical chrome (reference/html-chrome.html): one System/Light/Dark toggle, no accent or palette picker ----------
     const toggleOf = p => p.evaluate(() => [...document.querySelectorAll('.vf-pcard .rv-theme[role="group"][aria-label="Theme"] button[data-rv-theme]')]
       .map(b => `${b.dataset.rvTheme}:${b.getAttribute("aria-pressed")}`).join());
     ok("  his card carries the canonical theme toggle, opening on System", (await toggleOf(gus)) === "system:true,light:false,dark:false", await toggleOf(gus));
@@ -96,12 +80,10 @@ async function main() {
     await until(pho, () => !document.querySelector(".vf-moresheet").hidden);
     const more = await pho.evaluate(() => [...document.querySelectorAll(".vf-moresheet .vf-msitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent + "|" + b.querySelector(".vf-ms-d").textContent));
     const helpRows = await gus.evaluate(() => [...document.querySelectorAll(".vf-keys .vf-hitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent + "|" + b.querySelector(".vf-ms-d").textContent));
-    // F12: Help's entries for a guest, in More's own words (the menu entries the spec moves out of the two copies).
     const HELP = ["Settings|Your name, theme and devices", "Show me around|A one-minute tour", "Why you're here|", "Report a problem|Tell the host something is broken"];
     ok("a guest's desktop Help lists Settings, the tour, Why you're here and Report a problem, in those words", JSON.stringify(helpRows) === JSON.stringify(HELP), JSON.stringify(helpRows));
     ok("  and a guest's phone More lists each of them in the same words", HELP.every(h => more.includes(h)), JSON.stringify(more));
 
-    // ---------- F5: one list of person actions, the card's and the Host view people row's ----------
     const acts = (page, sel) => page.evaluate(x => [...document.querySelectorAll(x)].filter(b => !b.hidden).map(b => b.getAttribute("aria-label") || b.textContent), sel);
     await owner.locator(`.vf-people .vf-person[data-name="Gus"]`).click();
     await until(owner, () => !document.querySelector(".vf-pcard").hidden && !!document.querySelector(".vf-pcard .vf-pc-acts"));
@@ -111,17 +93,14 @@ async function main() {
     await owner.click(".vf-seg-btn:has-text('Host')");
     await until(owner, () => [...document.querySelectorAll(".vf-hperson")].some(li => li.textContent.includes("Gus")));
     const row = await owner.evaluate(() => [...[...document.querySelectorAll(".vf-hperson")].find(li => li.textContent.includes("Gus")).querySelectorAll(".vf-hp-acts button")].filter(b => !b.hidden).map(b => b.getAttribute("aria-label") || b.textContent));
-    // F16: one device and browser source (core.js): the row's device badge names the browser in words.
     await gus.evaluate(() => window.Core.answerCiting("Q1", "Beside the total.", []));
     ok("Gus's device badge in the Host view reads \"On a computer, Chrome\"", await until(owner, () => [...document.querySelectorAll(".vf-hperson")].some(li => li.textContent.includes("Gus")
       && /^On a computer, Chrome, 1440×900, in Focus$/.test(li.querySelector(".vf-ctx")?.getAttribute("aria-label") || "")), null, 10000),
       await owner.evaluate(() => [...document.querySelectorAll(".vf-hperson .vf-ctx")].map(e => e.getAttribute("aria-label")).join(" | ")));
-    // F5: the host row's list (the most complete), by accessible name.
     const PERSON = ["Rename Gus", "View everything Gus did", "Leader: Gus", "Trusted: Gus", "Merge Gus into someone", "Remove Gus"];
     ok("the Host view row offers Rename, View all, Leader, Trusted, Merge and Remove for Gus", JSON.stringify(row) === JSON.stringify(PERSON), JSON.stringify(row));
     ok("  and Gus's card offers the same six, in the same words", JSON.stringify(card) === JSON.stringify(PERSON), JSON.stringify(card));
 
-    // ---------- F6: one set of proposal actions and toasts, in Proposed and the Inbox ----------
     const IDEA = "Show the delivery date beside the total";
     await gus.evaluate(t => window.Core.idea(t), IDEA);
     await owner.keyboard.press("Escape");
@@ -144,7 +123,6 @@ async function main() {
     ok("Back to Proposed in Proposed says what Later's does: \"Back in Proposed.\"", await until(owner, () => window.__toasts.includes("Back in Proposed.")), JSON.stringify(await owner.evaluate(() => window.__toasts)));
     await owner.keyboard.press("Escape");
 
-    // ---------- F7 and F10: one set of request actions; Decline asks first, Mark failed says the same everywhere ----------
     const ASK = "Which payment providers support this?";
     await gus.waitForTimeout(1100);
     await gus.evaluate(t => window.Core.request("Q1", "ask", t), ASK);
@@ -161,7 +139,6 @@ async function main() {
     await qRow().getByRole("button", { name: "Mark failed", exact: true }).click();
     ok("Mark failed in the Host queue says \"Marked failed. The requester sees it.\"", await until(owner, () => window.__toasts.includes("Marked failed. The requester sees it.")), JSON.stringify(await owner.evaluate(() => window.__toasts)));
 
-    // ---------- F10: Send round asks through the one confirm dialog while questions are open ----------
     await owner.keyboard.press("Escape");
     await owner.locator(".vf-seg-btn", { hasText: "Focus" }).click();
     const sends = [];
@@ -172,11 +149,9 @@ async function main() {
     }), await owner.evaluate(() => document.querySelector("dialog.vf-cdlg[open]")?.textContent || "no dialog"));
     await owner.keyboard.press("Escape");
     await until(owner, () => !document.querySelector("dialog.vf-cdlg[open]"));
-    await owner.waitForTimeout(1500); // a poll or two: a send made anyway would have gone out by now
+    await owner.waitForTimeout(1500);
     ok("  Escape sends nothing: no round send request went out", sends.length === 0, JSON.stringify(sends));
 
-    // ---------- the message menu and React open beside what opened them (chat and a Discussion comment) ----------
-    // Measured once the page holds still: the menu and the chat it opens over scale in.
     const beside = async (page, menuSel, btnSel) => (await settled(page, { rects: true })) && page.evaluate(([m, b]) => {
       const r = document.querySelector(m).getBoundingClientRect(), a = [...document.querySelectorAll(b)].find(x => x.getAttribute("aria-expanded") === "true" || x === document.activeElement)?.getBoundingClientRect()
         || document.querySelector(b).getBoundingClientRect();
@@ -225,7 +200,6 @@ async function main() {
     ok("  and its React opens beside its button", b.ok, JSON.stringify(b));
     await owner.keyboard.press("Escape");
 
-    // ---------- read-only: once the session ends, a guest's menu offers no Ask Claude about this (the server refuses it) ----------
     await owner.evaluate(() => window.Core.endSession(true));
     await until(gus, () => window.Core.state.ended === true, null, 10000);
     const roMenu = async (open) => { await open(); await until(gus, () => !document.querySelector(".vf-msgmenu").hidden);
@@ -233,7 +207,6 @@ async function main() {
     const roChat = await roMenu(async () => { await gus.click(".vf-fab"); const m = gus.locator(".vf-msg", { hasText: "Where does the total go on phones?" }); await m.hover(); await m.locator(".vf-msgmore").click(); });
     await gus.click(".vf-chat-head .vf-icon-btn");
     await until(gus, () => document.querySelector(".vf-center").dataset.mode === "tree");
-    // An ended session opens guests on the Tree; View options brings back the view switcher, and Focus the Discussion.
     if (!(await gus.locator(".vf-seg-btn", { hasText: "Focus" }).isVisible())) await gus.click(".vf-viewopts");
     await gus.locator(".vf-seg-btn", { hasText: "Focus" }).click();
     await until(gus, () => document.querySelector(".vf-center").dataset.mode === "focus");

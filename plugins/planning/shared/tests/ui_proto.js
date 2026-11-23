@@ -1,28 +1,9 @@
 #!/usr/bin/env node
-// The prototype page (Q98) in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner on a
-// desktop, a guest on a desktop who opens the prototype from the question's "Open prototype" link, and a guest on a
-// 390x844 phone with touch who opens /proto/<qid> directly, in separate browser contexts (separate storage). Covered:
-// the preview tile and its link; no session palette or accent on the prototype page; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
-// element inside an html variant (its path and box reach the server, its pin is drawn in the variant, and the variant's
-// own click handler does not run while Annotate is on); a note on a spot of a picture variant; the notes in the
-// question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
-// sandbox (no access to the page or its storage, and a forged pin message is ignored); a second pick while a note is
-// open; a variant that navigates its frame away (dropped, and the page it goes to refused); the owner token kept out of every link and
-// the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; the
-// Prototypes switches in the Host settings (a view switched off leaves guests' pages, the owner told which); the
-// question's look-at line on its card beside Open prototype and above the variant tabs; a variant with an html snapshot
-// and two screenshots (both shown, a note pinned on the second, the snapshot alone while screenshots are off) and its own
-// look-at line; no 429, no CSP violation and no page error.
-//   node plugins/planning/shared/tests/ui_proto.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Design (Q98 row, Annotation, /api/annotate), the variant markup written below (its
-// element paths worked out by hand), and click points chosen below, never from the page.
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png, openClaude } = require("./browser_harness");
 
-// The html variant. Its button's path, from its markup: html > body(1st) > main(1st) > section(1st) > div(1st) > button(1st).
 const BUTTON_PATH = "html > body:nth-of-type(1) > main:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)";
 const VARIANT = `<!doctype html><html><head><style>body{margin:0;font:16px sans-serif}section{height:1400px;padding:24px}</style></head>
 <body><header><h1>Checkout</h1></header><main><section><p>Order total: 42</p><div><button id="pay">Pay now</button></div><p id="out"></p><p id="sec"></p></section></main>
@@ -69,13 +50,11 @@ async function main() {
     ] }]);
     const ownerToken = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
     const owner = await rec.open(A.ownerUrl);
-    // Every request the server answers 401, in the contexts whose pages the error check below covers.
     const refused = [], hear401 = ctx => ctx.on("response", r => { if (r.status() === 401) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`); });
     hear401(owner.context());
     await until(owner, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q1"));
     await owner.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
 
-    // ---------- the preview tile and "Open prototype" ----------
     await until(owner, () => !document.querySelector(".vf-proto")?.hidden);
     const tile = await owner.evaluate(() => ({ img: document.querySelector(".vf-proto-tile img")?.getAttribute("src") || "",
       href: document.querySelector(".vf-proto-open")?.getAttribute("href") || "", text: document.querySelector(".vf-proto-open")?.textContent || "",
@@ -89,13 +68,10 @@ async function main() {
     });
     ok("the card says where to look, beside Open prototype", cardLook.text === `Where to look: ${LOOK}` && cardLook.shown && cardLook.beside, JSON.stringify(cardLook));
 
-    // ---------- the owner token stays out of the address bar and every link ----------
     const tokenShown = page => page.evaluate(t => ({ hash: location.hash, hrefs: [...document.querySelectorAll("a[href]")].map(a => a.href).filter(h => h.includes(t)) }), ownerToken);
     const isOwner = page => until(page, () => window.Core.snapshot()?.me?.role === "owner");
     const shown = await tokenShown(owner);
     ok("the owner page takes the token out of its address and no link holds it", shown.hash === "" && shown.hrefs.length === 0, JSON.stringify(shown));
-    // Reloads run in a context of their own: a reload's hidden-then-visible beats land within a second, and the 429
-    // the second gets is not this suite's concern.
     const solo = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
     await solo.goto(A.ownerUrl);
     await isOwner(solo);
@@ -107,7 +83,6 @@ async function main() {
     await ownerProto.waitForLoadState();
     ok("the owner's Open prototype opens /proto/Q1 as the owner", new URL(ownerProto.url()).pathname === "/proto/Q1" && await isOwner(ownerProto), ownerProto.url());
     await until(ownerProto, () => document.querySelector(".vp-back")?.getAttribute("href") === "/");
-    // The prototype page follows the person's own theme toggle; a session theme from before the toggle paints nothing.
     await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "contrast", accent: "amber" } }));
     await solo.evaluate(() => window.Core.savePrefs({ theme: "dark" }));
     ok("the prototype page follows the owner's own Dark, and paints no saved session palette or accent", await until(ownerProto, () => {
@@ -129,7 +104,6 @@ async function main() {
     }));
     await solo.context().close();
 
-    // ---------- desktop guest: opens the prototype from the question ----------
     const gus = await rec.open(A.localUrl);
     hear401(gus.context());
     const gusPid = await joinAs(gus, "Gus");
@@ -167,7 +141,6 @@ async function main() {
     ok("with Annotate off the variant is live: its own button works", (await frame.locator("#out").textContent()) === "paid");
     await frame.locator("#out").evaluate(el => { el.textContent = ""; });
 
-    // ---------- Annotate: pin a note to the variant's button ----------
     await proto.locator(".vp-annotate").click();
     ok("Annotate turns on and says so", (await proto.locator(".vp-annotate").getAttribute("aria-pressed")) === "true");
     await proto.waitForTimeout(600);
@@ -193,7 +166,6 @@ async function main() {
     await proto.keyboard.press("Escape");
     ok("Escape turns Annotate off", (await proto.locator(".vp-annotate").getAttribute("aria-pressed")) === "false");
 
-    // ---------- the variant switcher ----------
     await proto.locator(".vp-tab", { hasText: "Two steps" }).click();
     ok("the switcher shows the picture variant", await until(proto, () => document.querySelector(".vp-img")?.naturalWidth === 300 && !document.querySelector(".vp-frame")
       && location.hash === "#v=v-2"));
@@ -207,21 +179,19 @@ async function main() {
     await proto.locator(".vp-tab", { hasText: "Two steps" }).click();
     ok("switching variants closes an open note, whose spot was on the other one, and a new note can start", await until(proto, () => document.querySelector(".vp-composer").hidden
       && !document.querySelector(".vp-whole").hidden && document.querySelector(".vp-tab[aria-selected=true]")?.textContent.startsWith("Two steps")));
-    await proto.keyboard.press("Escape"); // Annotate off
+    await proto.keyboard.press("Escape");
 
-    // ---------- a note on a spot of the picture variant ----------
     await proto.locator(".vp-tab", { hasText: "Two steps" }).click();
     await until(proto, () => document.querySelector(".vp-img")?.naturalWidth === 300);
     await proto.locator(".vp-annotate").click();
     const box = await proto.locator(".vp-img").boundingBox();
-    await proto.mouse.click(box.x + box.width / 2, box.y + box.height / 2); // the middle: 50%, 50%
+    await proto.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await until(proto, () => !document.querySelector(".vp-composer").hidden);
     await proto.locator("#vp-note").fill("This band hides the address.");
-    await proto.waitForTimeout(1100); // one write a second per person per route
+    await proto.waitForTimeout(1100);
     await proto.locator(".vp-save").click();
     ok("a picture note reaches the server", await until(owner, () => (window.Core.snapshot()?.annotations || []).length === 2));
     const a2 = (await snap(owner)).annotations[1];
-    // A 6% box centered on the click at 50%, 50%: x = y = 47, within one CSS pixel of the 300x200 picture (0.5%).
     const near = (v, want) => Math.abs(v - want) <= 0.5;
     const ar = a2.anchor.rect;
     ok("the picture note is the spot clicked, in percent of the picture", a2.anchor.selector === "img" && a2.variant === "v-2"
@@ -232,7 +202,6 @@ async function main() {
     }));
     await proto.keyboard.press("Escape");
 
-    // ---------- pick a variant ----------
     const COMMENT = "Two steps reads calmer.";
     const gusCard = () => owner.evaluate(pid => (window.Core.snapshot()?.cards?.Q1 || []).find(c => c.pid === pid) || null, gusPid);
     await gus.evaluate(t => window.Core.answerCiting("Q1", t, []), COMMENT);
@@ -241,12 +210,11 @@ async function main() {
     ok("Choose picks the shown variant", await until(owner, pid => (window.Core.snapshot()?.cards?.Q1 || []).some(c => c.pid === pid && c.pick === "v-2"), gusPid));
     ok("the button then says it is the choice", await until(proto, () => document.querySelector(".vp-choose").textContent === "You chose Two steps"));
     ok("  and the person's comment stays on their card", (await gusCard())?.text === COMMENT, JSON.stringify(await gusCard()));
-    await proto.waitForTimeout(1100); // one write a second per person per route
+    await proto.waitForTimeout(1100);
     await proto.locator(".vp-choose").click();
     ok("pressing it again clears the choice and keeps the comment", await until(owner, ([pid, t]) => (window.Core.snapshot()?.cards?.Q1 || []).some(c => c.pid === pid && !c.pick && c.text === t), [gusPid, COMMENT]),
       JSON.stringify(await gusCard()));
 
-    // ---------- phone guest in another browser context, straight to /proto/Q1 ----------
     const pia = await rec.open(new URL("/proto/Q1", A.localUrl).href, { context: PHONE });
     hear401(pia.context());
     const piaPid = await joinAs(pia, "Pia");
@@ -269,7 +237,6 @@ async function main() {
     ok("phone: a note on the whole variant reaches the server", await until(owner, pid => (window.Core.snapshot()?.annotations || []).some(a => a.pid === pid
       && a.anchor.selector === "html" && JSON.stringify(a.anchor.rect) === JSON.stringify({ x: 0, y: 0, w: 100, h: 100 })), piaPid));
 
-    // ---------- the notes in the question's Claude thread, and for Claude ----------
     ok("the owner's Claude thread on Q1 lists the three notes", await until(owner, () => document.querySelectorAll(".vf-thnote").length === 3));
     const th = await owner.evaluate(() => [...document.querySelectorAll(".vf-thnote")].map(li => ({ text: li.querySelector(".vf-thnote-text").textContent, href: li.querySelector(".vf-thnote-go").getAttribute("href") })));
     ok("the thread shows each note's text", th.map(x => x.text).join("|") === "Make the total sit next to Pay now.|This band hides the address.|Too long for a phone.", JSON.stringify(th));
@@ -282,7 +249,6 @@ async function main() {
       && await until(notePage, () => document.querySelector(".vp-note-on") && document.querySelector(".vp-tab[aria-selected=true]")?.textContent.startsWith("One page")), notePage.url());
     await notePage.close();
 
-    // ---------- a variant that sends its frame to another page ----------
     const away = await rec.openIn(gus.context(), new URL("/proto/Q3", A.localUrl).href);
     ok("a variant that navigates its frame away is dropped with a notice", await until(away, () => !document.querySelector(".vp-frame")
       && document.querySelector(".vp-left")?.textContent.startsWith("This variant tried to leave its page")));
@@ -298,7 +264,6 @@ async function main() {
     ok("the round's digest hands Claude each note with its element", JSON.stringify(digest?.annotations?.map(x => [x.variant, x.element, x.text])) === JSON.stringify([
       ["v-1", BUTTON_PATH, "Make the total sit next to Pay now."], ["v-2", "img", "This band hides the address."], ["v-1", "html", "Too long for a phone."]]), JSON.stringify(digest?.annotations));
 
-    // ---------- a variant with an html snapshot and two screenshots ----------
     const flow = await rec.openIn(gus.context(), new URL("/proto/Q4", A.localUrl).href);
     const flowState = () => flow.evaluate(() => ({
       look: [...document.querySelectorAll(".vp-look > span")].map(x => x.textContent),
@@ -323,7 +288,7 @@ async function main() {
     await flow.mouse.click(sb2.x + sb2.width / 2, sb2.y + sb2.height / 2);
     ok("a spot on the second screenshot opens a note about it", await until(flow, () => document.querySelector(".vp-where")?.textContent === "Note on this spot on screenshot 2"));
     await flow.locator("#vp-note").fill("Step two loses the total.");
-    await flow.waitForTimeout(1100); // one write a second per person per route
+    await flow.waitForTimeout(1100);
     await flow.locator(".vp-save").click();
     ok("the note is pinned on the second screenshot", await until(owner, () => (window.Core.snapshot()?.annotations || []).some(a => a.qid === "Q4"
       && a.variant === "v-1" && a.anchor.selector === "img:nth-of-type(2)" && a.text === "Step two loses the total.")));
@@ -332,7 +297,7 @@ async function main() {
       return JSON.stringify(layers) === "[0,1]";
     }));
     await flow.keyboard.press("Escape");
-    await flow.waitForTimeout(1100); // one write a second per person per route
+    await flow.waitForTimeout(1100);
     await flow.evaluate(() => window.Core.annotate("Q4", "v-1", { selector: "html > body:nth-of-type(1)", rect: { x: 0, y: 0, w: 10, h: 10 } }, "The snapshot's page."));
     await until(owner, () => (window.Core.snapshot()?.annotations || []).filter(a => a.qid === "Q4").length === 2);
     await flow.locator(".vp-tab", { hasText: "Single" }).click();
@@ -342,8 +307,7 @@ async function main() {
         && !document.querySelector(".vp-viewseg").checkVisibility() && document.querySelector(".vp-look").textContent === "Where to look: The pay step.";
     }, single), JSON.stringify(await flowState()));
 
-    // ---------- which prototype views guests get (the prototypeTiers setting) ----------
-    await away.close(); // its variant leaves its page whenever it is framed again
+    await away.close();
     await owner.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
     await owner.click(".vf-gear");
     const tierRow = label => owner.locator(".vf-settings .vf-sw-row", { hasText: label });
@@ -355,7 +319,6 @@ async function main() {
     });
     ok("the settings list Screenshots, HTML snapshots and Live prototypes under Prototypes, live off", JSON.stringify(rows) === JSON.stringify([
       ["Screenshots", "switch", "true"], ["HTML snapshots", "switch", "true"], ["Live prototypes", "switch", "false"]]), JSON.stringify(rows));
-    // one settings write a second (the per-route write limit), so each click waits for the last one to land and a second more
     const setTier = async (label, want) => {
       await tierRow(label).click();
       const saved = await until(owner, w => JSON.stringify(window.Core.state.settings.prototypeTiers) === w, JSON.stringify(want));
@@ -375,7 +338,7 @@ async function main() {
     ok("Flow shows the guest its snapshot alone, with no choice of views", await until(flow, ([html, a, b]) => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${html}?pin=1`
       && !document.querySelector(".vp-viewseg").checkVisibility() && ![a, b].some(x => JSON.stringify(window.Core.snapshot().questions).includes(x)), [v1, shot1, shot2]));
     await flow.frameLocator(".vp-frame").locator("#pay").waitFor();
-    await flow.waitForTimeout(500); // the pins go once the frame says it is ready
+    await flow.waitForTimeout(500);
     const framePins = await flow.frameLocator(".vp-frame").locator("html > div[aria-hidden=true] > div").allTextContents();
     ok("  and puts only the snapshot's own note (2) on it, none of the second screenshot's", JSON.stringify(framePins) === JSON.stringify(["2"]), JSON.stringify(framePins));
     await proto.locator(".vp-tab", { hasText: "One page" }).click();
@@ -412,7 +375,7 @@ async function main() {
     ok("no page broke the server's CSP", csp.length === 0, csp.slice(0, 3).join(" | "));
     const left = `GET /assets/${elsewhere}`;
     ok("the only 401s are the leaving variant's two trips to the other page", JSON.stringify(refused) === JSON.stringify([left, left]), refused.join(", "));
-    let expected401 = refused.length; // each refused load also logs one console error; drop only those
+    let expected401 = refused.length;
     const errors = rec.errors.filter(e => !(expected401 > 0 && e.includes("status of 401") && expected401--));
     ok("no page error or console error", errors.length === 0, errors.slice(0, 3).join(" | "));
   } catch (e) {

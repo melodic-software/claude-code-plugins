@@ -1,20 +1,9 @@
 #!/usr/bin/env node
-// Profile pictures in a real browser, against `share.sh ensure-running` with the fake cloudflared: a guest picks a
-// picture on their person card; it needs no accept, and once it arrives they see it on their own avatar at once, and another guest still sees
-// their initials on their color until the owner presses Approve picture on the guest's card; then everyone sees it as a
-// circle crop. Turning Show names off hides it for everyone and brings it back when names show again; removed, the
-// initials show again. With Uploads off a guest's card says the host has pictures off; the owner can still add one.
-//   node plugins/planning/shared/tests/ui_avatars.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the owner's decisions (approval as for received pictures, PNG, JPEG or WebP at most
-// 256 KB, a circle crop, initials as the fallback, hidden with the names) and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" } });
 
-/** What one page's header shows for a person's avatar: the picture's data: URL kind (or "" for none), its crop, and
- *  the initials under it. */
 const headAvatar = (page, pid) => page.evaluate(p => {
   const a = document.querySelector(`.vf-people .vf-person[data-pid="${p}"] .core-avatar`);
   const img = a?.querySelector(":scope > img.core-avatar-img"), cs = img && getComputedStyle(img);
@@ -42,7 +31,6 @@ async function main() {
     await until(ann, () => window.Core.state.settings.uploads === true);
     await until(bo, p => !!document.querySelector(`.vf-people .vf-person[data-pid="${p}"]`), annPid, 15000);
 
-    // ---------- Ann picks her picture on her own card ----------
     await ann.click(`.vf-people .vf-person[data-pid="${annPid}"]`);
     await ann.waitForSelector(".vf-pcard .vf-pavatar input[type=file]", { state: "attached" });
     ok("her card offers Choose a picture", (await ann.textContent(".vf-pcard .vf-pavatar button")) === "Choose a picture");
@@ -53,7 +41,6 @@ async function main() {
     const sent = (await snap(ann)).myUploads.find(u => u.id === uid);
     ok("  redrawn small: at most 256 KB", sent.size <= 256 * 1024, sent.size);
 
-    // ---------- pending: Ann sees it, Bo sees her initials ----------
     ok("Ann sees her own picture at once", await hasPic(ann, annPid));
     ok("  as a circle crop", (await headAvatar(ann, annPid)).round, JSON.stringify(await headAvatar(ann, annPid)));
     await ann.waitForSelector(".vf-pcard .vf-pavatar .vf-pop-note");
@@ -61,7 +48,6 @@ async function main() {
     const boBefore = await headAvatar(bo, annPid);
     ok("Bo sees Ann's initials on her color while it waits", boBefore.found && boBefore.kind === "" && boBefore.text === "A", JSON.stringify(boBefore));
 
-    // ---------- the owner approves it on Ann's card ----------
     await owner.click(`.vf-people .vf-person[data-pid="${annPid}"]`);
     await owner.waitForSelector(".vf-pcard .vf-pavatar .vf-upapprove");
     ok("the owner's card for Ann shows the picture waiting", await until(owner, () => /^data:image\//.test(document.querySelector(".vf-pcard .vf-pavatar-prev")?.getAttribute("src") || ""), null, 10000));
@@ -70,7 +56,6 @@ async function main() {
     const boAfter = await headAvatar(bo, annPid);
     ok("  a PNG, JPEG or WebP, as a circle crop", ["image/png", "image/jpeg", "image/webp"].includes(boAfter.kind) && boAfter.round, JSON.stringify(boAfter));
 
-    // ---------- Show names off hides it for everyone ----------
     await owner.evaluate(() => window.Core.saveSettings({ showNames: false }));
     ok("with Show names off Bo sees no picture", await noPic(bo, annPid));
     ok("  and neither does the owner", await noPic(owner, annPid));
@@ -78,7 +63,6 @@ async function main() {
     await owner.evaluate(() => window.Core.saveSettings({ showNames: true }));
     ok("with Show names on again Bo sees it again", await hasPic(bo, annPid));
 
-    // ---------- Uploads off: a guest cannot add one, and is told why ----------
     await owner.evaluate(() => window.Core.saveSettings({ uploads: false }));
     await until(bo, () => window.Core.state.settings.uploads === false);
     await bo.click(".vf-people .vf-person-me");
@@ -91,7 +75,6 @@ async function main() {
     ok("  while the owner's own card still offers Choose a picture",
       await until(owner, () => !!document.querySelector(".vf-pcard .vf-pavatar input[type=file]"), null, 10000));
 
-    // ---------- removed: the initials come back ----------
     await ann.evaluate(id => window.Core.uploadAct(id, "remove"), uid);
     ok("removed, Bo sees Ann's initials again", await noPic(bo, annPid) && (await headAvatar(bo, annPid)).text === "A");
     ok("  and so does Ann", await noPic(ann, annPid));

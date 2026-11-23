@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// Interactions show at once over a slow link, against `share.sh ensure-running` with the fake cloudflared. Every /api/*
-// request of the acting guest waits 600 ms first, as over a quick tunnel; a Gather reaction, a Decide vote, a choice,
-// multi, scale and rank pick, a Disagree, a chat reaction and a chat message must each show on that guest's page in
-// under 100 ms and stay shown while the server catches up. A refused reaction (409) rolls back with the error toast,
-// and a reaction taken back at once ends with that reaction gone on the server.
-//   node plugins/planning/shared/tests/ui_snappy.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values: the 100 ms and 600 ms bounds come from the dogfood brief; the texts and picks are the ones this
-// suite writes; the toast's words are the "locked" entry of core.js MESSAGES behind fail()'s "Not saved:".
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -16,8 +7,6 @@ const q = (id, text, format, purpose = "decide") => ({ id, text, alternatives: [
 const OPTS = [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "PayPal" }, { id: "opt-3", label: "Cash" }];
 const GATHER = "Owner gather idea", DECIDE = "Owner decide answer", HELLO = "Owner says hello", MINE = "Gus writes back";
 
-/** In the page: ms from just before act() to the first frame where done() holds (-1 past `ms`), and whether
- *  done() then holds on every frame for `hold` ms more (a stale poll would flip it back). */
 function helpers() {
   window.__time = (act, done, ms = 8000, hold = 0) => new Promise(res => {
     const check = () => { try { return !!done(); } catch { return false; } };
@@ -65,7 +54,6 @@ async function main() {
     const gus = await rec.open(A.localUrl, { init: { fn: helpers } });
     const gusPid = await joinAs(gus, "Gus");
     await until(gus, () => (window.Core.snapshot()?.chat || []).length > 0 && Object.keys(window.Core.snapshot()?.cards || {}).length >= 2);
-    // From here on every request of Gus's page waits DELAY ms before it goes out, as over a quick tunnel.
     await gus.route(/\/api\//, async route => { await new Promise(r => setTimeout(r, DELAY)); await route.continue().catch(() => {}); });
     const go = async text => { await gus.locator(".vf-q", { hasText: text }).first().click(); return until(gus, t => document.querySelector(".vf-qtext")?.textContent === t, text); };
     const fast = (what, r) => {
@@ -74,14 +62,12 @@ async function main() {
     };
     const server = (fn, arg, t = 10000) => until(owner, fn, arg, t);
 
-    // ---------- Gather: a reaction ----------
     await go("What worries you about checkout?");
     await until(gus, t => !!window.__card(t), GATHER);
     fast("a Gather reaction", await gus.evaluate(t => window.__time(() => window.__card(t).querySelector(".vf-react[data-r=thumbs]").click(),
       () => { const b = window.__card(t).querySelector(".vf-react[data-r=thumbs]"); return b.getAttribute("aria-pressed") === "true" && b.lastChild.textContent === "1"; }, 8000, 3000), GATHER));
     ok("the reaction reaches the server", await server(() => window.Core.snapshot().cards.Q1.find(c => c.ref === "p:host")?.reactions?.thumbs === 1));
 
-    // ---------- a refused reaction rolls back and says why ----------
     await gus.route("**/api/react", route => route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "locked" }) }), { times: 1 });
     const refused = await gus.evaluate(t => window.__time(() => window.__card(t).querySelector(".vf-react[data-r=heart]").click(),
       () => window.__card(t).querySelector(".vf-react[data-r=heart]").getAttribute("aria-pressed") === "true"), GATHER);
@@ -92,8 +78,6 @@ async function main() {
         && /Not saved: This question was locked\. Suggest a change instead\./.test(document.querySelector(".vf-toast")?.textContent || "");
     }, GATHER));
 
-    // ---------- react, then take it back at once ----------
-    // Both writes must reach the server, the second taking the ❤️ off: each /api/react answer is Gus's reactions after it.
     const reacts = [], onReact = r => {
       if (r.request().method() === "POST" && new URL(r.url()).pathname === "/api/react") reacts.push(r.json().then(j => [r.status(), j.reactions], () => [r.status(), null]));
     };
@@ -101,17 +85,14 @@ async function main() {
     const revBefore = await owner.evaluate(() => window.Core.snapshot().rev);
     await gus.evaluate(t => { const b = window.__card(t).querySelector(".vf-react[data-r=heart]"); b.click(); b.click(); }, GATHER);
     for (let i = 0; i < 75 && reacts.length < 2; i++) await gus.waitForTimeout(200);
-    await gus.waitForTimeout(1500); // a third write, if one went out, lands here too
+    await gus.waitForTimeout(1500);
     gus.off("response", onReact);
     const answers = await Promise.all(reacts);
     ok("react then un-react at once sends both writes, the second taking the reaction off", JSON.stringify(answers) === JSON.stringify([[200, ["thumbs", "heart"]], [200, ["thumbs"]]]), JSON.stringify(answers));
-    // Reactions combine (triage row 45): the 👍 from before stays, and the ❤️ taken back at once is not there, read from a
-    // snapshot taken after both writes (rev moved by 2).
     const settled = rev => { const s = window.Core.snapshot(), r = s.cards.Q1.find(c => c.ref === "p:host")?.reactions || {}; return s.rev >= rev + 2 && r.thumbs === 1 && r.down + r.heart + r.idea === 0; };
     ok("react then un-react at once ends with that reaction gone on the server", await server(settled, revBefore));
     ok("and gone on the page, the earlier one kept", await until(gus, t => [...window.__card(t).querySelectorAll(".vf-react")].map(b => b.getAttribute("aria-pressed")).join() === "true,false,false,false", GATHER));
 
-    // ---------- Decide: a vote and a Disagree ----------
     await go("Who should own checkout?");
     await until(gus, t => !!window.__card(t), DECIDE);
     fast("a Decide vote", await gus.evaluate(t => window.__time(() => window.__card(t).querySelector(".vf-vote").click(),
@@ -123,7 +104,6 @@ async function main() {
       () => { const c = window.__card(t); return c.querySelector(".vf-disform").hidden && /You disagree:Ownership should sit with payments/.test(c.querySelector(".vf-dislist").textContent); }, 8000, 3000), DECIDE));
     ok("the disagreement reaches the server", await server(() => (window.Core.snapshot().disagreements?.Q2 || []).some(d => d.reason === "Ownership should sit with payments")));
 
-    // ---------- picks: choice, multi, scale, rank ----------
     await go("Which default payment method?");
     fast("a choice pick", await gus.evaluate(() => window.__time(() => [...document.querySelectorAll(".vf-opt")].find(o => o.textContent.includes("PayPal")).querySelector(".vf-optchoose").click(),
       () => [...document.querySelectorAll(".vf-opt")].find(o => o.textContent.includes("PayPal")).querySelector(".vf-optchoose").getAttribute("aria-pressed") === "true", 8000, 3000)));
@@ -146,7 +126,6 @@ async function main() {
       () => /^Your ranking is saved\./.test(document.querySelector(".vf-fmt-note").textContent), 8000, 3000)));
     ok("the ranking reaches the server", await server(p => JSON.stringify(window.Core.snapshot().cards.Q6.find(c => c.ref === "p:" + p)?.order) === '["opt-1","opt-3","opt-2"]', gusPid));
 
-    // ---------- chat: a reaction and a message ----------
     await gus.click(".vf-fab");
     await until(gus, t => !!window.__msg(t), HELLO);
     await gus.evaluate(t => window.__msg(t).querySelector(".vf-mreact-add").click(), HELLO);
