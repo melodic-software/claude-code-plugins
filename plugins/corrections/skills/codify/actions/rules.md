@@ -35,11 +35,20 @@ decided. Every rule gets exactly one disposition:
   `/harness-config:audit-instructions` applies.
 - **`prose`**: it stays an instruction. Give the reason: it needs judgment, a check would miss a
   known case, or no checking rung can decide it.
-- **`delete`**: an agent can derive it from the code, the configuration or the history. Name what
-  states it. `/docs-hygiene:audit-derivability` judges a whole file this way when it is available.
+- **`delete`**: the rule earns no place. Give the reason and what shows it:
+  - derivable: an agent can derive it from the code, the configuration or the history; name what
+    states it. `/docs-hygiene:audit-derivability` (if enabled) judges a whole file this way.
+  - no-op: it states nothing an agent would do differently.
+  - duplicate: another rule says it; name that rule's `<file>:<line>`.
+  - stale: the code or configuration now contradicts it; name the `<file>:<line>`.
 - **`held`**: it cannot be settled in this run. Give the reason: a check whose proof did not hold
   or could not run (no commit ever broke the rule and no plant can express it), a
-  `make-impossible` redesign handed off, or a rule that conflicts with another.
+  `make-impossible` redesign handed off, a rule that conflicts with another, or a misplaced rule
+  (on the wrong surface, such as a process rule in a review file), handed to
+  `/instruction-placement:audit` (if enabled).
+
+A stale or conflicting rule also points to `/harness-config:audit-instructions` (if enabled), which
+audits instruction files for both.
 
 A rule that would take a checking rung but whose check is unproven is `held`, never `check`.
 

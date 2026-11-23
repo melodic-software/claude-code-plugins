@@ -1,3 +1,4 @@
+# test-scope: plugins/explainer-video/vendor/gitleaks/gitleaks-rules.json
 """stills.py end to end on fixtures/storyboard.json. The refusals need only the standard library; the renders need
 ffmpeg, ffprobe and Playwright for Python with its Chromium, and skip without them unless
 EXPLAINER_VIDEO_REQUIRE_DEPS=1 or MEDIA_RENDER_REQUIRE_DEPS=1, which fails instead."""

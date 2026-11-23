@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for permission-merge.sh (self-contained — ships with the plugin).
-#
-# Most cases feed hand-written scope records on stdin, so they exercise the merge
-# without touching any settings file anywhere. The one end-to-end case pipes the
-# real reader through the merge against a fully fixtured tree — project root,
-# start directory, managed policy and user home all inside a temp directory, with
-# CLAUDE_CONFIG_DIR unset. No test reads the operator's real ~/.claude.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,9 +19,6 @@ export PERMISSION_STATE_OSTYPE=linux-gnu
 
 merge() { printf '%s\n' "$1" | bash "$SCRIPT" --merge-only; }
 
-# --- Case 1: a rule in two KINDS has exactly one winner -----------------------
-# The only election this script makes. "if user settings allow a permission and
-# project settings deny it, the deny rule blocks it."
 CROSS_KIND=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -42,9 +32,6 @@ assert_eq "cross-kind contest yields exactly one effective record" 1 "$(count_ma
 assert_contains "the deny wins" "$OUT" "effective deny scopes=project precedence_basis=evaluation-order Bash(git status)"
 assert_contains "the beaten allow is reported inert" "$OUT" "inert allow scopes=user outranked_by=deny Bash(git status)"
 
-# The reverse direction is documented just as explicitly and is the one a
-# scope-ranked implementation would get wrong: user is the LOWEST scope, and its
-# deny still blocks a project allow.
 REVERSE=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -57,7 +44,6 @@ OUT=$(merge "$REVERSE")
 assert_contains "a user-level deny blocks a project-level allow" "$OUT" "effective deny scopes=user precedence_basis=evaluation-order Bash(git push)"
 assert_contains "the project allow is inert, not the winner" "$OUT" "inert allow scopes=project outranked_by=deny Bash(git push)"
 
-# ask beats allow by the same mechanic.
 ASK=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -70,10 +56,6 @@ OUT=$(merge "$ASK")
 assert_contains "ask outranks allow" "$OUT" "effective ask scopes=project precedence_basis=evaluation-order WebFetch"
 assert_contains "the allow beneath an ask is inert" "$OUT" "inert allow scopes=user outranked_by=ask WebFetch"
 
-# --- Case 2: the same rule in the same KIND at two scopes elects NOTHING ------
-# "Permission rules behave differently because they merge across scopes rather
-# than override." Naming one scope the origin here would be a precedence claim
-# no documented mechanic supports, so both contributors are carried instead.
 SAME_KIND=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
@@ -89,7 +71,6 @@ assert_eq "same-kind duplication yields one effective record" 1 "$(count_matchin
 assert_contains "every contributing scope is named" "$OUT" "effective deny scopes=managed,user,project precedence_basis=merged-across-scopes Read(./.env)"
 assert_not_contains "nothing is reported as beaten when nothing lost" "$OUT" "inert"
 
-# Both mechanics at once stay both, rather than one silently swallowing the other.
 BOTH=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -102,11 +83,6 @@ EOF
 OUT=$(merge "$BOTH")
 assert_contains "both mechanics are cited when both applied" "$OUT" "precedence_basis=evaluation-order+merged-across-scopes"
 
-# --- Case 2b: a whole-tool rule reaches every call of that tool ---------------
-# Decidable with no pattern matcher: the tool token is the text before the first
-# "(", and a rule that IS its own token names the whole tool. Reporting a scoped
-# allow as effective under a bare deny would claim access to a tool that is no
-# longer in the model context at all.
 BARE=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
@@ -123,8 +99,6 @@ assert_contains "a scoped deny under a bare deny is moot too" "$OUT" "inert deny
 assert_eq "removal leaves exactly one effective record for the tool" 1 "$(count_matching "$OUT" '^effective .*Bash')"
 assert_contains "removal is announced, not just implied" "$OUT" "removes Bash from the model context entirely"
 
-# EndConversation is the documented exception: a deny rule cannot remove it while
-# any other tool remains, so its scoped rules stay live.
 END_CONV=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
@@ -137,8 +111,6 @@ OUT=$(merge "$END_CONV")
 assert_not_contains "EndConversation is exempt from bare-name removal" "$OUT" "removed_by"
 assert_contains "its scoped rule stays effective" "$OUT" "effective allow scopes=user precedence_basis=uncontested EndConversation(x)"
 
-# A whole-tool ask prompts for every call, so no scoped allow for that tool can
-# take effect — the ask/allow half of the same mechanic.
 BARE_ASK=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -151,7 +123,6 @@ OUT=$(merge "$BARE_ASK")
 assert_contains "a scoped allow under a whole-tool ask is inert" "$OUT" "inert allow scopes=project outranked_by=ask@WebFetch WebFetch(domain:example.com)"
 assert_eq "and it is not also reported effective" 0 "$(count_matching "$OUT" '^effective .*WebFetch\(')"
 
-# --- Case 3: no merged rule ships without a basis -----------------------------
 MIXED=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
@@ -172,9 +143,6 @@ assert_eq "four distinct rule texts, four effective records" 4 "$(count_matching
 assert_not_contains "inert records never carry a basis they did not earn" \
   "$(printf '%s\n' "$OUT" | grep '^inert ')" "precedence_basis"
 
-# --- Case 4: two managed surfaces are one contributing scope ------------------
-# The drop-in files and the base file are separate surfaces at the same scope;
-# listing "managed" twice would read as two independent sources agreeing.
 DUP_SURFACE=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
@@ -186,7 +154,6 @@ EOF
 OUT=$(merge "$DUP_SURFACE")
 assert_contains "one scope, however many of its surfaces carry the rule" "$OUT" "scopes=managed precedence_basis=uncontested Read(./.env)"
 
-# --- Case 5: rule text containing spaces survives intact ----------------------
 SPACED=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -196,7 +163,6 @@ EOF
 OUT=$(merge "$SPACED")
 assert_contains "spaces inside a rule are preserved" "$OUT" "precedence_basis=uncontested Bash(git commit -m *)"
 
-# --- Case 6: unread surfaces bound the claim; empty ones do not ---------------
 STATUSES=$(
   cat <<'EOF'
 managed registry skipped -
@@ -214,15 +180,10 @@ assert_contains "invalid JSON is not an empty scope" "$OUT" "project settings (i
 assert_not_contains "an absent scope raises no caveat" "$OUT" "user settings (absent)"
 assert_not_contains "a not-applicable scope raises no caveat" "$OUT" "not-applicable"
 
-# --- Case 7: the two standing bounds are always stated ------------------------
 OUT=$(merge "$MIXED")
 assert_contains "the invisible command-line scope is stated" "$OUT" "CAVEAT: the command-line scope"
 assert_contains "the exact-text limitation states its error direction" "$OUT" "over-reporting allow"
 
-# --- Case 7m: deny rules are never presented as final against mods ------------
-# Expected text from the mods admin page, "Know what happens by default":
-# deny rules take precedence "where the guard loads", and "Neither applies to a
-# mod's own $.fs and $.process calls".
 NO_MANAGED=$(
   cat <<'EOF'
 managed file absent /policy/managed-settings.json
@@ -245,10 +206,6 @@ EOF
 assert_contains "a managed file present: the guard is seated" "$(merge "$WITH_MANAGED")" "Guard on this machine: seated (managed settings present: file)"
 assert_contains "an unread managed surface: the guard state is unknown" "$(merge 'managed registry skipped -')" "Guard on this machine: unknown"
 assert_contains "no managed records: the guard state is not read" "$(merge 'user settings present /u')" "Guard on this machine: not read"
-# The admin page's guard options: "if you set prependPlugins, name the guard in
-# the list. Where the guard doesn't load, neither option applies", and
-# allowModsToOverrideDenyRules lets "a user's mod ... approve a call that a deny
-# rule refuses".
 OMITS_GUARD=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file prependPluginsNamesGuard false')
 OUT=$(merge "$OMITS_GUARD")
 assert_contains "managed prependPlugins without the guard: not seated" "$OUT" "Guard on this machine: not seated (managed prependPlugins does not name sec-default@builtin)"
@@ -257,8 +214,6 @@ NAMES_GUARD=$(printf '%s\n' "$WITH_MANAGED" 'conf managed dropin-file:10-a.json 
 assert_contains "one managed prependPlugins naming the guard: seated" "$(merge "$NAMES_GUARD")" "Guard on this machine: seated (managed settings present: file)"
 OVERRIDE=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file modsOverrideDenyRules true')
 assert_contains "managed allowModsToOverrideDenyRules: deny rules not final" "$(merge "$OVERRIDE")" "seated (managed settings present: file), but managed allowModsToOverrideDenyRules is true, so a user's mod can approve a call a deny rule refuses"
-# Drop-ins merge after the base file and a later single value replaces an
-# earlier one (lib/managed-scope.sh, drop-in merge), so the last record wins.
 OVERRIDE_OFF=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file modsOverrideDenyRules true' 'conf managed dropin-file:10-a.json modsOverrideDenyRules false')
 assert_not_contains "a later drop-in turning the override off wins" "$(merge "$OVERRIDE_OFF")" "allowModsToOverrideDenyRules is true"
 OVERRIDE_BACK_ON=$(printf '%s\n' "$OVERRIDE_OFF" 'conf managed dropin-file:20-b.json modsOverrideDenyRules true')
@@ -271,8 +226,6 @@ assert_contains "a skipped remote cache does not make the guard state unknown" "
 CACHE_PRESENT=$(printf '%s\n' 'managed file absent /policy/managed-settings.json' 'managed remote-cache present /r' 'user settings present /u')
 assert_contains "a present remote cache points to a sign-in" "$(merge "$CACHE_PRESENT")" "a server-managed cache is present"
 
-# --- Case 8: no scope records is an error, never an empty merge ---------------
-# A reader that died and a machine with no settings must not look the same.
 rc=0
 err_out=$(printf '' | bash "$SCRIPT" --merge-only 2>&1) || rc=$?
 assert_exit "exit 2 on empty input" 2 "$rc"
@@ -292,7 +245,6 @@ help_out=$(bash "$SCRIPT" --help </dev/null 2>&1) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help documents the merge-only mode" "$help_out" "--merge-only"
 
-# --- Case 9: pass-through is the default, and is suppressible -----------------
 PASS_IN=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -307,10 +259,6 @@ assert_contains "the merge section follows them" "$OUT" "effective allow scopes=
 OUT=$(merge "$PASS_IN")
 assert_not_contains "--merge-only drops the input records" "$OUT" "NOTE: something the operator"
 
-# conf records are the ONE exception, and the reason is not tidiness: the entry
-# diff reads autoMode.classifyAllShell from them. Dropping them under
-# --merge-only silently flipped a narrow shell rule from suspended to kept --
-# two documented flags composing into a wrong answer with no warning.
 CONF_IN=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -323,11 +271,6 @@ assert_contains "--merge-only preserves conf records" "$OUT" "conf user settings
 OUT=$(printf '%s\n' "$CONF_IN" | bash "$SCRIPT")
 assert_contains "and so does the default pass-through" "$OUT" "conf user settings classifyAllShell true"
 
-# --- Case 9b: a ! carve-out stays inside its own source ------------------------
-# Source: permissions#read-and-edit, "The carve-out reaches only rules from the
-# same source. A `Read(!.env)` in project settings ... doesn't cancel a
-# `Read(./.env)` deny from ... any other settings file." The bare `Edit(!)` case
-# follows the merge's own contract: report it, tagged bare, model no effect.
 CARVE=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -344,7 +287,6 @@ assert_contains "it does not cancel another file's deny" "$OUT" "effective deny 
 assert_eq "a carve-out is never an effective rule" 0 "$(count_matching "$OUT" '^effective .*\(!')"
 assert_contains "a bare ! carve-out is tagged as the known gap" "$OUT" "carveout ask source=project:settings bare Edit(!)"
 
-# --- Case 10: end to end, real reader into the merge --------------------------
 if command -v jq >/dev/null 2>&1; then
   FX="$TEST_TMPDIR/fx"
   mkdir -p "$FX/proj/.claude" "$FX/home/.claude" "$FX/policy/managed-settings.d" "$FX/startdir/.claude"
@@ -390,9 +332,6 @@ else
   pass "end-to-end reader merge (skipped — jq not installed)"
 fi
 
-# --- The merge states its result instead of leaving silence -------------------
-# On a machine with no rules the merge must still end in a summary, like every
-# sibling stage, rather than leave the reader to interpret absence of output.
 EMPTY_IN=$(
   cat <<'EOF'
 managed file absent <managed>/managed-settings.json
@@ -417,8 +356,6 @@ EOF
 OUT_COUNT=$(printf '%s\n' "$COUNT_IN" | bash "$SCRIPT")
 assert_contains "the summary counts each kind" "$OUT_COUNT" "merge summary allow=2 ask=1 deny=1"
 
-# The beaten count must not be named `inert`: consumers match that prefix as a
-# record, so a field carrying the substring reads as a record that is not there.
 assert_not_contains "the summary field is not named inert" "$OUT_COUNT" "inert="
 
 UNREAD_MERGE=$(
@@ -431,10 +368,6 @@ EOF
 OUT_UNREAD_MERGE=$(printf '%s\n' "$UNREAD_MERGE" | bash "$SCRIPT")
 assert_contains "an unread scope makes the merge incomplete" "$OUT_UNREAD_MERGE" "status=incomplete"
 
-# --- The beaten count reconciles with the inert records -----------------------
-# inert is emitted from three sites: the whole-tool deny branch, the whole-tool
-# ask branch, and the cross-kind loop. A count that tracked only the last one
-# printed beaten=0 beside an inert record on screen.
 COUNTED_DENY=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -457,9 +390,6 @@ OUT=$(merge "$COUNTED_ASK")
 assert_eq "the whole-tool ask branch emits one inert record" 1 "$(count_matching "$OUT" '^inert ')"
 assert_contains "and the summary counts that too" "$OUT" "beaten=1"
 
-# allowManagedPermissionRulesOnly ignores user/project/local rules and
-# --allowedTools. --disallowedTools and session deny/ask are not in the files;
-# the caveat names them.
 LOCKED=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json

@@ -39,7 +39,6 @@ expect_exit() {
 
 set -e
 
-# Fixture repo: a temp git worktree with one tracked asset.
 fixture_tree::build fixture --git --plugins
 mkdir -p "$fixture/plugins/demo/reference" "$fixture/node_modules/.bin"
 cat >"$fixture/plugins/demo/reference/html-chrome.html" <<'HTML'
@@ -52,18 +51,15 @@ git -C "$fixture" add -A
 manifest="$fixture/manifest.txt"
 printf '%s\n' "plugins/demo/reference/html-chrome.html" >"$manifest"
 
-# 1. Clean fixture passes.
 expect_exit 0 "registered, existing, lint-clean asset passes" \
   env CHECK_HTML_ASSETS_ROOT="$fixture" HTML_ASSETS_MANIFEST="$manifest" \
   HTMLHINT_BIN="$REAL_HTMLHINT" "$CHECK"
 
-# 2. A manifest entry with no file on disk fails.
 printf '%s\n' "plugins/demo/reference/ghost.html" >"$manifest"
 expect_exit 1 "manifest entry missing from disk fails" \
   env CHECK_HTML_ASSETS_ROOT="$fixture" HTML_ASSETS_MANIFEST="$manifest" \
   HTMLHINT_BIN="$REAL_HTMLHINT" "$CHECK"
 
-# 3. A tracked asset absent from the manifest fails as unregistered.
 : >"$manifest"
 set +e
 out="$(env CHECK_HTML_ASSETS_ROOT="$fixture" HTML_ASSETS_MANIFEST="$manifest" \
@@ -76,19 +72,16 @@ else
   bad "unregistered tracked asset (exit $code; output: $out)"
 fi
 
-# 4. An htmlhint violation on a registered asset fails.
 printf '%s\n' "plugins/demo/reference/html-chrome.html" >"$manifest"
 printf '%s\n' "<html><p>no doctype, unclosed" >"$fixture/plugins/demo/reference/html-chrome.html"
 expect_exit 1 "registered asset with lint violations fails" \
   env CHECK_HTML_ASSETS_ROOT="$fixture" HTML_ASSETS_MANIFEST="$manifest" \
   HTMLHINT_BIN="$REAL_HTMLHINT" "$CHECK"
 
-# 5. Missing linter is an environment error (exit 2), not a pass.
 expect_exit 2 "missing htmlhint binary exits 2" \
   env CHECK_HTML_ASSETS_ROOT="$fixture" HTML_ASSETS_MANIFEST="$manifest" \
   HTMLHINT_BIN="$fixture/node_modules/.bin/absent" "$CHECK"
 
-# 6. The real repo state passes end to end.
 expect_exit 0 "real repository manifest passes" "$CHECK"
 
 test_harness::report

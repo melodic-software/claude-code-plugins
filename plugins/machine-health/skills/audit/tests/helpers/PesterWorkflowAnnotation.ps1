@@ -36,8 +36,6 @@ function ConvertTo-WorkflowCommandProperty {
     return ((ConvertTo-WorkflowCommandMessage $Value) -replace ':', '%3A' -replace ',', '%2C')
 }
 
-# Extract (path, message) from a Pester failed-test record. Shared between
-# the workflow-command annotation loop and the markdown step-summary loop.
 function Get-FailedTestInfo {
     param([Parameter(Mandatory)] $Test)
     $path = if ($Test.ExpandedPath) { $Test.ExpandedPath } else { $Test.Name }

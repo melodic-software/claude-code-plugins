@@ -438,7 +438,6 @@ b_unknown_deliv="$(field b_unknown_deliv)"
 commas() { sed 's/^ //; s/ /,/g' <<<"$1"; }
 
 failed=0
-# report <name> <pass|fail> <detail>
 report() {
   printf 'criterion=%s status=%s %s\n' "$1" "$2" "$3"
   [[ "$2" == pass ]] || failed=1
@@ -537,7 +536,6 @@ fi
 
 readonly max_path_hits=20
 
-# /Users and /home must begin a path: not preceded by a path-continuation character.
 path_hits="$(
   tr -d '\r' <"$plan" |
     grep -nE '(^|[^A-Za-z])[A-Za-z]:[\\/]|(^|[^A-Za-z0-9_./-])/(Users|home)/[A-Za-z0-9_]' |

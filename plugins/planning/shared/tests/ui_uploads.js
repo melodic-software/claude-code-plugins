@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// Uploads (Phase 9) in real browsers, against `share.sh ensure-running` with the fake cloudflared: while Uploads is
-// off no upload control shows; on, a guest on a 390x844 phone offers a file from the one attach picker (C36), which
-// waits in her browser (IndexedDB) until the desktop owner accepts it in the Host queue; the browser then sends it in
-// 8 MiB pieces, and a dropped piece plus a reload resumes from the server's count without sending a piece twice; the
-// received file is byte for byte what she offered; she attaches it to her pick from the picker's list (C44) and a
-// desktop guest sees it on her card; a file the owner declines is deleted from that guest's browser and shows "Not
-// accepted" (AC 21); Uploads off hides the control again.
-//   node plugins/planning/shared/tests/ui_uploads.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Design's Upload contract and rules (8 MiB pieces, resume, whole-file sha256), the
-// Brief's upload criteria (AC 21, AC 40), C36 and C44, and the bytes and texts this suite makes, never from the page.
 "use strict";
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -20,7 +9,6 @@ const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile:
 const MIB = 1024 * 1024;
 const q = (id, text, format, purpose = "decide") => ({ id, text, alternatives: [], dependsOn: [], purpose, format });
 
-/** A 20 MiB PDF-headed file: three pieces of 8, 8 and 4 MiB. */
 function pdfBytes() {
   const buf = crypto.randomBytes(20 * MIB);
   Buffer.from("%PDF-1.7\n").copy(buf, 0);
@@ -48,7 +36,6 @@ async function main() {
     const visibleUploadControls = page => page.evaluate(() => [...document.querySelectorAll("input[type=file], .vf-attach, button, [role=button]")]
       .filter(e => e.offsetParent && (e.matches("input[type=file], .vf-attach") || /attach|upload/i.test(`${e.textContent} ${e.getAttribute("aria-label") || ""} ${e.title || ""}`)))
       .map(e => e.className || e.tagName));
-    // The page's own store (web/app.js keeps a pending file in IndexedDB "vf-uploads", object store "files").
     const keysIn = () => new Promise(res => {
       const r = indexedDB.open("vf-uploads", 1);
       r.onupgradeneeded = () => r.result.createObjectStore("files");
@@ -56,7 +43,6 @@ async function main() {
       r.onerror = () => res(null);
     });
     const idbKeys = page => page.evaluate(keysIn);
-    /** True once the page's store no longer holds `id` (polled in the page: waitForFunction awaits a promise). */
     const idbLetGo = (page, id) => until(page, key => new Promise(res => {
       const r = indexedDB.open("vf-uploads", 1);
       r.onsuccess = () => { const g = r.result.transaction("files").objectStore("files").getAllKeys(); g.onsuccess = () => { res(!g.result.includes(key)); r.result.close(); }; };
@@ -79,20 +65,17 @@ async function main() {
     const mine = async (page, name) => (await snap(page)).myUploads.find(u => u.file === name);
     const hostRow = name => owner.locator(".vf-queue .vf-uprow", { hasText: name });
 
-    // The comment box (and its attach button) shows once a pick is made: both guests pick first.
     for (const [page, label] of [[ann, "Apple Pay"], [bo, "Google Pay"]]) {
       await page.locator(".vf-opt", { hasText: label }).locator(".vf-optchoose").click();
       await until(page, () => window.Core.snapshot().cards.Q1?.some(c => c.kind === "person" && c.pid === window.Core.snapshot().me.pid && !!c.pick));
     }
 
-    // ---------- Uploads off: no upload control anywhere ----------
     ok("Uploads is off by default", (await snap(owner)).settings.uploads === false);
     ok("the comment row shows on both guests' picks", await until(ann, () => !!document.querySelector(".vf-composer .vf-sendbtn")?.offsetParent || !!document.querySelector(".vf-composer #vf-answer")?.offsetParent));
     ok("while Uploads is off, the phone guest sees no attach button on her answer", await attach(ann).isHidden());
     ok("nor any upload control on the page (phone and desktop)", (await visibleUploadControls(ann)).length === 0 && (await visibleUploadControls(bo)).length === 0,
       JSON.stringify([...(await visibleUploadControls(ann)), ...(await visibleUploadControls(bo))]));
 
-    // ---------- on: the phone guest offers a file; it waits in her browser ----------
     await setUploads(true);
     ok("with Uploads on, the attach button shows on the phone", await until(ann, () => !!document.querySelector(".vf-composer .vf-attach")?.offsetParent));
     await attach(ann).click();
@@ -115,12 +98,10 @@ async function main() {
       .some(li => li.textContent.includes("funnel.pdf") && /Waiting for the host/.test(li.textContent))));
     ok("nothing of it reached the session folder yet", !fs.existsSync(path.join(A.dir, "uploads", "accepted")) || fs.readdirSync(path.join(A.dir, "uploads", "accepted")).length === 0);
 
-    // ---------- a dropped piece, then a reload: the send resumes from the server's count ----------
     const sent = { 0: 0, 1: 0, 2: 0 };
     let drop = true;
     await ann.context().route("**/api/upload/chunk", route => {
       const i = Number(route.request().headers()["x-chunk-index"]);
-      // A piece in flight when the page reloads is aborted under the handler, so abort or continue can throw.
       if (i === 1 && drop) return route.abort("connectionreset").catch(() => {});
       sent[i] = (sent[i] || 0) + 1;
       return route.continue().catch(() => {});
@@ -141,7 +122,6 @@ async function main() {
     ok("her browser let go of the file once it was sent", await idbLetGo(ann, uid));
     await ann.context().unroute("**/api/upload/chunk");
 
-    // ---------- C44: attach it to her pick from the picker's list; another guest sees it ----------
     await attach(ann).click();
     await ann.waitForSelector("dialog.vf-attdlg[open]");
     const pick = ann.locator("dialog.vf-attdlg .vf-attpick", { hasText: "funnel.pdf" });
@@ -162,7 +142,6 @@ async function main() {
       return window.Core.snapshot().files[id]?.file === "funnel.pdf" && !t.includes("uploads/") && !t.includes('"stored"') && !t.includes('"tmp"');
     }, uid));
 
-    // ---------- AC 21: a declined file is deleted from the guest's browser and shows "Not accepted" ----------
     await offer(bo, { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("Shoppers stop at the address step.\n") });
     await until(bo, () => (window.Core.snapshot().myUploads || []).some(u => u.file === "notes.txt"));
     const nid = (await mine(bo, "notes.txt"))?.id;
@@ -175,7 +154,6 @@ async function main() {
     ok("and his browser deleted its copy", await idbLetGo(bo, nid));
     ok("nothing of it is kept on the host's computer", !fs.existsSync(path.join(A.dir, "uploads", "pending")) || fs.readdirSync(path.join(A.dir, "uploads", "pending")).length === 0);
 
-    // ---------- off again: the upload control goes ----------
     await setUploads(false);
     ok("Uploads off hides the attach button on the phone and the desktop", await until(ann, () => !document.querySelector(".vf-composer .vf-attach")?.offsetParent)
       && await until(bo, () => !document.querySelector(".vf-composer .vf-attach")?.offsetParent));

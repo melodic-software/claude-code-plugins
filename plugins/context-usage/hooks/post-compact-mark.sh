@@ -34,8 +34,6 @@ set -uo pipefail
 # answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
-# Kill switch FIRST, above every source: a disabled hook
-# must not pay to parse hook-utils.sh before finding out it is off.
 [[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_USAGE_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
 # shellcheck source=hook-utils.sh
 source "$CG_DIR/hook-utils.sh"

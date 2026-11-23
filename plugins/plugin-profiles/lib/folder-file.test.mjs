@@ -7,7 +7,6 @@ import { tempDir, writeTree } from "../tests/temp.mjs";
 
 const LOCAL = join(".claude", "settings.local.json");
 
-/** A main checkout with a .git folder, a linked worktree of it and a submodule inside it, as git lays them out. */
 function repo() {
   const root = realpathSync(tempDir());
   const main = join(root, "main");

@@ -16,7 +16,6 @@ JSON=0
 have() { command -v "$1" >/dev/null 2>&1; }
 pyhas() { python3 -c "import $1" >/dev/null 2>&1; }
 
-# Layer, probe result, and what is lost without it.
 rows=""
 add_row() { rows="${rows}${1}\t${2}\t${3}\t${4}\n"; }
 

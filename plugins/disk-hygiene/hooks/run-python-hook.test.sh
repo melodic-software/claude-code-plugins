@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the disk-hygiene Python hook launcher (#1504).
 # test-scope: plugins/disk-hygiene/hooks/hooks.json plugins/disk-hygiene/prerequisites.json
 set -euo pipefail
 
@@ -41,27 +40,8 @@ assert_contains() {
   fi
 }
 
-# --- the engine is NOT read by this launcher, and the floor still comes from it ---
-#
-# The launcher recovers the floor INSIDE the candidate interpreter, on the cold
-# path only, so it spends one process spawn per candidate and never reads the
-# engine file itself (#3502).
-#
-# The contract has two halves, because deleting a cost must not quietly delete
-# the property that cost was buying:
-#
-#   1. no launch reads the engine through `sed` at all: the recorded-argv shim
-#      below observes zero invocations naming the engine;
-#   2. `hygiene.MIN_PYTHON` is still the single origin of the floor (#1028) and
-#      is still ENFORCED, proven behaviorally against fixture engines by
-#      observing whether the launcher runs its target at all.
-#
-# Half 2 is what a "delete the reader" regression cannot fake. A launcher that
-# stopped consulting the engine would run its target under both fixtures.
 SED_REAL="$(command -v sed)"
 PROBE_DIR="$(mktemp -d)"
-# NOTE: the later `trap ... EXIT` in this file REPLACES this one rather than
-# adding to it, so it removes both directories. Keep them in sync.
 trap 'rm -rf "$PROBE_DIR"' EXIT
 PROBE_BIN="$PROBE_DIR/bin"
 PROBE_CALLS="$PROBE_DIR/calls"
@@ -89,8 +69,6 @@ exec "$RUN_PYTHON_HOOK_SED" "$@"
 SHIM
 chmod +x "$PROBE_BIN/sed"
 
-# No interpreter resolves under this PATH, so the launcher takes its documented
-# no-interpreter posture. Whether it reads the engine is independent of that.
 for stub in python3 python py; do
   printf '#!/usr/bin/env bash\nexit 127\n' >"$PROBE_BIN/$stub"
   chmod +x "$PROBE_BIN/$stub"
@@ -111,12 +89,6 @@ for call in "$PROBE_CALLS"/call-*; do
 done
 assert_eq "the launcher never sed-reads the engine" "0" "$engine_reads"
 
-# --- the floor is still read from the engine, and still enforced ---
-#
-# A fixture plugin tree: a verbatim copy of the launcher, a fixture engine
-# carrying a chosen MIN_PYTHON, and a target script that leaves a marker file
-# when it runs. The launcher resolves `ENGINE` relative to its own location, so
-# copying it into the fixture tree is what points it at the fixture engine.
 FIXTURE_ROOT="$PROBE_DIR/plugin"
 mkdir -p "$FIXTURE_ROOT/hooks" "$FIXTURE_ROOT/skills/clean/scripts"
 cp "$LAUNCHER" "$FIXTURE_ROOT/hooks/run-python-hook.sh"
@@ -125,10 +97,6 @@ FIXTURE_MARKER="$PROBE_DIR/target-ran"
 printf 'import pathlib, sys\npathlib.Path(sys.argv[1]).write_text("ran")\n' \
   >"$FIXTURE_TARGET"
 
-# `written_floor <major> <minor>` rewrites the fixture engine's floor. The
-# SECOND MIN_PYTHON line is a decoy on the final line: a reader that scanned to
-# EOF and kept the last match would take (9, 99) and reject every interpreter,
-# so the "below the floor" case passing is also proof the read is first-match.
 write_fixture_engine() {
   {
     printf '%s\n' '"""Fixture engine for the version-floor contract."""'
@@ -138,9 +106,6 @@ write_fixture_engine() {
   } >"$FIXTURE_ROOT/skills/clean/scripts/hygiene.py"
 }
 
-# Each case gets its OWN HOME, so the interpreter cache of one never answers
-# for another — the cache is keyed on the launcher's directory, which these
-# two cases share.
 run_fixture() {
   local floor_major="$1" floor_minor="$2" case_home="$PROBE_DIR/home-$1-$2"
   write_fixture_engine "$floor_major" "$floor_minor"
@@ -156,8 +121,6 @@ assert_eq "an engine floor at or below the running interpreter runs the target" 
 assert_eq "an engine floor above every interpreter refuses to run the target" \
   "skipped" "$(run_fixture 99 0)"
 
-# The real engine's real floor must still resolve to a runnable interpreter —
-# the property the deleted `sed` read was buying, restated as an outcome.
 rm -f "$FIXTURE_MARKER"
 cp "$SCRIPT_DIR/../skills/clean/scripts/hygiene.py" \
   "$FIXTURE_ROOT/skills/clean/scripts/hygiene.py"
@@ -168,14 +131,6 @@ HOME="$FIXTURE_REAL_HOME" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
 assert_eq "the engine's real floor still admits this host's interpreter" \
   "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 
-# --- the resolved interpreter is cached, and the cache invalidates correctly ---
-#
-# The launcher sits behind an always-on `Bash|PowerShell` matcher, so the cost
-# that matters is what a WARM invocation spends. These assertions count version
-# probes through an interpreter shim: a cold launch probes once, and a warm
-# launch must reach the target having probed nothing. The cache records the
-# probe's `sys.executable`, so the target runs on the real interpreter and never
-# passes through the shim.
 CACHE_ROOT="$PROBE_DIR/cache-case"
 CACHE_BIN="$CACHE_ROOT/bin"
 CACHE_HOME="$CACHE_ROOT/home"
@@ -185,8 +140,6 @@ REAL_PYTHON="$(command -v python3 || true)"
 if [[ -z "$REAL_PYTHON" ]]; then
   printf 'SKIP: no python3 on PATH; cache contract not exercised\n'
 else
-  # `write_counting_shim <dir> <log>`: a `python3` that logs its first argument
-  # and runs the real interpreter. A version probe's first argument is `-c`.
   write_counting_shim() {
     mkdir -p "$1"
     {
@@ -199,8 +152,6 @@ else
   }
   write_counting_shim "$CACHE_BIN" "$CACHE_LOG"
 
-  # Launch with `<extra PATH prefix>` ahead of PATH and echo how many version
-  # probes ran through the shim at `<log>` (default: the cache-case shim).
   cache_launch() {
     local prefix="${1:-$CACHE_BIN}" log="${2:-$CACHE_LOG}"
     : >"$log"
@@ -227,18 +178,12 @@ else
     fail "no interpreter cache record was written"
   fi
   pass "the cache record is keyed per launcher directory, not a shared file"
-  # `record_lookups`: the record's lookup lines, for hand-written records.
   record_lookups() { grep '^lookup=' "$cache_record"; }
 
-  # The record stores the real interpreter the probe reported, not the shim it
-  # ran through: the exec skips a trampoline hop.
   assert_eq "the record's interpreter is the probe's sys.executable" \
     "$("$REAL_PYTHON" -c 'import sys; print(sys.executable)' | tr -d '\r')" \
     "$(sed -n 's/^interpreter=//p' "$cache_record")"
 
-  # A PATH that differs only in a directory holding no Python (fnm's per-shell
-  # `fnm_multishells/<pid>_<ts>` entry) still resolves the same interpreter, so
-  # it must hit the cache.
   FNM_DIR="$CACHE_ROOT/fnm_multishells/4242_1790000000000"
   mkdir -p "$FNM_DIR"
   printf '#!/usr/bin/env bash\n' >"$FNM_DIR/node"
@@ -248,8 +193,6 @@ else
     "0" "$fnm_calls"
   assert_eq "and the target runs" "ran" "$(target_ran)"
 
-  # A BASH_ENV that turns command hashing off must not blind the lookups: the
-  # launcher turns hashing back on before it resolves anything.
   NOHASH_ENV="$CACHE_ROOT/nohash.bash"
   printf 'set +h\n' >"$NOHASH_ENV"
   cache_launch >/dev/null
@@ -262,7 +205,6 @@ else
     "0" "$(grep -cx -- '-c' "$CACHE_LOG" || true)"
   assert_eq "and the target runs" "ran" "$(target_ran)"
 
-  # A PATH on which a DIFFERENT python3 now wins must re-resolve.
   SHADOW_BIN="$CACHE_ROOT/shadow-bin"
   SHADOW_LOG="$CACHE_ROOT/shadow-calls"
   write_counting_shim "$SHADOW_BIN" "$SHADOW_LOG"
@@ -272,16 +214,12 @@ else
   assert_eq "the re-resolved record names the new lookup" "1" \
     "$(grep -c "^lookup=python3|$SHADOW_BIN/python3\$" "$cache_record")"
 
-  # The python3 the record was resolved through is removed: a lookup that no
-  # longer finds it re-resolves.
   cache_launch "$SHADOW_BIN:$CACHE_BIN" "$SHADOW_LOG" >/dev/null
   rm -f "$SHADOW_BIN/python3"
   removed_calls="$(cache_launch "$SHADOW_BIN:$CACHE_BIN")"
   assert_eq "a removed python3 lookup re-resolves" "1" "$removed_calls"
   assert_eq "and the target still runs" "ran" "$(target_ran)"
 
-  # The cached interpreter itself is removed (a Python uninstalled under an
-  # unchanged lookup): re-resolve rather than exec a missing file.
   cache_launch >/dev/null
   GONE_DIR="$CACHE_ROOT/gone"
   mkdir -p "$GONE_DIR"
@@ -298,29 +236,18 @@ else
   assert_eq "a removed cached interpreter re-resolves" "1" "$gone_calls"
   assert_eq "and the target still runs" "ran" "$(target_ran)"
 
-  # An interpreter modified after the record was written is not the one that
-  # was validated — the in-place-upgrade case. The lookup file counts too: a
-  # trampoline rewritten to point elsewhere.
   cache_launch >/dev/null
   touch "$CACHE_BIN/python3"
   upgraded_calls="$(cache_launch)"
   assert_eq "a lookup newer than the record invalidates the cache" \
     "1" "$upgraded_calls"
 
-  # A record from a future schema is not readable by this launcher.
   cache_launch >/dev/null
   printf 'schema=999\nwritten=1\ninterpreter=/nonexistent\n' >"$cache_record"
   schema_calls="$(cache_launch)"
   assert_eq "a foreign schema invalidates the cached interpreter" \
     "1" "$schema_calls"
 
-  # An expired record is re-resolved rather than trusted. The staleness is
-  # forged in the RECORD (an old `written=` epoch), not through an environment
-  # override: the TTL is compiled in precisely so it cannot be widened by the
-  # environment, and a test that reached for such a knob would be asserting a
-  # channel this launcher deliberately does not have.
-  # `write_record <written> <interpreter>`: a hand-written schema-2 record
-  # carrying the current record's lookups, so only the named fields differ.
   write_record() {
     local lookups
     lookups="$(record_lookups)"
@@ -333,25 +260,12 @@ else
   ttl_calls="$(cache_launch)"
   assert_eq "an expired record is re-resolved" "1" "$ttl_calls"
 
-  # A corrupt record must fall back to full resolution — never to "no
-  # interpreter", which denies the call or lets it through unchecked.
   cache_launch >/dev/null
   printf 'this is not a cache record\n' >"$cache_record"
   corrupt_calls="$(cache_launch)"
   assert_eq "a corrupt record falls back to resolution" "1" "$corrupt_calls"
   assert_eq "a corrupt record still runs the target" "ran" "$(target_ran)"
 
-  # A record naming a NON-INTERPRETER is the cache's residual exposure, and it
-  # is recorded here as a known limit rather than a passing property: the hot
-  # path validates SHAPE only (`-x`, `-s`, an interpreter basename), because
-  # proving the binary is really Python costs the very spawn the cache exists
-  # to remove. A shape-valid record pointing at an executable that is not an
-  # interpreter is therefore `exec`'d, the guard never runs, and the hook exits
-  # 0 having enforced nothing.
-  #
-  # The assertion below pins the boundary that IS enforced — a non-interpreter
-  # BASENAME is rejected and re-resolved — so a future change that widened the
-  # basename allowlist would fail here.
   cache_launch >/dev/null
   IMPOSTOR_DIR="$CACHE_ROOT/impostor"
   mkdir -p "$IMPOSTOR_DIR"
@@ -363,14 +277,6 @@ else
     "1" "$impostor_calls"
   assert_eq "and the target still runs under a real interpreter" "ran" "$(target_ran)"
 
-  # A NATIVE WINDOWS interpreter path must be accepted from the cache.
-  #
-  # `sys.executable` on Windows is `C:\...\python.exe`, and it is what every
-  # record stores. A basename check that split only on `/` left the whole
-  # backslash path in place, the allowlist never matched, and the record was
-  # rejected on EVERY invocation, silently and with no error. Nothing in the
-  # previous contract set caught it, because every path this suite produced
-  # was POSIX.
   if command -v cygpath >/dev/null 2>&1; then
     cache_launch >/dev/null
     write_record "$(date +%s)" "$(cygpath -w "$CACHE_BIN/python3")"
@@ -383,12 +289,6 @@ else
     printf 'SKIP: no cygpath; native-path cache acceptance not exercised\n'
   fi
 
-  # An interpreter under a non-ASCII directory must still resolve. The probe
-  # reports `sys.executable` over a pipe; printed as text, Windows encodes it
-  # with the ANSI code page, a character outside it (`碼` is not in cp1252)
-  # raises, the probe exits non-zero, and every candidate is rejected: the
-  # guard silently does not run. A venv gives an interpreter whose
-  # `sys.executable` is its own path.
   UNICODE_ROOT="$CACHE_ROOT/ü碼 dir"
   if "$REAL_PYTHON" -m venv --without-pip "$UNICODE_ROOT/venv" >/dev/null 2>&1; then
     venv_python="$UNICODE_ROOT/venv/bin/python"
@@ -413,7 +313,6 @@ else
     printf 'SKIP: no venv module; non-ASCII interpreter path not exercised\n'
   fi
 
-  # An unwritable cache directory must not stop the launcher from working.
   NOCACHE_HOME="$CACHE_ROOT/home-readonly"
   mkdir -p "$NOCACHE_HOME"
   rm -f "$FIXTURE_MARKER"
@@ -424,12 +323,6 @@ else
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 fi
 
-# --- hooks.json wires this launcher through node exec form ---
-#
-# Bare `bash` as an exec-form command is the #1006 defect: on Windows it
-# resolves to the WSL relay and a failed launch does not block. The legal
-# spelling is `"command": "node"` with exec-bash.mjs, then run-python-hook.sh
-# and that script's arguments, in `args` (#3686).
 HOOKS_JSON="$SCRIPT_DIR/hooks.json"
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq required" >&2
@@ -471,13 +364,8 @@ for hook_name in destructive_guard.py guard_launch_monitor.py engine_context.py;
   pass "hooks.json command for $hook_name is node exec form"
 done
 
-# --- monitor mode without python emits systemMessage JSON ---
 FAKE_BIN="$(mktemp -d)"
-# Replaces (does not chain onto) the earlier EXIT trap, so it cleans up both.
 trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR"' EXIT
-# `py` belongs in the stub set with the other two: the launcher's third branch
-# resolves through the Windows `py` launcher, and a host that has one resolves a
-# real interpreter here, runs the monitor, and sees no systemMessage at all.
 for stub in python3 python py; do
   printf '#!/usr/bin/env bash\nexit 127\n' >"$FAKE_BIN/$stub"
   chmod +x "$FAKE_BIN/$stub"
@@ -493,10 +381,6 @@ assert_contains "monitor mode names the missing interpreter" "no usable Python 3
 assert_eq "monitor mode's no-interpreter output is valid JSON" "true" \
   "$(jq -e 'has("systemMessage")' <<<"$MONITOR_OUT" 2>/dev/null || echo false)"
 
-# --- the `py -3` branch validates the path it is handed ---
-#
-# `py` reports the interpreter it chose; a path that is not an interpreter by
-# shape must be refused like any other, not exec'd.
 PY_BIN="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN"' EXIT
 for stub in python3 python; do
@@ -515,17 +399,10 @@ PY_OUT="$(
 assert_contains "a py -3 result that is not an interpreter is refused" \
   "systemMessage" "$PY_OUT"
 
-# --- guard mode without python: a guard that could not run says so (#3861) ---
-#
-# Before #3861 every guard row exited 0 with no output here, which Claude Code
-# reads as "ran and allowed". Each row must now be distinguishable from that at
-# the call: a deny (exit 2, reason on stderr) or a proceed that carries a notice.
 NOPY_DIR="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN" "$NOPY_DIR"' EXIT
 GUARD="$SCRIPT_DIR/../skills/clean/scripts/destructive_guard.py"
 
-# `nopy_guard <payload> <launcher args...>`: run the guard row with no interpreter
-# on PATH, capturing rc, stdout and stderr into NOPY_RC / NOPY_OUT / NOPY_ERR.
 nopy_guard() {
   local payload="$1"
   shift
@@ -560,7 +437,6 @@ nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard
 assert_eq "engine-gate without python lets a marker-free command proceed" "0" "$NOPY_RC"
 assert_eq "the marker-free proceed carries a systemMessage" "true" \
   "$(jq -e '.systemMessage | test("no usable Python 3")' <<<"$NOPY_OUT" 2>/dev/null || echo false)"
-# User only: no model copy and no permission decision.
 assert_eq "the marker-free proceed carries no hookSpecificOutput" "false" \
   "$(jq -r 'has("hookSpecificOutput")' <<<"$NOPY_OUT" 2>/dev/null)"
 nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard-launch-monitor \
@@ -571,7 +447,6 @@ nopy_guard "${plain_payload/s-plain/s-other}" --marker-root "$NOPY_DIR/data" \
   --launch-marker guard-launch-monitor "$GUARD" --mode engine-gate
 assert_contains "a new session gets its own notice" "systemMessage" "$NOPY_OUT"
 
-# The task-end notice shares that once-per-session marker.
 MONITOR="$SCRIPT_DIR/../skills/clean/scripts/guard_launch_monitor.py"
 nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" "$MONITOR" --data-root "$NOPY_DIR/data"
 assert_eq "the task-end notice stays quiet after the guard's notice" "" "$NOPY_OUT"
@@ -586,10 +461,7 @@ nopy_guard '{"tool_name":"PowerShell","tool_input":{"command":"Get-ChildItem"}}'
 assert_contains "a payload with no session id re-notices rather than going silent" \
   "systemMessage" "$NOPY_OUT"
 
-# The tmp fallback marker directory sits where every local user can write (#6350).
-# One planted by someone else, as a symlink or a directory this user does not own,
-# is not trusted: the notice still shows, and nothing is written through it.
-planted_notice() { # <tmpdir> <payload>: run the guard row with no --marker-root
+planted_notice() {
   NOPY_RC=0
   TMPDIR="$1" PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" "$GUARD" --mode engine-gate \
     <<<"$2" >"$NOPY_DIR/out" 2>"$NOPY_DIR/err" || NOPY_RC=$?
@@ -608,7 +480,6 @@ assert_eq "no marker is written through a symlinked marker directory" "false" \
 planted_notice "$NOPY_DIR/link-tmp" "$planted_payload"
 assert_contains "a symlinked marker directory never latches the notice" "systemMessage" "$NOPY_OUT"
 
-# A directory another user owns: only root can make one, so this case runs as root.
 if [[ "$(id -u)" == 0 ]] && id nobody >/dev/null 2>&1; then
   mkdir -p "$NOPY_DIR/foreign-tmp/disk-hygiene-guard-no-interpreter"
   : >"$NOPY_DIR/foreign-tmp/disk-hygiene-guard-no-interpreter/s-planted.noticed"
@@ -619,8 +490,6 @@ else
   printf 'SKIP: %s\n' "a marker directory another user owns (needs root to create one)"
 fi
 
-# Stays quiet where it should: this user's own tmp fallback directory still
-# latches the notice once per session.
 mkdir -p "$NOPY_DIR/own-tmp"
 planted_notice "$NOPY_DIR/own-tmp" "$planted_payload"
 assert_contains "the first call in a session with an own tmp marker directory notices" \
@@ -636,10 +505,6 @@ assert_eq "an explicit belt mode without python denies" "2" "$NOPY_RC"
 nopy_guard "$plain_payload" "$GUARD" --mode bogus
 assert_eq "an unrecognized mode without python denies, as resolve_mode falls back to belt" "2" "$NOPY_RC"
 
-# The registered rows, verbatim: each engine-gate row in hooks.json must reach
-# the engine-gate branch, and the skill-frontmatter belt must reach the belt one.
-# Exec form: args[0] is exec-bash.mjs, args[1] is the launcher, and the rest is
-# what the launcher receives.
 HOOKS_JSON="$SCRIPT_DIR/hooks.json"
 run_registered_args() {
   local payload="$1" args_json="$2" arg substituted=()
@@ -663,7 +528,6 @@ belt_args="${belt_args%\'}"
 run_registered_args "$plain_payload" "$belt_args"
 assert_eq "the registered belt row denies without python" "2" "$NOPY_RC"
 
-# --- /disk-hygiene:clean does not expand without python ---
 CONTEXT_OUT="$(
   PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" \
     "$SCRIPT_DIR/../skills/clean/scripts/engine_context.py" --plugin-root /p \
@@ -674,7 +538,6 @@ assert_eq "the clean expansion is blocked without python" "block" \
 assert_contains "the expansion block names the remedy" "lib/prerequisites.mjs' check" \
   "$(jq -r '.reason // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
 
-# --- happy path execs the target script when python is available ---
 if command -v python3 >/dev/null 2>&1 &&
   python3 -c "$PYTHON_VERSION_PROBE" 2>/dev/null; then
   HELPER="$(mktemp --suffix=.py)"
@@ -686,18 +549,6 @@ else
   echo "SKIP: runnable python3 not available for happy-path probe" >&2
 fi
 
-# --- a warm launch creates no process before it execs the interpreter ---
-#
-# Both engine-gate entries carry an `if` filter, so this launcher now runs only
-# for a shell call that names the engine; what such a call pays is the spawn
-# chain itself, and a warm launch must add nothing to it. The census is taken at
-# the kernel (`strace -f`), not through a PATH shim or `set -x`: a fork that
-# never execs (a `$(...)` substitution, a pipeline) is invisible to both, and a
-# fork is the unit Windows charges for. Expected on a warm cache: zero
-# clone/fork calls, and exactly two execve calls, bash running the launcher and
-# the resolved interpreter running the target. Skipped where strace is absent,
-# where ptrace is refused, or where `python3` is itself a script (a version
-# manager shim), since that shim's own spawns are not this launcher's.
 if ! command -v strace >/dev/null 2>&1; then
   echo "SKIP: strace not available for the spawn census" >&2
 elif [[ -z "$REAL_PYTHON" ]] || [[ "$(head -c 2 "$REAL_PYTHON" 2>/dev/null)" == "#!" ]]; then
@@ -708,7 +559,6 @@ else
   CENSUS_HOME="$PROBE_DIR/census-home"
   CENSUS_LOG="$PROBE_DIR/census.strace"
   mkdir -p "$CENSUS_HOME"
-  # Cold launch: resolves and writes the cache record under the census HOME.
   HOME="$CENSUS_HOME" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
     "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
   rm -f "$FIXTURE_MARKER"
@@ -717,10 +567,6 @@ else
     "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
   assert_eq "the traced warm launch still runs the target" \
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
-  # A creation is a clone/fork line that returned a child id; the `unfinished`
-  # half of a split line is excluded so a creation is counted once. The pattern
-  # is POSIX ERE: strace writes `clone(`, `clone3(`, `fork(`, `vfork(`; a GNU
-  # `\b` word boundary is not needed and is not portable.
   census_creations="$(grep -E '(clone3?|v?fork)\(' "$CENSUS_LOG" |
     grep -v unfinished | grep -cE '= [1-9][0-9]*$' || true)"
   census_execs="$(grep -E '^[0-9]+ +execve\(' "$CENSUS_LOG" |
@@ -731,16 +577,6 @@ else
     "2" "$census_execs"
 fi
 
-# --- the per-session launch marker gates the Stop monitor before python ---
-#
-# `Stop` rows accept neither `matcher` nor `if`, so the only place a "did the
-# guard run at all this session" gate can live is the launcher. The contract has
-# five halves: a launch records the session (even when the launched python then
-# dies, which is the very failure the monitor exists to report), a session
-# unrecorded in a marker tree that EXISTS reaches no python at all, a recorded
-# one runs exactly as before, a payload the launcher cannot key on falls back to
-# running python, and a marker tree that does not exist at all falls back the
-# same way rather than silencing the monitor.
 MARKER_CASE="$PROBE_DIR/marker-case"
 MARKER_ROOT_DIR="$MARKER_CASE/data"
 MARKER_HOME="$MARKER_CASE/home"
@@ -750,16 +586,12 @@ mkdir -p "$MARKER_ROOT_DIR" "$MARKER_HOME" "$MARKER_CASE/tmp"
 MARKER_TARGET="$FIXTURE_ROOT/skills/clean/scripts/marker_target.py"
 {
   printf 'import pathlib, sys\n'
-  # Byte-for-byte, through the binary buffer: the payload reaches python over a
-  # here-string now, and a decoded round trip would hide a newline difference.
   printf 'pathlib.Path(sys.argv[1]).write_bytes(sys.stdin.buffer.read())\n'
   printf 'pathlib.Path(sys.argv[1] + ".argv").write_text("\\n".join(sys.argv[3:]))\n'
   printf 'raise SystemExit(int(sys.argv[2]))\n'
 } >"$MARKER_TARGET"
 
 MARKER_PAYLOAD=""
-# Echo the launcher's exit code; `$MARKER_SEEN` exists afterwards only if the
-# target actually started, and holds the bytes python read.
 marker_launch() {
   local flag="$1" subdir="$2" target_rc="$3" rc=0
   rm -f "$MARKER_SEEN" "$MARKER_SEEN.argv"
@@ -787,16 +619,12 @@ assert_eq "a guarded launch still runs its target" "ran" "$(target_state)"
 assert_eq "a guarded launch still reports its target's exit code" "0" "$marker_rc"
 assert_eq "the marker flags never reach python's argv" "" "$(cat "$MARKER_SEEN.argv")"
 
-# The monitor exists to catch a guard that launched and died, so a non-zero exit
-# must leave the marker that keeps the monitor running for the rest of the turn.
 rm -rf "$MARKER_DIR"
 marker_rc="$(marker_launch --launch-marker guard-launch-monitor 3)"
 assert_eq "a launch whose python exits non-zero still records the session" \
   "present" "$(marker_state sess-1)"
 assert_eq "a launch whose python exits non-zero propagates that code" "3" "$marker_rc"
 
-# An EXISTING marker tree that holds no marker for this session is the shape a
-# launch-free session leaves, and is the only shape that may skip.
 MARKER_PAYLOAD='{"session_id":"sess-1","hook_event_name":"Stop"}'
 rm -rf "$MARKER_DIR"
 mkdir -p "$MARKER_DIR"
@@ -804,8 +632,6 @@ marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
 assert_eq "an unrecorded session exits 0" "0" "$marker_rc"
 assert_eq "an unrecorded session starts no python" "skipped" "$(target_state)"
 
-# Not even a version probe: every interpreter name on PATH is a logging shim,
-# and the cache HOME is empty, so any resolution attempt would leave a line.
 SKIP_BIN="$MARKER_CASE/skip-bin"
 SKIP_LOG="$MARKER_CASE/skip-calls"
 mkdir -p "$SKIP_BIN"
@@ -823,8 +649,6 @@ printf '%s' "$MARKER_PAYLOAD" |
 assert_eq "an unrecorded session spawns no interpreter, not even a probe" \
   "0" "$(grep -c . "$SKIP_LOG" || true)"
 
-# The Skill row is marker-only: no target, so no interpreter and no output, and
-# it records only the skill `--only-skill` names.
 skill_launch() {
   local payload="$1" rc=0
   : >"$SKIP_LOG"
@@ -861,16 +685,11 @@ marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
 assert_eq "a recorded session runs python" "ran" "$(target_state)"
 assert_eq "a recorded session exits 0" "0" "$marker_rc"
 
-# Byte identity across the buffer-and-replay: python receives what it would have
-# read from the inherited stdin, plus the newline `<<<` appends. Both consumers
-# (`json.load(sys.stdin)`, `sys.stdin.read()` then `json.loads`) ignore it.
 MARKER_EXPECTED="$MARKER_CASE/expected"
 printf '%s\n' "$MARKER_PAYLOAD" >"$MARKER_EXPECTED"
 assert_eq "the buffered payload reaches python unchanged" "same" \
   "$(cmp -s "$MARKER_EXPECTED" "$MARKER_SEEN" && printf 'same' || printf 'differs')"
 
-# A payload the launcher cannot key on must behave exactly as it did before
-# these flags existed: record nothing, skip nothing, run python.
 MARKER_PAYLOAD='{"hook_event_name":"Stop","cwd":"/tmp"}'
 rm -rf "$MARKER_DIR"
 marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
@@ -880,10 +699,6 @@ marker_launch --launch-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a payload with no session id records nothing" "absent" \
   "$([[ -d "$MARKER_DIR" ]] && printf 'present' || printf 'absent')"
 
-# A payload whose opening key is something else still keys correctly, through
-# the unanchored fallback: the docs show `session_id` first for every event but
-# guarantee no ordering, and a reordered payload must degrade to running python,
-# not to keying on nothing.
 MARKER_PAYLOAD='{"hook_event_name":"Stop","session_id":"sess-2"}'
 rm -rf "$MARKER_DIR"
 mkdir -p "$MARKER_DIR"
@@ -894,11 +709,6 @@ mkdir -p "$MARKER_DIR"
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a reordered payload finds its own marker" "ran" "$(target_state)"
 
-# --- a launch token and the monitor's `.seen`: a Stop skips until the next launch ---
-#
-# A launch removes `.seen` and writes a token unique to it; the monitor copies a
-# token it processed into `.seen`; a Stop skips while every `.launched` holds a
-# token its `.seen` repeats. Every doubt about either file runs the monitor.
 present_or_absent() { [[ -e "$1" || -L "$1" ]] && printf 'present' || printf 'absent'; }
 OLD_TOKEN=$'1790000000-4242-17\n'
 MARKER_PAYLOAD='{"session_id":"sess-7","hook_event_name":"PreToolUse"}'
@@ -919,7 +729,6 @@ cp "$MARKER_DIR/sess-7.launched" "$MARKER_DIR/sess-7.seen"
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a launch the monitor has seen skips the Stop" "skipped" "$(target_state)"
 
-# `seen_state_runs <label> <.launched bytes> <.seen bytes, or - for none>`
 seen_state_runs() {
   rm -rf "$MARKER_DIR/sess-7.launched" "$MARKER_DIR/sess-7.seen"
   printf '%s' "$2" >"$MARKER_DIR/sess-7.launched"
@@ -951,7 +760,6 @@ if [[ "$(id -u)" != 0 && "${OSTYPE:-}" != msys* && "${OSTYPE:-}" != cygwin* ]]; 
   assert_eq "an unreadable .launched runs the monitor" "ran" "$(target_state)"
   chmod 600 "$MARKER_DIR/sess-7.launched"
 
-  # An open that fails after `.seen` is gone leaves the old token unseen.
   MARKER_PAYLOAD='{"session_id":"sess-7","hook_event_name":"PreToolUse"}'
   chmod 444 "$MARKER_DIR/sess-7.launched"
   marker_launch --launch-marker guard-launch-monitor 0 >/dev/null
@@ -965,8 +773,6 @@ else
   printf 'SKIP: %s\n' "markers unreadable or unwritable by permission bits (needs a non-root POSIX user)"
 fi
 
-# A token write that fails after the truncate leaves an empty `.launched` and no
-# `.seen`. A BASH_ENV function shadowing `printf` fails that one write.
 FAILING_WRITE_ENV="$MARKER_CASE/failing-token-write.bash"
 cat >"$FAILING_WRITE_ENV" <<'ENV'
 printf() {
@@ -989,12 +795,6 @@ MARKER_PAYLOAD='{"session_id":"sess-8","hook_event_name":"Stop"}'
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "and the next Stop runs the monitor" "ran" "$(target_state)"
 
-# --- the `.seen` removal and the `.launched` open both fail: the guard is told ---
-#
-# The old pair could still skip the next Stop, so the launcher names the marker
-# to the guard. Staged structurally: `rm -f` refuses a `.seen` that is a
-# directory and the open refuses a `.launched` that is one, on every host, and a
-# file holds the tmp fallback's name.
 UNWRITTEN_CASE="$PROBE_DIR/unwritten-case"
 UNWRITTEN_ROOT="$UNWRITTEN_CASE/data"
 mkdir -p "$UNWRITTEN_ROOT/guard-launch-monitor/s-unwritten.seen" \
@@ -1003,7 +803,7 @@ mkdir -p "$UNWRITTEN_ROOT/guard-launch-monitor/s-unwritten.seen" \
 ENV_TARGET="$FIXTURE_ROOT/skills/clean/scripts/env_target.py"
 printf 'import os, pathlib, sys\npathlib.Path(sys.argv[1]).write_text(os.environ.get("DISK_HYGIENE_UNWRITTEN_MARKER", "unset"))\n' \
   >"$ENV_TARGET"
-unwritten_env() { # <session>: what the target finds in DISK_HYGIENE_UNWRITTEN_MARKER
+unwritten_env() {
   rm -f "$UNWRITTEN_CASE/env"
   printf '{"session_id":"%s","hook_event_name":"PreToolUse"}' "$1" |
     HOME="$MARKER_HOME" TMPDIR="$UNWRITTEN_CASE/tmp" DISK_HYGIENE_UNWRITTEN_MARKER=inherited \
@@ -1018,8 +818,7 @@ assert_eq "a launch that writes its token names nothing, whatever it inherited" 
   "$(unwritten_env s-written)"
 
 if [[ -n "$REAL_PYTHON" ]]; then
-  # The registered engine-gate row's launcher arguments, with the real guard.
-  guard_row() { # <session> <command>: sets GUARD_RC and GUARD_OUT
+  guard_row() {
     GUARD_RC=0
     printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" "$2" |
       HOME="$MARKER_HOME" TMPDIR="$UNWRITTEN_CASE/tmp" CLAUDE_PLUGIN_DATA="$UNWRITTEN_ROOT" \
@@ -1043,7 +842,6 @@ if [[ -n "$REAL_PYTHON" ]]; then
   assert_contains "and names the marker beside the decision" "s-unwritten.launched" \
     "$(jq -r '.systemMessage // ""' <<<"$GUARD_OUT" 2>/dev/null)"
 
-  # --- a guard launch after a seen Stop: the next Stop runs and reports ---
   CYCLE_CASE="$PROBE_DIR/cycle-case"
   CYCLE_ROOT="$CYCLE_CASE/data"
   CYCLE_DIR="$CYCLE_ROOT/guard-launch-monitor"
@@ -1054,7 +852,7 @@ if [[ -n "$REAL_PYTHON" ]]; then
     CYCLE_TRANSCRIPT_NATIVE="$(cygpath -m "$CYCLE_TRANSCRIPT")"
   fi
   CYCLE_STOP_PAYLOAD="{\"session_id\":\"s-cycle\",\"transcript_path\":\"$CYCLE_TRANSCRIPT_NATIVE\",\"hook_event_name\":\"Stop\"}"
-  cycle_stop() { # the Stop row's launcher arguments, with the real monitor
+  cycle_stop() {
     printf '%s' "$CYCLE_STOP_PAYLOAD" |
       HOME="$MARKER_HOME" TMPDIR="$CYCLE_CASE/tmp" \
         bash "$LAUNCHER" --marker-root "$CYCLE_ROOT" --skip-unless-marker guard-launch-monitor \
@@ -1075,11 +873,6 @@ if [[ -n "$REAL_PYTHON" ]]; then
   assert_contains "a guard launch since makes the next Stop report the seeded failure" \
     "destructive_guard.py failed to run" "$(cycle_stop)"
 
-  # --- a seen launch's Stop row starts only node (process census) ---
-  #
-  # The registered Stop row: node runs exec-bash.mjs, which makes the seen test
-  # before it would start bash. Expected with `.seen` repeating the token: one
-  # successful execve, node itself, so no bash and no Python.
   STOP_NODE="$(command -v node || true)"
   if ! command -v strace >/dev/null 2>&1; then
     echo "SKIP: strace not available for the Stop row census" >&2
@@ -1088,7 +881,7 @@ if [[ -n "$REAL_PYTHON" ]]; then
   elif ! strace -qq -e trace=execve -o /dev/null true >/dev/null 2>&1; then
     echo "SKIP: strace cannot trace on this host; Stop row census not exercised" >&2
   else
-    stop_row_execs() { # <log>: the Stop row under strace; prints its successful execve count
+    stop_row_execs() {
       printf '%s' "$CYCLE_STOP_PAYLOAD" |
         HOME="$MARKER_HOME" TMPDIR="$CYCLE_CASE/tmp" \
           strace -f -qq -e trace=execve -o "$1" "$STOP_NODE" "$SCRIPT_DIR/exec-bash.mjs" \
@@ -1109,20 +902,6 @@ else
   printf 'SKIP: %s\n' "no python3 on PATH; the guard notice and the launch-to-Stop cycle not exercised"
 fi
 
-# --- a launch that can write no marker at all must not silence the monitor ---
-#
-# Both candidates fail on the launch side here, which leaves the Stop row
-# nothing to find. Reading only the marker FILE would then skip every Stop for
-# the rest of the session: a silent failure in the one detector that exists to
-# report silent failures. The Stop row therefore skips only when a candidate
-# DIRECTORY exists, and otherwise runs the monitor as it did before the flags.
-#
-# "Unwritable" is staged structurally rather than through permission bits, which
-# MSYS cannot set against Windows ACLs: `mkdir -p` refuses a parent that is a
-# regular FILE on every host, and refuses a target that already exists as one.
-# The marker root sits under a file; `TMPDIR` itself stays a real directory
-# (bash may place a here-string there) with a file occupying the name the tmp
-# fallback wants.
 BLOCKED_CASE="$PROBE_DIR/blocked-case"
 BLOCKED_TMP="$BLOCKED_CASE/tmp"
 mkdir -p "$BLOCKED_CASE" "$BLOCKED_TMP"
@@ -1160,17 +939,11 @@ assert_eq "a Stop with no candidate marker directory runs the monitor" \
   "ran" "$(target_state)"
 assert_eq "a Stop with no candidate marker directory exits 0" "0" "$blocked_rc"
 
-# --- a tmp marker directory this user does not own is not a candidate ---
-#
-# With no marker root, the tmp fallback is the only candidate, and it sits where
-# every local user can write. A planted empty directory, or a symlink to one,
-# would otherwise read as "the guard never launched" and skip the monitor for
-# every session; a symlink would also take this session's marker elsewhere.
 PLANTED_CASE="$PROBE_DIR/planted-case"
 mkdir -p "$PLANTED_CASE/link-tmp" "$PLANTED_CASE/elsewhere" "$PLANTED_CASE/own-tmp"
 ln -s "$PLANTED_CASE/elsewhere" "$PLANTED_CASE/link-tmp/disk-hygiene-guard-launch-monitor"
 
-tmp_launch() { # <tmpdir> <flag>: run with the tmp fallback as the only candidate
+tmp_launch() {
   rm -f "$MARKER_SEEN" "$MARKER_SEEN.argv"
   printf '%s' "$MARKER_PAYLOAD" |
     HOME="$MARKER_HOME" TMPDIR="$1" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
@@ -1185,7 +958,6 @@ tmp_launch "$PLANTED_CASE/link-tmp" --launch-marker
 assert_eq "no launch marker is written through a symlinked tmp directory" "absent" \
   "$([[ -e "$PLANTED_CASE/elsewhere/sess-4.launched" ]] && printf 'present' || printf 'absent')"
 
-# A directory another user owns: only root can make one, so this case runs as root.
 if [[ "$(id -u)" == 0 ]] && id nobody >/dev/null 2>&1; then
   mkdir -p "$PLANTED_CASE/foreign-tmp/disk-hygiene-guard-launch-monitor"
   chown nobody "$PLANTED_CASE/foreign-tmp/disk-hygiene-guard-launch-monitor"
@@ -1197,8 +969,6 @@ else
   printf 'SKIP: %s\n' "a tmp launch-marker directory another user owns (needs root to create one)"
 fi
 
-# Stays quiet where it should: this user's own tmp directory, created by the
-# launch with mode 700, still skips an unrecorded session and runs a recorded one.
 MARKER_PAYLOAD='{"session_id":"sess-5","hook_event_name":"PreToolUse"}'
 tmp_launch "$PLANTED_CASE/own-tmp" --launch-marker
 assert_eq "a launch records the session in its own tmp directory" "present" \
@@ -1220,7 +990,6 @@ tmp_launch "$PLANTED_CASE/own-tmp" --skip-unless-marker
 assert_eq "an unrecorded session in an own tmp directory skips the monitor" \
   "skipped" "$(target_state)"
 
-# --- both wirings carry the flag the other one depends on ---
 guard_rows="$(jq '[.hooks.PreToolUse[].hooks[] |
   select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("destructive_guard.py"))] | length' \
   "$HOOKS_JSON")"
@@ -1234,21 +1003,13 @@ assert_eq "the Stop row skips a session that launched no guard" "1" \
   "$(jq '[.hooks.Stop[].hooks[] |
     select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
     "$HOOKS_JSON")"
-# The launcher makes the same skip before bash starts, with the same explicit
-# root and subdirectory the script gets; lib/exec-bash.gates.test.mjs proves
-# the launcher side.
 assert_eq "the launcher skips the Stop row before bash with the script's own marker flags" "true" \
   "$(jq '[.hooks.Stop[].hooks[].args | select(map(tostring) | join(" ") | contains("guard_launch_monitor.py")) |
     .[1:6] == ["--marker-root", "${CLAUDE_PLUGIN_DATA}", "--skip-unless-marker", "guard-launch-monitor",
       "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh"] and .[6:10] == .[1:5]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 
-# --- SessionStart runs only the resume notice ---
-# harness-ops reports a missing node (scripts/node-notice-rows.test.sh); the resume notice
-# (#9853) is the entry's one handler, whose behavior resume-notice.test.mjs runs.
 assert_eq "one SessionStart entry with one handler" "[1]" \
   "$(jq -c '[.hooks.SessionStart[] | .hooks | length]' "$HOOKS_JSON")"
-# The node-or-skip polyglot (scripts/node-notice-rows.test.sh pins its shape), so the row exits 0
-# when node is missing.
 assert_eq "the SessionStart handler is the node-or-skip resume notice" "true" \
   "$(jq '.hooks.SessionStart[0].hooks[0] | (has("args") | not) and (.command | startswith("sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs\" \"--marker-root\" \"${CLAUDE_PLUGIN_DATA}\"; "))' "$HOOKS_JSON" | tr -d '\r')"
 assert_eq "the clean expansion records the session the resume notice reads" "true" \

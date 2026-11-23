@@ -58,7 +58,6 @@ exit \$FAILS
 EOF
 }
 
-# The same stand-in with four pins, for the several-label calls.
 make_quad_fixture() {
   local alpha_sha="$1" beta_sha="$2" delta_sha="$3" omega_sha="$4" dest="$5"
   make_fixture "$alpha_sha" "$beta_sha" "$dest.base"
@@ -78,7 +77,6 @@ EOF
 # No terminal on stdin or stdout, as a lane runs it.
 run_repin() { bash "$REPIN" "$@" </dev/null 2>&1; }
 
-# --- a stale pin is re-pinned: one pin changes, every other line is byte-identical -------
 t="$WORK/stale.test.sh"
 make_fixture "$STALE" "$BETA" "$t"
 cp "$t" "$WORK/stale.before"
@@ -95,12 +93,10 @@ if grep -qx '# Alpha text edited; the defense still holds.' "$t"; then ok "justi
 before_call="$(grep -n '^pin_file "alpha' "$t" | cut -d: -f1)"
 if [[ "$(sed -n "$((before_call - 1))p" "$t")" == '# Alpha text edited; the defense still holds.' ]]; then ok "justification sits beside the pin"; else fail "justification not above the pin call"; fi
 
-# --- a backslash in the justification is kept literally ----------------------------------
 make_fixture "$STALE" "$BETA" "$t"
 run_repin --test-file "$t" 'alpha file' 'Kept a\nliteral \\ backslash.' >/dev/null
 if grep -qxF '# Kept a\nliteral \\ backslash.' "$t"; then ok "backslashes in the justification stay literal"; else fail "justification was mangled"; fi
 
-# --- matching digest is a no-op ----------------------------------------------------------
 make_fixture "$ALPHA" "$BETA" "$t"
 cp "$t" "$WORK/ok.before"
 out="$(run_repin --test-file "$t" 'alpha file' 'unused')"
@@ -108,7 +104,6 @@ rc=$?
 if [[ $rc -eq 4 ]]; then ok "matching digest: exit 4"; else fail "matching digest: expected exit 4, got $rc: $out"; fi
 if cmp -s "$WORK/ok.before" "$t"; then ok "matching digest changed nothing"; else fail "file changed on a no-op"; fi
 
-# --- unknown and ambiguous labels are refused --------------------------------------------
 make_fixture "$STALE" "$STALE" "$t"
 cp "$t" "$WORK/refuse.before"
 out="$(run_repin --test-file "$t" 'gamma' 'unused')"
@@ -119,7 +114,6 @@ rc=$?
 if [[ $rc -eq 3 ]]; then ok "ambiguous label: exit 3"; else fail "ambiguous label: expected exit 3, got $rc: $out"; fi
 if cmp -s "$WORK/refuse.before" "$t"; then ok "refused labels changed nothing"; else fail "file changed on a refusal"; fi
 
-# --- usage -------------------------------------------------------------------------------
 out="$(run_repin --test-file "$t" 'alpha file')"
 rc=$?
 if [[ $rc -eq 2 ]]; then ok "missing justification: exit 2"; else fail "missing justification: expected exit 2, got $rc: $out"; fi
@@ -151,7 +145,6 @@ if grep -qx "  \"$OMEGA\"" "$t"; then ok "three labels: the unnamed pin left as 
 if [[ "$(grep -cx '# Three texts edited; the defenses still hold.' "$t")" -eq 3 ]]; then ok "three labels: justification above each call"; else fail "three labels: justification not inserted once per pin"; fi
 if bash "$t" >/dev/null 2>&1; then ok "three labels: the re-pinned file passes"; else fail "three labels: the re-pinned file still fails"; fi
 
-# --- several labels: one bad label refuses the whole call before any write ---------------
 make_quad_fixture "$STALE" "$STALE" "$STALE" "$OMEGA" "$t"
 cp "$t" "$WORK/several-refuse.before"
 out="$(run_repin --test-file "$t" 'alpha file' 'gamma' 'beta file' 'unused')"

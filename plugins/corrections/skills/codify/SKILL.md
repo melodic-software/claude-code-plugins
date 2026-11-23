@@ -28,7 +28,7 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 |---|---|---|
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
 | `findings <findings-file>` | Each row of one review findings file becomes a described mistake, counted, proved and ending in a proposal | [actions/findings.md](actions/findings.md) |
-| `rules <file>...` | Each rule in the named instruction files becomes a check, stays prose, is deleted as derivable or is held, in a ledger whose reconciler fails when a rule is dropped | [actions/rules.md](actions/rules.md) |
+| `rules <file>...` | Each rule in the named instruction files becomes a check, stays prose, is deleted (derivable, no-op, duplicate or stale) or is held, in a ledger whose reconciler fails when a rule is dropped | [actions/rules.md](actions/rules.md) |
 | `reviews [--pr <n> [--repo <owner/repo>]]` | Mines the review comments of recent merged pull requests, or of one chosen pull request, plus the review lanes' uncovered rules as candidate rules, and takes the lessons through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
 | `issues [--label <name>] [--limit <n>]` | Needs the `work-items` plugin. Mines the tracker's closed bug items, groups the ones that share a cause, and takes the lessons through sections 2-6 | [actions/issues.md](actions/issues.md) |
 | `preferences [--scope machine\|project] [--since <day>]` | Needs the `session-flow` plugin. Counts preferences typed across sessions, by distinct session, and takes each one the person confirms through sections 3 and 6, for a user-scope file only | [actions/preferences.md](actions/preferences.md) |
@@ -247,6 +247,8 @@ current one. End with the question for any blocking install.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".
 - existing violations to clean up, or a proven check or a ledger's checks to build: /implementation:implement.
+- existing violations to hold at today's count while they are cleaned up: /toolchain:ratchet.
+- a module-boundary rule: /architecture:enforce-boundaries.
 
 ## Gotchas
 

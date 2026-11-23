@@ -300,7 +300,7 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 | Review gate passes (no blocking findings, e.g. `/review:quality-gate` when enabled) | Suggest `/verification:confirm` |
 | Stage 1 fails | Fix build/test/lint/cross-cutting, then re-run `/verification:confirm` |
 | Runtime-affecting change | Stage 2 auto-triggers `/testing:run-e2e` (bundled `/run` supplementary) |
-| `/verification:confirm` finds CONFIRMED | Suggest a retro (`/session-flow:retro` when enabled), then the project's PR flow (`/source-control:pull-request` when enabled) |
+| `/verification:confirm` finds CONFIRMED | Suggest a retro (`/session-flow:retro` when enabled), then the project's PR flow (`/source-control:pull-request` when enabled), passing a `--before` drive report handed in (such as `/debugging:debug`'s reproduction run) on to its `evidence` action |
 | `/verification:confirm` finds gaps | Fix, then re-run `/verification:confirm`, unless the evidence loop was already at its cap of 3 before this verdict (Evidence loop) |
 | Improvement claimed without data | Redirect to `/verification:measure` (`performance` or `metrics`; baseline captured at planning time) |
 
@@ -343,7 +343,8 @@ pointer with an as-of date and a recheck trigger, live in
 ## Next
 
 - Verdict CONFIRMED, or NEEDS WORK with `Evidence loop: 3/3 cap reached, last NEEDS WORK`:
-  /source-control:pull-request.
+  /source-control:pull-request; when a `--before` drive report was handed in, pass it on to
+  /source-control:pull-request evidence --before <report.json>.
 - Improvement claimed without data: /verification:measure.
 - Gaps found, evidence loop count below 3 before this verdict: fix them, then /verification:confirm.
 - Lessons listed, or a touched feature's control skill not refreshed: /app-control:map refresh

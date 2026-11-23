@@ -1,0 +1,288 @@
+{
+  "apply_step": {
+    "summary": "A git-hooks installer apply step at the command position before it: node (any flags, any path) running install.mjs with plan, copy, decline or config-hook; verify, --help and mentions inside echo or grep do not count. Follow command_position_multishell with it; Bash tool input_match only.",
+    "text": "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:plan|copy|decline|config-hook)\\b",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position_multishell"
+        },
+        {
+          "use": "apply_step"
+        }
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs copy --scope local"
+              }
+            }
+          ],
+          "why": "copy writes the entry"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan --scope local"
+              }
+            }
+          ],
+          "why": "plan"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" decline --entry actionlint-check"
+              }
+            }
+          ],
+          "why": "decline writes git config"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node install.mjs config-hook --scope local"
+              }
+            }
+          ],
+          "why": "config-hook"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp/proj && node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan --scope shared --manager plain"
+              }
+            }
+          ],
+          "why": "after cd"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "git status && node /plugins/bash-format/lib/git-hooks/install.mjs config-hook"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "(cd \"$P\" && node lib/git-hooks/install.mjs plan)"
+              }
+            }
+          ],
+          "why": "subshell"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "bash -c 'node lib/git-hooks/install.mjs copy --scope local'"
+              }
+            }
+          ],
+          "why": "bash -c"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "env FORCE=1 node ./install.mjs decline actionlint-check"
+              }
+            }
+          ],
+          "why": "env wrapper"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node --no-warnings \"$P/lib/git-hooks/install.mjs\" plan --scope local"
+              }
+            }
+          ],
+          "why": "node flag before the script"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "P='${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs'; node '${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs' copy --scope local"
+              }
+            }
+          ],
+          "why": "single-quoted path"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node C:\\\\plugins\\\\actionlint\\\\lib\\\\git-hooks\\\\install.mjs plan"
+              }
+            }
+          ],
+          "why": "Windows path"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \\\n  \"$P/lib/git-hooks/install.mjs\" \\\n  plan --scope local"
+              }
+            }
+          ],
+          "why": "backslash continuations"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"$P/lib/git-hooks/install.mjs\" verify; node \"$P/lib/git-hooks/install.mjs\" plan --scope local"
+              }
+            }
+          ],
+          "why": "verify then plan after ;"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify"
+              }
+            }
+          ],
+          "why": "verify is read-only"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"$P/lib/git-hooks/install.mjs\" --help"
+              }
+            }
+          ],
+          "why": "help"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"$P/lib/git-hooks/install.mjs\" verify && echo planned"
+              }
+            }
+          ],
+          "why": "verify then echo planned"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo 'next: node install.mjs plan --scope local'"
+              }
+            }
+          ],
+          "why": "the apply command inside echo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep -n 'install.mjs copy' SKILL.md"
+              }
+            }
+          ],
+          "why": "the verb as a search term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep -n 'plan' \"$P/lib/git-hooks/install.mjs\""
+              }
+            }
+          ],
+          "why": "grep for plan inside install.mjs"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cat \"$P/lib/git-hooks/install.mjs\" | head -40"
+              }
+            }
+          ],
+          "why": "reading the file"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "node \"plugin/lib/prerequisites.mjs\" check \"plugin\""
+              }
+            }
+          ],
+          "why": "another script"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "command -v actionlint"
+              }
+            }
+          ],
+          "why": "no node"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sh \"/plugins/python-format/git-hooks/format.sh\" --resolve src/pkg/mod.py"
+              }
+            }
+          ],
+          "why": "a resolver read"
+        }
+      ]
+    }
+  }
+}

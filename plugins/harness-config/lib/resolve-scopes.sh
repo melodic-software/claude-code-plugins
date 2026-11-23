@@ -39,18 +39,10 @@ scopes::project_root_to() {
   printf -v "$1" '%s' "${_scopes_root:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 }
 
-# scopes::user_dir_to <var> [override] - the user config dir: a non-empty
-# <override>, then CLAUDE_CONFIG_DIR, then $HOME/.claude. Leaves <var> empty
-# when HOME is unset too, which callers read as "this machine has no user
-# scope to read".
 scopes::user_dir_to() {
   printf -v "$1" '%s' "${2:-${CLAUDE_CONFIG_DIR:-${HOME:+$HOME/.claude}}}"
 }
 
-# scopes::installed_registry_to <var> [override] [user-dir] - the
-# installed-plugin registry: a non-empty <override>, else the registry under a
-# non-empty <user-dir>. Leaves <var> empty when neither is known, which callers
-# read as "no registry to consult".
 scopes::installed_registry_to() {
   printf -v "$1" '%s' "${2:-${3:+$3/plugins/installed_plugins.json}}"
 }

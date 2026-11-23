@@ -97,7 +97,6 @@ else
   fail "local-file creates .git/findings-buffer/findings.jsonl on first append"
 fi
 
-# a malformed row stores nothing and exits 2
 printf '{"obs_id":"y","ts":"2026-10-21T00:00:01Z"}\nnot json\n' | (cd "$REPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1)
 expect_exit 2 $? "append.sh with a malformed row exits 2"
 if [[ "$(wc -l <"$REPO/.git/findings-buffer/findings.jsonl")" -eq 1 ]]; then
@@ -106,7 +105,6 @@ else
   fail "a malformed row stores nothing from that call"
 fi
 
-# {oops} and rows missing obs_id or ts are rejected
 for bad in '{oops}' '{}' '{"obs_id":"z"}' '{"obs_id":"z","ts":"2026-10-21T00:00:02Z"}{"x":1}'; do
   printf '%s\n' "$bad" | (cd "$REPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1)
   expect_exit 2 $? "append.sh rejects $bad"
@@ -117,7 +115,6 @@ else
   fail "rejected rows store nothing"
 fi
 
-# --since keeps a row whose nested ts is older but top-level ts is newer
 printf '{"obs_id":"n","ctx":{"ts":"2026-01-01T00:00:00Z"},"ts":"2026-10-21T10:00:00Z"}\n' \
   | (cd "$REPO" && bash "$LOCAL/append.sh")
 if grep -q '"obs_id":"n"' <<<"$(cd "$REPO" && bash "$LOCAL/read.sh" --since 2026-10-21T00:00:00Z)"; then
@@ -357,7 +354,6 @@ fi
 (cd "$LREPO" && bash "$LOCAL/read.sh" >/dev/null 2>&1)
 expect_exit 2 $? "read.sh refuses a symlinked .git/findings-buffer"
 
-# every worktree of one clone shares one buffer
 MAIN="$TEST_TMPDIR/shared-main"
 LINKED="$TEST_TMPDIR/shared-linked"
 git init -q -b main "$MAIN" >/dev/null 2>&1
@@ -439,7 +435,6 @@ else
   fail "read.sh with a symlinked .work still returns the shared rows" "rc: $rc out: $OUT"
 fi
 
-# outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"
 (cd "$NOREPO" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$LOCAL/read.sh" >/dev/null 2>&1)

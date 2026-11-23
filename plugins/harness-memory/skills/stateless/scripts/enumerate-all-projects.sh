@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Enumerate EVERY per-project auto-memory directory on this machine.
-# Enumeration only: never reads `autoMemoryDirectory` overrides (the workflow folds
-# those in) and never writes.
 
 set -uo pipefail
 
@@ -22,8 +19,6 @@ EOF
 fi
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# The topic-file counting rule is shared with the sibling scope-report.sh, whose
-# printed count is a contract of its own.
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
 # shellcheck source=../../../lib/topic-count.sh
 source "$plugin_root/lib/topic-count.sh"

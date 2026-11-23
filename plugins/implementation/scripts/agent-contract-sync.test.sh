@@ -24,12 +24,10 @@ bad() {
   FAIL=$((FAIL + 1))
 }
 
-# contract <file>: the lines strictly between the one begin and one end marker.
 contract() {
   awk -v b="$BEGIN" -v e="$END" '$0 == e { on = 0 } on { print } $0 == b { on = 1 }' "$1"
 }
 
-# frontmatter_key <file> <key>: the key's line plus its indented continuation lines.
 frontmatter_key() {
   awk -v k="$2:" '
     NR == 1 && $0 == "---" { fm = 1; next }
@@ -40,7 +38,6 @@ frontmatter_key() {
   ' "$1"
 }
 
-# check_pair <a> <b>: print one line per violation; return 1 when any.
 check_pair() {
   local a="$1" b="$2" f rc=0 key
   for f in "$a" "$b"; do
@@ -84,8 +81,6 @@ else
   printf '%s\n' "$out" | sed 's/^/       /'
 fi
 
-# The check must be able to fail. Each case perturbs a copy of the shipped pair.
-# perturb <label> <expected substring> <sed expression applied to the scoped copy>
 perturb() {
   local dir="$TMP/$1" out
   mkdir -p "$dir"

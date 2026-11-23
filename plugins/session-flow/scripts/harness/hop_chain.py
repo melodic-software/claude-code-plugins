@@ -215,9 +215,6 @@ TSV_HEADER = (
 DISK_ORDER_GRACE_SECONDS = 2.0
 
 
-# --- small helpers ----------------------------------------------------------
-
-
 def _clear_readonly(func, path, _error):  # noqa: ANN001 - shutil callback signature
     """Retry a removal that failed because Windows marked the file read-only.
 
@@ -522,9 +519,6 @@ def measure_skeleton(path: Path) -> tuple[int, int, int]:
         elif match.group(1) in PADDED_SLOTS:
             slots += 1
     return len(kept), len("\n".join(kept)), max(slots, 1)
-
-
-# --- assertions -------------------------------------------------------------
 
 
 @dataclass
@@ -835,9 +829,6 @@ def assess_hop(
             row.checks["between_rails_match"] = "PASS"
 
     return row, emitted_between
-
-
-# --- the chain --------------------------------------------------------------
 
 
 @dataclass
@@ -1196,9 +1187,6 @@ def report(outcome: ChainOutcome) -> int:
         f"failed-hop transcripts: {outcome.transcripts_dir.as_posix()} ({len(copies)} kept)"
     )
     return 0 if outcome.rows and passed == total else 1
-
-
-# --- --budget ---------------------------------------------------------------
 
 
 def generate_chain(
@@ -2035,9 +2023,6 @@ def cmd_dry_run(cfg: argparse.Namespace) -> int:
     total = len(DRY_RUN_CASES) + 3
     print(f"dry-run: {total - failures}/{total} cases passed")
     return 1 if failures else 0
-
-
-# --- CLI --------------------------------------------------------------------
 
 
 def build_parser() -> argparse.ArgumentParser:

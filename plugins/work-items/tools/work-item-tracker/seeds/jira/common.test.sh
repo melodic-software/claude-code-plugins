@@ -26,10 +26,8 @@ else
   fail "accepts jira id" "accept" "rejected"
 fi
 
-# base64 helper is pure — round-trip a known value.
 assert_eq "b64 of a:b" "YTpi" "$(wit_jira_b64 'a:b')"
 
-# Project-scope membership is pure over WIT_JIRA_PROJECT_KEYS.
 WIT_JIRA_PROJECT_KEYS='["SW2","ABC"]'
 assert_succeeds "in-scope project accepted" "in" "out" wit_jira_project_in_scope "SW2"
 assert_fails "out-of-scope project rejected" "out" "in" wit_jira_project_in_scope "OTHER"

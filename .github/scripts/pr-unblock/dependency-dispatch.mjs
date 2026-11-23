@@ -28,7 +28,7 @@ import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
-import { ciStatusOf, classifyPull, commitFilesReader, gateCheckRuns } from "./review-dependency.mjs";
+import { ciStatusOf, classifyPull, commitFilesReader, GATE_HOLD_SKIP, gateCheckRuns } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -131,6 +131,9 @@ export async function dispatchDependencyReviews({
         continue;
       }
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      if (ciStatus === "success") {
+        existing = existing.filter((run) => !(run.status === "completed" && run.conclusion === "neutral" && run.output?.title === `Skipped: ${GATE_HOLD_SKIP}`));
+      }
       // A round whose verdict job skipped no-model-turn handled nothing, and
       // one whose verdict job stopped on a reason routed to a failing status,
       // or that the kill switch stopped (limit-stop.mjs releasesHead), is

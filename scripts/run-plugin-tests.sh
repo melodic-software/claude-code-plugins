@@ -506,7 +506,6 @@ for t in ${serial_suites[@]+"${serial_suites[@]}"}; do
   bash "$runner" --worker "$t"
 done
 if [[ ${#parallel_suites[@]} -gt 0 ]]; then
-  # xargs appends one indexed suite path after `--worker` per invocation.
   printf '%s\0' "${parallel_suites[@]}" | xargs -0 -n 1 -P "$jobs" bash "$runner" --worker
 fi
 run_seconds=$((SECONDS - run_start))

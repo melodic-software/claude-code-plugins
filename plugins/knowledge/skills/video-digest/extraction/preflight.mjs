@@ -17,7 +17,6 @@ import path from "node:path";
 
 import { parseRunArgs, resolvePluginData } from "./lib/run-args.js";
 
-/** First line of a tool's version output, or undefined when the tool did not run. */
 function probe(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8", timeout: 15000 });
   if (result.error || result.status !== 0) return undefined;

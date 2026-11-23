@@ -866,8 +866,8 @@ def split_child_header(
     source: tuple[int, str] | None = None,
     scoped: bool = False,
 ) -> str:
-    """admit.mjs splitChildHeader: the fixed header of part `part` of
-    `parts` a size split files from issue `parent`, with admit.mjs
+    """size-split.mjs splitChildHeader: the fixed header of part `part` of
+    `parts` a size split files from issue `parent`, with size-split.mjs
     splitSourceLine when `source` (id, updated_at) is given, and the
     target-subset wording when `scoped`."""
     also = " and intake's refinement comment on it" if source else ""
@@ -889,7 +889,7 @@ def split_child_header(
 
 
 def ticked_forms(line: str, task_list: str) -> list[str]:
-    """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
+    """size-split.mjs tickedForms: `line`, a task-list line, with its box ticked,
     the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
     unchanged. Empty when `task_list` does not hold exactly one `[ ]`."""
     if task_list.count("[ ]") != 1:
@@ -1445,7 +1445,7 @@ def split_child_body(
 ) -> str | None:
     """The body of `issue` (as `SPLIT_CHILD_QUERY` reads it) when it counts
     as the text a size split copied into it, else None: the split-child trust
-    rule, whose one home is admit.mjs splitChildBody, read the way
+    rule, whose one home is size-split.mjs splitChildBody, read the way
     resolve-pr.mjs reads it (a parent in this repository with every comment
     read). The lanes App (`app_id`) wrote it, a listed human filed its native
     parent, and it opens with `split_child_header` for that parent. A header
@@ -1581,7 +1581,7 @@ SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
 
 
 def task_text(line: str, task_list: str) -> str:
-    """admit.mjs taskText: `line` without its indent and task-list marker."""
+    """size-split.mjs taskText: `line` without its indent and task-list marker."""
     return line.lstrip(JS_SPACE)[len(task_list) :]
 
 
@@ -1589,7 +1589,7 @@ def scope_target(name: str, texts: set[str]) -> bool:
     """2 to 100 characters, no comma, angle bracket, backtick, at sign,
     number sign or line break, no outer space, and verbatim text of one of
     `texts` (task_text). Length and outer space are JavaScript's (UTF-16 code units,
-    and the JS_SPACE String.prototype.trim strips), since admit.mjs
+    and the JS_SPACE String.prototype.trim strips), since size-split.mjs
     scopeTarget is the rule's one home."""
     units = len(name.encode("utf-16-le", "surrogatepass")) // 2
     return (

@@ -1,16 +1,4 @@
 # test-scope: plugins/source-control/scripts/branch-update-method.sh
-"""Autopilot-merge-tier (#476) criteria evaluated in `babysit_merge`.
-
-The base readiness gate already blocks on state/mergeability/checks/approval/
-threads; those paths are covered by the subprocess guard tests. This module
-covers the five criteria the #476 tier layers on top -- issue-linked,
-lane-authored, no blocking label, a distinct-bot approval on the live head, and
-no human blocking comment -- each with a passing and a fall-back fixture, plus
-the invariant that an absent tier makes zero tier-specific network calls.
-
-Network is stubbed by monkeypatching `babysit_merge`'s gh seams; no real gh
-process is spawned.
-"""
 
 from __future__ import annotations
 
@@ -33,7 +21,6 @@ import babysit_merge as merge
 import babysit_postmerge as postmerge
 import refresh_pr_branch as refresh
 
-# Captured before setUpModule stubs `_role_label` for the rest of the module.
 REAL_ROLE_LABEL = postmerge._role_label
 
 HEAD = "a" * 40
@@ -192,13 +179,11 @@ class TierEvaluateHarness(unittest.TestCase):
                 return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
-            if args[0] == "api":  # branch rules
+            if args[0] == "api":
                 return RULES
             raise AssertionError(f"unexpected gh_json call: {args}")
 
         def issue_comments_side_effect(repo: str, n: int) -> list[dict[str, Any]]:
-            # The linked-issue fetch (decision-default veto) is separable from the
-            # PR's own comment fetch (human-blocking scan) by issue number.
             if n == LINKED_ISSUE:
                 if linked_issue_error:
                     raise RuntimeError("simulated comment-fetch failure")
@@ -255,7 +240,6 @@ class TierPassesWhenEveryCriterionHolds(TierEvaluateHarness):
         self.assertEqual(tier["decisionDefaultHeldIssues"], [])
 
     def test_ratified_decision_default_marker_passes(self) -> None:
-        # A maintainer (OWNER) comment strictly after the marker ratifies it.
         ratify = _comment(
             "maintainer",
             "Ratified — proceed.",
@@ -312,7 +296,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(any("distinct-bot" in b for b in result["blockers"]))
 
     def test_stale_approval_off_head_blocks(self) -> None:
-        # An approval left on a superseded commit is not "unchanged since review".
         result = self._evaluate(_pr(), reviews=[_approval(f"{APPROVER}[bot]", STALE)])
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertTrue(any("distinct-bot" in b for b in result["blockers"]))
@@ -395,7 +378,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(any("Decision defaulted" in b for b in result["blockers"]))
 
     def test_non_maintainer_comment_does_not_ratify(self) -> None:
-        # A later comment from a non-maintainer is not the veto-holder's ratification.
         later = _comment(
             "drive-by",
             "looks fine to me",
@@ -455,7 +437,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_ratification_signal_before_marker_does_not_clear(self) -> None:
-        # A ratification signal that predates the marker is not a ratification of it.
         early = _comment(
             "maintainer",
             "approved",
@@ -481,8 +462,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertFalse(result["ready"])
 
     def test_ratified_then_revoked_holds(self) -> None:
-        # The latest decisive maintainer signal wins: a later revocation ("do not
-        # merge") re-holds a marker an earlier comment had ratified.
         ratify = _comment(
             "maintainer",
             "Ratified — proceed.",
@@ -504,8 +483,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_revoked_then_ratified_clears(self) -> None:
-        # Latest wins in the other direction: a ratification newer than an earlier
-        # revocation clears the veto.
         revoke = _comment(
             "maintainer",
             "not approved yet — hold this",
@@ -525,8 +502,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_non_decisive_comment_after_ratification_leaves_it_standing(self) -> None:
-        # A non-decisive later comment (a bare "thanks") does not disturb a prior
-        # ratification.
         ratify = _comment(
             "maintainer",
             "Ratified — proceed.",
@@ -569,7 +544,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
-        # A bot review body carrying blocking-looking prose is not a human stop.
         comment = {
             "author": {"login": "some-bot[bot]", "__typename": "Bot", "is_bot": True},
             "body": "This is a blocking regression must fix.",
@@ -633,7 +607,6 @@ class TierApprovalBodySeverityGate(TierEvaluateHarness):
     def _assert_rejected(self, result: dict[str, Any]) -> None:
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertFalse(result["ready"])
-        # Treated as no approval, not a human blocker.
         self.assertEqual(result["autopilotMergeTier"]["humanBlockingComments"], [])
         self.assertTrue(
             any("blocking findings in its body" in b for b in result["blockers"]),
@@ -669,16 +642,12 @@ class TierApprovalBodySeverityGate(TierEvaluateHarness):
         self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
     def test_negated_severity_approval_body_accepted(self) -> None:
-        # Negation redaction: a body stating the ABSENCE of high-severity findings
-        # is a clean approval, not a live one.
         review = self._approval_body("Approved. No CRITICAL or IMPORTANT findings.")
         result = self._evaluate(_pr(), reviews=[review])
         self.assertTrue(result["ready"], result["blockers"])
         self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
     def test_lowercase_severity_prose_approval_accepted(self) -> None:
-        # Lowercase "critical"/"important" are ordinary prose, not structured
-        # severity labels: a clean approval describing a fix stays accepted.
         review = self._approval_body(
             "Approved. This resolves the blocking regression on the critical path."
         )
@@ -880,13 +849,10 @@ class DependencyHoldIntegrationTests(unittest.TestCase):
         return [b for b in result["blockers"] if "dependency manager" in b]
 
     def test_unconfigured_does_not_hold_a_custom_dep_bot(self) -> None:
-        # acme-bot is not a built-in dependency manager; absent config it is a
-        # normal author and the dependency hold does not fire.
         result = self._evaluate(frozenset())
         self.assertEqual(self._dependency_blockers(result), [])
 
     def test_configured_extra_login_flips_the_hold(self) -> None:
-        # Naming acme-bot in the extra set makes the very same PR held.
         result = self._evaluate(frozenset({self.DEP_BOT}))
         blockers = self._dependency_blockers(result)
         self.assertEqual(len(blockers), 1, result["blockers"])
@@ -980,30 +946,22 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
 
     def test_unreadable_default_branch_leaves_the_exemption_standing(self) -> None:
-        # Missing evidence never invents a hold; it falls back to prior behavior.
         result = self._evaluate("stack-layer-1", default_branch=None)
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
 
     def test_already_blocked_pr_reads_no_repository_metadata(self) -> None:
-        # A PR held for any other reason cannot be made ready by this hold, so
-        # the fleet loop must not pay a network call per cycle to re-derive it.
         result = self._evaluate("stack-layer-1", isDraft=True)
         self.assertEqual(result["_repo_reads"], 0)
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
         self.assertFalse(result["ready"])
 
     def test_tier_held_pr_reads_no_repository_metadata(self) -> None:
-        # The tier's blockers are appended after every pre-computed one, so the
-        # hold is evaluated last to see the COMPLETE set. This author is not a
-        # lane login, so the tier holds the PR and the lookup must not run.
         result = self._evaluate("stack-layer-1", tier=TIER)
         self.assertEqual(result["_repo_reads"], 0)
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
         self.assertFalse(result["ready"])
 
     def test_protected_base_reads_no_repository_metadata(self) -> None:
-        # The default-branch lookup is reached only by an unprotected base, so a
-        # protected-base run makes no request it did not make before.
         result = self._evaluate("release/1.x", rules=RULES)
         self.assertEqual(result["_repo_reads"], 0)
         self.assertEqual(self._unprotected_blockers(result), [], result["blockers"])
@@ -1040,7 +998,7 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
                 return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
-            if args[0] == "api":  # branch rules
+            if args[0] == "api":
                 return rules
             raise AssertionError(f"unexpected gh_json call: {args}")
 
@@ -1106,8 +1064,6 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         self.assertIn("carries no signature", blocker)
 
     def test_no_user_names_the_unlinked_email_remedy(self) -> None:
-        # A valid signature over an unlinked author email: the message must say
-        # the signature itself is fine, or the operator goes chasing keys.
         result = self._evaluate(
             rules=self.SIGNED_RULES,
             commits=[self._commit(HEAD, False, "no_user")],
@@ -1162,8 +1118,6 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         self.assertFalse(result["requiredSignatures"]["checked"])
 
     def test_generic_merge_state_line_names_signatures(self) -> None:
-        # Even the coarse mergeStateStatus enumeration may not misdirect by
-        # omission.
         result = self._evaluate(
             rules=self.SIGNED_RULES,
             commits=[self._commit(HEAD, True, "valid")],
@@ -1224,7 +1178,7 @@ class GraphQLRestrictionHarness(unittest.TestCase):
                 if graphql_refused:
                     raise refusal
                 return _pr()
-            if args[0] == "api":  # branch rules
+            if args[0] == "api":
                 return RULES
             raise AssertionError(f"unexpected gh_json call: {args}")
 
@@ -1243,8 +1197,6 @@ class GraphQLRestrictionHarness(unittest.TestCase):
             mock.patch.object(
                 merge, "fetch_pull_request_review_comments", return_value=[]
             ),
-            # The REST re-source lives once, in `babysit_gh`; the gate reaches
-            # it through `view_pr_fields`.
             mock.patch.object(gh, "rest_view_pr", return_value=_pr()),
         ):
             result = merge.evaluate(
@@ -1304,8 +1256,6 @@ class UnreadableThreadResolutionHoldsTheGate(GraphQLRestrictionHarness):
     def test_the_pr_bundle_is_re_sourced_over_rest(self) -> None:
         result, _ = self._evaluate(graphql_refused=True)
         self.assertFalse(result["graphqlAvailable"])
-        # Every REST-sourced field still reached the verdict; only the
-        # thread-resolution blocker holds it.
         self.assertEqual(result["state"], "OPEN")
         self.assertEqual(result["mergeStateStatus"], "CLEAN")
         self.assertEqual(
@@ -1538,7 +1488,6 @@ class AutoMergeArming(unittest.TestCase):
             ("PR Review / Claude", "PR Review Security / Claude"),
             ("pr-review / Claude", "pr-review-security / Claude"),
             ("pr-review-no-bots / Claude", "pr-review-security / Claude"),
-            # The status job's planned name.
             ("PR Review / Publish Review", "PR Review Security / Publish Review"),
             ("pr-review / Publish Review", "pr-review-security / Publish Review"),
         ):
@@ -1663,18 +1612,15 @@ class AutoMergeArming(unittest.TestCase):
         def rollup(review: str | None) -> list[dict[str, Any]]:
             return [
                 _check("ci-status", "SUCCESS"),
-                _check("test-windows", None),  # advisory, still running
+                _check("test-windows", None),
                 _check("review / claude-review-status", review),
                 _check("security-review / claude-security-review-status", "SUCCESS"),
             ]
 
-        # An AI review check still running holds.
         pending_ai = self._evaluate(rollup(None), mergeStateStatus="UNSTABLE")
         self.assertFalse(pending_ai["autoMerge"]["ready"], pending_ai["autoMerge"])
-        # Both AI checks green: a running advisory check does not hold.
         green = self._evaluate(rollup("SUCCESS"), mergeStateStatus="UNSTABLE")
         self.assertTrue(green["autoMerge"]["ready"], green["autoMerge"])
-        # The head moved since those checks passed: the pin no longer matches.
         moved = self._evaluate(
             rollup("SUCCESS"), mergeStateStatus="UNSTABLE", headRefOid=STALE
         )
@@ -1961,7 +1907,6 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
         with (
             mock.patch.object(refresh, "view_pr", return_value=pr),
             mock.patch.object(refresh.repo_policy, "resolve", return_value=policy),
-            # The next check reads GitHub; past the author check is far enough.
             mock.patch.object(
                 refresh,
                 "refuse_standards_sync",
@@ -2253,7 +2198,6 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertEqual(self.writes, [])
 
     def test_a_dependabot_head_passes_the_refresh_gates_first(self) -> None:
-        # Asked only where a refresh would run: behind, no merge queue.
         with self.assertRaisesRegex(RuntimeError, "merge queue"):
             self._run(queue=True)
         self.assertEqual(self.writes, [])
@@ -2523,7 +2467,6 @@ class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
         self.assertEqual(self.writes, [])
 
     def test_the_bundled_default_is_standards_sync(self) -> None:
-        # No tracker config (404): the real resolver falls back to the default.
         missing = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
         with (
             mock.patch.object(postmerge, "_role_label", REAL_ROLE_LABEL),
@@ -2851,23 +2794,17 @@ class MainReviewInputTests(unittest.TestCase):
                 "pr": 5,
                 "tree": tree,
                 "branch": "main",
-                # An unreadable title counts one CRITICAL, and only readable
-                # counts on this head can match a verdict.
                 "carried_critical": {"claude-review": 0, "claude-security-review": 1},
                 "head_records": {
                     "claude-review": [[2, 0]],
                     "claude-security-review": [[1, 0]],
                 },
-                # A designed stop on this head, never one on another head.
                 "head_stops": {
                     "claude-review": ["too-large"],
                     "claude-security-review": [],
                 },
             },
         )
-        # The security lane on every head of the pull request, force-pushed
-        # ones included; the code lane on the head alone, the only records
-        # its binding reads.
         self.assertEqual(
             calls[1],
             (
@@ -3052,8 +2989,6 @@ class ForcePushedHeadsTests(unittest.TestCase):
         self.assertEqual(heads, [], "beforeCommit null: no head to name")
 
     def test_a_page_with_no_pagination_answer_raises(self) -> None:
-        # A totalCount equal to the nodes proves nothing: only a pagination
-        # answer says the listing is whole.
         for info in (None, {}, {"hasNextPage": None, "endCursor": None}):
             items = {"totalCount": 1, "nodes": [{"beforeCommit": {"oid": "a" * 40}}]}
             if info is not None:

@@ -1,4 +1,4 @@
-async page => { // answer controls: radios by keyboard, a withheld question, repo paths linked at meta.commit, paste routing, the focus ring, and the controls while offline or after a restart
+async page => {
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   const errors = [];
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -77,7 +77,6 @@ async page => { // answer controls: radios by keyboard, a withheld question, rep
   await page.unroute("**/api/state");
   await nudgeVisible(); await page.waitForTimeout(400);
 
-  // arrow keys move through the Decide radios without dropping focus
   await pick("E1");
   await page.focus('#choices input[value="1"]');
   await page.keyboard.press("ArrowDown"); await page.waitForTimeout(150);
@@ -89,13 +88,11 @@ async page => { // answer controls: radios by keyboard, a withheld question, rep
   await page.click('#choices .choice:has(input[value="5"])'); await page.waitForTimeout(150);
   ok("a pointer pick of Own answer still focuses the note box", (await focused()) === "note", await focused());
 
-  // the View switcher's focus ring is not clipped by its rounded frame
   await page.keyboard.press("Escape");
   await page.focus('.seg [data-view="rounds"]');
   const ring = await page.evaluate(() => { const b = document.querySelector('.seg [data-view="rounds"]'), s = getComputedStyle(b); return {visible: b.matches(":focus-visible"), offset: parseFloat(s.outlineOffset), width: parseFloat(s.outlineWidth), overflow: getComputedStyle(b.parentElement).overflow}; });
   ok("a focused View button draws its whole ring inside the clipped frame", ring.visible && ring.width > 0 && (ring.overflow !== "hidden" || ring.offset + ring.width <= 0), JSON.stringify(ring));
 
-  // a withheld question offers nothing to accept and stays out of Accept all
   await pick("E2");
   const l2 = await labels();
   ok("a withheld question shows no Rec, Accept with note or Hedged row, and keeps Someone else decides", !l2.some(l => /^(Rec|Accept with note|Hedged)$/.test(l)) && l2.includes("Own answer") && l2.includes("Defer") && l2.includes("Someone else decides"), l2.join(", "));
@@ -105,7 +102,6 @@ async page => { // answer controls: radios by keyboard, a withheld question, rep
   const all = await text('.sec[data-key="g:base"] [data-acceptall]');
   ok("Accept all counts the recommended question and leaves the withheld one out", all === "Accept all (1)", all);
 
-  // dictation pasted while a radio has focus lands in the note box
   await pick("E1");
   await page.click('#choices .choice:has(input[value="3"])'); await page.waitForTimeout(150);
   await page.evaluate(() => { const dt = new DataTransfer(); dt.setData("text/plain", "dictated words"); document.activeElement.dispatchEvent(new ClipboardEvent("paste", {clipboardData: dt, bubbles: true, cancelable: true})); });
@@ -113,7 +109,6 @@ async page => { // answer controls: radios by keyboard, a withheld question, rep
   ok("text pasted with a radio focused goes into the note box, which takes focus", (await page.inputValue("#note")) === "dictated words" && (await focused()) === "note", (await page.inputValue("#note")) + " / " + await focused());
   await page.keyboard.press("Escape");
 
-  // offline: nothing can be saved, so nothing invites a save; reconnecting brings the controls back
   await page.context().setOffline(true);
   await nudgeVisible();
   const off = await until(() => /^Connection lost/.test(document.getElementById("pill").textContent), 8000);

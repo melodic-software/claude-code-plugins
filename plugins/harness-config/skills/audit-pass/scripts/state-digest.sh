@@ -75,24 +75,12 @@ set -uo pipefail
 
 PROG="state-digest.sh"
 
-# The two sentinels. Chosen to be unrepresentable as a content hash, which is
-# exactly 64 lowercase hex characters.
 SENTINEL_MISSING="deleted"
 SENTINEL_UNREADABLE="unreadable"
 
-# 0x1F between an entry's two fields, 0x1E between entries. Two distinct
-# separators, so a surface token carrying a separator-shaped substring cannot
-# restructure the body.
 US=$'\x1f'
 RS=$'\x1e'
 
-# Every temp file this script creates is registered here and removed on exit,
-# however the script leaves. `die` is the reason: it is called from places that
-# hold a live temp file, and a per-site `rm` before each one is a rule that has
-# to be re-obeyed every time a `die` is added. One trap is obeyed by
-# construction. Explicit removals elsewhere stay, because freeing a large entry
-# file at the end of a long run beats holding it until exit; `rm -f` twice on one
-# path is harmless.
 TEMP_FILES=()
 cleanup_temps() {
   [[ "${#TEMP_FILES[@]}" -gt 0 ]] && rm -f "${TEMP_FILES[@]}"
@@ -131,9 +119,6 @@ A missing path hashes to `deleted`, an unreadable one to `unreadable`.
 EOF
 }
 
-# The sha256 command, resolved once by `resolve_sha256`: `sha256sum` on GNU,
-# `shasum -a 256` on BSD userland. A host with neither cannot compute the digest
-# at all and says so rather than printing something that looks like one.
 SHA256_CMD=()
 resolve_sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -145,7 +130,6 @@ resolve_sha256() {
   fi
 }
 
-# sha256 of stdin, lowercase hex, no filename suffix.
 sha256_stdin() {
   "${SHA256_CMD[@]}" | cut -d' ' -f1
 }
@@ -169,11 +153,6 @@ hash_path() {
   printf '%s' "${out:-$SENTINEL_UNREADABLE}"
 }
 
-# Read `<surface>\t<path>` lines, drop excluded surfaces, dedup on the surface
-# token keeping the first occurrence, hash each path, and print `<surface>\t<hash>`
-# lines. Deduplication happens BEFORE sorting and before hashing: a surface that
-# is both inventoried and dirty must contribute exactly one entry, and hashing it
-# twice would also double the cost on the largest files.
 collect_entries() {
   local list="$1"
   shift
@@ -205,9 +184,6 @@ collect_entries() {
   rm -f "$seen_file"
 }
 
-# Sort by byte order, join into the pinned body, hash it. The body is streamed
-# straight into the hash rather than accumulated in a variable, because a large
-# inventory's body exceeds what is comfortable to hold in one shell string.
 digest_from_entries() {
   local entries="$1" sep="" line
   LC_ALL=C sort "$entries" | while IFS= read -r line; do
@@ -274,8 +250,6 @@ cmd_digest() {
 
   collect_entries "$src" ${excludes[0]+"${excludes[@]}"} >"$entries"
 
-  # Config entries are appended to the entry set and then sorted IN with the
-  # file entries, never after them: the ordering rule is over the whole set.
   local cfg
   for cfg in ${configs[0]+"${configs[@]}"}; do
     key="${cfg%%=*}"

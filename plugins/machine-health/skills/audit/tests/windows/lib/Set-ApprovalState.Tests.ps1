@@ -212,7 +212,6 @@ Describe 'Set-ApprovalState' -Tag 'lib' {
 
     Context 'review-check and unreview-check' {
         BeforeEach {
-            # Two custom checks and a partial override of a shipped one.
             $catalogDir = Join-Path $script:base 'catalog'
             New-Item -ItemType Directory -Path $catalogDir -Force | Out-Null
             [System.IO.File]::WriteAllText((Join-Path $catalogDir 'checks.local.jsonc'),
@@ -462,7 +461,6 @@ Describe 'Set-ApprovalState' -Tag 'lib' {
                 $job.State | Should -Be 'Running'
                 Test-Path -LiteralPath (Join-Path $script:stateDir 'mutes.json') | Should -BeFalse
 
-                # The lock holder's own change lands while the second writer waits.
                 $first = '{"schema_version":"1.0","checks":{"disk-space":{"muted_findings":[{"key":"' + $script:keyB + '","added_at":"2026-10-21T12:00:00Z"}]}}}'
                 [System.IO.File]::WriteAllText((Join-Path $script:stateDir 'mutes.json'), $first)
             } finally {

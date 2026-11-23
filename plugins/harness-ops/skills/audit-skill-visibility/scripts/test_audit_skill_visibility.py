@@ -1105,8 +1105,6 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(len(merged["ignored"]), 1)
         self.assertIn("skillListingBudgetFraction", merged["ignored"][0])
 
-    # --- Window, bytes per token, and the band --------------------------------
-
     @staticmethod
     def _no_pins(**pins):
         base = {

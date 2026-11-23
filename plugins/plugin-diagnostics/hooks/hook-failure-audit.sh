@@ -127,8 +127,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# An absent field arrives as the empty string rather than as a non-zero return,
-# so each guard below is spelled out instead of riding on `||`.
 ((${#HOOK_JQ_FIELDS[@]} == 2)) || exit 0
 TRANSCRIPT="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || exit 0
@@ -223,7 +221,6 @@ cursor_advance() {
   [[ -n "$CURSOR_FILE" ]] || return 0
   printf 'b%s\n%s\n' "$SCANNED" "$TRANSCRIPT" 2>/dev/null >"$CURSOR_FILE" || :
 }
-# The scanned lines need no warning: record them as audited and stop.
 dispose_and_exit() {
   cursor_advance
   exit 0
@@ -355,7 +352,6 @@ warm_read() {
   { window=$(tail -c "+$((CURSOR - 1))" -- "$TRANSCRIPT"); } 2>/dev/null
   SCANNED=$CURSOR
   if [[ "$window" != ?$'\n'* ]]; then
-    # Only the anchor's first byte: nothing but newlines past the cursor.
     [[ ${#window} == 1 ]]
     return
   fi
@@ -365,8 +361,6 @@ warm_read() {
     SCANNED=$((CURSOR + ${#complete} + 1))
   fi
   [[ "$body" == *"$NEEDLE"* ]] || return 0
-  # Newline-only IFS splits on lines and drops empty ones, which never match;
-  # `set -f` keeps a line from globbing.
   local IFS=$'\n'
   set -f
   for line in $body; do
@@ -469,9 +463,6 @@ SUMMARY=$(printf '%s' "$RECORDS" |
            ambiguousCount: (map(select(.class == "ambiguous")) | length),
            completedCount: (map(select(.class == "completed")) | length),
            exitCode: last.exitCode, stderr: last.stderr})' 2>/dev/null)
-# An EMPTY $SUMMARY is jq failing, not a clean selection: leave the cursor where
-# it stood so the same lines are audited again. `[]` is a document, and one that
-# disposes of them.
 [[ -n "$SUMMARY" ]] || exit 0
 [[ "$SUMMARY" != "[]" ]] || dispose_and_exit
 
@@ -571,9 +562,6 @@ fi
 
 hook::emit_system_message "$MSG"
 
-# The lines are disposed of the moment the warning is out. A marker write that
-# fails after this point costs nothing: those registrations were warned about
-# once, which is the contract.
 cursor_advance
 
 # Record what was warned about before telemetry: the warning is the contract,

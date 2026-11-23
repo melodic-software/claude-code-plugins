@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.8.6] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
+- The pull-request skill's dependency review sets owner reason `security` only for a HIGH or CRITICAL risk the update itself carries, named with its severity in `reasons`; a red `ci-status` from a repository hold, such as the trust-gate hold, never sets it.
+
+## [13.8.5] - 2026-11-23
+
+### Changed
+
+- babysit-prs: the hold-floor pins in `test_floor_paths.py` and `test_merge_holds_sync.py` count `.github/scripts/lib/lane-vocabulary.mjs`, a trust-class floor row, which the merge-arm script now loads. No behavior changes.
+
+## [13.8.4] - 2026-11-23
+
+### Fixed
+
+- `/source-control:pull-request merge` waits for pr-verify's verdict at the pinned head before it merges or enqueues, in a repository that runs pr-verify and for an author pr-verify judges. It reads the four pass names the merge queue's CI Status step reads, waits up to 30 minutes while pr-verify has not judged the head, and holds on a FAIL (the `pr-verify-failed` label), a moved head or a failed read. With still no verdict after 30 minutes (pr-verify down), it merges and reports that, so an outage stops no merge. A PR queued before its verdict was removed from the merge queue when pr-verify then failed it.
+
+## [13.8.3] - 2026-11-23
+
+### Changed
+
+- In a sandboxed git session, `/source-control:worktree create` uses `EnterWorktree(name:)` with the create hook's `fresh` base for new branches. It stops when the session needs `worktree.baseRef: head`. Cleanup runs the stranded-work and carried-file guards before removing the session's own worktree with `ExitWorktree` and leaves lock ownership to the remove hook. The skill links to the live Claude Code docs for native placement and removal behavior.
+
+- babysit-prs: `babysit_merge_policy.py` owns the post-merge record line (`record_marker`, `parse_record_marker`, `red_main_record`, `liftable_record`), and `babysit_postmerge.py` and `babysit_lift.py` call it. Its grammar and `failing_checks` run the shared vectors in `.github/scripts/post-merge-demotion-alert/demotion-record.vectors.json`, as babysit-loop's `publish-promotion-evidence.mjs` marker does. No behavior changes.
+
 ## [13.8.2] - 2026-11-23
 
 ### Changed

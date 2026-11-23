@@ -486,9 +486,6 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-# --- I/O ----------------------------------------------------------------------
-
-
 def _die(code: int, message: str) -> int:
     print(f"error: {message}", file=sys.stderr)
     return code
@@ -525,9 +522,6 @@ def _same_file(a: str, b: Path) -> bool:
     return os.path.normcase(os.path.realpath(a)) == os.path.normcase(
         os.path.realpath(b)
     )
-
-
-# --- Document model -------------------------------------------------------------
 
 
 class _UnparsableShape:
@@ -660,9 +654,6 @@ def _ends_opening_ask(line: str) -> bool:
     return line.startswith("**") or bool(BULLET_RE.match(line))
 
 
-# --- Cumulative-section entries ---------------------------------------------------
-
-
 @dataclass
 class Entry:
     first_index: int  # index into the section body
@@ -742,9 +733,6 @@ def parse_entries(body: list[str]) -> list[Entry]:
     return entries
 
 
-# --- Findings -------------------------------------------------------------------
-
-
 class CheckKind(Enum):
     SIZE = "size"
     ORDER = "order"
@@ -794,9 +782,6 @@ class Findings:
     @property
     def failed(self) -> bool:
         return bool(self.fails)
-
-
-# --- validate -------------------------------------------------------------------
 
 
 def _parse_prior_rows(body: list[str] | None) -> list[str]:
@@ -1619,9 +1604,6 @@ def _pred_failed(
             f"predecessor {previous!r} failed validation ({culprit.text}); predecessor-derived checks downgraded to WARN"
         )
     return culprit is not None
-
-
-# --- shape 3 ----------------------------------------------------------------------
 
 
 def _fm_int(doc: Doc, key: str) -> int | None:
@@ -2832,9 +2814,6 @@ def cmd_chain(args: argparse.Namespace) -> int:
     return 0
 
 
-# --- emit -------------------------------------------------------------------------
-
-
 def cmd_emit(args: argparse.Namespace) -> int:
     doc, code = _open_handoff(args.file)
     if doc is None:
@@ -2919,9 +2898,6 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
         out.append(swap.get(line, line))
         i += 1
     return out
-
-
-# --- retire -----------------------------------------------------------------------
 
 
 def _locate_ref(
@@ -3143,9 +3119,6 @@ def _write_atomic(path: Path, payload: bytes) -> OSError | None:
                 pass
         return exc
     return None
-
-
-# --- fill -------------------------------------------------------------------------
 
 
 def cmd_fill(args: argparse.Namespace) -> int:
@@ -3433,9 +3406,6 @@ def cmd_fill(args: argparse.Namespace) -> int:
     sys.stdout.flush()
     cmd_emit(argparse.Namespace(file=str(path), format="rails", notice=False))
     return 0
-
-
-# --- amend ------------------------------------------------------------------------
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
@@ -3990,9 +3960,6 @@ def _unstage(staged: list[tuple[Path, str]]) -> None:
             pass
 
 
-# --- new --------------------------------------------------------------------------
-
-
 def _git_stdout(directory: Path, *args: str) -> str | None:
     """`git -C <directory> <args>`'s stripped stdout, or None when git is
     missing, fails, or prints nothing."""
@@ -4284,7 +4251,6 @@ def build_skeleton(
     def section(title: str, lines: list[str]) -> None:
         body.extend(["", f"## {title}", "", *_trim_blank(lines)])
 
-    # 1. Original goal
     goal: list[str] = []
     pred_goal = pred.section("Original goal") if pred is not None else None
     amended = "**Amended:** " + _fill(
@@ -4352,7 +4318,6 @@ def build_skeleton(
     )
     section("Original goal", goal)
 
-    # 2..14
     for title in SECTIONS_14[1:]:
         if title in CUMULATIVE:
             name = CUMULATIVE_SLOT[title]
@@ -4390,7 +4355,6 @@ def build_skeleton(
 
     section("This session", _this_session_lines())
 
-    # Prior sessions
     if gone is not None:
         section("Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, _gone_row(*gone)])
     elif pred is None:
@@ -5041,9 +5005,6 @@ def _parse_now(raw: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
-
-
-# --- CLI --------------------------------------------------------------------------
 
 
 def build_parser() -> argparse.ArgumentParser:

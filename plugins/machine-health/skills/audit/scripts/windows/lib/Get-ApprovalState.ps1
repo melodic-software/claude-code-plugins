@@ -74,8 +74,6 @@ function Test-ApprovalGranted {
 }
 
 function Get-ReviewedCheckId {
-    # Check ids under reviewed_checks with reviewed true: the custom checks the
-    # owner reviewed, which the custom-check clamp leaves at their own severity.
     [CmdletBinding()]
     [OutputType([string[]])]
     param([Parameter(Mandatory = $true)] [AllowNull()] $State)

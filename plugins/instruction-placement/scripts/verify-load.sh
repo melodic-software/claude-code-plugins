@@ -162,13 +162,6 @@ cat >"$SETTINGS" <<JSON
 }
 JSON
 
-# The Read call IS the measurement: nothing fires an InstructionsLoaded record for a
-# path-scoped rule unless the trigger file is actually read. A bare "use the Read tool"
-# is a suggestion the model may satisfy from the file it already sees in context, or
-# hand to a subagent, or skip entirely — which reports every path-scoped surface MISSING
-# on a probe that never measured anything. Operator-scope instructions load into this
-# session too (a user CLAUDE.md that says delegate, an output style that says do less),
-# so the instruction has to be strong enough to survive them.
 PROMPT="Call the Read tool on the file ${TRIGGER}. This is a measurement probe: the Read call itself is the whole point, so make it yourself before you reply, do not delegate it, and do not answer from memory. After the Read returns, reply with exactly the word DONE and nothing else."
 
 if ! timeout "$PROBE_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
@@ -185,7 +178,6 @@ cat "$RECORDS"/rec-*.json >"$LOG" 2>/dev/null
 [[ -s "$LOG" ]] ||
   unknown "the InstructionsLoaded hook produced no records; the CLI may not support it here"
 
-# Emit what actually loaded.
 jq -r '[
     (.file_path // "?"),
     (.load_reason // "?"),

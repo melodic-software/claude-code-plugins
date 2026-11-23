@@ -95,7 +95,6 @@ refute() {
 
 P=check-guardrails-ps-differential
 
-# --- identical trees -----------------------------------------------------
 new_fixture f || exit 1
 run_check "$f" -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "identical trees: clean" 0 "6 commands against HEAD" "| block-dangerous-git, 31 token subsets |"
@@ -120,7 +119,6 @@ printf '\nps::classify_git_command() { PS_SAFE_COMMAND=""; PS_SINK_TRIGGER=""; r
 run_check "$f" CLAUDE_PLUGIN_ROOT="$f/pristine" -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "library allows: fails despite an inherited plugin root" 1 "base exits 2, branch exits 0: Write-Host\\ \\{a\\}\\;\\ git\\ reset\\ --hard"
 
-# --- the Bash row's argv only --------------------------------------------
 new_fixture f || exit 1
 jq '(.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].args) |= map(select(. != "block-dangerous-git.sh"))' \
   "$f/plugins/guardrails/hooks/hooks.json" >"$f/hooks.json.new" && mv "$f/hooks.json.new" "$f/plugins/guardrails/hooks/hooks.json"
@@ -128,7 +126,6 @@ run_check "$f" -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "row drops a guard: fails on the row" 1 "$P: row: base exits 2, branch exits 0: git\\ reset\\ --hard"
 refute "row drops a guard: direct cells unchanged" "$P: block-dangerous-git: base exits 2"
 
-# --- a refusal only an allow token waives --------------------------------
 new_fixture f || exit 1
 prepend "$f/plugins/guardrails/hooks/block-dangerous-git.sh" \
   '[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW-}" == *ps-unparsable-launcher* ]] && exit 0'
@@ -137,7 +134,6 @@ expect "token-only allow: fails in the token cells" 1 \
   "$P: block-dangerous-git with ps-unparsable-launcher: base exits 2, branch exits 0: git\\ reset\\ --hard"
 refute "token-only allow: token-free cells unchanged" "$P: block-dangerous-git: base exits 2"
 
-# --- a branch-only refusal -----------------------------------------------
 new_fixture f || exit 1
 prepend "$f/plugins/guardrails/hooks/block-no-verify.sh" 'exit 2'
 run_check "$f" -- --corpus corpus.jsonl --jobs 4 HEAD
@@ -173,7 +169,6 @@ sed -i 's/"\$__hu_input"$/"$__hu_input" /' "$f/plugins/guardrails/hooks/hook-uti
 run_check "$f" -- --harvest
 expect "harvest: a moved anchor is an environment error" 2 "anchor in hook-utils.sh moved"
 
-# --- usage and environment -----------------------------------------------
 new_fixture f || exit 1
 run_check "$f" -- --corpus corpus.jsonl
 expect "no base ref: usage" 2 "usage:"

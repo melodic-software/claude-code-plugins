@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for cloud-shfmt.sh, the cloud SessionStart step that installs the pinned
-# shfmt: it acts only in a cloud session, installs only a download whose hash
-# matches, records why it could not, and always exits 0.
 set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$HOOK_DIR/../../.." && pwd)"
@@ -18,8 +15,6 @@ bad() {
 T=$(mktemp -d)
 trap 'rm -rf "${T:?}"' EXIT
 
-# A PATH with the tools the step uses but no shfmt, and a curl stub that writes
-# the bytes in $FAKE_BODY, or fails with $FAKE_RC.
 BIN="$T/bin"
 mkdir -p "$BIN"
 for t in bash mktemp rm sha256sum install mkdir uname env cat; do
@@ -34,20 +29,18 @@ EOF
 chmod +x "$BIN/curl"
 NOTE_REL=.local/state/claude-guardrails/shfmt-install-failed
 
-run_step() { # <home> [env...]: run the step as SessionStart does; sets RC
+run_step() {
   local home=$1
   shift
   env -i PATH="$BIN" HOME="$home" "$@" "$BIN/bash" "$SUT" >/dev/null 2>&1
   RC=$?
 }
 
-# Not a cloud session: nothing is written, exit 0.
 H="$T/local"
 mkdir -p "$H"
 run_step "$H" FAKE_BODY=x
 if ((RC == 0)) && [[ ! -e "$H/.local" ]]; then ok "a local session is left alone"; else bad "local session: rc=$RC, $(ls -A "$H")"; fi
 
-# Cloud session, download fails: exit 0, no binary, the reason recorded.
 H="$T/cloud-fail"
 mkdir -p "$H"
 run_step "$H" CLAUDE_CODE_REMOTE=true FAKE_RC=6
@@ -57,7 +50,6 @@ else
   bad "failed download: rc=$RC, note [$(cat "$H/$NOTE_REL" 2>/dev/null)]"
 fi
 
-# Cloud session, a download whose hash is not the pin's: nothing installed.
 H="$T/cloud-mismatch"
 mkdir -p "$H"
 run_step "$H" CLAUDE_CODE_REMOTE=true FAKE_BODY='not shfmt'
@@ -67,7 +59,6 @@ else
   bad "hash mismatch: rc=$RC, note [$(cat "$H/$NOTE_REL" 2>/dev/null)]"
 fi
 
-# The install itself, with a hash computed here for the stub's bytes.
 H="$T/cloud-ok"
 mkdir -p "$H"
 body='#!/bin/sh
@@ -82,13 +73,11 @@ else
   bad "matching hash: [$out]"
 fi
 
-# shfmt already in ~/.local/bin: no download, and a stale note goes.
 mkdir -p "$H/.local/state/claude-guardrails"
 echo stale >"$H/$NOTE_REL"
 run_step "$H" CLAUDE_CODE_REMOTE=true FAKE_RC=6
 if ((RC == 0)) && [[ ! -e "$H/$NOTE_REL" ]]; then ok "an installed shfmt clears a stale note"; else bad "installed shfmt: rc=$RC, note still there"; fi
 
-# The pin agrees with the repository's other shfmt pins.
 pin=$(sed -n 's/^CLOUD_SHFMT_PIN="\(.*\)"$/\1/p' "$SUT")
 sha=$(sed -n 's/^CLOUD_SHFMT_SHA="\(.*\)"$/\1/p' "$SUT")
 boot="$REPO_ROOT/.claude/cloud-bootstrap.sh"

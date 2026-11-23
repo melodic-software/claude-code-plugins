@@ -1,40 +1,11 @@
 #!/usr/bin/env bash
-# /firecrawl:update helper — drift detection and CLI upgrade for firecrawl-cli.
-#
-# Maintainer-facing: run against a working-tree checkout of this plugin (the
-# marketplace clone, or a directory loaded via --plugin-dir), never against an
-# installed marketplace copy — --apply and --record-upstream rewrite upstream.md
-# in the skill dir.
-# Consumers receive updates through `/plugin marketplace update`.
-#
-# Modes:
-#   --check  (default) read-only: report CLI version delta + upstream SKILL.md drift
-#   --apply  run npm install -g firecrawl-cli@latest and turn off the CLI's
-#            background self-update (firecrawl update --disable-auto), then record the CLI version
-#            and rollback target in upstream.md, keeping the recorded upstream SHA,
-#            WITHOUT touching SKILL.md (Claude integrates upstream changes under
-#            the skill body's Preservation rules; this script only owns the
-#            deterministic parts — npm + metadata)
-#   --record-upstream  record the fetched upstream SHA in upstream.md, installing
-#            nothing; run only after Gate 2 or with no content delta, so a declined
-#            or abandoned integration keeps showing as drift in --check
-#
 # Exit codes (the shared drift-check contract):
 #   0  no drift OR apply or record completed successfully
 #   1  drift detected in --check mode (no mutations)
 #   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage;
 #      or --apply refused or unconfirmed: npm's global bin does not hold the
 #      firecrawl command, or the command does not read npm latest after install
-#
-# A firecrawl CLI that is not installed is reported but is not drift; an
-# installed CLI behind npm latest is. Drift outranks unverifiable: a run that
-# finds drift exits 1 even when another of its checks could not run.
-#
-# This script never calls `firecrawl init`, never installs the upstream bundled
-# skills, and never writes upstream SKILL.md content to disk beyond a
-# short-lived tmp fetch.
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 UPSTREAM_URL="https://www.firecrawl.dev/agent-onboarding/SKILL.md"
@@ -80,15 +51,12 @@ sha256() {
   fi
 }
 
-# Current installed CLI version (empty if not installed).
 current_cli_version() {
   if command -v firecrawl >/dev/null 2>&1; then
     firecrawl --version 2>/dev/null | tr -d '\r' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1
   fi
 }
 
-# Latest published CLI version from the npm registry. `--fail` keeps an HTTP
-# error page from being read as the response.
 latest_cli_version() {
   local body
   body=$(curl -sSL --fail --max-time 10 "$NPM_LATEST_URL" 2>/dev/null)
@@ -96,8 +64,6 @@ latest_cli_version() {
   printf '%s' "$body" | jq -r '.version // empty'
 }
 
-# `--fail` is critical: an HTTP error page would otherwise be hashed as the real
-# SKILL.md, poisoning upstream.md on --apply and masking drift on --check.
 fetch_upstream_sha() {
   local out="${TMPDIR_RUN}/upstream-skill.md"
   curl -sSL --fail --max-time 15 "$UPSTREAM_URL" -o "$out" 2>/dev/null || return 1
@@ -105,9 +71,6 @@ fetch_upstream_sha() {
   sha256 "$out" | awk '{print $1}'
 }
 
-# Read the value of a `- <Label>: <value>` line from upstream.md: empty when
-# the file or the line is absent, or the value is a never-synced placeholder
-# such as `never` or `(none recorded)`.
 recorded_field() {
   [[ -f "$UPSTREAM_MD" ]] || return 0
   local value
@@ -116,7 +79,7 @@ recorded_field() {
   value="${value%"${value##*[![:space:]]}"}"
   case "$value" in
   "("* | never | none) return 0 ;;
-  *) ;; # a recorded value
+  *) ;;
   esac
   printf '%s' "$value"
 }
@@ -143,7 +106,7 @@ run_check() {
   log "last sync:  ${synced:-never} (CLI ${recorded_ver:-not recorded})"
 
   if [[ -z "$current" ]]; then
-    : # not installed: reported above, not drift
+    :
   elif [[ -z "$latest" ]]; then
     log "→ CLI version unverifiable"
   elif [[ "$current" != "$latest" ]]; then
@@ -202,8 +165,6 @@ npm_global_bin() {
 
 physical_dir() { (cd "$1" 2>/dev/null && pwd -P); }
 
-# Installing changes what `firecrawl` runs only when npm's global bin holds the
-# command, so refuse when something else does. No command at all is a fresh install.
 require_npm_owned_command() {
   local cmd bin
   cmd=$(command -v firecrawl) || return 0
@@ -225,7 +186,6 @@ run_apply() {
 
   previous_ver=$(current_cli_version)
   rollback="rollback: npm install -g ${NPM_PKG}@${previous_ver:-<previous>}"
-  # Registry preflight — fail before npm install mutates the global CLI.
   if ! latest=$(latest_cli_version) || [[ -z "$latest" ]]; then
     err "failed to reach npm registry"
     return 2
@@ -248,16 +208,12 @@ run_apply() {
     err "firecrawl reports $current after install, expected $latest; upstream.md not written — $rollback"
     return 2
   fi
-  # A global install updates itself in the background; turn that off so the CLI
-  # changes only through this gated path.
   if ! firecrawl update --disable-auto; then
     err "firecrawl update --disable-auto failed; upstream.md not written — the CLI may update itself outside /firecrawl:update"
     return 2
   fi
   firecrawl --status 2>&1 | head -10 || true
 
-  # The upstream SHA and sync date stay as recorded: they mark what the skill has
-  # integrated, which only --record-upstream, after Gate 2, may advance.
   rewrite_upstream_md "$(recorded_upstream_sha)" "$current" "$previous_ver" "$(recorded_sync_date)"
   log "upstream.md: CLI version and rollback target recorded; upstream SHA kept"
 
@@ -283,8 +239,6 @@ run_record_upstream() {
   return 0
 }
 
-# A value with nothing recorded is written as the placeholder recorded_field
-# reads back as empty, so --check still treats the skill as never synced.
 rewrite_upstream_md() {
   local sha="$1" ver="$2" prev="$3" synced="${4:-}"
   cat >"$UPSTREAM_MD" <<EOF
@@ -356,7 +310,6 @@ EOF
   esac
 }
 
-# Source-guard: only run main when executed directly, not when sourced (tests).
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi

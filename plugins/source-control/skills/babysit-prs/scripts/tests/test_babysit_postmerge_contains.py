@@ -195,7 +195,6 @@ class Contains(unittest.TestCase):
         self.assertIn(f"compare/{self.c1}...{UNKNOWN}", api.calls[0][1])
 
     def test_the_fallback_returns_the_compare_answer(self) -> None:
-        # The local clone lacks c3 (the empty dir is no clone); the API knows it.
         ctx, api = self.context([self.empty])
         self.assertTrue(ctx.contains(self.c1, self.c3))
         self.assertEqual(len(api.calls), 1)
@@ -238,7 +237,6 @@ class Contains(unittest.TestCase):
         self.assertEqual(len(api.calls), 1)
 
     def test_a_clone_that_cannot_decide_passes_to_the_next(self) -> None:
-        # The shallow clone is skipped; the empty dir is no clone; root decides.
         ctx, api = self.context([self.empty, self.shallow, self.root])
         self.assertFalse(ctx.contains(self.s1, self.c3))
         self.assertEqual(api.calls, [])
@@ -255,8 +253,6 @@ class Contains(unittest.TestCase):
         self.assertEqual(api.calls, [])
 
     def test_a_ref_name_falls_back(self) -> None:
-        # `moved` was force-moved back to c1 locally; only a full SHA names
-        # the same commit on both sides, so a name goes to the API.
         ctx, api = self.context([self.root])
         ctx.contains("moved", self.c3)
         self.assertEqual(len(api.calls), 1)
@@ -300,7 +296,6 @@ class Contains(unittest.TestCase):
         ):
             with self.subTest(ancestor=ancestor[:7], sha=sha[:7]):
                 self.assertEqual(mine, theirs)
-        # The fixture exercises both answers.
         self.assertEqual(set(local_verdicts), {True, False})
 
 
@@ -559,9 +554,6 @@ class TipMoved(unittest.TestCase):
         verdicts = self.judge(shas, [self.clone], api)
         self.assertEqual(verdicts, self.compare_only(shas))
         self.assertEqual(verdicts, [True] * 21 + [False])
-        # One compare from the clone's main to the live tip answers every
-        # record on the old tip; n1 (not in the clone) and s1 (not on the
-        # old tip) are asked on their own.
         self.assertEqual(len(api.compares()), 3, api.compares())
         self.assertIn(f"compare/{self.mains[-1]}...{self.n2}", api.compares()[0][1])
 
@@ -573,7 +565,6 @@ class TipMoved(unittest.TestCase):
         verdicts = self.judge(shas, [self.clone], api)
         self.assertEqual(verdicts, self.compare_only(shas))
         self.assertEqual(verdicts, [True] * 6 + [False] * 14)
-        # The bridge compare reads diverged, so it carries no answer.
         self.assertEqual(len(api.compares()), 1 + len(shas))
 
     def test_an_unreadable_bridge_falls_back_to_one_compare_per_record(self) -> None:
@@ -591,8 +582,6 @@ class TipMoved(unittest.TestCase):
             self.judge([self.mains[0]], [self.clone], api)
 
     def test_a_record_off_the_old_tip_but_on_the_live_tip_is_true(self) -> None:
-        # Live main merges side after the clone was made: s1 is off the
-        # clone's copy of main, so only its own compare can answer True.
         git(self.live, "merge", "-q", "--no-ff", "-m", "merge side", "side")
         shas = [self.mains[0], self.s1, self.n1]
         api = LiveRepo(self.live)
@@ -601,7 +590,6 @@ class TipMoved(unittest.TestCase):
         self.assertEqual(verdicts, [True, True, True])
 
     def test_a_tip_the_clone_holds_spends_no_bridge_compare(self) -> None:
-        # The tip is local; only the record's commit is missing from the clone.
         tmp = pathlib.Path(self.tmp.name) / "older"
         subprocess.run(
             ["git", "clone", "-q", self.live.as_uri(), str(tmp)],
@@ -619,7 +607,6 @@ class TipMoved(unittest.TestCase):
             tip = ctx._branch_tip()
             with self.assertRaises(pm.PostMergeReadError):
                 ctx.contains(UNKNOWN, tip)
-        # One compare for the unknown record (a 404), none for a bridge.
         self.assertEqual(len(api.compares()), 1, api.compares())
 
     def test_no_clone_asks_every_record(self) -> None:
@@ -671,7 +658,6 @@ class GreenMainAncestry(unittest.TestCase):
         self.assertEqual(len(remote_calls), 16)
         local, local_calls = self.green([self.root], self.c3)
         self.assertEqual(self.answers(local), expected)
-        # c1 < c2 < c3 on main, s1 off c1: only c1 is behind s1.
         self.assertEqual(expected.count(True), 4)
         # A commit against itself is the API's `identical`, never asked locally.
         self.assertEqual(

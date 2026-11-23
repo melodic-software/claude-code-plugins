@@ -81,7 +81,6 @@ function Set-ApprovalState {
             throw "Set-ApprovalState: '$($request.RemediationId)' is not a shipped remediation ($($remediationIds -join ', '))."
         }
     }
-    # $Doc[$Key], created as an empty object when absent.
     $objectOf = {
         param($Doc, [string] $Key)
         if ($null -eq $Doc[$Key]) { $Doc[$Key] = [System.Text.Json.Nodes.JsonObject]::new() }
@@ -95,7 +94,6 @@ function Set-ApprovalState {
                 "trailing whitespace, and no control character, '/' or '\'.")
         }
     }
-    # check_overrides.services.service_exclusions, created on the way when $Create.
     $exclusionsOf = {
         param($Doc, [bool] $Create)
         $node = $Doc

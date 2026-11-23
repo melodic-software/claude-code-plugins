@@ -1,8 +1,3 @@
-"""Tests for lane_legs.py: chosen CI lane runs resolved to their legs through a sink's metrics.jsonl.
-
-Every sink is built in tmp_path from hand-written rows; no real sink is read.
-"""
-
 from __future__ import annotations
 
 import json

@@ -34,8 +34,6 @@ function Assert-CheckResult {
 
     $ctx = if ($Because) { " ($Because)" } else { '' }
 
-    # Flatten both accepted shapes into one case-insensitive field map; a hashtable
-    # and a pscustomobject property bag both key case-insensitively.
     $fields = @{}
     if ($Result -is [System.Collections.IDictionary]) {
         foreach ($k in $Result.Keys) { $fields[$k] = $Result[$k] }

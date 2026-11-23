@@ -15,8 +15,6 @@ source "$SCRIPT_DIR/../lib/test-pass-fail.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Assert an exit code from running the SUT with stdin `input` and given args.
-# Usage: expect_exit <label> <want_code> <input> <args...>
 expect_exit() {
   local label="$1" want="$2" input="$3"
   shift 3
@@ -30,7 +28,6 @@ expect_exit "--help exits 0" 0 "" --help
 
 expect_exit "under limit -> 0" 0 "hello" --limit 50
 
-# The boundary is inclusive: 'up to N characters'.
 expect_exit "at limit (boundary) -> 0" 0 "abcde" --limit 5
 
 expect_exit "over limit -> 1" 1 "abcdef" --limit 5
@@ -56,16 +53,11 @@ if [[ "$out" == "chars=6 limit=5 status=over" ]]; then pass "stdout reports char
 # A multibyte char counts as one code point, not its byte length. Skipped when
 # perl is absent and `wc -m` would fall back to a byte count in a non-UTF-8 locale.
 if command -v perl >/dev/null 2>&1; then
-  # 'héllo' = 5 code points; passes a limit of 5.
   expect_exit "multibyte counts as 1 code point -> 0" 0 $'h\xc3\xa9llo' --limit 5
 else
   printf 'SKIP - multibyte code-point count (perl absent)\n'
 fi
 
-# Counter failure is caught, not silently passed. Shadow BOTH counting
-# backends (perl and wc) with stubs that emit nothing, so whichever branch
-# the script takes yields an empty count. The guard must then exit 2 rather
-# than fall through to a false status=ok on a crashed counter.
 fake_bin="$TMP/fakebin"
 mkdir -p "$fake_bin"
 for stub in perl wc; do
@@ -76,8 +68,6 @@ rc=0
 printf 'hello' | PATH="$fake_bin:$PATH" bash "$SUT" --limit 50 >/dev/null 2>&1 || rc=$?
 if [[ $rc -eq 2 ]]; then pass "counter failure -> 2 (no false pass)"; else fail "counter failure -> wrong code ($rc)"; fi
 
-# A terminal on stdin must fail fast with a usage hint, never wait for input.
-# `script` (util-linux) gives the SUT a pty; hosts without it skip the case.
 if command -v script >/dev/null 2>&1 && script -qec true /dev/null </dev/null >/dev/null 2>&1; then
   out="$(timeout 10 script -qec "bash '$SUT' --limit 5" /dev/null </dev/null 2>&1)"
   rc=$?

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for guard.sh: a stub gh on PATH serves the current PR list, a fixture repo in a
-# temp dir plays the sweep branch.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -33,7 +31,7 @@ base=$(git -C "$repo" rev-parse HEAD)
 printf '[{"number":1},{"number":3}]\n' >"$TMP/snap.json"
 cp "$TMP/snap.json" "$TMP/now.json"
 
-run() { # sets out, rc
+run() {
   out=$(cd "$repo" && PATH="$TMP/bin:$PATH" GH_NOW="$TMP/now.json" GIT_CEILING_DIRECTORIES="$TMP" \
     bash "$SCRIPT" "$@" 2>"$TMP/err")
   rc=$?

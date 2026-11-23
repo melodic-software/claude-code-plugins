@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default; everyday coding task)",
+      "why": "contract line"
+    },
+    {
+      "answer": "- `claude: model opus @ effort medium` (basis: consensus; both boards read)",
+      "why": "bulleted contract line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run it on Claude.",
+      "why": "no contract line"
+    },
+    {
+      "answer": "claude: model inherit (basis: default)",
+      "why": "no effort on the line"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort medium (basis: default; one-file refactor)",
+      "why": "note between the model id and @, or a wording the skill does not print; the skill prints the contract line exactly"
+    }
+  ]
+}

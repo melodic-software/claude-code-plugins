@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Vendor routing is off (`vendors.routing: false`). No recommendation made; trials are paused and trial data is kept.",
+      "why": "explicitly reports routing is off"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude: model inherit @ effort medium (basis: default)",
+      "why": "does not state routing is off"
+    }
+  ]
+}

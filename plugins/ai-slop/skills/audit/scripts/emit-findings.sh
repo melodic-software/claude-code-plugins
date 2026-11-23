@@ -8,6 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/opt-value.sh
 source "$SCRIPT_DIR/lib/opt-value.sh"
+ME="emit-findings.sh"
 
 FROM_FILES=()
 OUT=""
@@ -29,11 +30,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --from) require_opt_value "emit-findings.sh" "$@"; FROM_FILES+=("$2"); shift 2 ;;
-  --out) require_opt_value "emit-findings.sh" "$@"; OUT="$2"; shift 2 ;;
-  --branch) require_opt_value "emit-findings.sh" "$@"; BRANCH="$2"; shift 2 ;;
+  --from) require_opt_value "$ME" "$@"; FROM_FILES+=("$2"); shift 2 ;;
+  --out) require_opt_value "$ME" "$@"; OUT="$2"; shift 2 ;;
+  --branch) require_opt_value "$ME" "$@"; BRANCH="$2"; shift 2 ;;
   --help | -h) usage; exit 0 ;;
-  *) echo "emit-findings.sh: unknown argument: $1" >&2; exit 2 ;;
+  *) echo "$ME: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
@@ -43,18 +44,18 @@ done
 }
 for from in "${FROM_FILES[@]}"; do
   [[ -f "$from" ]] || {
-    echo "emit-findings.sh: --from file not found: $from" >&2
+    echo "$ME: --from file not found: $from" >&2
     exit 2
   }
   if ! LC_ALL=C grep -q '^Summary rule=' "$from"; then
-    echo "emit-findings.sh: $from has no detect.sh Summary rows; not detector output" >&2
+    echo "$ME: $from has no detect.sh Summary rows; not detector output" >&2
     exit 3
   fi
 done
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
-    echo "emit-findings.sh: no --branch and no current git branch" >&2
+    echo "$ME: no --branch and no current git branch" >&2
     exit 2
   }
 fi
@@ -287,4 +288,4 @@ cat "${FROM_FILES[@]}" | LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC
   }
 ' >"$OUT"
 
-echo "emit-findings.sh: wrote $OUT"
+echo "$ME: wrote $OUT"

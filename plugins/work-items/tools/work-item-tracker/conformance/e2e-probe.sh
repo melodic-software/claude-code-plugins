@@ -58,7 +58,6 @@ ids() {
   jq -c '[.items[].id]' <<<"$1"
 }
 
-# Clean slate.
 for n in $(gh issue list -R "$REPO" --state open --limit 200 --json number --jq '.[].number' | tr -d '\r'); do
   gh issue close "$n" -R "$REPO" --comment "e2e-probe clean-at-start" >/dev/null 2>&1 || true
 done

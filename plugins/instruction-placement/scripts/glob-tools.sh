@@ -60,14 +60,6 @@ die() {
   exit 2
 }
 
-# ---------------------------------------------------------------------------
-# Brace expansion — iterative, budget-capped, no eval.
-#
-# Expands the leftmost top-level {a,b} group and re-queues each result, so
-# nested and sequential groups both resolve. Returns non-zero the moment the
-# budget is exceeded, because past that point Claude Code stops expanding too
-# and the honest answer is "over budget", not a truncated list.
-# ---------------------------------------------------------------------------
 expand_braces() {
   local pattern="$1"
   local -a queue=("$pattern")
@@ -78,7 +70,6 @@ expand_braces() {
     local current="${queue[0]}"
     queue=("${queue[@]:1}")
 
-    # Locate the first unescaped `{` and its matching `}` at the same depth.
     local i char depth=0 open=-1 close=-1
     for ((i = 0; i < ${#current}; i++)); do
       char="${current:i:1}"
@@ -113,8 +104,6 @@ expand_braces() {
     local suffix="${current:close+1}"
     local body="${current:open+1:close-open-1}"
 
-    # Split the body on top-level commas only — a nested group's commas belong
-    # to that group, not to this split.
     local -a parts=()
     local part="" d=0 j c
     for ((j = 0; j < ${#body}; j++)); do
@@ -151,13 +140,6 @@ expand_braces() {
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# Bracket-expression validation.
-#
-# A `[` that cannot be read as a bracket expression makes the pattern match
-# nothing. Mirrors glob rules: `]` immediately after `[` (or after `[!`/`[^`) is
-# a literal `]`, and a backslash escapes the next character.
-# ---------------------------------------------------------------------------
 brackets_valid() {
   local pattern="$1"
   local i char len="${#pattern}"
@@ -170,7 +152,6 @@ brackets_valid() {
     [[ "$char" != "[" ]] && continue
 
     local j=$((i + 1))
-    # Optional negation, then an optional literal `]` in first position.
     if [[ "${pattern:j:1}" == "!" || "${pattern:j:1}" == "^" ]]; then ((j++)); fi
     if [[ "${pattern:j:1}" == "]" ]]; then ((j++)); fi
 
@@ -247,7 +228,6 @@ glob_to_ere() {
       ;;
     "?") out+="[^/]" ;;
     "[")
-      # Copy the bracket expression through verbatim; validity was checked first.
       local j=$((i + 1)) body="["
       # `!` and `^` both negate, and ERE spells both `^`. brackets_valid() reads
       # the same pair, so the two must agree on where the expression starts.
@@ -259,9 +239,6 @@ glob_to_ere() {
         body+="]"
         ((j++))
       fi
-      # A backslash escapes the next character, including a `]` that would
-      # otherwise close the expression. brackets_valid() honors that escape, so
-      # this copy must honor it too or the two disagree on where the bracket ends.
       while ((j < len)) && [[ "${pattern:j:1}" != "]" ]]; do
         if [[ "${pattern:j:1}" == "\\" ]]; then
           body+="${pattern:j:2}"
@@ -284,14 +261,7 @@ glob_to_ere() {
   printf '%s' "$out"
 }
 
-# `paths:` extraction is `ip_parse_paths` in lib/discover.sh — one parser, three
-# consumers. A private copy here would risk the brace-comma bug: splitting the
-# inline flow form `["src/*.{ts,tsx}"]` on the brace comma turns one correct
-# glob into two broken ones.
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 [[ $# -eq 0 ]] && {
   usage >&2
   exit 2
@@ -349,9 +319,6 @@ if [[ "$SUBCOMMAND" == "validate" && ${#CLI_GLOBS[@]} -eq 0 ]]; then
   die "validate needs at least one --glob"
 fi
 
-# Tracked files are the match universe. Untracked and ignored files are not
-# shared repository content, so a glob that only matches those matches nothing
-# that a teammate would see.
 TRACKED_FILE="$(mktemp)"
 ROWS_FILE="$(mktemp)"
 BASE_TRACKED_FILE="$(mktemp)"
@@ -359,8 +326,6 @@ trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE" "$BASE_TRACKED_FILE"' EXIT
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git ls-files -z 2>/dev/null | tr '\0' '\n' | LC_ALL=C sort >"$TRACKED_FILE"
 else
-  # Not a git repository: fall back to a plain file walk so the tool still
-  # answers rather than reporting every glob as a zero-match.
   find . -type f -not -path './.git/*' 2>/dev/null |
     sed 's|^\./||' | LC_ALL=C sort >"$TRACKED_FILE"
 fi
@@ -452,7 +417,6 @@ for idx in "${!PATTERNS[@]}"; do
       fi
     fi
     if [[ "$status" != "over-budget" ]]; then
-      # Union of matches across every expansion, counted once per file.
       match_count=$(
         for exp in "${expansions[@]}"; do
           [[ -z "$exp" ]] && continue

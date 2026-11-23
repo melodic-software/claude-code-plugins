@@ -59,8 +59,6 @@ ledger() {
   printf '%s' "$path"
 }
 
-# --- complete ---------------------------------------------------------------
-
 all_marked="$(ledger all-marked.md \
   '| 1 | alpha | its API reference read end to end | [x] |' \
   '| 2 | beta  | its changelog fetched this turn   | [X] |')"
@@ -72,8 +70,6 @@ run 0 "all rows marked passes" "$all_marked"
 other_col="$(ledger other-column.md \
   '| 1 | alpha [ ] | criterion mentioning [ ] literally | [x] |')"
 run 0 "unmarked box outside the Done column passes" "$other_col"
-
-# --- incomplete -------------------------------------------------------------
 
 one_unmarked="$(ledger one-unmarked.md \
   '| 1 | alpha | its API reference read end to end | [x] |' \
@@ -292,13 +288,9 @@ else
 fi
 chmod 644 "$unreadable" 2>/dev/null || true
 
-# --- usage ------------------------------------------------------------------
-
 run 0 "--help exits 0" --help
 run 2 "unknown flag fails closed" --nope "$all_marked"
 run 2 "two ledgers is a usage error" "$all_marked" "$one_unmarked"
-
-# --- output contract --------------------------------------------------------
 
 for sut in "${SUTS[@]}"; do
   runner="${sut%%:*}"

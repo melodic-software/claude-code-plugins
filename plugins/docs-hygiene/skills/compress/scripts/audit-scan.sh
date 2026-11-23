@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Mechanical audit scan for /docs-hygiene:compress audit action.
-# Implements the six-signal heuristic in context/target-types.md as a script
-# so runs do not re-implement awk/grep counting in-session.
-#
 # Output: one markdown table row per file, then an aggregate line.
 # Exit: 0 on scan paths; 2 on unknown args.
 set -uo pipefail
@@ -56,19 +52,15 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# Curated flavor-token list for signal 6 — OWNED here (superset/subset of
-# Phase A LATITUDE; not claimed to be identical). Keep in sync intentionally.
 FLAVOR_RE='just|really|basically|actually|simply|perhaps|somewhat|very|quite|might|in order to|due to the fact that|make use of|it is important to|note that|keep in mind'
 
 emit_row() {
-  # <target> <expected_yield_pct> <classify> <reason>
   # shellcheck disable=SC2016 # intentional backticks in markdown table cells
   printf '| `%s` | %s | %s | %s |\n' "$1" "$2" "$3" "$4"
 }
 
 is_signal1_path() {
   local f="$1" base="${1##*/}"
-  # Repo-relative `.claude/rules/...` has no leading slash, so both forms match.
   [[ "$f" == '.claude/rules' || "$f" == '.claude/rules/'* ||
     "$f" == *'/.claude/rules' || "$f" == *'/.claude/rules/'* ]] && return 0
   [[ "$base" == 'AGENTS.md' || "$base" == 'CLAUDE.md' || "$base" == 'SKILL.md' ]] && return 0
@@ -76,7 +68,6 @@ is_signal1_path() {
 }
 
 word_count() {
-  # Floor small files: densities on <50 words are unstable.
   local n
   n=$(wc -w <"$1" | tr -d ' ')
   ((n < 50)) && n=50
@@ -105,9 +96,6 @@ classify_file() {
 
   tick_pairs=$(grep -o '`' "$file" 2>/dev/null | wc -l | tr -d ' ')
   tick_pairs=$((tick_pairs / 2))
-  # Occurrence count, not line count: -c would count two refs on one line once.
-  # Longer @-prefixed alternative first so `@docs/a.md` is one hit, not `@`
-  # plus `docs/a.md`.
   path_hits=$(grep -Eo '(@[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml)|@[A-Za-z0-9._/-]+|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null | wc -l | tr -d ' ')
   flavor_hits=$(grep -oiwE "$FLAVOR_RE" "$file" 2>/dev/null | wc -l | tr -d ' ')
 

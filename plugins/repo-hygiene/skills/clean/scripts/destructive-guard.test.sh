@@ -15,10 +15,6 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 # shellcheck source=lib/run-marker.sh
 source "$SCRIPT_DIR/lib/run-marker.sh"
 
-# The guard gates only while a run-open marker is live for the payload's
-# session_id under CLAUDE_PLUGIN_DATA. Every case below sends SESSION_ID, and the
-# marker is opened once here; section 2.1 changes its state on purpose. The data
-# dir's last segment names the plugin, as the guard requires.
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 export CLAUDE_PLUGIN_DATA="$TEST_ROOT/repo-hygiene"
@@ -27,27 +23,21 @@ LIVE_MARKER=""
 run_marker_path_to LIVE_MARKER "$CLAUDE_PLUGIN_DATA" "$SESSION_ID"
 run_marker_write "$LIVE_MARKER"
 
-# guard_exit <command> [tool_name]. Omitting the tool defaults to Bash; passing
-# an explicit empty string sends an empty tool_name (`${2-…}`, not `${2:-…}`).
 guard_exit() {
   jq -n --arg c "$1" --arg t "${2-Bash}" --arg s "$SESSION_ID" '{tool_name:$t, session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
-# guard_exit_rawtool <json-tool-value> <command>. tool_name is sent as a raw JSON
-# value, so non-string payloads (null, a number) reach the guard as themselves.
 guard_exit_rawtool() {
   jq -n --argjson t "$1" --arg c "$2" --arg s "$SESSION_ID" '{tool_name:$t, session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
-# guard_exit_notool <command>. Payload with no tool_name key at all.
 guard_exit_notool() {
   jq -n --arg c "$1" --arg s "$SESSION_ID" '{session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
-# guard_exit_session <session-id> <command>. Bash payload for another session.
 guard_exit_session() {
   jq -n --arg c "$2" --arg s "$1" '{tool_name:"Bash", session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
@@ -55,8 +45,6 @@ guard_exit_session() {
 
 SKILL_MD="$(cd "$SCRIPT_DIR/.." && pwd)/SKILL.md"
 MARKER_SCRIPT="$SCRIPT_DIR/clean-run-marker.sh"
-
-# --- 1. --help contract --------------------------------------------------------
 
 help_out=$(bash "$SCRIPT" --help 2>&1)
 assert_exit "--help exits 0" 0 $?
@@ -90,10 +78,6 @@ assert_exit "allows a shell -c operand that is benign" 0 "$(guard_exit "bash -c 
 
 assert_exit "still blocks a real branch delete after a quiet comment" 2 \
   "$(guard_exit "gh issue comment 1 --body 'x'; git branch -D feature/x")"
-
-# --- 2.0b Nested and wrapped commands: the command line bash runs is re-parsed ---
-# Each form sits inside one parsed word (or behind a wrapper), so matching that
-# word alone let it through.
 
 # shellcheck disable=SC2016  # the substitutions are guard input, never expanded here
 nested_cmds=(
@@ -168,9 +152,6 @@ done
 assert_exit "PowerShell tool blocks a git global option with a separate value" 2 \
   "$(guard_exit "git --git-dir /r/.git reset --hard" PowerShell)"
 
-# The parser comes from the generated copy of lib/hook-utils.sh. One direct call
-# shows it keeps a quoted argument as a single word, which is what the guard's
-# precision rests on.
 parsed_words="$(
   # shellcheck source=hook-utils.sh
   source "$SCRIPT_DIR/hook-utils.sh"
@@ -179,8 +160,6 @@ parsed_words="$(
   hook::bash_parse_segments "gh issue comment --body 'git branch -D x'" report
 )"
 assert_contains "generated hook-utils copy parses a quoted argument as one word" "$parsed_words" "5|git branch -D x|"
-
-# --- 2.1 Run-open marker scopes the guard -----------------------------------------
 
 rm -f "$LIVE_MARKER"
 assert_exit "no marker: git branch -D x is allowed" 0 "$(guard_exit "git branch -D x")"
@@ -192,7 +171,6 @@ assert_exit "live marker: git branch -D x is blocked" 2 "$(guard_exit "git branc
 assert_exit "live marker: another session is not gated" 0 "$(guard_exit_session "sess-other" "git branch -D x")"
 assert_exit "live marker: unusable session id keeps the guard armed" 2 "$(guard_exit_session "../escape" "git branch -D x")"
 
-# Marker past the idle timeout: allowed, and the stale file is removed.
 printf '1\n' >"$LIVE_MARKER"
 assert_exit "stale marker: git branch -D x is allowed" 0 "$(guard_exit "git branch -D x")"
 if [[ -e "$LIVE_MARKER" ]]; then
@@ -201,8 +179,6 @@ else
   pass "stale marker is removed"
 fi
 
-# A destructive or acknowledged call refreshes a live marker, so the timeout
-# counts from the last sign of run activity.
 nearly_idle=$(($(printf '%(%s)T' -1) - RUN_MARKER_IDLE_SECONDS + 60))
 printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
 assert_exit "nearly idle marker: still blocks" 2 "$(guard_exit "git branch -D x")"
@@ -222,8 +198,6 @@ else
   fail "an acknowledged call refreshes the marker" "within 5s of now" "$refreshed"
 fi
 
-# Ordinary shell calls are not run activity: they leave the stamp alone, so a run
-# that skipped its close step still ages out while the session keeps working.
 printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
 assert_exit "nearly idle marker: ordinary call is allowed" 0 "$(guard_exit "git status")"
 read -r refreshed <"$LIVE_MARKER"
@@ -233,8 +207,6 @@ else
   fail "an ordinary call does not refresh the marker" "$nearly_idle" "$refreshed"
 fi
 
-# Running one of the skill's own scripts is run activity: a dry-run refreshes
-# the stamp, so a long dry-run and confirmation phase keeps the run open.
 printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
 assert_exit "nearly idle marker: skill-script dry-run is allowed" 0 \
   "$(guard_exit "bash /p/skills/clean/scripts/clean-caches.sh --dry-run --repo /r")"
@@ -250,9 +222,6 @@ assert_exit "stale marker: a skill-script call means the run is still going (an 
   "$(guard_exit "bash scripts/clean-caches.sh --apply --manifest /m")"
 assert_file_exists "stale marker: a skill-script call keeps the marker" "$LIVE_MARKER"
 
-# Only an invocation counts. A command that merely names a script (staging it,
-# grepping it, quoting it in a comment) is an ordinary call, and so is one behind
-# a wrapper, which the guard's command-position parsing does not resolve.
 mention_cmds=(
   "git add plugins/repo-hygiene/skills/clean/scripts/clean-batch.sh"
   "grep -n apply clean-batch.sh" # portability-ok: a test command string, never executed
@@ -283,11 +252,9 @@ assert_exit "stale marker: a comment naming a script is allowed" 0 \
   "$(guard_exit "gh issue comment 1 --body 'see clean-caches.sh'")"
 assert_file_absent "stale marker: a comment naming a script removes it" "$LIVE_MARKER"
 
-# An unreadable stamp keeps the guard armed.
 printf 'garbage\n' >"$LIVE_MARKER"
 assert_exit "unreadable marker: still blocks" 2 "$(guard_exit "git branch -D x")"
 
-# No resolvable data dir: armed, not silently inert.
 unresolved=$(
   jq -n --arg s "$SESSION_ID" '{tool_name:"Bash", session_id:$s, tool_input:{command:"git branch -D x"}}' |
     CLAUDE_PLUGIN_DATA="" bash "$SCRIPT" >/dev/null 2>&1
@@ -295,8 +262,6 @@ unresolved=$(
 )
 assert_exit "unset CLAUDE_PLUGIN_DATA keeps the guard armed" 2 "$unresolved"
 
-# Another plugin's data dir under the CLAUDE_PLUGIN_DATA name holds no marker of
-# this run: unresolved, so armed. A repo-hygiene-<marketplace> dir still resolves.
 data_dir_exit() {
   jq -n --arg s "$SESSION_ID" '{tool_name:"Bash", session_id:$s, tool_input:{command:"git branch -D x"}}' |
     CLAUDE_PLUGIN_DATA="$1" bash "$SCRIPT" >/dev/null 2>&1
@@ -310,7 +275,6 @@ assert_exit "repo-hygiene-<marketplace> data dir with no marker allows" 0 \
 assert_exit "repo-hygiene-<marketplace> data dir with a trailing slash and no marker allows" 0 \
   "$(data_dir_exit "$TEST_ROOT/repo-hygiene-market/")"
 
-# A guard whose parser did not load cannot read the command, so it blocks.
 NOHU_DIR="$TEST_ROOT/no-hook-utils"
 mkdir -p "$NOHU_DIR/lib"
 cp "$SCRIPT" "$NOHU_DIR/destructive-guard.sh"
@@ -328,7 +292,6 @@ no_session=$(
 assert_exit "missing session_id keeps the guard armed" 2 "$no_session"
 run_marker_write "$LIVE_MARKER"
 
-# The marker script: mutating tiers arm the guard, the scan tiers never write.
 for tier in scan scan-batch; do
   bash "$MARKER_SCRIPT" open --tier "$tier" --session "sess-$tier" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
   assert_exit "open --tier $tier exits 0" 0 $?
@@ -360,8 +323,6 @@ assert_exit "open refuses an unusable session id" 2 $?
 bash "$MARKER_SCRIPT" open --session "sess-x" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
 assert_exit "open without --tier is a usage error" 2 $?
 
-# --- 2. Destructive commands blocked (exit 2) -----------------------------------
-
 for cmd in \
   "rm -rf build/" \
   "rm -Rf build/" \
@@ -384,13 +345,6 @@ for cmd in \
   "Remove-Item -Recurse -Force obj"; do
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
-
-# --- 2b. PowerShell coverage: registration AND verdict, end to end ---------------
-# The guard has always carried a PowerShell spelling (recursive `Remove-Item`),
-# but a `Bash`-only matcher can never hand it a PowerShell tool call, so that
-# pattern was unreachable and on a PowerShell host the guard was simply absent.
-# Both halves are asserted here. Asserting only the verdict would pass with the
-# bug fully intact, since the guard script itself was never the broken part.
 
 registered_matcher="$(awk '
   /^---[[:space:]]*$/ { fm++; next }
@@ -477,8 +431,6 @@ else
   skip_case "pwsh not on PATH: live execution of the PowerShell ack spelling not verified"
 fi
 
-# The ack is a deny-to-allow widening: it counts only as the leading statement
-# with a truthy literal value. None of these may unblock a destructive command.
 for cmd in \
   "Remove-Item -Recurse -Force obj # $ps_ack" \
   "# $ps_ack Remove-Item -Recurse -Force obj" \
@@ -508,14 +460,6 @@ assert_exit "Bash ack is not accepted after the command" 2 "$(guard_exit "git st
 ps_reason=$(jq -n '{tool_name:"PowerShell",tool_input:{command:"Remove-Item -Recurse -Force obj"}}' | bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "PowerShell block reason names the PowerShell ack spelling" "$ps_reason" "$ps_ack"
 
-# --- 2d. Tool gating: each ack spelling counts only on its own tool ---------------
-# The dispatch is default-deny on `tool_name`: `Bash` gets the prefix spelling,
-# `PowerShell` gets the `$env:` spelling, and anything else gets no ack path at
-# all. Matching on "not PowerShell" instead would silently hand the Bash ack to
-# every tool added later, including one whose shell cannot run it. Blocking is
-# unchanged for all of them: a bare destructive command still exits 2, and a
-# benign one still exits 0.
-
 ungated_tools=(Foo powershell Powershell "PowerShell " " Bash" "bash" "Bash2" "123" "null" "")
 for tool in "${ungated_tools[@]}"; do
   label="tool_name '${tool}'"
@@ -527,7 +471,6 @@ for tool in "${ungated_tools[@]}"; do
   assert_exit "$label: benign command still allowed" 0 "$(guard_exit "git status" "$tool")"
 done
 
-# tool_name present but not a string, and tool_name absent entirely.
 assert_exit "tool_name null: bare destructive still blocked" 2 "$(guard_exit_rawtool null "git stash drop")"
 assert_exit "tool_name null: Bash ack prefix grants nothing" 2 "$(guard_exit_rawtool null "CLEAN_GUARD_ACK=1 git clean -fdx")"
 assert_exit "tool_name 123: bare destructive still blocked" 2 "$(guard_exit_rawtool 123 "git stash drop")"
@@ -538,8 +481,6 @@ assert_exit "tool_name absent: PowerShell ack spelling grants nothing" 2 \
   "$(guard_exit_notool "$ps_ack Remove-Item -Recurse -Force obj")"
 assert_exit "tool_name absent: benign command still allowed" 0 "$(guard_exit_notool "git status")"
 
-# The block reason for an ungated tool offers no prefix to retry with, rather
-# than naming a spelling that tool cannot honor.
 ungated_reason=$(jq -n '{tool_name:"Foo",tool_input:{command:"git clean -fdx"}}' | bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "ungated tool block reason names the guard" "$ungated_reason" "destructive guard"
 assert_contains "ungated tool block reason says there is no ack path" "$ungated_reason" "no acknowledgement path"
@@ -602,8 +543,6 @@ for cmd in \
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
 
-# A quoted backslash-separated script path reaches the parser with its
-# backslash intact, so only the backslash strip names the apply script.
 assert_exit "blocks a quoted backslash script path" 2 \
   "$(guard_exit "bash 'scripts\\clean-caches.sh' --apply")"
 
@@ -652,33 +591,23 @@ assert_exit "PowerShell ack allows git branch -D" 0 "$(guard_exit "$ps_ack git b
 assert_exit "PowerShell tool blocks git branch -D without the ack" 2 "$(guard_exit "git branch -D x" PowerShell)"
 assert_exit "Bash ack prefix grants nothing to git branch -D on an ungated tool" 2 "$(guard_exit "CLEAN_GUARD_ACK=1 git branch -D x" Foo)"
 
-# --- 3. Block reason reaches stderr ----------------------------------------------
-
 reason=$(jq -n '{tool_name:"Bash",tool_input:{command:"git clean -fdx"}}' | bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "block reason names the guard" "$reason" "destructive guard"
 assert_contains "block reason names the ack path" "$reason" "CLEAN_GUARD_ACK=1"
-
-# --- 4. Acknowledged commands allowed --------------------------------------------
 
 assert_exit "ack prefix allows git clean" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git clean -fdx -e node_modules/")"
 assert_exit "ack prefix allows reset --hard" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git reset --hard origin/main")"
 assert_exit "ack prefix allows stash drop" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git stash drop stash@{1}")"
 
-# --- 5. Benign commands pass -----------------------------------------------------
-
 for cmd in "git status" "rm file.txt" "git clean -n" "git clean -nx" "git clean -x" "ls -rf" "dotnet build" "git stash list" "git stash show stash@{0}"; do
   assert_exit "allows: $cmd" 0 "$(guard_exit "$cmd")"
 done
-
-# --- 6. Kill switch --------------------------------------------------------------
 
 killed=$(
   jq -n '{tool_input:{command:"git clean -fdx"}}' | CLAUDE_PLUGIN_OPTION_CLEAN_DESTRUCTIVE_GUARD_ENABLED=false bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 )
 assert_exit "kill switch allows everything" 0 "$killed"
-
-# --- 7. Non-Bash / empty input tolerated ------------------------------------------
 
 empty=$(
   printf '{}' | bash "$SCRIPT" >/dev/null 2>&1
@@ -716,8 +645,6 @@ if [[ "$(PATH="$NOJQ_DIR" "$NOJQ_DIR/bash" -c 'command -v jq >/dev/null 2>&1 && 
 else
   skip_case "degraded-mode cases: PATH sandbox not functional on this platform"
 fi
-
-# --- Final report -----------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

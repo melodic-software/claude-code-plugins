@@ -58,10 +58,6 @@ switch ($env:MH_SHIM_MODE) {
 }
 '@
 
-    # Stands in for plugin-profiles' profiles.mjs: logs its arguments and prints the launch
-    # result, with machine-health@m on in enabledPlugins unless MH_PROFILES_MH is off or nofield
-    # (no enabledPlugins, as an older plugin-profiles prints), or refuses with exit 1 when
-    # MH_PROFILES_RC=1.
     $script:ProfilesRoot = Join-Path $TestDrive 'plugin-profiles'
     New-Item -ItemType Directory -Force -Path (Join-Path $script:ProfilesRoot 'scripts') | Out-Null
     Set-Content -LiteralPath (Join-Path $script:ProfilesRoot 'scripts/profiles.mjs') -Encoding utf8 -Value @'
@@ -104,7 +100,6 @@ console.log(JSON.stringify(result));
         $env:MH_PLUGIN_LIST = $PluginList
         $env:MH_PROFILES_RC = $ProfilesRc
         $env:MH_PROFILES_MH = $ProfilesMachineHealth
-        # A run started from a profiled shell inherits both markers.
         $env:PLUGIN_PROFILES_SESSION = 'outer'
         $env:PLUGIN_PROFILES_SESSION_FILE = 'outer.json'
         $profileArg = $PluginProfile ? @{ PluginProfile = $PluginProfile } : @{}
@@ -291,7 +286,6 @@ Describe 'monthly-run wrapper' -Tag 'lib' {
     }
 }
 
-# Not Windows-only: these run on every platform the suite runs on.
 Describe 'monthly-run wrapper in a plugin profile' -Tag 'lib' {
     It 'starts the run with the profile launch arguments before the audit arguments, with both markers cleared and no env' {
         $r = Invoke-Wrapper 'ok' -PluginProfile 'build'

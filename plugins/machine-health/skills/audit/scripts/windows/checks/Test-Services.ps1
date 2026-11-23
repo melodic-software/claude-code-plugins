@@ -9,8 +9,6 @@ See reference/windows/check-catalog.md#4-services for rubric.
 param([switch]$Human)
 
 Set-StrictMode -Version 3.0
-# Continue so non-terminating errors cannot abort the JSON envelope; the outer
-# try/catch turns catastrophic failures into UNKNOWN.
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-ServiceTriggerStart.ps1')

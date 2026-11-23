@@ -40,7 +40,7 @@ async function upOnSparePort(run) {
 }
 /** The guest key of the session in `dir`: a new session has one, and its guest link carries it as #join=. */
 const guestKey = dir => JSON.parse(fs.readFileSync(path.join(dir, "state.json"), "utf8")).session.guestKey;
-const joinKeys = new Map(); // a started session's origin -> its guest key, so a page opened there can join
+const joinKeys = new Map();
 
 const fake = path.join(here, "fixtures", process.platform === "win32" ? "fake_cloudflared.py" : "fake-cloudflared.sh");
 
@@ -173,7 +173,7 @@ function png(w, h, [y0, y1] = [-1, -1]) {
     const td = Buffer.concat([Buffer.from(type, "ascii"), data]), crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(td));
     return Buffer.concat([len, td, crc]);
   };
-  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 

@@ -1,7 +1,8 @@
 // test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
+import { bodyVersion, personChecks, splitItemsLine } from "./admit.mjs";
+import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitTaskLines } from "./size-split.mjs";
 import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
 import { WRITTEN_STATUS_REREADS, WRITTEN_STATUS_WAIT_MS } from "./admit.mjs";
 import { driftSpecText, trustedSpecTexts } from "./admit.mjs";
@@ -18,7 +19,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, deferredAhead, refineDue, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, deferredAhead, refineDue, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
@@ -1881,7 +1882,6 @@ describe("decide", () => {
       assert.match(result.reasons.join("; "), /no trusted-human acceptance criteria/);
     });
 
-    // Its other criteria still apply: a hold or a person's label still holds it.
     test("a drift issue a person or the lane holds is not admitted", () => {
       assert.deepEqual(run(driftIssue({ labels: [{ name: READY }, { name: NEEDS_DECISION }] })), {
         verdict: "refuse",
@@ -2875,7 +2875,6 @@ describe("admit() with the Work status field", () => {
     assert.deepEqual(writes(fake.calls), [RECORD, STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY)]);
   });
 
-  // An admitted issue is never admitted again: no second record, no second run.
   test("an issue whose field reads agent-ready beside a stale status: ready label is left alone, with no record", async () => {
     const fake = fakeGitHub();
     const result = await admit(withStatus(fake, { 7: { state: AGENT_READY } }));
@@ -4278,181 +4277,15 @@ describe("authorAdmitted", () => {
   });
 });
 
-// resolve-config's splitChild fact (read by check-blockers.mjs): the issue lane's budget for a trusted
-// size-split sub-issue rated Large (pr-pipeline.yaml split-child-size).
-test("trustedSplitChild reads the issue and its native parent and applies splitChildBody", async () => {
-  const LANES = 337595936;
-  const HUMAN_ID = 153232337;
+test("a child of a parent whose body another account edited, its lines from a listed human's comment, is admitted at Size large", () => {
   const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
-  const node = (body, author) => ({ body, lastEditedAt: null, author, editor: null, comments: { totalCount: 0, nodes: [] } });
-  const human = { __typename: "User", databaseId: HUMAN_ID };
-  const app = { __typename: "Bot", databaseId: LANES };
+  const decision = { databaseId: 77, createdAt: "2026-10-21T00:00:00Z", updatedAt: "2026-10-21T00:00:00Z", body: `**Decision recorded.**\n\n${lines.join("\n")}`, lastEditedAt: null, author: USER(HUMAN), editor: null };
+  const parentSpec = { ...written(USER(HUMAN), { body: "## Done when\n\nSee the decision below.", editor: USER(OUTSIDER) }), commentCount: 1, comments: [decision] };
   const childBody = `${splitChildHeader(5, 1, 2)}\n${lines[0]}`;
-  const fake = (child, parent = { number: 5, repository_url: "https://api.github.com/repos/o/r" }) => async (method, path, body) => {
-    if (method === "POST" && path === "/graphql") {
-      return { data: { repository: { issue: body.variables.number === 5 ? node(lines.join("\n"), human) : child } } };
-    }
-    if (path === "/repos/o/r/issues/8/parent") {
-      if (parent === null) {
-        throw Object.assign(new Error("404"), { status: 404 });
-      }
-      return parent;
-    }
-    throw new Error(`unexpected ${method} ${path}`);
-  };
-  const humansSet = new Set([HUMAN_ID]);
-  assert.equal(await trustedSplitChild(fake(node(childBody, app)), "o/r", 8, humansSet, LANES, "- [ ] "), true);
-  assert.equal(await trustedSplitChild(fake(node(`${childBody}\n- [ ] Invented.`, app)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "a line the parent lacks");
-  assert.equal(await trustedSplitChild(fake(node(childBody, human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "not the lanes App's");
-  assert.equal(await trustedSplitChild(fake(node(childBody, app), null), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no parent");
-  assert.equal(await trustedSplitChild(fake(node("Plain issue.", human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no split marker, no parent read");
-});
-
-// Owner decision on #11021: a trusted size-split child that admission admits
-// at Size large is not refused as split-required. The issue lane reads its
-// split-child fact through trustedSplitChild (check-blockers.mjs), and that
-// fact moves a Large child to split-child-size (dimensions.mjs
-// splitChildDims), so trustedSplitChild must answer as admission's
-// splitChildBody does on every case.
-describe("trustedSplitChild agrees with admission", () => {
-  const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
-  const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
-  const reader = ({ child, parent: parentNode, parentLink }) => async (method, path, body) => {
-    if (method === "POST" && path === "/graphql") {
-      return { data: { repository: { issue: body.variables.number === 8 ? child : parentNode } } };
-    }
-    if (method === "GET" && path === "/repos/o/r/issues/8/parent") {
-      if (parentLink === null) {
-        throw Object.assign(new Error("404"), { status: 404 });
-      }
-      return parentLink;
-    }
-    throw new Error(`unexpected ${method} ${path}`);
-  };
-  for (const vector of VECTORS.cases) {
-    test(`split-child vector through trustedSplitChild: ${vector.name}`, async () => {
-      const appId = ("app_id" in vector ? vector.app_id : VECTORS.app_id) ?? undefined;
-      const parent = VECTORS.parents[vector.parent];
-      const github = reader({
-        child: { body: vector.child.body, lastEditedAt: vector.child.last_edited_at, author: actorOf(vector.child.author), editor: actorOf(vector.child.editor), comments: { totalCount: 0, nodes: [] } },
-        parent: parent && { body: parent.body, lastEditedAt: null, author: actorOf(parent.author), editor: null, comments: { totalCount: parent.comments.length, nodes: parent.comments.map(commentOf) } },
-        parentLink: vector.child.parent === null ? null : { number: vector.child.parent.number, repository_url: `https://api.github.com/repos/${vector.child.parent.repo ?? "o/r"}` },
-      });
-      assert.equal(await trustedSplitChild(github, "o/r", 8, new Set(VECTORS.humans), appId, RULES["task-list"]), vector.expect.trusted, vector.expect.reason);
-    });
-  }
-
-  // A parent a listed human filed whose body someone else edited since, with
-  // its criteria in a listed human's own comment: admission takes the child's
-  // copy of those lines at Size large, so the lane's fact must too.
-  test("a child of a parent whose body another account edited, its lines from a listed human's comment, is admitted at Size large and trusted by the lane", async () => {
-    const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
-    const decision = { databaseId: 77, createdAt: "2026-10-21T00:00:00Z", updatedAt: "2026-10-21T00:00:00Z", body: `**Decision recorded.**\n\n${lines.join("\n")}`, lastEditedAt: null, author: USER(HUMAN), editor: null };
-    const parentSpec = { ...written(USER(HUMAN), { body: "## Done when\n\nSee the decision below.", editor: USER(OUTSIDER) }), commentCount: 1, comments: [decision] };
-    const childBody = `${splitChildHeader(5, 1, 2)}\n${lines[0]}`;
-    const app = { __typename: "Bot", databaseId: APP };
-    const spec = { body: childBody, lastEditedAt: null, author: app, editor: null, comments: [], splitParent: { number: 5, spec: parentSpec, appId: APP } };
-    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
-    assert.deepEqual(decide(facts({ issue: issueOf({ user: { id: APP }, body: childBody }), spec, verdict: large })), { verdict: "admit", reasons: [] });
-    const github = reader({
-      child: { body: childBody, lastEditedAt: null, author: app, editor: null, comments: { totalCount: 0, nodes: [] } },
-      parent: { body: parentSpec.body, lastEditedAt: parentSpec.lastEditedAt, author: parentSpec.author, editor: parentSpec.editor, comments: { totalCount: 1, nodes: [decision] } },
-      parentLink: { number: 5, repository_url: "https://api.github.com/repos/o/r" },
-    });
-    assert.equal(await trustedSplitChild(github, "o/r", 8, humans, APP, RULES["task-list"]), true);
-  });
-});
-
-// splitParentClosed holds the App's close of a split parent to the same rule
-// as the close itself.
-describe("splitParentClosed", () => {
-  const humans = new Set([HUMAN]);
-  const repository_url = "https://api.github.com/repos/o/r";
-  const child = (number, state_reason = "completed") => ({ number, state: "closed", state_reason, closed_by: { id: HUMAN }, repository_url });
-  const app = { id: APP, login: "melodic-automation-lanes[bot]" };
-  const record = (parts = [[1], [2]], filed = [31, 32]) => ({ user: app, created_at: "2026-10-16T00:00:00Z", body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts, order: [], filed })}` });
-  const link = (number) => ({ event: "sub_issue_added", actor: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
-  const closed = ({ body = "- [ ] One\n- [ ] Two", comments = [record()], children = [child(31), child(32)] } = {}) => {
-    const github = async (method, path) => (path.includes("/sub_issues") ? children : path.includes("/comments") ? comments : path.includes("/events") ? [link(31), link(32)] : []);
-    return splitParentClosed({
-      github,
-      repository: "o/r",
-      issue: { number: 30, body, labels: [], state: "closed", state_reason: "completed", closed_by: { id: APP } },
-      isApp: (actor) => actor?.id === APP,
-      humans,
-      trusted: async () => true,
-    });
-  };
-
-  test("every sub-issue completed and every item covered counts", async () => {
-    assert.equal(await closed(), true);
-    assert.equal(await closed({ body: "- [ ] #31\n- [ ] #32", comments: [] }), true);
-    assert.equal(await closed({ body: "- [x] One\n- [x] Two", comments: [] }), true);
-  });
-  test("a sub-issue closed as not planned, as a duplicate or with no reason does not count", async () => {
-    for (const reason of ["not_planned", "duplicate", null]) {
-      assert.equal(await closed({ children: [child(31), child(32, reason)] }), false, String(reason));
-    }
-  });
-  test("a split record that leaves an item out does not count", async () => {
-    assert.equal(await closed({ comments: [record([[1], [3]])] }), false, "a gap in the parts");
-    assert.equal(await closed({ body: "- [ ] One\n- [ ] Two\n- [ ] Three" }), false, "an item past the parts");
-    assert.equal(await closed({ comments: [record([[1], [2]], [31, 33])] }), false, "a filed number that is no sub-issue");
-  });
-  test("an item a listed human left on the parent does not count", async () => {
-    const stays = { user: { id: HUMAN }, created_at: "2026-10-17T00:00:00Z", body: "- [ ] The broker change stays here." };
-    assert.equal(await closed({ comments: [record(), stays] }), false);
-    assert.equal(await closed({ body: "- [ ] #31\n- [ ] #32", comments: [stays] }), false, "split by hand");
-  });
-  test("an item in a listed human's comment last written before the split record was split with the rest", async () => {
-    const carried = { user: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", body: "- [ ] A line a part holds." };
-    assert.equal(await closed({ comments: [carried, record()] }), true);
-    assert.equal(await closed({ comments: [{ ...carried, updated_at: "2026-10-17T00:00:00Z" }, record()] }), false, "edited since");
-  });
-  test("a split by hand with no task list does not count", async () => {
-    assert.equal(await closed({ body: "## Acceptance\n\n- Prose only.", comments: [] }), false);
-  });
-});
-
-// A split made by hand (no App split record): a listed human linked two
-// sub-issues to the parent. Hand splitters rarely tick the parent's items, so an
-// item citing a sub-issue counts as covered; an uncited one may be more work.
-describe("isSplitParent, split by hand", () => {
-  const humans = new Set([HUMAN]);
-  const titles = { 31: "feat(io): the parser", 32: "The writer" };
-  const child = (number, repo = "o/r") => ({ number, title: titles[number], state: "closed", repository_url: `https://api.github.com/repos/${repo}` });
-  const link = (number) => ({ event: "sub_issue_added", actor: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
-  const github = async (method, path) => (path.includes("/events") ? [link(31), link(32)] : []);
-  const splitParent = (body, labels = []) =>
-    isSplitParent({ github, repository: "o/r", issue: { number: 30, body, labels }, comments: [], children: [child(31), child(32)], isApp: () => false, humans });
-
-  test("every unticked item citing one of its sub-issues makes it a split parent", async () => {
-    assert.equal(await splitParent("Parts:\n\n- [ ] The parser (#31)\n- [ ] The writer, #32\n- [x] Done already"), true);
-  });
-  test("one unticked item citing no sub-issue keeps it open", async () => {
-    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer\n"), false);
-  });
-  test("an item citing a number that is not one of its sub-issues, here or in another repository, keeps it open", async () => {
-    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#99)"), false);
-    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (other/repo#32)"), false);
-  });
-  test("a sub-issue named mid-item, or only in a link, does not cover the item", async () => {
-    assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] after #32 lands, update the README"), false);
-    assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] see [#32](https://github.com/other/repo/issues/32) for context"), false);
-    assert.equal(await splitParent("- [ ] #31\n- [ ] see https://example.com/?q=#32"), false);
-  });
-  test("an item whose text is not its sub-issue's title is the parent's own work, wherever the citation sits", async () => {
-    for (const item of ["Update the README after #32", "Write migration guide, blocked by #32", "#32 must land first, then update the README", "Test #32", "the #32", "Writer #32"]) {
-      assert.equal(await splitParent(`- [ ] #31\n- [ ] ${item}`), false, item);
-    }
-    assert.equal(await splitParent("- [ ] **#31** The parser.\n- [ ] #32"), true);
-  });
-  test("a line under a cited item is more work", async () => {
-    assert.equal(await splitParent("- [ ] #31\n- [ ] #32 The writer\n  - also update the README"), false);
-  });
-  test("a recurring issue is never a split parent, even with every item cited", async () => {
-    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#32)", [{ name: "recurring" }]), false);
-  });
+  const app = { __typename: "Bot", databaseId: APP };
+  const spec = { body: childBody, lastEditedAt: null, author: app, editor: null, comments: [], splitParent: { number: 5, spec: parentSpec, appId: APP } };
+  const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+  assert.deepEqual(decide(facts({ issue: issueOf({ user: { id: APP }, body: childBody }), spec, verdict: large })), { verdict: "admit", reasons: [] });
 });
 
 // An issue deferred for an open pull request or a person's hold waits on that,

@@ -82,14 +82,12 @@ valid() {
 
 MSG=$'feat(alpha): add the widget\n\nThe widget does one thing.\nIt does it well.\n\nCo-Authored-By: Someone <s@x.y>\nRefs: #12'
 
-# No scripts/fragment-plugins.txt: nothing written, exit 0.
 r=$(mkrepo --no-list)
 out=$(write "$r" "$MSG")
 assert_exit "no list: exit 0" 0 "$?"
 assert_eq "no list: no output" "" "$out"
 assert_eq "no list: no fragment" 0 "$(nfrag "$r")"
 
-# feat touching a listed and an unlisted plugin: one fragment, for alpha.
 r=$(mkrepo)
 out=$(write "$r" "$MSG")
 assert_exit "feat: exit 0" 0 "$?"
@@ -99,7 +97,6 @@ want=$'---\nbump: minor\n---\n\n### Added\n\n- add the widget\n\n  The widget do
 assert_eq "feat: minor, Added, body indented, trailers dropped" "$want" "$(frag "$r" "$out")"
 valid "feat fragment validates" "$r" "$out"
 
-# Type to bump and section.
 for row in 'fix(a): x|patch|### Fixed' 'perf: x|patch|### Changed' 'feat!: x|major|### Added' \
   'refactor(a)!: x|major|### Changed' 'docs: x|none|No release needed (docs): x' \
   'chore: x|none|' 'test: x|none|' 'ci: x|none|' 'refactor: x|none|' 'style: x|none|' 'build: x|none|'; do
@@ -314,7 +311,6 @@ out=$(write "$r" "fix: after merge")
 assert_eq "after the merge: a new branch fragment, not main's" 2 "$(nfrag "$r")"
 assert_eq "after the merge: main's fragment is unchanged" "$before" "$(cat "$r/.changes/alpha/fix-other-00000009.md")"
 
-# Usage errors.
 r=$(mkrepo)
 out=$(write "$r" "feat: x" --level huge)
 assert_exit "bad --level: exit 2" 2 "$?"

@@ -681,7 +681,7 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/README.md)
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/README.md)
 (at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
@@ -1346,7 +1346,13 @@ warns of a [classifier gap](README.md#classifier-gaps).
    read-only token, reads the PR head, failing with no head output when the head is in another
    repository, resolves the slot (`applied-by-supported: patch dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
-   `not-applicable`; one whose head is no longer the head read skips `superseded-sha`.
+   `not-applicable`; one whose head is no longer the head read skips `superseded-sha`. One whose
+   only CI Status failure is the trust-gate hold (`#<n> is by an author no review lane reviews
+   and changes trust-gate paths`), which only a trusted approver clears, skips `gate-hold`
+   with no model turn and no escalation, so no human-gated label goes on (that label would keep
+   CI Status red after the approval); its step summary says the lane did not judge the update's
+   content. The dispatcher does not record that skip as handled: once CI Status passes on the
+   head it sends review-dependency again, and while CI Status stays red it sends nothing.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / review-dependency` check run that ended `success` or
@@ -1820,19 +1826,20 @@ apart, since it can lag the promote step's push), and posts the check with
 `pr-head-sha`. Why the check is written by this job and not the run job:
 [ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
 
-Last, when there is a PR, it posts or edits one comment per activity,
-[`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs), through the
+Last, when there is a PR, it writes the lane run report,
+[`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs). A clean report
+(the run job's result and `act-outcome` each `success` or `skipped`, and no failed GitHub API call) goes to the
+job summary only. Any other report posts or edits one comment per workflow run through the
 [PR-message module](../../../.github/scripts/lib/pr-messages/pr-messages.mjs) (its
 `lane-run-report` kind in
 [`message-kinds.json`](../../../.github/scripts/lib/pr-messages/message-kinds.json)). The comment
 is the newest of `github-actions[bot]`'s comments whose first line is
-`<!-- lane-run-report activity=<lane>/<activity> -->`, skipping one a person edited or one that is
+`<!-- lane-run-report run=<run id> -->`, skipping one a person edited or one that is
 minimized; a skipped comment is left as it is and the next report posts a fresh one. The comment
-holds one section per report job of the newest run (the highest run id), each headed by
-`<!-- lane-run-report-section run=<run id> attempt=<n> rung=<0|1> leg=<base|handoff|credit-stop|no-key|fallback> -->`.
+holds one section per failed report job of that run, each headed by
+`<!-- lane-run-report-section activity=<lane>/<activity> attempt=<n> rung=<0|1> leg=<base|handoff|credit-stop|no-key|fallback> -->`.
 Within one attempt each report adds its section; a later attempt's report replaces the newest
-earlier-attempt section with its rung and leg; a newer run's report clears the older run's
-sections; an older run's report changes nothing and goes to the job summary. Kept sections are
+earlier-attempt section with its activity, rung and leg. Kept sections are
 rebuilt from their checked values, never copied, and past 60,000 characters the oldest sections'
 failure rows, then the oldest sections, are dropped and counted in a note. The comment list is one
 GraphQL call per 100 comments, under a 5 s time limit and a 5 s rate-limit wait, falling back to

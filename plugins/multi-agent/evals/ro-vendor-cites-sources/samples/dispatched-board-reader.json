@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "multi-agent:board-reader",
+            "prompt": "Read /tmp/b/pages/www-tbench-ai/leaderboard.md"
+          }
+        }
+      ],
+      "why": "dispatches multi-agent:board-reader"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "board-reader",
+            "prompt": "Read page"
+          }
+        }
+      ],
+      "why": "bare board-reader name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no agent dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "multi-agent:drift-reader",
+            "prompt": "Read page"
+          }
+        }
+      ],
+      "why": "wrong subagent"
+    }
+  ]
+}

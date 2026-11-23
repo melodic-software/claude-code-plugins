@@ -20,7 +20,6 @@ LONG_AGO="1999-01-01T00:00:00Z"
 RECENT="$(date -u -d '1999-06-01T00:00:00Z' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '1999-06-01T00:00:00Z')"
 HANDLE=1787227200500
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S"
@@ -48,7 +47,6 @@ seed_reclaim() {
     '{issues: {nodes: [($i | .assignee = (if ($a | length) > 0 then {displayName: $a, email: "x@example.invalid"} else null end))]}}')"
 }
 
-# --- a LIVE lease is left alone ---
 seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)" '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "live lease → exit 0" "0" "$rc"
@@ -60,14 +58,12 @@ else
   pass "a live lease is never written to"
 fi
 
-# --- no lease at all is a clean no-op ---
 seed_reclaim '[]' '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "no lease → exit 0" "0" "$rc"
 assert_eq "reclaimed is false" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 assert_contains "reason names the absence" "$(jq -r '.reason' <<<"$(lin_out)")" "no active lease"
 
-# --- an expired lease with NO activity is reclaimed ---
 seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired, quiet lease → exit 0" "0" "$rc"
@@ -111,7 +107,6 @@ seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]' "someone-els
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired lease, different assignee → exit 0" "0" "$rc"
 assert_eq "still reclaimed (the lease is released)" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
-# The lease is superseded, but the OTHER person's assignment is left alone.
 UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate")) | .variables.input.assigneeId] | length')"
 assert_eq "the other assignee is left in place" "0" "$UNASSIGNED"
 
@@ -177,7 +172,6 @@ assert_eq "activity on a later page → exit 0" "0" "$rc"
 assert_eq "and the item is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 assert_contains "reason names the activity" "$(jq -r '.reason' <<<"$(lin_out)")" "activity"
 
-# --- scope boundary ---
 lin_reset
 rc="$(lin_run "$S" "linear:acme/OPS#5")"
 assert_eq "undeclared team → exit 2" "2" "$rc"

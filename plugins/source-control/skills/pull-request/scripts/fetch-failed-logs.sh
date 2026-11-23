@@ -47,8 +47,6 @@
 # portability-scope: fetches GitHub Actions logs through the GitHub REST API with gh; the script is the GitHub provider's log fetch.
 set -uo pipefail
 
-# --- Argument parsing --------------------------------------------------------
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_ID=""
 JOB_ID=""
@@ -108,26 +106,17 @@ while (($# > 0)); do
   shift
 done
 
-# Compose marker regex based on flags. ERRORS_ONLY suppresses warning;
-# NOTICES adds notice. Default = error + warning.
 MARKER_LEVELS=error
 ((ERRORS_ONLY)) || MARKER_LEVELS+="|warning"
 ((NOTICES)) && MARKER_LEVELS+="|notice"
 MARKER_RE="##\[($MARKER_LEVELS)\]"
 
-# Step-structure markers — shared by the per-job walk and the full-run
-# --groups section.
 GROUP_MARKER_RE='##\[(group|endgroup)\]'
 
-# Suspicious-pattern regex — case-insensitive grep targets commonly-missed
-# signal: retry loops, deprecation warnings, "0 tests" lies, timeouts,
-# exit-code mismatches not flagged as ##[error].
 SUSPICIOUS_RE='(retry|retrying|attempt [0-9]+ of [0-9]+|exponential backoff|deprecat|0 tests|no tests (collected|run)|nothing to do|skipped due to|timed out|connection refused|fallback)' # spellchecker:disable-line
 
 [[ -n "$RUN_ID" || -n "$JOB_ID" ]] || die 1 "<run-id> or --job <job-id> required"
 [[ -z "$CHECKOUT" || -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
-
-# --- Prerequisites -----------------------------------------------------------
 
 command -v gh >/dev/null 2>&1 || die 5 "gh CLI required"
 command -v unzip >/dev/null 2>&1 || die 5 "unzip required"
@@ -188,8 +177,6 @@ emit_group_timing() {
   ' "$file"
 }
 
-# --- Repo resolution ---------------------------------------------------------
-
 REPO="${FETCH_LOGS_REPO:-}"
 if [[ -z "$REPO" && -n "$CHECKOUT" ]]; then
   REPO=$(bash "$SCRIPT_DIR/target-repo.sh" --dir "$CHECKOUT" | tr -d '\r\n')
@@ -234,8 +221,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# --- Per-job mode ------------------------------------------------------------
-
 if [[ -n "$JOB_ID" ]]; then
   out_path="$SCRATCH/job-${JOB_ID}-logs.txt"
   if ! gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" >"$out_path" 2>/dev/null; then
@@ -268,8 +253,6 @@ if [[ -n "$JOB_ID" ]]; then
   fi
   exit 0
 fi
-
-# --- Full-run ZIP mode -------------------------------------------------------
 
 ZIP_PATH="$SCRATCH/run-${RUN_ID}-logs.zip"
 
@@ -315,10 +298,6 @@ while IFS= read -r -d '' f; do
   TXT_FILES+=("$f")
 done < <(find "$EXTRACT_DIR" -type f -name '*.txt' -print0 | sort -z)
 
-# per_file_section <banner> <extractor>... — run <extractor> <file> over every
-# extracted log and print each non-empty result under one shared banner. The
-# three audit sections differ only in their extractor, so the walk and the
-# per-file header live here once. Each extractor owns its own stderr handling.
 per_file_section() {
   local banner="$1" f rel out
   shift
@@ -353,7 +332,6 @@ else
     fi
   done
 
-  # --- Audit-flag sections (when requested) ---
   [[ "$SHOW_GROUPS" -eq 1 ]] && per_file_section "groups (step structure)" grep_group_markers
   [[ "$TIMING" -eq 1 ]] && per_file_section "timing (per group, ms)" emit_group_timing
   [[ "$SUSPICIOUS" -eq 1 ]] && per_file_section "suspicious patterns" grep_suspicious

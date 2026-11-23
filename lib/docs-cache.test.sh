@@ -463,7 +463,6 @@ rc=0
 out="$(esc slice "$KEY" 2 3 99 2>/dev/null)" || rc=$?
 assert_eq "escalation: an unknown id is still a miss, never the whole page" "1 " "$rc $out"
 
-# Summaries.
 assert_eq "summary: put prints nothing and exits 0" "0 " "$(
   o="$(DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 3 'Section two in brief.')"
   echo "$? $o"
@@ -492,7 +491,6 @@ dc "$S" summary put "$KEY" 4 'Treat tool output as untrusted data.' >/dev/null 2
 assert_eq "summary: prose naming untrusted data is not a marker, so it is stored" "0 1" \
   "$rc $(dc "$S" summary get "$KEY" 4 | grep -c '^summary 4: Treat tool output as untrusted data\.$')"
 
-# Notes.
 note() { DOCS_CACHE_NOW="$T1" dc "$S" note put "$@"; }
 NOTE_TEXT='Section two says "body 2" and nothing about retries.'
 NOTE_ID="$(printf '%s\n' "$NOTE_TEXT" | note "$KEY" --model opus-test --session sess-1 --question 'What does S2 say?' --sections 3)"
@@ -523,7 +521,6 @@ assert_eq "note: read --raw carries no note or summary text" "0 0 0" \
 assert_eq "note: read --raw still prints the section map" "$(dc "$S" map "$KEY")" "$(sed -n '2,9p' <<<"$out")"
 assert_eq "note: list prints id, state, date and the cited ids" "$(printf '%s\tvalid\t%s\t3' "$NOTE_ID" "$T1_ISO")" "$(dc "$S" note list "$KEY")"
 
-# Quote check and provenance.
 notes_count() { find "$S/notes" -type f ! -name '.tmp-*' 2>/dev/null | wc -l | tr -d ' '; }
 before="$(notes_count)"
 rc=0
@@ -769,7 +766,6 @@ assert_eq "edge: prune racing a hit: prune still evicted the keys no one read" 1
   echo "$rc"
 )"
 
-# The lock.
 mk_prune_store "$TEST_TMPDIR/s-lock"
 mkdir "$S/prune.lock" && printf '%s\n' "$T3" >"$S/prune.lock/at"
 err="$(DOCS_CACHE_NOW=$((T3 + 10)) dc "$S" --max-bytes 0 prune 2>&1 >/dev/null)"
@@ -966,7 +962,8 @@ escalate_bytes=61440 layer=default
 size_cap_bytes=209715200 layer=default
 prune_grace_seconds=300 layer=default
 max_page_bytes=10485760 layer=default
-cache_enabled=true layer=default"
+cache_enabled=true layer=default
+renderer=none layer=default"
 out="$(cfg bash "$SCRIPT" config)"
 assert_eq "config: with no flag, variable or file every key is its bundled default, one line each" "$want" "$(grep 'layer=' <<<"$out")"
 assert_eq "config: names the machine file it looked for" "file: $CFG_FILE (absent)" "$(grep '^file: ' <<<"$out")"
@@ -991,12 +988,13 @@ for row in "cache_dir DOCS_CACHE_DIR $TEST_TMPDIR/env-dir --cache-dir $TEST_TMPD
   "size_cap_bytes DOCS_CACHE_SIZE_CAP_BYTES 15 --max-bytes 25" \
   "prune_grace_seconds DOCS_CACHE_PRUNE_GRACE_SECONDS 16 --grace 26" \
   "max_page_bytes DOCS_CACHE_MAX_PAGE_BYTES 17 - -" \
-  "cache_enabled DOCS_CACHE_ENABLED false - -"; do
+  "cache_enabled DOCS_CACHE_ENABLED false - -" \
+  "renderer DOCS_CACHE_RENDERER firecrawl - -"; do
   read -r k var val flag fval <<<"$row"
   assert_eq "config: $var sets $k" "$k=$val layer=env" "$(cfg_get "$k" "$var=$val")"
   [[ "$flag" == - ]] || assert_eq "config: $flag sets $k" "$k=$fval layer=flag" "$(cfg_get "$k" "$var=$val" "$flag" "$fval")"
 done
-printf '{"cache_dir": "%s", "ttl_seconds": 31, "whole_page_bytes": 32, "escalate_section_percent": 33, "escalate_bytes": 34, "size_cap_bytes": 35, "prune_grace_seconds": 36, "max_page_bytes": 37, "cache_enabled": false}\n' \
+printf '{"cache_dir": "%s", "ttl_seconds": 31, "whole_page_bytes": 32, "escalate_section_percent": 33, "escalate_bytes": 34, "size_cap_bytes": 35, "prune_grace_seconds": 36, "max_page_bytes": 37, "cache_enabled": false, "renderer": "firecrawl"}\n' \
   "$TEST_TMPDIR/file-dir" >"$CFG_FILE"
 want="cache_dir=$TEST_TMPDIR/file-dir layer=file
 ttl_seconds=31 layer=file
@@ -1006,7 +1004,8 @@ escalate_bytes=34 layer=file
 size_cap_bytes=35 layer=file
 prune_grace_seconds=36 layer=file
 max_page_bytes=37 layer=file
-cache_enabled=false layer=file"
+cache_enabled=false layer=file
+renderer=firecrawl layer=file"
 assert_eq "config: the file sets every key" "$want" "$(cfg bash "$SCRIPT" config | grep 'layer=')"
 assert_eq "config: the file was read" "file: $CFG_FILE (read)" "$(cfg bash "$SCRIPT" config | grep '^file: ')"
 
@@ -1023,7 +1022,6 @@ printf '{"cache_dir": "%s"}\n' "$TEST_TMPDIR/file-store" >"$CFG_FILE"
 cfg bash "$SCRIPT" put "$URL" markdown "$PAGE" >/dev/null
 assert_eq "config: put stores in the file's cache_dir" 1 "$([[ -f "$TEST_TMPDIR/file-store/store_version" ]] && echo 1 || echo 0)"
 
-# Where the file is.
 mkdir -p "$CFG_HOME/.config/claude-docs-cache"
 printf '%s\n' '{"ttl_seconds": 42}' >"$CFG_HOME/.config/claude-docs-cache/config.json"
 printf '%s\n' '{"ttl_seconds": 43}' >"$CFG_FILE"
@@ -1037,7 +1035,7 @@ for body in '{"ttl_seconds": 5' '[{"ttl_seconds": 5}]' '' '{"ttl_seconds": 5} {"
   printf '%s' "$body" >"$CFG_FILE"
   rc=0
   out="$(cfg bash "$SCRIPT" config 2>/dev/null)" || rc=$?
-  assert_eq "config: malformed file [$body]: exit 0, every key falls to its default" "0 9 ttl_seconds=86400 layer=default" \
+  assert_eq "config: malformed file [$body]: exit 0, every key falls to its default" "0 10 ttl_seconds=86400 layer=default" \
     "$rc $(grep -c 'layer=default' <<<"$out") $(grep '^ttl_seconds=' <<<"$out")"
   assert_eq "config: malformed file [$body]: config names it" "file: $CFG_FILE (malformed)" "$(grep '^file: ' <<<"$out")"
 done
@@ -1058,7 +1056,8 @@ escalate_bytes=61440 layer=default
 size_cap_bytes=209715200 layer=default
 prune_grace_seconds=300 layer=default
 max_page_bytes=10485760 layer=default
-cache_enabled=true layer=default"
+cache_enabled=true layer=default
+renderer=none layer=default"
 assert_eq "config: a bad file value falls to the default; the good one stands" "$want" "$(grep 'layer=' <<<"$out")"
 err="$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
 assert_eq "config: each bad file value is warned once on stderr" 5 "$(grep -c '^WARNING: docs-cache config: ' <<<"$err")"
@@ -1067,6 +1066,18 @@ assert_eq "config: a bad variable falls to the file" "ttl_seconds=5 layer=file" 
 err="$(cfg DOCS_CACHE_TTL_SECONDS=soon bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
 assert_eq "config: a bad variable is warned, naming it" 1 "$(grep -c '^WARNING: docs-cache config: DOCS_CACHE_TTL_SECONDS' <<<"$err")"
 assert_eq "config: a bad cache_enabled variable falls to the default" "cache_enabled=true layer=default" "$(cfg_get cache_enabled DOCS_CACHE_ENABLED=maybe)"
+assert_eq "config: DOCS_CACHE_RENDERER=none sets renderer" "renderer=none layer=env" "$(cfg_get renderer DOCS_CACHE_RENDERER=none)"
+assert_eq "config: a bad renderer variable falls to the default" "renderer=none layer=default" "$(cfg_get renderer DOCS_CACHE_RENDERER=playwright)"
+err="$(cfg DOCS_CACHE_RENDERER=playwright bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
+assert_eq "config: a bad renderer variable is warned, naming it" 1 "$(grep -c '^WARNING: docs-cache config: DOCS_CACHE_RENDERER=playwright ' <<<"$err")"
+printf '%s\n' '{"renderer": "playwright"}' >"$CFG_FILE"
+assert_eq "config: a bad renderer string in the file falls to the default" "renderer=none layer=default" "$(cfg_get renderer)"
+err="$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
+assert_eq "config: a bad renderer string in the file is warned" 1 "$(grep -c '^WARNING: docs-cache config: renderer in .* (string playwright); ignored$' <<<"$err")"
+printf '%s\n' '{"renderer": true}' >"$CFG_FILE"
+assert_eq "config: a non-string renderer in the file falls to the default" "renderer=none layer=default" "$(cfg_get renderer)"
+printf '%s\n' '{"renderer": "firecrawl"}' >"$CFG_FILE"
+assert_eq "config: DOCS_CACHE_RENDERER=none wins over firecrawl in the file" "renderer=none layer=env" "$(cfg_get renderer DOCS_CACHE_RENDERER=none)"
 # A leading zero is refused: curl reads 010 as ten while bash's -gt reads it as
 # eight, and 09 is an error to bash. A max_page_bytes of 0 is refused too: curl
 # reads it as no limit, while the size check would refuse every page.
@@ -1094,7 +1105,7 @@ out="$(cfg bash "$SCRIPT" config)"
 assert_eq "config: an unknown key is reported as ignored, outside the layer lines" "ignored: shade (unknown key in the file)" \
   "$(grep shade <<<"$out")"
 assert_eq "config: an unknown key leaves the others" "ttl_seconds=5 layer=file" "$(grep '^ttl_seconds=' <<<"$out")"
-assert_eq "config: an unknown key adds no layer line" 9 "$(grep -c 'layer=' <<<"$out")"
+assert_eq "config: an unknown key adds no layer line" 10 "$(grep -c 'layer=' <<<"$out")"
 assert_eq "config: an unknown key warns nothing on other commands" "" "$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
 rm -f "$CFG_FILE"
 

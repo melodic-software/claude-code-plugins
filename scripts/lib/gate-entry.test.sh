@@ -29,8 +29,6 @@ child() {
   bash -c "$script" bash "$LIB" "$@"
 }
 
-# --- finish: one 0/1/2 map ------------------------------------------------
-
 rc=0
 child 'source "$1"; gate_entry::finish 0' || rc=$?
 if [[ "$rc" -eq 0 ]]; then
@@ -59,8 +57,6 @@ if [[ "$rc" -eq 2 ]]; then
 else
   fail "finish with no status exited $rc"
 fi
-
-# --- mode dispatch --------------------------------------------------------
 
 rc=0
 out="$(child 'source "$1"; gate_entry::classify --all; printf "%s" "$GE_MODE"')" || rc=$?
@@ -123,8 +119,6 @@ else
   fail "--paths consulted git or failed (rc=$rc log=$(cat "$log"))"
 fi
 rm -f "$log"
-
-# --- declared flag modes --------------------------------------------------
 
 rc=0
 out="$(child 'source "$1"; GE_FLAGS=(--check --check-bump:ref); gate_entry::classify --check-bump HEAD; printf "%s %s" "$GE_MODE" "$GE_REF"')" || rc=$?
@@ -197,8 +191,6 @@ else
   fail "legacy base mode rc=$rc out=$out"
 fi
 
-# --- unresolvable base exits 2, including from a subshell -----------------
-
 rc=0
 out="$(child 'source "$1"; gate_entry::require_base definitely-not-a-ref' 2>&1)" || rc=$?
 if [[ "$rc" -eq 2 && "$out" == *"not a valid commit"* ]]; then
@@ -230,8 +222,6 @@ if [[ "$rc" -eq 2 && "$out" == *"not a valid commit"* ]]; then
 else
   fail "classify bad ref rc=$rc out=$out"
 fi
-
-# --- empty discovery is not a failed discovery ----------------------------
 
 repo="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 git_init_test_repo "$repo" >/dev/null

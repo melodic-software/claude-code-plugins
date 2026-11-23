@@ -287,7 +287,6 @@ function Test-WorseningTrend {
     $delta = $cur - $prev
 
     if ($upwardWorsens -contains $CheckId) {
-        # Threshold: >= +5 (raw units or percentage points) counts as worsening.
         return $delta -ge 5
     }
     if ((Get-TrendWorseningSign -CheckId $CheckId) -lt 0) {

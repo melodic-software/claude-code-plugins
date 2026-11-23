@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Keyboard use in real browsers, against `share.sh ensure-running` with the fake cloudflared. For each modal surface
-// (the join dialog, session settings, the share panel, the shortcuts dialog opened with "?", notifications, the chat,
-// the picture viewer, and on a 390x844 phone the More sheet, the notifications sheet and the chat): 30 presses of Tab
-// and 30 of Shift+Tab keep focus inside it, Escape closes it, and focus goes back to what opened it. Picking an option
-// and sending an answer each put a message in the page's polite live region (announce() in app.js). A choice is
-// answered by keyboard alone: Tab from the question reaches the first option, Space picks it, Enter picks another.
-// The first-visit tour (triage 4) traps focus, ends with Done or Escape, records the `tour` pref and reopens from Help;
-// its ring moves by translate only, and the current round step stops pulsing within 5 s (animation-audit I3, I4).
-// AC17: a Tab sweep per view (a guest's Focus, Compare and Tree, the chat, the picture viewer, the Host view, settings,
-// share, notifications, shortcuts, a confirm dialog; on a phone the Questions and Answer tabs, the chat, More and the
-// Host view) reaches every control, each with a focus ring, on screen and not covered (WCAG 2.4.7, 2.4.11).
-//   node plugins/planning/shared/tests/ui_keyboard.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the keyboard requirements of the polish plan (30 presses each way, Escape closes, focus
-// returns to the opener), the WAI-ARIA Authoring Practices dialog pattern (focus stays inside a modal dialog and returns
-// to the invoking element, or where it was when a shortcut opened it), the server contract (session.py pick: one pick
-// per person) and core.js's join dialog rule (it stays open until the join succeeds), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
@@ -26,8 +9,6 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
 
 const describe = () => { const a = document.activeElement; return a ? `${a.tagName.toLowerCase()}.${[...a.classList].join(".")} "${(a.getAttribute("aria-label") || a.textContent || "").trim().replace(/\s+/g, " ").slice(0, 30)}"` : "nothing"; };
-/** In the page: true once the tour ring has stopped moving and is drawn round `sel`, its box the target's grown by 4 px a
- *  side and kept 4 px inside the page (placeTour), within 2 px. Read in one go, so no re-layout falls between the two. */
 const ringOnTarget = sel => {
   const g = document.querySelector(".vf-tour-ring"), el = document.querySelector(sel);
   if (!el || g.getAnimations().length) return false;
@@ -38,11 +19,9 @@ const ringOnTarget = sel => {
 };
 const shownSel = sel => { const el = document.querySelector(sel); return !!el && !el.hidden && el.getClientRects().length > 0 && (el.tagName !== "DIALOG" || el.open); };
 
-/** Tab then Shift+Tab, PRESSES each; the first press per direction that leaves the surface, or none. */
 async function cycle(page, sel) {
   const out = [];
   for (const key of ["Tab", "Shift+Tab"]) {
-    // Start each direction from inside: the first control the surface offers.
     await page.evaluate(sel => { const s = document.querySelector(sel); if (!s.contains(document.activeElement)) s.querySelector("button, input, textarea, select, a[href], [tabindex='0']")?.focus(); }, sel);
     for (let i = 1; i <= PRESSES; i++) {
       await page.keyboard.press(key);
@@ -54,8 +33,6 @@ async function cycle(page, sel) {
   return out;
 }
 
-/** Tag every interactive control in the view (the open modal dialog, the given surface, or the page minus inert parts)
- *  and record how each looks unfocused; returns their descriptions by tag. */
 function tagControls(scopeSel) {
   const modal = document.querySelector("dialog:modal");
   const root = (scopeSel && document.querySelector(scopeSel)) || modal || document.body;
@@ -65,19 +42,15 @@ function tagControls(scopeSel) {
     .filter(el => !el.disabled && el.tabIndex >= 0 && shown(el));
   const radios = new Set();
   const out = {};
-  // Record the unfocused look: the control a surface focused on opening is blurred while it is read, then refocused.
   const had = document.activeElement;
   had?.blur?.();
   document.querySelectorAll("[data-kb]").forEach(e => e.removeAttribute("data-kb"));
   all.forEach((el, i) => {
-    // A native radio group is one Tab stop: only its first radio stands for the group.
     if (el.type === "radio" && el.name) { if (radios.has(el.name)) return; radios.add(el.name); el.closest("form, body").querySelectorAll(`input[type=radio][name="${el.name}"]`).forEach(r => r.dataset.kb = String(i)); }
     el.dataset.kb = String(i);
     el._kbLook = [el, el.parentElement, el.parentElement?.parentElement].map(e => e && look(e));
     out[i] = `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.getAttribute("aria-label") || el.textContent || el.placeholder || "").trim().replace(/\s+/g, " ").slice(0, 30)}"`;
   });
-  // A native control taken out of the Tab order (tabindex -1) counts as reachable only inside a roving group, where
-  // a sibling holds the group's one Tab stop and arrows move between them; it is checked after the sweep.
   document.querySelectorAll("[data-kbr]").forEach(e => e.removeAttribute("data-kbr"));
   [...root.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary")]
     .filter(el => !el.disabled && el.tabIndex < 0 && shown(el)).forEach(el => { el.dataset.kbr = `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 30)}"`; });
@@ -85,8 +58,6 @@ function tagControls(scopeSel) {
   return out;
 }
 
-/** Out-of-order controls (tagControls) outside any composite widget (radiogroup, toolbar, menu, listbox, tablist,
- *  grid, group), or inside one where Tab reached no member. */
 function strandedRoving(reached) {
   const got = new Set(reached);
   return [...document.querySelectorAll("[data-kbr]")].filter(el => {
@@ -95,8 +66,6 @@ function strandedRoving(reached) {
   }).map(el => el.dataset.kbr);
 }
 
-/** The focused control: its tag, whether a ring shows (an outline on it, or a changed look on it or a near parent),
- *  whether that outline is cut off on every side by a clipping parent, and whether it is on screen and not covered. */
 function focusedNow() {
   const a = document.activeElement, id = a?.dataset?.kb;
   if (!a || id === undefined || !a._kbLook) return { id: id ?? null };
@@ -106,7 +75,6 @@ function focusedNow() {
   const changed = [a, a.parentElement, a.parentElement?.parentElement].some((e, i) => e && a._kbLook[i] !== look(e));
   let ring = ow >= 1 || changed, clipped = false;
   if (ow >= 1 && !changed) {
-    // The outline's outer box, cut by every parent that clips: how many of its four sides are still drawn?
     const o = (parseFloat(c.outlineOffset) || 0) + ow;
     let box = { l: r.left - o, t: r.top - o, rt: r.right + o, b: r.bottom + o };
     const ring0 = { ...box };
@@ -120,15 +88,12 @@ function focusedNow() {
     clipped = sides < 2;
     ring = !clipped;
   }
-  // On screen and not covered: one of five points in it reaches it (or its label) from the top.
   const pts = [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]].map(([fx, fy]) => [r.left + r.width * fx, r.top + r.height * fy]);
   const seen = pts.some(([x, y]) => { if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return false; const h = document.elementFromPoint(x, y); return !!h && (h === a || a.contains(h) || h.contains(a) || h.closest("label")?.control === a); });
   const top = document.elementFromPoint(pts[0][0], pts[0][1]), cover = top ? `${top.tagName.toLowerCase()}.${[...top.classList].join(".")}` : "off screen";
   return { id, ring, clipped, seen, cover: seen ? "" : `${cover} at ${Math.round(r.left)},${Math.round(r.top)}`};
 }
 
-/** Tab through a view from its start until every tagged control has had focus or the presses run out. Returns the
- *  controls never reached, the ones reached without a visible ring, and the ones focused off screen or covered. */
 async function sweep(page, scopeSel) {
   const names = await page.evaluate(tagControls, scopeSel || null);
   const ids = Object.keys(names), reached = new Map();
@@ -136,7 +101,6 @@ async function sweep(page, scopeSel) {
     const root = (scopeSel && document.querySelector(scopeSel)) || document.querySelector("dialog:modal");
     if (root) root.querySelector("[data-kb]")?.focus(); else { document.activeElement?.blur?.(); }
   }, scopeSel || null);
-  // Only focus that Tab moved counts: the first control a surface focuses on opening comes round again in its trap.
   for (let i = 0; i < ids.length * 2 + 20 && reached.size < ids.length; i++) {
     await page.keyboard.press("Tab");
     const f = await page.evaluate(focusedNow);
@@ -167,7 +131,6 @@ async function main() {
       q("Q4", "Which shipping speed by default?", { kind: "choice", options: [{ id: "opt-1", label: "Standard" }, { id: "opt-2", label: "Express" }, { id: "opt-3", label: "Next day" }] }),
     ] }]);
 
-    /** One surface: open it from `opener` (focus, then Enter) or with `key`, check the trap, Escape, focus back. */
     async function surface(page, name, sel, { opener, key, before, expectBack } = {}) {
       if (before) await before();
       if (opener && !(await opener.isVisible().catch(() => false))) { skipped.push(`${name}: no visible control opens it`); console.log(`SKIP ${name}: no visible control opens it`); return; }
@@ -186,7 +149,6 @@ async function main() {
       await page.evaluate(() => document.querySelectorAll("[data-kb-opener]").forEach(e => e.removeAttribute("data-kb-opener")));
     }
 
-    // ---------- the join dialog ----------
     const gus = await rec.open(A.localUrl, { context: DESK });
     await gus.waitForSelector("dialog.core-name[open]");
     const joinLeft = await cycle(gus, "dialog.core-name");
@@ -195,13 +157,11 @@ async function main() {
     ok("join dialog: Escape leaves it open (core.js: it stays open until the join succeeds)", await gus.evaluate(() => !!document.querySelector("dialog.core-name")?.open));
     const gusPid = await joinAs(gus, "Gus");
 
-    // ---------- the owner's surfaces on a desktop ----------
     const owner = await rec.open(A.ownerUrl, { context: DESK });
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await surface(owner, "settings panel", ".vf-settings", { opener: owner.locator(".vf-gear") });
     await surface(owner, "share panel", ".vf-share", { opener: owner.locator(".vf-sharebtn") });
     await surface(owner, "Inbox page", ".vf-inboxpage", { opener: owner.locator(".vf-bell") });
-    // "?" from a question in the list: focus goes back to that question, where it was.
     await surface(owner, "keyboard shortcuts (?)", ".vf-keys", { opener: owner.locator(".vf-q").first(), key: "?" });
 
     // ---------- the guest's surfaces on a desktop ----------
@@ -209,7 +169,6 @@ async function main() {
     await gus.setViewportSize({ width: 1024, height: 900 });
     await surface(gus, "chat over the page (1024 wide)", "section.vf-chat", { opener: gus.locator(".vf-fab") });
     await gus.setViewportSize(DESK.viewport);
-    // From 1100 px the page makes room for it: a region beside the page that Tab moves on from, and Escape inside closes.
     await gus.locator(".vf-fab").focus();
     await gus.keyboard.press("Enter");
     await until(gus, () => !document.querySelector(".vf-chat").hidden);
@@ -222,7 +181,6 @@ async function main() {
     await gus.locator(".vf-q", { hasText: "Did you mean this button?" }).first().click();
     await surface(gus, "picture viewer", ".vf-lb", { opener: gus.locator(".vf-confirm-fig .vf-imgbtn") });
 
-    // ---------- the phone sheets ----------
     const phoneOwner = await rec.open(A.ownerUrl, { context: PHONE });
     await until(phoneOwner, () => window.Core.snapshot()?.me?.role === "owner");
     const more = phoneOwner.locator(".vf-tab", { hasText: "More" });
@@ -235,7 +193,6 @@ async function main() {
     await joinAs(pia, "Pia");
     await surface(pia, "phone chat", "section.vf-chat", { opener: pia.locator(".vf-fab") });
 
-    // ---------- announcements ----------
     await gus.evaluate(() => {
       window.__said = [];
       const live = document.querySelector(".vf-sr[aria-live]");
@@ -256,11 +213,9 @@ async function main() {
     ok("sending an answer puts a message in the polite live region", await until(gus, n => window.__said.length > n, n0, 5000),
       `messages so far: ${JSON.stringify(await gus.evaluate(() => window.__said))}`);
 
-    // ---------- a choice answered by keyboard alone ----------
     await gus.locator(".vf-q", { hasText: "Which shipping speed by default?" }).first().click();
     await until(gus, () => document.querySelector(".vf-qtext")?.textContent === "Which shipping speed by default?");
     await gus.evaluate(() => document.querySelector(".vf-qtext").focus());
-    /** Tab until focus is on option `i`'s pick button; the stops on the way, and whether it got there before another option. */
     async function tabTo(i, max = 12) {
       const path = [];
       for (let k = 0; k < max; k++) {
@@ -288,18 +243,12 @@ async function main() {
       }
     }
 
-    // ---------- AC17: a Tab sweep per view, desktop and phone ----------
-    // Every interactive control in the view takes focus from Tab, shows a ring when it has it (WCAG 2.4.7), and is on
-    // screen and not covered when focused (WCAG 2.4.11). Views: a guest's Focus on a choice and on a text question with
-    // answers, Compare, Tree, the chat, the picture viewer; the owner's Host view, settings, share, notifications,
-    // shortcuts and a confirm dialog; on a phone the Questions and Answer tabs, the chat, the More sheet and Host view.
     await owner.locator(".vf-q", { hasText: "Where should the order summary sit?" }).first().click();
     await owner.locator("#vf-answer").fill("Next to the pay button.");
     await owner.press("#vf-answer", "Control+Enter");
     await until(gus, () => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === "p:host"));
     async function swept(page, name, { scope, open, close } = {}) {
       try { if (open) await open(); } catch (e) { ok(`Tab sweep, ${name}: the view opens`, false, String(e.message).split("\n")[0]); return; }
-      // Swept once the view holds still: each control's resting look is the baseline its focus ring is told from.
       const still = await settled(page, { rects: true });
       const r = await sweep(page, scope);
       ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, still && r.total > 0 && r.missed.length === 0,
@@ -320,7 +269,6 @@ async function main() {
     await swept(gus, "guest Compare (desktop)", { open: viewSeg(gus, "Compare") });
     await swept(gus, "guest Tree (desktop)", { open: viewSeg(gus, "Tree") });
     await viewSeg(gus, "Focus")();
-    // swept where the chat is a modal (below 1100 px), so Tab comes round to its first control again
     await gus.setViewportSize({ width: 1024, height: 900 });
     await swept(gus, "chat (desktop, 1024 wide)", { scope: "section.vf-chat", open: () => gus.locator(".vf-fab").click(), close: esc(gus) });
     await gus.setViewportSize(DESK.viewport);
@@ -338,12 +286,9 @@ async function main() {
     await swept(pia, "chat sheet (phone)", { scope: "section.vf-chat", open: () => pia.locator(".vf-fab").click(), close: esc(pia) });
     await swept(phoneOwner, "More sheet (phone)", { scope: ".vf-moresheet", open: tab(phoneOwner, "More"), close: esc(phoneOwner) });
     await swept(phoneOwner, "owner Host view (phone)", { open: async () => { await tab(phoneOwner, "More")(); await phoneOwner.locator(".vf-msitem", { hasText: "Host view" }).click(); } });
-    // One person, two tabs on two questions: the phone tab on the guest's question and hidden, the desktop tab on another
-    // and focused after it. The host shows on the desktop tab's question only (the tab focused or shown last), so the
-    // guest's page never says "The host is on this question" while it is sampled every 250 ms, whichever tab beats last.
     const piaQ = await pia.evaluate(() => document.querySelector(".vf-qtext")?.textContent);
     const qidOf = (page, text) => page.evaluate(t => window.Core.state.questions.find(x => x.text === t)?.id, text);
-    const phoneQ = await qidOf(phoneOwner, piaQ), deskQ = await qidOf(owner, "Did you mean this button?"); // Gus is there already, so the tour below has its own question
+    const phoneQ = await qidOf(phoneOwner, piaQ), deskQ = await qidOf(owner, "Did you mean this button?");
     await phoneOwner.evaluate(id => window.Core.setFocus(id), phoneQ);
     await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
     await owner.evaluate(id => { window.Core.setFocus(id); window.dispatchEvent(new Event("focus")); }, deskQ);
@@ -354,51 +299,41 @@ async function main() {
     const flips = samples.filter(([q, shown]) => q !== deskQ || shown).length;
     ok("a host with two tabs shows on the question of the tab focused last, never flipping", phoneQ && deskQ && phoneQ !== deskQ && settledOnDesk && flips === 0,
       `phone on ${phoneQ}, desktop on ${deskQ}, settled: ${settledOnDesk}, ${flips} of 24 samples off the desktop's question or showing the host here`);
-    // The phone is used again and locked, while the desktop window keeps focus and fires nothing: the phone holds the newer
-    // focus time but is hidden, so the host stays on the desktop's (visible) question.
     await phoneOwner.evaluate(() => {
       const show = state => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state }); document.dispatchEvent(new Event("visibilitychange")); };
       show("visible"); setTimeout(() => show("hidden"), 1500);
     });
-    await phoneOwner.waitForTimeout(4500); // the shown beat, the hidden one, and a regular beat after it
+    await phoneOwner.waitForTimeout(4500);
     const locked = [];
     for (let i = 0; i < 24; i++) { locked.push(await hostQ()); await pia.waitForTimeout(250); }
     const lockedOff = locked.filter(x => x !== deskQ).length;
     ok("  and a locked phone used after the desktop does not take the host off the desktop's question", lockedOff === 0,
       `${lockedOff} of 24 samples off the desktop's question (${[...new Set(locked)].join(", ")})`);
-    // Both tabs on screen: the phone shown first, the desktop focused 3 s later. From then on every phone beat reaches the
-    // server 5 s late, so its age of the same focus arrives stale; the phone's focus must stay where its first beat put it.
     await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
     await phoneOwner.waitForTimeout(2500);
     await phoneOwner.route("**/api/heartbeat", async r => { await new Promise(res => setTimeout(res, 5000)); await r.continue().catch(() => {}); });
     await owner.waitForTimeout(500);
     await owner.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await pia.waitForTimeout(9000); // a delayed phone beat lands
+    await pia.waitForTimeout(9000);
     const late = [];
     for (let i = 0; i < 24; i++) { late.push(await hostQ()); await pia.waitForTimeout(250); }
     const lateOff = late.filter(x => x !== deskQ).length;
     ok("  and a phone's late beats do not move its earlier focus past the desktop's", lateOff === 0,
       `${lateOff} of 24 samples off the desktop's question (${[...new Set(late)].join(", ")})`);
     await phoneOwner.unroute("**/api/heartbeat");
-    // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
     await phoneOwner.close();
 
-    // ---------- triage 4: the first-visit tour (optional, skippable, re-opened from Help, remembered by the `tour` pref) ----------
     const tia = await rec.open(A.localUrl, { context: DESK });
     await joinAs(tia, "Tia");
     await until(tia, () => !document.querySelector(".vf-orient")?.hidden);
     await tia.click(".vf-orient-tour");
     const card = ".vf-tour-card[role=dialog][aria-modal=true]";
     ok("the tour opens as a modal dialog with focus on Next", await until(tia, c => { const d = document.querySelector(c); return !!d?.offsetParent && document.activeElement?.textContent === "Next"; }, card));
-    // animation-audit I3: the ring moves by transform only (catalog "Properties": transform and opacity, no layout
-    // transitions), and still lands on the step's target: its box is the target's grown by 4 px a side (paintTour).
     ok("the tour ring transitions translate only, never a layout property", await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty) === "translate",
       await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty));
-    const alone = await until(tia, () => document.querySelector(".vf-onit").hidden, null, 10000); // no one else on this question
+    const alone = await until(tia, () => document.querySelector(".vf-onit").hidden, null, 10000);
     await tia.click(".vf-tour-row .vf-btn-primary");
     ok("after Next the ring has moved onto the next step's target", await until(tia, ringOnTarget, ".vf-fmt"));
-    // The ring follows its target when the page re-lays-out under the open tour: another person arriving on this
-    // question shows "is on this question" above the options and pushes them down.
     const fmtTop = () => tia.evaluate(() => document.querySelector(".vf-fmt").getBoundingClientRect().top);
     const top0 = await fmtTop();
     await openQ(gus, await tia.textContent(".vf-qtext"))();
@@ -408,7 +343,6 @@ async function main() {
     let escaped = 0;
     for (let i = 0; i < PRESSES; i++) { await tia.keyboard.press(i % 2 ? "Shift+Tab" : "Tab"); if (!(await tia.evaluate(c => document.querySelector(c).contains(document.activeElement), card))) escaped++; }
     ok(`${PRESSES} Tab and Shift+Tab presses keep focus inside the tour`, escaped === 0, `${escaped} left it`);
-    /** Every step's heading from here to Done, which ends the tour. */
     const walk = async page => {
       const seen = [];
       for (let i = 0; i < 20; i++) {
@@ -419,9 +353,8 @@ async function main() {
       }
       return seen;
     };
-    const steps = await walk(tia); // from the second step: the ring check above pressed Next once
+    const steps = await walk(tia);
     ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), steps.join(" | "));
-    // Follow-up 38: a guest's tour adds the Discussion, Ask Claude (and @Claude), and the Inbox; none of the host's steps.
     const GUEST_STEPS = ["Your answer box", "Everyone's answers", "Discussion", "Ask Claude", "Chat with people", "Your Inbox", "Help is here"];
     ok("a guest's tour walks the answer box, others' answers, the Discussion, Ask Claude, the chat, the Inbox and Help", GUEST_STEPS.every(h => steps.includes(h)), steps.join(" | "));
     ok("  and none of the host's steps", !steps.some(h => ["Share the link", "Needs you", "Send the round"].includes(h)), steps.join(" | "));
@@ -433,14 +366,12 @@ async function main() {
     ok("Escape skips the tour, the pref says skipped, and focus goes back to the Help button", await until(tia, () => document.querySelector(".vf-tour").hidden
       && window.Core.snapshot()?.me?.prefs?.tour === "skipped" && document.activeElement?.classList.contains("vf-keysbtn")));
 
-    // Follow-up 38: the host's tour, from Help: Share, Needs you (Run and Approve) and Send, each on its real control.
     await owner.click(".vf-keysbtn");
     await owner.click(".vf-help-tour");
     await until(owner, c => !!document.querySelector(c)?.offsetParent, card);
     const hostSteps = [];
     for (let i = 0; i < 20; i++) {
       const h = await owner.textContent(".vf-tour-h");
-      // What the ring is drawn round once it stops moving: the control each host step names.
       const at = await owner.waitForFunction(() => {
         const g = document.querySelector(".vf-tour-ring");
         if (g.getAnimations().length) return null;

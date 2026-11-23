@@ -28,7 +28,7 @@
 // so only its last answer reaches the above; serverFailure tells a caller it
 // still failed.
 
-import { graphqlQuery, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { graphqlQuery, retryServerErrors } from "../lib/github-client.mjs";
 import { countsRequests, rateLimitLatch, refusedForLimit, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 
 export function budgetedFetch({

@@ -8,7 +8,6 @@ behind Get-ApprovalState and Get-MuteState.
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Read-SharedText.ps1'
-    # Non-ASCII, so a read that ignored the UTF-8 encoding would garble it.
     $script:text = '{"a":"' + [char]0xE9 + 't' + [char]0xE9 + '"}'
 }
 

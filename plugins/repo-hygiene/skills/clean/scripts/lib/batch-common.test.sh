@@ -19,7 +19,6 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
-# --- 1. batch_normalize_input: backslash -> forward slash, CR + trailing slash ---
 got="$(batch_normalize_input 'D:\work\acme\keepme')" # portability-ok: a Windows drive path fixture, not a GNU grep \w class — the backslashes are the input this case normalizes
 assert_contains "backslash path normalized to forward slashes" "$got" 'D:/work/acme/keepme'
 backslash=$'\134'
@@ -39,7 +38,6 @@ else
   fail "trailing slash collapsed" 'D:/work/acme/keepme' "$got"
 fi
 
-# --- 2. batch_resolve_repos: dedup by canonical toplevel ---
 git init "$TEST_TMPDIR/repoA" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/repoA" config user.email t@example.com
 git -C "$TEST_TMPDIR/repoA" config user.name Test
@@ -47,7 +45,6 @@ git init "$TEST_TMPDIR/repoB" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/repoB" config user.email t@example.com
 git -C "$TEST_TMPDIR/repoB" config user.name Test
 
-# repoA named twice (once via a nested subdir) + repoB once => 2 unique.
 mkdir -p "$TEST_TMPDIR/repoA/sub"
 batch_resolve_repos "$TEST_TMPDIR/repoA" "$TEST_TMPDIR/repoA/sub" "$TEST_TMPDIR/repoB"
 if [[ "${#BATCH_TOPS[@]}" -eq 2 ]]; then
@@ -56,7 +53,6 @@ else
   fail "dedup to 2 unique tops" 2 "${#BATCH_TOPS[@]}"
 fi
 
-# --- 3. batch_resolve_repos: invalid inputs recorded, not dropped ---
 mkdir -p "$TEST_TMPDIR/plaindir"
 batch_resolve_repos "$TEST_TMPDIR/repoA" "$TEST_TMPDIR/plaindir" "$TEST_TMPDIR/nope"
 if [[ "${#BATCH_TOPS[@]}" -eq 1 ]]; then
@@ -73,7 +69,6 @@ reasons="$(printf '%s\n' "${BATCH_INVALID_REASONS[@]}")"
 assert_contains "plain dir reported not-a-git-repo" "$reasons" "not-a-git-repo"
 assert_contains "missing path reported not-a-directory" "$reasons" "not-a-directory"
 
-# --- 4. batch_add_gitdir: linked worktrees collapse to one shared object store ---
 git -C "$TEST_TMPDIR/repoA" commit --allow-empty -m init >/dev/null 2>&1
 git -C "$TEST_TMPDIR/repoA" worktree add "$TEST_TMPDIR/repoA-wt" -b wt >/dev/null 2>&1
 batch_reset_gitdirs
@@ -89,7 +84,6 @@ else
   fail "one shared object store" 1 "${#BATCH_GITDIR_KEYS[@]}"
 fi
 
-# A second independent repo is a distinct common dir.
 git -C "$TEST_TMPDIR/repoB" commit --allow-empty -m init >/dev/null 2>&1
 batch_add_gitdir "$TEST_TMPDIR/repoB"
 if [[ "${#BATCH_GITDIR_KEYS[@]}" -eq 2 ]]; then
@@ -98,7 +92,6 @@ else
   fail "distinct common dir" 2 "${#BATCH_GITDIR_KEYS[@]}"
 fi
 
-# --- 5. batch_read_lines_into: CR-stripped, non-empty, rc 0 ---
 printf 'a\r\n\nb\n' >"$TEST_TMPDIR/lines.txt"
 LINES=()
 rc=0
@@ -110,8 +103,6 @@ else
   fail "read_lines_into strips CR and empties" "a,b" "${LINES[*]}"
 fi
 
-# expect_single_a <rc label> <case label> <rc> — the read reported success and
-# left exactly the one entry `a` in the global LINES the call populated.
 expect_single_a() {
   local rc_label="$1" case_label="$2" rc="$3"
   assert_exit "$rc_label" 0 "$rc"
@@ -122,7 +113,6 @@ expect_single_a() {
   fi
 }
 
-# --- 5b. empty file, trailing blank, missing final newline: all rc 0 ---
 : >"$TEST_TMPDIR/empty.txt"
 LINES=()
 rc=0
@@ -146,13 +136,11 @@ rc=0
 batch_read_lines_into LINES "$TEST_TMPDIR/noeol.txt" || rc=$?
 expect_single_a "unterminated final line is success (rc 0)" "unterminated final line is kept" "$rc"
 
-# Stdin (`-`): ordinary EOF is success, including a trailing blank.
 LINES=()
 rc=0
 batch_read_lines_into LINES - < <(printf 'a\n\n') || rc=$?
 expect_single_a "stdin trailing blank is success (rc 0)" "stdin trailing blank keeps the preceding entry" "$rc"
 
-# --- 5c. missing / non-regular / unopenable named sources return 1 ---
 LINES=()
 rc=0
 batch_read_lines_into LINES "$TEST_TMPDIR/no-such-list.txt" || rc=$?
@@ -187,8 +175,6 @@ chmod 644 "$UNREAD" 2>/dev/null || true
 # missing case on #3641 after `{fd}` failed under that ulimit.
 printf 'keep\n' >"$TEST_TMPDIR/lowfd.txt"
 if (ulimit -n 10) >/dev/null 2>&1; then
-  # The read runs in the subshell below (its own LINES); this case asserts on the
-  # subshell's stdout, so the outer LINES is deliberately not involved.
   rc=0
   out="$(
     bash -c '
@@ -214,7 +200,6 @@ else
   skip_case "cannot lower ulimit -n on this host"
 fi
 
-# --- batch_run_fleet: a child that fails is reported and the fleet goes on ---
 for r in good bad last; do
   git init -q "$TEST_TMPDIR/fleet-$r"
 done
@@ -238,7 +223,6 @@ rc=0
 batch_run_fleet "$TEST_TMPDIR/stub-audit.sh" >/dev/null 2>&1 || rc=$?
 assert_exit "fleet: exit status stays 0 despite a failing child" 0 "$rc"
 
-# --- batch_remote_key: github.com paths are case-insensitive, other hosts keep case ---
 git init -q "$TEST_TMPDIR/rk"
 key_for() {
   git -C "$TEST_TMPDIR/rk" remote remove origin 2>/dev/null
@@ -259,7 +243,6 @@ else
   fail "remote key: another host keeps its path case" example.com/Foo/Bar "$other_key"
 fi
 
-# --- batch_dedupe_clones: a skip-listed clone is neither kept nor a duplicate ---
 for r in ca cb cc; do
   git init -q "$TEST_TMPDIR/clone-$r"
   git -C "$TEST_TMPDIR/clone-$r" remote add origin https://example.com/o/r.git
@@ -283,7 +266,6 @@ else
 fi
 BATCH_SKIP_INPUTS=()
 
-# --- batch_run_fleet reports clone duplicates the caller dropped ---
 batch_resolve_repos "$TEST_TMPDIR/clone-ca" "$TEST_TMPDIR/clone-cb" "$TEST_TMPDIR/fleet-good"
 batch_dedupe_clones
 fleet_out="$(batch_run_fleet "$TEST_TMPDIR/stub-audit.sh" 2>/dev/null)"
@@ -292,7 +274,6 @@ Outcome: skipped
 Reason: skipped duplicate of $TEST_TMPDIR/clone-ca"
 assert_contains "fleet: summary counts the clone duplicate" "$fleet_out" "FleetSummary: repos=3 audited=2 skipped=0 duplicate=1 blocked=0 failed=0"
 
-# --- batch_take_selection_arg ---
 BATCH_REPO_INPUTS=()
 BATCH_SKIP_INPUTS=()
 batch_take_selection_arg --repo a b --skip x

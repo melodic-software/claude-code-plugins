@@ -1,8 +1,3 @@
-"""Tests for parse_transcript.py --legs: metrics from sealed lane legs (gzipped stream-json arrays).
-
-The leg is the hand-written `lane-legs/leg.json`, gzipped into tmp_path per test.
-"""
-
 from __future__ import annotations
 
 import gzip
