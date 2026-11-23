@@ -12,20 +12,14 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Current branch, `git branch --show-current`
-
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-comes too late for whatever the command has already returned inline. What a result returns inline,
-and when it arrives as a saved file instead, is [Tools reference § Output
-limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
 
 ## Purpose
 
@@ -147,7 +141,7 @@ Tool presence: verify on `PATH` before each ecosystem the tool its commands are 
 
 Declared prerequisites: after the tool-presence check and a met single-condition `opt-in` (an unmet one skips without probing), run the probes the resolved `requires` lists for the command this mode runs (`check-cmd`, `fix-cmd` or `code-fix-cmd`), by `/toolchain:check`'s "Declared prerequisites" rules. With any entry absent, the command does not run: every column it fills reads `skip (prerequisite missing: <name>)`, with the entry's `hint` below the table (and, for an entry with an `install` object, the provisioning step that installs it, as `/toolchain:check` names it), and the run goes on to the next ecosystem. A probe that errors, cannot start or passes 30 seconds reads the same skip, never `FAIL`. Never install a declared prerequisite and never run its `hint`. Under `--code-fix` no probe runs before the [confirmation gate](#code-fix-confirmation-gate) grants an apply: the plan lists each prerequisite `requires` declares for `code-fix-cmd` as `not probed yet`, so `--dry-run`, a non-interactive run without `--yes` and a declined confirmation run no probe at all. Once the gate grants the apply, the probes run, and an absent entry skips that ecosystem's `code-fix-cmd` with the same `skip (prerequisite missing: <name>)` report.
 
-Tool pins (`tool-pin` sub-key, e.g. zizmor): when the resolved config pins a tool version, warn if the installed version drifts from the pin (a pin typically mirrors the consumer's own CI pin). No pin, no check.
+Tool pins (`tool-pin` sub-key, e.g. zizmor): when the resolved config pins a tool version, warn if the installed version drifts from the pin. A record sets a pin only for a tool whose version the repository owns itself (a manifest, lockfile, or version input its own workflow sets) and omits it when the version comes from a shared default, such as a composite action's input default, since a copy drifts. No pin, no check.
 
 When a resolved command names `$EC_BIN`, resolve it for editorconfig-checker binary-name variants before substituting it into the command:
 

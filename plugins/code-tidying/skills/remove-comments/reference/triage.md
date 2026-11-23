@@ -111,6 +111,18 @@ criterion 2 does not ask: criterion 2 asks only whether the reasoning can be fou
   report marks the claim unverified.
 - **Confirmed or not contradicted**: the criteria below decide as usual.
 
+**Trace a thin claim before judging it.** A comment that leans on emphasis instead of evidence
+(`IMPORTANT`, `do not remove`, `too risky`, `fine for now`, or a long justification) is a prompt
+to look, never a reason to keep. Read the code around it; when that does not settle the claim,
+trace the symbol or call it names to its definition and its callers. The claim holds only when it
+is true of today's code on a path that still runs.
+
+- Contradicted, or about a path nothing reaches: class A, obsolete, in every posture.
+- Under `necessary`, it stays only when the resolved keep list applies and the traced claim holds;
+  otherwise it is deleted with a reshape flag naming the symbol it guards. Under `none` only the
+  floor keeps it. A claim the trace leaves open counts as not holding under both.
+- Under `explanatory`, a claim the trace confirms or leaves open goes on to the criteria.
+
 An unverified claim is not exempt from the criteria. It goes on to them like any class-C comment,
 so under `explanatory` a rationale that fails criterion 2 is still deleted; the re-check only adds a
 route to class A and never keeps a comment the criteria would remove.
@@ -165,7 +177,9 @@ before the deletion is final. See [safety.md](safety.md).
 - **Private/internal doc comments** get the same three-way triage as any comment, a deliberate
   doctrine choice (the Martin pole for internal interfaces): a private method whose doc comment
   restates its name and parameters is class A/B; one carrying a real contract (constraints, units,
-  side effects, surprising behavior) is class C.
+  side effects, surprising behavior) is class C. A Python docstring is a string, not a comment, so
+  deleting a module or class-free function docstring carries DOCSTRING-ONLY in place of
+  COMMENT-ONLY, and deleting a class or method docstring is a proposal ([safety.md](safety.md), tier 0).
 
 ## Worked examples
 

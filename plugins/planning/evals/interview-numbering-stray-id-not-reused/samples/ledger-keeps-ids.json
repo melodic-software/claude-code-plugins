@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Open-question register\n\n- Q1 | answered | round 1 | What problem? | manual rebuild\n- Q2 | answered | round 1 | Who uses it? | finance\n- gap | Q3-Q599 | ids skipped by an earlier session\n- Q600 | answered | round 1 | What quality bar? | production\n- Q601 | open | round 2 | Should one export cover one calendar month? |\n",
+      "why": "old ids kept, new row Q601"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Open-question register\n\n- Q1 | answered | round 1 | What problem? | manual rebuild\n- Q2 | answered | round 1 | Who uses it? | finance\n- gap | Q3-Q599 | ids skipped by an earlier session\n- Q3 | answered | round 1 | What quality bar? | production\n- Q4 | open | round 2 | Should one export cover one calendar month? |\n",
+      "why": "Q600 renumbered down"
+    },
+    {
+      "answer": "## Open-question register\n\n- Q1 | answered | round 1 | What problem? | manual rebuild\n- Q2 | answered | round 1 | Who uses it? | finance\n- gap | Q3-Q599 | ids skipped by an earlier session\n- Q600 | answered | round 1 | What quality bar? | production\n- Q3 | open | round 2 | Date range? |\n",
+      "why": "the new row fills the gap"
+    }
+  ]
+}

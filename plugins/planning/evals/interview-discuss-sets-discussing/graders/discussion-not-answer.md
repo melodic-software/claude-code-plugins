@@ -15,7 +15,11 @@ PASS only if all of these hold:
 4. Q6 is named as still open, since the user's reply did not address it.
 5. If the reply asks Q4 again, it shows Q4 in the full question layout (context, a recommendation
    with its basis, alternatives) and states the recommendation as revised from old to new with
-   the reason, or as unchanged with the reason.
+   the reason, or as unchanged with the reason. Its basis is either the evidence label and source
+   that end the recommendation's reason (for example "(verified, user, round 2: a receiver deploy
+   can take an hour)"), or a `Basis:` line; the default detail level prints no `Basis:` line, so
+   the reason's closing label and source alone meet it.
 
-FAIL if Q4 is recorded as answered, Q6 goes unmentioned, or the reply writes a Brief or asks the
-user to confirm the whole contract while Q4 or Q6 is unresolved.
+FAIL if Q4 is recorded as answered, Q6 goes unmentioned, Q4 is asked again with a recommendation
+that has no basis (no evidence label and source ending its reason and no `Basis:` line), or the
+reply writes a Brief or asks the user to confirm the whole contract while Q4 or Q6 is unresolved.

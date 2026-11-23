@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "5.13.2",
+  "version": "5.14.0",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -21,6 +21,17 @@
         "round",
         "single",
         "auto"
+      ]
+    },
+    "question_detail": {
+      "type": "string",
+      "title": "Interview question detail",
+      "description": "How much of each question /planning:interview prints: standard (default; hides Origin, Basis, Checked against and the source quote), full (the whole block) or minimal (answer lines and an alternatives count). The round file keeps the full block; a session request or planning.yaml overrides it.",
+      "default": "standard",
+      "options": [
+        "full",
+        "standard",
+        "minimal"
       ]
     },
     "use_ask_user_question": {

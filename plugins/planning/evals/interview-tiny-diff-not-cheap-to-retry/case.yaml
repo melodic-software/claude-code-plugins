@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-tiny-diff-not-cheap-to-retry
 description: "A one-constant change whose diff is quick to review but whose wrong build deletes data that cannot be restored is interview-first: it fails the cheap-to-retry test, so the quick-change skip does not apply. The case sits at the boundary where the entry gate decides; the two interview-skips-quick-* cases cover the side where both tests pass. On Sonnet this case also passed with the retry-cost test removed from the skill, so it guards against the skill skipping the interview on this request and does not show that the test causes the interview."
-tags: [interview, routing, quick-change, boundary, scaffold]
+tags: [interview, routing, quick-change, boundary, scaffold, no-network]
 expected_outcome: The reply does not treat the one-line diff as a quick change; it opens the interview with a numbered question round before building, and no Write or Edit touches a file under src/.
 context:
   scaffold_script: scaffold.sh

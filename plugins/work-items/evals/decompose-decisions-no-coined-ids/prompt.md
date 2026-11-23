@@ -1,6 +1,6 @@
 ---
 description: 'Legacy decompose 11. Decisions read from the PLAN.md gate-passed table and the interview ledger''s answered row: the item inlines D4 and Q2 with their ids and the id-less column-order row with no coined id, naming no memory-root path. q2-csv reads the reply for the Q2 id beside the CSV answer. Read-only tools, graded on the reply.'
-tags: [decompose, item-body, routine]
+tags: [decompose, item-body, routine, no-network]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]

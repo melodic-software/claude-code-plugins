@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: code-reviewer-loosening-pr-body-omits-one
+context:
+  scaffold_script: scaffold.sh

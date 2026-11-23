@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Every fixture is built in a mktemp directory and torn down on exit; nothing
-# here reads or writes a real repository.
 set -uo pipefail
 
-# Isolate the fixture repositories from any ambient git environment, for the
-# reason the sibling suite documents: `git -C` changes directory but does not
-# override discovery, so an exported GIT_DIR would land these throwaway
-# identities in the CALLER's .git/config.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,12 +28,10 @@ commit_repo() {
   git -C "$1" commit --quiet --no-verify -m "fixture" 2>/dev/null
 }
 
-# The record for one (to, type) pair, or the empty string.
 edge() {
   printf '%s\n' "$1" | grep -F "\"to\":\"$2\"" | grep -F "\"type\":\"$3\"" | head -1
 }
 
-# One scalar out of an edge record.
 field() {
   printf '%s' "$1" | awk -v key="$2" '
     {
@@ -64,7 +56,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Case group 1: uses-workflow --------------------------------------------
 wf_repo="$(make_repo runner)"
 mkdir -p "$wf_repo/.github/workflows"
 cat >"$wf_repo/.github/workflows/ci.yml" <<'YML'
@@ -91,7 +82,6 @@ assert_equals "uses: a third-party action is external" "$(field "$e" relation)" 
 assert_not_contains "uses: a local action path is not a repository" "$out" '"to":"."'
 assert_not_contains "uses: a docker image is not a repository" "$out" 'alpine'
 
-# --- Case group 2: installs-plugin ------------------------------------------
 mk_repo="$(make_repo marketplace)"
 mkdir -p "$mk_repo/.claude-plugin"
 cat >"$mk_repo/.claude-plugin/marketplace.json" <<'JSON'
@@ -109,7 +99,6 @@ assert_contains "install: it is typed as installs-plugin" "$out" '"type":"instal
 assert_not_contains "install: a local source is this repository's own component" "$out" '"to":"./plugins'
 assert_not_contains "install: no edge is invented from the local path" "$out" 'local-one'
 
-# --- Case group 3: depends-on -----------------------------------------------
 go_repo="$(make_repo service)"
 cat >"$go_repo/go.mod" <<'GOMOD'
 module github.com/fixture-owner/service
@@ -124,7 +113,6 @@ e="$(edge "$out" spf13/cobra depends-on)"
 assert_equals "go: the required module is a depends-on edge" "$(field "$e" to)" "spf13/cobra"
 assert_not_contains "go: the module's own path is not a self-edge" "$out" '"to":"fixture-owner/service"'
 
-# --- Case group 4: cites, and what is NOT cited -----------------------------
 docs_repo="$(make_repo handbook)"
 mkdir -p "$docs_repo/docs"
 cat >"$docs_repo/docs/notes.md" <<'MD'
@@ -154,7 +142,6 @@ assert_not_contains "cites: a documentation placeholder is not a repository" "$o
 assert_not_contains "cites: a bare token from another owner is not trusted" "$out" 'other-org/their-thing'
 assert_not_contains "cites: a user-attachments URL is not a repository" "$out" '"to":"user-attachments/'
 
-# --- Case group 5: fixtures and self-references -----------------------------
 noise_repo="$(make_repo charted)"
 mkdir -p "$noise_repo/plugins/thing/evals" "$noise_repo/docs"
 cat >"$noise_repo/plugins/thing/audit.test.sh" <<'SH'
@@ -175,9 +162,6 @@ assert_not_contains "noise: a test-file same-owner token is not a system" "$out"
 assert_not_contains "noise: an evals fixture is not a system" "$out" 'fixture-owner/eval-only'
 assert_not_contains "noise: the repository does not cite itself" "$out" '"to":"fixture-owner/charted"'
 
-# This skill's own committed output names every repository it charted. Reading
-# it back would raise every count on each run and cite the record as its own
-# evidence, so a drift gate could never report clean.
 mkdir -p "$noise_repo/docs/architecture"
 cat >"$noise_repo/docs/architecture/landscape.json" <<'JSON'
 {"repositories":[],"edges":[{"to":"fixture-owner/from-the-record"}]}
@@ -194,8 +178,6 @@ assert_not_contains "artifact: nor the portfolio table" "$out" 'portfolio-row'
 assert_contains "artifact: a real doc reference still survives alongside them" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_not_contains "noise: nor in another case" "$out" '"to":"Fixture-Owner/Charted"'
 
-# Tests in any language, test-vector tables, example owners and a dotted owner
-# name no system; a real URL beside them, dotted repository name included, does.
 sample_repo="$(make_repo sampled)"
 mkdir -p "$sample_repo/scripts" "$sample_repo/docs"
 printf "const u = 'https://github.com/o/r/pull/1';\n" >"$sample_repo/scripts/edges.test.mjs"
@@ -220,9 +202,6 @@ assert_not_contains "sample: a dotted owner is not an account" "$out" '"to":"a.b
 assert_contains "sample: a real URL beside them still emits" "$out" '"to":"real-owner/tool"'
 assert_contains "sample: a dotted repository name is still valid" "$out" '"to":"real-owner/docs.rs"'
 
-# A worktree or a renamed clone sits in a directory whose name is not the
-# repository's. Its own `owner/repo` citations must still read as self, or the
-# landscape gains a phantom second system with an arrow pointing at it.
 wt_repo="$(make_repo checkout-dir-name)"
 git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git"
 mkdir -p "$wt_repo/docs"
@@ -238,7 +217,6 @@ assert_contains "self: a real reference in the same file survives" "$out" '"to":
 assert_contains "identity: from uses the origin repository name, not the checkout directory (#4554)"   "$out" '"from":"real-name"'
 assert_not_contains "identity: from is not the checkout directory name (#4554)"   "$out" '"from":"checkout-dir-name"'
 
-# Two differently named checkouts of the same origin produce the same from.
 alt_checkout="$TEST_TMPDIR/other-checkout-dir"
 mkdir -p "$alt_checkout"
 git -C "$alt_checkout" init --quiet 2>/dev/null
@@ -252,30 +230,22 @@ commit_repo "$alt_checkout"
 alt_out="$(bash "$SCRIPT" "$alt_checkout")"
 assert_contains "identity: a second checkout name still emits from=real-name (#4554)"   "$alt_out" '"from":"real-name"'
 
-# No github.com origin keeps directory-name identity.
 nongh_repo="$(make_repo nongithub-dir)"
 git -C "$nongh_repo" remote set-url origin "https://gitlab.example.invalid/acme/other-name.git"
 mkdir -p "$nongh_repo/docs"
-# A full github.com URL cite emits without trusting the (non-github) origin owner.
 printf 'Depends on <https://github.com/actions/checkout>.\n' >"$nongh_repo/docs/about.md"
 commit_repo "$nongh_repo"
 nongh_out="$(bash "$SCRIPT" "$nongh_repo")"
 assert_contains "identity: non-github origin keeps directory basename (#4554)" \
   "$nongh_out" '"from":"nongithub-dir"'
 
-# git accepts a remote URL with a trailing slash; the repository is still named.
 git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git/"
 out="$(bash "$SCRIPT" "$wt_repo")"
 assert_not_contains "self: a trailing slash on the remote still names self" "$out" '"to":"fixture-owner/real-name"'
 
-# An --owner override moves the subject organization, not the remote's slug:
-# the clone's own origin repository is still self, and the override's
-# namesake is a different repository.
 out="$(bash "$SCRIPT" "$wt_repo" --owner other-owner | tr '[:upper:]' '[:lower:]')"
 assert_not_contains "self: the origin slug stays self under --owner" "$out" '"to":"fixture-owner/real-name"'
 
-# Only a github.com host names the subject. A host that merely contains the
-# string is some other server, so its path is neither self nor the owner.
 host_repo="$(make_repo host-check)"
 mkdir -p "$host_repo/docs"
 cat >"$host_repo/docs/about.md" <<'MD'
@@ -307,7 +277,6 @@ for good in "https://github.com/zorg/real-name.git" "git@github.com:zorg/real-na
   assert_equals "host: $good yields its owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "zorg"
 done
 
-# --- Case group 6: the .git suffix ------------------------------------------
 clone_repo="$(make_repo cloner)"
 mkdir -p "$clone_repo/docs"
 cat >"$clone_repo/docs/setup.md" <<'MD'
@@ -318,14 +287,12 @@ out="$(bash "$SCRIPT" "$clone_repo")"
 assert_contains "clone: the .git suffix is not part of the repository name" "$out" '"to":"vendor-org/toolkit"'
 assert_not_contains "clone: and the suffixed form is not emitted" "$out" 'toolkit.git'
 
-# --- Case group 7: --owner overrides the remote -----------------------------
 out="$(bash "$SCRIPT" "$docs_repo" --owner other-org)"
 assert_contains "owner: the override trusts that owner's bare tokens" "$out" '"to":"other-org/their-thing"'
 assert_contains "owner: and marks them internal" "$out" '"relation":"internal"'
 out="$(bash "$SCRIPT" "$docs_repo" --owner=other-org)"
 assert_contains "owner: the = spelling works too" "$out" '"to":"other-org/their-thing"'
 
-# --- Case group 8: a repository with nothing to say -------------------------
 quiet_repo="$(make_repo quiet)"
 printf 'Nothing references anything here.\n' >"$quiet_repo/README.md"
 commit_repo "$quiet_repo"
@@ -334,11 +301,6 @@ rc=$?
 assert_equals "quiet: no edges is exit 0, not an error" "$rc" "0"
 assert_equals "quiet: and emits nothing" "$out" ""
 
-# --- Case group 9: quoted YAML scalars --------------------------------------
-#
-# `uses:` takes an ordinary YAML scalar, which may be quoted either way. The
-# quote belongs to the syntax, and an owner segment still carrying one fails the
-# character check and drops the edge without saying so.
 quoted_repo="$(make_repo quoted)"
 mkdir -p "$quoted_repo/.github/workflows"
 {
@@ -350,9 +312,6 @@ mkdir -p "$quoted_repo/.github/workflows"
 } >"$quoted_repo/.github/workflows/ci.yml"
 commit_repo "$quoted_repo"
 quoted_out="$(bash "$SCRIPT" "$quoted_repo")"
-# By TYPE, not just by target. A same-owner bare token is also a `cites` hit, so
-# asserting the target alone would pass on the citation while the workflow edge
-# this case exists for stayed missing.
 uses_line() { printf '%s\n' "$quoted_out" | grep -F '"type":"uses-workflow"' | grep -F "\"to\":\"$1\""; }
 assert_contains "quoted: a double-quoted reusable workflow is still a workflow edge" \
   "$(uses_line fixture-owner/ci-workflows)" '"type":"uses-workflow"'
@@ -363,10 +322,6 @@ assert_contains "quoted: the unquoted form is unaffected" \
 assert_not_contains "quoted: no quote survives into a repository name" \
   "$quoted_out" '"to":"\"'
 
-# --- Case group 10: --print-owner -------------------------------------------
-#
-# The record has to name the organization the graph was drawn from, and a second
-# implementation of that resolution would eventually disagree with this one.
 owner_out="$(bash "$SCRIPT" "$quoted_repo" --print-owner)"
 assert_equals "print-owner: the origin owner, and no edges" "$owner_out" "fixture-owner"
 override_out="$(bash "$SCRIPT" "$quoted_repo" --owner other-co --print-owner)"
@@ -382,7 +337,6 @@ commit_repo "$noremote_repo"
 assert_equals "print-owner: no resolvable owner reads unknown" \
   "$(bash "$SCRIPT" "$noremote_repo" --print-owner)" "unknown"
 
-# --- Case group 11: usage and bad paths --------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no arguments exits 2" "$?" "2"
 

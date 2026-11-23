@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [9.22.1] - 2026-11-23
+
+### Changed
+
+- **The workflow navigator points at `/planning:interview` for its own rules.** The interview stage in `context/steps.md` and the ladder in `context/pre-implementation-order.md` no longer restate how the interview paces its questions or when explore, research, a PRD or a prototype runs around it; both name `/planning:interview` as the owner of those rules.
+
+## [9.22.0] - 2026-11-22
+
+### Added
+
+- `save_point.py new --standing-rules` starts a role chain on a shape-4 handoff. Its `fill` moves Current rules and Standing preferences into one gitignored `archive/<chain>/standing-rules.md` beside the chain's hop files, and the hot file keeps a pointer to each in their usual place, so the binding section order stays as it is. The resume prompt loads the standing-rules file before the hot file and tells the reader to page it when it is over one Read page. A successor hop keeps the file without the flag. `amend` edits, retires and adds rules in it, `read --section` follows the pointer, and `validate` checks the carried rules against the frozen copy in each hop file, so a rule that disappears from the standing-rules file without a retirement still fails.
+
 ## [9.21.1] - 2026-11-22
 
 ### Changed

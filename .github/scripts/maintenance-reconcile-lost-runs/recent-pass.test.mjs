@@ -98,14 +98,37 @@ test("an expired settled artifact, or one from an untrusted or unfinished run, d
   assert.equal((await run({}, own.github)).output, "skip=false\n", "this run");
 });
 
-test("force, a schedule tick or a gap of 0 runs the pass without reading anything", async () => {
+test("force, another event or a gap of 0 runs the pass without reading anything", async () => {
   const { github, calls } = fakeGitHub([runAt(42837468246, "2026-11-10T14:48:00Z")], { 42837468246: [settled(1)] });
   assert.equal((await run({}, github)).output, "skip=true\n", "the same reads skip an unforced dispatch");
   calls.length = 0;
-  for (const env of [{ FORCE: "true" }, { EVENT_NAME: "schedule", FORCE: "" }, { MIN_GAP_MINUTES: "0" }, { MIN_GAP_MINUTES: "" }, { MIN_GAP_MINUTES: "x" }]) {
+  for (const env of [{ FORCE: "true" }, { EVENT_NAME: "push" }, { MIN_GAP_MINUTES: "0" }, { MIN_GAP_MINUTES: "" }, { MIN_GAP_MINUTES: "x" }]) {
     assert.equal((await run(env, github)).output, "skip=false\n", JSON.stringify(env));
   }
   assert.deepEqual(calls, []);
+});
+
+const PASS_AFTER = String(Date.parse("2026-11-10T14:30:00Z") / 1000);
+const startedAt = (id, startedIso, updatedIso) => runAt(id, updatedIso, { event: "schedule", run_started_at: startedIso });
+
+test("a due tick skips when a full pass started after its window's reset, naming that run", async () => {
+  const { github } = fakeGitHub([startedAt(42837000010, "2026-11-10T14:34:00Z", "2026-11-10T14:35:10Z")], { 42837000010: [settled(10)] });
+  const result = await run({ EVENT_NAME: "schedule", PASS_AFTER }, github);
+  assert.equal(result.output, "skip=true\n");
+  assert.deepEqual(result.lines, ["::notice title=recent-pass::run 42837000010 started a full pass at 2026-11-10T14:34:00Z, after this token window's reset; this tick skips its work"]);
+});
+
+test("a due tick runs when the last full pass started before its window's reset, though it finished after", async () => {
+  const { github } = fakeGitHub([startedAt(42837000011, "2026-11-10T14:29:50Z", "2026-11-10T14:31:00Z")], { 42837000011: [settled(11)] });
+  assert.equal((await run({ EVENT_NAME: "schedule", PASS_AFTER }, github)).output, "skip=false\n");
+});
+
+test("a tick with no pass-after skips only when a full pass finished under the gap ago", async () => {
+  const { github } = fakeGitHub([startedAt(42837000012, "2026-11-10T14:20:00Z", "2026-11-10T14:22:00Z")], { 42837000012: [settled(12)] });
+  const result = await run({ EVENT_NAME: "schedule" }, github);
+  assert.equal(result.output, "skip=true\n", "29 minutes under the 30-minute gap");
+  assert.match(result.lines[0], /under 30 minutes ago; this tick skips its work$/);
+  assert.equal((await run({ EVENT_NAME: "schedule", MIN_GAP_MINUTES: "15" }, github)).output, "skip=false\n");
 });
 
 test("a failed read runs the pass, with a warning", async () => {
@@ -124,17 +147,21 @@ test("the reconciler workflow gates its plan and act steps on the check, after t
   assert.match(text, /\n {2}workflow_dispatch:\n {4}inputs:\n {6}force:\n[^\n]*\n {8}type: boolean\n {8}default: false\n/);
   const steps = text.split(/\n(?= {6}- name: )/).slice(1).map((s) => ({ name: /^ {6}- name: (.*)$/m.exec(s)[1], s: s.replace(/(\n *(#[^\n]*)?)+$/, "") }));
   const at = (name) => steps.findIndex((step) => step.name === name);
-  const check = steps[at("Skip a dispatch right after a full pass")]?.s ?? "";
+  const check = steps[at("Skip a run right after a full pass")]?.s ?? "";
   assert.match(check, /\n {8}id: recent\n/);
   assert.match(check, /\n {8}continue-on-error: true\n/);
-  assert.doesNotMatch(check, /\n {8}if: /, "the check runs on every event");
-  assert.match(check, /\n {10}MIN_GAP_MINUTES: "60"\n/, "the gap is the cron's hourly cadence");
+  assert.match(check, /\n {8}if: steps\.reset\.outputs\.due != 'false'\n/, "the check runs on every due run");
+  assert.match(check, /\n {10}MIN_GAP_MINUTES: "60"\n/, "the gap is an hour, one token window");
+  assert.match(check, /\n {10}PASS_AFTER: \$\{\{ steps\.reset\.outputs\.pass-after \}\}\n/);
   assert.match(check, /\n {10}FORCE: \$\{\{ inputs\.force \}\}\n/);
   assert.match(check, /\n {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\n/);
   assert.match(check, /\n {8}run: node \.base\/\.github\/scripts\/maintenance-reconcile-lost-runs\/recent-pass\.mjs$/);
-  assert.match(text, /\n {4}- cron: "4 \* \* \* \*"\n/, "the cron the gap matches");
+  assert.ok(at("Check the token window's reset") < at("Skip a run right after a full pass"), "the reset is read first");
+  for (const name of ["Check the kill switch", "Find lost runs", "Re-run lost runs"]) {
+    assert.match(steps[at(name)].s, /\n {8}if: steps\.reset\.outputs\.due != 'false'(?: && |\n)/, `${name} waits on a due tick`);
+  }
   for (const name of ["Find lost runs", "Re-run lost runs"]) {
-    assert.ok(at(name) > at("Skip a dispatch right after a full pass"), `${name} follows the check`);
-    assert.match(steps[at(name)].s, /\n {8}if: steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\n/, name);
+    assert.ok(at(name) > at("Skip a run right after a full pass"), `${name} follows the check`);
+    assert.match(steps[at(name)].s, /\n {8}if: steps\.reset\.outputs\.due != 'false' && steps\.pace\.outputs\.paced != 'true' && steps\.recent\.outputs\.skip != 'true'\n/, name);
   }
 });

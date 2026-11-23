@@ -65,6 +65,7 @@ artifact-retention ci-only whole-repo scanner, scripts/check-artifact-retention.
 code-metrics-config-reference ci-only whole-repo scanner, python3 scripts/check-code-metrics-config-reference.py
 code-metrics-skill-prose ci-only whole-repo scanner, python3 scripts/check-code-metrics-skill-prose.py
 config-cascade-semantics ci-only whole-repo scanner, python3 scripts/sync-config-cascade-semantics.py --check
+gather-block ci-only whole-repo scanner, python3 scripts/sync-gather-block.py --check
 conformance-registry ci-only whole-repo scanner, scripts/check-conformance-registry.sh --check
 contract-clause-coverage ci-only whole-repo scanner, python3 scripts/check-contract-clause-coverage.py
 convention-yaml-schema ci-only whole-repo scanner, scripts/check-convention-yaml.sh --check
@@ -103,3 +104,4 @@ summary-reader-parity ci-only whole-repo scanner, bash scripts/check-summary-rea
 test-plan-corpus ci-only whole-repo scanner, the inline plan check in its workflow step
 test-tmp-cleanup ci-only whole-repo scanner, scripts/check-test-tmp-cleanup.sh --check
 userconfig-argv ci-only whole-repo scanner, scripts/check-hook-userconfig-argv.sh
+workflow-template-size ci-only whole-repo scanner, scripts/check-workflow-template-size.sh --check

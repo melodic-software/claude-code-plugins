@@ -89,9 +89,12 @@ which a person or a pull request starts, keep it too.
 
 Set `defer: "true"` instead on a gate that finishes existing work only where a later run that never
 defers recovers it: pr-merge's PR-scoped arm run (`inputs.pr`), whose work the 30-minute sweep does,
-and the two hosted review callers' gates, whose stop notice prints `cause=defer reset=<epoch>`, so
-the lost-run reconciler re-runs the run once that reset is past (reconcile.mjs `DEFER_NOTE`, in its
-own `DEFER_MAX` band).
+the two hosted review callers' gates, whose stop notice prints `cause=defer reset=<epoch>`, and
+pr-verify's Check Intent, whose second gate runs after the resolver and the trigger gate (so a run
+that would skip never defers), with the switches already read, and whose `Note the deferral` step
+prints the same pair. The lost-run reconciler re-runs each such run once that reset is past
+(reconcile.mjs `DEFER_NOTE`, in its own `DEFER_MAX` band). Check Intent has no
+`defer-run-minutes-check-intent` key, so its horizon is `defer-run-minutes`.
 There a low budget delays the work rather than throwing it away, which is the reason the paragraph
 above keeps the budget off. CI Status and pr-dispatch-feedback never defer. A budget or defer stop
 ends the run neutral: a notice, no failed step. A job that sets `budget: "true"` or `defer: "true"`

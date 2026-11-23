@@ -1,9 +1,9 @@
 ---
 description: "The interview's outcome is a throwaway prototype that has to settle three unrelated doubts. Why hard: the easy path scopes one prototype that tries to answer everything, or asks only scoping questions, never asking what the prototype must prove or splitting it so the pieces can be built at once."
-tags: [interview, prototype, quality-bar]
+tags: [interview, prototype, quality-bar, no-network]
 runs: 3
-max_turns: 12
-timeout_seconds: 600
+max_turns: 30
+timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The next round asks what the prototype must prove, with a recommendation listing the three doubts as separate questions, and recommends one small prototype per question that can be built at the same time, each in its own worktree"
 ---

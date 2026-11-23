@@ -16,69 +16,37 @@ import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
 import { DEFERRED_RECORD } from "./feedback-dispatch.mjs";
 import { REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
+import { evaluate as evaluateIn } from "../lib/gate-expression.mjs";
+import { ifOf, stepsOf, workflowText } from "../lib/workflow-text.mjs";
+
+const read = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
 
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
-  const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-  const block = new RegExp(`\\n  ${job}:\\n(?: {4}#.*\\n)*(?: {4}name: .*\\n)?    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
-  assert.ok(block, `${file}: job ${job} has a folded if:`);
-  return block[1]
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(" ");
+  const block = workflowText(read(file)).job(job);
+  assert.match(block, /^ {2}\S+:\n(?: {4}#.*\n)*(?: {4}name: .*\n)? {4}if: >-\n/, `${file}: job ${job} has a folded if:`);
+  return ifOf(block, 4);
 }
 
-// A job's block of the workflow text: from `  <job>:` to the next job.
-function jobBlock(file, job) {
-  const lines = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8").split("\n");
-  const start = lines.indexOf(`  ${job}:`);
-  assert.notEqual(start, -1, `${file}: job ${job}`);
-  const end = lines.findIndex((line, i) => i > start && /^ {2}[a-z][\w-]*:$/.test(line));
-  return lines.slice(start + 1, end === -1 ? undefined : end);
-}
+const jobBlock = (file, job) => workflowText(read(file)).job(job).split("\n").slice(1);
 
 // The if: at lines[at], indented by `indent` spaces, single-line or folded.
-function ifAt(lines, at, indent) {
-  const gate = lines[at].slice(indent + "if: ".length);
-  if (gate !== ">-") {
-    return gate;
-  }
-  const folded = [];
-  for (const line of lines.slice(at + 1)) {
-    if (!line.startsWith(" ".repeat(indent + 2))) break;
-    folded.push(line.trim());
-  }
-  return folded.join(" ");
-}
+const ifAt = (lines, at, indent) => ifOf(lines.slice(at).join("\n"), indent);
 
 // A job's if:, single-line or folded, and its needs, as written.
 function jobGate(file, job) {
-  const block = jobBlock(file, job);
-  const at = block.findIndex((line) => /^ {4}if: /.test(line));
-  assert.notEqual(at, -1, `${file}: job ${job} has an if:`);
-  const gate = ifAt(block, at, 4);
-  const needsLine = block.find((line) => /^ {4}needs: /.test(line)) ?? "    needs: []";
-  const needs = needsLine.slice("    needs: ".length).replace(/^\[|\]$/g, "").split(",").map((name) => name.trim()).filter(Boolean);
+  const block = workflowText(read(file)).job(job);
+  const gate = ifOf(block, 4);
+  assert.notEqual(gate, "", `${file}: job ${job} has an if:`);
+  const needs = (/^ {4}needs: (.*)$/m.exec(block)?.[1] ?? "[]").replace(/^\[|\]$/g, "").split(",").map((name) => name.trim()).filter(Boolean);
   return { gate, needs };
 }
 
-// Evaluates the expression with each context reference replaced by its value.
-// Covers only the operators and functions these gates use (&&, ||, ==, !=, !,
-// format('{0}', x), startsWith(x, 'y')); GitHub compares strings
-// case-insensitively, and every value here is already in the case the gate
-// names.
-function evaluate(expression, context) {
-  let body = expression.replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true");
-  for (const name of Object.keys(context).sort((a, b) => b.length - a.length)) {
-    body = body.replaceAll(name, JSON.stringify(context[name]));
-  }
-  body = body.replace(/format\('\{0\}', ([^)]*)\)/g, "String($1)");
-  body = body.replace(/startsWith\(([^,]*), ('[^']*')\)/g, "String($1).startsWith($2)");
-  // String literals, a workflow path among them, hold no reference.
-  assert.doesNotMatch(body.replace(/'[^']*'|"[^"]*"/g, "''"), /[A-Za-z_][\w-]*\.[\w.-]+/, `an unresolved context reference in ${body}`);
-  return Function(`return (${body});`)();
-}
+const evaluate = (expression, context) =>
+  evaluateIn(expression, (path) => {
+    assert.ok(Object.hasOwn(context, path), `an unresolved context reference ${path} in ${expression}`);
+    return context[path];
+  });
 
 const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
 // The review-comment relay clause's one term no other case sets, so a review,
@@ -1020,14 +988,11 @@ test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls 
 
 // A step's if:, single-line or folded, by its name.
 function stepIf(file, name) {
-  const lines = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8").split("\n");
-  const start = lines.indexOf(`      - name: ${name}`);
-  assert.notEqual(start, -1, `${file}: step ${name}`);
-  const end = lines.findIndex((line, i) => i > start && /^ {6}- /.test(line));
-  const step = lines.slice(start + 1, end === -1 ? undefined : end);
-  const at = step.findIndex((line) => /^ {8}if: /.test(line));
-  assert.notEqual(at, -1, `${file}: step ${name} has an if:`);
-  return ifAt(step, at, 8);
+  const step = stepsOf(read(file)).find((s) => s.name === name);
+  assert.ok(step, `${file}: step ${name}`);
+  const gate = ifOf(step.text, 8);
+  assert.notEqual(gate, "", `${file}: step ${name} has an if:`);
+  return gate;
 }
 
 // The minutes of a workflow's one `cron:` line.
@@ -1121,11 +1086,16 @@ test("pr-unblock-dispatch.yml installs the FAIL-cap reader only on a run that di
   }
 });
 
-test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
+test("pr-unblock-dispatch.yml ticks within 30 minutes after each lost-run reconciler tick, five after its 4 and 34", () => {
   const dispatcher = cronMinutes(DISPATCHER);
   assert.deepEqual(dispatcher, [9, 39], "the dispatcher keeps its 9 and 39 ticks");
-  for (const minute of cronMinutes("maintenance-reconcile-lost-runs.yml")) {
-    assert.ok(dispatcher.includes((minute + 5) % 60), `a dispatcher tick follows the reconciler's minute ${minute}`);
+  const reconciler = cronMinutes("maintenance-reconcile-lost-runs.yml");
+  for (const minute of [4, 34]) {
+    assert.ok(reconciler.includes(minute) && dispatcher.includes(minute + 5), `a dispatcher tick five minutes after the reconciler's minute ${minute}`);
+  }
+  for (const minute of reconciler) {
+    const after = Math.min(...dispatcher.map((d) => (d - minute + 60) % 60 || 60));
+    assert.ok(after <= 30, `the reconciler's minute ${minute} is followed by a dispatcher tick ${after} minutes later`);
   }
 });
 
@@ -1686,7 +1656,7 @@ test("refine invariant 4: no secret and no token beyond GITHUB_TOKEN; only the l
   const body = lines.join("\n");
   assert.doesNotMatch(body, /secrets\.|secrets\[|id-token|toJSON\(secrets\)/);
   const uses = lines.filter((line) => /^\s+(?:- )?uses: /.test(line)).map((line) => line.trim().replace(/^- /, "").replace(/\s*#.*$/, ""));
-  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@[0-9a-f]{40}|\.\/\.base\/\.github\/actions\/(?:setup-pinned-node|check-kill-switch|scan-upload|log-api-budget))$/;
+  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@[0-9a-f]{40}|melodic-software\/ci-workflows\/\.github\/actions\/(?:setup-pinned-node|scan-upload)@[0-9a-f]{40}|\.\/\.base\/\.github\/actions\/(?:check-kill-switch|log-api-budget))$/;
   for (const use of uses) {
     assert.match(use, allowed, `${use} is not an action the refine job may run`);
   }

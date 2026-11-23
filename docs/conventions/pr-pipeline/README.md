@@ -86,9 +86,14 @@ trusted-actors list, not posted through an App, unedited or last edited by a lis
 `status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
 a decision, whether admission parked it there or a person confirmed it, or on a
 `needs-reporter-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
-nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
-at `needs-owner-decision`, removing that label the same way. A listed human's change of the Work
+status label and adds `needs-triage`. A decision on an issue that carries `needs-human`, on its
+label or its Work status field, re-enters nothing and gets one reply from `github-actions[bot]`
+saying how a listed human releases the hold; a listed human's removal of `needs-human` re-enters an
+issue with no `status:` label or at `needs-owner-decision`, removing that label the same way. A
+listed human's comment whose first line opens with "decision recorded" in any other case or
+punctuation, and that answered nothing else, gets one reply naming the exact first line. Each reply
+opens with a marker (`<!-- intake-reenter:needs-human-decision -->`,
+`<!-- intake-reenter:decision-form -->`) and is posted once per issue. A listed human's change of the Work
 status field from a hold state to none or `needs-triage`, on an issue with no status label but
 `needs-triage`, re-enters it too, writing no label: the claim is a comment marked with the field
 event that left the hold, which a re-run of that release finds, and the field is set to
@@ -198,8 +203,9 @@ reader applies.
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main`, half-hourly (one tick five minutes after the hourly lost-run
-reconciler tick), and on a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and
+:34 ticks; the reconciler's one pass per token window runs on the first of its quarter-hour ticks
+after the reset), and on a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
@@ -2768,7 +2774,13 @@ before the merge. The spec entry then lists them in
 `credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
 those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
 diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
-such a pass as any closing one. An issue `maintenance-file-recurring-issues.yml` filed
+such a pass as any closing one. A done-when item only a person can prove, such as an eval run
+whose results stay in `.work/`, is a person check when its text, after the task-list marker,
+starts with `Person check:` (owner decision 2026-11-22 on #18277): resolve-pr lists it in the
+entry's `person_checks` beside the items intake's split refinement records, in body order, and the
+verifier judges the diff without it. The mark counts only in a body a trusted person wrote and, if
+it was ever edited, last edited; in any other body it is ignored, so an edit by anyone else drops
+every mark. An issue `maintenance-file-recurring-issues.yml` filed
 (github-actions[bot], with exactly one `<!-- recurring-schedule id=<id> -->` line) takes its spec
 from that row of main's `.github/recurring-schedule.json`, the title and body the filer builds from
 it, never the issue's own text (owner decision 2026-11-07); its entry carries `source`
@@ -3631,6 +3643,15 @@ jobs; 6 dispatches hand the issue off whatever reached intake. It holds the job'
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 
+On the daily run, the same job's
+[`done-check.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/done-check.mjs) lists the
+open issues at Work status confirmed that a merged `Refs:` pull request parked for a done-check
+(the admission rule below), in one digest issue from `github-actions[bot]` whose first line is
+`<!-- intake-done-check-digest -->`. It creates the digest when the list first fills, rewrites its
+body when the list changes, closes it as completed when the list is empty and reopens it when the
+list fills again; closing it as not planned mutes it. It closes no listed issue and writes no Work
+status. A read that fails fails the step and writes nothing.
+
 ## The monitoring lane
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
@@ -4129,7 +4150,9 @@ comment, or since it opened when it has neither. The issue is parked at `status:
 An agent checks the work: it closes the issue when the pull request finished it, or posts a
 `**Decision recorded.**` comment saying what is left, which intake-reenter sends back through
 intake with the cutoff past that pull request. Each pass reads its issues in one GraphQL call (at
-most 50 issues a call); a read that fails admits as though no such pull request merged.
+most 50 issues a call); a read that fails admits as though no such pull request merged. The lane
+sweep's daily triage-sweep job lists the issues parked this way in one digest issue, so a session
+finds them.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,

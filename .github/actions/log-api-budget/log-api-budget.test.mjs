@@ -8,6 +8,7 @@ import { test } from "node:test";
 import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
 import { apiLimits, createRateLimitLatch, FALLBACK_NOTE, PLACEHOLDERS, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { workflowText } from "../../scripts/lib/workflow-text.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
 const ROOT = process.getuid?.() === 0;
@@ -1676,14 +1677,7 @@ test("ci-status emits the api-calls notice beside its api-budget notice", () => 
 // calls, which go through the rate guard, and its verdict download.
 const FEEDBACK = new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url);
 
-// The job's steps, from `  <job>:` to the next job.
-function jobText(job) {
-  const lines = readFileSync(FEEDBACK, "utf8").split("\n");
-  const start = lines.indexOf(`  ${job}:`);
-  assert.notEqual(start, -1, job);
-  const end = lines.findIndex((line, i) => i > start && /^ {2}[a-z][\w-]*:$/.test(line));
-  return lines.slice(start + 1, end === -1 ? undefined : end).join("\n");
-}
+const jobText = (job) => workflowText(readFileSync(FEEDBACK, "utf8")).job(job);
 
 test("pr-dispatch-feedback.yml: each job that calls the API ends by logging its github-token readings", () => {
   for (const job of ["post-verify-notes", "dispatch", "rerun-ci-status"]) {

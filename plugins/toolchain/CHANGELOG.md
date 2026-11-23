@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.2] - 2026-11-22
+
+### Changed
+
+- `/toolchain:lint` says a record sets `tool-pin` only for a tool whose version the repository owns itself, and omits it when the version comes from a shared default such as a composite action's input default, since a copy drifts.
+
 ## [3.1.1] - 2026-11-22
 
 ### Changed

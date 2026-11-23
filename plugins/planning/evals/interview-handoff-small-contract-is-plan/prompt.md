@@ -1,6 +1,6 @@
 ---
 description: "Contract case for the interview hand-off when the task is small, not design-significant, and the acceptance criteria already are the plan. Why hard: the natural reflex is to add a planning step that has nothing left to decide."
-tags: [interview, handoff]
+tags: [interview, handoff, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

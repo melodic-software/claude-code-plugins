@@ -80,7 +80,6 @@ die() {
   exit "$2"
 }
 
-# json_object key value [key value]...: one JSON object of string fields, in order.
 json_object() {
   local obj="" sep="{"
   while [[ $# -ge 2 ]]; do
@@ -92,12 +91,10 @@ json_object() {
   printf '%s}\n' "$obj"
 }
 
-# join_lines <separator>: stdin lines joined on one line, no trailing newline.
 join_lines() {
   awk -v sep="$1" 'BEGIN { ORS="" } { if (n++) printf "%s", sep; printf "%s", $0 }'
 }
 
-# append_evidence <deployable id> <text>: add "; <text>" to that row's evidence.
 append_evidence() {
   awk -F'\t' -v id="$1" -v extra="$2" 'BEGIN { OFS="\t" }
     $1 == id { $5 = $5 "; " extra }
@@ -207,7 +204,6 @@ is_deployable() {
   awk -F'\t' -v id="$1" '$1 == id { found = 1 } END { exit !found }' "$deploy"
 }
 
-# sdk_is <name>: the project's Sdk is <name> or a versioned <name>/<version>.
 sdk_is() {
   [[ "$sdk" == "$1" || "$sdk" == "$1"/* ]]
 }
@@ -429,9 +425,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   esac
   abs="$root/$rel"
   [[ -f "$abs" && ! -L "$abs" ]] || continue
-  # The last FROM is the image that ships. Leading --flag tokens are options, a
-  # name that is an earlier stage resolves to that stage's image, and a variable
-  # is not an image name, so the image is unknown.
   image="$(awk '
     {
       line = $0
@@ -717,8 +710,6 @@ while IFS=$'\034' read -r skind host port file key db scheme; do
   printf '%s\036%s\036%s\036%s\036%s\036%s\036%s\036%s\n' "$sid" "$skind" "$host" "$owner" "$file: $key" "$scheme" "$port" "$db"
 done < <(awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5, $6, $7 }' "$hits") >"$hits.grouped"
 
-# Every pair of owners of one store is one shared-infrastructure edge, and each
-# cites the config keys of both owners.
 if [[ -s "$hits.grouped" ]]; then
   while IFS= read -r sid; do
     [[ -n "$sid" ]] || continue
@@ -760,12 +751,6 @@ if [[ -s "$hits.grouped" ]]; then
   done < <(awk -F'\036' '{ print $1 }' "$hits.grouped" | LC_ALL=C sort -u)
 fi
 
-# An endpoint a deployable's own config names is an edge to another deployable
-# only through a cited fact: a compose service whose build context is that
-# deployable's directory (host equals the service name, and a declared port equals
-# the endpoint's), or a launchSettings applicationUrl on that deployable (loopback
-# host and the same port). Nothing is matched by a name's resemblance. An endpoint
-# that resolves to no deployable or to several draws no edge and is a finding.
 if [[ -s "$listen" ]]; then
   while IFS=$'\t' read -r _host lport lfile lkey; do
     parent="${lfile%Properties/launchSettings.json}"

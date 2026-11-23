@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [12.4.0] - 2026-11-23
+
+### Added
+
+- pr-verify takes a done-when item whose text starts with `Person check:` as a check a person runs, listed in the spec entry's `person_checks` beside the items intake's split refinement records, so an acceptance item only a run outside the diff can prove no longer fails the verdict. The mark counts only in an issue body a trusted person wrote and last edited; both judge prompts say an item so marked that `person_checks` does not list is judged like any other.
+
+## [12.3.0] - 2026-11-23
+
+### Added
+
+- pr-verify's Check Intent defers a first attempt while the GITHUB_TOKEN window is projected to run short before the judgment ends (a second `check-kill-switch` gate with `defer: "true"`, `defer-job: check-intent`, after the resolver and the trigger gate, so a run that would skip never defers). Its `Note the deferral` step prints `cause=defer reset=<epoch>`. The lost-run reconciler reads that step as a hold, waits until a minute past the reset, and re-runs the run once, recorded, in the same band of at most 12 re-runs a pass as the deferred hosted reviews ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+### Changed
+
+- The lost-run reconciler ticks every 15 minutes (`4,19,34,49`) and runs one pass per GITHUB_TOKEN window: the first tick at least 90 seconds and at most 30 minutes after the window's reset, read from GET /rate_limit, so deferred work is re-run at the start of the next window wherever the reset has drifted. Other ticks read nothing else and stop. That pass is not paced: it spends the fresh window. A tick whose reset read fails runs the pass unless one finished in the last hour.
+
+## [12.2.0] - 2026-11-22
+
+### Added
+
+- `intake-reenter` replies once per issue to a listed human's `**Decision recorded.**` comment on an issue `needs-human` holds, on its label or its Work status field, saying the hold stays until a listed human releases it and how. It still releases nothing ([#18251](https://github.com/melodic-software/claude-code-plugins/issues/18251)).
+- `intake-reenter` replies once per issue to a listed human's comment whose first line opens with "decision recorded" in another case or punctuation, naming the exact first line `**Decision recorded.**`. Its job now starts on any open issue for a comment that says "decision recorded" in any case.
+- The lane sweep's triage-sweep job, on the daily run, lists the open issues a merged `Refs:` pull request parked at Work status confirmed for a done-check in one `github-actions[bot]` digest issue (`done-check.mjs`), which it closes when the list is empty.
+
 ## [12.1.1] - 2026-11-22
 
 ### Fixed

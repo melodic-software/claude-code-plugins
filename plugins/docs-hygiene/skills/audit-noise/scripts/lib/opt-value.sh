@@ -1,15 +1,10 @@
+# GENERATED from lib/opt-value.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
-# Shared option-value guard for the /audit-noise scripts (sourceable; not
-# invoked directly).
-
-# require_opt_value <script> <option> [value ...]: refuse an option whose value
-# is missing, empty, or another option. The script name is a parameter because
-# each caller names itself in its own diagnostics; exit 2 is the usage code both
-# callers document in their own `Exit:` line.
+# Exit: 2 (or $OPT_VALUE_EXIT) on a missing, empty or -leading value; OPT_VALUE_STDIN admits a lone -.
 require_opt_value() {
-  local script="$1" opt="$2"
-  if [[ $# -lt 3 || -z "${3:-}" || "$3" == -* ]]; then
-    echo "$script: $opt requires a value" >&2
-    exit 2
+  if [[ $# -lt 3 || -z "$3" ]] || [[ "$3" == -* && ! ("$3" == - && -n "${OPT_VALUE_STDIN:-}") ]]; then
+    echo "$1: $2 requires a value" >&2
+    exit "${OPT_VALUE_EXIT:-2}"
   fi
 }

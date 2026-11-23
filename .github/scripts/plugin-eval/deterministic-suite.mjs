@@ -26,8 +26,8 @@
 //
 // Exit 0 written; 2 a usage error, or the eval dir or output cannot be used.
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { cpSync, existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, relative, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -35,6 +35,7 @@ import { isDeepStrictEqual } from "node:util";
 const SKIP_DIRS = new Set(["results", "mocks", "graders", "node_modules", "__pycache__"]);
 const PAID = /\btype["']?\s*:\s*["']?(?:llm|baseline)\b/i;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const USAGE = "usage: deterministic-suite.mjs <plugin-dir> <out-name> [--cases <names>] [--keep-judged]";
 const VALIDATOR = fileURLToPath(new URL("../../../plugins/evals/skills/validate/scripts/validate-cases.py", import.meta.url));
 const PARSE = `
 import importlib.util, json, sys
@@ -179,16 +180,65 @@ export function planCase(caseDir) {
   };
 }
 
-export function deterministicSuite(pluginDir, outName, warn = (line) => console.error(line)) {
+function caseNames(caseDirs) {
+  const withYaml = caseDirs.filter((dir) => existsSync(join(dir, "case.yaml")));
+  const texts = withYaml.map((dir) => readFileSync(join(dir, "case.yaml"), "utf8").trimStart());
+  const docs = texts.length ? parseYaml(texts.map((text) => (text.startsWith("---") ? text.slice(3) : text))) : [];
+  const named = new Map(withYaml.map((dir, i) => [dir, docs[i]?.name]));
+  return caseDirs.map((dir) => {
+    const name = named.get(dir);
+    return typeof name === "string" && name !== "" ? name : basename(dir);
+  });
+}
+
+function parseCaseList(raw) {
+  const items = [...new Set(String(raw ?? "").trim().split(/\s+/).filter(Boolean))];
+  const bad = items.find((item) => !NAME.test(item));
+  if (bad !== undefined) {
+    throw new Error(`case name ${JSON.stringify(bad)} is not a valid name`);
+  }
+  return items.length ? items : null;
+}
+
+export function deterministicSuite(pluginDir, outName, warnOrOptions = {}) {
+  const options = typeof warnOrOptions === "function" ? { warn: warnOrOptions } : warnOrOptions;
+  const warn = options.warn ?? ((line) => console.error(line));
+  const keepJudged = Boolean(options.keepJudged);
+  const selected = parseCaseList(options.cases);
   const name = evalDirOf(pluginDir);
   const evalDir = join(pluginDir, name);
   const out = join(pluginDir, outName);
+  const allCases = findCases(evalDir);
+  const excluded = [];
+  let chosenCases = allCases;
+  if (selected !== null) {
+    const wanted = new Set(selected);
+    const matched = new Set();
+    const names = caseNames(allCases);
+    chosenCases = [];
+    for (let i = 0; i < allCases.length; i++) {
+      if (wanted.has(names[i])) {
+        matched.add(names[i]);
+        chosenCases.push(allCases[i]);
+      } else {
+        excluded.push(allCases[i]);
+      }
+    }
+    const missing = selected.filter((item) => !matched.has(item));
+    if (missing.length > 0) {
+      throw new Error(`unknown case${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`);
+    }
+  }
   const kept = [];
   const dropped = [];
   const stripped = {};
   const plans = new Map();
-  for (const caseDir of findCases(evalDir)) {
+  for (const caseDir of chosenCases) {
     const path = relative(evalDir, caseDir).split(sep).join("/");
+    if (keepJudged) {
+      kept.push(path);
+      continue;
+    }
     let plan = null;
     try {
       plan = planCase(caseDir);
@@ -205,7 +255,7 @@ export function deterministicSuite(pluginDir, outName, warn = (line) => console.
       plans.set(path, plan);
     }
   }
-  const skip = new Set([join(evalDir, "results"), ...dropped.map((path) => join(evalDir, path))]);
+  const skip = new Set([join(evalDir, "results"), ...excluded, ...dropped.map((path) => join(evalDir, path))]);
   rmSync(out, { recursive: true, force: true });
   cpSync(evalDir, out, { recursive: true, filter: (source) => !skip.has(source) });
   for (const [path, plan] of plans) {
@@ -220,13 +270,39 @@ export function deterministicSuite(pluginDir, outName, warn = (line) => console.
       rmSync(join(copy, "samples", `${grader}.json`), { force: true });
     }
   }
-  return { evalDir: name, kept, dropped, stripped };
+  const result = { evalDir: name, kept, dropped, stripped };
+  if (selected !== null) {
+    result.selected = selected;
+  }
+  return result;
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const [pluginDir, outName] = argv;
-  if (argv.length !== 2 || !NAME.test(outName ?? "")) {
-    console.error("usage: deterministic-suite.mjs <plugin-dir> <out-name>");
+  const positional = [];
+  let cases = null;
+  let keepJudged = false;
+  let seenCases = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--cases") {
+      if (seenCases || i + 1 >= argv.length) {
+        console.error(USAGE);
+        return 2;
+      }
+      seenCases = true;
+      cases = argv[++i];
+    } else if (arg === "--keep-judged") {
+      keepJudged = true;
+    } else if (arg.startsWith("-")) {
+      console.error(USAGE);
+      return 2;
+    } else {
+      positional.push(arg);
+    }
+  }
+  const [pluginDir, outName] = positional;
+  if (positional.length !== 2 || !NAME.test(outName ?? "")) {
+    console.error(USAGE);
     return 2;
   }
   const name = evalDirOf(pluginDir);
@@ -240,7 +316,7 @@ export function main(argv = process.argv.slice(2)) {
     return 2;
   }
   try {
-    console.log(JSON.stringify(deterministicSuite(pluginDir, outName)));
+    console.log(JSON.stringify(deterministicSuite(pluginDir, outName, { cases, keepJudged })));
   } catch (error) {
     console.error(`deterministic-suite: ${error.message}`);
     return 2;
@@ -248,6 +324,6 @@ export function main(argv = process.argv.slice(2)) {
   return 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   process.exitCode = main();
 }
