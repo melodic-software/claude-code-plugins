@@ -3,22 +3,21 @@
 
     select-cases.py <diff-base> [--json] [--repo <dir>]
 
-Reads `git diff --name-only <diff-base>...HEAD`, classifies each changed file
-against the eval run policy, maps files to skills and cases through the shared
-`case_skills.py` rule, and prints one block per affected plugin (or
-`no affected cases`).
+Reads `git diff --name-status -M -z <diff-base>...HEAD --`, classifies each
+changed file against the eval run policy, maps files to skills and cases
+through the shared `case_skills.py` rule, and prints one block per affected
+plugin (or `no affected cases`).
 
 Exit codes:
 
     0  success
-    2  usage error, or the repository or diff base cannot be read
+    2  usage error, uncommitted changes under plugins/, or unreadable git state
 
 Python 3.8+, standard library only.
 """
 
 import argparse
 import collections
-import difflib
 import importlib.util
 import json
 import os
@@ -33,7 +32,22 @@ ARMS = 2
 EVAL_DIR_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 PAID_RE = re.compile(r"""\btype["']?\s*:\s*["']?(?:llm|baseline)\b""", re.IGNORECASE)
 DESC_TOKEN_RE = re.compile(r"\w+|[^\w\s]")
-REL_PATH_TOKEN_RE = re.compile(r"(?:\.\./)+[^\s)\]`\"'>#;]+")
+HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+GRADERS_HEADER_RE = re.compile(r"^graders[ \t]*:[ \t]*(?:#.*)?\r?$")
+DELIM_REL_PATH_RES = (
+    re.compile(r"<((?:\.\.?/)+[^<>#\r\n]+)(?:#[^<>\r\n]*)?>"),
+    re.compile(r'"((?:\.\.?/)+[^"#\r\n]+)(?:#[^"\r\n]*)?"'),
+    re.compile(r"'((?:\.\.?/)+[^'#\r\n]+)(?:#[^'\r\n]*)?'"),
+    re.compile(r"`((?:\.\.?/)+[^`#\r\n]+)(?:#[^`\r\n]*)?`"),
+)
+UNQUOTED_REL_PATH_RE = re.compile(r"(?:\.\.?/)+[^\s)\]`\"'>#;]+")
+SHELL_ASSIGN_RE = re.compile(
+    r"^[ \t]*(?:(?:local|readonly|export)[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)=(.+)$"
+)
+DIRNAME_INNER_RE = re.compile(
+    r"""\$\(\s*dirname\s+["']?(?:\$\{?BASH_SOURCE(?:\[0\])?\}?|\$0)["']?\s*\)"""
+)
+PWD_TAIL_RE = re.compile(r"""["']?\s*&&\s*pwd(?:\s+-[PL])?\s*\)""")
 YAML_TOP_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 
 SCRIPT_EXTENSIONS = frozenset(
@@ -103,7 +117,9 @@ CaseInfo = collections.namedtuple(
         "runs",
         "judged_only",
         "skills",
+        "skill_prefixes",
         "agents",
+        "agent_prefixes",
         "is_trigger_or_no_fire",
         "unread_graders",
     ),
@@ -125,7 +141,7 @@ def resolve_repo_root(repo_dir):
     done = _git(repo_dir, "rev-parse", "--show-toplevel")
     if done.returncode != 0:
         return None
-    root = done.stdout.strip()
+    root = done.stdout.rstrip("\r\n")
     return os.path.abspath(root) if root else None
 
 
@@ -141,12 +157,46 @@ def resolve_merge_base(repo_root, diff_base):
     return sha or None
 
 
-def changed_files(repo_root, diff_base):
-    """Return repo-relative POSIX paths changed in diff_base...HEAD."""
-    done = _git(repo_root, "diff", "--name-only", "--no-renames", diff_base + "...HEAD")
+def has_uncommitted_plugin_changes(repo_root):
+    """True when `git status --porcelain` shows changes under `plugins/`, None on error."""
+    done = _git(repo_root, "status", "--porcelain", "-z", "--", "plugins")
     if done.returncode != 0:
         return None
-    return [line.strip() for line in done.stdout.splitlines() if line.strip()]
+    return bool(done.stdout)
+
+
+def changed_entries(repo_root, diff_base):
+    """Return (status_code, path, new_path_or_none) entries for diff_base...HEAD."""
+    done = _git(
+        repo_root,
+        "diff",
+        "--name-status",
+        "-M",
+        "-z",
+        diff_base + "...HEAD",
+        "--",
+    )
+    if done.returncode != 0:
+        return None
+    tokens = done.stdout.split("\0")
+    if tokens and tokens[-1] == "":
+        tokens.pop()
+    entries = []
+    index = 0
+    while index < len(tokens):
+        status = tokens[index]
+        index += 1
+        if not status:
+            continue
+        code = status[0]
+        if code in ("R", "C"):
+            if index + 1 < len(tokens):
+                entries.append((code, tokens[index], tokens[index + 1]))
+                index += 2
+        elif index < len(tokens):
+            entries.append((code, tokens[index], None))
+            index += 1
+    return entries
 
 
 def git_show(repo_root, rev, rel_path):
@@ -157,28 +207,63 @@ def git_show(repo_root, rev, rel_path):
     return done.stdout
 
 
-def word_diff_has_cut(repo_root, diff_base, rel_path):
-    """True when `git diff --word-diff=porcelain` removes any word in a hunk."""
+def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
+    """A hunk that edits an existing line is a cut unless its old and new lines hold the same
+    words, which is a re-wrap."""
+    hunks = []
+    for line in diff_text.splitlines():
+        if line.startswith("Binary files "):
+            return True
+        match = HUNK_HEADER_RE.match(line)
+        if match:
+            old_start = int(match.group(1))
+            old_count = 1 if match.group(2) is None else int(match.group(2))
+            hunks.append([old_count > 0 and old_start + old_count - 1 > skip_old_lines_upto, [], []])
+        elif hunks and line.startswith("-") and not line.startswith("---"):
+            hunks[-1][1].extend(line[1:].split())
+        elif hunks and line.startswith("+") and not line.startswith("+++"):
+            hunks[-1][2].extend(line[1:].split())
+    return any(edits and old != new for edits, old, new in hunks)
+
+
+def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):
+    """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix."""
     done = _git(
         repo_root,
         "diff",
-        "--word-diff=porcelain",
+        "-U0",
+        "--no-renames",
         diff_base + "...HEAD",
         "--",
         rel_path,
     )
     if done.returncode != 0:
         return True
-    in_hunk = False
-    for line in done.stdout.splitlines():
-        if line.startswith("@@"):
-            in_hunk = True
-            continue
-        if not in_hunk:
-            continue
-        if line.startswith("-"):
-            return True
-    return False
+    return _diff_has_cut_hunks(done.stdout, skip_old_lines_upto=skip_old_lines_upto)
+
+
+def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
+    """True when `-U0` diff between `merge_base:old_path` and `HEAD:new_path` removes/edits a line."""
+    done = _git(
+        repo_root,
+        "diff",
+        "-U0",
+        "%s:%s" % (merge_base, old_path),
+        "HEAD:%s" % new_path,
+    )
+    if done.returncode != 0:
+        return True
+    return _diff_has_cut_hunks(done.stdout)
+
+
+def _frontmatter_end_line(text):
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return 0
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return index + 1
+    return 0
 
 
 def _split_frontmatter_loose(text):
@@ -239,9 +324,9 @@ def _parse_frontmatter_loose(block):
     return data
 
 
-def _is_additive_sequence(old_tokens, new_tokens):
-    matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens)
-    return all(tag in ("equal", "insert") for tag, _, _, _, _ in matcher.get_opcodes())
+def _is_subsequence(old_tokens, new_tokens):
+    it = iter(new_tokens)
+    return all(token in it for token in old_tokens)
 
 
 def _classify_description_change(base_fm, head_fm):
@@ -259,7 +344,7 @@ def _classify_description_change(base_fm, head_fm):
             old_tokens = DESC_TOKEN_RE.findall(str(old_val))
             new_tokens = DESC_TOKEN_RE.findall(str(new_val))
             key_status = (
-                "additive" if _is_additive_sequence(old_tokens, new_tokens) else "cut"
+                "additive" if _is_subsequence(old_tokens, new_tokens) else "cut"
             )
         if key_status == "cut":
             return "cut"
@@ -301,16 +386,12 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
 
     body_class = None
     if base_body != head_body:
-        if base_fm_raw == head_fm_raw:
-            body_class = (
-                "cut" if word_diff_has_cut(repo_root, diff_base, rel_path) else "additive"
-            )
-        else:
-            body_class = (
-                "additive"
-                if _is_additive_sequence(base_body.split(), head_body.split())
-                else "cut"
-            )
+        fm_end = _frontmatter_end_line(base_text)
+        body_class = (
+            "cut"
+            if diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=fm_end)
+            else "additive"
+        )
 
     if "cut" in (body_class, other_fm_class):
         combined_body = "cut"
@@ -385,37 +466,142 @@ def _effective_runs(yaml_data, prompt_fm):
     return DEFAULT_RUNS
 
 
-def _case_is_judged_only(case_dir, graders):
+def _grader_items(lines):
+    header = -1
+    for idx, line in enumerate(lines):
+        if GRADERS_HEADER_RE.match(line):
+            header = idx
+            break
+    if header == -1:
+        return None
+
+    def is_body(line):
+        stripped = line.strip()
+        return stripped != "" and not stripped.startswith("#")
+
+    def indent_of(line):
+        return len(line) - len(line.lstrip())
+
+    first = -1
+    for idx in range(header + 1, len(lines)):
+        if is_body(lines[idx]):
+            first = idx
+            break
+    if first == -1 or not lines[first].lstrip().startswith("-"):
+        return None
+
+    dash = indent_of(lines[first])
+    items = []
+    for idx in range(first, len(lines)):
+        line = lines[idx]
+        if not is_body(line):
+            continue
+        ind = indent_of(line)
+        if ind < dash or (ind == dash and not line[dash:].startswith("-")):
+            break
+        if ind == dash:
+            items.append([idx, idx + 1])
+        else:
+            items[-1][1] = idx + 1
+    return header, items
+
+
+def _strip_case_yaml(text):
+    lines = text.split("\n")
+    shape = _grader_items(lines)
+    if shape is not None:
+        header, items = shape
+        paid = [
+            bool(PAID_RE.search("\n".join(lines[start:end])))
+            for start, end in items
+        ]
+    else:
+        header, items, paid = -1, [], []
+
+    if not any(paid):
+        if PAID_RE.search(text):
+            raise ValueError("a paid grader outside a block graders list")
+        return len(items) if shape is not None else None
+
+    if all(paid):
+        cuts = [(header, items[-1][1])]
+    else:
+        cuts = [item for item, is_paid in zip(items, paid) if is_paid]
+
+    stripped = "\n".join(
+        line
+        for idx, line in enumerate(lines)
+        if not any(start <= idx < end for start, end in cuts)
+    )
+    if PAID_RE.search(stripped):
+        raise ValueError("a paid line is left after the cut")
+
+    before = validate_cases.parse_yaml(text)
+    after = validate_cases.parse_yaml(stripped)
+    graders = before.get("graders") if isinstance(before, dict) else None
+    if not isinstance(graders, list) or len(graders) != len(items):
+        raise ValueError("the graders list does not match its lines")
+
+    expected = dict(before)
+    remaining_graders = [g for g, is_paid in zip(graders, paid) if not is_paid]
+    if remaining_graders:
+        expected["graders"] = remaining_graders
+    else:
+        expected.pop("graders", None)
+    if after != expected:
+        raise ValueError("the cut changed more than the paid graders")
+
+    for grader, is_paid in zip(graders, paid):
+        if not is_paid:
+            continue
+        gname = grader.get("name") if isinstance(grader, dict) else None
+        name_text = "undefined" if gname is None else str(gname)
+        if not EVAL_DIR_NAME.match(name_text):
+            raise ValueError("paid grader name is not a plain file name")
+
+    return len(remaining_graders)
+
+
+def _case_is_judged_only(case_dir):
     grader_dir = os.path.join(case_dir, "graders")
     md_files = (
         sorted(f for f in os.listdir(grader_dir) if f.endswith(".md"))
         if os.path.isdir(grader_dir)
         else []
     )
-    parsed_paths = {path for _, _, path in graders}
-    total = 0
-    paid = 0
-    for _, options, _ in graders:
-        if not isinstance(options, dict):
-            continue
-        kind = options.get("type")
-        if kind is None:
-            continue
-        total += 1
-        if kind in validate_cases.JUDGE_TYPES:
-            paid += 1
+    paid_files = []
     for filename in md_files:
-        rel = "graders/" + filename
-        if rel in parsed_paths:
-            continue
         try:
             text = validate_cases.read_text(os.path.join(grader_dir, filename))
         except OSError:
             continue
-        total += 1
         if PAID_RE.search(text):
-            paid += 1
-    return total > 0 and paid == total
+            paid_files.append(filename)
+
+    yaml_path = os.path.join(case_dir, "case.yaml")
+    original = None
+    if os.path.isfile(yaml_path):
+        try:
+            original = validate_cases.read_text(yaml_path)
+        except OSError:
+            original = None
+
+    if not paid_files and (original is None or not PAID_RE.search(original)):
+        return False
+
+    try:
+        if original is None:
+            yaml_left = 0
+        else:
+            yaml_left = _strip_case_yaml(original)
+            if yaml_left is None:
+                parsed = validate_cases.parse_yaml(original)
+                graders = parsed.get("graders") if isinstance(parsed, dict) else None
+                yaml_left = len(graders) if isinstance(graders, list) else 0
+    except (ValueError, validate_cases.ParseError):
+        return True
+
+    return (yaml_left + len(md_files) - len(paid_files)) == 0
 
 
 def load_case(repo_root, plugin, eval_dir, case_dir):
@@ -460,12 +646,10 @@ def load_case(repo_root, plugin, eval_dir, case_dir):
                 all_tags.extend(str(t) for t in tags)
 
     name = None
-    for source in (prompt_fm, yaml_data):
-        if isinstance(source, dict):
-            candidate = source.get("name")
-            if isinstance(candidate, str) and candidate:
-                name = candidate
-                break
+    if isinstance(yaml_data, dict):
+        candidate = yaml_data.get("name")
+        if isinstance(candidate, str) and candidate:
+            name = candidate
     if not name:
         name = os.path.basename(case_dir)
 
@@ -475,8 +659,18 @@ def load_case(repo_root, plugin, eval_dir, case_dir):
     skills = case_skills.skills_under_test(
         prompt, prompt_file, tag_sources, graders, plugin
     )
+    skill_prefixes = {
+        case_skills.resolve(ref, plugin)
+        for ref in refs
+        if ref.kind == "skill" and ref.prefix
+    }
     agents = {
         case_skills.resolve(ref, plugin) for ref in refs if ref.kind == "agent"
+    }
+    agent_prefixes = {
+        case_skills.resolve(ref, plugin)
+        for ref in refs
+        if ref.kind == "agent" and ref.prefix
     }
 
     has_skill_grader = False
@@ -504,9 +698,11 @@ def load_case(repo_root, plugin, eval_dir, case_dir):
         rel_dir=rel_dir,
         abs_dir=case_dir,
         runs=_effective_runs(yaml_data, prompt_fm),
-        judged_only=_case_is_judged_only(case_dir, graders),
+        judged_only=_case_is_judged_only(case_dir),
         skills=frozenset(skills),
+        skill_prefixes=frozenset(skill_prefixes),
         agents=frozenset(agents),
+        agent_prefixes=frozenset(agent_prefixes),
         is_trigger_or_no_fire=is_trigger_or_no_fire,
         unread_graders=tuple(unread_graders),
     )
@@ -569,61 +765,120 @@ def _iter_skill_files(repo_root, plugin_filter=None):
                     yield plugin, skill, skill_dir, os.path.join(dirpath, filename)
 
 
+def _extract_relative_paths(text):
+    paths = []
+    seen = set()
+    for pat in DELIM_REL_PATH_RES:
+        for match in pat.finditer(text):
+            token = match.group(1)
+            if token not in seen:
+                seen.add(token)
+                paths.append(token)
+    for token in UNQUOTED_REL_PATH_RE.findall(text):
+        for candidate in (token, token.rstrip(".,:")):
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                paths.append(candidate)
+    return paths
+
+
+def _build_file_citation_patterns(plugin, rel_in_plugin):
+    plugin_root_re = re.compile(
+        r"\$\{CLAUDE_PLUGIN_ROOT\}/" + re.escape(rel_in_plugin) + r"(?![\w./-])"
+    )
+    repo_path_re = re.compile(
+        r"(?<![\w/-])plugins/"
+        + re.escape(plugin)
+        + r"/"
+        + re.escape(rel_in_plugin)
+        + r"(?![\w./-])"
+    )
+    bare_re = re.compile(
+        r"(?<![\w/.-])" + re.escape(rel_in_plugin) + r"(?![\w./-])"
+    )
+    return plugin_root_re, repo_path_re, bare_re
+
+
+def _text_cites_plugin_file(
+    text,
+    fpath,
+    p_name,
+    skill_dir,
+    target_plugin,
+    rel_in_plugin,
+    target_abs,
+    patterns,
+):
+    plugin_root_re, repo_path_re, bare_re = patterns
+    if repo_path_re.search(text):
+        return True
+    if p_name == target_plugin and plugin_root_re.search(text):
+        return True
+    base_dir = os.path.dirname(fpath)
+    for token in _extract_relative_paths(text):
+        if os.path.normpath(os.path.join(base_dir, token)) == target_abs:
+            return True
+    if p_name == target_plugin and bare_re.search(text):
+        local_shadow = os.path.join(skill_dir, *rel_in_plugin.split("/"))
+        if not os.path.exists(local_shadow):
+            return True
+    return False
+
+
 def skills_citing_plugin_file(repo_root, plugin, rel_in_plugin):
-    """Skills in `plugin` whose files cite `plugins/<plugin>/<rel_in_plugin>`."""
+    """Skills across all plugins whose files cite `plugins/<plugin>/<rel_in_plugin>`."""
     target_abs = os.path.normpath(
         os.path.join(repo_root, "plugins", plugin, *rel_in_plugin.split("/"))
     )
-    direct_patterns = (
-        re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/" + re.escape(rel_in_plugin) + r"(?![\w./-])"),
-        re.compile(
-            r"(?<![\w/-])plugins/"
-            + re.escape(plugin)
-            + r"/"
-            + re.escape(rel_in_plugin)
-            + r"(?![\w./-])"
-        ),
-    )
-    bare_pattern = re.compile(
-        r"(?<![\w/.-])" + re.escape(rel_in_plugin) + r"(?![\w./-])"
-    )
+    patterns = _build_file_citation_patterns(plugin, rel_in_plugin)
     matched = set()
-    for p_name, skill, skill_dir, fpath in _iter_skill_files(repo_root, plugin):
+    for p_name, skill, skill_dir, fpath in _iter_skill_files(repo_root):
         if (p_name, skill) in matched:
             continue
         text = _read_text_safe(fpath)
         if not text:
             continue
-        found = any(pat.search(text) for pat in direct_patterns)
-        if not found:
-            for token in REL_PATH_TOKEN_RE.findall(text):
-                resolved = os.path.normpath(os.path.join(os.path.dirname(fpath), token))
-                if resolved == target_abs:
-                    found = True
-                    break
-        if not found and bare_pattern.search(text):
-            local_shadow = os.path.join(skill_dir, *rel_in_plugin.split("/"))
-            if not os.path.exists(local_shadow):
-                found = True
-        if found:
+        if _text_cites_plugin_file(
+            text,
+            fpath,
+            p_name,
+            skill_dir,
+            plugin,
+            rel_in_plugin,
+            target_abs,
+            patterns,
+        ):
             matched.add((p_name, skill))
     return matched
 
 
 def skills_for_workflow(repo_root, wf_plugin, wf_stem):
-    """Skills across all plugins whose files name `<wf_plugin>:<wf_stem>`."""
+    """Skills across all plugins naming `<wf_plugin>:<wf_stem>` or citing its script."""
     token_re = re.compile(
         r"(?<![\w:-])" + re.escape("%s:%s" % (wf_plugin, wf_stem)) + r"(?![\w-])"
     )
-    path_re = re.compile(
-        r"(?<![\w/-])workflows/" + re.escape(wf_stem) + r"\.js(?![\w.-])"
+    rel_in_plugin = "workflows/%s.js" % wf_stem
+    target_abs = os.path.normpath(
+        os.path.join(repo_root, "plugins", wf_plugin, "workflows", wf_stem + ".js")
     )
+    patterns = _build_file_citation_patterns(wf_plugin, rel_in_plugin)
     matched = set()
-    for p_name, skill, _, fpath in _iter_skill_files(repo_root):
+    for p_name, skill, skill_dir, fpath in _iter_skill_files(repo_root):
         if (p_name, skill) in matched:
             continue
         text = _read_text_safe(fpath)
-        if token_re.search(text) or (p_name == wf_plugin and path_re.search(text)):
+        if not text:
+            continue
+        if token_re.search(text) or _text_cites_plugin_file(
+            text,
+            fpath,
+            p_name,
+            skill_dir,
+            wf_plugin,
+            rel_in_plugin,
+            target_abs,
+            patterns,
+        ):
             matched.add((p_name, skill))
     return matched
 
@@ -657,48 +912,180 @@ def skills_for_agent(repo_root, plugin, agent_name):
     return matched
 
 
-def cases_citing_suite_file(eval_abs, target_abs, suite_cases):
-    """Cases in `suite_cases` whose non-sample files cite `target_abs`."""
-    rel_in_eval = os.path.relpath(target_abs, eval_abs).replace(os.sep, "/")
-    rel_re = re.compile(r"(?<![\w.-])" + re.escape(rel_in_eval) + r"(?![\w.-])")
+def _suffix_after(text, start, end):
+    if end >= len(text) or text[end] != "/":
+        return ""
+    quote = text[start - 1] if start > 0 and text[start - 1] in ('"', "'") else None
+    stop_chars = (quote, "\r", "\n") if quote else tuple(" \t\r\n\"'`)&|;<>#")
+    pos = end
+    while pos < len(text) and text[pos] not in stop_chars:
+        pos += 1
+    return text[end:pos]
+
+
+def _resolve_shell_subpath(base_dir, suffix):
+    if not suffix:
+        return os.path.normpath(base_dir)
+    parts = [seg for seg in suffix.split("/") if seg]
+    static = []
+    for seg in parts:
+        if "$" in seg:
+            break
+        static.append(seg)
+    if not static:
+        return os.path.normpath(base_dir)
+    return os.path.normpath(os.path.join(base_dir, *static))
+
+
+def _dirname_resolved(text, dn_match, base_dir):
+    suffix = _suffix_after(text, dn_match.start(), dn_match.end())
+    resolved = _resolve_shell_subpath(base_dir, suffix)
+    tail_pos = dn_match.end() + len(suffix)
+    pwd_tail = PWD_TAIL_RE.match(text, tail_pos)
+    if pwd_tail:
+        outer_start = text.rfind("$(", 0, dn_match.start())
+        outer_suffix = _suffix_after(
+            text, outer_start if outer_start >= 0 else 0, pwd_tail.end()
+        )
+        if outer_suffix:
+            resolved = _resolve_shell_subpath(resolved, outer_suffix)
+    return resolved
+
+
+def _in_eval_suite(path, eval_norm):
+    return path != eval_norm and path.startswith(eval_norm + os.sep)
+
+
+def _extract_suite_refs(fpath, text, eval_norm):
+    base_dir = os.path.dirname(fpath)
+    refs = set()
+    var_dirs = {}
+    assign_lines = set()
+    lines = text.splitlines()
+
+    for line_no, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        assign = SHELL_ASSIGN_RE.match(line)
+        if not assign:
+            continue
+        var_name, rhs = assign.group(1), assign.group(2).strip()
+        dn_match = DIRNAME_INNER_RE.search(rhs)
+        if dn_match:
+            var_dirs[var_name] = _dirname_resolved(rhs, dn_match, base_dir)
+            assign_lines.add(line_no)
+            continue
+        for known_var, known_dir in list(var_dirs.items()):
+            var_use = re.match(
+                r"""^["']?(?:\$\{"""
+                + re.escape(known_var)
+                + r"""\}|\$"""
+                + re.escape(known_var)
+                + r"""(?![A-Za-z0-9_]))""",
+                rhs,
+            )
+            if var_use:
+                start_offset = 1 if rhs[0] in ('"', "'") else 0
+                suffix = _suffix_after(rhs, start_offset, var_use.end())
+                var_dirs[var_name] = _resolve_shell_subpath(known_dir, suffix)
+                assign_lines.add(line_no)
+                break
+
+    for line_no, line in enumerate(lines):
+        if line_no in assign_lines:
+            continue
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        for dn_match in DIRNAME_INNER_RE.finditer(line):
+            resolved = _dirname_resolved(line, dn_match, base_dir)
+            if _in_eval_suite(resolved, eval_norm):
+                refs.add(resolved)
+        for token in _extract_relative_paths(line):
+            resolved = os.path.normpath(os.path.join(base_dir, token))
+            if _in_eval_suite(resolved, eval_norm):
+                refs.add(resolved)
+        for var_name, var_dir in var_dirs.items():
+            var_re = re.compile(
+                r"\$\{"
+                + re.escape(var_name)
+                + r"\}|\$"
+                + re.escape(var_name)
+                + r"(?![A-Za-z0-9_])"
+            )
+            for match in var_re.finditer(line):
+                suffix = _suffix_after(line, match.start(), match.end())
+                resolved = _resolve_shell_subpath(var_dir, suffix)
+                if _in_eval_suite(resolved, eval_norm):
+                    refs.add(resolved)
+
+    if os.path.basename(fpath) == "case.yaml":
+        try:
+            doc = _parse_case_yaml_text(text)
+        except validate_cases.ParseError:
+            doc = None
+        context = doc.get("context") if isinstance(doc, dict) else None
+        if isinstance(context, dict):
+            for field in ("scaffold_script", "history_file", "add_dirs"):
+                value = context.get(field)
+                entries = value if isinstance(value, list) else [value]
+                for entry in entries:
+                    if isinstance(entry, str) and entry:
+                        resolved = os.path.normpath(os.path.join(base_dir, entry))
+                        if _in_eval_suite(resolved, eval_norm):
+                            refs.add(resolved)
+
+    return refs
+
+
+def _case_suite_references(case, eval_norm):
+    queue = collections.deque()
+    for dirpath, dirnames, filenames in os.walk(case.abs_dir):
+        dirnames[:] = sorted(
+            d
+            for d in dirnames
+            if d not in ("samples", "node_modules", "__pycache__")
+            and not d.startswith(".")
+        )
+        for filename in sorted(filenames):
+            if filename.startswith("."):
+                continue
+            queue.append(os.path.normpath(os.path.join(dirpath, filename)))
+
+    visited = set()
+    referenced = set()
+    while queue:
+        fpath = queue.popleft()
+        if fpath in visited:
+            continue
+        visited.add(fpath)
+        text = _read_text_safe(fpath)
+        if not text:
+            continue
+        for ref_path in _extract_suite_refs(fpath, text, eval_norm):
+            referenced.add(ref_path)
+            if os.path.isfile(ref_path) and ref_path not in visited:
+                queue.append(ref_path)
+    return referenced
+
+
+def cases_citing_suite_file(eval_abs, target_abs, suite_cases, ref_cache=None):
+    """Cases in `suite_cases` whose files or helper scripts cite `target_abs`."""
     eval_norm = os.path.normpath(eval_abs)
     target_norm = os.path.normpath(target_abs)
     matched = []
     for case in suite_cases:
-        hit = False
-        for dirpath, dirnames, filenames in os.walk(case.abs_dir):
-            dirnames[:] = sorted(
-                d
-                for d in dirnames
-                if d not in ("samples", "node_modules", "__pycache__")
-                and not d.startswith(".")
-            )
-            for filename in sorted(filenames):
-                if filename.startswith("."):
-                    continue
-                fpath = os.path.join(dirpath, filename)
-                text = _read_text_safe(fpath)
-                if not text:
-                    continue
-                if rel_re.search(text):
-                    hit = True
-                    break
-                for token in REL_PATH_TOKEN_RE.findall(text):
-                    for base in (os.path.dirname(fpath), case.abs_dir):
-                        resolved = os.path.normpath(os.path.join(base, token))
-                        if resolved == target_norm or (
-                            resolved != eval_norm
-                            and resolved.startswith(eval_norm + os.sep)
-                            and target_norm.startswith(resolved + os.sep)
-                        ):
-                            hit = True
-                            break
-                    if hit:
-                        break
-                if hit:
-                    break
-            if hit:
-                break
+        if ref_cache is not None and case.abs_dir in ref_cache:
+            referenced = ref_cache[case.abs_dir]
+        else:
+            referenced = _case_suite_references(case, eval_norm)
+            if ref_cache is not None:
+                ref_cache[case.abs_dir] = referenced
+        hit = target_norm in referenced or any(
+            not os.path.isfile(ref_path) and target_norm.startswith(ref_path + os.sep)
+            for ref_path in referenced
+        )
         if hit:
             matched.append(case)
     return matched
@@ -735,13 +1122,86 @@ def _is_test_script(filename):
     )
 
 
+def _case_covers_skill(case, skill_key):
+    plugin, name = skill_key
+    return skill_key in case.skills or any(
+        rp == plugin and name.startswith(prefix)
+        for rp, prefix in case.skill_prefixes
+    )
+
+
+def _case_covers_agent(case, agent_key):
+    plugin, name = agent_key
+    return agent_key in case.agents or any(
+        rp == plugin and name.startswith(prefix)
+        for rp, prefix in case.agent_prefixes
+    )
+
+
+def _agent_key_from_path(rel_path):
+    parts = rel_path.split("/")
+    if (
+        len(parts) == 4
+        and parts[0] == "plugins"
+        and parts[2] == "agents"
+        and parts[3].endswith(".md")
+    ):
+        return parts[1], parts[3][:-3]
+    return None
+
+
+def _agent_token_re(plugin, agent_name):
+    return re.compile(
+        r"(?<![\w:-])" + re.escape("%s:%s" % (plugin, agent_name)) + r"(?![\w-])"
+    )
+
+
+def _pair_unmatched_agent_renames(
+    repo_root, merge_base, deleted_agents, added_agents, modified_dispatchers, changed_agents
+):
+    if not deleted_agents or not added_agents or not modified_dispatchers:
+        return
+    paired_old = set()
+    for rel_path in modified_dispatchers:
+        base_text = git_show(repo_root, merge_base, rel_path)
+        head_text = git_show(repo_root, "HEAD", rel_path)
+        if base_text is None or head_text is None:
+            continue
+        removed_here = [
+            item
+            for item in deleted_agents
+            if item[0] not in paired_old
+            and _agent_token_re(*item[0]).search(base_text)
+            and not _agent_token_re(*item[0]).search(head_text)
+        ]
+        added_here = [
+            item
+            for item in added_agents
+            if _agent_token_re(*item[0]).search(head_text)
+            and not _agent_token_re(*item[0]).search(base_text)
+        ]
+        for old_key, old_path in removed_here:
+            for new_key, new_path in added_here:
+                kind = (
+                    "cut"
+                    if diff_blobs_has_cut(repo_root, merge_base, old_path, new_path)
+                    else "additive"
+                )
+                if changed_agents.get(new_key) != "cut":
+                    changed_agents[new_key] = kind
+                paired_old.add(old_key)
+    for old_key in paired_old:
+        changed_agents.pop(old_key, None)
+
+
 def select_cases(repo_root, diff_base, merge_base):
     """Compute affected cases per plugin for `diff_base...HEAD`."""
-    paths = changed_files(repo_root, diff_base)
-    if paths is None:
+    entries = changed_entries(repo_root, diff_base)
+    if entries is None:
         return None
     eval_dirs, cases_by_plugin = load_all_suites(repo_root)
     all_cases = [c for cases in cases_by_plugin.values() for c in cases]
+    fixture_ref_cache = {}
 
     run_cases = collections.defaultdict(set)
     after_merge_cases = collections.defaultdict(set)
@@ -754,9 +1214,39 @@ def select_cases(repo_root, diff_base, merge_base):
     changed_skills = collections.defaultdict(set)
     script_only_skills = set()
     changed_agents = {}
+    deleted_agents = []
+    added_agents = []
+    modified_dispatchers = []
     skill_or_agent_plugins = set()
 
-    for rel_path in paths:
+    expanded = []
+    for code, path_a, path_b in entries:
+        if code == "R" and path_b is not None:
+            old_agent = _agent_key_from_path(path_a)
+            new_agent = _agent_key_from_path(path_b)
+            if old_agent and new_agent:
+                kind = (
+                    "cut"
+                    if diff_blobs_has_cut(repo_root, merge_base, path_a, path_b)
+                    else "additive"
+                )
+                if changed_agents.get(new_agent) != "cut":
+                    changed_agents[new_agent] = kind
+                skill_or_agent_plugins.add(new_agent[0])
+                if skills_for_agent(repo_root, *old_agent) or any(
+                    _case_covers_agent(c, old_agent) for c in all_cases
+                ):
+                    changed_agents[old_agent] = "cut"
+                    skill_or_agent_plugins.add(old_agent[0])
+                continue
+            expanded.append(("D", path_a))
+            expanded.append(("A", path_b))
+        elif code == "C" and path_b is not None:
+            expanded.append(("A", path_b))
+        else:
+            expanded.append((code, path_a))
+
+    for code, rel_path in expanded:
         parts = rel_path.split("/")
         if len(parts) < 3 or parts[0] != "plugins":
             continue
@@ -769,6 +1259,8 @@ def select_cases(repo_root, diff_base, merge_base):
             continue
 
         if parts[2] == "skills" and len(parts) >= 4:
+            if code == "M":
+                modified_dispatchers.append(rel_path)
             skill = parts[3]
             inner_parts = parts[4:]
             if not inner_parts:
@@ -792,7 +1284,7 @@ def select_cases(repo_root, diff_base, merge_base):
             else:
                 reason = (
                     "body_cut"
-                    if word_diff_has_cut(repo_root, diff_base, rel_path)
+                    if diff_has_cut(repo_root, diff_base, rel_path)
                     else "body_additive"
                 )
                 changed_skills[(plugin, skill)].add(reason)
@@ -806,7 +1298,7 @@ def select_cases(repo_root, diff_base, merge_base):
             else:
                 reason = (
                     "body_cut"
-                    if word_diff_has_cut(repo_root, diff_base, rel_path)
+                    if diff_has_cut(repo_root, diff_base, rel_path)
                     else "body_additive"
                 )
                 for skill_key in citing:
@@ -816,13 +1308,20 @@ def select_cases(repo_root, diff_base, merge_base):
 
         if parts[2] == "agents" and len(parts) == 4 and parts[3].endswith(".md"):
             agent_name = parts[3][:-3]
-            kind = "cut" if word_diff_has_cut(repo_root, diff_base, rel_path) else "additive"
-            if changed_agents.get((plugin, agent_name)) != "cut":
-                changed_agents[(plugin, agent_name)] = kind
+            agent_key = (plugin, agent_name)
+            kind = "cut" if diff_has_cut(repo_root, diff_base, rel_path) else "additive"
+            if changed_agents.get(agent_key) != "cut":
+                changed_agents[agent_key] = kind
+            if code == "D":
+                deleted_agents.append((agent_key, rel_path))
+            elif code == "A":
+                added_agents.append((agent_key, rel_path))
             skill_or_agent_plugins.add(plugin)
             continue
 
         if parts[2] == "workflows" and len(parts) == 4 and parts[3].endswith(".js"):
+            if code == "M":
+                modified_dispatchers.append(rel_path)
             for skill_key in skills_for_workflow(repo_root, plugin, parts[3][:-3]):
                 script_only_skills.add(skill_key)
             continue
@@ -850,7 +1349,9 @@ def select_cases(repo_root, diff_base, merge_base):
                     continue
                 eval_abs = os.path.join(repo_root, "plugins", plugin, ed_name)
                 target_abs = os.path.join(repo_root, *parts)
-                cited_cases = cases_citing_suite_file(eval_abs, target_abs, suite_cases)
+                cited_cases = cases_citing_suite_file(
+                    eval_abs, target_abs, suite_cases, ref_cache=fixture_ref_cache
+                )
                 if cited_cases:
                     for case in cited_cases:
                         run_cases[plugin].add(case)
@@ -863,13 +1364,23 @@ def select_cases(repo_root, diff_base, merge_base):
 
         unmapped[plugin].add(rel_path)
 
+    _pair_unmatched_agent_renames(
+        repo_root,
+        merge_base,
+        deleted_agents,
+        added_agents,
+        modified_dispatchers,
+        changed_agents,
+    )
+
     for skill_key in script_only_skills:
         for case in all_cases:
-            if skill_key in case.skills:
+            if _case_covers_skill(case, skill_key):
                 no_run_cases[case.plugin].add(case)
 
     for (plugin, skill), reasons in sorted(changed_skills.items()):
-        skill_cases = [c for c in all_cases if (plugin, skill) in c.skills]
+        skill_key = (plugin, skill)
+        skill_cases = [c for c in all_cases if _case_covers_skill(c, skill_key)]
         trigger_cases = [
             c for c in cases_by_plugin.get(plugin, []) if c.is_trigger_or_no_fire
         ]
@@ -883,6 +1394,8 @@ def select_cases(repo_root, diff_base, merge_base):
         if "desc_cut" in reasons:
             for case in trigger_cases:
                 run_cases[case.plugin].add(case)
+            for case in skill_cases:
+                run_cases[case.plugin].add(case)
         elif "desc_additive" in reasons:
             for case in trigger_cases:
                 after_merge_cases[case.plugin].add(case)
@@ -892,13 +1405,15 @@ def select_cases(repo_root, diff_base, merge_base):
             uncovered[plugin].add("%s:%s" % (plugin, skill))
 
     for (plugin, agent_name), kind in sorted(changed_agents.items()):
+        agent_key = (plugin, agent_name)
         dispatched_by = skills_for_agent(repo_root, plugin, agent_name)
         for skill_key in dispatched_by:
             skill_or_agent_plugins.add(skill_key[0])
         agent_cases = [
             c
             for c in all_cases
-            if (c.skills & dispatched_by) or (plugin, agent_name) in c.agents
+            if any(_case_covers_skill(c, sk) for sk in dispatched_by)
+            or _case_covers_agent(c, agent_key)
         ]
         if not agent_cases:
             uncovered[plugin].add("%s:%s" % (plugin, agent_name))
@@ -962,10 +1477,10 @@ def select_cases(repo_root, diff_base, merge_base):
         ):
             continue
 
-        scheduled_by_name = {}
-        for case in run_set | ram_set:
-            scheduled_by_name[case.name] = case
-        agent_runs = sum(case.runs * ARMS for case in scheduled_by_name.values())
+        scheduled_cases = [
+            c for c in cases_by_plugin.get(plugin, []) if c.name in scheduled_names
+        ]
+        agent_runs = sum(case.runs * ARMS for case in scheduled_cases)
 
         result["plugins/" + plugin] = {
             "cases": det_cases,
@@ -1044,6 +1559,15 @@ def main(argv=None):
     merge_base = resolve_merge_base(repo_root, args.diff_base)
     if merge_base is None:
         sys.stderr.write("error: unreadable diff base: %s\n" % args.diff_base)
+        return 2
+    dirty = has_uncommitted_plugin_changes(repo_root)
+    if dirty is None:
+        sys.stderr.write("error: failed to read git status\n")
+        return 2
+    if dirty:
+        sys.stderr.write(
+            "error: uncommitted changes under plugins/; select-cases reads committed state only\n"
+        )
         return 2
 
     result = select_cases(repo_root, args.diff_base, merge_base)
