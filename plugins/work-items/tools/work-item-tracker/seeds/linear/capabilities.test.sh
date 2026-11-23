@@ -51,7 +51,6 @@ case "$out" in
 *) pass "stdout is CR-free" ;;
 esac
 
-# --- the manifest ---
 assert_eq "manifest is valid JSON" "0" "$(
   jq -e . "$MANIFEST" >/dev/null 2>&1
   echo $?
