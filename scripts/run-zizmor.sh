@@ -15,6 +15,8 @@
 # .github/requirements-ci.txt): https://docs.zizmor.sh/usage/#exit-codes
 # and https://docs.zizmor.sh/usage/#operating-modes
 set -uo pipefail
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 config=
 if [[ -n "${BASE_SHA:-}" ]]; then
