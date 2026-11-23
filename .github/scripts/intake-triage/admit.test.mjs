@@ -1294,52 +1294,68 @@ describe("decide", () => {
         assert.deepEqual(workCharges({ title: "", body: "The lane runs past its turn cap." }, chargePattern(), false, RULES["task-list"]), []);
       });
 
-      test("a charge word under a leading negation reads as no charge; one past it still counts", () => {
+      test("a clause that is only a negated noun list reads as no charge", () => {
         const charged = (body) => workCharges({ title: "", body }, chargePattern(), false, RULES["task-list"]);
-        assert.deepEqual(charged("No new storage or retention."), [], "a negated clause");
-        assert.deepEqual(charged("- [ ] No new storage or retention."), [], "a negated task item");
-        assert.deepEqual(charged("No new storage, but add artifact retention of 90 days."), ["retention"], "a charge after the negated span");
-        assert.deepEqual(charged("Add 90-day artifact retention."), ["retention"], "a clause with no negation");
-        assert.deepEqual(charged("No spending limit on the lanes account."), ["spending limit"], "a negated spend guard");
-        assert.deepEqual(charged("No retention limit."), ["retention"], "a negated bound on a charge");
-        assert.deepEqual(charged("No expiry on artifact retention."), ["retention"], "a negated expiry on a charge");
-        assert.deepEqual(charged("Without a larger runner the job times out, so use one."), ["larger runner"], "a negated condition the clause then commits to");
+        for (const body of [
+          "No new storage or retention.",
+          "- [ ] No new storage or retention.",
+          "- [x] Without larger runners or retention.",
+          "No storage, caching, or retention.",
+          "No hosted runners.",
+          "No azure.",
+        ]) {
+          assert.deepEqual(charged(body), [], body);
+        }
+        assert.deepEqual(charged("Add 90-day artifact retention."), ["retention"], "the same charge word with no negation");
       });
 
-      test("a negation that opens a work section reads as no charge", () => {
-        const charged = (body) => workCharges({ title: "", body }, chargePattern(), false, RULES["task-list"]);
-        assert.deepEqual(charged("## Fix\n\nNo new storage or retention."), [], "after a blank line");
-        assert.deepEqual(charged("## Fix\nNo new storage or retention."), [], "on the line after the heading");
-        assert.deepEqual(charged("## Fix\n\nNo new storage, but add artifact retention of 90 days."), ["retention"], "a charge past the negated span");
-      });
-
-      test("a comparative, additive or bounded negation still names its charge", () => {
+      test("a negated clause with anything past a bare noun list keeps its charge", () => {
         const charged = (body) => workCharges({ title: "", body }, chargePattern(), false, RULES["task-list"]);
         for (const [body, found] of [
+          ["No new storage and add 90-day artifact retention.", ["retention"]],
+          ["No new storage, but add artifact retention of 90 days.", ["retention"]],
+          ["Without retention we lose logs; add retention of 90 days.", ["retention"]],
+          ["Not a cost change and enables a larger runner.", ["larger runner"]],
+          ["No new storage and buy a seat.", ["seat"]],
+          ["No new workflow\nArtifact retention goes to 400 days.", ["retention"]],
+          ["No more than 400 days of artifact retention.", ["retention"]],
+          ["No retention limit.", ["retention"]],
+          ["No spending limit on the larger runner.", ["spending limit", "larger runner"]],
+          ["Without a larger runner the job times out, so use one.", ["larger runner"]],
+          ["## Cost\nNo retention\n## Work\nAdd 90-day retention.", ["retention"]],
+          ["Not only artifact retention but also faster builds.", ["retention"]],
+          ["Without exception: artifact retention of 90 days.", ["retention"]],
           ["No more than 500 macos minutes a month.", ["macos minutes"]],
           ["Not only billing alerts but hosted runners.", ["billing", "hosted runners"]],
           ["Not just storage: hosted runners for e2e.", ["hosted runners"]],
-          ["Not only artifact retention but also faster builds.", ["retention"]],
-          ["Without exception: artifact retention of 90 days.", ["retention"]],
-          ["No new workflow: the e2e job gets larger runners.", ["larger runners"]],
-          ["Not a code change — artifact retention goes to 400 days.", ["retention"]],
-          ["Not a code change – artifact retention goes to 400 days.", ["retention"]],
-          ["Not a code change - artifact retention goes to 400 days.", ["retention"]],
-          ["Without owner sign-off the lanes account gets extra usage.", ["extra usage"]],
           ["Not to exceed 500 macos minutes a month.", ["macos minutes"]],
           ["Not exceeding 500 macos minutes a month.", ["macos minutes"]],
           ["Not over 500 macos minutes a month.", ["macos minutes"]],
-          ["Not over 500 macos minutes.", ["macos minutes"]],
           ["Not limited to hosted runners for e2e.", ["hosted runners"]],
+          ["Without approval retention grows.", ["retention"]],
+          ["No new workflow and retention goes up.", ["retention"]],
+          ["No storage but retention.", ["retention"]],
+          ["No new storage or caching but retention.", ["retention"]],
+          ["No workflow and retention grows.", ["retention"]],
+          ["No retention expiry.", ["retention"]],
+          ["No storage or add retention.", ["retention"]],
+          ["No spending limit.", ["spending limit"]],
+          ["No storage, but retention.", ["retention"]],
+          ["No storage, so retention.", ["retention"]],
+          ["No new workflow, longer retention.", ["retention"]],
+          ["No storage, so retention or caching.", ["retention"]],
+          ["No new workflow, and then retention.", ["retention"]],
+          ["No storage, hosted runners.", ["hosted runners"]],
+          ["No new storage or artifact retention.", ["retention"]],
+          ["No new storage\nRetention goes to 400 days.", ["retention"]],
+          ["## Fix\n\nNo new storage or retention.", ["retention"]],
+          ["## Fix\nNo new storage or retention.", ["retention"]],
+          ["No spending limit on the lanes account.", ["spending limit"]],
+          ["No expiry on artifact retention.", ["retention"]],
+          ["No new workflow: the e2e job gets larger runners.", ["larger runners"]],
+          ["Not a code change — artifact retention goes to 400 days.", ["retention"]],
+          ["Without owner sign-off the lanes account gets extra usage.", ["extra usage"]],
           ["Not limited to hosted runners.", ["hosted runners"]],
-        ]) {
-          assert.deepEqual(charged(body), found, body);
-        }
-      });
-
-      test("a negation reaches only a short noun phrase, so a charge past a verb or connective still counts", () => {
-        const charged = (body) => workCharges({ title: "", body }, chargePattern(), false, RULES["task-list"]);
-        for (const [body, found] of [
           ["No new workflow so e2e jobs get larger runners.", ["larger runners"]],
           ["No code change needed once e2e gets larger runners.", ["larger runners"]],
           ["No new workflow (e2e gets larger runners).", ["larger runners"]],
