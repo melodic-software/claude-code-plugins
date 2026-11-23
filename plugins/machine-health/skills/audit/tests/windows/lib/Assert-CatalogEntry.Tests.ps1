@@ -153,8 +153,6 @@ Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'in
 }
 
 Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
-    # The category enum lives in five places (two schemas, three validators); a difference in any
-    # direction rejects or wrongly admits entries, so all five are compared exactly both ways.
     BeforeAll {
         . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
         . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')

@@ -4,8 +4,6 @@
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-GpuDriverInfo.ps1'
 
-    # Win32_VideoController is a Windows cmdlet. A function of the same name lets
-    # Pester mock it on a host that does not ship the Cim cmdlets.
     if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
         function Get-CimInstance {
             [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -104,7 +102,6 @@ Describe 'Get-GpuDriverInfo' -Tag 'lib' {
         }
 
         It 'passes --query-gpu and --format as two intact arguments' {
-            # #3370: one comma-bearing flag must stay one argv entry.
             $null = Get-GpuDriverInfo
 
             Should -Invoke Invoke-NativeCommand -Times 1 -ParameterFilter {

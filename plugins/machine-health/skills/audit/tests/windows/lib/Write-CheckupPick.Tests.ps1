@@ -31,7 +31,6 @@ Describe 'Write-CheckupPick' -Tag 'lib' {
                 'remediations-1'         = @{ action = 'approve'; remediation_id = 'clear-temp-files' }
             }
         } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $views 'checkup-2026-10-21T120000000Z.ids.json')
-        # Numbered as setup lists them: the same resolver call over the same payload.
         $script:Picks = @(Resolve-CheckupPick -ViewsDir $views.FullName -Payload $script:Payload)
         $script:N = @{}
         for ($i = 0; $i -lt $script:Picks.Count; $i++) {
