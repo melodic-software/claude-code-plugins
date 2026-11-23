@@ -2027,7 +2027,8 @@ class StaleReferences(ValidatorTestCase):
             + self.tool_grader("open-prefix", "Agent", "discovery:explore")
             + self.tool_grader("slash-skill", "Agent", "/demo:real\\b")
             + self.tool_grader("hyphen-wildcard", "Agent", "demo:code-.*")
-            + self.tool_grader("optional-suffix", "Agent", "demo:code-review(er)?"),
+            + self.tool_grader("optional-suffix", "Agent", "demo:code-review(er)?")
+            + self.tool_grader("split-name", "Agent", "demo:(code|security)-reviewer"),
         )
         write(case_dir / "scaffold.sh", "#!/usr/bin/env bash\ntrue\n")
         result = self.validate_without_node()

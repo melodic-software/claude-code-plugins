@@ -1107,6 +1107,7 @@ LITERAL_REFERENCE = re.compile(
 LOOKAROUNDS = ("(?=", "(?!", "(?<=", "(?<!")
 GROUP_OPENER = re.compile(r"\((?:\?:|\?P?<[A-Za-z_]\w*>)?(?!\?)")
 QUANTIFIERS = ("?", "*", "+", "{")
+NAME_CONTINUES = re.compile(r"[\w.(\[-]|\\[^bB]")
 REFERENCE_KINDS = {
     "skill": lambda plugin, name: (plugin, "skills", name, "SKILL.md"),
     "agent": lambda plugin, name: (plugin, "agents", name + ".md"),
@@ -1185,10 +1186,12 @@ def literal_text(pattern):
     unless a quantifier follows the close, and any other escape, a character
     class, a quantified group's close or a lookaround or flag group a HOLE."""
     out = []
+    starts = []
     ends = []
     index = 0
     while index < len(pattern):
         char = pattern[index]
+        start = index
         if char == "\\" and index + 1 < len(pattern):
             escaped = pattern[index + 1]
             if escaped in "bB":
@@ -1220,8 +1223,9 @@ def literal_text(pattern):
             index += 1
         if piece:
             out.append(piece)
+            starts.append(start)
             ends.append(index)
-    return "".join(out), ends
+    return "".join(out), starts, ends
 
 
 def _enclosing_close(pattern, index):
@@ -1245,10 +1249,40 @@ def _enclosing_close(pattern, index):
     return None
 
 
-def open_right(pattern, index):
-    """Whether a literal ending at source `index` can be followed by any text:
-    past group closes, and from an alternative's `|` past its group's close,
-    the pattern ends or the top-level alternative ends."""
+def alternation_groups(pattern):
+    """The (open, close) source indices of each group holding a top-level `|`."""
+    spans = []
+    stack = []
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "[":
+            index = _class_end(pattern, index)
+            continue
+        if char == "(":
+            stack.append([index, False])
+        elif char == "|" and stack:
+            stack[-1][1] = True
+        elif char == ")" and stack:
+            opened, alternation = stack.pop()
+            if alternation:
+                spans.append((opened, index))
+        index += 1
+    return spans
+
+
+def reference_reach(pattern, start, end):
+    """For a token spanning source [start, end): None when it is not one
+    literal name (it crosses a group with alternatives, or such a group it
+    ends in is followed by more of a name), else whether it is open on the
+    right, so a prefix of a real name resolves it."""
+    for opened, closed in alternation_groups(pattern):
+        if start < opened < end or start < closed < end:
+            return None
+    index = end
     while index < len(pattern):
         char = pattern[index]
         if char == ")":
@@ -1257,6 +1291,8 @@ def open_right(pattern, index):
             close = _enclosing_close(pattern, index)
             if close is None:
                 return True
+            if NAME_CONTINUES.match(pattern, close + 1):
+                return None
             index = close + 1
         else:
             return False
@@ -1323,11 +1359,14 @@ def check_references(root, prompt, prompt_file, tag_sources, graders, case, find
         pattern = options.get("input_match")
         if not kind or not isinstance(pattern, str):
             continue
-        text, ends = literal_text(pattern)
-        tokens = [
-            match.groups() + (open_right(pattern, ends[match.end() - 1]),)
-            for match in LITERAL_REFERENCE.finditer(text)
-        ]
+        text, starts, ends = literal_text(pattern)
+        tokens = []
+        for match in LITERAL_REFERENCE.finditer(text):
+            reach = reference_reach(
+                pattern, starts[match.start()], ends[match.end() - 1]
+            )
+            if reach is not None:
+                tokens.append(match.groups() + (reach,))
         for slash, plugin, target, prefix in dict.fromkeys(tokens):
             missing = missing_reference(
                 root, "skill" if slash else kind, plugin, target, prefix
