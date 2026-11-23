@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Independent em-dash count for the /ai-slop:audit fix flow's closing step.
-#
-# Reads a `detect.sh --list-targets` file and finds, per file, the lines that
-# hold an em dash outside fenced code, inline code, generated regions, and
-# ignore markers. The
-# parse is written separately from detect.sh on purpose: a shared parser would
-# share its blind spots. Given the detector's output, it prints a Disagree row
-# for every file whose count or set of line numbers differs from the
-# detector's rule-em-dash findings, naming the lines only one side holds.
-#
-# Output rows use the CrossCheck:/Disagree: prefixes, never Finding:.
 # Exit: 0 on success; 2 on usage errors.
 set -u
 export LC_ALL=C
@@ -44,7 +33,6 @@ done
 [[ -r "$TARGETS_FILE" ]] || { echo "$ME: cannot read --targets: $TARGETS_FILE" >&2; exit 2; }
 [[ -z "$DETECTOR" || -r "$DETECTOR" ]] || { echo "$ME: cannot read --detector: $DETECTOR" >&2; exit 2; }
 
-# The detector's effective config decides whether the rule ran and where.
 config="$(bash "$SCRIPT_DIR/detect.sh" --show-config 2>/dev/null | tr -d '\r')"
 disabled="$(sed -n 's/^Effective: disabled_rules=//p' <<<"$config")"
 if [[ " $disabled " == *" rule-em-dash "* ]]; then
@@ -73,9 +61,6 @@ while IFS=$'\t' read -r key path; do
   paths+=("${path:-$key}")
 done <"$TARGETS_FILE"
 
-# One awk pass over every file. A fence opens on ``` or ~~~, optionally after a
-# list marker, and closes on its own character. Inline code spans are removed
-# before a line marker is looked for, so a backticked marker is prose.
 # shellcheck disable=SC2016  # an awk program, not a shell expansion
 count_prog='
   function fchar(s) {
@@ -151,9 +136,6 @@ if [[ "${#scan[@]}" -gt 0 ]]; then
   done < <(awk "$count_prog" "${scan[@]}")
 fi
 
-# Per file: the detector's row count and its set of line numbers, ascending.
-# The file and line come from the leftmost ` line=N fired=`, so an excerpt
-# holding that text changes neither.
 declare -A det=() dlines=() declined=()
 if [[ -n "$DETECTOR" ]]; then
   while IFS=$'\t' read -r kind l k; do
@@ -194,8 +176,6 @@ if [[ -n "$DETECTOR" ]]; then
     }')
 fi
 
-# only_lines <a> <b>: the lines only in a, then only in b, each a comma list
-# or `-`. Both inputs are ascending, so each output is too.
 only_lines() {
   awk -v a="$1" -v b="$2" 'BEGIN {
     na = split(a, A, ","); nb = split(b, B, ",")

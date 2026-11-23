@@ -19,7 +19,6 @@ description: Fixture skill for a tool-availability probe. Reply with the word lo
 Reply with the word loaded.
 EOF
 
-# allowed_tools omits Skill and Task; the run passes no --allow-tools grant.
 cat >"$plugin/evals/unlisted-tools/prompt.md" <<'EOF'
 ---
 runs: 1

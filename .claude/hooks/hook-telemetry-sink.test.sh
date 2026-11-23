@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# .claude/hooks/hook-telemetry-sink.sh is a shim that sources the session-telemetry
-# reference sink (plugins/session-telemetry/hooks/hook-telemetry-sink.sh). Pin its
-# target, then prove the wiring executes end-to-end: a valid envelope must
-# append a record.
-#
-# Runner: scripts/run-plugin-tests.sh (once extended to .claude/hooks tests);
-# also runnable directly: bash .claude/hooks/hook-telemetry-sink.test.sh
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

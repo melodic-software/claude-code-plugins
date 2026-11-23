@@ -1,72 +1,6 @@
 #!/usr/bin/env node
 
-// Security-binding check for the guardrail contract: validates a security
-// binding document against the contract-owned schema shape
-// (schemas/guardrails-security-binding.schema.json — the structural rules are
-// mirrored here, dependency-free) plus the semantic rules the schema cannot
-// express: matrix merge caps, runtime-marker attestability and pairwise
-// joint-satisfiability, per-surface class-aware isolation verdicts, promotion
-// discipline, per-class verification-topology floors and coverage, and
-// admission floors/precedence.
-//
-// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]
 // Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
-// `--evidence -` reads the events from stdin, so a caller that computed them need not write a file.
-//
-// --egress-hosts is the configured/trusted probe-target seam: when supplied,
-// a transcript's egress host must be one of the listed hosts. Without it the
-// checker falls back to shape rules plus deny lists (local/private/encoded
-// targets, special-use TLDs) — a static checker cannot resolve DNS, so orgs
-// close the residual by passing their configured target here.
-//
-// --credential-roots is the trusted host-credential-location seam, and it is
-// DENY-BY-DEFAULT: a static checker cannot know an org's real credential
-// locations, and for any structural recognizer an adversary can craft a
-// plausible-but-invented path (an invented home user, a mount that need not
-// exist) whose failing read proves nothing while real host credentials stay
-// readable. So a filesystem credential-probe path counts as credential-absence
-// evidence ONLY when its recorded host-side expansion resolves under one of the
-// operator-configured trusted roots; with no roots configured, every filesystem
-// credential entry is untrusted and the level fails closed. Membership under a
-// configured root is the sole test — there is no open-ended location
-// enumeration to keep exhaustive. A cloud-metadata-endpoint route and a
-// well-known credential env token remain BOUNDED closed sets that need no
-// allowlist. This deny-by-default posture is the credential-side seam; the
-// egress seam above keeps its own configured behavior.
-//
-// Probe verification: an L2/L3 isolation level counts toward eligibility only
-// when its probe_evidence ref resolves — relative to --probe-evidence-root,
-// which is REQUIRED for verification: the root is the protected evidence
-// surface outside the agent's write reach, and without it a ref would
-// resolve as written, letting an agent-writable transcript swapped after
-// ratification supply the claimed proof, so every L2/L3 entry is unproven
-// (deliberately not a usage error — schema-only validation still runs) — to
-// a transcript proving the boundary per the isolation-probe template's
-// capture shape: an arbitrary string must never enable autonomous dispatch.
-// Under autonomous-enabled an unverifiable entry is UNPROVEN: a finding, and
-// the level is excluded from eligibility (fail-closed). Under
-// human-gated-only there is no autonomous dispatch to protect, so unproven
-// evidence is reported in the verdicts, not a finding.
-//
-// Evaluation mode (--evidence): resolves each promotion_state cell's EFFECTIVE
-// state. The bound state is a CEILING — contrary evidence (gate-failure,
-// reverted-merge, verification-divergence) lowers it to unpromoted at
-// evaluation time WITHOUT writing the binding: automatic demotion has no
-// write-back actor by design, because the binding is agent-unwritable, and the
-// demotion event files an escalation item. A demoted cell re-promotes from run
-// evidence, with no binding update: a `re-earned` event for that cell, whose
-// `since` is at or after every in-epoch contrary event's `at` and `discovered`
-// (own and prerequisite; `discovered` is when the publisher first published
-// the event, so one found late voids an earlier re-earn whatever its `at`)
-// and whose `at` is at or after `since`, records that the operator-side
-// publisher found the cell's predicate met again over evidence counted from
-// `since`. A malformed re-earn counts for nothing, a prerequisite's re-earn
-// never revives a dependent, and pass 2 still lowers a dependent whose
-// prerequisite is unpromoted. An unavailable evidence source fail-closes every cell to
-// unpromoted rather than crashing. This is the same resolution the admission
-// seam and the merge disposition MUST perform (querying the promotion-evidence
-// telemetry) before every autonomous dispatch/merge decision — reading the raw
-// promotion_state alone is non-conforming.
 
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, posix, relative, resolve, sep } from "node:path";
@@ -74,18 +8,10 @@ import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
 const LEVEL_TOKEN = /^L[0-3]$/;
-// Routine identity: <class-token> or <class-token>/<posture-token> — the
-// posture-qualified form is how a multi-posture routine class binds each
-// posture to its own class and emitting surface.
 const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
-// Schemes that can never anchor a durable platform run-permalink namespace —
-// the same non-durable set the signal-envelope checker rejects for raw links
-// (a data:/javascript:/http: prefix could never match a durable permalink).
 const NON_DURABLE_PREFIX_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
 const SURFACE_CLASSES = ["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"];
 const PROVENANCES = ["human", "agent", "system"];
-// Admission-rule axis vocabularies: the class tokens plus the "*" wildcard a
-// rule may bind an axis to.
 const RULE_SIGNAL_CLASSES = [...SURFACE_CLASSES, "*"];
 const RULE_PROVENANCES = [...PROVENANCES, "*"];
 const RULE_WORK_CLASSES = [...WORK_CLASSES, "*"];
@@ -98,13 +24,6 @@ const EVENT_CLASSES = [
   "structural-plan-approval",
   "untrusted-provenance",
 ];
-// The escalation event-class REGISTRY: the six inherited guardrail classes
-// above plus the two additive runner classes. escalation_routes keeps
-// REQUIRING only the six inherited classes (existing bindings validate
-// unchanged), while the two runner classes are legal OPTIONAL
-// escalation_routes keys — the binding accepts route and severity bindings
-// for them exactly as for any guardrail class; escalation_severity keys
-// validate against this full registry.
 const RUNNER_EVENT_CLASSES = ["runner-needs-human", "runner-cap-exceeded"];
 const ESCALATION_EVENT_CLASSES = [...EVENT_CLASSES, ...RUNNER_EVENT_CLASSES];
 const SEVERITY_TOKENS = ["notice", "attention", "urgent"];
@@ -112,19 +31,9 @@ const LAYERS = ["deterministic", "ai-review"];
 const VERIFICATION_TOKENS = ["not-required", "advisory", "blocking"];
 const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
-// Not contrary: the operator-side publisher's record that a cell met its predicate again.
 const REEARN_EVENT = "re-earned";
-// The isolation-probe template's substrate-class tokens. The kernel-separated
-// pair mirrors the isolation-ladder leaf's L3 substrate classes: a VM or
-// microVM, and a hosted ephemeral executor surface.
 const SUBSTRATE_CLASSES = new Set(["container", "os-sandbox", "vm-microvm", "hosted-ephemeral-executor"]);
 const L3_SUBSTRATE_CLASSES = new Set(["vm-microvm", "hosted-ephemeral-executor"]);
-// How an egress probe was denied. Every token names a state in which NO origin
-// application data reached the boundary; a completed handshake with the
-// origin's own peer identity has no token here, so "data flowed" cannot be
-// recorded as a pass. "peer-substituted" is the interception case — a response
-// arrived, but from something other than the origin — and is the one outcome
-// that carries fingerprints, because it is the only one with a peer to compare.
 const EGRESS_TRANSPORT_OUTCOMES = new Set([
   "dns-unresolved",
   "connect-failed",
@@ -132,20 +41,8 @@ const EGRESS_TRANSPORT_OUTCOMES = new Set([
   "peer-substituted",
 ]);
 const ADDRESS_FAMILIES = new Set(["ipv4", "ipv6"]);
-// The workspace mount is a deliberate hole through the process boundary the
-// ladder's levels describe. Canary shapes cover what a single literal path
-// misses: an ordinary file, a dotfile (hidden-file handling), and a
-// VCS-control-plane path (.git/ is a command key ring — core.fsmonitor
-// executes host code on a read-only-looking `git status`).
 const WORKSPACE_CANARY_MINIMUM = 3;
-// Host interop the level binding ratifies: "wsl2" makes the interop launch
-// check a required transcript assertion; "none" is the explicit human claim
-// that no host interop applies. An absent value leaves an L2/L3 level unproven.
 const HOST_INTEROP_TOKENS = ["none", "wsl2"];
-// Inner exit codes that evidence a denied launch: 1-123, or 126 (the kernel
-// refused the binary format). Rejected: 124 and 125 (timeout statuses), 127
-// (command not found, contradicting the presence proof), and 128 or above
-// (death by signal: a hung or killed launch is not a denial).
 const INTEROP_DENIAL_EXIT_CODE = /^(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-3]|126)$/;
 // RFC 2606/6761/6762/7686 special-use and reserved TLDs.
 const SPECIAL_USE_TLDS = [
@@ -158,41 +55,14 @@ const SPECIAL_USE_TLDS = [
   ".home.arpa",
   ".onion",
 ];
-// Well-known credential variable names for the whole-entry env-token form (a
-// BOUNDED closed set, compared against the lowercased entry). An invented
-// *_token name proves nothing and is not recognized statically by name; probe
-// the host FILESYSTEM path where the org's injected secret is stored (e.g.
-// /run/secrets/my-org-token) and configure its parent in --credential-roots —
-// the allowlist holds filesystem roots, not token names.
 const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
-// A home-token expansion under an ephemeral base like /tmp is planted
-// evidence, not the host's credential store — the expansion-coherence guard
-// rejects it so a recipe cannot substitute a throwaway path for the real home.
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
 const envTokenName = (segment) => segment.replace(/^[$%]/, "").replace(/%$/, "");
 const isHomeEnvToken = (segment) => isEnvToken(segment) && ["home", "userprofile"].includes(envTokenName(segment));
-// Credential entries and their expansions compare lowercased with forward slashes.
 const lowerSlashed = (path) => path.toLowerCase().replaceAll("\\", "/");
-// A route prefix matches on a SEGMENT boundary only: the pathname equals the
-// prefix or continues with "/" immediately after it — a plain startsWith
-// would accept e.g. "/metadata-not-a-credential" via "/metadata".
 const hasRoutePrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(prefix + "/");
 
-// A cloud-metadata-endpoint credential route: a BOUNDED closed set (the two
-// well-known providers' fixed hosts + their known credential routes), so it
-// needs no configured allowlist. An arbitrary path on the metadata host, a
-// "metadata" label on an arbitrary host, and the search-domain-dependent bare
-// single-label alias all prove nothing. The transport must be the service's
-// own: metadata credential services speak plain HTTP on the default port, so a
-// file:// read or an odd-port probe can fail for non-boundary reasons (an
-// unsupported local scheme, a closed port) while the real service stays
-// reachable. The metadata IP is a DELIBERATE asymmetry with the egress check,
-// which DENIES 169.254.169.254 (link-local proves no external egress): metadata
-// IS the cloud credential source, so the two checks serve opposite goals. The
-// entry is lowercased before parsing, so the prefixes and protocol compare
-// lowercase; the WHATWG parser normalizes an explicit default ":80" away, so an
-// empty port means the default.
 function isMetadataEndpoint(normalized) {
   let url;
   try {
@@ -211,41 +81,11 @@ function isMetadataEndpoint(normalized) {
   return url.hostname === "metadata.google.internal" && hasRoutePrefix(url.pathname, "/computemetadata");
 }
 
-// Lexically normalize an ANCHORED host path for containment testing:
-// backslashes to slashes and collapse "." / ".." segments. A host_expanded
-// value names a location on the PROBING host, not the checker's filesystem, so
-// resolution MUST be purely lexical — realpathSync would test the wrong machine
-// (and the path need not exist there) and resolve() would inject the checker's
-// cwd. Only a "/"-rooted or drive-letter-rooted anchor is kept; an unanchored
-// (relative) path yields null. A relative value names no stable host location —
-// it resolves against an arbitrary working directory — so a relative root or
-// candidate must fail closed rather than compare as a bare string (else a root
-// `secrets` would "contain" a candidate `secrets/not-real`). A ".." that would
-// escape the anchor also yields null. containment treats null as no match
-// (denied), so neither a traversal nor a relative path can satisfy a root.
-//
-// Case is preserved for POSIX paths and folded only for the drive-letter form.
-// A case-sensitive host distinguishes /var/Creds from /var/creds, so folding a
-// POSIX path would WIDEN the allowlist: a candidate differing from the trusted
-// root only in case is a DIFFERENT file on that host, yet would falsely
-// contain. Preserving case fails closed there. A Windows drive path is
-// case-insensitive on its host, so folding it is correct. The checker cannot
-// observe the probing host's platform (process.platform is the checker's, not
-// the probe's), so the case-sensitive comparison is the safe default for an
-// ambiguous POSIX path — it can only ever REFUSE a case-mismatched candidate,
-// never accept one that the real host would reject.
 function normalizeHostPath(p) {
   const slashed = p.replaceAll("\\", "/");
-  // A UNC / double-separator form ("//server/share", or a Windows "\\server\share"
-  // whose backslashes fold to "//") names a share on an invented server, not a
-  // location on the host — collapsing its leading "//" onto the POSIX root would
-  // misread "//etc/..." as the host's own "/etc/...". Refuse it so containment can
-  // never accept it, consistent with the home-anchored coherence guard's UNC rejection.
   if (slashed.startsWith("//")) return null;
   const drive = /^([a-zA-Z]:)\//.exec(slashed)?.[1].toLowerCase() ?? null;
   if (drive === null && !slashed.startsWith("/")) return null;
-  // Drive-letter paths are case-insensitive: fold the whole drive path so "C:/X"
-  // and "c:/x" contain. POSIX paths keep their case (see above).
   const body = drive === null ? slashed.slice(1) : slashed.slice(drive.length + 1).toLowerCase();
   const out = [];
   for (const segment of body.split("/")) {
@@ -260,43 +100,16 @@ function normalizeHostPath(p) {
   return `${drive ?? ""}/${out.join("/")}`;
 }
 
-// Deny-by-default containment: the host-side expanded path resolves under one
-// of the operator-configured trusted credential roots. The match is on a
-// segment boundary (equal to the root, or the root followed by "/"), never a
-// bare prefix that would accept a sibling like "<root>-other".
 function pathUnderConfiguredRoot(candidate, roots) {
   const normCandidate = normalizeHostPath(candidate);
   if (normCandidate === null) return false;
   return roots.some((root) => {
     const normRoot = normalizeHostPath(root);
-    // A root that normalizes to a bare filesystem root — POSIX "/" or a bare
-    // drive root like "c:/" — is refused: either would make containment accept
-    // the entire filesystem (or the whole drive) and silently defeat
-    // deny-by-default (a "c:/" candidate would even satisfy the equality case).
-    // Trusting a whole filesystem root is never valid credential-absence
-    // evidence, so it fails closed like an unconfigured root; a narrower root
-    // such as "c:/creds" is unaffected.
     if (normRoot === null || normRoot === "/" || /^[a-z]:\/$/.test(normRoot)) return false;
     return normCandidate === normRoot || normCandidate.startsWith(`${normRoot}/`);
   });
 }
 
-// Deny-by-default validation of one probed credential entry against the
-// operator-configured trusted roots. A cloud-metadata-endpoint route and a
-// well-known credential env token are bounded closed sets that need no
-// allowlist; any other form is a host FILESYSTEM path, accepted as
-// credential-absence evidence ONLY when its recorded host-side expansion is
-// coherent with the entry AND resolves under a configured --credential-roots
-// entry. No roots configured => filesystem credential evidence is untrusted:
-// a static checker cannot know the org's real credential locations, and a
-// failing read of a structurally-plausible-but-invented path (an invented home
-// user, a mount that need not exist) proves nothing while real host credentials
-// stay readable. Membership under a configured root is the sole test, so there
-// is no open-ended location enumeration to keep exhaustive. Every entry kind —
-// metadata route, env token, filesystem path — still runs the expansion-
-// coherence guard: a concrete entry (metadata/env-token/fixed path) needs no
-// expansion, so its recorded host_expanded must repeat it verbatim. Returns
-// null when the entry is valid evidence, else the reason.
 function credentialEntryProblem(entry, expanded, credentialRoots) {
   const normalized = lowerSlashed(entry);
   if (normalized.includes("://")) {
@@ -323,22 +136,6 @@ function credentialEntryProblem(entry, expanded, credentialRoots) {
   return null;
 }
 
-// Per-entry validation of the recorded host-side expansion. The credential
-// probe runs INSIDE the boundary with no host environment, so an in-shell
-// home token expands to the boundary's OWN home (e.g. /root in a container)
-// and its failing read tests nothing about the host store — the recipe
-// expands the token OUTSIDE the boundary, passes the concrete path in as a
-// literal, and records that expansion. A concrete entry (fixed system path,
-// metadata URL, or whole-entry credential env token) needs no expansion, so
-// host_expanded must repeat it verbatim — anything else means the capture
-// step rewrote a path it had no reason to touch. A home-env-token entry's
-// expansion must itself plausibly be the host home path: rooted
-// (POSIX-absolute or drive-letter-absolute), not a UNC form, free of
-// ephemeral segments, and TAIL-CONSISTENT with the entry — everything after
-// the token must be the expansion's trailing suffix ($HOME/.ssh pairs with
-// /home/runner/.ssh, never /home/runner/.gnupg). Normalization matches the
-// entry handling (lowercase, backslashes to slashes). Returns null when
-// valid, else the reason.
 function credentialExpansionProblem(entry, expanded) {
   const normalizedEntry = lowerSlashed(entry);
   const normalizedExpanded = lowerSlashed(expanded);
@@ -360,8 +157,6 @@ function credentialExpansionProblem(entry, expanded) {
     return "the host-side expansion must be rooted (POSIX-absolute or drive-letter-absolute)";
   }
   const expandedSegments = normalizedExpanded.split("/").filter((segment) => segment.length > 0);
-  // Same dot-segment rejection as the entry side: a traversal in the
-  // expansion resolves elsewhere than the recorded path claims.
   if (expandedSegments.some((segment) => segment === "." || segment === "..")) {
     return "the host-side expansion contains a dot segment (\".\", \"..\"), which resolves elsewhere than the recorded path claims";
   }
@@ -375,40 +170,18 @@ function credentialExpansionProblem(entry, expanded) {
   return null;
 }
 
-// Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
-// ANY autonomous dispatch; C5 requires L3), and the auto-merge-eligible
-// classes, each keyed to the promotion cell that gates its auto-merge. C4
-// shares the reviewed rung's C3-auto-merge cell; C5 merges human always and
-// C1 makes no repository change to merge.
 const MIN_ISOLATION = { C1: 2, C2: 2, C3: 2, C4: 2, C5: 3 };
 const AUTO_MERGE_PROMOTION_CELL = { C2: "C2-auto-merge", C3: "C3-auto-merge", C4: "C3-auto-merge" };
 
-// The security-review leaf's shipped per-class defaults are FLOORS: a binding
-// may tighten a cell but never weaken it — the admission-rule
-// override_justification escape applies to admission rules ONLY, never here.
 const VERIFICATION_FLOORS = {
   deterministic: { C1: "not-required", C2: "blocking", C3: "blocking", C4: "blocking", C5: "blocking" },
   "ai-review": { C1: "not-required", C2: "not-required", C3: "advisory", C4: "blocking", C5: "blocking" },
 };
 const VERIFICATION_STRENGTH = { "not-required": 0, advisory: 1, blocking: 2 };
 
-// The verification-topology leaf's vocabulary and shipped per-class floors.
-// Floors carry the same rule as VERIFICATION_FLOORS: tightening is legal,
-// weakening below a shipped value is invalid, and the admission-rule
-// override_justification escape applies to admission rules ONLY, never here.
-// An ABSENT verification_topology key (or an absent class) is not a hole:
-// the leaf's shipped floors apply, exactly as escalation_severity falls back
-// to contract defaults.
 const TOPOLOGY_ROLES = ["generator", "checker", "cross_vendor_checker", "ranker"];
-// The roles that count toward min_checkers: a cross_vendor_checker IS a
-// checker, additionally constrained to a different vendor from the generator.
 const CHECKER_TYPED_ROLES = new Set(["checker", "cross_vendor_checker"]);
 const RELATIONAL_CONSTRAINTS = ["distinct_model_from", "distinct_vendor_from"];
-// min_model_checkers exists because a total count cannot express which KIND
-// of coverage is owed: without it a class meets min_checkers with
-// deterministic slots alone, never faces a model judge, and
-// cross_vendor_required then binds an empty set of model slots and is
-// satisfied by declaring nothing.
 const TOPOLOGY_FLOORS = {
   C1: { min_checkers: 1, min_model_checkers: 0, cross_vendor_required: false },
   C2: { min_checkers: 1, min_model_checkers: 0, cross_vendor_required: false },
@@ -419,23 +192,8 @@ const TOPOLOGY_FLOORS = {
 
 const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"]);
 
-// C3 auto-merge's evidence predicate builds on the C2 auto-merge track record
-// (>= 20 autonomous C2 merges with 0 demotion events), so contrary evidence
-// against the prerequisite cell invalidates the dependent cell too — a failed
-// trust signal never leaves a promotion that was earned on it standing.
-// APPEND, never prepend: `failed` is built in dependency-array order and a
-// fixture pins the C2 cell as the named prerequisite, so reordering breaks that
-// pin the moment both fail. C3 auto-merge's automatic transition is gated on the
-// C3 AI-review cell being blocking — an advisory review layer gives a dissenting
-// checker no force — so a demotion of that cell must lower auto-merge with it.
-// Reached dynamically otherwise: the review cell resolves back to its advisory
-// floor on contrary evidence while auto-merge stays effective-promoted.
 const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
 
-// Admission shipped defaults per work class (the admission-policy leaf), and
-// the leaf's permissiveness order: autonomous-eligible > human-gated >
-// audited-rejection. The leaf's surface-class row holds channel-feed
-// human-gated too (ADMISSION_GATED_SURFACES).
 const ADMISSION_DEFAULTS = {
   C1: "autonomous-eligible",
   C2: "autonomous-eligible",
@@ -460,41 +218,19 @@ function isArrayOfNonEmptyStrings(value) {
   return Array.isArray(value) && value.every(isNonEmptyString);
 }
 
-// The comparison form of a probed host: lowercased, with the optional DNS root
-// dot dropped, so a trailing-dot spelling never reads as a distinct target.
 const bareHost = (host) => host.toLowerCase().replace(/\.$/, "");
 
-// A transcript's paired evidence lists are recorded as ONE comma-separated
-// string per field, positionally paired with the probed targets. A non-string
-// field yields the empty list, so the caller's length comparison against the
-// target count is what reports the mismatch.
 function splitRecordedList(raw) {
   return typeof raw === "string" ? raw.split(",").map((entry) => entry.trim()) : [];
 }
 
-// Strict ISO 8601 date-time with an EXPLICIT offset (Z or +/-hh:mm),
-// validated by regex AND a calendar round trip: Date.parse alone accepts
-// forms like "06/30/2026" (timezone-dependent) and silently normalizes
-// calendar-invalid values like 2026-02-30 to March 2 — either could shift an
-// event across the promotion-epoch boundary. The epoch is derived from the
-// captured components, never from Date.parse, so no engine-specific parsing
-// behavior is load-bearing.
 const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 function parseIsoStrict(value) {
   const match = typeof value === "string" ? ISO_DATE_TIME.exec(value) : null;
   if (match === null) return Number.NaN;
   const [, year, month, day, hour, minute, second, fraction, offset] = match;
-  // Fractional seconds are bounded to millisecond precision (max 3 digits) by
-  // the grammar above, then zero-padded to exactly 3. The epoch comparison is
-  // integer-millisecond, so accepting finer precision would silently collapse
-  // distinct instants — ".5001Z" and ".5009Z" both become 500 ms — and could
-  // misorder a promotion epoch, demoting a legitimately re-earned promotion. A
-  // sub-millisecond fraction fails the regex and is rejected, never truncated.
   const ms = Number((fraction ?? "").padEnd(3, "0"));
   const utc = new Date(Date.UTC(+year, +month - 1, +day, +hour, +minute, +second, ms));
-  // Date.UTC silently normalizes out-of-range fields; requiring the round
-  // trip back to the supplied components rejects calendar-invalid values
-  // (2026-02-30 fails, leap days pass).
   if (
     utc.getUTCFullYear() !== +year ||
     utc.getUTCMonth() !== +month - 1 ||
@@ -530,7 +266,6 @@ function checkEnum(value, tokens, where) {
   return true;
 }
 
-// Every work class is a required key holding one of the tokens.
 function checkPerClassEnums(perClass, tokens, where) {
   for (const workClass of WORK_CLASSES) {
     if (Object.hasOwn(perClass, workClass)) {
@@ -541,7 +276,6 @@ function checkPerClassEnums(perClass, tokens, where) {
   }
 }
 
-// --- Structural validation (mirrors guardrails-security-binding.schema.json) ---
 
 function validateStructure(binding) {
   if (!isPlainObject(binding)) {
@@ -580,8 +314,6 @@ function validateStructure(binding) {
   if (Object.hasOwn(binding, "schema_version") && binding.schema_version !== "1.0") {
     findings.push(`schema_version: ${JSON.stringify(binding.schema_version)} is not the supported "1.0"`);
   }
-  // executor_class is deprecated and ignored; a binding that still carries it
-  // stays valid as long as the value is one the schema names.
   if (Object.hasOwn(binding, "executor_class")) {
     checkEnum(binding.executor_class, ["self-operated", "vendor-hosted"], "executor_class");
   }
@@ -617,9 +349,6 @@ function validateStructure(binding) {
           if (Object.hasOwn(entry, "host_interop")) {
             checkEnum(entry.host_interop, HOST_INTEROP_TOKENS, `${where}.host_interop`);
           }
-          // Informational only: shape-checked here and never passed to
-          // verifyProbeTranscript, so it can neither cover a ratified
-          // destination nor stand as evidence that other traffic is denied.
           if (Object.hasOwn(entry, "base_egress_allowlist") && !isArrayOfNonEmptyStrings(entry.base_egress_allowlist)) {
             findings.push(`${where}.base_egress_allowlist: must be an array of non-empty strings (the empty array is allowed); it records the base allowlist for the reviewing human and is never probe coverage`);
           }
@@ -629,24 +358,11 @@ function validateStructure(binding) {
           if (!isNonEmptyString(entry.substrate)) {
             findings.push(`${where}.substrate: missing or empty — the bound substrate instance id is required`);
           }
-          // The substrate CLASS is the HUMAN-RATIFIED binding-side assertion
-          // the eligibility decision keys off, living on the agent-unwritable
-          // surface — never the transcript's recorded class, which is capture
-          // evidence an executing agent could doctor. The transcript-side
-          // class checks in verifyProbeTranscript stay as capture-shape
-          // validation; this is the governance-surface assertion the capture
-          // is matched against.
           if (!SUBSTRATE_CLASSES.has(entry.substrate_class)) {
             findings.push(
               `${where}.substrate_class: ${JSON.stringify(entry.substrate_class)} — the human-ratified substrate-class assertion is required on every level binding, one of ${[...SUBSTRATE_CLASSES].join(" | ")}`,
             );
           } else if (level === "L3" && !L3_SUBSTRATE_CLASSES.has(entry.substrate_class)) {
-            // Level/class coherence is judged on the RATIFIED class, not the
-            // transcript's: an L3 entry whose ratified class is not
-            // kernel-separated is an INVALID BINDING — the ratified assertion
-            // itself is wrong, not merely the evidence unproven — because
-            // container and os-sandbox boundaries never reach the ladder's
-            // kernel-separated L3 floor, whatever any capture claims.
             findings.push(
               `${where}.substrate_class: ${JSON.stringify(entry.substrate_class)} ratified for an L3 entry — L3 requires kernel separation, which only the kernel-separated substrate classes (${[...L3_SUBSTRATE_CLASSES].map((token) => JSON.stringify(token)).join(", ")}) provide; ratify a kernel-separated class, or bind this substrate at the level its class can reach`,
             );
@@ -705,8 +421,6 @@ function validateStructure(binding) {
     } else {
       checkAllowedKeys(binding.verification_topology, WORK_CLASSES, "verification_topology");
       for (const workClass of WORK_CLASSES) {
-        // An absent class is not a hole: the verification-topology leaf's
-        // shipped floors apply to it, so only declared classes validate.
         if (!Object.hasOwn(binding.verification_topology, workClass)) continue;
         validateClassTopologyStructure(binding.verification_topology[workClass], `verification_topology.${workClass}`);
       }
@@ -750,9 +464,6 @@ function validateStructure(binding) {
           findings.push(`escalation_routes.${eventClass}: missing or empty — every event class has an org-bound route`);
         }
       }
-      // The two runner classes are OPTIONAL escalation_routes keys — never
-      // required (existing bindings validate unchanged) — but a bound one
-      // must still carry a route.
       for (const eventClass of RUNNER_EVENT_CLASSES) {
         if (Object.hasOwn(binding.escalation_routes, eventClass) && !isNonEmptyString(binding.escalation_routes[eventClass])) {
           findings.push(`escalation_routes.${eventClass}: present but empty — a bound runner event-class route carries an org-bound route like any other`);
@@ -772,15 +483,6 @@ function validateStructure(binding) {
           continue;
         }
         checkEnum(severity, SEVERITY_TOKENS, where);
-        // A severity-bound RUNNER class must carry its own queue destination:
-        // severity is notification depth on the FILED item, and unlike the six
-        // inherited classes (whose escalation_routes entries are required), a
-        // runner class with no escalation_routes entry has nowhere to file its
-        // human-gated handoff. Legacy bindings that never key a runner class
-        // stay untouched — no binding key says a runner is enabled, so the
-        // runner-side requirement (both runner routes bound, else no dispatch)
-        // is the runner escalation contract's LAUNCH precondition, not a
-        // static rule here.
         if (RUNNER_EVENT_CLASSES.includes(eventClass) && !isNonEmptyString(eventRoutes[eventClass])) {
           findings.push(
             `${where}: severity is bound for a runner event class with no escalation_routes.${eventClass} entry — severity only selects notification fan-out on the filed item, so without a queue destination the class's human-gated handoff has nowhere to file (fail-closed); bind escalation_routes.${eventClass}`,
@@ -815,9 +517,6 @@ function validateStructure(binding) {
             findings.push(`escalation_severity_routes.${severity}.${leg}: missing or empty — a bound leg carries an org-bound route`);
           }
         }
-        // The fan-out ladder is cumulative — the personal-push tier rides on
-        // top of the channel notification — so a push leg with no channel leg
-        // skips a rung and leaves the required channel notification unbound.
         if (isNonEmptyString(legs.push) && !isNonEmptyString(legs.channel)) {
           findings.push(
             `escalation_severity_routes.${severity}: binds a push leg with no channel leg — the fan-out ladder is cumulative (tracker item, then channel notification, then the personal-push tier), so a push-only entry leaves the channel notification the contract requires at this tier unbound; bind the channel leg too`,
@@ -839,10 +538,6 @@ function validateStructure(binding) {
           );
         }
       }
-      // The escalation contract caps re-escalation at a single bump, never a
-      // loop — a cap above one would let the runner repeatedly re-escalate
-      // the same unacknowledged item, the notification loop the contract
-      // rules out.
       if (Number.isInteger(binding.escalation_ack.reescalation_cap) && binding.escalation_ack.reescalation_cap > 1) {
         findings.push(
           `escalation_ack.reescalation_cap: ${binding.escalation_ack.reescalation_cap} exceeds the contract cap — the runner escalation contract allows a single stale-unacked re-escalation (one severity bump, never a loop), so 1 is the only bindable value`,
@@ -923,25 +618,6 @@ function validateAdmissionStructure(admission) {
   }
 }
 
-// The TEMPORAL home is keyed by ROUTINE IDENTITY, and every entry must be the
-// surface-bound object form: the scheduled workflow that stamps a routine
-// identity is agent-writable in adopting repos, so the identity alone is an
-// unprotected selector — a bare class here would let a swapped selector
-// resolve high-risk scheduled work through a benign class. Only the
-// identity-to-surface association ratified on this agent-unwritable surface
-// lets admission stamp a class; anything less fails closed. Two anchors pin
-// the producing schedule together, because a run-permalink namespace may be
-// repo-scoped and SHARED across every schedule on the platform: the
-// run_link_prefix pins the platform-and-repository namespace (a relative or
-// non-durable prefix could never match a platform-assigned permalink), while
-// the producer_identity — the workflow/unit reference the platform injects
-// into the authenticated run context — pins WHICH schedule within that shared
-// namespace produced the run. Prefixes may therefore overlap or coincide
-// across entries (one shared namespace is the norm on repo-scoped platforms);
-// what must stay unique is the producer_identity, since two routine
-// identities sharing one producer cannot be distinguished at admission. The
-// other classification homes keep their bare-enum entries: their markers
-// arrive on attested event surfaces, not through an agent-writable selector.
 function validateTemporalClassificationHome(ruleHome, where) {
   const identityBySurface = new Map();
   const identityByProducer = new Map();
@@ -998,7 +674,6 @@ function validateTemporalClassificationHome(ruleHome, where) {
       try {
         prefixUrl = new URL(prefix);
       } catch {
-        // Not an absolute URI — rejected below.
       }
     }
     if (
@@ -1013,13 +688,6 @@ function validateTemporalClassificationHome(ruleHome, where) {
   }
 }
 
-// One class's declared verification topology (mirrors $defs/ClassTopology).
-// All three axes are required on a declared class: a count with no role list
-// is a length with no coverage, so the roles the count is evaluated against
-// always travel with it. Predicate keys are a CLOSED set — a predicate is a
-// requirement a binding can EVALUATE against a candidate instance, and an
-// unrecognized token cannot be evaluated, so it is rejected rather than
-// carried as decoration.
 function validateClassTopologyStructure(topology, where) {
   if (!isPlainObject(topology)) {
     findings.push(`${where}: must be an object binding the class's declared topology ({min_checkers, min_model_checkers, cross_vendor_required, roles})`);
@@ -1097,36 +765,17 @@ function validateClassTopologyStructure(topology, where) {
   });
 }
 
-// --- Semantic rules the schema cannot express ---
 
 function levelNumber(token) {
   return Number(token.slice(1));
 }
 
-// Two conjunctive marker predicates are jointly satisfiable — and the binding
-// AMBIGUOUS — unless they require conflicting values for at least one shared
-// key: a runtime context carrying the union of two non-conflicting predicates
-// matches both. Subset/identity checks alone miss e.g. {pool: blue, region:
-// us} vs {pool: blue, os: linux}.
 function jointlySatisfiable(markersA, markersB) {
   return Object.entries(markersA).every(([key, value]) => !Object.hasOwn(markersB, key) || markersB[key] === value);
 }
 
-// The egress-probe target must be a genuinely EXTERNAL host — loopback,
-// private, link-local, and single-label targets prove nothing about external
-// egress, and alternate ENCODINGS of local addresses must not slip past a
-// textual deny list: trailing-dot hostnames, bracketed literals, v4-mapped
-// IPv6 (::ffff:127.0.0.1, hex ::ffff:7f00:1), and inet_aton numeric forms
-// (2130706433 = 0x7f000001 = 127.1 = 127.0.0.1) all normalize before
-// classification. Deny-list + shape rule: the checker has no config source
-// for the org's configured probe target, so a positive allow-check is not
-// possible — the acceptance shape is a multi-label DNS name or a public
-// literal IP.
 const INET_PART = /^(?:0[xX][0-9a-fA-F]+|0[0-7]*|[1-9]\d*)$/;
 
-// inet_aton semantics: 1-4 dot-separated parts (decimal, 0x-hex, or
-// 0-octal); the last part fills the remaining bytes. Returns the folded
-// 32-bit address, or null where the token is not an address.
 function foldInetAton(token) {
   const parts = token.split(".");
   if (parts.length > 4 || parts.some((part) => part === "" || !INET_PART.test(part))) return null;
@@ -1151,13 +800,6 @@ function isDeniedV4(addr) {
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
     (a === 169 && b === 254) ||
-    // Non-global space that can never demonstrate public egress (IANA IPv4
-    // special-purpose registry, "not globally reachable"): IETF protocol
-    // assignments (192.0.0/24), TEST-NET-1/2/3, benchmarking (198.18/15),
-    // CGNAT (100.64/10), multicast (224/4), reserved (240/4), and 6to4 relay
-    // anycast (192.88.99/24, deprecated per RFC 7526 and not reliably
-    // globally routed). Registry entries flagged globally reachable (AS112
-    // 192.175.48/24 and 192.31.196/24, AMT 192.52.193/24) stay allowed.
     (a === 192 && b === 0 && c === 0) ||
     (a === 192 && b === 0 && c === 2) ||
     (a === 192 && b === 88 && c === 99) ||
@@ -1169,10 +811,6 @@ function isDeniedV4(addr) {
   );
 }
 
-// Expand an IPv6 literal to its 8 zero-padded hextets, resolving "::"
-// compression and an embedded dotted-quad tail; null where the literal is
-// invalid. Classification must run on the EXPANDED form — prefix tests on
-// the compressed text miss e.g. "0:0:0:0:0:0:0:1".
 function expandIpv6(value) {
   let v = value;
   let groupsNeeded = 8;
@@ -1212,42 +850,20 @@ function isNonExternalEgressHost(host) {
   const h = host.toLowerCase().replace(/^\[|\]$/g, "");
   if (h.includes(":")) {
     const hextets = expandIpv6(h);
-    // An invalid literal is not a valid probe target — reject outright.
     if (hextets === null) return true;
     const allZeroHextets = (start, end) => hextets.slice(start, end).every((hextet) => hextet === "0000");
-    // The IPv4 address the last two hextets carry, for the forms that embed one.
     const embeddedV4 = () => Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16);
     if (allZeroHextets(0, 5) && hextets[5] === "ffff") {
-      // v4-mapped: classify the embedded IPv4.
       return isDeniedV4(embeddedV4());
     }
     if (allZeroHextets(0, 6)) {
-      // ::/96 — unspecified (::), loopback (::1), and the whole deprecated
-      // IPv4-compatible space (::0.0.0.0 through ::255.255.255.255, RFC 4291
-      // §2.5.5.1): the embedded-dotted-quad form (e.g. "::127.0.0.1") writes
-      // its address into hextets[6]/[7], so gating on those would let a
-      // deprecated-space literal masquerade as external. None of ::/96 is a
-      // meaningful external target.
       return true;
     }
-    // 64:ff9b::/96 — well-known NAT64 prefix (RFC 6052): the IANA registry
-    // flags it globally reachable, but RFC 6052 forbids embedding non-global
-    // IPv4, so classify the embedded address like the v4-mapped branch above.
     if (hextets[0] === "0064" && hextets[1] === "ff9b" && allZeroHextets(2, 6)) {
       return isDeniedV4(embeddedV4());
     }
     const first = Number.parseInt(hextets[0], 16);
     const second = Number.parseInt(hextets[1], 16);
-    // 2001::/23 — IETF Protocol Assignments (IANA IPv6 special-purpose
-    // registry, "not globally reachable"), EXCEPT the registry's
-    // more-specific rows flagged globally reachable, which stay allowed:
-    // PCP/TURN/DNS-SD-SRP anycast (2001:1::1 / ::2 / ::3), AMT
-    // (2001:3::/32), AS112-v6 (2001:4:112::/48), ORCHIDv2 (2001:20::/28),
-    // and DETs (2001:30::/28). Teredo (2001::/32) and deprecated ORCHID
-    // (2001:10::/28) are registry "N/A" — tunneled/deprecated, not reliably
-    // routed — and stay denied, the same posture as the IPv4 6to4 relay
-    // anycast. (2001:db8::/32 documentation space sits OUTSIDE this /23 and
-    // keeps its own test below.)
     if (hextets[0] === "2001" && second <= 0x01ff) {
       const reachableAnycast = second === 0x0001 && allZeroHextets(2, 7) && ["0001", "0002", "0003"].includes(hextets[7]);
       return !(
@@ -1257,15 +873,6 @@ function isNonExternalEgressHost(host) {
         (second >= 0x0020 && second <= 0x003f)
       );
     }
-    // Remaining non-global space that can never demonstrate public egress
-    // (IANA IPv6 special-purpose registry, "not globally reachable"):
-    // fc00::/7 unique-local, fe80::/10 link-local, fec0::/10 site-local
-    // (deprecated per RFC 3879, still non-global), ff00::/8 multicast,
-    // discard-only (100::/64, RFC 6666), the dummy prefix (100:0:0:1::/64,
-    // RFC 9780), local-use IPv4-IPv6 translation (64:ff9b:1::/48, RFC 8215),
-    // 6to4 (2002::/16, deprecated per RFC 7526 — mirrors the IPv4
-    // 192.88.99/24 posture), documentation (2001:db8::/32 and 3fff::/20,
-    // RFC 9637), and SRv6 SIDs (5f00::/16, RFC 9602).
     return (
       (first >= 0xfc00 && first <= 0xfdff) ||
       (first >= 0xfe80 && first <= 0xfebf) ||
@@ -1286,49 +893,16 @@ function isNonExternalEgressHost(host) {
   if (name === "localhost" || name.endsWith(".localhost")) return true;
   const folded = foldInetAton(name);
   if (folded !== null) return isDeniedV4(folded);
-  // A numeric-shaped token that folds to no valid address is not a DNS name
-  // either — reject rather than guess.
   if (name.split(".").every((label) => INET_PART.test(label))) return true;
-  // A syntactically valid DNS hostname is required: every label 1-63 chars
-  // of [a-z0-9-] with no hyphen at either edge, at most 253 chars total, and
-  // at least two labels. A single-label name resolves through search domains
-  // or mDNS, and a malformed name (empty labels from consecutive dots,
-  // invalid chars, hyphen edges) resolves nowhere — neither is provably
-  // external.
   const labels = name.split(".");
   const validLabel = (label) => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(label);
   return name.length > 253 || labels.length < 2 || !labels.every(validLabel);
 }
 
-// A probe transcript proves an L2/L3 boundary only when it records the
-// failed-inside assertions (egress, credentials, workspace, and the interop
-// launch denial where the binding ratifies host_interop "wsl2") AND a
-// networked outer context, since a fully-offline outer context would deny
-// egress on its own. This is the capture shape of
-// templates/isolation-probe.md; keep the two in sync. The transcript's own
-// surface, level, substrate, and substrate-class identity must match the
-// binding entry it is cited from: a genuine transcript reused under a
-// different surface, level, substrate, or substrate class proves a DIFFERENT
-// boundary, not this one. Returns null when verified, else the reason the
-// entry is unproven.
 function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots, componentReachableHosts, hostInterop) {
-  // Evidence verifies ONLY against the configured protected root: without
-  // --probe-evidence-root a ref resolves as written — including to an
-  // agent-writable file swapped after the human ratified the binding — so no
-  // root means no proof. Deliberately NOT a usage error (exit 2):
-  // schema-only validation of a binding must keep working without it.
   if (probeRoot === null) {
     return `no --probe-evidence-root configured — probe evidence verifies only against a protected evidence root outside the agent's write reach; pass --probe-evidence-root <dir> naming the protected evidence surface the capture lives on`;
   }
-  // Confine evidence to the configured root: --probe-evidence-root exists to
-  // keep accepted captures on a protected evidence surface, so an absolute
-  // ref or a "../" escape — which would let an agent-writable file outside
-  // the root supply the claimed L2/L3 proof — is rejected before the read.
-  // The lexical check gives the clean error message; the REAL-path check
-  // below closes the symlink hole (a link inside the root pointing outside
-  // defeats a purely lexical comparison). No committed fixture exercises
-  // the symlink case — symlinks in git are unreliable on Windows — so it
-  // is covered by a runtime test instead.
   if (isAbsolute(ref)) {
     return `probe_evidence ${JSON.stringify(ref)} is an absolute path but --probe-evidence-root ${JSON.stringify(probeRoot)} is configured — reference the transcript relative to the root, never by absolute path`;
   }
@@ -1342,13 +916,10 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   try {
     realResolved = realpathSync(resolved);
   } catch {
-    // Nonexistent path: fall through so readFileSync below reports the
-    // standard unreadable-transcript finding.
   }
   let path;
   if (realResolved !== null) {
     const realRoot = realpathSync(resolvedRoot);
-    // win32 paths compare case-insensitively.
     const fold = (p) => (process.platform === "win32" ? p.toLowerCase() : p);
     if (!fold(realResolved).startsWith(fold(realRoot + sep))) {
       return `probe_evidence ${JSON.stringify(ref)} resolves through a link to a real path outside --probe-evidence-root ${JSON.stringify(probeRoot)} — evidence must physically live inside the configured root`;
@@ -1381,24 +952,9 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (transcript.substrate !== substrate) {
     return `transcript ${path} records substrate ${JSON.stringify(transcript.substrate)}, not this binding entry's substrate ${JSON.stringify(substrate)}`;
   }
-  // The transcript's substrate_class is CAPTURE EVIDENCE; the binding entry's
-  // is the human-ratified assertion the eligibility decision keys off. A
-  // mismatch means the capture proves a DIFFERENT substrate: relabeling a
-  // container capture with a kernel-separated class fails closed right here,
-  // and upgrading the ratified class itself takes a human change on the
-  // agent-unwritable surface — exactly the trust boundary. The dispatch seam
-  // attests the RUNNER identity via runtime_markers against platform-attested
-  // context; the substrate class rides the ratified binding, never the
-  // capture.
   if (transcript.substrate_class !== substrateClass) {
     return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)}, not this binding entry's ratified substrate_class ${JSON.stringify(substrateClass)} — the capture proves a different substrate than the human-ratified assertion`;
   }
-  // Capture-shape validation of the transcript's own recorded class (the
-  // ratified-class coherence is enforced binding-side in validateStructure):
-  // the claimed level must be reachable by the substrate CLASS that ran the
-  // probe — L3 is the ladder's kernel-separated floor, which container and
-  // os-sandbox boundaries never provide, so a genuine L2 transcript relabeled
-  // L3 must not unlock C5.
   if (!SUBSTRATE_CLASSES.has(transcript.substrate_class)) {
     return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} — required, one of ${[...SUBSTRATE_CLASSES].join(" | ")}`;
   }
@@ -1411,49 +967,24 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (transcript.assertions?.credentials_absent?.outcome !== "absent-or-denied") {
     return `transcript ${path} does not record the credential-absence assertion with outcome "absent-or-denied"`;
   }
-  // Both assertion objects exist from here on: the outcome gates above return
-  // otherwise.
   const egress = transcript.assertions.egress_denied;
   const credentials = transcript.assertions.credentials_absent;
-  // The probe contract is expected-FAILURE: every check asserts a NON-zero
-  // exit inside the boundary, so a recorded exit_code of "0" contradicts the
-  // outcome it sits next to — the transcript is internally inconsistent and
-  // proves nothing. The credentials_absent codes are per-target and checked
-  // alongside the path entries below.
   const nonzeroExit = (value) => typeof value === "string" && /^[1-9][0-9]*$/.test(value);
-  // An assertion without its recorded target proves nothing about the
-  // boundary: a failing run against no named host/path could be any failing
-  // command, not the probe.
   const rawEgressHost = egress.host;
   if (typeof rawEgressHost !== "string" || rawEgressHost.length === 0) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(rawEgressHost)} — a proven egress-denial requires the probed external host (non-empty; comma-separated entries when several targets were probed)`;
   }
-  // The host value is a comma-separated list of probed targets (usually just
-  // one), and every entry is validated INDEPENDENTLY below — classifying the
-  // unsplit string would reject a genuine multi-target capture as one
-  // invalid DNS name. Empty entries (leading/trailing/double commas) reject.
   const egressHosts = splitRecordedList(rawEgressHost);
   for (const host of egressHosts) {
     if (host.length === 0 || /\s/.test(host)) {
       return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(rawEgressHost)} — every comma-separated host entry must be non-empty with no whitespace`;
     }
   }
-  // The inner exit codes pair with the probed hosts like the per-target
-  // credential codes: one non-zero code per host — a single code cannot
-  // prove denial toward every listed target.
   const rawEgressCodes = egress.exit_code;
   const egressCodes = splitRecordedList(rawEgressCodes);
   if (egressCodes.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(rawEgressCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded exit code per probed host is required, comma-separated and positionally paired with host: a single code cannot prove denial toward every listed target`;
   }
-  // Peer IDENTITY, not exit status, is what proves egress denial. An
-  // interception layer whose block page carries a SUCCESSFUL HTTP status makes
-  // the fetch exit 0 on a fully sealed boundary, so an unconditional non-zero
-  // requirement would leave that boundary unprovable — the recipe would abort
-  // before the comparison that decides the question. The exception is narrow
-  // and buys nothing on its own: a zero exit is tolerated only where the entry
-  // claims "peer-substituted", and that same entry must then survive the
-  // fingerprint comparison below, which is the actual evidence.
   const rawTransportForExit = egress.transport_outcome;
   const transportForExit = splitRecordedList(rawTransportForExit);
   for (const [index, code] of egressCodes.entries()) {
@@ -1462,13 +993,6 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
     return `transcript ${path} records assertions.egress_denied.exit_code entry ${JSON.stringify(code)} for host ${JSON.stringify(egressHosts[index])} — a proven egress-denial requires a non-zero integer exit code string for every probed host, unless that host's transport_outcome is "peer-substituted" and its recorded peer fingerprints differ, which proves an interceptor answered rather than the origin`;
   }
   for (const host of egressHosts) {
-    // The transcript must record the BARE probed hostname or IP: URI and
-    // host:port forms would route a loopback down the wrong classification
-    // branch (e.g. "http://127.0.0.1"), so they are rejected outright rather
-    // than parsed — one classification path, no parser disagreements. A
-    // single colon can only be a port separator (hostnames and IPv4 have
-    // none, IPv6 literals have at least two); a "]" not at the end is a
-    // bracketed authority with a port suffix.
     if (
       host.includes("/") ||
       (host.match(/:/g) ?? []).length === 1 ||
@@ -1484,10 +1008,6 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
         return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — not in the configured egress-probe allow-list (--egress-hosts ${egressAllowList.join(",")})`;
       }
     } else {
-      // RFC 2606/6761/6762/7686 special-use/reserved names never demonstrate
-      // public egress (a DNS failure with open egress also "denies"). A
-      // static checker cannot resolve DNS; the --egress-hosts allow-list
-      // seam plus the live probe recipe close the residual.
       const bare = bareHost(host);
       const specialTld = SPECIAL_USE_TLDS.find((tld) => bare === tld.slice(1) || bare.endsWith(tld));
       if (specialTld !== undefined) {
@@ -1495,15 +1015,6 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
       }
     }
   }
-  // A non-zero inner exit alone cannot tell a denied boundary from a target
-  // that fails everywhere: an unregistered name NXDOMAINs with OPEN egress
-  // too, so its failing fetch proves nothing. The probe therefore runs the
-  // SAME fetch from the networked outer context and records its exit —
-  // outer_exit_code, comma-separated and positionally paired with the probed
-  // host(s) like the per-target credential codes — and only outer success
-  // ("0") makes the inner failure evidence of the boundary. Required with or
-  // without --egress-hosts: reachability evidence is orthogonal to which
-  // targets are trusted.
   const rawOuterCodes = egress.outer_exit_code;
   const outerCodes = splitRecordedList(rawOuterCodes);
   if (outerCodes.length !== egressHosts.length) {
@@ -1517,61 +1028,28 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (!isNonEmptyString(credentials.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(credentials.path)} — a proven credential-absence requires the probed host-credential path`;
   }
-  // The path value is a comma-separated list of probed locations, and
-  // exit_code is the comma-separated list of their recorded exit codes,
-  // positionally paired — one non-zero code per probed path: a single code
-  // could come from a failing read of one listed path while another
-  // (readable) path leaks. Every path entry must be recognizably a
-  // host-credential location (case-insensitive, path-separator-agnostic,
-  // matched per component).
   const credentialPaths = splitRecordedList(credentials.path);
   const rawCredentialCodes = credentials.exit_code;
   const credentialCodes = splitRecordedList(rawCredentialCodes);
   if (credentialCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(rawCredentialCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded exit code per probed credential path is required, comma-separated and positionally paired with path: a single code cannot prove absence on every listed location`;
   }
-  // host_expanded carries the recipe's outside-the-boundary expansion of each
-  // probed path (validated per entry below): an in-shell home token expands
-  // to the boundary's OWN home, so only a recorded host-side expansion names
-  // the host credential location.
   const rawHostExpanded = credentials.host_expanded;
   const hostExpanded = splitRecordedList(rawHostExpanded);
   if (hostExpanded.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.host_expanded ${JSON.stringify(rawHostExpanded)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded host-side expansion per probed credential path is required, comma-separated and positionally paired with path: an in-shell home token expands to the boundary's own home, so only a recorded host-side expansion names the host credential location`;
   }
-  // For a metadata-URL entry the boundary claim is that the service is
-  // UNREACHABLE from inside the boundary, and an HTTP-level error (missing
-  // required header, wrong api-version) means the connection SUCCEEDED — a
-  // reachable metadata service, no boundary. The transcript therefore
-  // records HOW each probe failed: transport_outcome, comma-separated and
-  // positionally paired with path — "connect-failed" (refused, timeout, no
-  // route) required for URL entries, which also moots request protocol
-  // completeness since no request semantics matter when the connection
-  // itself must fail; "read-denied" for filesystem and env-token entries,
-  // where no connection exists to fail.
   const rawTransportOutcomes = credentials.transport_outcome;
   const transportOutcomes = splitRecordedList(rawTransportOutcomes);
   if (transportOutcomes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.transport_outcome ${JSON.stringify(rawTransportOutcomes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded transport outcome per probed credential path is required ("connect-failed" for a metadata URL, "read-denied" for a filesystem or env-token entry), comma-separated and positionally paired with path: without it a reachable metadata service's HTTP error is indistinguishable from a denied connection`;
   }
-  // The exact symmetry of the egress outer_exit_code: a failing inner read
-  // proves a boundary only when the target demonstrably EXISTS on the host —
-  // inside a container or sandbox a fixed path like /root/.ssh names the
-  // BOUNDARY's own (empty) root, and an empty inner path, an invented
-  // target, or an absent service "fails" inside with no boundary at all. The
-  // recipe captures the outer side per entry kind (path present/readable,
-  // env var set and non-empty, metadata service reachable) and records its
-  // exit as outer_exit_code, comma-separated and positionally paired with
-  // path; every entry must be "0".
   const rawCredentialOuterCodes = credentials.outer_exit_code;
   const credentialOuterCodes = splitRecordedList(rawCredentialOuterCodes);
   if (credentialOuterCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.outer_exit_code ${JSON.stringify(rawCredentialOuterCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed credential path is required, comma-separated and positionally paired with path: a failed inner read proves a credential boundary only when the outer context proves the target exists on the host`;
   }
   for (const [index, entry] of credentialPaths.entries()) {
-    // Deny-by-default recognition folds the recorded host-side expansion in:
-    // a filesystem entry is credential-absence evidence only when its expansion
-    // is coherent AND resolves under a configured --credential-roots entry.
     const entryProblem = credentialEntryProblem(entry, hostExpanded[index], credentialRoots);
     if (entryProblem !== null) {
       return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — ${entryProblem}`;
@@ -1593,26 +1071,12 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (transcript.outer_context_networked !== true) {
     return `transcript ${path} does not record outer_context_networked true — an offline outer context would deny egress on its own`;
   }
-  // Everything below is the hardened assertion set, and its POSITION is
-  // load-bearing. This function returns the FIRST problem it finds, and every
-  // pre-existing probe-evidence fixture pins the specific reason its own
-  // transcript is rejected for. A hardened check placed earlier would answer
-  // for all of them, silently rewriting what those cases prove.
-  //
-  // A boundary with no working client denies nothing. Without this leg a
-  // missing or broken fetch tool is indistinguishable from a sealed network,
-  // and the emptiest possible boundary would score best.
   if (egress.client_ready !== "0") {
     return `transcript ${path} records assertions.egress_denied.client_ready ${JSON.stringify(egress.client_ready)} — the probe client must first be shown to RUN inside the boundary (exit "0" against an in-boundary endpoint): an absent or broken client would otherwise satisfy every egress assertion trivially`;
   }
-  // One denied destination is fully consistent with a policy that allows
-  // others — including one a component installed on top of a global deny-all.
   if (egressHosts.length < 2) {
     return `transcript ${path} records ${egressHosts.length} probed egress target — a single probed target cannot establish default-deny egress, since a policy may allow other destinations while denying this one; probe at least two distinct external targets under different operators`;
   }
-  // Counting entries is not counting targets. The same host listed twice
-  // measures exactly one policy decision while presenting as two, which is
-  // precisely the evidence this leg exists to refuse.
   const distinctEgressHosts = new Set(egressHosts.map(bareHost));
   if (distinctEgressHosts.size < 2) {
     return `transcript ${path} records ${egressHosts.length} egress entries naming only ${distinctEgressHosts.size} distinct target — repeating one host measures a single policy decision while presenting as several; probe at least two distinct external targets under different operators`;
@@ -1633,10 +1097,6 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
     if (!EGRESS_TRANSPORT_OUTCOMES.has(outcome)) {
       return `transcript ${path} records assertions.egress_denied.transport_outcome entry ${JSON.stringify(outcome)} for host ${JSON.stringify(egressHosts[index])} — required, one of ${[...EGRESS_TRANSPORT_OUTCOMES].join(" | ")}; a completed handshake with the origin's own peer identity from which data was read has no passing token, because it is egress`;
     }
-    // Certificate VALIDITY is not the discriminator: an inspection CA trusted
-    // inside the boundary makes an interceptor verify cleanly. Peer IDENTITY
-    // is — the interceptor cannot present the origin's own key, so a
-    // fingerprint matching the outer context's means the origin answered.
     if (outcome === "peer-substituted") {
       if (outerFingerprints[index] === "none" || innerFingerprints[index] === "none") {
         return `transcript ${path} records assertions.egress_denied.transport_outcome "peer-substituted" for host ${JSON.stringify(egressHosts[index])} with fingerprint ${JSON.stringify(innerFingerprints[index])} — a substituted peer is proven by COMPARISON, so both the outer-context and in-boundary peer fingerprints must be recorded for that target`;
@@ -1645,9 +1105,6 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
         return `transcript ${path} records assertions.egress_denied.inner_peer_fingerprint entry ${JSON.stringify(innerFingerprints[index])} for host ${JSON.stringify(egressHosts[index])} matching the outer-context fingerprint — an identical peer identity means the ORIGIN answered inside the boundary, which is reached egress, not interception`;
       }
     } else if (innerFingerprints[index] !== "none") {
-      // A recorded in-boundary peer contradicts an outcome asserting that no
-      // handshake completed. Left unchecked, the pair says the origin answered
-      // while the token claims nothing did — reached egress certified as denied.
       return `transcript ${path} records assertions.egress_denied.inner_peer_fingerprint entry ${JSON.stringify(innerFingerprints[index])} for host ${JSON.stringify(egressHosts[index])} whose transport_outcome is ${JSON.stringify(outcome)} — an outcome other than "peer-substituted" asserts that no peer completed a handshake, so its fingerprint must be the literal "none"; a recorded peer contradicts the outcome beside it`;
     }
   }
@@ -1658,48 +1115,26 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   }
   const workspaceProblem = verifyWorkspaceContainment(transcript, path);
   if (workspaceProblem !== null) return workspaceProblem;
-  // Target selection is load-bearing, and this leg is LAST for the reason the
-  // whole hardened block is: the function returns the FIRST problem, and every
-  // pre-existing fixture pins the reason its own transcript is rejected for.
-  //
-  // The distinct-targets leg above samples only what the BASE policy denies. A
-  // surface whose additive policy layer lets an installed component carry rules
-  // of its own is widened at exactly the destinations those components request,
-  // so a probe drawn from anywhere else certifies a boundary open at the one
-  // place it never looked. Which destinations those are is an outer-world fact
-  // no capture can establish, so the set rides the HUMAN-RATIFIED level entry on
-  // the agent-unwritable surface — the trust boundary substrate_class sits on —
-  // and the transcript's job is to show the probe covered it.
   if (!Array.isArray(componentReachableHosts)) {
     return `the level binding ratifies no component_reachable_hosts — the destinations this surface's installed components may request are an outer-world fact no capture can establish, so they are ratified on the binding entry and the probe must cover them; ratify the list (or the empty list, where this surface installs nothing carrying policy rules of its own) on the agent-unwritable binding surface`;
   }
   if (componentReachableHosts.some((host) => !isNonEmptyString(host))) {
     return `the level binding ratifies a component_reachable_hosts entry that is not a non-empty host string — every ratified destination must name a host the probe can be checked against`;
   }
-  // Coverage, never a count: each ratified destination is a separate policy
-  // decision, so probing one says nothing about the rest.
   const uncoveredRatified = componentReachableHosts
     .map((host) => bareHost(host.trim()))
     .filter((host) => !distinctEgressHosts.has(host));
   if (uncoveredRatified.length > 0) {
     return `transcript ${path} probes ${[...distinctEgressHosts].join(", ")}, leaving ratified component_reachable_hosts ${uncoveredRatified.join(", ")} unprobed — each ratified destination is a separate policy decision, so covering one says nothing about the rest; probe every ratified component-reachable destination in the configuration the run will actually use`;
   }
-  // Host interop runs after coverage for the same first-problem reason.
   return verifyHostInterop(transcript, path, hostInterop, hostExpanded);
 }
 
-// WSL hands a Windows binary launch to the Windows host, outside every WSL2
-// boundary, so a WSL2-hosted level proves its boundary only with a denied
-// launch of a present Windows executable. Whether a surface is WSL2-hosted is
-// ratified on the binding (host_interop), never read from the transcript:
-// capture evidence is agent-writable and may only ever tighten the verdict.
 function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
   const recorded = Object.hasOwn(transcript.assertions, "interop_launch_denied");
   if (hostInterop === "wsl2" && !recorded) {
     return `transcript ${path} does not record assertions.interop_launch_denied, which the level binding requires by ratifying host_interop "wsl2": a Windows binary launched from inside a WSL2 boundary runs on the Windows host, so only a denied launch of a present executable proves the boundary`;
   }
-  // Validated whenever recorded, whatever the binding ratifies: a recorded
-  // launch success is never ignored, and a null or non-object is a finding.
   if (recorded) {
     const interop = transcript.assertions.interop_launch_denied;
     if (!isPlainObject(interop)) {
@@ -1712,10 +1147,6 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
         return `transcript ${path} records assertions.interop_launch_denied.${field} ${JSON.stringify(value)}: an absolute POSIX path to a Windows executable (basename ending ".exe") is required, so the launch provably targeted the Windows host`;
       }
     }
-    // An exit code alone cannot tell a denied launch from a program that ran
-    // and exited non-zero. The inner launch must therefore be the SAME
-    // invocation as the outer control, which exited "0", so a non-zero inner
-    // exit means that invocation did not complete on the host.
     for (const field of ["arguments", "outer_arguments"]) {
       if (typeof interop[field] !== "string") {
         return `transcript ${path} records assertions.interop_launch_denied.${field} ${String(JSON.stringify(interop[field]))}: [interop-same-invocation] the launch arguments are recorded on both sides as strings (empty when none), so the inner launch is provably the invocation the outer control ran`;
@@ -1724,9 +1155,6 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
     if (interop.arguments !== interop.outer_arguments) {
       return `transcript ${path} records assertions.interop_launch_denied.arguments ${JSON.stringify(interop.arguments)} against outer_arguments ${JSON.stringify(interop.outer_arguments)}: [interop-same-invocation] the inner launch must be byte-identical to the outer control, or a non-zero inner exit may be a different invocation that ran and failed`;
     }
-    // The inner file must be the Windows executable the outer control ran,
-    // and a PE image, or a look-alike script named ".exe" could exit non-zero
-    // on its own.
     for (const field of ["executable_sha256", "outer_executable_sha256"]) {
       if (typeof interop[field] !== "string" || !/^[0-9a-f]{64}$/.test(interop[field])) {
         return `transcript ${path} records assertions.interop_launch_denied.${field} ${String(JSON.stringify(interop[field]))}: [interop-same-executable] a SHA-256 digest of 64 lowercase hex characters is required on both sides`;
@@ -1755,11 +1183,6 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
       return `transcript ${path} records assertions.interop_launch_denied.outcome ${JSON.stringify(interop.outcome)}: a proven interop denial records outcome "denied"`;
     }
   }
-  // Tighten-only: a binding that ratifies no host interop, whose own capture
-  // reached through a Windows drive mount, contradicts that ratification. The
-  // match is on the default automount root only; a moved [automount] root is
-  // not detected. Paths are normalized first, backslashes folded to slashes,
-  // so "/mnt//c", "/x/../mnt/c", or "/mnt/c\x" cannot slip past.
   if (hostInterop === "none") {
     const driveMount = (value) =>
       typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim().replaceAll("\\", "/")));
@@ -1781,30 +1204,14 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
   return null;
 }
 
-// The ladder's levels describe the PROCESS boundary; the workspace mount is a
-// deliberate hole through it, and until this assertion existed nothing measured
-// it — a substrate could pass cleanly while the agent still wrote host-executing
-// files. Containment is proven from the OUTER side because that is the only
-// framing covering both substrate shapes at once: a read-only mount rejects the
-// inner write, a clone-mode mount accepts it and discards it, and both are
-// contained. The inner exit code is therefore recorded but never constrained.
-//
-// Scope, stated because the name has to earn it: this proves host-WRITE
-// containment only. Read exposure is untouched, and a clone-mode workspace
-// leaves reads fully open.
 function verifyWorkspaceContainment(transcript, path) {
   const workspace = transcript.assertions?.workspace_host_write_contained;
-  // "not-applicable" (a hosted surface whose storage the operator cannot
-  // inspect) is deliberately NOT a pass: it leaves the level unproven rather
-  // than silently certifying a boundary nobody observed.
   if (workspace?.outcome !== "contained") {
     return `transcript ${path} does not record the workspace host-write containment assertion with outcome "contained" — the process boundary the level describes does not cover the workspace mount, and an unmeasured mount can carry host-executing writes; a recorded outcome of "not-applicable" leaves the level unproven rather than passing it`;
   }
   if (!isNonEmptyString(workspace.workspace_host_path)) {
     return `transcript ${path} records assertions.workspace_host_write_contained.workspace_host_path ${JSON.stringify(workspace.workspace_host_path)} — containment is proven from the OUTER side, so the host-side workspace root the outer context inspected must be recorded`;
   }
-  // An immediate re-check can miss a caching or asynchronously-flushed mount
-  // that propagates the write after the probe looks.
   if (workspace.checked_after_teardown !== true) {
     return `transcript ${path} does not record assertions.workspace_host_write_contained.checked_after_teardown true — a caching or asynchronously-flushed mount can propagate an inner write after an immediate check, so the host-side re-check runs after the boundary is torn down`;
   }
@@ -1812,9 +1219,6 @@ function verifyWorkspaceContainment(transcript, path) {
   if (canaries.length < WORKSPACE_CANARY_MINIMUM || canaries.some((entry) => entry.length === 0)) {
     return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — at least ${WORKSPACE_CANARY_MINIMUM} non-empty canary paths are required (an ordinary file, a dotfile, and a VCS-control-plane path), because a single literal path proves nothing about hidden-file handling, case folding, or the control plane that executes host code`;
   }
-  // Counting paths is not covering shapes. Three copies of one ordinary file
-  // satisfies a count while leaving the control plane — the whole reason this
-  // assertion exists — entirely unprobed.
   if (new Set(canaries.map((entry) => entry.toLowerCase())).size !== canaries.length) {
     return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — the canary paths must be DISTINCT (compared case-insensitively, since a case-folding host filesystem would otherwise let one landed write hide behind a differently-spelled name); repeating a path probes one location while presenting as several`;
   }
@@ -1850,14 +1254,9 @@ function verifyWorkspaceContainment(transcript, path) {
     }
   }
   const innerCodes = splitRecordedList(workspace.inner_exit_code);
-  // Recorded for the reviewer, never asserted on: constraining it would grade
-  // clone-mode substrates wrongly, since they legitimately accept the write.
   if (innerCodes.length !== canaries.length) {
     return `transcript ${path} records assertions.workspace_host_write_contained.inner_exit_code ${JSON.stringify(workspace.inner_exit_code)} for ${canaries.length} canary entries — one recorded inner exit code per canary is required (recorded as evidence, never asserted on: a clone-mode mount legitimately ACCEPTS the write and discards it)`;
   }
-  // The VALUE is never asserted on, but its PRESENCE is: host absence proves
-  // containment only if a write was actually attempted. An empty entry records
-  // no attempt, so a probe that never ran would otherwise read as a clean pass.
   for (const [index, code] of innerCodes.entries()) {
     if (!/^(0|[1-9][0-9]*)$/.test(code)) {
       return `transcript ${path} records assertions.workspace_host_write_contained.inner_exit_code entry ${JSON.stringify(code)} for canary ${JSON.stringify(canaries[index])} — every entry must be a recorded integer exit code (any value; zero is legitimate on a copy-on-read mount), because host absence evidences containment only where a write was actually attempted`;
@@ -1876,8 +1275,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const posture = binding.dispatch_posture ?? "autonomous-enabled";
   const autonomous = posture === "autonomous-enabled";
 
-  // Merge caps: the matrix caps apply (only C2, C3 and C4 are auto-merge
-  // eligible). executor_class is deprecated and caps nothing.
   if (isPlainObject(binding.merge_policy)) {
     for (const workClass of WORK_CLASSES) {
       if (binding.merge_policy[workClass] !== "auto") continue;
@@ -1892,9 +1289,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const surfaces = isPlainObject(binding.isolation_bindings) ? Object.entries(binding.isolation_bindings) : [];
 
   if (autonomous) {
-    // Every bound surface must be attestable: without non-empty
-    // runtime_markers the dispatch seam could never attest the actual
-    // surface, and every dispatch would fail closed as unattestable.
     const markerEntries = [];
     for (const [surfaceId, levels] of surfaces) {
       if (!isPlainObject(levels)) continue;
@@ -1910,13 +1304,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
         }
       }
     }
-    // The dispatch seam requires EXACTLY ONE matching entry at runtime,
-    // failing closed on zero or multiple matches; rejecting jointly
-    // satisfiable marker sets here keeps that rule from turning validly
-    // bound fleets into ambiguity outages. The requirement applies to level
-    // entries WITHIN a surface too: an L2 runner subset sharing a surface id
-    // with an L3 subset, without conflicting markers, could receive the work
-    // the surface's max level admits.
     const reportedPairs = new Set();
     for (let i = 0; i < markerEntries.length; i += 1) {
       for (let j = i + 1; j < markerEntries.length; j += 1) {
@@ -1939,21 +1326,11 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     }
   }
 
-  // Per-surface, class-aware isolation verdicts: a surface is eligible for a
-  // class only when its bound level meets that class's min-isolation cell —
-  // so an L2-only surface is never selected for a C5 item, and an unbound
-  // surface is blocked even when a sibling surface is bound. Aggregating to
-  // the max PROVEN level is sound only because same-surface level entries
-  // must carry mutually conflicting runtime_markers (checked above):
-  // dispatch attests the exact level entry, never just the surface id.
   const verdicts = [];
   let anyProvenL2 = false;
   let anyUnprovenL2Plus = false;
   for (const [surfaceId, levels] of surfaces) {
     if (!isPlainObject(levels)) continue;
-    // L2/L3 count only when their probe transcript verifies; L0/L1 are
-    // exempt — they can never satisfy an eligibility floor, so unverified
-    // evidence there enables nothing.
     let provenMax = -1;
     const unproven = [];
     for (const [level, entry] of Object.entries(levels)) {
@@ -1972,8 +1349,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
       }
       anyUnprovenL2Plus = true;
       unproven.push(`${level} unproven (${reason})`);
-      // A missing ref already produced its structural finding; only a
-      // present-but-unverifiable ref needs one here.
       if (autonomous && isNonEmptyString(entry.probe_evidence)) {
         findings.push(
           `isolation_bindings.${surfaceId}.${level}: probe evidence unverifiable — ${reason}; the level is UNPROVEN and does not count toward isolation eligibility (fail-closed) — run the isolation probe inside the boundary and reference its captured transcript`,
@@ -1992,9 +1367,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     );
   }
 
-  // When an L2+ entry is bound but unproven, its own finding already names
-  // the failure and the compliant path — a second no-L2 finding would be
-  // redundant noise for the same root cause.
   if (autonomous && !anyProvenL2 && !anyUnprovenL2Plus) {
     findings.push(
       "isolation_bindings: no bound surface reaches L2 under dispatch_posture autonomous-enabled — autonomous dispatch is blocked fail-closed; compliant paths: bind an L2-capable substrate (whole-process OS-sandbox wrap, default-deny-egress container) on an execution surface, or declare dispatch_posture human-gated-only",
@@ -2006,7 +1378,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     );
   }
 
-  // Promotion entries exist for promotable cells only.
   if (isPlainObject(binding.promotion_state)) {
     for (const cell of Object.keys(binding.promotion_state)) {
       if (!PROMOTABLE_CELLS.has(cell)) {
@@ -2017,10 +1388,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     }
   }
 
-  // Promotion-gated knobs at their EARNED value require the ratified
-  // promotion_state entry: promotion is a human-ratified knob flip recorded
-  // on the governance surface, and an earned value without its ratification
-  // record bypasses that discipline.
   const ratifiedPromoted = (cell) => binding.promotion_state?.[cell]?.state === "promoted";
   for (const [workClass, cell] of Object.entries(AUTO_MERGE_PROMOTION_CELL)) {
     if (binding.merge_policy?.[workClass] === "auto" && !ratifiedPromoted(cell)) {
@@ -2029,10 +1396,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
       );
     }
   }
-  // For the promotable ai-review C3 cell, blocking is the EARNED flip
-  // (advisory -> blocking per the security-review leaf) — a deliberate
-  // carve-out from the floors-may-tighten rule for this one cell: stronger
-  // than the advisory floor here is a promotion, not mere tightening.
   const aiReview = binding.verification_blocking?.["ai-review"];
   if (isPlainObject(aiReview) && aiReview.C3 === "blocking" && !ratifiedPromoted("C3-ai-review-blocking")) {
     findings.push(
@@ -2040,8 +1403,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     );
   }
 
-  // Verification floors: weakening below the security-review leaf's shipped
-  // per-class default is simply invalid — no override escape exists here.
   if (isPlainObject(binding.verification_blocking)) {
     for (const layer of LAYERS) {
       const perClass = binding.verification_blocking[layer];
@@ -2059,19 +1420,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     }
   }
 
-  // Unanimity join. A class bound auto-merge takes its transition without a
-  // human, and the topology leaf's unanimity invariant requires every checker
-  // the class declares to agree first. The topology floor supplies the checker
-  // POPULATION; the security-review knob supplies its FORCE — unanimity needs
-  // both, and only force is configurable into absence, because floors are
-  // tighten-only. Two ways a binding removes it: an advisory layer, where the
-  // checker dissents and the transition proceeds anyway; and a not-required
-  // layer with model-adjudicated checkers DECLARED for the class, where the
-  // layer they judge in never runs, so their agreement can never be obtained.
-  // A class declaring no model-adjudicated checker is exempt from the second:
-  // its floor is seated by a deterministic slot, whose force is its own layer.
-  // A missing or malformed knob already produced its structural finding;
-  // re-reporting it here would double-name one root cause.
   if (
     isPlainObject(binding.merge_policy) &&
     isPlainObject(binding.verification_blocking)
@@ -2104,15 +1452,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     }
   }
 
-  // Verification-topology floors and coverage per declared class. An absent
-  // verification_topology (or an absent class within it) is NOT a hole: the
-  // verification-topology leaf's shipped floors apply, exactly as
-  // escalation_severity falls back to contract defaults — so only declared
-  // classes are checked, and each on all three axes: the floors
-  // (tighten-only, no override escape — the same rule verification_blocking
-  // carries), the reference resolution that keeps relational constraints
-  // machine-checkable, and the distinctness coverage that keeps min_checkers
-  // a count of distinct checkers rather than a length.
   if (isPlainObject(binding.verification_topology)) {
     for (const workClass of WORK_CLASSES) {
       const topology = binding.verification_topology[workClass];
@@ -2121,14 +1460,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     }
   }
 
-  // No notification-routability rule exists for escalation_severity on
-  // purpose: severity selects only the NOTIFICATION fan-out layered on the
-  // filed item — it never redirects the item, whose queue destination stays
-  // the event class's own escalation_routes entry — and the escalation
-  // contract makes tracker-item-only fan-out the legal degraded form when a
-  // severity has no bound notification legs. The one queue-side requirement
-  // (a severity-bound RUNNER class must carry its escalation_routes entry)
-  // is enforced where escalation_severity entries are walked above.
 
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
     checkAdmissionSemantics(binding.admission.rules, binding.admission.classification);
@@ -2146,11 +1477,6 @@ function checkAdmissionSemantics(rules, classification) {
       DISPOSITIONS.includes(rule.disposition),
   );
 
-  // A rule more permissive than the shipped default for ANY cell it matches
-  // requires a recorded override_justification; tightening needs none. A
-  // gated surface's signal carries a class only when the binding classifies
-  // that surface, so a wildcard-surface rule binding a work class reaches
-  // the surface's cell only then.
   validRules.forEach((rule) => {
     const index = rules.indexOf(rule);
     const covered = rule.work_class === "*" ? WORK_CLASSES : [rule.work_class];
@@ -2173,10 +1499,6 @@ function checkAdmissionSemantics(rules, classification) {
     }
   });
 
-  // Two rules of equal specificity that can both match some concrete triple
-  // with different dispositions make the binding invalid — most-specific-wins
-  // has no winner there, and an ambiguous admission decision is fail-closed
-  // at the binding, not at the seam.
   const specificity = (rule) =>
     [rule.signal_class, rule.provenance, rule.work_class].filter((axis) => axis !== "*").length;
   const axesCompatible = (a, b) =>
@@ -2202,9 +1524,6 @@ function checkAdmissionSemantics(rules, classification) {
   }
 }
 
-// A relational constraint's target list, tolerant of structurally invalid
-// values (those already produced their structural finding): a string is one
-// target, an array is several.
 function topologyConstraintTargets(entry, constraint) {
   const value = entry[constraint];
   if (typeof value === "string") return isNonEmptyString(value) ? [value] : [];
@@ -2229,9 +1548,6 @@ function checkTopologySemantics(topology, workClass) {
   }
   if (!Array.isArray(topology.roles)) return;
   const entries = topology.roles.filter((entry) => isPlainObject(entry) && isNonEmptyString(entry.name));
-  // Distinct names, not entry count: two entries sharing one name declare ONE
-  // role while presenting as two, so the duplicate is rejected and only the
-  // first declaration seats the name.
   const declared = new Map();
   for (const entry of entries) {
     if (declared.has(entry.name)) {
@@ -2242,10 +1558,6 @@ function checkTopologySemantics(topology, workClass) {
       declared.set(entry.name, entry);
     }
   }
-  // Reference resolution: a relational constraint naming a role its own class
-  // does not declare is INVALID, not ignored — this resolution is what makes
-  // the constraint machine-checkable rather than decorative. A self-reference
-  // is equally unevaluable: a role cannot be distinct from itself.
   for (const entry of entries) {
     for (const constraint of RELATIONAL_CONSTRAINTS) {
       if (!Object.hasOwn(entry, constraint)) continue;
@@ -2262,11 +1574,6 @@ function checkTopologySemantics(topology, workClass) {
       }
     }
   }
-  // A cross_vendor_checker's DEFINING constraint references the generator —
-  // "a checker additionally constrained to a different vendor from the
-  // generator" — so declaring one in a class with no declared generator role
-  // leaves that constraint without a referent: unevaluable, under the same
-  // invalid-not-ignored rule as any other unresolvable reference.
   const generatorNames = new Set(
     [...declared.values()].filter((entry) => entry.role === "generator").map((entry) => entry.name),
   );
@@ -2279,10 +1586,6 @@ function checkTopologySemantics(topology, workClass) {
     }
   }
   const checkers = [...declared.values()].filter((entry) => CHECKER_TYPED_ROLES.has(entry.role));
-  // A slot is filled by either a DETERMINISTIC layer or a MODEL-ADJUDICATED
-  // role. A deterministic layer has no model or vendor identity, so the
-  // relational constraints and predicates cannot be evaluated against one and
-  // are rejected on it rather than silently ignored.
   const deterministic = checkers.filter((entry) => isNonEmptyString(entry.scanner_class));
   const modelCheckers = checkers.filter((entry) => !isNonEmptyString(entry.scanner_class));
   for (const entry of deterministic) {
@@ -2298,8 +1601,6 @@ function checkTopologySemantics(topology, workClass) {
       );
     }
   }
-  // Deterministic slots are distinguished by SCANNER CLASS: two sharing one
-  // scanner class resolve identically and declare one checker.
   const scannerClasses = new Map();
   for (const entry of deterministic) {
     const seen = scannerClasses.get(entry.scanner_class);
@@ -2311,10 +1612,6 @@ function checkTopologySemantics(topology, workClass) {
       scannerClasses.set(entry.scanner_class, entry.name);
     }
   }
-  // A slot NAME says nothing about what it resolves to, so distinctness that
-  // is only intended is not distinctness: every model-adjudicated checker
-  // DECLARES distinct_model_from against the generator. Undeclared is the
-  // unevaluable case, which is the same failure as declaring none.
   for (const entry of modelCheckers) {
     if (generatorNames.size === 0) continue;
     const targets = RELATIONAL_CONSTRAINTS.flatMap((constraint) => topologyConstraintTargets(entry, constraint));
@@ -2331,33 +1628,18 @@ function checkTopologySemantics(topology, workClass) {
       `${where}.roles: declares ${modelCheckers.length} model-adjudicated checker slot${modelCheckers.length === 1 ? "" : "s"} against min_model_checkers ${minModelCheckers} — a total count cannot express which KIND of coverage is owed, so a class meeting min_checkers with deterministic slots alone never faces the model judge its verification cell requires`,
     );
   }
-  // Coverage, not length: min_checkers is evaluated over the DISTINCT
-  // checker-typed roles the class declares — a list that cannot seat the
-  // count makes the declared topology unsatisfiable.
   const minCheckers = Number.isInteger(topology.min_checkers) ? topology.min_checkers : floor.min_checkers;
   if (checkers.length < minCheckers) {
     findings.push(
       `${where}.roles: declares ${checkers.length} distinct checker role${checkers.length === 1 ? "" : "s"} against min_checkers ${minCheckers} — min_checkers counts DISTINCT checker roles drawn from the declared role list, so a list that cannot seat the count makes the topology unsatisfiable`,
     );
   }
-  // Count is not coverage: two declared checker roles with no distinctness
-  // relation between them can both resolve to ONE instance at run time, and
-  // N runs of a single instance count as one checker — they share the
-  // failure the count exists to catch. Every pair of counted checkers must
-  // be held distinct by a relational constraint in at least one direction
-  // (distinct_vendor_from implies distinct model: disjoint vendors never
-  // share an instance).
   const relatedBy = (a, b, constraints) =>
     constraints.some(
       (constraint) =>
         topologyConstraintTargets(a, constraint).includes(b.name) ||
         topologyConstraintTargets(b, constraint).includes(a.name),
     );
-  // Scoped to the MODEL-adjudicated slots. A deterministic slot cannot carry a
-  // relational constraint at all — it has no model or vendor identity — and it
-  // can never resolve to the same thing as a model judge, so a cross-kind pair
-  // is distinct by construction. Deterministic slots are held apart from each
-  // other by scanner class above.
   for (let i = 0; i < modelCheckers.length; i += 1) {
     for (let j = i + 1; j < modelCheckers.length; j += 1) {
       if (!relatedBy(modelCheckers[i], modelCheckers[j], RELATIONAL_CONSTRAINTS)) {
@@ -2367,19 +1649,7 @@ function checkTopologySemantics(topology, workClass) {
       }
     }
   }
-  // cross_vendor_required is enforceable only where the role list can seat
-  // it: a cross_vendor_checker is definitionally vendor-distinct from the
-  // generator, and a plain checker qualifies when constrained
-  // distinct_vendor_from a declared generator role. A true knob with neither
-  // is a requirement the declared topology can never evaluate — decorative,
-  // not policy.
   if (topology.cross_vendor_required === true) {
-    // Never vacuously satisfied. The knob's whole reason is that same-vendor
-    // checkers share failure modes, so agreement between them is weaker
-    // evidence than its count suggests — a class asserting it over fewer than
-    // two model-adjudicated slots satisfies neither the constraint nor the
-    // reason for it, and one asserting it over ZERO binds the empty set and is
-    // satisfied by declaring nothing.
     if (modelCheckers.length < 2) {
       findings.push(
         `${where}: cross_vendor_required true with ${modelCheckers.length} model-adjudicated checker slot${modelCheckers.length === 1 ? "" : "s"} — the requirement is vendor disjointness AMONG the model slots, so fewer than two makes it vacuous rather than trivially conforming; declare at least two model-adjudicated checkers or bind cross_vendor_required false where the floor allows`,
@@ -2395,10 +1665,6 @@ function checkTopologySemantics(topology, workClass) {
         `${where}: cross_vendor_required true but no declared checker is vendor-distinct from the generator — declare a cross_vendor_checker role, or constrain a checker distinct_vendor_from a declared generator role; a requirement the role list cannot seat is decorative, not policy`,
       );
     }
-    // Disjointness among the model slots, not merely against the generator:
-    // {V2, V2, V2} against a V1 generator satisfies a generator-only reading
-    // while every checker shares a vendor with every other — precisely the
-    // shared-failure-mode case the knob exists to break up.
     for (let i = 0; i < modelCheckers.length; i += 1) {
       for (let j = i + 1; j < modelCheckers.length; j += 1) {
         const a = modelCheckers[i];
@@ -2413,7 +1679,6 @@ function checkTopologySemantics(topology, workClass) {
   }
 }
 
-// --- Evaluation mode: effective promotion state from an evidence source ---
 
 function resolveEffectivePromotion(binding, evidencePath) {
   const lines = [];
@@ -2423,8 +1688,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
     if (!Array.isArray(parsed)) throw new Error("evidence document must be a JSON array of events");
     events = parsed;
   } catch (error) {
-    // Unavailable evidence telemetry fail-closes to the unpromoted default —
-    // a report, never a crash.
     lines.push(
       `evidence source ${evidencePath} unavailable (${error.message}) — fail-closed: every cell resolves to effective state unpromoted`,
     );
@@ -2432,11 +1695,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
 
   const promotionState = isPlainObject(binding.promotion_state) ? binding.promotion_state : {};
 
-  // Pass 1: each cell's OWN effective state — own-cell contrary events,
-  // scoped to the cell's own promotion epoch. Dependency propagation runs in
-  // pass 2 over these results, so a prerequisite's demotion is judged in the
-  // prerequisite's epoch, never the dependent's — a C2 revert that predates
-  // C3's ratification still demotes C2, and pass 2 lowers C3 with it.
   const resolved = new Map();
   for (const [cell, entry] of Object.entries(promotionState)) {
     if (!isPlainObject(entry)) continue;
@@ -2449,13 +1707,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
       });
       continue;
     }
-    // Prerequisite-cell events count against the dependent too, judged in
-    // the DEPENDENT's epoch: a prerequisite demotion event inside this
-    // cell's epoch stays contrary here until THIS cell re-earns or is
-    // re-ratified, even if the prerequisite is later re-earned — the
-    // prerequisite's recovery must never silently revive a dependent that
-    // consumed no re-earn of its own. (The prerequisite's own current state
-    // propagates in pass 2.)
     const dependencyCells = PROMOTION_DEPENDENCIES[cell] ?? [];
     const contrary = events.filter(
       (event) =>
@@ -2463,14 +1714,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
         (event.cell === cell || dependencyCells.includes(event.cell)) &&
         CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
-    // Contrary evidence is scoped to the promotion epoch: an event whose `at`
-    // and `discovered` both predate the cell's ratified_at belongs to a
-    // previous epoch, which that ratification closed. An event discovered at
-    // or after ratified_at is in-epoch whatever its `at`, since a revert's
-    // committer date or a merge time can be backdated. An event whose `at` or
-    // `discovered` is not strict ISO cannot be shown to predate the epoch and
-    // is treated as contrary (fail-closed) — dropping it silently would let
-    // malformed telemetry mask a real demotion signal.
     const ratifiedAt = parseIsoStrict(entry.ratified_at);
     const inEpoch = [];
     const inEpochTimes = [];
@@ -2478,8 +1721,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
     for (const event of contrary) {
       const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
-      // When the publisher first published the event; absent on events published before it
-      // recorded one. Present but malformed, it can never be shown to precede a re-earn.
       const discovered = event.discovered === undefined ? at : parseIsoStrict(event.discovered);
       const found = event.discovered === undefined ? "" : ` (discovered ${event.discovered})`;
       if (Number.isNaN(at)) {
@@ -2492,12 +1733,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
         preEpoch.push(`${source}${event.event} at ${event.at}${found}`);
       }
     }
-    // A re-earn lifts the demotion when the predicate was met again over evidence counted from
-    // `since`, and `since` is at or after every in-epoch contrary event's `at` and `discovered`
-    // (own and prerequisite): a contrary event found after the re-earn was published voids it,
-    // whatever its `at`. It must name this cell: a prerequisite's re-earn never revives a
-    // dependent. A contrary event with an unparsable `at` or `discovered` can never be shown to
-    // precede `since`, so it blocks every re-earn.
     const reearn =
       inEpoch.length === 0
         ? undefined
@@ -2534,13 +1769,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
     }
   }
 
-  // Pass 2: a dependent promotion never outlives its prerequisite. The
-  // prerequisite may be bound unpromoted (post-demotion binding update),
-  // have no promotion_state entry at all, or resolve effective-unpromoted
-  // from contrary evidence in ITS OWN epoch — including events predating the
-  // dependent's ratification. Any of these lowers the dependent cell.
-  // PROMOTION_DEPENDENCIES is a single-level map (no chains), so one pass
-  // over pass-1 results suffices.
   for (const [cell, record] of resolved) {
     if (record.effective !== "promoted") continue;
     const failed = (PROMOTION_DEPENDENCIES[cell] ?? []).filter((dep) => resolved.get(dep)?.effective !== "promoted");
@@ -2561,7 +1789,6 @@ function resolveEffectivePromotion(binding, evidencePath) {
   return lines;
 }
 
-// --- Entry point ---
 
 const args = process.argv.slice(2);
 const options = {
@@ -2601,12 +1828,6 @@ const egressAllowList =
   egressHostsArg === null
     ? null
     : egressHostsArg.split(",").map((host) => bareHost(host.trim())).filter((host) => host.length > 0);
-// Credential roots are trimmed only; normalizeHostPath collapses each root and
-// candidate consistently at containment time (preserving POSIX case, folding
-// only case-insensitive drive paths). An arg that parses to zero roots (e.g.
-// "," or "  ") is treated as unconfigured, so the operator gets the "no
-// --credential-roots configured" guidance rather than a confusing empty-allowlist
-// rejection — fail-closed either way.
 const credentialRootsParsed =
   credentialRootsArg?.split(",").map((root) => root.trim()).filter((root) => root.length > 0) ?? [];
 const credentialRoots = credentialRootsParsed.length > 0 ? credentialRootsParsed : null;
@@ -2615,8 +1836,6 @@ let raw;
 try {
   raw = readFileSync(bindingPath, "utf8");
 } catch (error) {
-  // A missing or unreadable binding file is an environment error (exit 2),
-  // never a conformance verdict on the document.
   console.error(`cannot read binding ${bindingPath}: ${error.message}`);
   process.exit(2);
 }

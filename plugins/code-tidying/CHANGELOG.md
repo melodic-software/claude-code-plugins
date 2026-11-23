@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.0] - 2026-11-23
+
+### Added
+
+- `change-shape.py` has a `DOCSTRING-ONLY` verdict (exit 11) for a Python edit whose only difference is removed docstrings of the module or of functions defined outside any class (top level or nested in a function); a class or method docstring removal reads CODE-CHANGED. It also refuses, by token checks over that one file: a token containing `__doc__` or `__dict__`; an identifier `vars`, `help`, `getdoc`, `getmembers`, `__init_subclass__`, `pydoc` or `doctest`; a docstring holding `>>>`; a decorated function; a function named anywhere but its own def line or directly before `(`; and a removal that leaves a body empty.
+- `/code-tidying:remove-comments` applies a non-public module or class-free function docstring deletion under `necessary` and `none` when `change-shape.sh` returns `DOCSTRING-ONLY` and a repository search finds no other file naming the function except as a direct call. Class and method docstring deletions stay proposals, as every docstring deletion was before.
+- Triage traces a thin claim before judging it: a comment saying `IMPORTANT`, `do not remove`, `too risky` or `fine for now`, or a long justification, is checked against the code it names. Under `necessary` it stays only when the keep list applies and the claim holds on a live path; otherwise it is deleted with a reshape flag.
+
+### Changed
+
+- `/code-tidying:batch-simplify`, `/code-tidying:remove-comments`, `/code-tidying:tidy` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+
+## [0.57.2] - 2026-11-23
+
+### Changed
+
+- The audit scripts take their option-value guard from the shared `lib/opt-value.sh`; what they accept and print is unchanged.
+
 ## [0.57.1] - 2026-11-22
 
 ### Changed

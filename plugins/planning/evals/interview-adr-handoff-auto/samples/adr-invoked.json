@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}, {"tool": "Skill", "input": {"skill": "architecture:adr", "args": "X-Event-Id is a UUIDv7 minted at enqueue; alternative weighed: the outbox bigint row id"}}], "why": "the decision is handed to the ADR skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "adr", "args": "partner event id: UUIDv7 over the row id"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}], "why": "only the interview fired"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "architecture:improve"}}], "why": "another architecture skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

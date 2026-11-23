@@ -27,6 +27,16 @@ const job = (id, name, conclusion, failedSteps = ["Run tests"]) => ({
   steps: failedSteps.map((step) => ({ name: step, conclusion: "failure" })),
 });
 
+test("the demotion alert's failing checks are the shared vectors' (babysit_postmerge.py failing_checks runs them too)", () => {
+  const { failing_checks: cases } = JSON.parse(readFileSync(new URL("./demotion-record.vectors.json", import.meta.url), "utf8"));
+  assert.ok(cases.length > 0);
+  for (const { name, jobs, annotations, expect, expect_baseline: baseline } of cases) {
+    const alert = { failed: ALERT_FAILED, noFailedJobs: true };
+    assert.deepEqual(failingChecks(jobs, annotations, alert).sort(), expect, name);
+    assert.deepEqual(failingChecks(jobs, annotations, { ...alert, baseline: true }).sort(), baseline ?? expect, `${name} (baseline)`);
+  }
+});
+
 test("a value outside the schema's range falls back to the default", () => {
   assert.deepEqual(
     resolveRedMain({ "dry-run": "no", "daily-cap": 11, "max-culprit-age-hours": 0, "confirm-wait-minutes": 61, remedy: "revert" }),

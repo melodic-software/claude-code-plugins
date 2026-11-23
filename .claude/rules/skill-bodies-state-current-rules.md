@@ -1,5 +1,5 @@
 ---
-description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a copied or measured upstream number or string), and name their successor in a `## Next` section; read before editing any skill body"
+description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a copied or measured upstream number or string), name their successor in `## Next` and context-dependent links in `## Related`, and mark optional-plugin mentions `(if enabled)`; read before editing any skill body"
 paths:
   - "plugins/*/skills/**"
   - "plugins/*/agents/**"
@@ -47,8 +47,25 @@ availability gate, and no fallback clause. Keeping the graph current is authorin
 
 - A new skill writes its own `## Next` and edits the predecessor whose `## Next` should now name
   it.
-- A renamed skill is swept with `/docs-hygiene:rename-references audit` (when that plugin is
-  enabled; otherwise grep the old token).
-- A removed skill's token is grepped and every `## Next` that carried it is edited.
+- A renamed skill is swept with `/docs-hygiene:rename-references audit` (if enabled; otherwise
+  grep the old token).
+- A removed skill's token is grepped and every `## Next` and `## Related` that carried it is
+  edited.
 - `/session-flow:workflow` owns stage routing. A `## Next` states the typical successor; when the
   two disagree, the workflow skill's ladder wins.
+
+## Related sections
+
+A skill with context-dependent links names them in a `## Related` section placed after `## Next`.
+The heading is exactly `## Related`. The body is bullets of `<condition>: /plugin:skill [args].`,
+one condition per line. Like `## Next`, it is a mention for the human, so it carries no Skill-tool
+phrasing, no availability gate, and no fallback clause. A standalone skill carries neither section.
+A link may name a user-only skill with no extra clause; the model presents it as the user's own
+`/plugin:skill` line to run.
+
+## Optional-plugin mentions
+
+Outside `## Next` and `## Related`, a skill body mentions an optional plugin's skill as
+"`/plugin:skill` (if enabled)", followed by "; otherwise" and the fallback when one exists. This is
+the wording of the guard rule in [plugin philosophy](../../docs/plugin-philosophy.md#design-boundary).
+`## Next` and `## Related` are exempt: they carry no availability gate.

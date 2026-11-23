@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for verify_pin.py against throwaway repositories: a folder at its pin passes (with an
-# ignored config/local.json, a CRLF working copy and an inside symlink), and each condition of
-# control-skill.md "Checkout off the pin" refuses a checkout that breaks only that condition.
-# Usage: verify_pin.test.sh [verifier]   (default: the sibling verify_pin.py)
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 set -uo pipefail
 
@@ -25,8 +21,6 @@ git config --global init.defaultBranch main
 git config --global core.autocrlf false
 
 D=.claude/skills/control-id
-# The pinned commit: a control skill with a CLI, committed config, an inside symlink, and an
-# ignore rule for one person's config/local.json.
 BASE="$T/base"
 mkdir -p "$BASE/$D/cli" "$BASE/$D/config"
 git init -q "$BASE"
@@ -41,13 +35,11 @@ git -C "$BASE" commit -q -m pin
 PIN="$(git -C "$BASE" rev-parse HEAD)"
 
 N=0
-# clone_case: a fresh clone of BASE at the pin, its path in $C.
 clone_case() {
   N=$((N + 1))
   C="$T/case-$N"
   git clone -q "$BASE" "$C"
 }
-# run <checkout> <sha> [env assignments...]: exit code in $rc, stderr in $err.
 run() {
   local checkout="$1" sha="$2"
   shift 2
@@ -58,7 +50,6 @@ run() {
 expect_pass() {
   if [[ "$rc" == 0 ]]; then pass "$1"; else fail "$1" "rc=$rc: $err"; fi
 }
-# expect_refused <name> <reason fragment>: exit 1, the contract's message, and that reason.
 expect_refused() {
   if [[ "$rc" == 1 && "$err" == *"pins.id "*": fetch or check out"* && "$err" == *"reason: "*"$2"* ]]; then
     pass "$1"
@@ -67,7 +58,6 @@ expect_refused() {
   fi
 }
 
-# --- passes --------------------------------------------------------------------
 clone_case
 printf '{"timeouts": {}}\n' >"$C/$D/config/local.json"
 printf 'print("sign-in")\r\n' >"$C/$D/cli/id.py"
@@ -78,7 +68,6 @@ expect_pass "pinned folder with local.json, a CRLF copy and an inside symlink pa
 run "$C" "$PIN" GIT_DIR=/nonexistent GIT_WORK_TREE=/nonexistent
 expect_pass "inherited GIT_* variables are scrubbed"
 
-# --- the pin value --------------------------------------------------------------
 run "$C" ""
 if [[ "$rc" == 1 && "$err" == *"pins.id is unset: commit pins.id, for example through /app-control:map"* ]]; then
   pass "an unset pin says to commit pins.id"
@@ -95,7 +84,6 @@ expect_refused "a short id is not a pin" "not 40 or 64 lowercase hex characters"
 run "$C" "0123456789abcdef0123456789abcdef01234567"
 expect_refused "a SHA missing from the object store" "the pin is not a commit"
 
-# --- HEAD off the pin, working folder at the pin --------------------------------
 clone_case
 printf 'print("changed")\n' >"$C/$D/cli/id.py"
 git -C "$C" commit -q -am moved
@@ -103,7 +91,6 @@ git -C "$C" restore --source="$PIN" --staged --worktree -- "$D"
 run "$C" "$PIN"
 expect_refused "HEAD that differs from the pin in the folder" "HEAD differs from the pin"
 
-# --- index flags, no content change ---------------------------------------------
 clone_case
 git -C "$C" update-index --skip-worktree "$D/cli/id.py"
 run "$C" "$PIN"
@@ -114,7 +101,6 @@ git -C "$C" update-index --assume-unchanged "$D/cli/id.py"
 run "$C" "$PIN"
 expect_refused "an assume-unchanged flag" "index flag h on"
 
-# --- the working folder ---------------------------------------------------------
 clone_case
 printf 'print("edited")\n' >"$C/$D/cli/id.py"
 run "$C" "$PIN"
@@ -143,7 +129,6 @@ printf '* filter=clean-me\n' >"$C/.git/info/attributes"
 run "$C" "$PIN"
 expect_refused "a filter attribute" "has a filter attribute"
 
-# --- replace refs ---------------------------------------------------------------
 clone_case
 printf 'print("swapped")\n' >"$C/$D/cli/id.py"
 git -C "$C" commit -q -am swapped
@@ -151,7 +136,6 @@ git -C "$C" replace "$PIN" HEAD
 run "$C" "$PIN"
 expect_refused "a replace ref standing in for the pin" "HEAD differs from the pin"
 
-# --- symlinks out of the folder -------------------------------------------------
 clone_case
 ln -s ../../../../README.md "$C/$D/cli/readme"
 git -C "$C" add -A

@@ -1,39 +1,4 @@
 #!/usr/bin/env bash
-# Reader for Cargo.toml.
-#
-# WHY. map-dependencies cites a Rust package's local path dependencies and the
-# packages a Cargo workspace names as members, and says so when a manifest
-# shape is one it does not read.
-#
-# Sourced, not executed. Executing it exits 2.
-#
-#   rust_manifest_records <Cargo.toml>
-#     One line per fact, tab separated:
-#       name<TAB>value                       [package] name
-#       workspace                            the file has a [workspace] table
-#       member<TAB>glob<TAB>declaration      a [workspace] members entry
-#       exclude<TAB>glob<TAB>declaration     a [workspace] exclude entry
-#       path<TAB>target<TAB>declaration<TAB>name
-#                                            a dependency with path =
-#       pkg<TAB>name<TAB>declaration         any other dependency (a package
-#                                            renamed with package = is read as
-#                                            its real name; case and _ fold)
-#       inherit<TAB>name<TAB>declaration     workspace = true
-#       wpath<TAB>target<TAB>declaration<TAB>name
-#       wpkg<TAB>name<TAB>real<TAB>declaration
-#                                            the same two shapes declared in
-#                                            [workspace.dependencies]
-#       unread<TAB>declaration               a shape this reader skips
-#     Read: [dependencies], [dev-dependencies], [build-dependencies] and
-#     [workspace.dependencies], written as name = "1", name = { ... },
-#     name.path = "..", or a [dependencies.name] table; [workspace] members and
-#     exclude arrays. Unread: any [target.*] dependency table, a path = under
-#     [patch] or [replace], a dependency value that is neither a string nor an
-#     inline table, an inline table split across lines, a members or exclude
-#     value that is not an array. Lines inside a multi-line string are skipped.
-#     Resolving inherit against wpath and wpkg is the collector's job.
-#
-# Portability: bash plus POSIX awk.
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.
