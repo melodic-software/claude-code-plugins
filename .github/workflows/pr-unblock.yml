@@ -129,7 +129,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         if: inputs.dispatcher-run-id != ''
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -212,7 +212,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -448,7 +448,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -557,7 +557,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -658,7 +658,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -804,7 +804,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -910,7 +910,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1135,7 +1135,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.sync.outputs.state == 'written'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/sync-shared-copies-patch/patch.diff
@@ -1184,7 +1184,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1337,7 +1337,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1463,7 +1463,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: |
@@ -1513,7 +1513,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1626,7 +1626,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1728,7 +1728,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1884,7 +1884,7 @@ jobs:
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: start
           role: pr-unblock
@@ -1898,7 +1898,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: skipped
           lane: adjudicate-feedback
@@ -1945,7 +1945,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -2024,7 +2024,7 @@ jobs:
       - name: Check the API key
         id: key
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: key
           role: pr-unblock
@@ -2035,7 +2035,7 @@ jobs:
       - name: Check the subscription token
         id: sub
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: subscription
           role: pr-unblock
@@ -2045,7 +2045,7 @@ jobs:
       - name: Check the fallback token
         id: fb
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: fallback
           role: pr-unblock
@@ -2055,7 +2055,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -2094,7 +2094,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2133,7 +2133,7 @@ jobs:
       - name: Upload disputed thread 0's sealed transcript
         if: always() && steps.judge-0.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2146,7 +2146,7 @@ jobs:
       - name: Record disputed thread 0's leg
         if: always() && steps.judge-0.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-0.outcome }}
           execution-file: ${{ steps.judge-0.outputs.execution-file }}
@@ -2166,7 +2166,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-0.outputs.handoff }}
@@ -2177,7 +2177,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2217,7 +2217,7 @@ jobs:
       - name: Upload disputed thread 0's sealed transcript on the subscription
         if: always() && steps.judge-0-subscription.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2230,7 +2230,7 @@ jobs:
       - name: Record disputed thread 0's leg on the subscription
         if: always() && steps.judge-0-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-0-subscription.outcome }}
           execution-file: ${{ steps.judge-0-subscription.outputs.execution-file }}
@@ -2251,7 +2251,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.next-0.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
@@ -2262,7 +2262,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2301,7 +2301,7 @@ jobs:
       - name: Upload disputed thread 0's sealed transcript on the fallback token
         if: always() && steps.judge-0-fallback.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2314,7 +2314,7 @@ jobs:
       - name: Record disputed thread 0's leg on the fallback token
         if: always() && steps.judge-0-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-0-fallback.outcome }}
           execution-file: ${{ steps.judge-0-fallback.outputs.execution-file }}
@@ -2355,7 +2355,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2394,7 +2394,7 @@ jobs:
       - name: Upload disputed thread 1's sealed transcript
         if: always() && steps.judge-1.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2407,7 +2407,7 @@ jobs:
       - name: Record disputed thread 1's leg
         if: always() && steps.judge-1.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-1.outcome }}
           execution-file: ${{ steps.judge-1.outputs.execution-file }}
@@ -2427,7 +2427,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-1.outputs.handoff }}
@@ -2438,7 +2438,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2478,7 +2478,7 @@ jobs:
       - name: Upload disputed thread 1's sealed transcript on the subscription
         if: always() && steps.judge-1-subscription.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2491,7 +2491,7 @@ jobs:
       - name: Record disputed thread 1's leg on the subscription
         if: always() && steps.judge-1-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-1-subscription.outcome }}
           execution-file: ${{ steps.judge-1-subscription.outputs.execution-file }}
@@ -2512,7 +2512,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.next-1.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
@@ -2523,7 +2523,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2562,7 +2562,7 @@ jobs:
       - name: Upload disputed thread 1's sealed transcript on the fallback token
         if: always() && steps.judge-1-fallback.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2575,7 +2575,7 @@ jobs:
       - name: Record disputed thread 1's leg on the fallback token
         if: always() && steps.judge-1-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-1-fallback.outcome }}
           execution-file: ${{ steps.judge-1-fallback.outputs.execution-file }}
@@ -2616,7 +2616,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2655,7 +2655,7 @@ jobs:
       - name: Upload disputed thread 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2668,7 +2668,7 @@ jobs:
       - name: Record disputed thread 2's leg
         if: always() && steps.judge-2.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -2688,7 +2688,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.key.outputs.state }}
           handoff: ${{ steps.judge-2.outputs.handoff }}
@@ -2699,7 +2699,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2739,7 +2739,7 @@ jobs:
       - name: Upload disputed thread 2's sealed transcript on the subscription
         if: always() && steps.judge-2-subscription.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2752,7 +2752,7 @@ jobs:
       - name: Record disputed thread 2's leg on the subscription
         if: always() && steps.judge-2-subscription.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-2-subscription.outcome }}
           execution-file: ${{ steps.judge-2-subscription.outputs.execution-file }}
@@ -2773,7 +2773,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.next-2.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
           handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
@@ -2784,7 +2784,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2823,7 +2823,7 @@ jobs:
       - name: Upload disputed thread 2's sealed transcript on the fallback token
         if: always() && steps.judge-2-fallback.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -2836,7 +2836,7 @@ jobs:
       - name: Record disputed thread 2's leg on the fallback token
         if: always() && steps.judge-2-fallback.outcome != 'skipped'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge-2-fallback.outcome }}
           execution-file: ${{ steps.judge-2-fallback.outputs.execution-file }}
@@ -2882,7 +2882,7 @@ jobs:
         if: always() && steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
@@ -2913,7 +2913,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.collect.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/adjudication/verdicts.json
@@ -3104,7 +3104,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3210,7 +3210,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.proceed == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: |
@@ -3233,7 +3233,7 @@ jobs:
       - name: Scan the pin patch for credentials
         id: scan-pin
         if: steps.select.outputs.pin-state == 'written'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-pin/patch.diff
@@ -3253,7 +3253,7 @@ jobs:
       - name: Scan the relock request for credentials
         id: scan-relock
         if: steps.select.outputs.relock-state == 'written'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-relock
@@ -3298,7 +3298,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3396,7 +3396,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3497,7 +3497,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3697,7 +3697,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3745,7 +3745,7 @@ jobs:
       - name: Scan the relock patch for credentials
         id: scan-pin
         if: steps.patch.outputs.pin-sha256 != ''
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-pin/patch.diff
@@ -3887,7 +3887,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -3939,7 +3939,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.context.outputs.proceed == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/ci-context/context.json
@@ -3985,7 +3985,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4086,7 +4086,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4190,7 +4190,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4375,7 +4375,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4475,7 +4475,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4602,7 +4602,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4742,7 +4742,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4935,7 +4935,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -4952,7 +4952,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -4980,7 +4980,7 @@ jobs:
         if: steps.credit-marker-resolve-conflicts.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-resolve-conflicts/run-id
@@ -5021,7 +5021,7 @@ jobs:
         if: steps.credit-marker-address-feedback.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-address-feedback/run-id
@@ -5062,7 +5062,7 @@ jobs:
         if: steps.credit-marker-review-dependency.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-review-dependency/run-id
@@ -5103,7 +5103,7 @@ jobs:
         if: steps.credit-marker-fix-ci.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-fix-ci/run-id
@@ -5144,7 +5144,7 @@ jobs:
         if: steps.credit-marker-fix-ci-rung-up.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@07df326dec55d0740f9b0dd885a2d09c09620deb # v0.82.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-fix-ci-rung-up/run-id

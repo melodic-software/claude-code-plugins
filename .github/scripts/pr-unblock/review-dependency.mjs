@@ -119,6 +119,14 @@ export function supersededOnly(annotations, headSha) {
   return failures.some(marks) && failures.every((message) => marks(message) || EXIT_LINE.test(message));
 }
 
+export const GATE_HOLD_SKIP = "gate-hold";
+const GATE_HOLD = /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/;
+export function gateHoldOnly(annotations, pr) {
+  const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
+  const holds = (message) => GATE_HOLD.exec(message)?.[1] === String(pr);
+  return failures.some(holds) && failures.every((message) => holds(message) || EXIT_LINE.test(message));
+}
+
 // The gate's check runs on a head, listed by `list(name)`: CI Status's, else
 // ci-status's on a head tested before the rename. Never its ci-status alias's
 // beside CI Status's: only CI Status carries the gate's annotations. Literals,
@@ -130,16 +138,17 @@ export async function gateCheckRuns(list) {
 
 // ciStatusOf, with a superseded contract-only failure read as pending. A
 // failed annotations read leaves the failure standing.
-export async function readCiStatus(api, headSha) {
+export async function readCiStatus(api, headSha, pr) {
   const runs = await gateCheckRuns((name) => api.listCheckRuns(headSha, name));
   const status = ciStatusOf(runs);
   if (status !== "failure") {
-    return status;
+    return { status, gateHold: false };
   }
   try {
-    return supersededOnly(await api.listAnnotations(newestOf(runs).id), headSha) ? "pending" : status;
+    const annotations = await api.listAnnotations(newestOf(runs).id);
+    return supersededOnly(annotations, headSha) ? { status: "pending", gateHold: false } : { status, gateHold: gateHoldOnly(annotations, pr) };
   } catch {
-    return status;
+    return { status, gateHold: false };
   }
 }
 
@@ -246,9 +255,10 @@ export async function select({
   }
   const files = await api.listPullFiles(pr);
   const commits = await api.listPullCommits(pr);
+  const gate = await readCiStatus(api, headSha, pr);
   const classification = await classifyPull({
     pull,
-    ciStatus: await readCiStatus(api, headSha),
+    ciStatus: gate.status,
     commits,
     files,
     config,
@@ -280,6 +290,9 @@ export async function select({
     }
   } catch (error) {
     relockError = error.message;
+  }
+  if (gate.gateHold) {
+    return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError };
   }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
@@ -462,6 +475,9 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     output("relock-state", "written");
     output("relock-sha256", createHash("sha256").update(request).digest("hex"));
     summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
+  }
+  if (result.gateHold) {
+    summary(`#${pr}: the only failing CI Status check is the trust-gate hold, which only a person on the trusted-actor list approving this head clears, so no dependency review ran and the update's content was not judged`);
   }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);

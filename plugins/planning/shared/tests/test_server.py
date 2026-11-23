@@ -115,8 +115,6 @@ class ServerCase(unittest.TestCase):
         self.port = self.app.guest_port
         self.owner = {"X-Owner-Token": self.app.secrets["owner"]}
 
-    # -- helpers -----------------------------------------------------------------------------
-
     def get(self, path, headers=None):
         return call(self.port, "GET", path, headers=headers)
 

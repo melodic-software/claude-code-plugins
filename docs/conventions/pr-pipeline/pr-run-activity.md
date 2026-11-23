@@ -681,7 +681,7 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/07df326dec55d0740f9b0dd885a2d09c09620deb/README.md)
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/README.md)
 (at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
@@ -1346,7 +1346,13 @@ warns of a [classifier gap](README.md#classifier-gaps).
    read-only token, reads the PR head, failing with no head output when the head is in another
    repository, resolves the slot (`applied-by-supported: patch dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
-   `not-applicable`; one whose head is no longer the head read skips `superseded-sha`.
+   `not-applicable`; one whose head is no longer the head read skips `superseded-sha`. One whose
+   only CI Status failure is the trust-gate hold (`#<n> is by an author no review lane reviews
+   and changes trust-gate paths`), which only a trusted approver clears, skips `gate-hold`
+   with no model turn and no escalation, so no human-gated label goes on (that label would keep
+   CI Status red after the approval); its step summary says the lane did not judge the update's
+   content. The dispatcher does not record that skip as handled: once CI Status passes on the
+   head it sends review-dependency again, and while CI Status stays red it sends nothing.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / review-dependency` check run that ended `success` or
