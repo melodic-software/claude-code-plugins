@@ -88,12 +88,17 @@ test("an earlier name is no other job's current name or id", () => {
 });
 
 test("a workflow names every job that calls a local workflow one of its named jobs calls", () => {
-  for (const [file, { jobs }] of Object.entries(REGISTRY.workflows)) {
+  const localCalls = (jobs) => new Set(Object.values(jobs).flatMap(({ calls }) => (calls?.startsWith("./") ? [calls] : [])));
+  const callingWorkflows = Object.entries(REGISTRY.workflows).filter(([, { jobs }]) => localCalls(jobs).size > 0);
+  assert.deepEqual(callingWorkflows.map(([file]) => file), ["pr-unblock.yml", "work-resolve-issue.yml"]);
+  for (const [file, { jobs }] of callingWorkflows) {
     const wf = parsed(file);
-    const called = new Set(Object.values(jobs).flatMap(({ calls }) => (calls?.startsWith("./") ? [calls] : [])));
-    for (const id of wf.ids) {
-      if (called.has(wf.uses(id))) assert.ok(id in jobs, `${file} job ${id} calls ${wf.uses(id)} and is not in the registry`);
-    }
+    const called = localCalls(jobs);
+    assert.deepEqual(
+      wf.ids.filter((id) => called.has(wf.uses(id))).sort(),
+      Object.keys(jobs).filter((id) => called.has(jobs[id].calls)).sort(),
+      `${file}: the jobs calling ${[...called].join(", ")} are the registry's`,
+    );
   }
 });
 
