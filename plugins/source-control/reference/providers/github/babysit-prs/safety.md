@@ -55,9 +55,20 @@ The spoke's queue read-back after a successful CLI merge reads these GraphQL fie
   [Understanding why your pull request was removed from the merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue#understanding-why-your-pull-request-was-removed-from-the-merge-queue)
   live.
 
-## Rerun a rate-limited review
+## Rerun a lane run
 
-Rerun the whole workflow run with `gh run rerun <run-id>`, never `gh run rerun --failed`.
+- A review lane run (PR Review, PR Review Security) the App started binds its second attempt only
+  when attempt 1 left no verdict: a kill switch or the upstream-status gate stopped it, it held or
+  failed on a rate limit, it failed on a rejected credential or a failed install, or an outage lost
+  it before the lane posted (`rerun_binds` in `babysit_review_evidence.py`). A third attempt never
+  binds.
+- Otherwise start a fresh App-triggered head with `gh pr update-branch <n>`. Never `gh run rerun`
+  an App-started lane run (PR Review, PR Review Security, pr-verify) whose attempt 1 reviewed the
+  head: attempt 2 runs on the owner login, and the gate refuses it as `evidence-unbound:<lane>`
+  with the reason `rerun-not-allowed`.
+- A rate-limited review reruns the whole workflow run (`gh run rerun <run-id>`), never
+  `gh run rerun --failed`: a status job that reads another job's output would re-read the cached
+  failed result.
 
 ## Resolve identity on a person-opened PR
 

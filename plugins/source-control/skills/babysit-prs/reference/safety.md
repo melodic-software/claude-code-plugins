@@ -862,7 +862,7 @@ sets none, then the reusable workflow's job.
   reusable, or a change to a lane caller's job id.
 
 To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
-([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-rate-limited-review)), never only its failed jobs. A failed-jobs rerun
+([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-lane-run)), never only its failed jobs. A failed-jobs rerun
 reruns the failed `-status` job alone, which re-reads the cached rate-limit output of the `review` job that succeeded and
 fails again.
 

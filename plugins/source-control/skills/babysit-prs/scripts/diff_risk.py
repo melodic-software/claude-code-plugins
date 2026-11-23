@@ -488,6 +488,11 @@ LANES: dict[str, tuple[str, Risk]] = {
     "claude-security-review": ("security-finding", Risk.HIGH),
 }
 _HOLDING_LANE = "claude-security-review"
+RERUN_NOT_ALLOWED = "rerun-not-allowed"
+RERUN_NOT_ALLOWED_FIX = (
+    "start a fresh App-triggered head with `gh pr update-branch <n>`, never a hand"
+    " `gh run rerun` of an App-started lane run, which puts attempt 2 on the owner login"
+)
 # The security lane's open findings below the holding tier: reported only.
 REPORTED_SECURITY_CODE = "findings:claude-security-review"
 
@@ -2318,6 +2323,8 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             parts = [] if bound else ["not bound"]
             if isinstance(unbound_reason, str) and unbound_reason:
                 parts.append(unbound_reason)
+                if unbound_reason == RERUN_NOT_ALLOWED:
+                    parts.append(RERUN_NOT_ALLOWED_FIX)
             elif unbound_reason is not None:
                 parts.append(f"unbound_reason {_show(unbound_reason)}")
             if bound and not _is_count(count):
