@@ -49,7 +49,8 @@ hard enough.>
 
 <Explicitly excluded, decided not to pursue. This ledger is for **scope**, not sharpness.
 Fog (cannot yet phrase the question) stays in Not-yet-specified and never moves here for being
-unphrasable, only by the user's explicit scope ruling at closure, recorded with its reason.
+unphrasable, only by the user's explicit scope ruling, in any work session or at closure,
+recorded with its reason.
 Recording an exclusion is itself a decision; note why. A wrongly scoped existing decision item
 is closed with one line here linking it; it does not get a Decisions-so-far pointer. That
 index is for resolved-in-scope decisions.>
