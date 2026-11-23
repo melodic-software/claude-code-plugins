@@ -68,9 +68,10 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   giving it `--profile <name>`, a flag the function adds (Claude Code's own flags:
   [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags)); with the function,
   `claude --resume <id>` resumes in the profile, since it runs `start --claude-args` for that
-  flag. `claude -c` continues the same conversation it would without the function, with the
-  folder's settings, and its start notice prints the `claude --resume <id>` that reopens it in
-  its profile. Tell them both forms.
+  flag. `claude -c` continues the same conversation it would without the function, in the
+  profile the folder's last session ran in, never with plugins a reopen added; when Claude Code
+  picks another conversation, its start notice says which profile it now runs in. Tell them both
+  forms.
 - **reopen with an off plugin**: in a one-session profile, the session-start hook gives the model
   the reopen line as context, at start and again after compaction (the notice the user sees does
   not carry it): `claude --resume <id>` with `--profile-add <plugin or plugin:skill>` added.
