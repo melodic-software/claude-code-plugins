@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-github-post-content.sh (guardrails plugin).
-#
-# Black-box: invokes the hook as a subprocess with a PreToolUse payload on
-# stdin and asserts on the exit code (2 = blocked, 0 = allowed), alone and
-# under the dispatcher behind block-fix-request-post, which reads the same
-# bodies through the shared library.
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json
@@ -21,7 +15,6 @@ jq_crlf_free
 unset CLAUDE_PLUGIN_OPTION_BLOCK_GITHUB_POST_CONTENT_ENABLED CLAUDE_PROJECT_DIR \
   CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED
 
-# Runtime-constructed obviously-fake values (never a literal joined string).
 GH_PREFIX='ghp_'
 TOK="${GH_PREFIX}$(printf 'x%.0s' {1..36})"
 HOME_PATH="/ho""me/alice/repos/project/notes.md"
@@ -44,7 +37,6 @@ verdict() {
   RCS="$rd $rr"
 }
 
-# deny <label> <command> <secret|path> [tool]
 deny() {
   verdict "$(payload "${4:-Bash}" "$2")"
   assert_eq "deny: $1 (direct, dispatched)" "2 2" "$RCS"
@@ -60,13 +52,11 @@ deny() {
   fi
 }
 
-# quiet <label> <command> [tool]
 quiet() {
   verdict "$(payload "${3:-Bash}" "$2")"
   assert_eq "quiet: $1 (direct, dispatched)" "0 0" "$RCS"
 }
 
-# --- secrets ------------------------------------------------------------------
 deny "gh pr comment --body" "gh pr comment 12 --body \"token $TOK\"" secret
 deny "gate.sh-wrapped gh pr comment --body" "$WRAP gh pr comment 12 -R o/r --body \"token $TOK\"" secret
 deny "gate.sh batch, second command" "bash ./gate.sh batch k -- gh pr edit 1 --add-label x +++ gh issue comment 3 --body 'x $TOK'" secret
@@ -87,7 +77,6 @@ deny "curl POST to the API" "curl -X POST https://api.github.com/repos/o/r/issue
 deny "bash -c wrapper" "bash -c 'gh pr comment 1 --body \"$TOK\"'" secret
 deny "PowerShell gh pr comment" "gh pr comment 12 --body '$TOK'" secret PowerShell
 
-# --- machine paths -----------------------------------------------------------
 deny "gh pr comment --body naming a home path" "gh pr comment 12 --body 'log at $HOME_PATH'" path
 deny "body file naming a home path" "gh pr comment 12 --body-file path.md" path
 printf 'Summary.\n' >"$WD/s"
@@ -97,12 +86,9 @@ deny "wrapped heredoc naming a home path" "$WRAP gh issue comment 3 --body-file 
 see $HOME_PATH
 EOF" path
 
-# --- stays quiet -------------------------------------------------------------
 quiet "clean body" "gh pr comment 12 --body 'Looks good to me.'"
 quiet "gate.sh-wrapped clean body under a home-dir wrapper path" "$WRAP gh pr comment 12 --body 'Looks good.'"
 quiet "absolute --body-file holding a clean body" "$WRAP gh pr comment 12 --body-file $WD/plain.md"
-# A body file that does not exist yet sends the whole command to the secret
-# scan; its home-dir operand must still not reach the path scan.
 quiet "home-dir --body-file operand" "$WRAP gh pr comment 12 --body-file /ho""me/alice/body.md"
 quiet "token in a command that posts nothing" "grep -rn '$TOK' ."
 quiet "token in an env prefix, not the body" "GH_TOKEN=$TOK gh pr comment 12 --body 'ok'"
@@ -120,9 +106,6 @@ quiet "home-dir body file joined to curl -d@" "curl -d@/ho""me/alice/r/body.json
 quiet "token in an Authorization header, clean body" "curl -X POST -H 'Authorization: Bearer $TOK' -d '{\"body\":\"Looks good\"}' https://api.github.com/repos/o/r/issues/1/comments"
 quiet "token sent to another host" "curl -d '$TOK' https://example.test/hook"
 
-# --- --attach ----------------------------------------------------------------
-# gh uploads an --attach file and posts its alt text (after `#`) or its base
-# name, never its directory.
 AHP="/ho""me/alice/wt"
 AWP='C:\Use''rs\alice\proj'
 quiet "attach beside a body file" "gh pr edit 5340 --repo o/r --body-file plain.md --attach $AHP/evidence/figma/built-banner-resized.png"
@@ -134,9 +117,6 @@ quiet "attach beside a body in a variable" "gh pr comment 5340 --body \"\$X\" --
 quiet "attach in a gate.sh wrapper" "bash ./gate.sh run k -- gh pr comment 1 --body ok --attach $AHP/a.png"
 quiet "attach in bash -c" "bash -c 'gh pr comment 1 --body ok --attach $AHP/a.png'"
 quiet "attach on pr review" "gh pr review 5340 --body ok --attach $AHP/a.png"
-# Under the PowerShell tool every --attach operand is judged whole: its
-# argument passing to a native command can change the words gh receives. These
-# pin that fail-closed behavior for a Windows home source path.
 deny "PowerShell attach judged whole: single-quoted Windows home operand" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png'" path PowerShell
 deny "PowerShell attach judged whole: Windows home operand with alt text" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png#shot'" path PowerShell
 deny "PowerShell attach judged whole: doubled-quote escape in an earlier word" "gh pr comment 1 --body \"a\"\"b\" --repo o/r --attach='$AWP\\x.png'" path PowerShell
@@ -152,9 +132,6 @@ CLAUDE_PROJECT_DIR="$PROJ" deny "the project root in attach alt text" "gh pr edi
 CLAUDE_PROJECT_DIR="$PROJ" deny "the project root in the body beside an attach" "gh pr edit 1 --body 'built in $PROJ' --attach $PROJ/evidence/a.png" path
 deny "home path in attach alt text" "gh pr comment 1 --attach '$AHP/evidence/a.png#built at $AHP'" path
 deny "attach adjacent alt home path" "gh pr comment 1 --attach './x.png#$AHP/alt'" path
-# A home path after a character outside the path pattern's left boundary (a
-# second `#`, `,`, a letter) does not match alone, so an alt text holding a
-# slash is judged with the whole operand.
 deny "attach alt home path after a second #" "gh pr comment 1 --body ok --attach '$AHP/x.png#a#$AHP/log'" path
 deny "attach alt home path after a comma" "gh pr comment 1 --body ok --attach '$AHP/x.png#log,$AHP/log'" path
 deny "joined attach alt home path after a second #" "gh pr comment 1 --body ok --attach=$AHP/x.png#a#$AHP/log" path
@@ -175,8 +152,6 @@ deny "body value spelled --attach=" "gh pr comment 1 --body '--attach=$AHP/a.png
 deny "--attach= word taken as the --body value" "gh pr comment 1 --body --attach=$AHP/a.png" path
 deny "--attach= word taken as the -b value" "gh pr comment 1 -b --attach=$AHP/a.png" path
 deny "--attach= word taken as the --title value" "gh issue create --body ok --title --attach=$AHP/a.png" path
-# A word before a joined --attach= that vanishes or splits at run time leaves
-# a value-taking flag right before it, which posts the whole word.
 deny "joined attach after an empty variable" "gh pr comment 1 --body \$E --attach=$AHP/x.png" path
 deny "joined attach after an IFS split" "gh issue create --title x\$IFS--body --attach=$AHP/x.png" path
 deny "joined attach after a brace expansion" "gh issue create --title {x,--body} --attach=$AHP/x.png" path
@@ -185,9 +160,6 @@ deny "joined attach after an empty backtick substitution" "gh pr comment 1 --bod
 deny "joined attach after an empty \$( ) substitution" "gh pr comment 1 --body \$(true) --attach=$AHP/x.png" path
 deny "joined attach after \$null" "gh pr comment 1 --body \$null --attach='$AWP\\x.png'" path PowerShell
 deny "joined attach after an empty string PowerShell may drop" "gh pr comment 1 --body '' --attach='$AWP\\x.png'" path PowerShell
-# Under PowerShell's legacy native argument passing an embedded `"` is not
-# escaped, so it can split a word or join later words, the attach operand
-# included, into one posted value.
 deny "PowerShell double quote in the body before a joined attach" "gh pr comment 1 --body 'x\" \"--body' --attach='$AWP\\x.png'" path PowerShell
 deny "PowerShell double quote in a spaced attach operand" "gh pr comment 1 --attach './x.png\" \"--body=$AWP\\log'" path PowerShell
 deny "PowerShell double quote in a joined attach operand" "gh pr comment 1 --body ok --attach='./x.png\" \"--body=$AWP\\log'" path PowerShell
@@ -206,7 +178,6 @@ deny "PowerShell attach array carrying a body" "gh pr comment 1 --attach './x.pn
 deny "token in attach alt text" "gh pr comment 1 --body ok --attach '$AHP/a.png#alt $TOK'" secret
 deny "token in the attached file's name" "gh pr comment 1 --body ok --attach '$AHP/$TOK.png'" secret
 
-# --- switches and input ------------------------------------------------------
 rc=0
 CLAUDE_PLUGIN_OPTION_BLOCK_GITHUB_POST_CONTENT_ENABLED=false bash "$HOOK" <<<"$(payload Bash "gh pr comment 1 --body '$TOK'")" >/dev/null 2>&1 || rc=$?
 assert_exit "kill switch false disables the guard" 0 "$rc"
@@ -224,8 +195,6 @@ assert_exit "empty stdin is a skip" 0 "$rc"
 rc=0
 bash "$HOOK" <<<"not json" >/dev/null 2>&1 || rc=$?
 assert_exit "text that is not JSON fails closed" 2 "$rc"
-# JSON whose fields jq cannot read gets past the stdin read and is refused by
-# the field read. A NUL in a harmless command is refused there too.
 guard_invoke --hook "$HOOK" --payload '{"tool_name":"Bash","tool_input":"gh pr comment 1"}'
 assert_exit "a payload whose fields jq cannot read fails closed" 2 "$GUARD_RC"
 assert_eq "unreadable fields: the refusal says why" \

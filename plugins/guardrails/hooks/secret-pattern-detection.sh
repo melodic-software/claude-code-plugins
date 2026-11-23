@@ -1,71 +1,21 @@
 #!/usr/bin/env bash
-# PreToolUse hook: detect secret/credential patterns before file writes.
-# Triggered on Write|Edit|NotebookEdit of any file.
-#
-# BLOCKING: exits 2 when high-confidence secret patterns (API keys, tokens,
-# private keys) are detected in new content. Stderr feedback tells Claude what
-# was found and how to fix it.
-#
-# Pattern selection: only HIGH-confidence patterns with distinctive prefixes
-# and fixed lengths. Generic patterns (password=, api_key=, secret=) are
-# excluded — too many false positives for a real-time blocking hook. Sourced
-# from gitleaks, TruffleHog, and secrets-patterns-db.
-#
-# Cross-platform: uses grep -E (POSIX ERE) only — no grep -P (macOS lacks it).
-#
-# Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
-# repo's concern) only when that root is a git work tree that is not home or an
-# ancestor of home; any other root scans every write, as if unset. A file under
-# a host temp tree is declined when a set root lies outside that tree (see
-# spd_temp_declines). A generic allowlist exempts dependency caches, .env
-# examples, test fixtures, and
-# machine-local CC state. Two opt-in userConfig options exempt a local write
-# that holds a token: secret_pattern_detection_allowed_roots and
-# secret_pattern_detection_skip_gitignored (see "The user's path exemptions"
-# below). Disable
-# entirely with the secret_pattern_detection_enabled userConfig option set to
-# false.
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 (allow) and 2 (block) pass through. Fail-open is the status
-# quo on abort for this guard too; it is now announced on both channels so a
-# write that went unscanned for secrets is never a silent one. A maintainer
-# who wants an unscanned write denied instead flips this one word to closed.
 guard::abort_boundary secret-pattern-detection PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# Bundled pattern lib — resolved under the plugin root (CC sets
-# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
-# when it is unset). Shared with git-hooks/pre-commit-content.sh
-# so Write|Edit and the write-path-independent pre-commit layer cannot drift.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
 # shellcheck source=../lib/secret-detection/secret-patterns.sh
 source "$PLUGIN_ROOT/lib/secret-detection/secret-patterns.sh"
 
-# High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
@@ -105,18 +55,11 @@ hook::jq_fields "$INPUT" \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
   '.tool_input.path' '.tool_input.notebook_path' || exit 0
 
-# A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
-# text across the byte, so a clean scan would not reflect the bytes carried. One
-# refusal, reached from the envelope below and from each file of the MCP lane, so
-# the two cannot drift to different wording or a different posture.
 secret_nul_refusal() {
   guard::refuse_nul
   exit 2
 }
 
-# The fix line both lanes print. The allowlist is fixed globs in this file, and
-# the path options are the user's to set, so a fixture that trips it is the
-# user's call and the line names no option.
 SECRET_FIX="Remove the value; use an environment variable, settings.local.json or a secret manager. For a test fixture, ask the user."
 
 if ((HOOK_JQ_FIELDS_NUL)); then
@@ -125,25 +68,18 @@ fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
 
-# 0 when <slash-normalized path> is allowlisted. A function rather than the
-# inline case it replaced because the MCP lane asks the same question of a
-# repo-relative path: one list, two callers, no chance of the remote write path
-# drifting to a different set of holes than the local one.
 secret_path_allowlisted() {
   case "$1" in
   *.claude/hooks/*) return 0 ;;
   *settings.local.json) return 0 ;;
   *CLAUDE.local.md) return 0 ;;
-  # Dependency caches — anchored to a path-segment boundary (leading `/` or start
-  # of path) so a directory that merely CONTAINS the name (evil_node_modules/,
-  # .venv-backup/) is NOT exempted from the scan.
   */.venv/* | .venv/*) return 0 ;;
   */node_modules/* | node_modules/*) return 0 ;;
   *.env.example | *.env.sample | *.env.template) return 0 ;;
   *tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) return 0 ;;
   *.claude/skills/*/context/*) return 0 ;;
   *.claude/skills/*/completed/*) return 0 ;;
-  *) return 1 ;; # proceed to content check
+  *) return 1 ;;
   esac
 }
 
@@ -162,8 +98,6 @@ secret_path_allowlisted() {
 # shellcheck disable=SC2154  # scan_out and labels are the caller's frame, per the call contract
 secret_scan() {
   local line
-  # Clean content, the common case, is decided in this shell: the capture's
-  # subshell is paid only when a pattern matched.
   scan_out=""
   secrets::any_match "$1" || return 0
   scan_out=$(
@@ -178,7 +112,6 @@ secret_scan() {
   done < <(printf '%s' "$scan_out")
 }
 
-# spd_send_tel <status> <file> <labels JSON array>: the envelope both lanes emit.
 spd_send_tel() {
   local data
   data=$(jq -n --arg file "$2" --argjson violations "$3" \
@@ -208,25 +141,16 @@ spd_send_tel() {
 mcp_lane() {
   local count=1 i path content violations="" first_offender="" scan_out
   local -a labels=()
-  # Captured before any further hook::jq_fields call: that helper overwrites
-  # HOOK_JQ_FIELDS in place, and the single-file shape's values are already in
-  # the array this function was reached through.
   local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
 
   if [[ "$TOOL" == *__push_files ]]; then
     hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
     count="${HOOK_JQ_FIELDS[0]}"
-    # A payload whose files array is absent or unreadable carries nothing this
-    # guard can scan; `null` and a non-numeric answer both land here.
     [[ "$count" =~ ^[0-9]+$ ]] || return 0
   fi
 
   for ((i = 0; i < count; i++)); do
     if [[ "$TOOL" == *__push_files ]]; then
-      # One jq process per file, on a lane that fires only on a GitHub MCP write
-      # — never on the Write/Edit path this guard runs on for every keystroke of
-      # authored content. Reusing hook::jq_fields rather than hand-rolling an
-      # extraction keeps this lane's NUL handling the same as the envelope's.
       hook::jq_fields "$INPUT" ".tool_input.files[$i].path" ".tool_input.files[$i].content" || continue
       path="${HOOK_JQ_FIELDS[0]}"
       content="${HOOK_JQ_FIELDS[1]}"
@@ -235,8 +159,6 @@ mcp_lane() {
       content="$single_content"
     fi
 
-    # Same fail-closed posture as the envelope: a NUL in scanned content means a
-    # clean scan would not reflect the bytes carried.
     if ((HOOK_JQ_FIELDS_NUL)); then
       secret_nul_refusal
     fi
@@ -262,9 +184,6 @@ mcp_lane() {
   if [[ -n "$start" ]] && hook::telemetry_enabled; then
     local labels_json
     labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
-    # `file` carries the repo-relative path the MCP call named. It is authored
-    # content, not a local filesystem path, so it embeds no username and needs
-    # none of hook::repo_relative_path_to's redaction.
     spd_send_tel "blocked" "$first_offender" "$labels_json"
   fi
   exit 2
@@ -285,17 +204,12 @@ Write | Edit | NotebookEdit) ;;
 # mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
 mcp__github__push_files | mcp__github__create_or_update_file | \
   mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file)
-  # The MCP lane resolves its own paths and content per file and never touches
-  # the local filesystem, so it runs before the local-write handling below. See
-  # mcp_lane for what it deliberately does not reuse.
   mcp_lane
   exit 0
   ;;
 *) exit 0 ;;
 esac
 
-# NotebookEdit sends its target as notebook_path; file_path is read only when
-# notebook_path is empty.
 FILE="${HOOK_JQ_FIELDS[1]}"
 [[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
@@ -303,36 +217,8 @@ FILE="${HOOK_JQ_FIELDS[1]}"
 NORM_FILE=""
 hook::normalize_path_to NORM_FILE "$FILE"
 
-# Case-preserved, slash-normalized path for the allowlist globs below. On
-# Windows hook::normalize_path_to lower-cases the remainder so the membership
-# comparison is effectively case-insensitive; reusing that folded value for the
-# case-sensitive allowlist would silently break the upper-case patterns
-# (CLAUDE.local.md). The allowlist globs are suffix/substring matches, so a
-# plain backslash→slash fixup is enough — the drive letter never participates.
 ALLOW_FILE="${FILE//\\//}"
 
-# --- Scope guard: police only files inside THIS project ---
-# A PreToolUse Write|Edit hook fires on every file write regardless of which
-# repo the target lives in. A file outside the project root is not ours to scan:
-# that repo owns its own secret policy. Fail CLOSED: when the root cannot be
-# resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
-#
-# A SET root is honored only when it names a project; otherwise it is cleared
-# and treated as unset, which only scans more. Claude Code sets the variable to
-# the session's start directory, which may be home or any folder. Cleared:
-#   - a relative root, or one spelled with `//`, `/./`, `/../`, a trailing `/.`
-#     or `/..`, or `~` (an 8.3 name such as PROGRA~1): such a root cannot be
-#     compared with the file path as a string.
-#   - a root that is not a git work tree: its .git holds HEAD, or is a file
-#     whose first line is `gitdir:` (a linked worktree or submodule).
-#   - a root when neither HOME nor USERPROFILE is set: home is unknown.
-#   - home, or an ancestor of home, as a string or as the same directory under
-#     another path (a link, a case or drive spelling): it contains every other
-#     checkout on the machine. The ancestors walked are those of home as
-#     spelled, not of a symlinked home's resolved target.
-# Every test is a builtin, so the check stays fork-free.
-# The temp-tree decline below reads CLAUDE_PROJECT_DIR directly, so a root
-# cleared here (home, non-git) still declines a temp-tree file outside it.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"
 PROJECT_DIR=""
@@ -358,8 +244,6 @@ if [[ -n "$spd_scope_root" ]]; then
   spd_home=""
   hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
   [[ -z "$spd_home" || "$spd_home/" == "$PROJECT_DIR"/* ]] && spd_keep=0
-  # Each home candidate and each of its parents, compared as a directory. The
-  # walk drops one path component per step, so it ends within the path's depth.
   spd_prev=""
   for spd_h in "${HOME:-}" "${USERPROFILE:-}"; do
     ((spd_keep)) || break
@@ -382,49 +266,24 @@ if [[ -n "$spd_scope_root" ]]; then
 fi
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
-  "$PROJECT_DIR"/*) ;; # inside the project — proceed
-  *) exit 0 ;;         # outside the project — not this hook's concern
+  "$PROJECT_DIR"/*) ;;
+  *) exit 0 ;;
   esac
 fi
 
-# --- Allowlist: files that legitimately contain secret patterns ---
-# Each entry grants a narrow hole — keep it tight:
-#   - hook scripts: contain regex strings for the patterns themselves
-#   - settings.local.json / CLAUDE.local.md: gitignored, designed for real secrets
-#   - .venv / node_modules: gitignored dependency caches
-#   - .env.example/sample/template: placeholder format; the patterns require
-#     10+ chars after prefix so `sk_test_xxx`-style placeholders don't match
-#   - tests/fixtures, tests/testdata: scoped to test trees only
-#   - CC skill context/completed: research notes; code review is the backstop
 secret_path_allowlisted "$ALLOW_FILE" && exit 0
 
-# --- Temp-tree decline ---
-# A write into a host temp tree is declined when the project root is known and
-# outside that tree: root set, spelled as a normalized absolute path, and under
-# temp neither lexically nor physically; target under temp both as spelled and
-# once its nearest existing ancestor is physically resolved, so a link under
-# temp pointing elsewhere is still scanned. Everything up to the resolve step
-# is a builtin, so a target with no temp-looking component spawns no resolver
-# process. On Windows an 8.3 short-name spelling of a temp path declines too
-# (#4678): matched against a temp candidate's own spelling, then decided on its
-# resolved, fully expanded form.
 
 spd_win=0
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) spd_win=1 ;;
-*) ;; # POSIX host
+*) ;;
 esac
 
-# spd_lower_to <var> <text>: <text> lowercased into <var>. Defined through eval
-# and only on Bash 4+, so a 3.2 shell never parses the `,,` expansion.
 if ((BASH_VERSINFO[0] >= 4)); then
   eval 'spd_lower_to() { printf -v "$1" "%s" "${2,,}"; }'
 fi
 
-# spd_under_temp <path>: hook::under_temp_root, and on a POSIX host also on the
-# lowercased spelling, so a target declines only when both spellings fall under
-# a temp candidate, which keeps its case. On Windows the library's normalization
-# already folds case. Below Bash 4 a spelling with a capital is refused instead.
 spd_under_temp() {
   local lower
   hook::under_temp_root "$1" || return 1
@@ -437,11 +296,6 @@ spd_under_temp() {
   hook::under_temp_root "$lower"
 }
 
-# spd_nearest_existing <absolute path>: its nearest existing ancestor in
-# spd_ancestor and the components below it in spd_sfx; returns 1 when none exists.
-# A strip that does not shorten the string ends the walk, so a spelling such as
-# `Z:` terminates. `-e` on a disconnected mapped drive may stall; it is reached
-# only after the lexical pre-match hit.
 spd_ancestor=""
 spd_sfx=""
 spd_nearest_existing() {
@@ -461,9 +315,6 @@ spd_nearest_existing() {
   return 1
 }
 
-# spd_one_link <path>: 1 when <path> is an existing file with a second hard link
-# or a link count that cannot be read. A hard link resolves to itself, so its
-# name says nothing about where the bytes are stored.
 spd_one_link() {
   local links
   [[ -f "$1" ]] || return 0
@@ -471,10 +322,6 @@ spd_one_link() {
   [[ "$links" == 1 ]]
 }
 
-# spd_short_spelling <path>: 0 when every component of <path> that carries `~`
-# has the 8.3 short-name shape (`NAME~N` or `NAME~N.EXT`, base at most eight
-# characters, extension at most three), so `~`, `~user`, `~+`, `x~` and `a~b`
-# components refuse.
 spd_short_re='^([A-Za-z0-9_-]+~[1-9][0-9]*)(\.[A-Za-z0-9_-]{1,3})?$'
 spd_short_spelling() {
   local rest="$1" comp
@@ -488,14 +335,9 @@ spd_short_spelling() {
   return 0
 }
 
-# spd_temp_declines <file_path>: 0 when the write is declined.
 spd_temp_declines() {
   local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys
   local short=0 chars full custom
-  # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
-  # and `/c/x` to other places than Git Bash does, so only a drive spelling may
-  # decline there. On POSIX `\` is a filename byte, never a separator, and below
-  # Bash 4 a capital cannot be folded for spd_under_temp's lowercased compare.
   if ((spd_win)); then
     t="${t//\\//}"
     r="${r//\\//}"
@@ -504,12 +346,6 @@ spd_temp_declines() {
     [[ "$t$r" == *\\* || "$t" != /?* ]] && return 1
     ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
   fi
-  # Only a spelling a Bash redirect could carry as a BARE operand may decline,
-  # so a character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`,
-  # `>`, parens, `#`, `$`, a backtick, a glob character) refuses here. An
-  # allowlist, so an unlisted character scans. `~` is refused, except on Windows
-  # in an 8.3 short-name component (#4678). Unnormalized segments are refused
-  # below.
   chars="$t"
   if [[ "$t" == *'~'* ]]; then
     ((spd_win)) || return 1
@@ -520,17 +356,8 @@ spd_temp_declines() {
   [[ "$chars" == *[!A-Za-z0-9._/:+,=@%-]* ]] && return 1
   case "$t" in
   *//* | */./* | */../* | */. | */..) return 1 ;;
-  *) ;; # a normalized spelling
+  *) ;;
   esac
-  # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
-  # temp candidate's spelling. It may over-match (costing resolver processes)
-  # and never decides alone. A short-name spelling must match a candidate's own
-  # spelling, which is the only one it can carry, so a miss spends no resolver.
-  # The cygpath drive spellings cost a process each on Windows, so a short-name
-  # spelling pays for them here and any other target pre-matches on the
-  # environment's spellings first. The full set follows a hit, and follows a
-  # miss when a candidate has no tmp or temp component, since a target spelled
-  # under such a custom root carries no component to match either.
   full=$short
   shopt -q nocasematch && nocase=1
   shopt -s nocasematch
@@ -539,14 +366,14 @@ spd_temp_declines() {
     if ((!short)); then
       case "$t" in
       */tmp/* | */temp/*) hit=1 ;;
-      *) ;; # try the candidates' spellings below
+      *) ;;
       esac
     fi
     custom=0
     for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
       case "$cand" in
       */tmp | */tmp/* | */temp | */temp/*) ;;
-      *) custom=1 ;; # a root no component match can reach
+      *) custom=1 ;;
       esac
       ((hit)) && continue
       hook::normalize_path_to norm "$cand"
@@ -559,12 +386,10 @@ spd_temp_declines() {
   ((nocase)) || shopt -u nocasematch
   ((hit)) || return 1
   if ((spd_win && !full)); then hook::_temp_root_candidates; fi
-  # 3. Root gate: an absolute, normalized spelling with no `$`, backtick, `~` or
-  # glob character, and not a filesystem or drive root.
   [[ -n "$r" ]] || return 1
   case "$r" in
   *'$'* | *'`'* | *~* | *'*'* | *'?'* | *'['* | *//* | */./* | */../* | */. | */..) return 1 ;;
-  *) ;; # a normalized spelling
+  *) ;;
   esac
   if ((spd_win)); then
     [[ "$r" == /?* || "$r" == [A-Za-z]:/?* ]] || return 1
@@ -573,8 +398,6 @@ spd_temp_declines() {
   fi
   r="${r%/}"
   ((spd_win)) && [[ "$r" == /[A-Za-z] ]] && return 1
-  # 4-5. Root not under temp, as spelled or physically. Only directories enter
-  # the resolver cache: the root's existing ancestor and the temp candidates.
   spd_nearest_existing "$r" && ranc="$spd_ancestor"
   rsfx="$spd_sfx"
   hook::_physical_prime ${ranc:+"$ranc"} ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
@@ -583,55 +406,31 @@ spd_temp_declines() {
     hook::_physical_cached_to phys "$ranc" || return 1
     hook::under_temp_root "${phys%/}$rsfx" && return 1
   fi
-  # 6. Target under temp as spelled. For a short-name spelling that is the
-  # candidate match in step 2: the resolved temp roots carry long names only.
   ((short)) || spd_under_temp "$t" || return 1
-  # A temp-tree name for a hard link to a file stored elsewhere passes every
-  # path test, so such a file is scanned.
   spd_one_link "$t" || return 1
-  # 7. Target under temp physically, resolved without the cache so the file's
-  # own path never enters it.
   spd_nearest_existing "$t" || return 1
   hook::physical_path_to phys "$spd_ancestor" || return 1
-  # A short-name spelling is decided on its resolved form, which must be fully
-  # expanded: a short component nothing by that name backs keeps its `~` and
-  # scans.
   if ((short)); then
     case "${phys%/}$spd_sfx" in
     *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['*) return 1 ;;
-    *) ;; # fully expanded
+    *) ;;
     esac
   fi
   spd_under_temp "${phys%/}$spd_sfx"
 }
 spd_temp_declines "$FILE" && exit 0
 
-# --- Extract content to check ---
 case "$TOOL" in
 Write) CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
 NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
-*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
+*) exit 0 ;;
 esac
 [[ -n "$CONTENT" ]] || exit 0
 
-# Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
-# high-res start stamp and the opt-in sink — the unwired path spawns nothing,
-# which is also why the repo-relative path is resolved in here rather than at
-# the top level: the default unwired run never pays for it.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # The helper carries the redaction: a path it could not make repo-relative
-  # comes back as the basename, never an absolute path (which would embed the
-  # developer's username) and never a UNC share (which would name an internal
-  # host). data.file is anchored on the root the scope guard validated, so it
-  # is repo-relative to the project when that root was honored. When the root
-  # was unset or cleared as untrustworthy, the hook scans on without one, and
-  # an unanchored path can only degrade to a bare basename, so resolve the
-  # file's own checkout for that case. The envelope's project-dir argument
-  # stays the raw CLAUDE_PROJECT_DIR: it records what the harness set, not
-  # what this guard decided to honor.
   local file_rel root="$spd_scope_root"
   # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
   # is a fork per call on Windows Git Bash and this guard runs on every write.
@@ -641,17 +440,12 @@ emit_tel() {
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
-  # hook::repo_root_to returns the hint unchanged when git finds no repo, and
-  # the hint ends in "/" for a root-level file; the helper strips "$root/".
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"
   spd_send_tel "$1" "$file_rel" "$2"
 }
 
-# --- High-confidence secret patterns (shared lib) ---------------------------
-# Patterns + scan live in lib/secret-detection/secret-patterns.sh so the
-# pre-commit content-invariants hook enforces the same set (#2731).
 labels=()
 scan_out=""
 secret_scan "$CONTENT"
@@ -660,25 +454,7 @@ if [[ -z "$scan_out" ]]; then
   exit 0
 fi
 
-# --- The user's path exemptions ---------------------------------------------
-# secret_pattern_detection_allowed_roots and
-# secret_pattern_detection_skip_gitignored exempt a local write the scan just
-# caught. Both are off by default, and then this block starts no process. They
-# are read from the hook's own environment (userConfig), never from the
-# payload, so only the user grants them. They are judged after the scan rather
-# than before it, so a write holding no token never pays to resolve its target.
-# The MCP lane exited above and never reaches here: its content leaves the
-# machine. git-hooks/pre-commit-content.sh reads neither option, so a commit
-# that adds an exempted file is still judged where that git hook is installed.
 
-# spd_exempt_target <file_path>: 0 when the exemptions may judge <file_path>,
-# with its slash spelling in spd_et. Refused: a relative path; on Windows any
-# spelling but a drive path, since the Write tool is Node and resolves `/c/x`
-# elsewhere than Git Bash does; on POSIX a backslash, a filename byte there; an
-# empty, `.` or `..` segment, so a target that reaches a root only through `..`
-# is never judged under it; a line break; and an existing file with a second
-# hard link or an unreadable link count, whose name says nothing about where
-# its bytes are stored.
 spd_et=""
 spd_exempt_target() {
   local t="$1"
@@ -691,15 +467,12 @@ spd_exempt_target() {
   fi
   case "$t" in
   *//* | */./* | */../* | */. | */.. | *[$'\n\r']*) return 1 ;;
-  *) ;; # a normalized spelling
+  *) ;;
   esac
   spd_one_link "$t" || return 1
   spd_et="$t"
 }
 
-# spd_exempt_anchor <absolute path>: spd_nearest_existing, ending at `/` when
-# nothing below it exists, and with a `C:` ancestor read as `C:/`: `C:` names
-# the drive's current directory, not its root.
 spd_exempt_anchor() {
   if ! spd_nearest_existing "$1"; then
     [[ "$1" == /* ]] || return 1
@@ -710,13 +483,6 @@ spd_exempt_anchor() {
   return 0
 }
 
-# spd_cmp_to <var> <physical path>: the spelling two paths are compared in,
-# hook::normalize_path_to's drive and case fold with no trailing slash. On
-# Windows a resolver answer under a mount (`/tmp/...`) is first mapped to its
-# long drive spelling with cygpath, since realpath answers in whichever
-# spelling the mount table gives; returns 1 when it cannot be. On POSIX a
-# backslash is a filename byte the fold would read as a separator, so a path
-# holding one is never compared.
 spd_cmp_to() {
   local __sc_p="$2"
   [[ "$__sc_p" != *[$'\n\r']* ]] || return 1
@@ -733,9 +499,6 @@ spd_cmp_to() {
   printf -v "$1" '%s' "$__sc_p"
 }
 
-# spd_canon_to <var> <existing directory>: its physical form, compared as
-# spd_cmp_to spells it. Returns 1 when it cannot be resolved, or when the
-# answer names another directory (a capture drops a trailing newline).
 spd_canon_to() {
   local __sc_r
   hook::_physical_cached_to __sc_r "$2" || return 1
@@ -743,14 +506,6 @@ spd_canon_to() {
   spd_cmp_to "$1" "$__sc_r"
 }
 
-# spd_under_allowed_root: 0 when the real path of spd_et is strictly under an
-# entry of secret_pattern_detection_allowed_roots, so a link under a root that
-# points outside it is scanned and a link outside that lands under one is not.
-# An entry grants nothing when it is empty, relative, UNC, a drive path on a
-# host without drives, holds a glob character, a line break or a `..`
-# component, is not an existing directory, or resolves to a filesystem root, a
-# home directory or a directory holding one. With no home set, or one that
-# cannot be resolved, no entry can be shown not to hold home and none grants.
 spd_under_allowed_root() {
   local roots="$spd_opt_roots" c r h a t phys held
   local -a cand=() homes=()
@@ -782,11 +537,6 @@ spd_under_allowed_root() {
     spd_canon_to held "$h" || return 1
     held_homes+=("$held")
   done
-  # The target, resolved without the cache so the file's own path never enters
-  # it: its nearest existing ancestor physically, the rest as spelled. Only the
-  # ancestor goes to spd_cmp_to's cygpath: a resolver answer in a mount spelling
-  # (a junction into /tmp) gets its long names only for a path that exists, so
-  # the components below are joined after it.
   spd_exempt_anchor "$spd_et" || return 1
   hook::physical_path_to phys "$spd_ancestor" || return 1
   [[ "$phys" -ef "$spd_ancestor" ]] || return 1
@@ -795,8 +545,6 @@ spd_under_allowed_root() {
   for c in "${cand[@]}"; do
     spd_canon_to r "$c" || continue
     [[ "$r" == / || "$r" =~ ^[A-Za-z]:/?$ || "$r" =~ ^/[A-Za-z]$ ]] && continue
-    # Home or a directory holding it, physically and along home as spelled,
-    # compared as directories the way the scope guard compares them.
     for h in "${held_homes[@]}"; do
       [[ "$h" == "$r" || "$h" == "$r"/* ]] && continue 2
     done
@@ -812,17 +560,6 @@ spd_under_allowed_root() {
   return 1
 }
 
-# spd_gitignored <path>: 0 when the repository holding <path> ignores it, asked
-# from <path>'s nearest existing directory, so a home-rooted session and a file
-# in a directory not made yet are judged too. A file in no repository, a
-# tracked file (hook::file_is_gitignored records why check-ignore answers no
-# for one), a git error or no git all scan. A symlink is refused: an ignored
-# name for it says nothing about the file it writes. The components below the
-# directory entered do not exist, so none of them is a link. The answer grants
-# an exemption, so more of git's inherited environment is cleared than
-# hook::file_is_gitignored clears: the repository and index selection, and
-# configuration passed through the environment. That helper also needs the
-# file's own directory to exist.
 spd_gitignored() {
   local t="$1" d base rel
   [[ ! -L "$t" ]] || return 1
@@ -849,11 +586,6 @@ if [[ -n "$spd_opt_roots" || "$spd_opt_ignored" == true ]] && spd_exempt_target 
   [[ "$spd_opt_ignored" == true ]] && spd_gitignored "$spd_et" && exit 0
 fi
 
-# --- Report violations ---
-# The file as the model names it: project-relative when it sits under the
-# project spelled the same way, else as given. A prefix strip, not
-# hook::repo_relative_path_to: that one forks cygpath on Windows and degrades to
-# a basename, which names a different file.
 show_file="$FILE"
 _spd_proj="${CLAUDE_PROJECT_DIR:-}"
 [[ -n "$_spd_proj" && "$FILE" == "${_spd_proj%/}/"?* ]] && show_file="${FILE#"${_spd_proj%/}/"}"
