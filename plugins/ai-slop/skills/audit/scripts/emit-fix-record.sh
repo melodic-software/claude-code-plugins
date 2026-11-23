@@ -78,7 +78,6 @@ sha12() {
   { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -c1-12
 }
 
-# Same quoting predicate as emit-findings.sh: the consumer compares the exact branch string.
 yaml_scalar() {
   local s="$1" l="${1,,}" indicator='^[][?:,{}#&*!|>%@`"'"'"'-]'
   if [[ "$s" =~ $indicator || "$s" == *": "* || "$s" == *" #"* || "$s" =~ [[:space:]]$ ||
@@ -121,6 +120,5 @@ for f in "${CONSUMED[@]}"; do names+="${names:+, }$(basename "$f")"; done
 
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/${TS}-fix-pass-applied-$(sha12 "$TMP").md"
-# The name carries the bytes' digest, so an existing path is the same record.
 [[ -e "$OUT" ]] || mv "$TMP" "$OUT"
 printf '%s\n' "$OUT"

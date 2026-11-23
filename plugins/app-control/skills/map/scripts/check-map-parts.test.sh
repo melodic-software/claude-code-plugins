@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for check-map.sh's part-duplicate rule: an id `<module>/<part>` must name one Parts line.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -25,8 +24,7 @@ assert_equals() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$3], got [$2]"; fi
 }
 
-# A control skill whose one feature, testing, lists the given Parts lines. Prints its directory.
-make_skill() { # <case name> <parts lines>
+make_skill() {
   local root="$TEST_TMPDIR/$1" skill="$TEST_TMPDIR/$1/.claude/skills/control-repo"
   mkdir -p "$skill/features/testing" "$root/plugins/testing/skills/run-e2e"
   : >"$root/plugins/testing/skills/run-e2e/SKILL.md"

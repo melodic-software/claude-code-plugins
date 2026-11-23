@@ -108,9 +108,6 @@ _cascade_yaml_slug_rows() {
   local layer="$1" key="$2" records
   records="$(LC_ALL=C awk -f "$_CASCADE_AWK" "$layer" 2>/dev/null)" || return 1
   records="${records//$'\r'/}"
-  # Slugs the layer names without an inline list (`slug: []`, or a bare `slug:`
-  # whose items follow) come first: the rows below then re-set every slug that
-  # does have items, so only a slug with an empty list stays cleared.
   KEY="$key" LC_ALL=C awk '
     /^[^[:space:]#]/ { inb = ($0 ~ ("^" ENVIRON["KEY"] "[[:space:]]*:")); next }
     inb && /^[[:space:]]+[A-Za-z0-9_-]+[[:space:]]*:[[:space:]]*(\[[[:space:]]*\])?[[:space:]]*(#.*)?$/ {
@@ -161,8 +158,6 @@ cascade::slug_map() {
     while IFS=$'\t' read -r slug globs; do
       [[ -z "$slug" ]] && continue
       if [[ -z "${globs//[[:space:]]/}" ]]; then
-        # Single quotes: unset expands a double-quoted subscript a second
-        # time, so a config slug spelled $(cmd) would run.
         unset 'map_ref[$slug]'
         unset 'cascade_slug_layer[$slug]'
       else

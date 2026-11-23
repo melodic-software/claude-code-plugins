@@ -1,11 +1,6 @@
-// Zod schema for slides-data.js exports. Validates shape after emit, and as
-// part of validate.js gates. Catches accidental drift in slide-type fields.
 import { z } from "zod";
 import { isAllowedUrlScheme } from "./url-policy.js";
 
-// A source URL must parse AND carry an allowlisted scheme. `.url()` alone accepts
-// javascript:/data:/file: (WHATWG-parseable), so the refine is what rejects them —
-// a dangerous or unlisted scheme anywhere in the deck fails validation loudly.
 const Url = z.string().url().refine(isAllowedUrlScheme, {
   message: "URL scheme not allowed — only http, https, mailto, and tel are accepted",
 });
@@ -24,12 +19,6 @@ const PatternItem = z.object({
 
 const Tier = z.enum(["high", "med", "low"]);
 
-// Common optional fields — section key + optional parent-section grouping.
-// `section` is the unique scroll-snap section id.
-// `parentSection` (e.g. "news") groups multiple sections into a single nav-chip parent.
-// `speakerNotes` is rendered as PPTX speaker notes (build-pptx.js) + HTML <aside class="speaker-notes">
-// (revealed only when the URL carries ?notes=1).
-// PPTX/PDF/legacy paginated builds ignore section/parentSection. Render derives sticky-nav grouping from these.
 const sectionField = {
   section: z.string().optional(),
   parentSection: z.string().optional(),
