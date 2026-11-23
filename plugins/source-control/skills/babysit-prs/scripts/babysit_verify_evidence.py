@@ -7256,10 +7256,11 @@ NATIVE_BASELINE_DETAIL = (
 def _native_baseline(repo: str, pr: dict[str, Any], identity: str | None) -> bool:
     """Whether `pr` is the lanes App's and changes only the native-surface
     baseline (`merge_policy.baseline_only`), its files read whole; a read
-    that fails, or a capped list, is not."""
-    if not merge_policy.baseline_only(pr, identity, [merge_policy.NATIVE_BASELINE]):
-        return False
-    if merge_policy.files_capped(pr):
+    that fails is not. Any other author, or a record that does not count
+    one changed file, reads no files."""
+    if pr.get("changed_files") != 1 or not merge_policy.baseline_only(
+        pr, identity, [merge_policy.NATIVE_BASELINE]
+    ):
         return False
     try:
         files, complete = merge_policy.changed_files(repo, pr)
@@ -7299,16 +7300,20 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         pr = merge_policy.cached_pull_request(
             os.environ.get(PULL_ENV), args.repo, args.number, args.head
         )
-    baseline = link.get("ineligible") is not None
-    if baseline:
-        if not _native_baseline(args.repo, json_object(pr), config.agent_identity):
-            refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
-            return refusal.report() | link
+    native_baseline = (
+        args.lane_link
+        and args.lane_reviews
+        and _native_baseline(args.repo, json_object(pr), config.agent_identity)
+    )
+    if native_baseline:
         link["ineligible"] = None
         evidence = Evidence(None, args.head, (), 0, NATIVE_BASELINE_DETAIL)
+    elif link.get("ineligible") is not None:
+        refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
+        return refusal.report() | link
     else:
         evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved and not args.shared_listing and not baseline:
+    if evidence.refusal is None and reader.saved and not args.shared_listing and not native_baseline:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:

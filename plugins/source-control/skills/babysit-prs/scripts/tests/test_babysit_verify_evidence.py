@@ -8731,15 +8731,19 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
         ):
             self.assertFalse(ve._native_baseline(REPO, lanes, "agent-lanes[bot]"))
         with mock.patch.object(policy, "changed_files") as listed:
-            capped = pull(user=LANES_BOT, changed_files=policy.FILES_API_CAP + 1)
-            self.assertFalse(ve._native_baseline(REPO, capped, "agent-lanes[bot]"))
-            person = pull(user={"login": "maintainer", "type": "User"})
+            for count in (2, policy.FILES_API_CAP + 1, None):
+                many = pull(user=LANES_BOT, changed_files=count)
+                self.assertFalse(ve._native_baseline(REPO, many, "agent-lanes[bot]"))
+            person = pull(user={"login": "maintainer", "type": "User"}, changed_files=1)
             self.assertFalse(ve._native_baseline(REPO, person, "agent-lanes[bot]"))
             listed.assert_not_called()
 
-    def cli(self, baseline: bool, *flags: str) -> tuple[dict[str, Any], Any]:
+    def cli(
+        self, baseline: bool, *flags: str, linked: bool = False
+    ) -> tuple[dict[str, Any], Any]:
         fake = passing()
-        fake.closing, fake.body = [], "No related issue: baseline.\n"
+        if not linked:
+            fake.closing, fake.body = [], "No related issue: baseline.\n"
         out = io.StringIO()
         with (
             mock.patch.object(policy, "pull_request", return_value=pull(user=LANES_BOT)),
@@ -8766,6 +8770,11 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
         self.assertEqual((report["ineligible"], report["refusal"]), (None, None))
         self.assertEqual(report["detail"], ve.NATIVE_BASELINE_DETAIL)
         self.assertEqual(report["reviews"], "review-path:docs/upstream/**")
+
+    def test_a_linked_baseline_arms_with_no_verdict_read(self) -> None:
+        report, _ = self.cli(True, "--lane-reviews", "--rung", "C2", linked=True)
+        self.assertEqual((report["ineligible"], report["refusal"]), (None, None))
+        self.assertEqual(report["detail"], ve.NATIVE_BASELINE_DETAIL)
 
     def test_any_other_pull_request_keeps_the_link_refusal(self) -> None:
         report, _ = self.cli(False, "--lane-reviews", "--rung", "C2")
