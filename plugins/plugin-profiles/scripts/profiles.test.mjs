@@ -706,6 +706,62 @@ test("AC26: a plugin it switches on with a missing required prerequisite stops a
 
 const SHIPPED = join(HERE, "..", "profiles");
 
+async function runCheck(w, args, env = {}) {
+  const out = [], err = [];
+  const status = await main(["check", ...args], { ...w.env, ...env }, w.project, {
+    out: (line) => out.push(line),
+    err: (line) => err.push(line),
+  });
+  return { status, stdout: out.join("\n"), stderr: err.join("\n") };
+}
+
+test("check --skills and --changed report changed skills first and summarize the remaining tree", async () => {
+  const w = world();
+  const first = "plugins/implementation/skills/first/SKILL.md";
+  const changed = "plugins/implementation/skills/second/SKILL.md";
+  writeTree(w.root, {
+    ".claude-plugin/marketplace.json": { name: M, plugins: ["implementation", "songwriting", "planning"].map((name) => ({ name })) },
+    "plugins/plugin-profiles/profiles/build.yaml": `description: Build.\nplugins: [implementation@${M}]\n`,
+    [first]: "## Next\n/songwriting:co-write\n",
+    [changed]: "## Next\n/gone:missing\n## Related\n/songwriting:co-write\n",
+    "plugins/songwriting/skills/co-write/SKILL.md": "",
+    "changed.txt": `${changed}\n`,
+    "summary.md": "Earlier summary\n",
+    "home/.claude/plugins/installed_plugins.json": "unreadable",
+  });
+  const summary = join(w.root, "summary.md");
+  const r = await runCheck(w, ["--skills", join(w.root, "plugins"), "--changed", join(w.root, "changed.txt")], { GITHUB_STEP_SUMMARY: summary });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const reports = r.stdout.split("\n").filter((line) => line.startsWith("Report:"));
+  assert.equal(reports.length, 5);
+  assert.match(reports[0], /links\.unresolved: .*second.*gone:missing/);
+  assert.match(reports[1], /links\.related: .*second.*songwriting:co-write/);
+  assert.match(reports[2], /links\.next: .*first.*songwriting:co-write/);
+  assert.match(reports[3], /Catalog plugin no shipped profile names: planning@/);
+  assert.match(reports[4], /Catalog plugin no shipped profile names: songwriting@/);
+  assert.match(readFileSync(summary, "utf8"), /^Earlier summary[\s\S]*Changed skills and profiles[\s\S]*links\.related:[\s\S]*<details><summary>Tree-wide reports<\/summary>[\s\S]*links\.next:[\s\S]*<\/details>/);
+});
+
+test("check reads installed skill roots and applies user profile membership", async () => {
+  const w = world();
+  writeTree(w.root, {
+    "installs/widget/skills/test/SKILL.md": "## Next\n/songwriting:co-write\n",
+    "installs/songwriting/skills/co-write/SKILL.md": "",
+    "home/.claude/plugin-profiles/custom.yaml": "plugins: [widget@vendor]\n",
+    "home/.claude/plugins/installed_plugins.json": {
+      version: 2,
+      plugins: {
+        "widget@vendor": [{ scope: "user", installPath: join(w.root, "installs", "widget") }],
+        [`songwriting@${M}`]: [{ scope: "user", installPath: join(w.root, "installs", "songwriting") }],
+      },
+    },
+  });
+  const r = await runCheck(w, []);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /links\.next: .*test.*\/songwriting:co-write is off in profile custom/);
+  assert.match(r.stdout, /Installed, and no profile names it .*songwriting@/);
+});
+
 test("AC5: check passes on the shipped profiles against the repository catalog and starts no claude", () => {
   const w = world();
   const r = w.run(["check"]);

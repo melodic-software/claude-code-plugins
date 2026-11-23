@@ -1,7 +1,3 @@
-// PASS/FAIL case harness shared by the graded-fixture suites in this
-// directory. The harness owns the per-case lines and the counters; each suite
-// composes its own summary wording and hands it to `finish`, which exits 0
-// when every case passed and 1 otherwise.
 
 import process from "node:process";
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Loosened checks would be marked: fail (default); patterns: 0\n\n**CRITICAL**\n- `test/report.test.js:12`: Fail a change that loosens a check (test skipped): the total test is now `test.skip`, so `total` is no longer tested. Neither #41 nor the pull request body's Loosened checks section names it. Remove the skip, or name it and say why in the spec or that section. Confidence: high\n\nThe branch coverage minimum at jest.config.js:8 passes: the Loosened checks section names it with a reason that holds.\n\nCoverage: all changed files reviewed",
+      "why": "blocking finding on the skip the section does not name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Criteria read: none present\n\nThe pull request body's Loosened checks section explains the coverage change, so the loosened checks pass.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "why": "lets the section's reason for one loosening cover the unnamed skip"
+    },
+    {
+      "answer": "**SUGGESTION**\n- `test/report.test.js:12`: consider re-enabling the skipped total test. Confidence: low",
+      "why": "a suggestion only"
+    }
+  ]
+}

@@ -32,7 +32,7 @@ export function inkFill(ctx, pts, o = {}) {
   const color = o.color || INK, w = o.width || 12, pitch = o.pitch || 0.78, [l0, l1] = o.len || [30, 120];
   const dry = o.dryBrush ?? 0.12, over = o.overshoot ?? 0.6, boil = o.boil ?? 1;
   const r = rng(o.seed || 1, boil ? o.step || 0 : 0), a = o.angle ?? principalAngle(pts), c = Math.cos(a), s = Math.sin(a);
-  const loc = pts.map(([x, y]) => [x * c + y * s, -x * s + y * c]); // rotate so strokes run along +x
+  const loc = pts.map(([x, y]) => [x * c + y * s, -x * s + y * c]);
   let y0 = Infinity, y1 = -Infinity; for (const p of loc) { y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
   ctx.strokeStyle = color; ctx.lineCap = 'round';
   for (let y = y0 + w * (0.2 + 0.3 * r()); y < y1 - w * 0.1; y += w * pitch * (0.85 + 0.3 * r())) {

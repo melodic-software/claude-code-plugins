@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Renderer tests. Hand-built records use the shape dependency-graph.sh writes;
-# the last block renders records that script wrote from fixture repositories.
-# Collection itself is covered by dependency-graph.test.sh.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -128,7 +125,6 @@ else
     "$(diff "$TEST_TMPDIR/layered/components.md" "$TEST_TMPDIR/layered2/components.md")"
 fi
 
-# Aggregation. Five components, threshold 4, three directory groups.
 cat >"$TEST_TMPDIR/wide.json" <<'JSON'
 {
   "schema_version": 1,
@@ -166,7 +162,6 @@ assert_equals "aggregate: draws three group nodes, not five" "$comps" "3"
 render wide-lc4 --graph "$TEST_TMPDIR/wide.json" --node-threshold 4 --dialect likec4
 assert_likec4_golden "components-aggregated.c4" "$TEST_TMPDIR/wide-lc4/components.md"
 
-# Single module.
 cat >"$TEST_TMPDIR/one.json" <<'JSON'
 {
   "schema_version": 1,
@@ -190,7 +185,6 @@ assert_contains "thin: map-containers" "$one" '/architecture:map-containers'
 assert_contains "thin: improve" "$one" '/architecture:improve'
 assert_contains "thin: says a one-box diagram is not the answer" "$one" 'one-box diagram is not the answer'
 
-# Two deployables.
 cat >"$TEST_TMPDIR/two.json" <<'JSON'
 {
   "schema_version": 1,
@@ -226,7 +220,6 @@ assert_contains "scope: Worker draws Core" "$worker" 'Component('
 assert_contains "scope: Core is present" "$worker" '"Core"'
 assert_not_contains "scope: Api is not in Worker's closure" "$worker" '"Api"'
 
-# Layout and schema.
 mkdir -p "$TEST_TMPDIR/bad"
 cat >"$TEST_TMPDIR/pretty.json" <<'JSON'
 {
@@ -254,8 +247,6 @@ bad="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/v2.json" --out "$TEST_TMPDIR/bad" 2>
 assert_equals "schema: version 2 exits 1" "$?" "1"
 assert_contains "schema: names version 1" "$bad" 'schema_version 1'
 
-# A record from an older release has no result key. It exits 1 instead of
-# rendering with its unresolved references silently dropped.
 cat >"$TEST_TMPDIR/stale.json" <<'JSON'
 {
   "schema_version": 1,
@@ -283,7 +274,6 @@ else
   pass "stale: writes nothing"
 fi
 
-# A quote in a name cannot close the diagram string. A pipe cannot break the table.
 cat >"$TEST_TMPDIR/odd.json" <<'JSON'
 {
   "schema_version": 1,
@@ -306,7 +296,6 @@ odd="$(cat "$TEST_TMPDIR/odd/components.md")"
 assert_contains "sanitize: a quote becomes an apostrophe" "$odd" "Say 'hi'"
 assert_contains "sanitize: a pipe is escaped in the table" "$odd" 'left\|right'
 
-# Records dependency-graph.sh wrote from fixture repositories.
 write_proj() {
   mkdir -p "$(dirname "$1")"
   printf '%s\n' "$2" >"$1"
@@ -333,7 +322,6 @@ write_proj "$root/src/domain/Billing.Domain/Billing.Domain.csproj" '<Project Sdk
     <ProjectReference Include="..\..\application\Billing.Application\Billing.Application.csproj" />
   </ItemGroup>
 </Project>'
-# The same file name as the missing Include's target, elsewhere on disk.
 write_proj "$root/other/Nope/Nope.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
 worker_ref='    <ProjectReference Include="..\..\worker\Billing.Worker.Core\Billing.Worker.Core.csproj" />' # portability-ok: Windows path fixture; \w is the worker segment, not a GNU grep class
 write_proj "$root/src/host/Billing.Worker/Billing.Worker.csproj" '<Project Sdk="Microsoft.NET.Sdk">
@@ -381,7 +369,6 @@ else
   pass "written: a choice writes nothing"
 fi
 
-# An Include that misses is unresolved even when its text is another project's id.
 phantom="$TEST_TMPDIR/phantom-repo"
 write_proj "$phantom/a/X.csproj" '<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
@@ -398,23 +385,18 @@ assert_contains "phantom: the target is not drawn as a component" "$phantom_summ
 assert_contains "phantom: the edge is unresolved, not drawn" "$phantom_summary" 'unresolved=1'
 assert_contains "phantom: X is a single module" "$phantom_summary" 'thin=yes'
 
-# No manifest a shipped reader handles: the writer's message is the reason and
-# nothing is drawn.
 mkdir -p "$TEST_TMPDIR/node-only"
 printf 'source "https://rubygems.org"\n' >"$TEST_TMPDIR/node-only/Gemfile"
 collect "$TEST_TMPDIR/node-only" "$TEST_TMPDIR/node-only.json"
 render node-only --graph "$TEST_TMPDIR/node-only.json"
 assert_equals "unknown: exits 0" "$?" "0"
 unk="$(cat "$TEST_TMPDIR/node-only/components.md")"
-# The artifact quotes the word unknown in markdown backticks.
 # shellcheck disable=SC2016
 assert_contains "unknown: says unknown" "$unk" 'ecosystem `unknown`'
 assert_contains "unknown: the writer's message names the manifest" "$unk" 'Gemfile'
 assert_not_contains "unknown: no diagram" "$unk" '@startuml'
 assert_contains "unknown: summary is thin" "$(cat "$TEST_TMPDIR/node-only.out")" 'thin=yes'
 
-# Any ecosystem name other than unknown renders, including mixed; each node
-# names its own ecosystem as the component technology.
 cat >"$TEST_TMPDIR/mixed.json" <<'JSON'
 {
   "schema_version": 1,
@@ -445,10 +427,6 @@ assert_contains "mixed: a node-ecosystem component is labeled node" "$(cat "$TES
 # shellcheck disable=SC2016
 assert_not_contains "mixed: is not the unknown result" "$(cat "$TEST_TMPDIR/mixed/components.md")" 'ecosystem `unknown`'
 
-# Stray manifests. A project no edge touches, in an ecosystem no linked or .NET
-# project shares, is set aside: a tooling package.json or a requirements file
-# beside a chartable tree must not turn it into several deployables. Every
-# record here comes from the collector, not from a hand-built graph.
 dotnet_pair() {
   write_proj "$1/src/Api/Api.csproj" '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Core/Core.csproj" /></ItemGroup></Project>'
   write_proj "$1/src/Core/Core.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
@@ -480,7 +458,6 @@ render stray-b --graph "$TEST_TMPDIR/stray-b.json"
 assert_equals "stray: a lone .NET project beside a tooling package.json renders" "$?" "0"
 assert_contains "stray: the lone .NET project is the container" "$(cat "$TEST_TMPDIR/stray-b.out")" 'container="Api"'
 
-# Two .NET deployables stay a choice, and the stray manifest is not on the list.
 stray_c="$TEST_TMPDIR/stray-c-repo"
 dotnet_pair "$stray_c"
 write_proj "$stray_c/src/Tool/Tool.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
@@ -493,7 +470,6 @@ assert_contains "stray: the list names Api" "$choice" 'Api'
 assert_contains "stray: the list names Tool" "$choice" 'Tool'
 assert_not_contains "stray: the list omits the stray manifest" "$choice" 'package.json'
 
-# A tree with no .NET project keeps its one linked ecosystem's deployable.
 stray_d="$TEST_TMPDIR/stray-d-repo"
 write_proj "$stray_d/go.work" 'go 1.22
 use ./app
@@ -508,7 +484,6 @@ render stray-d --graph "$TEST_TMPDIR/stray-d.json"
 assert_equals "stray: a Go tree beside a tooling package.json renders" "$?" "0"
 assert_contains "stray: the Go module is the container" "$(cat "$TEST_TMPDIR/stray-d.out")" 'container="example.com/acme/app"'
 
-# Alone, a manifest is the deployable.
 stray_e="$TEST_TMPDIR/stray-e-repo"
 write_proj "$stray_e/package.json" "$tooling_json"
 collect "$stray_e" "$TEST_TMPDIR/stray-e.json"
@@ -517,7 +492,6 @@ assert_equals "stray: a Node-only tree still renders" "$?" "0"
 assert_contains "stray: the lone package.json is the container" "$(cat "$TEST_TMPDIR/stray-e.out")" 'container="tooling"'
 assert_not_contains "stray: nothing is set aside" "$(cat "$TEST_TMPDIR/stray-e/components.md")" 'Set aside'
 
-# A Node package that references another is a linked deployable beside the .NET host.
 stray_f="$TEST_TMPDIR/stray-f-repo"
 dotnet_pair "$stray_f"
 write_proj "$stray_f/web/app/package.json" '{ "name": "app", "dependencies": { "@acme/ui": "file:../ui" } }'
@@ -529,8 +503,6 @@ assert_equals "stray: a linked Node package beside a .NET host exits 3" "$?" "3"
 assert_contains "stray: the list names the .NET host" "$choice" 'Api'
 assert_contains "stray: the list names the Node package" "$choice" 'web/app/package.json'
 
-# A Node workspace root draws no edge to its members and shares their ecosystem,
-# so it is listed beside the top member.
 ws_root="$TEST_TMPDIR/ws-root-repo"
 write_proj "$ws_root/package.json" '{ "name": "root", "private": true, "workspaces": ["a", "b"], "devDependencies": { "typescript": "5.0.0" } }'
 write_proj "$ws_root/a/package.json" '{ "name": "@w/a", "dependencies": { "@w/b": "*" } }'
@@ -543,9 +515,6 @@ assert_contains "workspace root: the list names the top member" "$choice" $'@w/a
 assert_contains "workspace root: the list names the root" "$choice" $'root\tpackage.json'
 assert_not_contains "workspace root: the list omits the member nothing tops" "$choice" '@w/b'
 
-# Test projects are not deployables. The layered fixture is the one the
-# grouping cases below use: Api <- Application <- Domain, Domain.Events beside
-# Domain, and two test projects that reference the host and the library.
 layered_proj() {
   local dir="$1" ns="$2" refs="$3"
   write_proj "$layered/src/$dir/$dir.csproj" "<Project Sdk=\"Microsoft.NET.Sdk\">
@@ -573,7 +542,6 @@ assert_contains "tests: Api is the container" "$tests_out" 'container="Api"'
 assert_contains "tests: the closure is the four production projects" "$tests_out" 'components=4'
 assert_not_contains "tests: no test project is charted" "$(cat "$TEST_TMPDIR/tests/components.md")" 'Tests'
 
-# Two hosts beside the test projects: the choice list still names the hosts only.
 write_proj "$layered/src/Worker/Worker.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
 collect "$layered" "$TEST_TMPDIR/layered-two.json"
 mkdir -p "$TEST_TMPDIR/tests-choice"
@@ -583,7 +551,6 @@ assert_contains "tests: the list names Api" "$choice" 'Api'
 assert_contains "tests: the list names Worker" "$choice" 'Worker'
 assert_not_contains "tests: the list names no test project" "$choice" 'Tests'
 
-# Every project a test project: refused with the reason.
 only_tests="$TEST_TMPDIR/only-tests-repo"
 write_proj "$only_tests/A.Tests/A.Tests.csproj" '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="NUnit" /></ItemGroup></Project>'
 write_proj "$only_tests/B.Tests/B.Tests.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>'
@@ -596,12 +563,9 @@ assert_contains "tests: the list still offers the projects" "$choice" 'A.Tests'
 render only-tests-explicit --graph "$TEST_TMPDIR/only-tests.json" --container A.Tests
 assert_equals "tests: --container charts a test project on request" "$?" "0"
 
-# A record with no test or namespace field (an older record) still renders.
 render old-record --graph "$TEST_TMPDIR/layers.json" --container Host
 assert_equals "old record: renders without the optional fields" "$?" "0"
 
-# Grouping, from the record dependency-graph.sh wrote: three strategies, none
-# of them one box per project.
 grouping() {
   local name="$1" boxes="$2" md
   shift 2
@@ -617,7 +581,6 @@ assert_contains "grouping directory: siblings under src share a box" "$(cat "$TE
 assert_contains "grouping namespace: Billing holds three projects" "$(cat "$TEST_TMPDIR/grouping-namespace/components.md")" 'Boundary(grp_0, "Billing", "namespace")'
 assert_contains "grouping namespace: the AssemblyName fallback nests one deeper" "$(cat "$TEST_TMPDIR/grouping-namespace/components.md")" 'Boundary(grp_1, "Billing.Domain", "namespace")'
 
-# Staleness: a graph older than HEAD warns and still renders.
 stale_repo="$TEST_TMPDIR/stale-repo"
 write_proj "$stale_repo/A/A.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
 git -C "$stale_repo" init --quiet

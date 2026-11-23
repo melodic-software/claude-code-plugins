@@ -10,16 +10,6 @@ metadata:
   summary: Judge whether a doc earns its existence or should become a pointer
 ---
 
-## Repository context. Gather first
-
-Collect with **individual** Bash calls, one command per call, never combined:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-body Bash calls, not pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Uncommitted .md files (first 20; empty = none matched or the probe returned nothing): !`"${CLAUDE_SKILL_DIR}/scripts/uncommitted-md.sh" 20 2>/dev/null || echo "(status unavailable)"`

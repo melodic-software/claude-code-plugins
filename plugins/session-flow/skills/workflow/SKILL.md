@@ -10,13 +10,6 @@ metadata:
 
 **Arguments.** `[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]`. e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue, /workflow continue auto
 
-## Repository context. Gather first
-
-Take `branch`, `status`, and `recent-commits` at `-5`. No session id, this skill stamps no ledger.
-Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
-rationale for gathering at run time rather than pre-computing:
-[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
-
 ## Purpose
 
 The reference and navigator for a staged development workflow. Individual stages are executed by

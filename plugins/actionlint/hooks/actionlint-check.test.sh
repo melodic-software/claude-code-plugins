@@ -20,7 +20,7 @@ done
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -40,12 +40,8 @@ expect "the plugin declares only the options a hook reads" "actionlint_enabled,a
 expect "the git-hook entry is a report-only pre-commit entry" "pre-commit false" \
   "$(jq -r '.entries[0] | "\(.event) \(.rewrites)"' "$PLUGIN_ROOT/git-hooks/entries.json")"
 
-# --- The manifest lists the plugin's tools ------------------------------------
 expect "manifest: declares exactly actionlint and node" "actionlint,node" "$(jq -r '.requires | map(.id) | join(",")' "$MANIFEST")"
 
-# --- SessionStart probe: run by harness-ops behind actionlint_enabled ---
-# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
-# option is set to anything but true; that runner's own test covers the gate.
 expect "prerequisites.json: session_probe is gated on actionlint_enabled" "ACTIONLINT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 expect "manifest: actionlint is needed only where a workflow file is" \
