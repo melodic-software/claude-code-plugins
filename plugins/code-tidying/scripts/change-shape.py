@@ -10,10 +10,12 @@ comment-dissolving edit has to make and a test suite can only sample:
   DOCSTRING-ONLY Python only: the one difference is removed module, class or
                  function docstrings, every kept one unchanged and in place.
                  Refused (CODE-CHANGED) when the file could read a docstring
-                 at run time (`__doc__`, `getdoc`, `pydoc`, `doctest`), when
-                 the docstring holds `>>>` examples, when its owner is
-                 decorated or a class with bases, or when its removal leaves
-                 a body empty. Readers in other files are out of its sight.
+                 at run time (`__doc__`, `__dict__`, `vars`, `getdoc`,
+                 `getmembers`, `__init_subclass__`, `pydoc`, `doctest`), when
+                 the docstring holds `>>>` examples, when its owner or any
+                 class enclosing it is decorated or has bases or a metaclass,
+                 or when its removal leaves a body empty. Readers in other
+                 files are out of its sight.
   RENAME-ONLY    every differing leaf is an identifier and the old->new mapping
                  is consistent. A SHAPE claim, not a safety claim: it knows
                  nothing about shadowing, outer-scope collisions, reflection or
@@ -243,7 +245,9 @@ class Docstring(NamedTuple):
     refusal: str | None
 
 
-DOC_READERS = frozenset({"getdoc", "pydoc", "doctest"})
+DOC_READERS = frozenset(
+    {"getdoc", "getmembers", "pydoc", "doctest", "vars", "__init_subclass__"}
+)
 
 
 def is_docstring(stmt, src: bytes) -> bool:
@@ -288,14 +292,27 @@ def python_docstrings(root, src: bytes) -> dict[int, tuple[str, int, str | None]
             refusal = "removal leaves an empty body"
         elif ">>>" in text:
             refusal = "the docstring holds doctest examples"
-        elif node.parent is not None and node.parent.type == "decorated_definition":
-            refusal = "a decorator can read the docstring"
-        elif node.type == "class_definition" and node.child_by_field_name(
-            "superclasses"
-        ):
-            refusal = "a base class or metaclass can read the docstring"
+        else:
+            refusal = owner_refusal(node)
         found[stmt.id] = (text, stmt.start_point[0] + 1, refusal)
     return found
+
+
+def owner_refusal(owner) -> str | None:
+    """Why a decorator, base class or metaclass of the owner or of any class
+    enclosing it could read the docstring, or None."""
+    node, first = owner, True
+    while node is not None:
+        if first or node.type == "class_definition":
+            first = False
+            if node.parent is not None and node.parent.type == "decorated_definition":
+                return "a decorator can read the docstring"
+            if node.type == "class_definition" and node.child_by_field_name(
+                "superclasses"
+            ):
+                return "a base class or metaclass can read the docstring"
+        node = node.parent
+    return None
 
 
 def leaves(
@@ -369,7 +386,9 @@ def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
         (
             text
             for kind, text in a + b
-            if "__doc__" in text or (kind == "identifier" and text in DOC_READERS)
+            if "__doc__" in text
+            or "__dict__" in text
+            or (kind == "identifier" and text in DOC_READERS)
         ),
         None,
     )

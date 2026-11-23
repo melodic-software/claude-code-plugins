@@ -273,6 +273,45 @@ class PythonVerdicts(unittest.TestCase):
         self.assertEqual(code, 20, out)
         self.assertIn("base class", out)
 
+    def test_method_docstring_in_a_subclass_is_code_changed(self):
+        before = 'class Tool(Base):\n    def run(self):\n        """Run it."""\n        return 1\n'
+        after = "class Tool(Base):\n    def run(self):\n        return 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("base class", out)
+
+    def test_method_docstring_under_a_metaclass_is_code_changed(self):
+        before = 'class Tool(metaclass=Meta):\n    def run(self):\n        """Run it."""\n        return 1\n'
+        after = "class Tool(metaclass=Meta):\n    def run(self):\n        return 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("metaclass", out)
+
+    def test_method_docstring_in_a_decorated_class_is_code_changed(self):
+        before = '@register\nclass Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
+        after = "@register\nclass Tool:\n    def run(self):\n        return 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("decorator", out)
+
+    def test_method_docstring_in_a_plain_class_is_docstring_only(self):
+        before = (
+            'class Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
+        )
+        after = "class Tool:\n    def run(self):\n        return 1\n"
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 11, out)
+
+    def test_file_walking_vars_is_code_changed(self):
+        before = (
+            'class Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
+            "\nhelp_rows = [f.__name__ for f in vars(Tool).values()]\n"
+        )
+        after = before.replace('        """Run it."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn('"at": "vars"', out)
+
     def test_f_string_first_statement_is_not_a_docstring(self):
         before = 'def f(x):\n    f"{x}"\n    return x\n'
         after = "def f(x):\n    return x\n"
