@@ -29,7 +29,6 @@
   const ui = { variant: params.get("v") || "", view: "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "", liveErr: "" };
   Core.context = () => ({ view: "prototype" });
 
-  // ---------- the page ----------
   const root = document.getElementById("app");
   const top = E("header", "vp-top");
   const back = E("a", "vf-btn vf-btn-ghost vf-btn-sm vp-back", "Back to the questions");
@@ -103,11 +102,9 @@
     return f;
   };
 
-  // ---------- state ----------
   const S = () => Core.state;
   const question = () => (S().questions || []).find(q => q.id === qid && q.formatKind === "prototype") || null;
   const variants = q => q?.variants || [];
-  /** The view of `v` on the stage: its snapshot unless the person picked its screenshots, or it has none. */
   const shownView = v => (views(v).snapshot && !(ui.view === "shots" && views(v).shots.length) ? "snapshot" : "shots");
   /** The screenshot (0-based) a note is pinned on, -1 for the snapshot, or null when this viewer holds no such view, so
    *  a note on a view switched off is drawn nowhere: "img" is the first screenshot, "img:nth-of-type(k)" the k-th; any
@@ -141,7 +138,6 @@
     root.dataset.theme = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
   }
 
-  // ---------- variant switcher ----------
   function selectVariant(vid, { focus = false } = {}) {
     if (vid === ui.variant) return;
     closeComposer(); // its spot was on the variant being left
@@ -178,7 +174,6 @@
     }));
   }
 
-  // ---------- the stage and its pins ----------
   for (const b of [snapBtn, shotsBtn]) b.onclick = () => { if (shownView(current(question())) !== b.dataset.view) { ui.view = b.dataset.view; closeComposer(); render(); } };
   function mountStage(v) {
     const { shots, snapshot } = views(v), kind = shownView(v);
@@ -200,7 +195,6 @@
       f.src = `/assets/${snapshot}?pin=1`;
       mainView.replaceChildren(f);
     } else {
-      // One picture shows as it always has; two or more stack, each captioned.
       mainView.replaceChildren(...shots.map((asset, k) => {
         const wrap = E("div", "vp-imgwrap");
         const img = E("img", "vp-img"); img.src = `/assets/${asset}`;
@@ -233,7 +227,6 @@
     mainView.replaceChildren(note);
   }
 
-  // ---------- versions ----------
   const vname = x => `v${x.n} · ${x.qid} · ${x.label}`;
   const vcaption = x => vname(x) + (x.current ? " · Current" : "");
   /** A link to another question's prototype page opens a new tab, as the question's own links do; one to this page
@@ -348,7 +341,6 @@
     }
   });
 
-  // ---------- Annotate and the note composer ----------
   function setAnnotate(on) {
     ui.annotate = !!on;
     if (!on) closeComposer();
@@ -456,7 +448,6 @@
     liveBox.replaceChildren(...parts);
   }
 
-  // ---------- notes ----------
   function renderNotes(v) {
     const list = notesOn(v.id);
     const key = JSON.stringify([v.id, ui.active, list.map(a => [a.id, a.text, a.name, a.cid, Core.since(a.ts)])]);
@@ -479,7 +470,6 @@
     }));
   }
 
-  // ---------- render ----------
   function render() {
     applyTheme();
     const q = question();
