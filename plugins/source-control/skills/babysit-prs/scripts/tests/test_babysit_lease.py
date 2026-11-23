@@ -1,10 +1,3 @@
-"""Lease library: repo-scoped keying, snapshot pairing, steal-stale, reap.
-
-Ports the lease and reap coverage onto `babysit_lease`. Uses a real temp
-state dir; time-dependent staleness is driven with explicit `updated_at`
-timestamps rather than sleeping.
-"""
-
 from __future__ import annotations
 
 import pathlib

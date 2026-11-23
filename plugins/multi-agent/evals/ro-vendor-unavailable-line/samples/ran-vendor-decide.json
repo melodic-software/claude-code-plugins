@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/vendor-decide --task-type coding --task-class everyday --settings /tmp/s/settings.json --manifest /tmp/s/manifest.json --models /tmp/s/models.json --records terminal-bench=/tmp/s/records-terminal-bench.json"
+          }
+        }
+      ],
+      "why": "invokes vendor-decide"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}
