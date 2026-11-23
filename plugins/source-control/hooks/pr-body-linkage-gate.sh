@@ -142,7 +142,6 @@ GATE_FILE=""
 linkage::gate_file_to GATE_FILE "$REPO_ROOT" "pr-body-linkage-gate"
 [[ -n "$GATE_FILE" ]] || exit 0
 
-# How the judged body was obtained, for the telemetry envelope.
 FORM=""
 # Set once a segment changes the working directory; every later segment is then
 # resolving against a directory this hook cannot see.
@@ -164,7 +163,6 @@ emit_tel() {
 # ci-workflows validator lands on every surface at once.
 # shellcheck source=pr-linkage-validator.sh
 source "$HOOK_DIR/pr-linkage-validator.sh"
-# --- Command extraction ------------------------------------------------------
 
 # Body of the SOLE heredoc in the given text, into <dest>. Covers both stdin
 # forms the authoring corpus uses: `--body-file -` fed by a heredoc, and a
@@ -429,7 +427,6 @@ check_segment() {
     return 0
   fi
 
-  # Leading `VAR=val` assignments are not the command word.
   while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
 
   # Only the CURRENT shell can relocate later segments. `command`, `builtin`, and
