@@ -26,16 +26,13 @@ import { buildView, validateView, ViewBuildError } from "../../../lib/view-build
 
 const TEMPLATE = new URL("../templates/explainer.html", import.meta.url);
 
-// A longer flow goes one step per line: a wrapped row of arrows would start a line with one.
 const FLOW_ROW_MAX = 4;
 const LABEL_MAX = 40;
 const KINDS = ["flow", "stack", "hub", "timeline", "compare", "before-after"];
-// A model-chosen slug names output files, so it is held to a path-safe set.
 const SLUG = /^[a-z0-9-]+$/;
 const COMPARE_MIN = 2;
 const COMPARE_MAX = 4;
 
-// A label over the cap, cut at the last space that fits, else hard, ending in an ellipsis.
 function capLabel(label) {
   const chars = [...label];
   if (chars.length <= LABEL_MAX) return label;
@@ -45,7 +42,6 @@ function capLabel(label) {
   return `${kept.join("").trimEnd()}…`;
 }
 
-// Every diagram carries every kind's lists, empty but for its own kind's, so only one renders.
 const EMPTY = { flow: [], flowcol: [], stack: [], center: "", branches: [], points: [], columns: [], before: [], after: [] };
 
 /**
@@ -141,8 +137,6 @@ export function buildExplainerPage(model) {
   return explainerPage(normalize(model));
 }
 
-// One line of record text: no line breaks, no raw HTML a markdown viewer would render, and no
-// link or image syntax (escaped brackets cannot open one).
 const md = (value) =>
   asText(value)
     .replace(/\s+/g, " ")
@@ -169,11 +163,6 @@ function table(columns) {
   ];
 }
 
-// One mermaid label, always written inside double quotes. Collapsing line breaks means no label
-// text starts a statement line (click, style, classDef), and with backticks gone none can close
-// the fence. Mermaid entity codes stand in for every character that could end the quotes, open a
-// %%{...}%% directive, or render as HTML, and `#` is coded too so a label's own entity reads
-// literally. Mermaid refuses an empty quoted label, so one with nothing left is a single space.
 const MERMAID_ENTITIES = { "#": "#35;", '"': "#quot;", "%": "#37;", "&": "#amp;", "<": "#lt;", ">": "#gt;" };
 const mermaidLabel = (value) =>
   asText(value)
@@ -281,7 +270,6 @@ function invokedDirectly() {
   }
 }
 
-// The path with its nearest existing ancestor resolved through symlinks.
 function realTarget(path) {
   const parts = [];
   let dir = resolve(path);
@@ -347,7 +335,6 @@ function main(args) {
   try {
     const warnings = [];
     const view = normalize(model, warnings);
-    // Build the page before writing anything, so a refused page leaves no half-written pair.
     const page = opts.page ? explainerPage(view) : null;
     let out = write(opts.record, explainerRecord(view));
     if (page !== null) {

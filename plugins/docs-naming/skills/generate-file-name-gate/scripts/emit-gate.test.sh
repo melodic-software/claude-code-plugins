@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for emit-gate.sh, driven against the committed fixture
-# tree the audit sibling owns (fixtures/build-fixture.sh in audit-file-names).
-#
-# The emitted artifacts are RUN here, not just diffed. A renderer is only as
-# good as the script it produces, and a template that renders cleanly into a
-# file bash then refuses is the exact failure a text comparison misses.
-#
 # Template basenames named for the affected-tests mapping: this suite covers
 # check-file-names.sh.tmpl, check-file-names.test.sh.tmpl, and
 # file-names-rule.md.tmpl.
@@ -14,9 +7,6 @@
 # variable, and every single-quoted backtick or `$(...)` is the literal payload
 # of an injection case. None is a shell expansion.
 # shellcheck disable=SC2016
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -31,8 +21,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# --config reads one JSON document as given, so each fixture gets its own copy
-# of the fixture configuration beside it (<fixture>.json); cases edit that copy.
 new_fixture() {
   d="$TEST_TMPDIR/fx-$CASES-$RANDOM"
   bash "$BUILD" "$d" >/dev/null
@@ -45,8 +33,6 @@ emit() {
   shift
   bash "$SUT" --root "$root" --config "$root.json" "$@" 2>&1
 }
-
-# --- emission ----------------------------------------------------------------
 
 root="$(new_fixture)"
 out="$(emit "$root")"
@@ -69,12 +55,6 @@ assert_absent "the emitted checker carries no plugin path" \
   "$(cat "$root/scripts/check-file-names.sh")" "CLAUDE_SKILL_DIR"
 assert_absent "nor a plugin root" \
   "$(cat "$root/scripts/check-file-names.sh")" "CLAUDE_PLUGIN_ROOT"
-
-# --- the emitted checker against the three contract dimensions ---------------
-#
-# Exit code, which stream the output went to, and what the message says. A
-# checker that gets the code right and the stream wrong still breaks every
-# caller that pipes it.
 
 clean="$TEST_TMPDIR/clean-$RANDOM"
 mkdir -p "$clean/docs" "$clean/scripts"
@@ -101,8 +81,6 @@ assert_eq "a seeded violation exits 1" "1" "$rc"
 assert_eq "and stdout is empty" "" "$stdout"
 assert_contains "the finding is on stderr" "$(cat "$TEST_TMPDIR/e2")" "docs/NEW-FILE.md"
 
-# BASH is resolved before PATH is replaced, or the stub would hide the
-# interpreter as well as git and the case would prove nothing.
 BASH_BIN="$(command -v bash)"
 stub="$TEST_TMPDIR/nogit-$RANDOM"
 mkdir -p "$stub"
@@ -112,8 +90,6 @@ assert_eq "git hidden from PATH exits 2" "2" "$rc"
 assert_contains "the reason names git" "$out" "git is required"
 
 pass "emitted checker passes the three contract dimensions"
-
-# --- the emitted suite runs against the emitted checker -----------------------
 
 out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
 rc=$?
@@ -148,12 +124,6 @@ if command -v shellcheck >/dev/null 2>&1; then
 else
   printf 'SKIP: shellcheck not installed\n'
 fi
-
-# --- a root object: an extension filter and its own exempt paths --------------
-#
-# The emitted checker claims only the root's extensions, in any case; the
-# root's exempt_paths skip the basename rule unless another root claims the
-# path; and the case-collision pass still covers an exempt path.
 
 root="$(new_fixture)"
 jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]' \
@@ -196,8 +166,6 @@ assert_contains "the summary counts each finding once" "$out" "5 offender(s)"
 out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
 assert_eq "the emitted suite passes under a root object" "0" "$?"
 
-# A root limited to an extension outside the built-in probe names still gets
-# probes it claims.
 root="$(new_fixture)"
 jq '.file_names.roots = [{"path": "docs", "extensions": ["rst"]}]' \
   "$root.json" >"$root.t.json"
@@ -207,9 +175,6 @@ assert_contains "an rst-only root emits" "$out" "EMITTED	scripts/check-file-name
 out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
 assert_eq "the emitted suite passes under an rst-only root" "0" "$?"
 
-# Under a root below the repository root, where git would match an exclude
-# glob against the wrong base: an exempt glob matching nothing exempts nothing,
-# and one that matches exempts only its own paths.
 for ex in '**/zzz/**' '**/fixtures/**'; do
   root="$(new_fixture)"
   jq --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]' \
@@ -242,8 +207,6 @@ for bad in '{"path": ".", "extensions": ["m]d"]}' '{"path": "a\nb"}' '{"path": "
   assert_eq "a root the gate cannot carry is refused ($bad)" "2" "$?"
 done
 
-# A newline in the regex or rule would end the comment line it lands on and
-# run the rest as shell in the emitted checker.
 for filter in '.file_names.regex += "\ntouch PWNED #"' '.file_names.rule += "\ntouch PWNED #"'; do
   root="$(new_fixture)"
   jq "$filter" "$root.json" >"$root.t.json"
@@ -251,8 +214,6 @@ for filter in '.file_names.regex += "\ntouch PWNED #"' '.file_names.rule += "\nt
   emit "$root" >/dev/null
   assert_eq "a newline in the config is refused ($filter)" "2" "$?"
 done
-
-# --- --rule -------------------------------------------------------------------
 
 root="$(new_fixture)"
 out="$(emit "$root" --rule)"
@@ -268,8 +229,6 @@ printf '# Agents\n\n<!-- BEGIN GENERATED: instruction-placement rules index -->\
   >"$root/AGENTS.md"
 out="$(emit "$root" --rule)"
 assert_contains "an index block gets the re-render notice" "$out" "REINDEX	AGENTS.md"
-
-# --- overwrite refusal --------------------------------------------------------
 
 root="$(new_fixture)"
 emit "$root" >/dev/null
@@ -289,23 +248,12 @@ assert_eq "--force overwrites" "0" "$rc"
 assert_absent "the overwritten file is the freshly rendered one" \
   "$(cat "$root/scripts/check-file-names.sh")" "sentinel"
 
-# --- a configuration value is untrusted text ---------------------------------
-#
-# These are the discriminating cases for the three hazards the emitter's header
-# names. A fixture whose regex carries no metacharacter cannot tell a literal
-# renderer from a `sed` one, so each case below uses a value that WOULD break
-# the wrong implementation. Every hostile value is built with `jq --arg` rather
-# than spliced into a shell string, so this suite's own quoting cannot be what
-# a case is really testing.
-
-# hostile <root> <jq-filter> <arg-value> : write a variant config, print its path
 hostile() {
   out="$TEST_TMPDIR/hostile-$CASES-$RANDOM.json"
   jq --arg v "$3" "$2" "$1.json" >"$out"
   printf '%s' "$out"
 }
 
-# A backtick and a `$(...)` in an exemption. Under a double-quoted splice each
 # shellcheck disable=SC2016  # the payload is literal text a jq --arg carries; the jq filters below name $v, jq's variable, not the shell's
 root="$(new_fixture)"
 marker="$TEST_TMPDIR/PWNED-$RANDOM"
@@ -319,8 +267,6 @@ assert_eq "and the emitted gate runs no command substitution" "no" \
 assert_contains "the value survives as a literal" \
   "$(cat "$root/scripts/check-file-names.sh")" "$payload"
 
-# A double quote in a list entry. Under a double-quoted splice this closes the
-# string and the emitted file stops parsing.
 root="$(new_fixture)"
 cfgfile="$(hostile "$root" '.file_names.exempt_extensions = [$v]' 'md"; echo INJECTED; #')"
 bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
@@ -330,8 +276,6 @@ assert_eq "and the emitted checker parses" "0" "$?"
 bash -n "$root/scripts/check-file-names.test.sh" 2>/dev/null
 assert_eq "as does the emitted suite" "0" "$?"
 
-# A single quote, the one character the single-quoting must handle itself
-# rather than merely rely on.
 root="$(new_fixture)"
 apostrophe="O'REILLY.md"
 cfgfile="$(hostile "$root" '.file_names.exempt_basenames = [$v]' "$apostrophe")"
@@ -342,11 +286,6 @@ assert_eq "and the emitted checker parses" "0" "$?"
 assert_contains "the entry survives intact" \
   "$(cat "$root/scripts/check-file-names.sh")" "$apostrophe"
 
-# A regex carrying a doubled backslash and a literal backslash-t. awk's `-v`
-# halves the first and turns the second into a TAB; the environment channel
-# does neither.
-# The fixture's own rule with a metacharacter-carrying branch bolted on, so the
-# probe names still resolve and the case is about the channel, not the rule.
 root="$(new_fixture)"
 hostile_re='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$|^[a-z&|/]+\\[a-z]+\t[a-z]+$'
 cfgfile="$(hostile "$root" '.file_names.regex = $v' "$hostile_re")"
@@ -356,10 +295,6 @@ assert_eq "the regex reaches the emitted file byte for byte" "NAME_RE='$hostile_
 assert_eq "no tab was introduced" "0" \
   "$(printf '%s' "$emitted_re" | grep -c "$(printf '\t')")"
 
-# A single quote in the PRIMARY ROOT, which lands in a single-quoted assignment
-# in the emitted SUITE rather than in the checker's arrays. `bash -n` accepts
-# the broken-out result, so the parse gate cannot catch this one: only escaping
-# can.
 root="$(new_fixture)"
 marker="$TEST_TMPDIR/ROOTPWN-$RANDOM"
 cfgfile="$(hostile "$root" '.file_names.roots = [$v, "docs"]' "do'\$(touch $marker)'cs")"
@@ -369,8 +304,6 @@ timeout 120 bash "$root/scripts/check-file-names.test.sh" >/dev/null 2>&1
 assert_eq "and running the emitted suite executes no command substitution" "no" \
   "$([[ -e "$marker" ]] && echo yes || echo no)"
 
-# A `%` in the rule name. Spliced into a printf FORMAT it would be read as a
-# conversion and eat the arguments after it.
 root="$(new_fixture)"
 cfgfile="$(hostile "$root" '.file_names.rule = $v' '100%s-percent-kebab')"
 bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
@@ -385,16 +318,12 @@ git -C "$pct" add -A >/dev/null
 out="$(bash "$pct/scripts/check-file-names.sh" --check 2>&1)"
 assert_contains "a percent in the rule name reaches the message intact" "$out" "100%s-percent-kebab"
 
-# A rule the emitted suite could not probe. Refused at emission rather than
-# handed over as a suite that fails on its own clean fixture.
 root="$(new_fixture)"
 cfgfile="$(hostile "$root" '.file_names.regex = $v' '^$')"
 out="$(bash "$SUT" --root "$root" --config "$cfgfile" 2>&1)"
 rc=$?
 assert_eq "a rule no probe name satisfies is refused" "2" "$rc"
 assert_contains "the refusal says the suite would have no clean case" "$out" "no probe name"
-
-# --- an out-dir stays inside the root ----------------------------------------
 
 root="$(new_fixture)"
 out="$(emit "$root" --out-dir ../escaped)"
@@ -409,14 +338,10 @@ rc=$?
 assert_eq "an absolute out-dir is refused" "2" "$rc"
 assert_contains "the refusal says why" "$out" "must be relative to the root"
 
-# The out-dir lands in a double-quoted path inside the emitted checker, so shell
-# metacharacters in it would reach that file as shell.
 out="$(emit "$root" --out-dir 'scripts"; touch /tmp/od-pwn; #')"
 rc=$?
 assert_eq "an out-dir carrying shell metacharacters is refused" "2" "$rc"
 assert_contains "the refusal names the character class it allows" "$out" "letters, digits, dot"
-
-# --- configuration refusals ---------------------------------------------------
 
 root="$(new_fixture)"
 printf '{"schema": 1, "file_names": {"roots": ["docs"]}}\n' >"$TEST_TMPDIR/noregex.json"
@@ -434,8 +359,6 @@ rc=$?
 assert_eq "an unknown argument exits 2" "2" "$rc"
 assert_contains "the refusal names the argument" "$out" "unknown argument"
 
-# --- --out-dir ----------------------------------------------------------------
-
 root="$(new_fixture)"
 out="$(emit "$root" --out-dir tools/gates)"
 assert_contains "--out-dir places the checker" "$out" "EMITTED	tools/gates/check-file-names.sh"
@@ -446,8 +369,6 @@ assert_contains "the root hop matches the out-dir depth" \
   "$(grep -n 'cd "\$SCRIPT_DIR' "$root/tools/gates/check-file-names.sh")" '../..'
 sub="$(bash "$root/tools/gates/check-file-names.sh" --check 2>&1)"
 assert_contains "a nested checker still resolves the repository" "$sub" "docs/Alpha-One.md"
-
-# --- results ------------------------------------------------------------------
 
 printf '\n%d case(s), %d failure(s)\n' "$CASES" "$FAILED"
 [[ "$FAILED" -eq 0 ]] || exit 1

@@ -90,8 +90,6 @@ resolver() {
   bash "$RESOLVER" "$@" --root "$ROOT" --home "$HOME_DIR"
 }
 
-# --- prerequisites -----------------------------------------------------------
-
 if command -v jq >/dev/null 2>&1; then
   row PASS "jq" "$(jq --version 2>/dev/null || echo present)"
 else
@@ -107,8 +105,6 @@ else
   row WARN "git" "not on PATH; the tracked and ignored rows below are skipped"
   HAVE_GIT=0
 fi
-
-# --- layers ------------------------------------------------------------------
 
 TEAM_FILE="" TEAM_STATE="" PERSONAL_FILE="" PERSONAL_STATE=""
 layer_paths="$(resolver paths)" || die "cannot resolve the layer paths"
@@ -133,8 +129,6 @@ done <<EOF
 $layer_paths
 EOF
 
-# The JSON files the team layer and personal override used to live in are no longer read.
-# setup apply seeds an absent team YAML from the first of the two team files.
 if [[ "$TEAM_STATE" == present || "$TEAM_STATE" == absent ]]; then
   seeds=0
   [[ "$TEAM_STATE" == absent ]] && seeds=1
@@ -162,8 +156,6 @@ row PASS "resolve" "every present layer parses and declares this contract's sche
 get() {
   printf '%s' "$CONFIG" | jq -r "$1" 2>/dev/null
 }
-
-# --- key shapes --------------------------------------------------------------
 
 shape_errors="$(printf '%s' "$CONFIG" | jq -r '
   .file_names as $f
@@ -210,8 +202,6 @@ case "$KNOWN_RULES" in
 *) row FAIL "rule" "'$rule' is not a rule this version implements (known:${KNOWN_RULES%?})" ;;
 esac
 
-# --- the casing regex --------------------------------------------------------
-
 regex="$(get '.file_names.regex')"
 if grep -Eq "$regex" <<<'probe.md' >/dev/null 2>&1; then
   row PASS "regex" "compiles under grep -E and accepts a lower-kebab probe"
@@ -225,8 +215,6 @@ case "$regex" in
 *"'"*) row FAIL "regex quoting" "holds a single quote; the emitted gate inlines this value" ;;
 *) row PASS "regex quoting" "free of the single quote the gate emitter cannot inline" ;;
 esac
-
-# --- tiers -------------------------------------------------------------------
 
 tier_names="$(get '.file_names.tiers[].name')"
 dupes="$(printf '%s\n' "$tier_names" | sort | uniq -d | tr '\n' ' ')"
@@ -252,8 +240,6 @@ else
   row PASS "tier forms" "every tier names a form this version applies"
 fi
 
-# --- generated files and their regenerators ----------------------------------
-
 gen_count="$(get '.file_names.generated | length')"
 if [[ "$gen_count" == "0" ]]; then
   row INFO "generated" "no generated file declared; nothing is regenerated after a move"
@@ -264,8 +250,6 @@ else
       row FAIL "generated $gpath" "no regenerate command; the realign would leave it stale"
       continue
     fi
-    # An interpreter as the first word says nothing about whether the script it
-    # runs exists, so step past it and resolve the argument that does.
     first="${gcmd%% *}"
     rest="${gcmd#* }"
     target="$first"
@@ -284,8 +268,6 @@ else
 $(printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate // "")] | @tsv')
 EOF
 fi
-
-# --- tracked team layer, ignored personal override ---------------------------
 
 TEAM_LAYER="${TEAM_FILE#"$ROOT"/}"
 PERSONAL_PATH="${PERSONAL_FILE#"$ROOT"/}"
@@ -309,8 +291,6 @@ if [[ "$HAVE_GIT" -eq 1 && "$PERSONAL_STATE" == present ]]; then
     row WARN "personal override ignored" "$PERSONAL_PATH is not gitignored; the recommended line is ${PERSONAL_PATH%/*}/$GITIGNORE_LINE"
   fi
 fi
-
-# --- policy-floor declarations a personal layer cannot supply ----------------
 
 inert="$(resolver layers | grep '^!inert:' || true)"
 if [[ -n "$inert" ]]; then

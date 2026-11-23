@@ -91,18 +91,11 @@ while [[ $# -gt 0 ]]; do
     shift
     [[ $# -gt 0 ]] || die "--out-dir needs a directory"
     OUT_DIR="${1%/}"
-    # The out-dir is a path INSIDE the root. An absolute path or a `..` segment
-    # would write outside the repository being configured, and the emitted
-    # checker's root hop, which counts segments, would not describe where it
-    # landed either.
     [[ "$OUT_DIR" != /* ]] || die "--out-dir must be relative to the root, not '$OUT_DIR'"
     case "/$OUT_DIR/" in
     */../*) die "--out-dir must not leave the root: '$OUT_DIR'" ;;
     *) ;;
     esac
-    # It lands in a double-quoted path inside the emitted checker, so a quote,
-    # a backslash, a `$`, or a backtick in it would reach that file as shell.
-    # A directory name has no use for any of them.
     [[ "$OUT_DIR" =~ ^[A-Za-z0-9._/-]*$ ]] ||
       die "--out-dir may use letters, digits, dot, dash, underscore, and slash only: '$OUT_DIR'"
     ;;
@@ -128,34 +121,19 @@ fi
 
 load_config
 
-# --- the values the templates carry ------------------------------------------
-
 REGEX="$(cfg '.file_names.regex')"
 RULE="$(cfg '.file_names.rule')"
 [[ -n "$REGEX" && "$REGEX" != "null" ]] || die "the configuration declares no file_names.regex"
 [[ -n "$RULE" && "$RULE" != "null" ]] || die "the configuration declares no file_names.rule"
-# Both land raw on `#` comment lines of the emitted checker, where a newline
-# would end the comment and run the rest as shell on every CI run.
 [[ "$REGEX$RULE" != *$'\n'* ]] || die "file_names.regex or file_names.rule carries a newline"
 
-# The regex is validated here as well as by `setup check`: emission is the last
-# point at which a rule that cannot compile is still a refusal rather than a
-# gate that reports every tracked file as an offender.
 grep -Eq "$REGEX" <<<'probe-name.md' >/dev/null 2>&1
 [[ "$?" -le 1 ]] || die "file_names.regex does not compile under grep -E: $REGEX"
 
-# Each exemption list, one entry per line. `quoted` turns a list into a shell
-# array body; `human` turns it into a prose list for the headers.
 EXEMPT_BASENAMES="$(cfg '.file_names.exempt_basenames[]')"
 EXEMPT_PATHS="$(cfg '.file_names.exempt_paths[]')"
 EXEMPT_EXTENSIONS="$(cfg '.file_names.exempt_extensions[]')"
 
-# EVERY VALUE THAT LANDS IN THE EMITTED SHELL IS SINGLE-QUOTED, WITH ITS OWN
-# SINGLE QUOTES ESCAPED. A configuration value is text somebody typed, and the
-# emitted checker runs in CI: a double-quoted splice would let a backtick or a
-# `$(...)` in a root or an exemption execute on every run, and a bare `"` would
-# emit a file bash cannot parse. Single quotes suspend every expansion bash has,
-# and `'\''` is the one sequence that closes, escapes, and reopens them.
 sq() {
   printf "%s" "$1" | sed "s/'/'\\\\''/g"
 }
@@ -181,39 +159,21 @@ human() {
   }'
 }
 
-# What each root claims comes from root-scopes.jq, the definition the audit
-# inventory reads too.
 SCOPES="$(printf '%s' "$CONFIG" | jq -c -f "$ROOT_SCOPES" 2>/dev/null | tr -d '\r')" ||
   die "file_names.roots must hold strings or {path, extensions, exempt_paths} objects"
 [[ "$(printf '%s' "$SCOPES" | jq 'length')" -gt 0 ]] || die "the configuration declares no file_names.roots"
-# An extension lands inside a glob bracket expression and every value is read
-# back one per line, so both shapes are refused here rather than emitted.
 printf '%s' "$SCOPES" | jq -e 'all(.[]; all(.extensions[]; test("^[A-Za-z0-9]+$")))' >/dev/null ||
   die "a root's extensions may use letters and digits only"
-# git ls-files dies on a pathspec outside the repository, and inside the
-# gate's process substitution that death is invisible to `set -e`: the gate
-# would judge nothing and report a clean tree.
 UNSAFE="$(printf '%s' "$SCOPES" | jq -r '[.[].unsafe | values][0] // empty' | tr -d '\r')"
 [[ -z "$UNSAFE" ]] || die "a root's path or exempt_paths entry $UNSAFE"
 
-# The suite seeds its cases under the first root that takes every extension,
-# else under the first root, with probe names cut to that root's extensions.
 PRIMARY_JSON="$(printf '%s' "$SCOPES" | jq -c '(map(select(.extensions == [])) + .)[0]')"
 PRIMARY_EXTS=" $(printf '%s' "$PRIMARY_JSON" | jq -r '.extensions | map(ascii_downcase) | join(" ")' | tr -d '\r') "
-# Escaped like every other value that lands inside a single-quoted assignment in
-# an emitted file. A root carrying a `'` would otherwise close the quoting and
-# the rest of the value would be read as shell: `bash -n` accepts the result, so
-# the parse gate below would not catch it either.
 PRIMARY_ROOT="$(sq "$(printf '%s' "$PRIMARY_JSON" | jq -r '.path' | tr -d '\r')")"
 
-# One scope entry per git pathspec a root expands to, and beside each the root's
-# exempt_paths as one `:(glob)` pathspec per line. jq's @sh
-# single-quotes each value the way `quoted` does.
 SCOPE_SPECS_ARRAY="$(printf '%s' "$SCOPES" | jq -r '[.[] | .specs[]] | @sh' | tr -d '\r')"
 SCOPE_EXEMPTS_ARRAY="$(printf '%s' "$SCOPES" |
   jq -r '[.[] | . as $r | .specs[] | $r.exempt | map(":(glob)" + .) | join("\n")] | @sh' | tr -d '\r')"
-# A root with extensions or exemptions reads as `` `.` (`*.md` files, except
-# under `a`) `` in prose.
 ROOTS_HUMAN="$(printf '%s' "$SCOPES" | jq -r '.[] |
   "`\(.path)`"
   + (if .extensions == [] and .exempt == [] then ""
@@ -223,8 +183,6 @@ ROOTS_HUMAN="$(printf '%s' "$SCOPES" | jq -r '.[] |
     for (i = 1; i <= n; i++) s = s (i == 1 ? "" : (i == n ? (n == 2 ? " and " : ", and ") : ", ")) a[i]
     print s
   }')"
-# The comma-joined form, for the two places a value lands inside a
-# single-quoted string in the emitted script rather than in an array.
 ROOTS_PLAIN="$(sq "$(printf '%s' "$SCOPES" | jq -r 'map(.label) | join(", ")' | tr -d '\r')")"
 REGEX_SQ="$(sq "$REGEX")"
 RULE_SQ="$(sq "$RULE")"
@@ -235,24 +193,9 @@ EXEMPT_PATHS_HUMAN="$(printf '%s\n' "$EXEMPT_PATHS" | human)"
 EXEMPT_EXTENSIONS_ARRAY="$(printf '%s\n' "$EXEMPT_EXTENSIONS" | quoted)"
 EXEMPT_EXTENSIONS_HUMAN="$(printf '%s\n' "$EXEMPT_EXTENSIONS" | human)"
 
-# One seed path per exempt_paths glob: the glob's literal prefix plus a
-# basename the rule would reject, so the emitted case proves the exemption
-# carried the file rather than the rule accepting it.
-#
-# Only entries that END in a glob get a seed. A plain-directory entry such as
-# `docs/legacy` matches that one path and nothing under it, so a seed beneath it
-# would be a case the emitted suite fails out of the box through no fault of the
-# consumer's configuration.
 EXEMPT_PATH_SEEDS_ARRAY="$(printf '%s\n' "$EXEMPT_PATHS" |
   awk '/\*$/ {sub(/\/*\**$/, ""); if (length($0)) print $0 "/Exempt_By-PATH.md"}' | quoted)"
 
-# The suite's probe names come from the configuration, never from this file. A
-# hardcoded `conforming-name.md` is only conforming under a rule that allows a
-# hyphen, so a consumer with a different regex would receive a suite that fails
-# on its own clean fixture.
-#
-# The stems also take each extension the seeding root is limited to, so a root
-# claiming only `rst` still gets probes it claims.
 probe_names() {
   local stem ext
   {
@@ -273,8 +216,6 @@ probe_ok() {
   return 1
 }
 
-# A probe the suite can seed: exempt by neither its basename nor its extension,
-# and claimed by the seeding root.
 probe_eligible() {
   ! exempt_by_list "$1" "$EXEMPT_BASENAMES" &&
     ! exempt_by_list "${1##*.}" "$EXEMPT_EXTENSIONS" &&
@@ -291,7 +232,6 @@ EOF
   return 1
 }
 
-# A probe whose extension the seeding root does not claim would be out of scope.
 in_primary_root() {
   local ext
   ext="$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]')"
@@ -311,20 +251,12 @@ PROBE_BAD_ARRAY="$(
 [[ -n "${PROBE_BAD_ARRAY// /}" ]] ||
   die "no probe name this contract knows is rejected by file_names.regex, so the emitted suite could not prove the rule fires"
 
-# The rule file's `paths:` frontmatter, one glob per root.
-# The suite seeds an exempt extension only where the seeding root claims it;
-# elsewhere the case would pass whether or not the exemption works.
 EXEMPT_EXT_SEEDS_ARRAY="$(printf '%s\n' "$EXEMPT_EXTENSIONS" | while IFS= read -r e; do
   [[ -n "$e" ]] && in_primary_root "x.$e" && printf '%s\n' "$e"
 done | quoted)"
 
 RULE_PATHS="$(printf '%s' "$SCOPES" | jq -r '[.[].rule_paths[]] | join(", ")' | tr -d '\r')"
 
-# The templates carry `@@SHEBANG@@` rather than a literal `#!`. A tracked file
-# whose first bytes are a shebang is expected to be executable, and a template
-# is not a script: marking it so would be a lie, and leaving it 644 with a real
-# shebang fails the repository's exec-bit gate. The sibling `work-items`
-# adapter templates take the same placeholder for the same reason.
 SHEBANG='#!/usr/bin/env bash'
 SCRIPT_NAME="check-file-names.sh"
 TEST_NAME="check-file-names.test.sh"
@@ -332,8 +264,6 @@ SCRIPT_STEM="${SCRIPT_NAME%.sh}"
 if [[ -n "$OUT_DIR" && "$OUT_DIR" != "." ]]; then
   SCRIPT_PATH="$OUT_DIR/$SCRIPT_NAME"
   TEST_PATH="$OUT_DIR/$TEST_NAME"
-  # One `..` per segment of the out-dir, so the emitted checker resolves the
-  # repository root from its own location rather than from the caller's cwd.
   ROOT_HOP="$(printf '%s\n' "$OUT_DIR" | awk -F/ '{for (i = 1; i <= NF; i++) printf "%s..", (i > 1 ? "/" : ""); print ""}')"
 else
   SCRIPT_PATH="$SCRIPT_NAME"
@@ -341,13 +271,6 @@ else
   ROOT_HOP="."
 fi
 
-# --- render -------------------------------------------------------------------
-
-# awk's `-v` is NOT a transparent channel: it runs escape processing over the
-# value, so a doubled backslash in a consumer's regex arrives halved and a
-# literal `\t` arrives as a TAB. The emitted file still parses, it just quietly
-# means something else. Values therefore travel in the ENVIRONMENT and are read
-# from `ENVIRON[]`, which awk hands across byte for byte.
 render() {
   GFG_REGEX="$REGEX" \
     GFG_REGEX_SQ="$REGEX_SQ" \
@@ -405,8 +328,6 @@ render() {
   ' "$1"
 }
 
-# --- write --------------------------------------------------------------------
-
 targets=("$ROOT/$SCRIPT_PATH" "$ROOT/$TEST_PATH")
 [[ "$WITH_RULE" -eq 1 ]] && targets+=("$ROOT/.claude/rules/file-names.md")
 
@@ -420,10 +341,6 @@ for t in "${targets[@]}"; do
   mkdir -p "$(dirname "$t")" || die "cannot create $(dirname "$t")"
 done
 
-# A rendered file is PARSED before it is claimed. Nothing else here can prove a
-# configuration value did not break the shell it landed in, and an `EMITTED` row
-# over a file bash refuses is worse than a refusal: the operator wires it into CI
-# and finds out there.
 emit_shell() {
   render "$2" >"$1" || die "cannot write $1"
   bash -n "$1" 2>"$1.parse.$$" || {
@@ -451,9 +368,6 @@ if [[ "$WITH_RULE" -eq 1 ]]; then
   done
 fi
 
-# What emission deliberately leaves to the consumer. Each of these is a
-# repository-shaped decision with no single right answer, and a generator that
-# guessed would be editing files it does not own.
 printf 'NOT-WIRED\ta CI step invoking %s\n' "$SCRIPT_PATH"
 printf 'NOT-WIRED\ta row in whatever registry lists this repository gates\n'
 printf 'NOT-WIRED\tan architecture decision record for the rule\n'

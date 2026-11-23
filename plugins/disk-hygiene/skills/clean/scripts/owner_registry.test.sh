@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the owner-registry test suite.
 # test-scope: plugins/disk-hygiene/*.py plugins/disk-hygiene/*.sh plugins/disk-hygiene/*.mjs plugins/disk-hygiene/*.json plugins/disk-hygiene/*.ps1
 set -euo pipefail
 
