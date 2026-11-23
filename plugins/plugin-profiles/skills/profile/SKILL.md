@@ -56,9 +56,9 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
 ## Actions
 
 - **status**: `status` names the profile in force for this folder, each entry that differs from it,
-  plugins installed since, an unfinished switch, a one-session profile, the surface, and the
-  command that starts another session here in the profile in force. Relay it; a handoff's restore
-  line is that command.
+  plugins installed since, an unfinished switch, a one-session profile and the plugins added to
+  this conversation only, the surface, and the command that starts another session here in the
+  profile in force. Relay it; a handoff's restore line is that command, which adds nothing.
 - **launch `[<name>]`**: `launch [<name>] [--folder <dir>]` writes the one-session file for the
   folder and profile and prints the `claude` command that starts a session in it; with no name it
   takes this session's profile. It writes no settings file, so it needs no preview. Every launcher
@@ -71,6 +71,14 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   flag. `claude -c` continues the same conversation it would without the function, with the
   folder's settings, and its start notice prints the `claude --resume <id>` that reopens it in
   its profile. Tell them both forms.
+- **reopen with an off plugin**: in a one-session profile, the session-start notice gives the model
+  the line `claude --resume <id> --profile-add <plugin or plugin:skill>`. When the work needs a
+  plugin or skill the profile switched off (a `## Next` pointer into it, or the user asking for
+  it), offer that line with the session's id: it reopens this conversation in its profile with the
+  plugin and its dependencies on, for this conversation only, and a later `claude --resume <id>`
+  keeps it while new sessions and handoffs start without it. It takes a plugin id, a plugin name,
+  `plugin:skill` or a skill name, never settings text. For a plugin that is not installed, the
+  tool refuses and prints its `claude plugin install` line: offer that instead.
 - **apply `<name>`**: `apply <name> --for folder|initial|session`. Ask where when the user has not
   said: `folder` for this folder, `initial` for every folder without its own profile, `session` for
   one session started with the `claude --settings` command the tool prints. Run `list` first when
@@ -114,7 +122,7 @@ has answered its question or chosen to skip it; only then start the next. A user
 questions skips the interview questions only: phase 1 and, for any member not installed, phase 6
 always run. Every save and install
 goes through the preview rule above. Setup is done when each saved profile has been previewed and
-written or declined, and the apply offer in phase 7 is answered.
+written or declined, and the start offer in phase 7 is answered.
 
 1. **What is installed.** Run `inventory --json`. Report the number of plugins and skills, then
    each plugin with its skills, grouped by marketplace.
@@ -145,7 +153,8 @@ written or declined, and the apply offer in phase 7 is answered.
    leaves the new plugin off at user level unless the initial profile includes it; it never
    updates or uninstalls. How Claude Code installs a plugin, and what it asks for along the way:
    [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
-7. **Apply.** Offer `apply <name> --for folder` for the profile that fits this folder.
+7. **Start.** Offer `claude --profile <name>` (or `profiles.mjs start <name>`) for the profile that
+   fits the next piece of work, which starts one session in it and writes no settings file.
 
 ## Next
 

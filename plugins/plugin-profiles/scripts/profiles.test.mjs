@@ -3742,3 +3742,135 @@ test("#17354: the reset preview recommends one answer per question with a one-se
   });
   assert.equal(resetJson(KINDS.noRecord().w).questionRecommend, null, "no question, no recommendation for it");
 });
+
+/** Adds an installed plugin to the stub's list and the on-disk registry, with its dependencies and skills. */
+function addInstalled(w, id, { dependencies = [], skills = [] } = {}) {
+  const dir = join(w.root, "installs", id.replace("@", "-at-"));
+  writeTree(dir, { ".claude-plugin/plugin.json": { name: id.split("@")[0], dependencies }, ...Object.fromEntries(skills.map((s) => [`skills/${s}/SKILL.md`, `# ${s}\n`])) });
+  const list = JSON.parse(readFileSync(w.env.PP_STUB_LIST, "utf8"));
+  writeFileSync(w.env.PP_STUB_LIST, JSON.stringify([...list, { id, version: "1.0.0", scope: "user", enabled: true, installPath: dir }]));
+  installOnDisk(w);
+}
+const pluginsIn = (file) => JSON.parse(readFileSync(file, "utf8")).enabledPlugins;
+/** Runs start as the dotfiles claude function does, letting the stub claude exit 0; returns the --settings file claude got and its argv. */
+function reopen(w, args, extra = {}) {
+  const envFile = join(w.root, `env-${Date.now()}-${Math.random()}.jsonl`);
+  const r = w.run(["start", "--claude-args", ...args], { PP_STUB_ENV: envFile, PP_STUB_EXIT: "0", ...extra });
+  assert.equal(r.status, 0, r.stderr);
+  const started = readFileSync(envFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)).find((c) => c.argv[0] === "--settings");
+  return { file: started.argv[1], argv: started.argv, stderr: r.stderr };
+}
+/** The SessionStart hook's whole JSON output, or null when it printed nothing. */
+const hookJson = (w, input, extra = {}) => {
+  const r = runWith(w, ["status", "--session-start"], JSON.stringify(input), { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project, ...extra });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout ? JSON.parse(r.stdout) : null;
+};
+const SONG = `songwriting@${M}`;
+
+test("#18314 AC3/AC4: start --claude-args --resume X --profile-add Y reopens X in its profile with only Y added, claude never gets --profile-add, and the recorded file stays", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const r = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting", "--model", "opus"]);
+  assert.deepEqual(r.argv, ["--settings", r.file, "--resume", "abc-1", "--model", "opus"]);
+  assert.notEqual(r.file, recorded, "an exception never reuses the recorded file");
+  assert.ok(existsSync(recorded), "the recorded file is still there");
+  assert.equal(pluginsIn(recorded)[SONG], false, "build switches songwriting off");
+  assert.deepEqual(pluginsIn(r.file), { ...pluginsIn(recorded), [SONG]: true }, "the profile is unchanged apart from the added plugin");
+  assert.match(r.stderr, /Reopening abc-1 in profile build with songwriting@melodic-software on, for this conversation only\./);
+  const plain = startJson(w, ["--resume", "abc-1", "--profile-add=songwriting"]);
+  assert.deepEqual(plain.argv, ["claude", "--settings", r.file, "--resume", "abc-1"], "without --claude-args too, and in its --profile-add=<name> form");
+  assert.deepEqual(plain.added, [SONG]);
+});
+
+test("#18314: an added plugin brings its dependencies, from a marketplace the profile does not name, and leaves that marketplace's other plugins alone", () => {
+  const w = world();
+  addInstalled(w, "gizmo@vendor");
+  addInstalled(w, "gadget@vendor", { dependencies: ["gizmo"], skills: ["gadget-skill"] });
+  const recorded = sessionInBuild(w, "abc-1");
+  const r = reopen(w, ["--resume", "abc-1", "--profile-add", "gadget-skill"]);
+  assert.deepEqual(pluginsIn(r.file), { ...pluginsIn(recorded), "gadget@vendor": true, "gizmo@vendor": true });
+  assert.equal("widget@vendor" in pluginsIn(r.file), false, "widget, from the same marketplace, is left alone");
+});
+
+test("#18314: --profile-add refuses an ambiguous name with the candidates, a plugin that is not installed with its install line, and settings text, before claude starts", () => {
+  const w = world();
+  addInstalled(w, "songwriting@vendor");
+  sessionInBuild(w, "abc-1");
+  const refused = (token) => {
+    const r = w.run(["start", "--claude-args", "--resume", "abc-1", "--profile-add", token]);
+    assert.equal(r.status, 2, `${token}: ${r.stderr}`);
+    return r.stderr;
+  };
+  assert.match(refused("songwriting"), /give one of: songwriting@melodic-software, songwriting@vendor/);
+  assert.match(refused("debugging"), /Install it with: claude plugin install debugging@melodic-software/, "a profile names debugging@melodic-software");
+  assert.match(refused('{"enabledPlugins":{"widget@vendor":true}}'), /never settings text or a path/);
+  assert.match(refused(join(w.root, "list.json")), /never settings text or a path/);
+  assert.doesNotMatch(w.calls(), /--resume/, "claude never started");
+});
+
+test("#18314: --profile-add needs --resume <id> and a profile to reopen in", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  for (const args of [["build", "--profile-add", "songwriting"], ["-c", "--profile-add", "songwriting"], ["--resume", "--profile-add", "songwriting"], ["--profile-add", "songwriting"]]) {
+    const r = w.run(["start", ...args, "--dry-run"]);
+    assert.equal(r.status, 2, `${args.join(" ")}: ${r.stderr}`);
+    assert.match(r.stderr, /--profile-add reopens one conversation: give it with --resume <session id>/);
+  }
+  const none = w.run(["start", "--resume", "zzz", "--profile-add", "songwriting", "--dry-run"]);
+  assert.equal(none.status, 2);
+  assert.match(none.stderr, /no profile is recorded for session zzz/);
+  assert.equal(startJson(w, ["review", "--resume", "zzz", "--profile-add", "songwriting"]).profile, "review", "a given profile settles it");
+  assert.match(w.run(["start", "--resume", "abc-1", "--profile-add"]).stderr, /--profile-add needs a plugin/);
+  assert.deepEqual(argsJson(w, ["--", "--profile-add", "x"]).argv, ["claude", "--", "--profile-add", "x"], "after a bare -- the word stays claude's");
+});
+
+test("#18314 D10: the exception stays with its conversation: a later resume keeps it, a new session, -c and a launch from inside it do not", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]).file;
+  const env = JSON.parse(readFileSync(exception, "utf8")).env;
+  hookStart(w, { session_id: "abc-1", source: "resume" }, env);
+  assert.deepEqual(JSON.parse(readFileSync(join(byIdDir(w), "abc-1.json"), "utf8")).added, [SONG], "the by-id record names the added plugin");
+  assert.deepEqual(startJson(w, ["--resume", "abc-1"]).argv, ["claude", "--settings", exception, "--resume", "abc-1"], "a later resume keeps the exception");
+  rmSync(exception);
+  const rebuilt = reopen(w, ["--resume", "abc-1"]);
+  assert.equal(pluginsIn(rebuilt.file)[SONG], true, "a swept exception file is rebuilt with the added plugin");
+  const fresh = startJson(w, ["build"]);
+  assert.equal(fresh.file, recorded);
+  assert.deepEqual(fresh.added, []);
+  assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "-c"]);
+  const launched = launchJson(w, [], env);
+  assert.equal(launched.file, recorded, "launch from the exception session writes the profile's own file");
+  assert.equal(launched.enabledPlugins[SONG], false);
+  const relaunched = JSON.parse(readFileSync(launched.file, "utf8")).env;
+  assert.deepEqual(JSON.parse(w.run(["status", "--json"], relaunched).stdout).session.added, [], "a session from that launch has nothing added");
+});
+
+test("#18314 D5: a profile session's start hook tells the model the reopen line, also after compaction; status and the notice name what was added", () => {
+  const w = world();
+  const recorded = sessionInBuild(w, "abc-1");
+  const plain = JSON.parse(readFileSync(recorded, "utf8")).env;
+  const start = hookJson(w, { session_id: "abc-1", source: "startup" }, plain);
+  const context = start.hookSpecificOutput.additionalContext;
+  assert.equal(start.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(context, /claude --resume abc-1 --profile-add <plugin or plugin:skill>/);
+  assert.match(context, /claude plugin install/);
+  assert.ok(context.split(/\s+/).length < 80, `${context.split(/\s+/).length} words`);
+  assert.match(start.systemMessage, /This session runs in profile build\./);
+  const compact = hookJson(w, { session_id: "abc-1", source: "compact" }, plain);
+  assert.deepEqual(Object.keys(compact), ["hookSpecificOutput"], "after compaction only the context");
+  assert.equal(compact.hookSpecificOutput.additionalContext, context);
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]).file;
+  const env = JSON.parse(readFileSync(exception, "utf8")).env;
+  const resumed = hookJson(w, { session_id: "abc-1", source: "resume" }, env);
+  assert.match(resumed.systemMessage, /^Added for this conversation only: songwriting@melodic-software$/m);
+  assert.match(resumed.hookSpecificOutput.additionalContext, /Added for this conversation only: songwriting@melodic-software\./);
+  const status = w.run(["status"], env);
+  assert.match(status.stdout, /^Added for this conversation only: songwriting@melodic-software$/m);
+  assert.deepEqual(JSON.parse(w.run(["status", "--json"], env).stdout).session.added, [SONG]);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const folder = hookJson(w, { session_id: "plain-2", source: "startup" });
+  assert.equal(folder.hookSpecificOutput, undefined, "a folder profile without a one-session profile gets no reopen line");
+  assert.equal(hookJson(w, { session_id: "plain-2", source: "compact" }), null, "nor after compaction");
+});
