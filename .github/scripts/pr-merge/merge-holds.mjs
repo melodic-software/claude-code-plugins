@@ -314,6 +314,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["REVIEW.md", "gate"],
   [".github/actions/check-trusted-trigger/**", "trust"],
   [".github/scripts/lib/github-client.mjs", "trust"],
+  [".github/scripts/lib/trusted-actors.mjs", "trust"],
   [".github/actions/resolve-config/**", "trust"],
   [".github/actions/check-kill-switch/**", "trust"],
   [".github/actions/request-lane-token/**", "trust"],
