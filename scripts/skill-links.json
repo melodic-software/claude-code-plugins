@@ -485,7 +485,7 @@
       "related": [
         "Codify recurring defect check: /corrections:codify",
         "Record app-driving lessons in control skill: /app-control:map",
-        "Already a failing test: /testing:diagnose"
+        "Already a failing test: /testing:fix-failing"
       ]
     },
     "desktop-notification:setup": {
@@ -2633,9 +2633,10 @@
       ],
       "related": []
     },
-    "testing:diagnose": {
+    "testing:fix-failing": {
       "next": [
         "All green after the regression pass: /verification:confirm fix.",
+        "A `diagnose` run stopped at the cause: /testing:fix-failing loop, or /implementation:implement fix for a product bug.",
         "The diagnosis showed feature tests are missing: /testing:write."
       ],
       "related": [
@@ -2654,7 +2655,7 @@
       "next": [
         "All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.",
         "All scenarios pass after review: `/verification:confirm outcome`.",
-        "A scenario fails: `/testing:diagnose`.",
+        "A scenario fails: `/testing:fix-failing`.",
         "Touched features not matched (app-control not installed): enable app-control, installing it first if it is not installed, then run this skill again."
       ],
       "related": []
@@ -2689,7 +2690,7 @@
     "toolchain:check": {
       "next": [
         "Overall `PASS`: /verification:confirm before committing.",
-        "Overall `FAIL`: /testing:diagnose."
+        "Overall `FAIL`: /testing:fix-failing."
       ],
       "related": [
         "Lint and format checks only without build or tests: /toolchain:lint",
