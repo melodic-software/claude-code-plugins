@@ -589,6 +589,13 @@ def _pr_number(ref: Any) -> int | None:
     return int(match.group(1)) if match else None
 
 
+# The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
+# UUID and runs the merge in the background; the gate polls it to a terminal
+# status for at most this long, at the API budget's 90-second wait cadence
+# (reference/providers/github/README.md#api-budget). A request still pending
+# past the bound is left to GitHub: the next run's PUT returns 409 with the
+# same UUID and polls again. The API's response codes and statuses:
+# https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously
 ASYNC_MERGE_POLL_TIMEOUT_SECONDS = 90.0
 ASYNC_MERGE_POLL_INTERVAL_SECONDS = 90.0
 ASYNC_TERMINAL_STATUSES = frozenset({"merged", "enqueued", "failed"})

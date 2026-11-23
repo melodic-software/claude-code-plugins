@@ -17,3 +17,5 @@ bump: patch
   interval, the API budget, and the merge, merge-queue, async-merge and babysit docs that gave a
   60-second GitHub poll cadence now state 90, and the babysit merge gate polls an async merge
   every 90 seconds for up to 90.
+- The pull-request skill and its monitor reference no longer restate how GitHub counts a
+  conditional request against the rate limit: they link GitHub's guidance on conditional requests.
