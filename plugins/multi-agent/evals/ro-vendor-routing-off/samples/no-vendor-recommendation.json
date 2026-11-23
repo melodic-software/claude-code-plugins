@@ -13,6 +13,10 @@
     {
       "answer": "codex: model sparrow-1 @ effort high (basis: consensus)",
       "why": "recommends codex when routing is off"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort medium (basis: default)",
+      "why": "recommendation line with a note after the model id"
     }
   ]
 }

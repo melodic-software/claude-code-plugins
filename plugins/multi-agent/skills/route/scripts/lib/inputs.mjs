@@ -6,11 +6,14 @@ import {
   ID_RE,
   READ_STATES,
   ROW_STATUSES,
+  SAFE_FIELD_RE,
   TIEBREAK_STEPS,
   VERDICTS,
   WORK_TYPES,
   die,
 } from './common.mjs'
+
+const SAFE_RECORD_FIELDS = ['model', 'version', 'effort']
 
 const REGISTRY_TOP_KEYS = new Set(['version', 'note', 'rows'])
 const REGISTRY_ROW_KEYS = new Set([
@@ -140,6 +143,7 @@ export function loadSettings(filePath, defaults) {
       gemini: { in_use: null, rank: null },
     },
     sources: {},
+    worker: { model: null, effort: null },
   }
   if (!filePath) return base
 
@@ -147,10 +151,34 @@ export function loadSettings(filePath, defaults) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     die('settings must be a JSON object')
   }
-  const doc =
-    'vendors' in raw && raw.vendors && typeof raw.vendors === 'object' && !Array.isArray(raw.vendors)
-      ? raw.vendors
-      : raw
+  const hasVendors = 'vendors' in raw && raw.vendors !== null && raw.vendors !== undefined
+  if (hasVendors && (typeof raw.vendors !== 'object' || Array.isArray(raw.vendors))) {
+    die('settings.vendors must be an object')
+  }
+  const hasRoles = 'roles' in raw && raw.roles !== null && raw.roles !== undefined
+  if (hasRoles && (typeof raw.roles !== 'object' || Array.isArray(raw.roles))) {
+    die('settings.roles must be an object')
+  }
+  if (hasRoles) {
+    const workerSingle =
+      raw.roles.worker &&
+      typeof raw.roles.worker === 'object' &&
+      !Array.isArray(raw.roles.worker) &&
+      raw.roles.worker.single &&
+      typeof raw.roles.worker.single === 'object' &&
+      !Array.isArray(raw.roles.worker.single)
+        ? raw.roles.worker.single
+        : null
+    if (workerSingle) {
+      if (typeof workerSingle.model === 'string' && workerSingle.model.trim()) {
+        base.worker.model = workerSingle.model.trim()
+      }
+      if (typeof workerSingle.effort === 'string' && workerSingle.effort.trim()) {
+        base.worker.effort = workerSingle.effort.trim()
+      }
+    }
+  }
+  const doc = hasVendors ? raw.vendors : hasRoles ? {} : raw
 
   for (const k of Object.keys(doc)) {
     if (!SETTINGS_KEYS.has(k)) die(`settings has unknown field '${k}'`)
@@ -361,6 +389,7 @@ export function normalizeModels(doc) {
         idSet: new Set(ids.map((s) => s.toLowerCase())),
         idCanonical: new Map(ids.map((s) => [s.toLowerCase(), s])),
         effortsByModel: new Map(),
+        defaultEffortByModel: new Map(),
         versionByModel: new Map(),
         topEfforts: null,
         defaultModel: null,
@@ -374,6 +403,7 @@ export function normalizeModels(doc) {
     const modelsArr = Array.isArray(entry.models) ? entry.models : []
     const ids = []
     const effortsByModel = new Map()
+    const defaultEffortByModel = new Map()
     const versionByModel = new Map()
     for (const m of modelsArr) {
       const id = typeof m === 'string' ? m : m && typeof m.id === 'string' ? m.id : null
@@ -381,6 +411,9 @@ export function normalizeModels(doc) {
       ids.push(id)
       if (m && typeof m === 'object' && Array.isArray(m.efforts)) {
         effortsByModel.set(id.toLowerCase(), m.efforts)
+      }
+      if (m && typeof m === 'object' && typeof m.default_effort === 'string' && m.default_effort.trim()) {
+        defaultEffortByModel.set(id.toLowerCase(), m.default_effort.trim())
       }
       if (m && typeof m === 'object' && typeof m.version === 'string' && m.version.trim()) {
         versionByModel.set(id.toLowerCase(), m.version.trim())
@@ -393,6 +426,7 @@ export function normalizeModels(doc) {
       idSet: new Set(ids.map((s) => s.toLowerCase())),
       idCanonical: new Map(ids.map((s) => [s.toLowerCase(), s])),
       effortsByModel,
+      defaultEffortByModel,
       versionByModel,
       topEfforts: Array.isArray(entry.efforts) ? entry.efforts : null,
       defaultModel: typeof entry.default_model === 'string' ? entry.default_model : null,
@@ -442,10 +476,17 @@ export function mergeTeamRegistryRows(registry, registryPath, notes) {
 
 export function loadBoundRecords(recordSpecs, disabledRows, manifestById, rowById, taskType, notes) {
   const recordsBySource = new Map()
+  const findingsCountBySource = new Map()
   for (const spec of recordSpecs) {
     const { boundSourceId, records, findings } = loadRecordsArg(spec)
-    for (const f of findings) {
-      notes.push(`suspicious-content${boundSourceId ? ` (${boundSourceId})` : ''}: ${f}`)
+    if (findings.length > 0) {
+      const recSources = new Set(records.map((r) => r.source_id))
+      const sourceLabel =
+        boundSourceId || (recSources.size === 1 ? [...recSources][0] : 'unknown-source')
+      findingsCountBySource.set(
+        sourceLabel,
+        (findingsCountBySource.get(sourceLabel) || 0) + findings.length,
+      )
     }
     for (const r of records) {
       if (boundSourceId && r.source_id !== boundSourceId) {
@@ -465,6 +506,13 @@ export function loadBoundRecords(recordSpecs, disabledRows, manifestById, rowByI
         notes.push(`dropped record for '${sid}': absent from registry`)
         continue
       }
+      const badFields = SAFE_RECORD_FIELDS.filter(
+        (f) => r[f] !== null && !SAFE_FIELD_RE.test(r[f]),
+      )
+      if (badFields.length > 0) {
+        notes.push(`dropped record for '${sid}': invalid ${badFields.join(', ')} value`)
+        continue
+      }
       const stampedRead =
         mEntry.state !== 'read' ? 'unread' : mEntry.stale === true ? 'cached-stale' : 'live'
       const stampedDate =
@@ -481,6 +529,11 @@ export function loadBoundRecords(recordSpecs, disabledRows, manifestById, rowByI
       if (!recordsBySource.has(sid)) recordsBySource.set(sid, [])
       recordsBySource.get(sid).push(stamped)
     }
+  }
+  for (const [sid, count] of findingsCountBySource.entries()) {
+    notes.push(
+      `${sid}: the page holds content the reader flagged as instructions (${count} item(s)); not relayed`,
+    )
   }
   return recordsBySource
 }

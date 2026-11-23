@@ -1,4 +1,4 @@
-import { raiseEffort } from './common.mjs'
+import { modelDefaultEffort, raiseEffort } from './common.mjs'
 import {
   loadBoundRecords,
   loadManifest,
@@ -112,7 +112,7 @@ function selectClaudeCannotImage({
     }
     const candModel = info.defaultModel || info.ids[0] || 'default'
     const candVersion = info.versionByModel.get(candModel.toLowerCase()) || null
-    const candEffort = info.defaultEffort || 'default'
+    const candEffort = modelDefaultEffort(info, candModel) || 'default'
     if (isPairFailed(failedOutcomes, { vendor: v, model: candModel, version: candVersion, effort: candEffort })) {
       anyFailedImage = true
       notes.push(`${v} ${candModel} @ ${candEffort} excluded: failed trial for ${taskType}`)
@@ -121,7 +121,7 @@ function selectClaudeCannotImage({
     chosen = {
       vendor: v,
       model: candModel,
-      version: candVersion || '1',
+      version: candVersion,
       effort: candEffort,
       basis: 'claude-cannot',
     }
@@ -161,11 +161,13 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
   )
 
   const claudeModels = modelsByVendor.get('claude')
-  const claudeDefaultModel = (claudeModels && claudeModels.defaultModel) || defaults.model
-  const claudeBaseEffort = (claudeModels && claudeModels.defaultEffort) || defaults.effort
+  const claudeDefaultModel =
+    settings.worker.model || (claudeModels && claudeModels.defaultModel) || defaults.model
+  const claudeBaseEffort =
+    settings.worker.effort || (claudeModels && claudeModels.defaultEffort) || defaults.effort
   const claudeEffort = opts.taskClass === 'heavy' ? raiseEffort(claudeBaseEffort) : claudeBaseEffort
   const claudeVersion =
-    (claudeModels && claudeModels.versionByModel.get(claudeDefaultModel.toLowerCase())) || '1'
+    (claudeModels && claudeModels.versionByModel.get(claudeDefaultModel.toLowerCase())) || null
 
   const { sourcesOut, leadingEvaluations } = evaluateSources({
     activeRows,
@@ -286,7 +288,7 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     model,
     effort,
     basis,
-    pair_key: `${vendor}:${model}:${version}:${effort}:${opts.taskType}`,
+    pair_key: `${vendor}:${model}:${version ?? 'null'}:${effort}:${opts.taskType}`,
     sources: sourcesOut,
     ties: tiesOut,
     notes,

@@ -29,7 +29,7 @@ graders:
     target: 'last_message'
   - name: 'no-vendor-recommendation'
     type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?(?:claude|codex|gemini):\s*model\s+\S+\s*@\s*effort\s+\S+'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?(?:claude|codex|gemini):\s*model\s+\S+[^@\n]*@\s*effort\s+\S+'
     flags: 'mi'
     match: 'not_contains'
     target: 'last_message'

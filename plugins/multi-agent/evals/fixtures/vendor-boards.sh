@@ -10,13 +10,14 @@ all-read | one-unread) ;;
   ;;
 esac
 
+today="$(date -u +%Y-%m-%d)"
 mkdir -p eval-fixtures/boards/www-tbench-ai eval-fixtures/cache
 
 if [[ "$mode" == all-read ]]; then
-  cat >eval-fixtures/boards/www-tbench-ai/leaderboard.md <<'EOF'
+  cat >eval-fixtures/boards/www-tbench-ai/leaderboard.md <<EOF
 # Terminal-Bench Leaderboard
 
-Updated: 2026-11-18
+Updated: ${today}
 
 | Model | Harness | Effort | Score | Error Range | Avg Tokens |
 |---|---|---|---|---|---|
@@ -26,10 +27,10 @@ Updated: 2026-11-18
 EOF
 
   mkdir -p eval-fixtures/boards/cursor-com
-  cat >eval-fixtures/boards/cursor-com/cursorbench.md <<'EOF'
+  cat >eval-fixtures/boards/cursor-com/cursorbench.md <<EOF
 # CursorBench Leaderboard
 
-Changelog: 2026-11-18 release
+Changelog: ${today} release
 
 | Model | Effort | Score | Error Range | Avg Tokens |
 |---|---|---|---|---|
@@ -39,10 +40,10 @@ Changelog: 2026-11-18 release
 EOF
 
   mkdir -p eval-fixtures/boards/arena-ai/leaderboard/code
-  cat >eval-fixtures/boards/arena-ai/leaderboard/code/webdev.md <<'EOF'
+  cat >eval-fixtures/boards/arena-ai/leaderboard/code/webdev.md <<EOF
 # WebDev Arena Leaderboard
 
-Last updated: 2026-11-20
+Last updated: ${today}
 
 | Model | Rating | 95% CI |
 |---|---|---|
@@ -51,10 +52,10 @@ Last updated: 2026-11-20
 | finch-1 | 1416 | +/- 12 |
 EOF
 else
-  cat >eval-fixtures/boards/www-tbench-ai/leaderboard.md <<'EOF'
+  cat >eval-fixtures/boards/www-tbench-ai/leaderboard.md <<EOF
 # Terminal-Bench Leaderboard
 
-Updated: 2026-11-18
+Updated: ${today}
 
 | Model | Harness | Effort | Score | Error Range |
 |---|---|---|---|---|

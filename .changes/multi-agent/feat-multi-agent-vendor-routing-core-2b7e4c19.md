@@ -17,3 +17,10 @@ bump: minor
 - `scripts/resolve-roles.sh` and `skills/setup/scripts/setup.sh` validate `vendors.*` across layers (rejecting `trials_fail: 1` and unknown tiebreak steps) and emit the resolved `vendors` object with per-key source layers.
 - `vendor-decide` accepts `--state-dir` (defaulting to the plugin data-folder rule), routes proven pairs with basis `proven`, excludes failed pairs, routes active trials with basis `trial`, writes nothing on routine runs, and honors `--settings` for routing-off decisions, silent `in_use: false` skipping, one-line unavailable notes for `in_use: true`, ordered `tiebreak` steps and vendor ranks, per-source enable overrides, and inactive-trials notices when counts are unset.
 - `reference/vendors.md` now states the trust model and points to `reference/benchmarks.json`, with the dated checked column and model names removed; `reference/config.md` and `README.md` document the `vendors` keys, layers, team rows file, trial state location, and `send-back` command.
+
+### Fixed
+
+- `vendor-decide` now reads Claude's base model and effort from `roles.worker.single` in `route.sh` `--settings` output (falling back to `--models` defaults and bundled `defaults.yaml` only when absent) before applying the heavy-task effort raise.
+- `vendor-decide` enforces the default-effort floor on `coding` consensus and trial recommendations, raising any effort below the selected model's default to that default with one note.
+- `vendor-decide` no longer copies `board-reader` `findings` strings into `Decision.notes` (emitting one fixed non-relayed note per flagged source instead); `agents/board-reader.md` restricts `findings` to reader-authored labels and `skills/route/SKILL.md` relays only that fixed note.
+- `vendor-decide` drops records whose `model`, `version`, or `effort` fails `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$` with one note naming source and field (never the value), constrains decision `effort` to the vendor/model's listed efforts in `--models` (falling back to the model/vendor default), and sources `version` exclusively from `--models` (never from page records, falling back to `null`).

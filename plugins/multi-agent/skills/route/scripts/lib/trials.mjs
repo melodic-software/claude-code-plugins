@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveEffort } from './common.mjs'
+import { applyCodingEffortFloor, modelDefaultEffort, resolveEffort } from './common.mjs'
 
 const DEFAULT_PLUGIN_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -100,7 +100,7 @@ export function isProvenEligible(outcome, modelsByVendor, skippedSilentVendors, 
   if (taskType === 'image' && vInfo.image === false) return false
   if (effort && effort !== 'default') {
     const allowed = vInfo.effortsByModel.get(model.toLowerCase()) || vInfo.topEfforts
-    if (allowed && allowed.length > 0 && !allowed.includes(effort)) return false
+    if (!allowed || allowed.length === 0 || !allowed.includes(effort)) return false
   }
   return true
 }
@@ -154,7 +154,7 @@ export function selectActiveTrial({
 }) {
   const trialCandidates = []
   const seenCand = new Set()
-  const pushCandidate = (vName, candModel, candVersion, candEffort) => {
+  const pushCandidate = (vName, candModel, candEffort) => {
     if (vName === 'claude' || skippedSilentVendors.has(vName) || unavailableInUseVendors.has(vName)) return
     const vInfo = modelsByVendor.get(vName)
     if (!vInfo || vInfo.status !== 'ok' || vInfo.ids.length === 0) return
@@ -164,14 +164,16 @@ export function selectActiveTrial({
         ? vInfo.idCanonical.get(candModel.toLowerCase())
         : vInfo.defaultModel || vInfo.ids[0]
     if (!chosenModel || !vInfo.idSet.has(chosenModel.toLowerCase())) return
-    const chosenVersion =
-      candVersion || vInfo.versionByModel.get(chosenModel.toLowerCase()) || '1'
-    const chosenEffort = resolveEffort(
+    const chosenVersion = vInfo.versionByModel.get(chosenModel.toLowerCase()) || null
+    const defaultEff = modelDefaultEffort(vInfo, chosenModel)
+    const baseEffort = resolveEffort(
       vInfo,
       chosenModel,
-      candEffort || vInfo.defaultEffort || (taskClass === 'heavy' ? 'high' : 'default'),
+      candEffort || defaultEff || (taskClass === 'heavy' ? 'high' : null),
     )
-    const sig = `${vName}:${chosenModel.toLowerCase()}:${chosenVersion}:${chosenEffort}`
+    const floored = applyCodingEffortFloor(vInfo, chosenModel, baseEffort, taskType)
+    const chosenEffort = floored.effort
+    const sig = `${vName}:${chosenModel.toLowerCase()}:${chosenVersion ?? 'null'}:${chosenEffort}`
     if (seenCand.has(sig)) return
     seenCand.add(sig)
     trialCandidates.push({
@@ -179,21 +181,22 @@ export function selectActiveTrial({
       model: chosenModel,
       version: chosenVersion,
       effort: chosenEffort,
+      raisedFrom: floored.raisedFrom,
     })
   }
 
   for (const recs of recordsBySource.values()) {
     for (const r of recs) {
       if (r.verdict === 'lead' || r.verdict === 'tie') {
-        pushCandidate(r.vendor, r.model, r.version, r.effort)
+        pushCandidate(r.vendor, r.model, r.effort)
       }
     }
   }
   for (const vName of effectiveVendorOrder) {
-    pushCandidate(vName, null, null, null)
+    pushCandidate(vName, null, null)
   }
   for (const vName of modelsByVendor.keys()) {
-    pushCandidate(vName, null, null, null)
+    pushCandidate(vName, null, null)
   }
 
   let skippedFailedTrial = 0
@@ -201,6 +204,11 @@ export function selectActiveTrial({
     if (isPairFailed(failedOutcomes, cand)) {
       skippedFailedTrial++
       continue
+    }
+    if (cand.raisedFrom) {
+      notes.push(
+        `${cand.vendor} ${cand.model}: coding effort '${cand.raisedFrom}' raised to default '${cand.effort}'`,
+      )
     }
     notes.push(`active trial selected ${cand.vendor} ${cand.model} @ ${cand.effort} for ${taskType}`)
     return {

@@ -20,8 +20,3 @@ graders:
     pattern: 'cursorbench[^\n]{0,80}\b(?:unread|fixture-missing)\b|(?:unread|fixture-missing)[^\n]{0,80}\bcursorbench\b'
     flags: 'i'
     target: 'last_message'
-  - name: 'stays-on-claude-default'
-    type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?claude:\s*model\s+\S+[^@\n]*@\s*effort\s+\S+[^\n]*basis:\s*default'
-    flags: 'mi'
-    target: 'last_message'

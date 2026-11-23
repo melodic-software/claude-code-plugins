@@ -20,7 +20,8 @@ result comes from a live listing or a page read through the shared cache at run 
    kind of task, and keep the default model unless an upstream page or the trust model below names
    a better one for this work type. Basis: the section or consensus that supports the step.
 3. **Never below the default for code.** Work that changes code, verifies a change or is likely to
-   hit edge cases never gets a lower effort than the vendor's default.
+   hit edge cases never gets a lower effort than the vendor's default (`vendor-decide` raises any
+   lower `coding` consensus or trial effort to the selected model's default with one note).
 4. **Only levels the CLI accepts.** A Codex or Gemini effort must appear in that product's
    `external-agents models` output (`efforts`, or the model's own `efforts`); a model must be one
    of its `models[].id`.

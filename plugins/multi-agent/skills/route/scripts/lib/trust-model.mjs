@@ -1,4 +1,4 @@
-import { DATE_RE, parseUtcDate, pickMode, resolveEffort } from './common.mjs'
+import { DATE_RE, applyCodingEffortFloor, parseUtcDate, pickMode, resolveEffort } from './common.mjs'
 import { isPairFailed } from './trials.mjs'
 
 export function publisherToVendor(publisher) {
@@ -277,17 +277,21 @@ export function resolveConsensus({
           rawModel && vInfo && vInfo.idCanonical.get(rawModel.toLowerCase())
             ? vInfo.idCanonical.get(rawModel.toLowerCase())
             : rawModel || 'default'
-        const rawVersion =
-          pickMode(winnerRecs.map((r) => r.version)) ||
-          (vInfo && vInfo.versionByModel.get(canonicalModel.toLowerCase())) ||
-          null
+        const modelVersion =
+          (vInfo && vInfo.versionByModel.get(canonicalModel.toLowerCase())) || null
         const rawEffort = pickMode(winnerRecs.map((r) => r.effort))
-        const resolvedEffort = resolveEffort(vInfo, canonicalModel, rawEffort)
+        const floored = applyCodingEffortFloor(
+          vInfo,
+          canonicalModel,
+          resolveEffort(vInfo, canonicalModel, rawEffort),
+          taskType,
+        )
+        const resolvedEffort = floored.effort
         if (
           isPairFailed(failedOutcomes, {
             vendor: winner,
             model: canonicalModel,
-            version: rawVersion,
+            version: modelVersion,
             effort: resolvedEffort,
           })
         ) {
@@ -295,10 +299,15 @@ export function resolveConsensus({
             `${winner} ${canonicalModel} @ ${resolvedEffort} excluded: failed trial for ${taskType}`,
           )
         } else {
+          if (floored.raisedFrom) {
+            notes.push(
+              `${winner} ${canonicalModel}: coding effort '${floored.raisedFrom}' raised to default '${resolvedEffort}'`,
+            )
+          }
           resolved = {
             vendor: winner,
             model: canonicalModel,
-            version: rawVersion || '1',
+            version: modelVersion,
             effort: resolvedEffort,
             basis: 'consensus',
           }
@@ -326,19 +335,29 @@ export function resolveConsensus({
           rawModel && vInfo && vInfo.idCanonical.get(rawModel.toLowerCase())
             ? vInfo.idCanonical.get(rawModel.toLowerCase())
             : rawModel || (v === 'claude' ? claudeDefaultModel : 'default')
-        const rawVersion =
-          pickMode(vRecs.map((r) => r.version)) ||
-          (vInfo && vInfo.versionByModel.get(canonicalModel.toLowerCase())) ||
-          null
+        const modelVersion =
+          v === 'claude'
+            ? claudeVersion
+            : (vInfo && vInfo.versionByModel.get(canonicalModel.toLowerCase())) || null
         const rawEffort = pickMode(vRecs.map((r) => r.effort))
+        const floored =
+          v === 'claude'
+            ? { effort: claudeEffort, raisedFrom: null }
+            : applyCodingEffortFloor(
+                vInfo,
+                canonicalModel,
+                resolveEffort(vInfo, canonicalModel, rawEffort),
+                taskType,
+              )
         const tokens = vRecs
           .filter((r) => r.tokens)
           .map((r) => ({ ...r.tokens, source_id: r.source_id }))
         return {
           vendor: v,
           model: canonicalModel,
-          version: rawVersion,
-          effort: v === 'claude' ? claudeEffort : resolveEffort(vInfo, canonicalModel, rawEffort),
+          version: modelVersion,
+          effort: floored.effort,
+          raisedFrom: floored.raisedFrom,
           tokens,
         }
       })
@@ -396,10 +415,15 @@ export function resolveConsensus({
       }
 
       if (picked) {
+        if (picked.raisedFrom) {
+          notes.push(
+            `${picked.vendor} ${picked.model}: coding effort '${picked.raisedFrom}' raised to default '${picked.effort}'`,
+          )
+        }
         resolved = {
           vendor: picked.vendor,
           model: picked.vendor === 'claude' ? claudeDefaultModel : picked.model,
-          version: picked.version || '1',
+          version: picked.version,
           effort: picked.effort,
           basis: 'consensus',
         }
