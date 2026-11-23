@@ -32,6 +32,9 @@ inputs:
       answered incomplete or the base config could not be read.
     required: false
     default: full
+  node-setup:
+    description: The outcome of the caller's pinned Node setup; anything but `success` fails the check, so `capped` is never set.
+    required: true
   github-token:
     description: A token that can search this repository's pull requests and list its issues.
     required: false
@@ -54,6 +57,13 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Require the pinned Node
+      shell: bash
+      env:
+        NODE_SETUP: ${{ inputs.node-setup }}
+      run: |
+        [[ "$NODE_SETUP" == success ]] || { echo "::error::the pinned Node setup ended '${NODE_SETUP}', so the WIP cap is not read"; exit 1; }
+
     # The cap comes through resolve-config, which needs its dependencies; an
     # install that fails leaves the base config unread, so the run holds and admissions close.
     # A composite step takes no timeout-minutes, so `timeout` bounds the install.

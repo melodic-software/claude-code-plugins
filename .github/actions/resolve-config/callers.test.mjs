@@ -1472,8 +1472,11 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
     assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
   }
   assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false" }), false, "the switch on skips the cap check");
-  const node = pick.steps.find((item) => item.name === "Set up Node");
+  const node = pick.steps.find((item) => item.id === "node");
   assert.equal(node.if, "steps.kill.outputs.proceed != 'false'");
+  assert.equal(wip.with["node-setup"], "${{ steps.node.outcome }}", "the cap check reads the Node setup's outcome");
+  assert.match(wip.uses, /^\.\/\.base\/\.github\/actions\/check-wip-cap\b/);
+  assert.match(readFileSync(new URL("../check-wip-cap/action.yml", import.meta.url), "utf8"), /- name: Require the pinned Node\n {6}shell: bash\n {6}env:\n {8}NODE_SETUP: \$\{\{ inputs\.node-setup \}\}\n {6}run: \|\n {8}\[\[ "\$NODE_SETUP" == success \]\] \|\| \{[^\n]*exit 1; \}\n/, "anything but a successful setup fails the check");
   assert.equal(node["continue-on-error"], true, "a failed Node setup holds green");
   assert.ok(pick.steps.indexOf(node) < pick.steps.indexOf(wip), "Node is set up before the check");
   assert.equal(evaluate(hold.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.capped": "" }), false, "the switch on names no hold");

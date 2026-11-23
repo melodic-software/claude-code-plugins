@@ -277,6 +277,7 @@ jobs:
       # queued cap (`admission-open`) gates only new agent-ready labels in
       # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Set up Node
+        id: node
         if: steps.kill.outputs.proceed != 'false'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
@@ -291,6 +292,7 @@ jobs:
         with:
           # Only capped leaves this job, so the admission reads are skipped.
           reads: pause
+          node-setup: ${{ steps.node.outcome }}
 
       # The check names its own hold; this names one it could not, when it
       # failed or never ran.
