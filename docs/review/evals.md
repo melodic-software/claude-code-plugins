@@ -69,8 +69,14 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
   follow-up does (Q57).
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
-- Every run uses the maintenance API key and stops at its credit stop. No eval run uses a
-  subscription token (Q14, Q53).
+- Every run uses the maintenance API key and stops at its credit stop, except a compare run
+  dispatched with `credential: subscription`: both its passes run on the maintenance subscription
+  token, and only for a PR whose author is on the trusted-actor list; `compare-prepare` refuses any
+  other. It keeps the affected cases, the per-run ceiling (a list-price estimate, not a plan-usage
+  cap), `--no-publish` and the `CLAUDE_EVALS_DISABLED` switch. No fallback token follows it: a
+  limit stop ends the pass. No other eval run uses a subscription token (Q14, Q53, as amended by
+  the owner decision "Eval runs on a subscription token, case pruning, and how #18356 lands",
+  2026-11-23, in [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md)).
 
 ## Budget
 

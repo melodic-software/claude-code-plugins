@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { evaluate } from "../lib/gate-expression.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-run-plugin-evals.yml", import.meta.url), "utf8");
@@ -138,15 +139,25 @@ test("compare mode reads the pull request's commits only as git objects for the 
   assert.doesNotMatch(armsScript, /\b(?:source|\.)\s+"?\$REPO|bash "?\$REPO|node "?\$REPO|checkout|worktree|apply/);
 });
 
-test("compare mode runs both arms on the API key alone and stops without a cost cap", () => {
+test("compare mode hands each arm only the credential input's secret and stops without a cost cap", () => {
   for (const name of ["compare-before", "compare-after"]) {
     const arm = job(name);
-    assert.match(arm, /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n*$/, name);
+    const secrets = /\n {4}secrets:\n((?: {6}.*\n?)+)/.exec(arm)[1];
+    const passed = Object.fromEntries([...secrets.matchAll(/^ {6}([\w-]+): (.*)$/gm)].map((m) => [m[1], m[2]]));
+    assert.deepEqual(Object.keys(passed), ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"], name);
+    for (const credential of ["api-key", "subscription"]) {
+      const ctx = { "inputs.credential": credential, "secrets.MAINTENANCE_CLAUDE_API_KEY": "key", "secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN": "token" };
+      assert.equal(evaluate(passed.MAINTENANCE_CLAUDE_API_KEY, ctx), credential === "api-key" ? "key" : "", `${name} ${credential}`);
+      assert.equal(evaluate(passed.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, ctx), credential === "subscription" ? "token" : "", `${name} ${credential}`);
+    }
+    assert.match(arm, /\n {6}credential: \$\{\{ inputs\.credential \}\}\n/, name);
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
     assert.match(arm, /\n {6}cases: \$\{\{ inputs\.cases \}\}\n/, name);
     assert.match(arm, /\n {6}ablation: none\n/, name);
+    assert.match(job(name), /\n {4}needs: compare-prepare\n {4}if: >-\n {6}needs\.compare-prepare\.result == 'success'\n/, `${name} runs only after compare-prepare passed`);
   }
-  assert.doesNotMatch(compare, /OAUTH_TOKEN|secrets: inherit/);
+  assert.doesNotMatch(compare, /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN|secrets: inherit/);
+  assert.match(text, /\n {6}credential:\n(?: {8}[^\n]*\n)*? {8}type: choice\n {8}options: \[api-key, subscription\]\n {8}default: api-key\n/);
   assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
   const guard = /if ! \[\[ \$COST_CAP .*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
@@ -267,4 +278,53 @@ test("stage-suites.sh stages evals-selected when CASES is set on a non-determini
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
+});
+
+test("a subscription compare refuses a pull request whose author is not a trusted actor, before any pass", async () => {
+  const { step, steps } = workflowText(text);
+  const gate = step("compare-prepare", "author");
+  const stop = workflowText(text).stepNamed("compare-prepare", "Stop on an untrusted pull request author");
+  assert.match(gate.text, /uses: \.\/\.base\/\.github\/actions\/check-trusted-trigger /);
+  assert.equal(gate.inputs["pr-number"], "${{ inputs.pr }}");
+  assert.equal(gate.inputs["trusted-actors-path"], ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.match(stop.text, /\n {10}exit 1\n/);
+  const names = steps("compare-prepare").map((s) => s.name);
+  assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
+  assert.match(job("compare-prepare"), /\n {6}actions: read\n/, "check-trusted-trigger reads this run's re-runner");
+  for (const [credential, proceed, stops] of [
+    ["api-key", "", false],
+    ["subscription", "true", false],
+    ["subscription", "false", true],
+    ["subscription", "", true],
+  ]) {
+    const ctx = { "inputs.credential": credential, "steps.author.outputs.proceed": proceed };
+    assert.equal(evaluate(gate.if, ctx), credential === "subscription", `${credential}: the author check runs`);
+    assert.equal(evaluate(stop.if, ctx), stops, `${credential} proceed=${proceed}`);
+  }
+
+  const { evaluateTrigger, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
+  const list = loadTrustedList(fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url)));
+  const owner = 153232337;
+  const repository = "melodic-software/claude-code-plugins";
+  const head = "a".repeat(40);
+  const verdict = async (authorId) => {
+    const pull = { number: 7, user: { id: authorId }, head: { ref: "feat/x", sha: head, repo: { full_name: repository } }, base: { ref: "main", sha: "b".repeat(40) } };
+    const routes = {
+      [`GET /repos/${repository}/pulls/7`]: pull,
+      [`GET /repos/${repository}/git/ref/heads/feat/x`]: { object: { sha: head } },
+      [`GET /repos/${repository}/actions/runs/99`]: { id: 99, run_attempt: 1, triggering_actor: { id: owner } },
+    };
+    const github = async (method, path) => {
+      assert.ok(Object.hasOwn(routes, `${method} ${path}`), `${method} ${path}`);
+      return routes[`${method} ${path}`];
+    };
+    try {
+      return await evaluateTrigger({ eventName: "workflow_dispatch", event: { sender: { id: owner }, repository: { default_branch: "main" } }, repository, list, prNumber: "7", runId: "99", runAttempt: "1", github, sleep: async () => {} });
+    } catch (error) {
+      return { proceed: "false", reason: error.reason };
+    }
+  };
+  assert.equal((await verdict(owner)).proceed, "true", "our own login's pull request");
+  assert.equal((await verdict(337595936)).proceed, "true", "our lanes bot's pull request");
+  assert.deepEqual(await verdict(12345), { proceed: "false", reason: "untrusted-author" }, "anyone else's pull request");
 });
