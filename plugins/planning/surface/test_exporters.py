@@ -310,6 +310,27 @@ class TestExportLedger(SessionCase):
             self.assertTrue(rows[1]["resolution"].startswith("[J1]"), rows[1])
             text = exporters.export_ledger(self.dir, text)
 
+    def test_an_imported_renumbered_ledger_exports_alone_with_the_numbers_it_held(self):
+        seed = self.tmp / "seed.md"
+        seed.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Question J1? | [J1] free-text: legacy\n"
+            "- Q2 | answered | round 1 | Question Q1? | [Q1] free-text: page\n",
+            encoding="utf-8",
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(seed), d=fresh)
+        self.assertEqual(rc, 0, out)
+        rows = register_rows(self.export("ledger", d=fresh))
+        self.assertEqual(
+            [r.split(" | ")[0] + " " + r.split(" | ")[4][:4] for r in rows],
+            ["- Q1 [J1]", "- Q2 [Q1]"],
+            "an export with no --ledger renumbered the imported rows",
+        )
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+
     def test_export_ledger_keeps_each_hand_written_gap_line_in_place(self):
         self.session([question("Q1"), question("Q5"), question("Q9")], [])
         ledger = self.tmp / "ledger.md"

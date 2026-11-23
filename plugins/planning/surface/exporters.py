@@ -733,10 +733,14 @@ def numbering(ids, held=None, gaps=()):
 
 def page_numbering(doc, extra=(), text=None):
     """numbering() of the page's question ids, its pending proposals and the ledger-only `extra`
-    ids, against the row numbers and declared gaps of the ledger `text`."""
+    ids, against the row numbers and declared gaps of the ledger `text`; with no ledger, against
+    the numbers an import recorded for rows whose number is not their own id."""
     ids = [q["id"] for q in doc.get("questions") or []]
     ids += [*(doc.get("pendingProposals") or []), *extra]
-    return numbering(ids, ledger_numbers(text), accepted_gaps(text or ""))
+    if text is None:
+        seeded = (doc.get("meta") or {}).get("seededFrom") or {}
+        return numbering(ids, seeded.get("numbers") or {})
+    return numbering(ids, ledger_numbers(text), accepted_gaps(text))
 
 
 def accepted_gaps(text):
@@ -2596,10 +2600,12 @@ def import_ledger(doc, text, ledger, at):
     rows = parse_register(text)
     if not rows:
         refuse("no open-question register rows", ledger)
-    seeded, seen, cells, added_in, tags = {}, set(), {}, {}, {}
+    seeded, seen, cells, added_in, tags, numbers = {}, set(), {}, {}, {}, {}
     for n, status, rnd, title, res, cell in rows:
         lead = LEAD.match(res)
         qid, res = (lead.group(1), lead.group(2)) if lead else (f"Q{n}", res)
+        if lead:
+            numbers[qid] = n
         res, tail = split_tags(res)
         if tail:
             tags[qid] = tail
@@ -2711,4 +2717,6 @@ def import_ledger(doc, text, ledger, at):
         meta["seededFrom"]["roundCells"] = cells
     if tags:
         meta["seededFrom"]["tags"] = tags
+    if numbers:
+        meta["seededFrom"]["numbers"] = numbers
     return doc
