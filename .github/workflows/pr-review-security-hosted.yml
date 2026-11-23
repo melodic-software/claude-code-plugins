@@ -359,6 +359,7 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/lib/run-title.mjs
+        .github/scripts/lib/lane-branch.mjs
         .github/scripts/pr-merge/merge-risk-line.mjs
         .github/scripts/pr-merge-risk/input.mjs
         .github/scripts/pr-merge-risk/write-rating.mjs
