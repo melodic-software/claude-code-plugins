@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5"
+          }
+        }
+      ],
+      "why": "reads history"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout -b coupling/docs"
+          }
+        }
+      ],
+      "why": "creates a branch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git push -u origin coupling/docs"
+          }
+        }
+      ],
+      "why": "pushes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\ngit push"
+          }
+        }
+      ],
+      "why": "multi-line push"
+    }
+  ]
+}
