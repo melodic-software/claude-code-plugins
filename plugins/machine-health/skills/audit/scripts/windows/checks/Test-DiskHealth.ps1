@@ -55,8 +55,6 @@ $FailureSummary = 'Disk health check failed.'
 $PassThru = $false
 $CheckBody = {
     $volumes = [System.Collections.Generic.List[pscustomobject]]::new()
-    # One ladder for volume and physical-disk sub-severities; Get-WorstSeverity
-    # takes the max, so a single seeded 'OK' covers both empty collections.
     $allSeverities = [System.Collections.Generic.List[string]]::new()
     $allSeverities.Add('OK')
 
@@ -147,8 +145,6 @@ $CheckBody = {
     $detail = @{
         volumes        = $volumes
         physical_disks = $disks
-        # Must stay a scalar: the history flattener persists only scalars, and
-        # Invoke-TrendAnalysis reads top_metrics 'disk-space.used_pct'.
         used_pct       = $worstVolumeUsedPct
     }
 

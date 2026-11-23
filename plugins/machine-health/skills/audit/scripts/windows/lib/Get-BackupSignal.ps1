@@ -23,7 +23,6 @@ ids; null when not read).
 
 . (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
 
-# Source ids, named once; checks read rows by these.
 $script:BackupSourceId = [pscustomobject]@{
     SystemImage   = 'system-image'
     RestorePoints = 'restore-points'
@@ -32,7 +31,6 @@ $script:BackupSourceId = [pscustomobject]@{
     OneDriveKfm   = 'onedrive-kfm'
 }
 
-# Where each signal is read; the check's commands list is built from these.
 $script:BackupSignalSource = [pscustomobject]@{
     BackupChannel      = 'Microsoft-Windows-Backup'
     BackupEventIds     = @(4, 5, 7, 8, 9, 14)
