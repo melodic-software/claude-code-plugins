@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# comment-tooling-probe.sh — report which comment-analysis layer this machine can run.
-#
-# Probes the environment rather than reading a config file: ecosystem configs are
-# mostly absent and their install hints name lint tools, not analysis tools.
-#
-# Usage: comment-tooling-probe.sh [--json]
-#
-# Output: one row per layer — name, status, and the capability its absence costs.
-# Always exits 0: a missing layer is a downgrade, never a failure.
 set -u
 
 JSON=0

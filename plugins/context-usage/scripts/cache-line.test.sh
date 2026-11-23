@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# cache-line.mjs prints one status-line segment from statusline prompt_cache.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

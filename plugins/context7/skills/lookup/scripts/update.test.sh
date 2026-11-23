@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Exit-code contract of update.sh (0 no drift, 1 drift, 2 unverifiable),
-# network-free: the script runs from a copied skill tree with a PATH that holds
-# only the tools it needs, plus stubs for npm, git, curl and ctx7.
 # shellcheck disable=SC2016 # stub bodies are single-quoted so they expand when the stub runs
 set -uo pipefail
 
@@ -38,12 +35,9 @@ stub() {
   printf '#!%s\n%s\n' "$BASH_BIN" "$2" >"$BIN/$1"
   chmod +x "$BIN/$1"
 }
-# npm view prints $FAKE_LATEST (fails when empty); npm install fails.
 stub npm '[[ "$1" == view && -n "${FAKE_LATEST:-}" ]] && { echo "$FAKE_LATEST"; exit 0; }; exit 1'
-# git ls-remote prints $FAKE_SHA for master (fails when empty).
 GIT_STUB='[[ -n "${FAKE_SHA:-}" ]] && { printf "%s\trefs/heads/master\n" "$FAKE_SHA"; exit 0; }; exit 128'
 stub git "$GIT_STUB"
-# curl serves $FAKE_UPSTREAM/<find-docs|context7-cli>.md for the URL it is given.
 stub curl 'url="" out=""
 while [[ $# -gt 0 ]]; do case "$1" in -o) out="$2"; shift ;; http*) url="$1" ;; esac; shift; done
 [[ -n "${FAKE_CURL_FAIL:-}" ]] && exit 22

@@ -4,8 +4,6 @@ import type { LiveCategory, LiveState, LiveView } from '../types'
 
 type Draw = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
-// 90000 -> 90k, 1000000 -> 1M, 1500000 -> 1.5M.
-// A value that rounds up to the next unit is shown in it: 999999 -> 1M, not 1000k.
 export const tokens = (n: number): string => {
   const r = Math.round(n)
   const k = Math.round(r / 1_000)
@@ -22,28 +20,14 @@ const entry = (c: LiveCategory): string =>
 
 const isFree = (c: LiveCategory) => c.kind === 'free'
 
-// The skill listing's default budget is 1% of the context window (skillListingBudgetFraction 0.01):
-// https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short, also
-// skills/audit/reference/levers.json "skill-listing-budget". Claude Code counts that budget in
-// characters, sized from the window's tokens: SLASH_COMMAND_TOOL_CHAR_BUDGET's documented fallback
-// of 8,000 characters (https://code.claude.com/docs/en/env-vars) is 1% of a 200k window at 4
-// characters per token. So a listing that fills the default budget is about 1% of the window in
-// tokens, the unit the row reports, and a row at 1% has reached the default budget. Fixed; no
-// option. A raised skillListingBudgetFraction lets the listing pass 1% without being over its
-// budget, so the fix text states the row's share and makes no claim about the budget.
 const SKILLS_WARN_PERCENT = 1
 export const SKILLS_FIX = 'Skills holds 1% or more of the window: run /skill-doctor, or check skillListingBudgetFraction'
 
-// Skills is the one category with a documented level. Its kind is shared with other used rows, so
-// this one check reads the name.
 export const warns = (c: LiveCategory) => c.name === 'Skills' && !c.deferred && c.percent >= SKILLS_WARN_PERCENT
 
-// The engine documents a breakdown row's color as its key in the theme.
 const theme = (c: LiveCategory): ThemeKey => c.color as ThemeKey
 const WARNING: ThemeKey = 'warning'
 
-// One segment per window row, each as wide as its share of `width`, rounded on the running total
-// so the segments always add up to `width`. Deferred rows sit outside the window.
 export const Bar = ({ Box, Text }: Draw, categories: LiveCategory[], width: number) => {
   const rows = categories.filter(c => !c.deferred)
   const total = Math.max(1, rows.reduce((sum, c) => sum + c.tokens, 0))
@@ -102,8 +86,6 @@ export const PaneBody = (draw: Draw, { view: v, error }: LiveState, columns: num
   )
 }
 
-// One line of the window rows. A warned Skills entry is its own Text in the warning color; the
-// fix text does not fit the line, so the pane row carries it.
 const Legend = ({ Box, Text }: Draw, categories: LiveCategory[]) => {
   const rows = categories.filter(c => !c.deferred)
   const at = rows.findIndex(warns)
@@ -122,7 +104,6 @@ const Legend = ({ Box, Text }: Draw, categories: LiveCategory[]) => {
   )
 }
 
-// Five rows: the border's two, then header, bar and a one-line legend of the window rows.
 export const Band = (draw: Draw, v: LiveView, columns: number) => {
   const { Box, Text } = draw
   return (

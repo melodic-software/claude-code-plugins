@@ -127,10 +127,6 @@ def census_records() -> tuple[dict[str, dict], dict]:
         text=True,
         check=False,
     )
-    # Relay the census's stderr, including on its no-layer exit: it names the
-    # missing layer and the install command, and this branch exits with no
-    # stdout, so a caller that lost stderr too could not tell a missing analyzer
-    # from a tree with nothing to rank.
     if proc.returncode != 0:
         print(proc.stderr, file=sys.stderr, end="")
         raise SystemExit(proc.returncode)
@@ -353,7 +349,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     fin = fan_in(rows)
 
-    # Residual comment volume: comment lines beyond the per-language median ratio.
     ratio_by_lang: dict[str, list[float]] = defaultdict(list)
     for p in rows:
         r = records[p]

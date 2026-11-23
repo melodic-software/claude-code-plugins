@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// Counts the checks merged changes record with a `Codifies:` line, from the default branch's
-// first-parent git history.
-//   count-checks.mjs [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week|month]
-// A record is a whole message line, at column 0, matching
-//   Codifies: <#n | session> rung=<rung id> <blocking|advisory>
-// Any other line that looks like an attempted record is listed as not counted, with its reason; a
-// mention of `Codifies:` in prose elsewhere on a line is ignored.
-// Rung ids and their tiers are read from the plugin's copy of the enforcement ladder: codebase,
-// static-analysis and verification rungs count; guidance and human-review rungs are listed as not
-// counted. A blocking record whose source `#p` is the pull request that landed an earlier advisory
-// record of the same rung (the `(#p)` its commit subject ends with) is a promotion: the check moves
-// from the advisory column to the blocking one and is counted once. A record whose commit a later
-// default-branch commit reverts is listed as reverted, not counted; a blocking record that would have
-// promoted a reverted advisory record counts as a new blocking check and is listed as such.
-// Reads git history only: it calls no forge and writes no file. Commit text is data, printed escaped.
 // Exit: 0 ok (an empty history prints zeros), 2 usage, 1 no default branch, a failed git read or an
 // unreadable ladder.
 import { spawnSync } from "node:child_process";
@@ -32,7 +17,6 @@ const RECORD_PREFIX = /^Codifies: (?:#[1-9][0-9]*|session) rung=[a-z0-9-]+ (?:bl
 const KEY = "Codifies:";
 const ATTEMPT = /Codifies:[*`]*[ \t]*(?:#[0-9]|session\b)/;
 const RUNG_VALUE = /rung=[a-z0-9]/;
-/** True when a line naming `Codifies:` looks like an attempted record, not a mention in prose. */
 const recordLike = (line) => ATTEMPT.test(line) || RUNG_VALUE.test(line);
 const REVERTS_SHA = /^This reverts commit ([0-9a-f]{7,40})\b/;
 const REVERTS_PR = /^Reverts (?:([A-Za-z0-9._-]+\/[A-Za-z0-9._-]+))?#([1-9][0-9]*)\b/;
@@ -50,13 +34,11 @@ const fail = (why) => {
   process.exit(1);
 };
 
-/** JSON text with every control, format and separator character escaped. */
 const show = (value) =>
   JSON.stringify(value).replace(UNSAFE, (c) =>
     c.split("").map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`).join(""),
   );
 
-/** True when text is a real calendar day in YYYY-MM-DD form. */
 function isDay(text) {
   const m = DAY.exec(text);
   if (!m) return false;
@@ -79,7 +61,6 @@ const today = new Date().toISOString().slice(0, 10);
 const until = opts.until ?? today;
 if (opts.since !== undefined && opts.since > until) usage(`--since is after ${opts.until === undefined ? "today" : "--until"}`);
 
-/** Rung ids by whether they count, and the aliases, read from the ladder copy. */
 function readLadder() {
   let text;
   try {
@@ -117,7 +98,6 @@ function git(args) {
   return run;
 }
 
-/** The default branch's ref: origin's HEAD, else origin's or the local main or master. */
 function defaultBranch() {
   const head = git(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]);
   if (head.status === 0 && head.stdout.trim()) return head.stdout.trim();
@@ -127,7 +107,6 @@ function defaultBranch() {
   return fail("no default branch found (origin/HEAD, main or master); run from inside the repository");
 }
 
-/** origin's `owner/repo`, lowercased, or null when no origin URL can be read. */
 function originRepo() {
   const url = git(["remote", "get-url", "origin"]);
   if (url.status !== 0) return null;
@@ -135,7 +114,6 @@ function originRepo() {
   return m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
 }
 
-/** Why a line naming `Codifies:` other than at column 0 is not a record. */
 function placement(line) {
   const before = line.slice(0, line.indexOf(KEY));
   const lead = /^[ \t>]*/.exec(before)[0];
@@ -196,7 +174,6 @@ for (const [index, c] of commits.entries()) {
   }
 }
 const effectiveMemo = new Map();
-/** A commit stands unless a commit that itself stands reverts it. */
 function effective(c, seen = new Set()) {
   if (effectiveMemo.has(c.sha)) return effectiveMemo.get(c.sha);
   if (seen.has(c.sha)) return true;
@@ -299,7 +276,6 @@ let since = opts.since ?? firstDay ?? until;
 if (since > until) since = until;
 
 const addDays = (day, n) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
-/** The first day of the period holding `day`: the month's first, or the ISO week's Monday. */
 function periodStart(day) {
   if (bucket === "month") return `${day.slice(0, 7)}-01`;
   const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();

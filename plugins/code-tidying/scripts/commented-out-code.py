@@ -40,7 +40,6 @@ from pathlib import Path
 EXIT_NO_TOOLING = 3
 EXIT_USAGE = 2
 
-# A None module marks the native PowerShell backend, which loads no grammar.
 EXT_LANG = {
     ".py": ("python", "tree_sitter_python", "language"),
     ".ts": ("typescript", "tree_sitter_typescript", "language_typescript"),
@@ -58,7 +57,6 @@ EXT_LANG = {
     ".psm1": ("powershell", None, None),
 }
 
-# Node kinds that prose cannot produce. A reparse must contain at least one.
 EVIDENCE = {
     "python": {
         "assignment",
@@ -166,15 +164,9 @@ DIRECTIVE = re.compile(
     re.IGNORECASE,
 )
 MARKER = re.compile(r"^\s*(?:///?|<#|#+|/\*+|\*+/?|<!--|-->)\s?")
-# PowerShell's block-comment close, stripped before the opener so that a `#>`
-# line is emptied rather than left as a stray `>`. Without it a one-line
-# `<# $x = 1 #>` never reaches the parser as code.
 BLOCK_END = re.compile(r"\s*#>\s*$")
 
 PS_SCRIPT = Path(__file__).with_name("ps-tokens.ps1")
-# Comment-based help is documentation, whole. Splitting it into directive-free
-# runs would reparse its prose, and prose that names a `-Switch` reads as a
-# command with a parameter. A keyword standing alone on its line marks the block.
 PS_HELP = re.compile(
     r"^[ \t]*#?[ \t]*\.(?:SYNOPSIS|DESCRIPTION|PARAMETER|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|"
     r"COMPONENT|ROLE|FUNCTIONALITY|EXTERNALHELP|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|"
@@ -243,10 +235,6 @@ def merge_comment_runs(comments):
     """(start_row, end_row, start_col, text), 0-based -> merged 1-based blocks."""
     blocks: list[list] = []
     for row, end_row, col, text in comments:
-        # Runs of single-line comments merge without a length cap; a block
-        # comment (/* */, <# #>) never joins a run, on either side of it. The
-        # test is on the incoming comment and the previous one, never on the
-        # merged text, which contains a newline as soon as two lines have joined.
         single_line = "\n" not in text
         if (
             blocks
@@ -343,9 +331,6 @@ def scan(path: Path):
                 )
                 if not PS_HELP.search(b[2])
             ]
-            # First pass answers "not code" to everything, which collects the
-            # superset of bodies the real pass can ask about; one process then
-            # classifies them all.
             bodies: list[str] = []
 
             def collect(body: str) -> bool:
@@ -371,9 +356,6 @@ def findings_for(path: Path, blocks, is_code):
     for start, end, text in blocks:
         stripped_lines = strip_markers(text).split("\n")
         raw_lines = text.split("\n")
-        # A directive line is never code and splits the block into runs. Each
-        # run is reparsed whole first; a prose line inside a run breaks that
-        # parse, so fall back to each line and merge adjacent hits into ranges.
         hits: list[int] = []
         for run in directive_free_runs(stripped_lines):
             if is_code("\n".join(stripped_lines[i] for i in run)):
