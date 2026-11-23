@@ -154,6 +154,7 @@ where no third-party package is provisioned.
 """
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -1094,6 +1095,197 @@ def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
             return
 
 
+CONTEXT_PATHS = ("scaffold_script", "history_file", "add_dirs")
+LEADING_REFERENCE = re.compile(
+    r"^\s*/([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?=[\s:,.;]|$)"
+)
+TAG_REFERENCE = re.compile(r"^([A-Za-z][\w-]*):([A-Za-z][\w-]*)$")
+HOLE = "\x00"
+LITERAL_REFERENCE = re.compile(
+    r"(?<![\w.:\x00-])(/?)([A-Za-z][\w-]*):([A-Za-z][\w-]*)(?![\w:(\[.?*+{\x00])"
+)
+LOOKAROUNDS = ("(?=", "(?!", "(?<=", "(?<!")
+REFERENCE_KINDS = {
+    "skill": lambda plugin, name: (plugin, "skills", name, "SKILL.md"),
+    "agent": lambda plugin, name: (plugin, "agents", name + ".md"),
+}
+TOOL_KINDS = {"Skill": "skill", "Agent": "agent"}
+
+
+def plugins_root(eval_dir):
+    """The nearest `plugins` directory above the suite, or None when the suite
+    is not under one, which leaves the name checks off."""
+    here = eval_dir
+    while True:
+        parent = os.path.dirname(here)
+        if parent == here:
+            return None
+        if os.path.basename(parent) == "plugins":
+            return parent
+        here = parent
+
+
+def missing_reference(root, kind, plugin, name, prefix=False):
+    """The `plugins/...` path a reference needs when it does not exist, else
+    None. With prefix, any name starting with `name` resolves it."""
+    parts = REFERENCE_KINDS[kind](plugin, name)
+    if os.path.isfile(os.path.join(root, *parts)):
+        return None
+    if prefix:
+        wanted = REFERENCE_KINDS[kind](glob.escape(plugin), glob.escape(name) + "*")
+        if glob.glob(os.path.join(glob.escape(root), *wanted)):
+            return None
+        parts = REFERENCE_KINDS[kind](plugin, name + "*")
+    return "/".join(("plugins",) + parts)
+
+
+def _class_end(pattern, start):
+    index = start + 1
+    if pattern.startswith("^", index):
+        index += 1
+    if pattern.startswith("]", index):
+        index += 1
+    while index < len(pattern):
+        if pattern[index] == "\\":
+            index += 2
+            continue
+        if pattern[index] == "]":
+            return index + 1
+        index += 1
+    return len(pattern)
+
+
+def _group_end(pattern, start):
+    depth = 0
+    index = start
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "[":
+            index = _class_end(pattern, index)
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return len(pattern)
+
+
+def literal_text(pattern):
+    """The pattern with only the characters it matches literally: an escaped
+    symbol becomes itself, `\\b` and `\\B` a space, any other escape, a
+    character class or a lookaround group a HOLE."""
+    out = []
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\" and index + 1 < len(pattern):
+            escaped = pattern[index + 1]
+            if escaped in "bB":
+                out.append(" ")
+            elif escaped.isalnum() or escaped == "_":
+                out.append(HOLE)
+            else:
+                out.append(escaped)
+            index += 2
+        elif char == "[":
+            out.append(HOLE)
+            index = _class_end(pattern, index)
+        elif pattern.startswith(LOOKAROUNDS, index):
+            out.append(HOLE)
+            index = _group_end(pattern, index)
+        else:
+            out.append(char)
+            index += 1
+    return "".join(out)
+
+
+def check_context_paths(case_dir, context, case, findings):
+    """FAIL a context path that names nothing in the case directory."""
+    for field in CONTEXT_PATHS:
+        value = context.get(field)
+        for entry in value if isinstance(value, list) else [value]:
+            if not isinstance(entry, str) or not entry:
+                continue
+            if os.path.exists(os.path.join(case_dir, entry)):
+                continue
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    "case.yaml",
+                    'context.%s "%s" names no file or directory in the case '
+                    "directory" % (field, entry),
+                )
+            )
+
+
+def check_references(root, prompt, prompt_file, tag_sources, graders, case, findings):
+    """FAIL a leading /plugin:skill, a plugin:skill tag, or a literal
+    plugin:skill or plugin:agent token in a Skill or Agent tool_used
+    input_match that names nothing under the plugins root. A `/` before a
+    token makes it a skill; a token the pattern leaves open on the right (at
+    the end, or before `|` or `)`) matches as a substring, so a prefix of a
+    real name resolves it."""
+    match = LEADING_REFERENCE.match(prompt)
+    if match:
+        missing = missing_reference(root, "skill", *match.groups())
+        if missing:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    prompt_file,
+                    "the prompt's leading /%s:%s names no skill: %s does not exist"
+                    % (match.group(1), match.group(2), missing),
+                )
+            )
+    for tags, path in tag_sources:
+        for tag in tags:
+            match = TAG_REFERENCE.match(str(tag))
+            missing = match and missing_reference(root, "skill", *match.groups())
+            if missing:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        case,
+                        path,
+                        'tag "%s" names no skill: %s does not exist' % (tag, missing),
+                    )
+                )
+    for name, options, path in graders:
+        if not isinstance(options, dict) or options.get("type") != "tool_used":
+            continue
+        kind = TOOL_KINDS.get(options.get("tool"))
+        pattern = options.get("input_match")
+        if not kind or not isinstance(pattern, str):
+            continue
+        text = literal_text(pattern)
+        tokens = [
+            match.groups() + (text[match.end() : match.end() + 1] in ("", "|", ")"),)
+            for match in LITERAL_REFERENCE.finditer(text)
+        ]
+        for slash, plugin, target, open_right in dict.fromkeys(tokens):
+            missing = missing_reference(
+                root, "skill" if slash else kind, plugin, target, open_right
+            )
+            if missing:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        case,
+                        path,
+                        'grader "%s" input_match names %s:%s, but %s does not exist'
+                        % (name, plugin, target, missing),
+                    )
+                )
+
+
 def valid_look_at(value):
     """True for a name in LOOK_AT_NAMES or a file source with a string path."""
     if isinstance(value, dict):
@@ -1896,10 +2088,13 @@ def check_samples(case, graders, samples, findings):
         )
 
 
-def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
+def analyze_case(
+    case_dir, case, findings, plugin_root=None, containment=None, references=None
+):
     """Validate one case, appending its findings."""
     fields = {}
     tags = None
+    tag_sources = []
     yaml_data = None
     yaml_path = os.path.join(case_dir, "case.yaml")
     prompt_path = os.path.join(case_dir, "prompt.md")
@@ -1931,8 +2126,11 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
                 if key in yaml_data:
                     fields[key] = (yaml_data[key], "case.yaml")
             tags = yaml_data.get("tags")
+            if isinstance(tags, list):
+                tag_sources.append((tags, "case.yaml"))
             context = yaml_data.get("context")
             if isinstance(context, dict):
+                check_context_paths(case_dir, context, case, findings)
                 check_history_chain(
                     case_dir, case, context.get("history_file"), findings
                 )
@@ -2001,6 +2199,7 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
                         fields[key] = (prompt_fm[key], "prompt.md")
                 prompt_tags = prompt_fm.get("tags")
                 if isinstance(prompt_tags, list):
+                    tag_sources.append((prompt_tags, "prompt.md"))
                     tags = prompt_tags + (tags if isinstance(tags, list) else [])
 
     if not unread:
@@ -2016,6 +2215,11 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
         check_plugins(case_dir, containment, value, case, path, findings)
 
     graders = collect_graders(case_dir, case, yaml_data, findings)
+    if references is not None:
+        prompt_file = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"
+        check_references(
+            references, prompt, prompt_file, tag_sources, graders, case, findings
+        )
     if not graders:
         findings.append(
             Finding(
@@ -2093,9 +2297,12 @@ def validate(eval_dir):
         return findings
 
     root = containment_root(eval_dir)
+    references = plugins_root(eval_dir)
     for case_dir in cases:
         case = os.path.relpath(case_dir, eval_dir).replace(os.sep, "/")
-        analyze_case(case_dir, case, findings, os.path.dirname(eval_dir), root)
+        analyze_case(
+            case_dir, case, findings, os.path.dirname(eval_dir), root, references
+        )
 
     findings.sort(key=Finding.sort_key)
     return findings

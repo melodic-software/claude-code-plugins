@@ -3321,26 +3321,12 @@ jobs:
             fi
           fi
           bash plugins/skill-quality/scripts/check-evals-quality.sh "${sets[@]}"
-      # /evals:validate's static check of each `claude plugin eval` suite
-      # (the plugin's `experimental.evals` directory, else `evals/`): FAIL on
-      # what the binary rejects at load or a deterministic grader that
-      # disagrees with its samples. No model call. A diff validates each
-      # changed plugin's suite; the validator or this workflow changing, or no
-      # diff base, validates every suite.
-      - name: Validate every changed plugin's eval suite
+      - name: Validate every plugin's eval suite
         id: eval_cases
         continue-on-error: true
-        env:
-          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         shell: bash scripts/run-hygiene-gate.sh eval-cases {0}
         run: |
           plugins=(plugins/*/)
-          if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
-            plugins .github/workflows/pr-require-checks.yml); then
-            if ! grep -qE '^(plugins/evals/skills/validate/scripts/|\.github/)' <<<"$changed"; then
-              mapfile -t plugins < <(sed -nE 's#^(plugins/[^/]+/).*#\1#p' <<<"$changed" | sort -u)
-            fi
-          fi
           status=0
           for dir in "${plugins[@]}"; do
             [ -f "${dir}.claude-plugin/plugin.json" ] || continue
