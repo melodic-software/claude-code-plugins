@@ -491,9 +491,9 @@ _HOLDING_LANE = "claude-security-review"
 RERUN_NOT_ALLOWED = "rerun-not-allowed"
 RERUN_NOT_ALLOWED_FIX = (
     "the merge gate's whole-review request clears this with a new run at the same"
-    " head, and when that request skips, for example on running-jobs, give the pull"
-    " request a fresh head with `gh pr update-branch <n>`, never a hand re-run of"
-    " the lane run"
+    " head, retried on a later sweep when a limit skips it, and at the per-PR cap of"
+    " two requests or once this head's request has run, a new head clears it: `gh pr update-branch <n>` when the branch is behind"
+    " its base, else a new commit, never a hand re-run of the lane run"
 )
 # The security lane's open findings below the holding tier: reported only.
 REPORTED_SECURITY_CODE = "findings:claude-security-review"
