@@ -17,9 +17,9 @@ for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
 
 const data = (prompt, name) => JSON.parse(prompt.match(new RegExp('<data name="' + name + '">\\n([\\s\\S]*?)\\n</data>'))[1])
 
-const rawPage = (url, text = 'Terminal-Bench 2026-11-15') =>
+const rawPage = (url, text = 'Terminal-Bench 2026-11-15', kind = 'page') =>
   'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) +
-  ' kind=page bytes=' + Buffer.byteLength(text) +
+  ' kind=' + kind + ' bytes=' + Buffer.byteLength(text) +
   ' body_sha256=' + createHash('sha256').update(text).digest('hex') + '\n' + text
 
 const ROWS = [
@@ -145,6 +145,16 @@ test('tampered fetcher output (byte count or hash mismatch) leaves row unread an
   assert.equal(result.proposedChanges[0].field, 'status')
   assert.equal(result.proposedChanges[0].to, 'support-only')
   assert.match(result.diff, /-  "status": "permanent"\n\+  "status": "support-only"/)
+})
+
+test('a page that returns only a section map skips the judge and proposes no demotion', async () => {
+  const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+    reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: rawPage(data(p, 'url'), '1 1 0 10 10 ' + 'b'.repeat(64) + ' Leaderboard', 'map') } : d(p, o)),
+  })
+  assert.equal(by(calls, 'judge:').length, 0)
+  assert.equal(result.rows[0].partial, true)
+  assert.deepEqual(result.proposedChanges, [])
+  assert.equal(result.diff, null)
 })
 
 test('proposes dropping stale, undated, or non-current permanent shipped rows and adjusting freshness_seconds', async () => {

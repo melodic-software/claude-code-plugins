@@ -309,7 +309,8 @@ function cleanNotes(raw) {
 
 const judged = await inWaves(rows.map(row => async () => {
   const slice = slices.get(pageOf(row.link)) || { url: pageOf(row.link), state: 'unread', reason: 'missing fetch result' }
-  if (slice.state !== 'read') {
+  const partial = slice.state === 'read' && (slice.kind === 'map' || slice.kind === 'too-large')
+  if (slice.state !== 'read' || partial) {
     return {
       source_id: row.id,
       source: row.source,
@@ -318,11 +319,12 @@ const judged = await inWaves(rows.map(row => async () => {
       workloads: row.workloads,
       freshness_seconds: row.freshness_seconds ?? DEFAULT_FRESHNESS,
       reachable: false,
+      partial,
       page_date: null,
       age_days: null,
       covers_work_types: [],
       tests_current_models: 'unclear',
-      notes: cleanNotes([slice.reason || 'unread']),
+      notes: cleanNotes([partial ? 'page returned kind=' + slice.kind + ' with no entries to judge; no change proposed' : slice.reason || 'unread']),
     }
   }
   const label = 'judge:' + row.id
@@ -380,7 +382,7 @@ log('Judge: ' + results.filter(r => r.reachable).length + '/' + results.length +
 const rowById = new Map(rows.map(r => [r.id, r]))
 const proposedChanges = []
 for (const r of results) {
-  if (r.source !== 'shipped') continue
+  if (r.source !== 'shipped' || r.partial) continue
   const orig = rowById.get(r.source_id)
   if (!orig) continue
   const dropReasons = []
