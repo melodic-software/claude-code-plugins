@@ -6,6 +6,21 @@ import { isDeepStrictEqual } from "node:util";
 import { CDN_BUMP_PATHS, CDN_MANIFEST, CDN_RECORD, CDN_SCRIPT, cdnPaths } from "../apply-patch/cdn-paths.mjs";
 import { unifiedDiff } from "./install-script-pin.mjs";
 
+const EXACT = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/;
+
+function needsSync(manifestText, record) {
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestText);
+  } catch {
+    return false;
+  }
+  return Object.entries(record?.packages ?? {}).some(([name, pin]) => {
+    const version = manifest?.dependencies?.[name];
+    return typeof version === "string" && EXACT.test(version) && version !== pin?.version;
+  });
+}
+
 export async function cdnRequest({ files, changedFiles, baseDir, readText }) {
   if (!baseDir || !files.length || files.length !== changedFiles ||
       files.some(({ filename, previous_filename }) => !CDN_BUMP_PATHS.has(filename) || previous_filename)) {
@@ -27,6 +42,7 @@ export async function cdnRequest({ files, changedFiles, baseDir, readText }) {
   const texts = await Promise.all([CDN_MANIFEST, ...paths.slice(1)].map(readText));
   if (texts.some((text) => text === null)) return null;
   const [manifest, ...targets] = texts;
+  if (!needsSync(manifest, head)) return null;
   return { script, manifest, files: Object.fromEntries(paths.map((path, i) => [path, i === 0 ? record : targets[i - 1]])) };
 }
 

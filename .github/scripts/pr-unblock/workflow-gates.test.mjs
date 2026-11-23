@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { WAIT_BUDGET_SECONDS } from "../../actions/log-api-budget/rate-guard.mjs";
+import { cdnPinsFrom } from "../apply-patch/apply-patch.mjs";
 import { isVerdictName } from "../pr-verify/write-verdict.mjs";
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
@@ -1752,4 +1753,49 @@ test("the CDN pins sync runs in a digest-pinned container without a token", () =
   const apply = workflowText(read(UNBLOCK)).job("apply-cdn-pins-sync");
   assert.match(apply, /patch-prepare: cdn-pins-sync/);
   assert.match(apply, /patch-sha256: .*review-cdn-pins-sync-patch\.outputs\.pin-sha256/);
+});
+
+test("the write runner's apply-patch base holds the base CDN registry and script for a cdn-pins-sync patch, and only then", () => {
+  const script = stepScript(stepBlock("pr-run-activity-write.yml", "run", "Copy the apply-patch base files"));
+  const copy = (prepare, { cdn = true } = {}) => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-base-"));
+    const base = join(dir, ".base");
+    for (const sub of [".github/actions/resolve-config", ".github/scripts/lib", ".github/scripts/pr-unblock", ".github/scripts/pr-merge", "lib/cdn-pins"]) {
+      mkdirSync(join(base, sub), { recursive: true });
+    }
+    for (const file of ["lib/retry-fetch.mjs", "lib/run-main.mjs", "lib/lane-branch.mjs", "pr-unblock/thread-scope.mjs", "pr-unblock/dependency-classify.mjs", "pr-unblock/escalation-routes.mjs", "pr-unblock/escalation-routes.json", "pr-merge/merge-holds.mjs"]) {
+      writeFileSync(join(base, ".github/scripts", file), "");
+    }
+    writeFileSync(join(base, ".github/actions/resolve-config/patch-rules.json"), "{}");
+    if (cdn) {
+      writeFileSync(join(base, "lib/cdn-pins/pins.json"), JSON.stringify({ targets: [{ path: "docs/view.md", packages: ["x"] }] }));
+      writeFileSync(join(base, "lib/cdn-pins/sync.mjs"), "export function check() { return []; }\n");
+    }
+    const temp = join(dir, "temp");
+    mkdirSync(temp);
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", script], {
+      cwd: dir,
+      env: { PATH: process.env.PATH, RULES: ".github/actions/resolve-config/patch-rules.json", DEST: join(temp, "apply-patch-base"), PATCH_PREPARE: prepare, MERGE_BASE_SHA: "", RUNNER_TEMP: temp, GITHUB_OUTPUT: join(dir, "out") },
+      encoding: "utf8",
+    });
+    return { dir, dest: join(temp, "apply-patch-base"), status: result.status, stderr: result.stderr };
+  };
+  const dirs = [];
+  try {
+    const synced = copy("cdn-pins-sync");
+    dirs.push(synced.dir);
+    assert.equal(synced.status, 0, synced.stderr);
+    assert.deepEqual([...cdnPinsFrom(synced.dest)].sort(), ["docs/view.md", "lib/cdn-pins/pins.json"]);
+    assert.equal(readFileSync(join(synced.dest, "lib/cdn-pins/sync.mjs"), "utf8"), "export function check() { return []; }\n");
+    const other = copy("dependency-relock");
+    dirs.push(other.dir);
+    assert.equal(other.status, 0, other.stderr);
+    assert.equal(cdnPinsFrom(other.dest), null, "no other row reads the CDN registry");
+    const absent = copy("cdn-pins-sync", { cdn: false });
+    dirs.push(absent.dir);
+    assert.equal(absent.status, 0, absent.stderr);
+    assert.equal(cdnPinsFrom(absent.dest), null, "a base without the registry copies nothing, so the class allows nothing");
+  } finally {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  }
 });

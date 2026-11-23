@@ -1467,6 +1467,14 @@ jobs:
             mkdir -p "$DEST/scripts"
             git -C .base show "$MERGE_BASE_SHA:scripts/shared-copies.txt" >"$DEST/scripts/shared-copies.txt"
           fi
+          if [ "$PATCH_PREPARE" = cdn-pins-sync ]; then
+            mkdir -p "$DEST/lib/cdn-pins"
+            for file in pins.json sync.mjs; do
+              if [ -f ".base/lib/cdn-pins/$file" ]; then
+                cp ".base/lib/cdn-pins/$file" "$DEST/lib/cdn-pins/$file"
+              fi
+            done
+          fi
           echo "dir=$DEST" >>"$GITHUB_OUTPUT"
 
       # Nothing after this step needs sudo or docker.

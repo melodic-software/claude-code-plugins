@@ -724,15 +724,19 @@ test("select only writes a hashed CDN request for a Dependabot manifest bump wit
   const pinsPath = "lib/cdn-pins/pins.json";
   const scriptPath = "lib/cdn-pins/sync.mjs";
   const target = "docs/view.md";
-  const record = JSON.stringify({ targets: [{ path: target, packages: ["x"], integrity: true }] });
+  const record = JSON.stringify({ packages: { x: { version: "1.0.0" } }, targets: [{ path: target, packages: ["x"], integrity: true }] });
   const baseScript = "export function sync() {}\n";
   const manifest = '{"dependencies":{"x":"2.0.0"}}\n';
   const texts = { [manifestPath]: manifest, [pinsPath]: record, [target]: "view\n", [scriptPath]: "throw new Error('head code')\n" };
   const changed = (filename) => ({ filename, status: "modified" });
+  const lock = changed("lib/cdn-pins/package-lock.json");
   for (const { why, files = [changed(manifestPath)], pull, headTexts = texts, omit, written = false } of [
     { why: "manifest only", written: true },
-    { why: "lock only", files: [changed("lib/cdn-pins/package-lock.json")], written: true },
-    { why: "both", files: [changed(manifestPath), changed("lib/cdn-pins/package-lock.json")], written: true },
+    { why: "lock only, versions already synced", files: [lock], headTexts: { ...texts, [manifestPath]: '{"dependencies":{"x":"1.0.0"}}\n' } },
+    { why: "lock with a manifest bump", files: [lock], written: true },
+    { why: "both", files: [changed(manifestPath), lock], written: true },
+    { why: "a bump of a package pins.json does not list", headTexts: { ...texts, [manifestPath]: '{"dependencies":{"x":"1.0.0","z":"3.0.0"}}\n' } },
+    { why: "a manifest that does not parse", headTexts: { ...texts, [manifestPath]: "{" } },
     { why: "non-Dependabot", pull: { user: { id: 1, login: "someone" } } },
     { why: "extra path", files: [changed(manifestPath), changed(target)] },
     { why: "incomplete changed-file listing", pull: { changed_files: 2 } },
@@ -773,6 +777,8 @@ test("select only writes a hashed CDN request for a Dependabot manifest bump wit
       assert.deepEqual(JSON.parse(request), { script: baseScript, manifest, files: { [pinsPath]: record, [target]: "view\n" } });
       const sum = createHash("sha256").update(request).digest("hex");
       assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `cdn-sync-state=written\ncdn-sync-sha256=${sum}\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
+    } else if (why.startsWith("lock only") || why.startsWith("a bump of") || why.startsWith("a manifest")) {
+      assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true$/m, `${why}: the model reviews it`);
     }
   }
 });
