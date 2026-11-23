@@ -12,17 +12,6 @@ metadata:
 e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss,
 /planning:design handoff
 
-## Repository context. Gather first
-
-<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
-Run each command below as its own Bash call and send them all in parallel in one message: a
-worktree-isolated session screens each call on its own, and calls sent together cost one turn.
-Keep any bound in the command's own pipe; a cap applied after the output returns bounds nothing ([Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
-Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
-<!-- END GENERATED: gather-block -->
-
-- Current branch, `git branch --show-current`
-
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -111,7 +100,7 @@ there. Placement:
 `/planning:design-handoff` writes the durable content (module layout, contracts, variation
 verdicts, conventions followed) into PLAN.md's `## Design`, the copy that reaches the plan, the
 implementer's brief, and the pull request body or linked issue where PLAN.md is published. Derive
-`<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip
+`<topic-slug>` from the task or branch name (`git branch --show-current`; the task alone when that fails), kebab-case, ≤40 chars, shared with `/planning:interview` and `/planning:plan`. Skip
 artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition

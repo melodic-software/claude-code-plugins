@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016  # fixture skill bodies are literal markdown with backticks, never expanded
+# test-scope: plugins/*/skills/*/SKILL.md
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

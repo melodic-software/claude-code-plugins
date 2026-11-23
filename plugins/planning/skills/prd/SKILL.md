@@ -10,19 +10,6 @@ metadata:
 
 **Arguments.** `[tier] [task description|#<map>]`. e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review
 
-## Repository context. Gather first
-
-<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
-Run each command below as its own Bash call and send them all in parallel in one message: a
-worktree-isolated session screens each call on its own, and calls sent together cost one turn.
-Keep any bound in the command's own pipe; a cap applied after the output returns bounds nothing ([Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
-Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
-<!-- END GENERATED: gather-block -->
-
-- Current branch, `git branch --show-current`
-- Recent commits, `git log --oneline -5`
-- Working tree status (empty = clean), `git status --porcelain | head -10`
-
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -158,7 +145,7 @@ Stop asking once every required section has a resolved answer or an explicit "op
 
 ### Step 5. Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the slug `/planning:interview`, `/planning:design` and `/planning:plan` share for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (`git branch --show-current`; the task description alone when that fails), kebab-case, ≤40 chars: the slug `/planning:interview`, `/planning:design` and `/planning:plan` share for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
 
 When the task description carries a `Source map: #<n>` line (a `/planning:wayfind` map closed to this PRD), copy it verbatim on the line after the frontmatter: `/planning:plan` and `/work-items:decompose` read it from there.
 
