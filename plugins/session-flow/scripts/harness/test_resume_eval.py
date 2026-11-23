@@ -1272,8 +1272,6 @@ def test_judge_votes_count_only_verdicts(tmp_path):
     assert _judge_with(tmp_path, failed, failed, passed)("q", "c", "a") is False
 
 
-# --- shape-3 predecessors ---------------------------------------------------------
-
 SUPERSEDED = "Also log every drain exit to stderr."
 BINDING = "Never delete a telemetry row.\nThis binds every later hop."
 NEWER = "Exit reasons go to telemetry only."
