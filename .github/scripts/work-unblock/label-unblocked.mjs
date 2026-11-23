@@ -471,12 +471,12 @@ const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit co
 // serverErrorHold, held the same way, its 5xx in `status`), and the `reset` it
 // names. A raw job log shows a titled annotation as `##[error]<message>`,
 // the title dropped, as it shows an untitled one.
-const RATE_LIMITED = stamped(
+export const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 const ERROR_LINE = stamped(String.raw`##\[error\]`);
 const STEP_EDGE = stamped(String.raw`##\[(?:group\]Run |start-action |end-action )`);
-const HELD_UNTIL = stamped(
+export const HELD_UNTIL = stamped(
   String.raw`##\[error\].* was not sent: GitHub(?:'s .+ rate limit holds until| answered HTTP (?<status>5\d\d) with a Retry-After; no call to it before) (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)(?: \(.*\))?$`,
 );
 const RAW_LIMIT = stamped(String.raw`##\[error\]Unhandled error: HttpError: API rate limit exceeded\b`);
