@@ -8,15 +8,13 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$(dirname "$S")/mock.sh"
 
-# --- offline usage / config errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
-assert_usage_error "$S" # no id
+assert_usage_error "$S"
 assert_usage_error "$S" "not-an-id"
 # Foreign-provider id: well-formed grammar, wrong provider → rejected before any I/O.
 assert_usage_error "$S" "github:o/r#1"
 
-# --- offline fixture harness: temp binding + mock curl ---
 jira_fixture_init
 trap 'rm -rf "$JIRA_FIX"' EXIT
 jira_write_binding '["SW2"]'
@@ -98,7 +96,6 @@ assert_eq "a blocker the lookup did not return keeps blocking" "2" "$(jq -r '.bl
 assert_eq "a blocker the lookup did not return is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 assert_contains "a blocker the lookup did not return is named on stderr" "$ERR" "SW2-8"
 
-# A malformed resolutions value is a config error (exit 3).
 for bad in 'null' '"10001"' '["10001"]' '{"wont_do":["10001"]}' '{"completed":["10000"],"wont_do":[""]}' \
   '{"completed":["10000"],"wont_do":[10001]}' '{"completed":["10001"],"wont_do":["10001"]}' \
   '{"completed":[],"wont_do":[],"other":[]}'; do
@@ -119,7 +116,6 @@ assert_eq "out-of-scope done blocker is resolved" "0" "$(jq -r '.blocked_by_coun
 rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status"
 jira_write_binding '["SW2"]'
 
-# --- state mapping: a done-category issue normalizes to closed ---
 cat >"$JIRA_FIX/1.body" <<'JSON'
 {"key":"SW2-7","fields":{"summary":"Shipped","status":{"statusCategory":{"key":"done"}},"assignee":null,"labels":[],"issuetype":{"name":"Bug"},"parent":null,"issuelinks":[]}}
 JSON
@@ -138,8 +134,6 @@ printf '200' >"$JIRA_FIX/1.status"
 jira_run "$S" "jira:test.atlassian.net/SW2#6"
 assert_eq "assignee with null accountId → empty array" "0" "$(jq -r '.assignees | length' <<<"$OUT")"
 
-# --- error paths ---
-# Cross-site id (site does not match the bound site) → usage error, before network.
 jira_run "$S" "jira:other.atlassian.net/SW2#1"
 assert_eq "cross-site id → usage (2)" "2" "$RC"
 
@@ -163,7 +157,6 @@ else
   fail "out-of-scope id made no HTTP call" "no curl call" "curl invoked"
 fi
 
-# 404 from Jira → not-found (5).
 printf '404' >"$JIRA_FIX/1.status"
 printf '{"errorMessages":["Issue does not exist"]}' >"$JIRA_FIX/1.body"
 jira_run "$S" "jira:test.atlassian.net/SW2#999"
@@ -183,12 +176,10 @@ printf '{"key":"NOT A JIRA KEY","fields":{"summary":"x","status":{"statusCategor
 jira_run "$S" "jira:test.atlassian.net/SW2#5"
 assert_eq "un-normalizable issue key → unavailable (8)" "8" "$RC"
 
-# Missing token env var → auth (4), before any curl call.
 WORK_ITEM_TRACKER_BINDING="$JIRA_FIX/binding.json" WIT_JIRA_CURL="$JIRA_FIX/curl" \
   bash "$S" "jira:test.atlassian.net/SW2#1" >/dev/null 2>&1
 assert_eq "unset token env → auth (4)" "4" "$?"
 
-# Binding missing required jira config (no project_keys) → config (3).
 jq -cn '{schema_version:"1.0", provider:"jira",
   config:{lease_ttl_hours:24, jira:{site:"test.atlassian.net", auth_email:"x@y", auth_env:"JIRA_TEST_TOKEN"}}}' >"$JIRA_FIX/bad-binding.json"
 WORK_ITEM_TRACKER_BINDING="$JIRA_FIX/bad-binding.json" WIT_JIRA_CURL="$JIRA_FIX/curl" \
