@@ -34,7 +34,6 @@ async page => {
   // Waits until the page shows what fn checks: the page applies a save's state from the next stream frame, not the save's reply.
   const shown = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 10000}).catch(() => {});
   const counted = want => shown(w => { const el = document.getElementById("assumeCount"); return (el && !el.hidden ? el.textContent : "") === w; }, want);
-  // Waits until the page shows what the server holds: a rail card whose text matches, or no longer matches, re.
   const card = (id, re, yes = true) => page.waitForFunction(([q, r, y]) => { const el = document.querySelector('.rail-list .qbtn[data-q="' + q + '"]'); return !!el && new RegExp(r).test(el.textContent) === y; }, [id, re, yes], {timeout: 10000}).then(() => true).catch(() => false);
   const armed = async () => (await page.textContent(".choice.armed").catch(() => "")) || "";
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
@@ -65,7 +64,7 @@ async page => {
     await page.click("#flyClose"); await page.waitForTimeout(150);
     // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
     const fresh = await page.context().newPage();
-    await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); })); // every text the pill shows from load on
+    await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); }));
     await fresh.goto(base); await fresh.waitForSelector(".qbtn", {state: "attached"});
 
     // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows at once and the pill never reads Live (phase 6 covers a waiting event)
@@ -75,7 +74,6 @@ async page => {
     ok("a fresh load with no watcher never reads Live", await fresh.evaluate(() => Array.isArray(window.__pills) && window.__pills.length > 0 && !window.__pills.includes("Live")), await fresh.evaluate(() => String(window.__pills)));
     await fresh.close();
 
-    // AC17: number order within a group, whatever the insertion order
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
     ok("AC17: Q1 renders before Q3 though Q3 was inserted first", order.indexOf("Q1") >= 0 && order.indexOf("Q1") < order.indexOf("Q3"), order.join(","));
 
@@ -89,7 +87,6 @@ async page => {
     ok("R-J: question title leads with the question anchor", (await page.textContent("#dscroll .dhead h3")).startsWith(Q_MARK + " "), await page.textContent("#dscroll .dhead h3"));
     ok("R-J: Recommendation heading leads with the recommendation anchor", (await recHead()).startsWith(R_MARK + " "), await recHead());
 
-    // AC22: commitments as separate unchecked rows, above the collapsed details
     const rows = await page.$$eval("#dscroll [data-confirm]", els => els.map(e => ({checked: e.checked, before: !!(e.compareDocumentPosition(document.getElementById("more")) & Node.DOCUMENT_POSITION_FOLLOWING)})));
     ok("AC22: one unchecked row per commitment", rows.length === 2 && rows.every(r => !r.checked), JSON.stringify(rows));
     ok("AC22: rows sit above the collapsed details", rows.length === 2 && rows.every(r => r.before) && !(await page.$("#more [data-confirm]")));
@@ -121,7 +118,6 @@ async page => {
     const e3 = await events(), ask = e3[e3.length - 1];
     ok("Ctrl+Shift+Enter sends the challenge as an ask", ask.kind === "ask" && ask.id === "Q1" && ask.text === "Challenge: Runs on every save on a slow disk?", JSON.stringify(ask));
 
-    // AC16: letter keys on Q3 (open, no decision)
     await pick("Q3"); await page.click("main.detail h3");
     await page.keyboard.press("d");
     ok("AC16: d arms Defer", /Defer/.test(await armed()), await armed());
@@ -170,7 +166,6 @@ async page => {
     ok("#5915: the rest of the card is the button's accessible description", /Accepted/.test(nm.desc), nm.desc);
     await page.goto(base + "?load=1#Q3"); await page.waitForSelector('.qbtn[data-q="Q3"][aria-current="true"]', {state: "attached", timeout: 10000}).catch(() => {});
     ok("#5915: loading the page with #Q3 selects Q3", (await sel()) === "Q3", await sel());
-    // Hedged: accept with a required condition note; its commitments count like an accept's
     await pick("Q3"); await page.click("main.detail h3");
     await page.keyboard.press("h");
     ok("h arms Hedged and focuses the note", /Hedged/.test(await armed()) && (await focused()) === "note", await armed());
@@ -185,7 +180,6 @@ async page => {
     await counted(openAssumptions(s) ? open(openAssumptions(s)) : "");
     ok("a hedged question's commitments count in To confirm", (await counter()) === (openAssumptions(s) ? open(openAssumptions(s)) : ""), (await counter()) + " vs " + openAssumptions(s));
     await page.click("main.detail h3"); await saved(() => page.keyboard.press("r"));
-    // Someone else decides: a defer that names the person who holds the decision
     await pick("Q3"); await page.click('.choice:has-text("Someone else decides")'); await page.waitForTimeout(150);
     ok("Someone else decides needs a note naming who before it saves", /Someone else decides/.test(await armed()) && await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await armed());
     await page.click("#note"); await page.keyboard.type("Someone else decides:"); await page.waitForTimeout(150);
@@ -256,7 +250,6 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     const xBan = await banners();
     ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
-    // an imported superseded-by-plan row says the plan displaced the answer, and its buttons record accept or the `was` alternative
     await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200);
     const planBan = await page.textContent("#planban").catch(() => "");
     ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /\/planning:plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
@@ -273,7 +266,6 @@ async page => {
     ok("the Rec button records accept", se && se.kind === "accept", JSON.stringify(se));
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
 
-    // SPEC 6: stale after an upstream re-answer, upstream-pending further down
     for (const id of ["P1", "P2", "P3"]) await post({id, kind: "accept", alt: null, text: ""});
     await post({id: "P1", kind: "alt", alt: "b", text: "Later after all"});
     await card("P2", "Stale");
@@ -294,7 +286,6 @@ async page => {
     await page.keyboard.press("Shift+N");
     ok("AC16: Shift+N goes back (P2)", await sel() === "P2", await sel());
 
-    // R1 holds an accept followed by Claude's reply to an ask: it is answered, so Show: Open leaves it out and Show: Review lists it
     await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
     const openIds = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
     ok("Show: Open leaves out an accepted question with an unanswered Claude reply", !openIds.includes("R1"), openIds.join(","));
@@ -317,7 +308,6 @@ async page => {
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("P2");
 
-    // SPEC 6 re-answer triage: Reconfirm re-sends the kept decision exactly; choice 2 onward picks again
     const last = async () => { const e = await events(); return e[e.length - 1]; };
     const stale = async id => (await state()).questions.questions.find(q => q.id === id).state === "stale";
     const reconfirm = async () => { await page.click("main.detail h3"); await page.keyboard.press("a"); const a = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter")); await card("P2", "Stale", false); return a; };
@@ -355,7 +345,6 @@ async page => {
     const ev3 = await last();
     ok("2 then save on a stale question picks again: Rec", /^Rec/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
     await pick("P2");
-    // An armed choice keeps its identity when an upstream decision stales the question and a Reconfirm row renumbers the list
     await page.click("main.detail h3"); await page.keyboard.press("4");
     const a0 = (await armed()).trim();
     await post({id: "P1", kind: "accept", alt: null, text: ""}); await card("P2", "Stale");
@@ -363,14 +352,12 @@ async page => {
     await page.click("main.detail h3"); await saved(() => page.keyboard.press("Control+Enter"));
     const ev4 = await last();
     ok("an armed alternative survives a Reconfirm row shifting the key numbers: (b) stays armed once stale and saves alt b", /^\(b\)/.test(a0) && wasStale && /^\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
-    // Reconfirm of a person-held deferral with a new name typed over the kept one stays person-held
     await restale({kind: "defer", text: "someone else decides: Dana"}, {kind: "alt", alt: "b"});
     await page.fill("#note", "Lee, the architect");
     await page.click("main.detail h3"); await page.keyboard.press("a");
     const r7 = (await armed()).trim(); await saved(() => page.keyboard.press("Control+Enter"));
     const ev7 = await last();
     ok("Reconfirm of a person-held deferral with a new name keeps the someone else decides prefix", /^Reconfirm/.test(r7) && ev7.id === "P2" && ev7.kind === "defer" && ev7.text === "someone else decides: Lee, the architect", r7 + " " + JSON.stringify(ev7));
-    // Reconfirm with a note typed over the kept one records the typed note
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "accept"});
     await page.fill("#note", "Weekdays too");
     await page.click("main.detail h3"); await page.keyboard.press("a");
@@ -385,7 +372,6 @@ async page => {
     await card("P1", "Answer not handled yet");
     ok("revising chip on the answered question, not its dependent", /Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P1"]')) && !/Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P2"]')));
 
-    // shortcuts off: no single key acts
     await page.keyboard.press(","); await page.waitForTimeout(200);
     await page.selectOption('[data-set="shortcuts"]', "false"); await page.waitForTimeout(150);
     await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(150);
@@ -396,7 +382,6 @@ async page => {
     const off = await page.evaluate(() => ({armed: !!document.querySelector(".choice.armed"), focus: document.activeElement.id || document.activeElement.tagName, sheet: document.getElementById("keysDlg").open}));
     ok("AC16: shortcuts off disables every single key", !off.armed && off.focus === "BODY" && !off.sheet && await sel() === "Q3" && (await events()).length === n2, JSON.stringify(off));
 
-    // AC33: settings rows name their layer
     await page.click('.strip [data-panel="settings"]'); await page.waitForTimeout(200);
     await page.click('[data-reset="shortcuts"]'); await page.waitForTimeout(150);
     const src = await page.$$eval(".setrow", els => Object.fromEntries(els.map(e => [e.dataset.key, e.querySelector(".src").textContent.replace(/\s*Reset$/, "")])));
@@ -448,7 +433,6 @@ async page => {
     ok("AC32: mermaid shows its source and the not-available line", mm.code === "graph TD\n  A-->B" && /Mermaid rendering is not available in this version/.test(mm.text) && !mm.frame, JSON.stringify(mm).slice(0, 160));
     await page.click('[data-vtab="v:vc"]'); await page.waitForTimeout(150);
     ok("chart renders a table of series", /Saves/.test(await page.textContent("#fbody table")) && /Tue/.test(await page.textContent("#fbody table")));
-    // SPEC 3.4: a file visual is fetched by visual id and rendered through the inline format paths, captioned with its path
     const fileVis = async (id, done) => { await page.click('[data-vtab="v:' + id + '"]'); await page.waitForFunction(done, null, {timeout: 5000}).catch(() => {}); return page.evaluate(() => { const b = document.getElementById("fbody"), f = b.querySelector("iframe"), i = b.querySelector("img"); return {text: b.innerText, cap: (b.querySelector(".vfile code") || {}).textContent, srcdoc: f ? f.srcdoc : null, sandbox: f ? f.getAttribute("sandbox") : null, img: i ? i.getAttribute("src") : null}; }); };
     let vxFetches = 0;
     page.on("request", r => { if (/\/api\/visual-file\?id=vx$/.test(r.url())) vxFetches++; });
@@ -475,7 +459,6 @@ async page => {
     const img = await page.evaluate(() => { const i = document.querySelector("#fbody img"); return i ? i.getAttribute("src") : null; });
     ok("inline image renders its content as the img src", img === vpSrc, String(img).slice(0, 60));
 
-    // gallery: two or more images offer a thumbnail strip, arrow flip and side-by-side compare
     const gcur = () => page.evaluate(() => (document.querySelector("#fbody [data-gthumb][aria-current=true]") || {}).dataset?.gthumb || null);
     const gimgs = sel => page.evaluate(s => document.querySelectorAll(s + " img").length, sel);
     await page.click('[data-vtab="gallery:*"]'); await page.waitForFunction(() => document.querySelectorAll("#fbody .gstrip img").length === 2, null, {timeout: 5000}).catch(() => {});
@@ -502,7 +485,6 @@ async page => {
     await page.click("[data-gcompare]"); await page.click('[data-vtab="v:vk"]'); await page.waitForTimeout(150);
     ok("a plain visual hides the full-screen compare toggle", await page.evaluate(() => { document.querySelector("[data-full]").click(); const h = document.getElementById("fsCmp").hidden; document.getElementById("fsClose").click(); return h; }));
 
-    // grouped visual tabs: group headers, order, primary default, archived hidden, distinct labels
     await pick("Q3"); await page.waitForTimeout(150);
     const gt = await page.evaluate(() => ({
       heads: [...document.querySelectorAll("#fbody .tgh")].map(e => e.textContent),
@@ -523,7 +505,6 @@ async page => {
     ok("a question without a primary opens its first tab", await page.evaluate(() => document.querySelector("#fbody [data-vtab][aria-selected=true]").dataset.vtab) === "v:vk");
     await page.click("#flyClose");
 
-    // SPEC 4.1: mobile stacks, no horizontal scroll at 800 px
     await page.setViewportSize({width: 800, height: 900}); await page.waitForTimeout(300);
     const mob = await page.evaluate(() => { const r = document.querySelector("nav.rail").getBoundingClientRect(), d = document.querySelector("main.detail").getBoundingClientRect(), a = document.getElementById("answer"); a.scrollIntoView(); const ar = a.getBoundingClientRect(); return {hscroll: document.scrollingElement.scrollWidth > innerWidth, stacked: d.bottom <= r.top + 1, answer: ar.height > 0 && ar.top < innerHeight && ar.bottom > 0}; });
     ok("mobile: panes stack with the question first, no horizontal scroll, answer pane reachable", !mob.hscroll && mob.stacked && mob.answer, JSON.stringify(mob));
@@ -572,7 +553,6 @@ async page => {
       await counted(openAssumptions(s2) ? open(openAssumptions(s2)) : "");
       ok("counter agrees after the commitments were replaced", (await counter()) === (openAssumptions(s2) ? open(openAssumptions(s2)) : ""), (await counter()) + " vs " + openAssumptions(s2));
     }
-    // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;
     await saved(async () => { await page.click("[data-wrapup]"); await page.waitForTimeout(300); if (await page.$("dialog#dlg[open]")) await page.click("#dlgOk"); });

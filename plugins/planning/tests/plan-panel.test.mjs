@@ -18,7 +18,6 @@ for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
 
 const score = (draft, n) => ({ draft, goal_fit: n, blast_radius: n, test_strategy: n, reversibility: n, rationale: 'r' })
 
-// Default replies: every draft returns, judges prefer draft B, synthesis grafts from A.
 function defaultReply(prompt, opts) {
   if (opts.label.startsWith('draft:')) return { plan: 'plan from ' + opts.label, key_ideas: ['idea ' + opts.label] }
   if (opts.label.startsWith('judge:')) {
