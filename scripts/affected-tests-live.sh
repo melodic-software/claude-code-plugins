@@ -133,7 +133,11 @@ while IFS= read -r c; do
     break
   fi
 done < <(git ls-files '.github/*.yaml' '.github/*.yml')
-wf_yaml=${wf_yaml:-.github/unreferenced-$$-$RANDOM.yaml}
+if [[ -z "$wf_yaml" ]]; then
+  wf_yaml=.github/unreferenced-$$-$RANDOM.yaml
+  : >"$wf_yaml"
+  trap 'rm -f -- "$wf_yaml"' EXIT
+fi
 select_for "$wf_yaml"
 if [[ "$RC" -eq 0 && -z "$out" ]]; then
   ok ".github YAML stays a recorded no-suite class via .github/*: $wf_yaml"
