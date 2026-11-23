@@ -147,10 +147,36 @@ test('tampered fetcher output (byte count or hash mismatch) leaves row unread an
   assert.match(result.diff, /-  "status": "permanent"\n\+  "status": "support-only"/)
 })
 
-test('a page that returns only a section map skips the judge and proposes no demotion', async () => {
+const MAP = [
+  '1\t1\t1\t400\t90000\t' + 'b'.repeat(64) + '\tModels',
+  '2\t2\t2\t40\t9000\t' + 'c'.repeat(64) + '\tModels > Terminal-Bench leaderboard',
+  '3\t2\t41\t400\t81000\t' + 'd'.repeat(64) + '\tModels > Methodology',
+  '4\t1\t401\t420\t3000\t' + 'e'.repeat(64) + '\tChangelog',
+].join('\n')
+
+test('a page that returns a section map is read again by the sections matching expect, then judged', async () => {
   const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
-    reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: rawPage(data(p, 'url'), '1 1 0 10 10 ' + 'b'.repeat(64) + ' Leaderboard', 'map') } : d(p, o)),
+    reply: (p, o, d) => {
+      if (!o.label.startsWith('fetch:')) return d(p, o)
+      const ids = data(p, 'sections')
+      return { output: ids.length ? rawPage(data(p, 'url')).replace('kind=page', 'kind=sections') : rawPage(data(p, 'url'), MAP, 'map') }
+    },
   })
+  assert.deepEqual(by(calls, 'fetch:').map(c => data(c.prompt, 'sections')), [[], [2, 4]])
+  assert.equal(by(calls, 'judge:').length, 1)
+  assert.equal(result.rows[0].reachable, true)
+  assert.deepEqual(result.proposedChanges, [])
+})
+
+test('a mapped page whose sections cannot be read skips the judge and proposes no demotion', async () => {
+  const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+    reply: (p, o, d) => {
+      if (!o.label.startsWith('fetch:')) return d(p, o)
+      const url = data(p, 'url')
+      return { output: data(p, 'sections').length ? 'docs-raw: url=' + url + ' state=unread reason=timeout' : rawPage(url, MAP, 'map') }
+    },
+  })
+  assert.equal(by(calls, 'fetch:').length, 2)
   assert.equal(by(calls, 'judge:').length, 0)
   assert.equal(result.rows[0].partial, true)
   assert.deepEqual(result.proposedChanges, [])

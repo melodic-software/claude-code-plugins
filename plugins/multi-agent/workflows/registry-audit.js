@@ -3,7 +3,7 @@ export const meta = {
   description: 'Read-only recheck of benchmark registry rows: registry-fetcher reads each row page raw on allowlisted hosts, a no-tool registry-judge returns a closed JSON verdict, and shipped-row changes come back as a proposed diff to reference/benchmarks.json',
   whenToUse: 'Run by /multi-agent:audit-defaults registry, which resolves args: rows (required, from list-registry.mjs), currentModels (optional per-vendor current model ids), roles, maxConcurrent, asOf. Invoked with no args, do not call Workflow: tell the user to run /multi-agent:audit-defaults registry.',
   phases: [
-    { title: 'Fetch', detail: 'one registry-fetcher per allowlisted row page reads it fresh and raw through docs-raw.sh' },
+    { title: 'Fetch', detail: 'one registry-fetcher per allowlisted row page reads it fresh and raw through docs-raw.sh, and a page too large to return whole is read again by its sections' },
     { title: 'Judge', detail: 'one no-tool registry-judge per read row inspects the slice as data and returns a closed JSON verdict' },
   ],
 }
@@ -248,15 +248,51 @@ for (const r of rows) {
   uniqueUrls.push(u)
 }
 
-await inWaves(uniqueUrls.map(url => async () => {
+const SECTION_BYTES = 60000
+const SECTION_IDS = 20
+
+function pickSections(mapBody, expects) {
+  const rows = []
+  for (const line of mapBody.split('\n')) {
+    const m = /^(\d+)\s+\d+\s+(\d+)\s+(\d+)\s+(\d+)\s+[0-9a-f]{64}\s+(.*)$/.exec(line)
+    if (m) rows.push({ id: Number(m[1]), start: Number(m[2]), end: Number(m[3]), bytes: Number(m[4]), path: m[5].toLowerCase() })
+  }
+  const wanted = expects.map(e => e.toLowerCase())
+  const ordered = [...rows.filter(r => wanted.some(w => r.path.includes(w))), ...rows]
+  const picked = []
+  let total = 0
+  for (const r of ordered) {
+    if (picked.length >= SECTION_IDS) break
+    if (picked.some(p => p.id === r.id || (r.start >= p.start && r.end <= p.end))) continue
+    if (total + r.bytes > SECTION_BYTES) continue
+    picked.push(r)
+    total += r.bytes
+  }
+  return picked.map(r => r.id).sort((a, b) => a - b)
+}
+
+async function fetchOne(url, sections) {
   const label = 'fetch:' + (fetchLabels.length + 1)
   fetchLabels.push(label)
   const r = await agentRetry(
-    'Stage: fetch. Run docs-raw.sh once on the URL below and return its standard output verbatim.' + fence('url', url),
+    'Stage: fetch. Run docs-raw.sh once on the URL below, with the section ids listed after it (none when the ' +
+      'list is empty), and return its standard output verbatim.' + fence('url', url) + fence('sections', sections),
     { label, phase: 'Fetch', schema: FETCH_SCHEMA, ...opts(R.worker.fanout, FETCHER) },
   ).catch(() => null)
   if (r == null) nulls.push(label)
-  slices.set(url, await parseRaw(url, r && r.output))
+  return parseRaw(url, r && r.output)
+}
+
+await inWaves(uniqueUrls.map(url => async () => {
+  let slice = await fetchOne(url, [])
+  if (slice.state === 'read' && slice.kind === 'map') {
+    const ids = pickSections(slice.body || '', rows.filter(r => pageOf(r.link) === url).map(r => r.expect))
+    if (ids.length) {
+      const sections = await fetchOne(url, ids)
+      if (sections.state === 'read' && sections.kind === 'sections') slice = sections
+    }
+  }
+  slices.set(url, slice)
 }), MAX_CONCURRENT)
 log('Fetch: ' + [...slices.values()].filter(s => s.state === 'read').length + '/' + slices.size + ' registry pages read raw')
 
@@ -324,7 +360,7 @@ const judged = await inWaves(rows.map(row => async () => {
       age_days: null,
       covers_work_types: [],
       tests_current_models: 'unclear',
-      notes: cleanNotes([partial ? 'page returned kind=' + slice.kind + ' with no entries to judge; no change proposed' : slice.reason || 'unread']),
+      notes: cleanNotes([partial ? 'page returned kind=' + slice.kind + ' and no sections could be read; no change proposed' : slice.reason || 'unread']),
     }
   }
   const label = 'judge:' + row.id
