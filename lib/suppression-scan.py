@@ -68,7 +68,6 @@ from dataclasses import dataclass, field
 
 MIN_PYTHON = (3, 11)
 
-# ---- file kinds -------------------------------------------------------------
 
 EXTENSIONS = {
     "js": "clike-js",
@@ -124,16 +123,9 @@ def kind_of(path: str, first_line: str) -> str | None:
     return None
 
 
-# ---- lexing -----------------------------------------------------------------
-#
-# Each line is split into its code (string contents blanked, comments removed)
-# and its comment segments. A marker only counts inside a comment segment, or,
-# for the attribute and pragma forms, in the code outside any string literal.
-
-
 @dataclass
 class Segment:
-    opener: str  # "//", "/*", "#", "<!--", or "" for a block comment's continuation
+    opener: str
     text: str
 
 
@@ -145,9 +137,9 @@ class Line:
 
 @dataclass
 class LexState:
-    block: str | None = None  # the closer of an open block comment
-    string: str | None = None  # the closer of a string that spans lines
-    fence: str | None = None  # an open Markdown fence
+    block: str | None = None
+    string: str | None = None
+    fence: str | None = None
 
 
 def _quotes(kind: str) -> tuple[str, ...]:
@@ -160,7 +152,6 @@ def _quotes(kind: str) -> tuple[str, ...]:
     return ('"', "'")
 
 
-# Quotes whose string may continue onto the next line.
 MULTILINE_QUOTES = {
     "python": ('"""', "'''"),
     "clike-js": ("`",),
@@ -355,13 +346,6 @@ def lex(line: str, kind: str, state: LexState) -> Line:
     return result
 
 
-# ---- the catalog ------------------------------------------------------------
-#
-# Comment markers: a pattern matched at the start of a comment segment, the
-# kinds it applies to, whether the tool's syntax can name a rule, and how the
-# rule ids are read from the text after the marker. The remainder after the
-# rule ids, once separators are stripped, is the marker's own reason.
-
 RULE_LIST = r"[^\s,]+(?:\s*,\s*[^\s,]+)*"
 
 
@@ -371,8 +355,8 @@ class CommentMarker:
     kinds: tuple[str, ...]
     pattern: re.Pattern[str]
     names_rules: bool
-    rules: re.Pattern[str] | None  # matched at the start of the text after the marker
-    token: re.Pattern[str] | None = None  # set for a marker found anywhere in a comment
+    rules: re.Pattern[str] | None
+    token: re.Pattern[str] | None = None
 
 
 def _m(
@@ -503,8 +487,6 @@ COMMENT_MARKERS = (
     ),
 )
 
-# Code markers: an attribute, annotation or pragma found in the code outside
-# any string, whose rule ids and reason come from its own arguments.
 PRAGMA = re.compile(r"^\s*#\s*pragma\s+warning\s+disable\b")
 CS_ATTRIBUTE = re.compile(r"\b(?:Unconditional)?SuppressMessage(?:Attribute)?\s*\(")
 PS_ATTRIBUTE = re.compile(r"\bSuppressMessage(?:Attribute)?\s*\(", re.IGNORECASE)
@@ -518,9 +500,7 @@ STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
 JUSTIFICATION = re.compile(
     r"\bJustification\s*=\s*(?:\"((?:[^\"\\]|\\.)*)\"|'([^']*)')", re.IGNORECASE
 )
-# Separators stripped from a reason's ends: punctuation plus the en and em dash.
 SEPARATORS = " \t:-/#*,;.>" + chr(0x2013) + chr(0x2014)
-# A file holding none of these words has no suppression, so it is not lexed.
 ANY_MARKER = re.compile(
     r"eslint-disable|@ts-|noqa|(?:type|pyright)\s*:\s*ignore|pylint\s*:"
     r"|shellcheck\s+disable|pragma\s+warning|SuppressMessage|nolint"
@@ -576,7 +556,7 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
             if reason:
                 trailing.append(reason)
             continue
-        shared = None  # the reason text the comment states for its first marker
+        shared = None
         if marker is not None:
             matched = marker.pattern.match(scrubbed)
             rest = scrubbed[matched.end() :]
@@ -660,9 +640,6 @@ def scan_text(text: str, kind: str | None) -> list[Record]:
         if kind in CODE_MARKERS:
             records.extend(_code_records(index + 1, kind, lexed, lines))
     return records
-
-
-# ---- inputs -----------------------------------------------------------------
 
 
 class UsageError(Exception):
@@ -795,7 +772,7 @@ def inventory(
     seen: set[str] = set()
     for path in expand(paths, top):
         if not os.path.isfile(path):
-            continue  # a listed file deleted from the working tree
+            continue
         shown = display(path, top)
         if shown in seen:
             continue
@@ -914,9 +891,6 @@ def read_list(path: str, comments: bool) -> list[str]:
     if comments:
         lines = [line.split("#", 1)[0].strip() for line in lines]
     return [line for line in lines if line]
-
-
-# ---- command line -----------------------------------------------------------
 
 
 def parse(argv: list[str]) -> dict:
