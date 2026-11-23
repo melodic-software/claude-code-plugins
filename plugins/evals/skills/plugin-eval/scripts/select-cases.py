@@ -1348,6 +1348,14 @@ def select_cases(repo_root, diff_base, merge_base):
                     no_run_cases[plugin].add(owning_case)
                 else:
                     run_cases[plugin].add(owning_case)
+                    run_cases[plugin].update(
+                        cases_citing_suite_file(
+                            os.path.join(repo_root, "plugins", plugin, ed_name),
+                            os.path.join(repo_root, *parts),
+                            suite_cases,
+                            ref_cache=fixture_ref_cache,
+                        )
+                    )
                 unread_graders[plugin].update(owning_case.unread_graders)
             else:
                 if parts[3] == "results" or _is_test_script(parts[-1]):

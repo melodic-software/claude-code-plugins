@@ -7,6 +7,7 @@ change class, file mapping, grader rule and CLI path is tested offline.
 """
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,11 @@ from pathlib import Path
 from textwrap import dedent
 
 SCRIPT = Path(__file__).resolve().parent / "select-cases.py"
+
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 
 def _git(repo, *args):
@@ -1129,6 +1135,39 @@ class SelectCasesTest(unittest.TestCase):
             "control-no-fire one-trigger opt-case",
             blocks["plugins/alpha"]["run-after-merge"],
         )
+
+    def test_case_owned_scaffold_selects_the_cases_that_call_it(self):
+        for name, scaffold in (
+            ("posture-necessary", 'mkdir -p out\necho "$1" > out/mode\n'),
+            ("posture-none", 'bash "$(dirname "${BASH_SOURCE[0]}")/../posture-necessary/scaffold.sh" none\n'),
+        ):
+            _write(
+                self.repo,
+                "plugins/alpha/evals/%s/case.yaml" % name,
+                'schema_version: "1.1"\nname: %s\ncontext:\n  scaffold_script: scaffold.sh\n' % name,
+            )
+            _write(self.repo, "plugins/alpha/evals/%s/prompt.md" % name, "/alpha:one check\n")
+            _write(
+                self.repo,
+                "plugins/alpha/evals/%s/scaffold.sh" % name,
+                "#!/usr/bin/env bash\n" + scaffold,
+            )
+            _write(
+                self.repo,
+                "plugins/alpha/evals/%s/graders/ok.md" % name,
+                '---\ntype: regex\npattern: "ok"\n---\n',
+            )
+        _commit_all(self.repo, "add a scaffold another case calls")
+        _git(self.repo, "branch", "-f", "base")
+
+        path = self.repo / "plugins/alpha/evals/posture-necessary/scaffold.sh"
+        path.write_text(path.read_text(encoding="utf-8") + "touch out/ready\n", encoding="utf-8")
+        _commit_all(self.repo, "edit the shared scaffold")
+
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        blocks = _parse_blocks(res.stdout)
+        self.assertEqual("posture-necessary posture-none", blocks["plugins/alpha"]["cases"])
 
     def test_finding_04_transitive_fixture_dependency_through_helper(self):
         _write(

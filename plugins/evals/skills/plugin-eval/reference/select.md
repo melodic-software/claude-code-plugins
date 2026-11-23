@@ -8,8 +8,10 @@ read it.
 ## Run it
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/select-cases.py" <diff-base> [--json] [--repo <dir>]
+python3 "<skill-dir>/scripts/select-cases.py" <diff-base> [--json] [--repo <dir>]
 ```
+
+`<skill-dir>` is the plugin-eval skill's directory.
 
 `<diff-base>` is the branch's base, `origin/main` for a pull request. `--repo` names the checkout
 when it is not the current directory. `--json` prints the same data as one object keyed by
