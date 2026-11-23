@@ -52,7 +52,6 @@ done
 # The rollup marker as the workflow sets it.
 MARKER="$(sed -n 's/^          MARKER: //p' "$WORKFLOW")"
 
-# --- Workflow shape -----------------------------------------------------------
 job() { awk -v j="  $1:" '$0 == j { on = 1; next } on && /^  [a-z-]+:$/ { exit } on' "$WORKFLOW"; }
 scopes() { grep -oE '^ +[a-z-]+: (read|write)( |$)' | sed 's/^ *//; s/ *$//' | sort | paste -sd ' '; }
 caller_name="$(sed -n 's/^name: //p' "$CALLER")"
@@ -89,7 +88,6 @@ else
   fail "the rollup marker is '$MARKER'"
 fi
 
-# --- Check the dead links -----------------------------------------------------
 run_read() { # <download outcome> <conclusion> <fixture or ''> [MAX_LINKS]
   local out="$TMP_ROOT/read-output" fixture="$TMP_ROOT/dead-links.json"
   : >"$out"

@@ -58,7 +58,6 @@ event() { # <hook-object-json>: a hooks.json with one Stop hook
 
 W='.hooks.Stop[0].hooks[0]'
 
-# --- forms and args kinds ------------------------------------------------------
 new_fixture f
 put "$f" plugins/a/hooks/hooks.json "$(event '{"type":"command","command":"node","args":["x.mjs",2]},{"type":"command","command":"bash x.sh"},{"type":"command","command":"bash","args":"x.sh"}')"
 expect "exec with array args, shell form, and exec with string args" "$(rows "$f" 2>&1)" \
@@ -67,7 +66,6 @@ H|plugins/a/hooks/hooks.json|.hooks.Stop[0].hooks[1]|shell|none|bash x.sh|bash x
 H|plugins/a/hooks/hooks.json|.hooks.Stop[0].hooks[2]|exec|other|bash|bash"
 rm -rf "$f"
 
-# --- a newline, CR or tab in a command stays on its row ------------------------
 new_fixture f
 put "$f" plugins/a/hooks/hooks.json "$(event '{"type":"command","command":"node\n","args":["x"]},{"type":"command","command":"/opt/x\r\nbash","args":["a\tb"]}')"
 expect "CR, LF and TAB map to a space, one row per hook" "$(rows "$f" 2>&1)" \
@@ -75,14 +73,12 @@ expect "CR, LF and TAB map to a space, one row per hook" "$(rows "$f" 2>&1)" \
 H|plugins/a/hooks/hooks.json|.hooks.Stop[0].hooks[1]|exec|array|/opt/x  bash|/opt/x  bash a b"
 rm -rf "$f"
 
-# --- an empty command and a root-level hook keep their columns -----------------
 new_fixture f
 put "$f" plugins/a/hooks/hooks.json '{"type":"command","command":"","args":["z"]}'
 expect "an empty path and an empty command do not shift the fields" "$(rows "$f" 2>&1)" \
   "H|plugins/a/hooks/hooks.json||exec|array|| z"
 rm -rf "$f"
 
-# --- manifest: inline map, pointed file, and an array mixing both --------------
 new_fixture f
 put "$f" plugins/a/.claude-plugin/plugin.json '{"name":"a","hooks":{"Stop":[{"hooks":[{"type":"command","command":"node","args":[]}]}]}}'
 put "$f" plugins/b/.claude-plugin/plugin.json '{"name":"b","hooks":["./config/h.json",{"Stop":[{"hooks":[{"type":"command","command":"sh","args":[]}]}]},7]}'
@@ -97,7 +93,6 @@ S|plugins/b/.claude-plugin/plugin.json	[\"hooks\",1]
 S|plugins/b/config/h.json	[\"hooks\"]"
 rm -rf "$f"
 
-# --- a manifest pointing at the default file does not scan it twice ------------
 new_fixture f
 put "$f" plugins/a/.claude-plugin/plugin.json '{"name":"a","hooks":["./hooks/hooks.json","./hooks/hooks.json"]}'
 put "$f" plugins/a/hooks/hooks.json "$(event '{"type":"command","command":"node","args":[]}')"
@@ -106,7 +101,6 @@ expect "the default file named by its manifest is one source" "$(rows "$f" 2>&1)
 expect "and one entry in sources" "$(rows "$f" sources 2>&1)" "S|plugins/a/hooks/hooks.json	[\"hooks\"]"
 rm -rf "$f"
 
-# --- a pointed path outside the plugin is refused, visibly ---------------------
 new_fixture f
 put "$f" plugins/a/.claude-plugin/plugin.json '{"name":"a","hooks":"../b/hooks/x.json"}'
 put "$f" plugins/b/hooks/x.json "$(event '{"type":"command","command":"bash","args":[]}')"
@@ -114,7 +108,6 @@ expect "an out-of-tree hooks path is skipped with the guard's notice" "$(rows "$
   "lib-test: skipping out-of-tree hooks path in plugins/a/.claude-plugin/plugin.json: ../b/hooks/x.json"
 rm -rf "$f"
 
-# --- unreadable input reaches on-unreadable, with its surface ------------------
 new_fixture f
 put "$f" plugins/a/hooks/hooks.json '{not json'
 put "$f" plugins/b/hooks/hooks.json "$(event '{"type":"command","command":"node","args":[]}')"
@@ -128,7 +121,6 @@ expect "sources skips an unparsable manifest" "$(rows "$f" sources 2>&1)" \
 S|plugins/b/hooks/hooks.json	[\"hooks\"]"
 rm -rf "$f"
 
-# --- frontmatter: exec with a sequence, exec without one, shell, unreadable ----
 new_fixture f
 put "$f" plugins/a/skills/s/SKILL.md '---
 name: s
@@ -155,7 +147,6 @@ H|plugins/a/skills/s/SKILL.md|10|exec|other|bash|bash
 H|plugins/a/skills/s/SKILL.md|13|shell|none|bash x.sh|bash x.sh"
 rm -rf "$f"
 
-# --- a frontmatter reader that does not complete stops the walk ----------------
 new_fixture f
 printf '%s\n' 'import sys' 'sys.exit(2)' >"$f/scripts/check-hook-exec-form-frontmatter.py"
 out="$(rows "$f" 2>&1)"
@@ -167,7 +158,6 @@ else
 fi
 rm -rf "$f"
 
-# --- sourced-only ---------------------------------------------------------------
 out="$(bash "$SELF_DIR/hook-configs.sh" 2>&1)"
 rc=$?
 if ((rc == 2)) && [[ "$out" == *"sourced-only"* ]]; then
