@@ -38,6 +38,7 @@ if command -v cygpath >/dev/null 2>&1; then
 else
   TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
 fi
+native_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m -l "$1"; else printf '%s' "$1"; fi; }
 
 # DATA_DIR / DATA_ROOT_FILE — the unconfigured-root default comes from the plugin
 # data directory the caller hands over via --data-root-file, mirroring how the skill
@@ -139,14 +140,12 @@ commitfile() {
   } >/dev/null 2>&1
 }
 
-# --- Case: --help exits 0 and documents the refuse contract ---
 help_out=$(bash "$HELPER" --help 2>&1)
 assert_exit "--help exit 0" 0 "$?"
 assert_contains "--help documents refuse (exit 3)" "$help_out" "refuse"
 assert_contains "--help documents --session-id" "$help_out" "--session-id"
 assert_contains "--help documents an omitted session id as no claim" "$help_out" "no session token"
 
-# --- Case: missing --name -> usage error (exit 2) ---
 bash "$HELPER" --root "$TEST_TMPDIR/wt" >/dev/null 2>&1
 assert_exit "missing --name exit 2" 2 "$?"
 
@@ -292,7 +291,6 @@ assert_eq "worktreeroot.path wins over --fallback-root" \
 assert_file_absent "nothing under the fallback root when git config supplies one" \
   "$fallback/acme-widget-feat-gitconfig"
 
-# --- Case: a retired alias is rewritten onto worktreeroot.path --------------
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 legacy_root="$TEST_TMPDIR_NATIVE/legacy-root"
 fallback="$TEST_TMPDIR_NATIVE/fallback-legacy"
@@ -313,7 +311,6 @@ assert_exit "create unset the retired alias" 1 "$old_rc"
 assert_not_contains "create stderr does not name the retired alias" "$err" \
   "melodic.worktreeroot"
 
-# --- Case: both keys set — worktreeroot.path wins --------------------------
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 new_root="$TEST_TMPDIR_NATIVE/new-wins-root"
 old_root="$TEST_TMPDIR_NATIVE/old-loses-root"
@@ -383,7 +380,6 @@ assert_exit "--data-root-file embedded newline is a usage error (exit 2)" 2 "$?"
 assert_contains "--data-root-file newline error names the newline" "$err" "newline"
 assert_file_absent "--data-root-file newline payload never executed" "$TEST_TMPDIR/pwned-data"
 
-# --- Case: refuse when the configured root is inside the repo (exit 3) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 err=$(bash "$HELPER" --name feat/x --root "$repo/.claude/worktrees" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "in-repo root refuses exit 3" 3 "$?"
@@ -482,7 +478,6 @@ out=$(bash "$HELPER" --name feat/adj --root "$root" --repo-dir "$repo" 2>/dev/nu
 assert_exit "external root adjacent to a repo still creates (exit 0)" 0 "$?"
 assert_file_exists "external adjacent worktree materialized" "$out/README.md"
 
-# --- Case: path computation <root>/<owner>-<repo>-<slug> with slug sanitization ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot1"
 out=$(bash "$HELPER" --name "feat/my-feature" --root "$root" --repo-dir "$repo" 2>/dev/null)
@@ -494,24 +489,20 @@ assert_file_exists "worktree checkout materialized" "$out/README.md"
 assert_eq "branch keeps original name" "feat/my-feature" \
   "$(git -C "$out" rev-parse --abbrev-ref HEAD)"
 
-# --- Case: https origin URL parses the same owner/repo ---
 repo=$(mkrepo --origin "https://github.com/acme/widget.git")
 root="$TEST_TMPDIR/wtroot2"
 out=$(bash "$HELPER" --name fix/bug --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_eq "https origin -> same owner-repo" "$root/acme-widget-fix-bug" "$out"
 
-# --- Case: no origin remote -> <root>/<repo>-<slug> (owner omitted) ---
 repo=$(mkrepo)
 root="$TEST_TMPDIR/wtroot3"
 out=$(bash "$HELPER" --name chore/tidy --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_eq "no origin -> <repo>-<slug>, owner omitted" \
   "$root/${repo##*/}-chore-tidy" "$out"
 
-# --- Case: target path already exists -> exit 4 ---
 bash "$HELPER" --name chore/tidy --root "$root" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "duplicate path exit 4" 4 "$?"
 
-# --- Case: base-ref head branches from local HEAD (carries unpushed commits) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 printf 'local-only\n' >"$repo/UNPUSHED.md"
 git -C "$repo" add UNPUSHED.md
@@ -520,7 +511,6 @@ root="$TEST_TMPDIR/wtroot4"
 out=$(bash "$HELPER" --name feat/head-base --root "$root" --base-ref head --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "base-ref head carries the unpushed commit" "$out/UNPUSHED.md"
 
-# --- Case: base-ref fresh branches from origin/HEAD (excludes unpushed) ---
 root="$TEST_TMPDIR/wtroot5"
 out=$(bash "$HELPER" --name feat/fresh-base --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "base-ref fresh materializes the worktree" "$out/README.md"
@@ -532,7 +522,6 @@ assert_eq "base-ref fresh leaves branch.<name>.merge unset" "" \
 assert_eq "base-ref fresh leaves branch.<name>.remote unset" "" \
   "$(git -C "$repo" config --get branch.feat/fresh-base.remote)"
 
-# --- Case: .worktreeinclude copy is the (matched AND gitignored) intersection ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 printf '.work/\n*.env\n' >"$repo/.gitignore"
 printf '.work/keep.md\n.work/*/EXPLORE.md\n*.env\n' >"$repo/.worktreeinclude"
@@ -687,7 +676,6 @@ assert_exit "'.' branch remote still succeeds" 0 "$?"
 assert_file_exists "'.' branch remote materializes the worktree" "$out/README.md"
 assert_file_absent "'.' branch remote falls through to origin" "$out/UNPUSHED.md"
 
-# --- Case: detached HEAD skips the branch rung and still resolves origin ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 commitfile "$repo" UNPUSHED.md
 git -C "$repo" checkout -q --detach HEAD
@@ -709,7 +697,6 @@ assert_contains "ambiguous remotes warn about fallback" "$(cat "$errfile")" "cou
 assert_contains "ambiguous remotes name the no-default-remote cause" "$(cat "$errfile")" "no default remote"
 assert_file_exists "ambiguous fallback still creates the worktree" "$out/README.md"
 
-# --- Case: a repository with no remotes at all keeps the HEAD fallback ---
 repo=$(mkrepo)
 root="$TEST_TMPDIR/wtroot-noremote"
 errfile="$TEST_TMPDIR/err-noremote.txt"
@@ -760,14 +747,12 @@ assert_eq "worktree HEAD is the remote's actual tip" \
   "$(git -C "$out" rev-parse HEAD 2>/dev/null)"
 assert_not_contains "a successful refresh prints no warning" "$(cat "$errfile")" "warning"
 
-# --- Case: a clone never fetched (no FETCH_HEAD) also refreshes ---
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote-nofh.git")
 rm -f "$repo/.git/FETCH_HEAD"
 root="$TEST_TMPDIR/wtroot-stale-nofh"
 out=$(bash "$HELPER" --name feat/stale-nofh --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "a clone with no FETCH_HEAD fetches" "$out/REMOTE_ONLY.md"
 
-# --- Case: a fetch moments ago does not skip the refresh ---
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote-recent.git")
 : >"$repo/.git/FETCH_HEAD"
 root="$TEST_TMPDIR/wtroot-stale-recent"
@@ -776,7 +761,6 @@ out=$(bash "$HELPER" --name feat/stale-recent --root "$root" --base-ref fresh --
 assert_file_exists "a recent FETCH_HEAD still fetches" "$out/REMOTE_ONLY.md"
 assert_contains "a refreshed base reports fresh" "$(cat "$errfile")" "(base fresh)"
 
-# --- Case: a failed refresh warns and keeps the cached ref (offline still works) ---
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote-gone.git")
 git -C "$repo" remote set-url origin "$TEST_TMPDIR/no-such-remote.git"
 rm -f "$repo/.git/FETCH_HEAD"
@@ -809,7 +793,6 @@ assert_contains "hung refresh warns it could not refresh" "$(cat "$errfile")" "c
 assert_eq "hung refresh returns near the cap, not after the 30s hang (took ${elapsed}s)" \
   "1" "$((elapsed < 20))"
 
-# --- Case: 3+-segment URLs — Azure DevOps (_git) and GitLab subgroup ---
 repo=$(mkrepo --origin "https://dev.azure.com/myorg/myproject/_git/widget")
 root="$TEST_TMPDIR/wtroot8"
 out=$(bash "$HELPER" --name feat/az --root "$root" --repo-dir "$repo" 2>/dev/null)
@@ -867,19 +850,16 @@ assert_eq "valid name: '/' -> '-' in the dir slug" "$root/acme-widget-feat-scope
 assert_eq "valid name: branch kept verbatim" "feat/scope.v2_final-1" \
   "$(git -C "$out" rev-parse --abbrev-ref HEAD)"
 
-# --- Case: --repo-dir outside any git repo -> environment error (exit 4) ---
 nonrepo="$(mktemp -d "$TEST_TMPDIR/plainXXXXXX")"
 bash "$HELPER" --name feat/x --root "$TEST_TMPDIR/wtroot11" --repo-dir "$nonrepo" >/dev/null 2>&1
 assert_exit "--repo-dir outside a git repo exits 4" 4 "$?"
 
-# --- Case: a trailing slash on --root does not double the separator ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot12"
 out=$(bash "$HELPER" --name feat/trail --root "$root/" --repo-dir "$repo" 2>/dev/null)
 assert_eq "trailing-slash root yields a single separator" \
   "$root/acme-widget-feat-trail" "$out"
 
-# --- Case: --root and --root-file together are a usage error (exit 2) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-both"
 printf '%s' "$TEST_TMPDIR/wtroot-both" >"$root_file"
@@ -895,7 +875,6 @@ assert_exit "--root '' with --root-file still exits 2" 2 "$?"
 bash "$HELPER" --name feat/both3 --root "$TEST_TMPDIR/wtroot-both" --root-file "" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root with --root-file '' still exits 2" 2 "$?"
 
-# --- Case: --root-file pointing at a missing file is a usage error (exit 2) ---
 bash "$HELPER" --name feat/missingfile --root-file "$TEST_TMPDIR/does-not-exist" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root-file missing file exit 2" 2 "$?"
 
@@ -1070,7 +1049,6 @@ assert_exit "session s1 does not own a helper lock stamped s10" 4 "$?"
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id s10 >/dev/null 2>&1
 assert_exit "session s10 owns the helper lock it stamped" 0 "$?"
 
-# --- Case: omitting --session-id matches no session ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot-nosess"
 out=$(CLAUDE_SESSION_ID=env-sess bash "$HELPER" --name feat/nosess --root "$root" --repo-dir "$repo" 2>/dev/null)
@@ -1127,7 +1105,6 @@ eval "$(awk '/same-drive helpers \(begin\)/{p=1; next} /same-drive helpers \(end
 # shellcheck disable=SC2034 # consumed by check_same_drive, eval'd in above from worktree-create.sh
 PROG=worktree-create.sh
 
-# letter extraction
 assert_eq "drive letter from C:/repos" "C" "$(windows_drive_letter 'C:/repos/foo')"
 assert_eq "drive letter casefolds" "D" "$(windows_drive_letter 'd:/Worktrees')"
 assert_eq "drive letter from /cygdrive/d" "D" "$(windows_drive_letter '/cygdrive/d/worktrees')"
@@ -1148,7 +1125,6 @@ MINGW* | MSYS* | CYGWIN*)
   ;;
 esac
 
-# same-drive: proceed
 check_same_drive 'C:/repos/acme' 'C:/worktrees/acme-x' 1 >/dev/null 2>&1
 assert_exit "same-drive explicit root proceeds" 0 "$?"
 check_same_drive 'c:/repos/acme' 'C:/worktrees/acme-x' 2 >/dev/null 2>&1
@@ -1192,7 +1168,6 @@ assert_contains "rung-4 refuse names Improper link" "$err" "Improper link"
 
 assert_real_worktree_root_clean "$TEST_TMPDIR"
 
-# --- Case: --existing-branch checks out a branch that already exists ---
 repo=$(mkrepo)
 git -C "$repo" branch feature
 root="$TEST_TMPDIR/wtroot-existing"
@@ -1607,7 +1582,6 @@ code=0
 bash "$HELPER" --name 'feat/foo..bar' --root "$TEST_TMPDIR/wtbranch-verbatim-bad" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
 assert_exit "verbatim: a git-invalid name is still refused (exit 2)" 2 "$code"
 
-# conventional-commits: the derivation, case by case.
 repo=$(conventionrepo "$CONVENTIONAL")
 assert_eq "a name without a slash takes the default type" "chore/agent-abc123" "$(branch_for "$repo" agent-abc123)"
 assert_eq "a dash-delimited agent word is not a type" "chore/claude-code-updates" "$(branch_for "$repo" claude-code-updates)"
@@ -1816,13 +1790,13 @@ first=$(bash "$HELPER" --name feat/x --root "$root" --session-id s-x --repo-dir 
 code=0
 err=$(bash "$HELPER" --name feature/x --root "$root" --session-id s-x --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
 assert_exit "a derived branch held by another worktree refuses (exit 4)" 4 "$code"
-assert_contains "the refusal names the worktree holding the branch" "$err" "$first"
+assert_contains "the refusal names the worktree holding the branch" "$err" "$(native_path "$first")"
 assert_file_absent "the second name's directory is not created" "$root/acme-widget-feature-x/README.md"
 git -C "$repo" switch -q -c fix/main-held >/dev/null 2>&1
 code=0
 err=$(bash "$HELPER" --name fix/main-held --root "$root" --session-id s-x --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
 assert_exit "a branch checked out in the main worktree refuses (exit 4)" 4 "$code"
-assert_contains "the refusal names the main worktree" "$err" "$repo"
+assert_contains "the refusal names the main worktree" "$err" "$(native_path "$repo")"
 code=0
 bash "$HELPER" --name fix/main-held --existing-branch --root "$root" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
 assert_exit "--existing-branch on a branch held elsewhere refuses (exit 4)" 4 "$code"

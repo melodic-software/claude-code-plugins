@@ -207,6 +207,7 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
+            /.github/scripts/lib/github-client.mjs
             /.github/scripts/pr-review/
             /.github/scripts/pr-unblock/request-budget.mjs
             /.node-version
@@ -330,6 +331,7 @@ jobs:
         **/AGENTS.md
         REVIEW.md
         .github/actions/check-trusted-trigger/**
+        .github/scripts/lib/github-client.mjs
         .github/actions/resolve-config/**
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**
@@ -358,6 +360,9 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/lib/run-title.mjs
+        .github/scripts/lib/lane-branch.mjs
+        .github/scripts/lib/lane-registry.mjs
+        .github/lane-registry.json
         .github/scripts/pr-merge/merge-risk-line.mjs
         .github/scripts/pr-merge-risk/input.mjs
         .github/scripts/pr-merge-risk/write-rating.mjs
@@ -380,6 +385,7 @@ jobs:
         .github/scripts/pr-verify/resolve-pr.mjs
         .github/scripts/pr-verify/write-verdict.mjs
         .github/scripts/intake-triage/admit.mjs
+        .github/scripts/intake-triage/size-split.mjs
         .github/actions/select-trusted-text/select-trusted-text.mjs
         lib/publish-gate.mjs
         .github/recurring-schedule.json
@@ -413,6 +419,7 @@ jobs:
         .github/scripts/lib/admission-record.mjs
         .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
+        .github/scripts/diff-chunking/**
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         docs/standards/**

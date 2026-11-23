@@ -294,12 +294,9 @@ guard_invoke() {
     return 64
     ;;
   esac
-  # One fixed stderr file rather than a per-call mktemp: these suites are
-  # sequential and a mktemp would be one more process on every case.
   local _gi_errf="${TEST_TMPDIR:?guard_invoke needs TEST_TMPDIR}/guard-invoke.err"
   GUARD_RC=0
   GUARD_ERR=""
-  # `cd .` stands in for no --chdir: the substitution's subshell is already there.
   if ((_gi_merge)); then
     GUARD_OUT=$(cd "${_gi_chdir:-.}" && "${_gi_argv[@]}" <<<"$_gi_payload" 2>&1) || GUARD_RC=$?
   else

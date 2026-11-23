@@ -604,6 +604,15 @@ scripts/docs-cache.sh
 lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/fetch-docs-generic.sh, carried beside each copy of fetch-docs.sh, which
+# sources it for the generic profile.
+scripts/fetch-docs-generic.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/fetch-docs-generic.sh -> plugins/*/scripts/fetch-docs-generic.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html2md.py, carried beside each copy of fetch-docs.sh, which runs it to
 # convert a page no markdown channel serves.
 scripts/html2md.py

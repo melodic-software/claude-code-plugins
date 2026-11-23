@@ -126,7 +126,7 @@ test("a pull_request_target run's cursor is never read", async () => {
 test("a PR-scoped dispatch's files are never read, and a hand-started sweep's are", async () => {
   const scoped = (id, title) => ({ ...wf(id, "workflow_dispatch"), display_title: title });
   const result = await run({
-    pages: [[scoped(9, "pr-merge: arm #42"), scoped(8, "pr-merge: arm #not a number"), scoped(7, "pr-merge"), wf(6, "schedule")]],
+    pages: [[scoped(9, "PR Merge: arm #42"), scoped(8, "PR Merge: arm #not a number"), scoped(7, "PR Merge"), wf(6, "schedule")]],
     cursors: { 9: '{"last": 30}', 8: '{"last": 30}', 7: '{"last": 20}', 6: '{"last": 10}' },
   });
   assert.deepEqual(result.downloads, [7]);
@@ -134,9 +134,8 @@ test("a PR-scoped dispatch's files are never read, and a hand-started sweep's ar
   assert.deepEqual(result.order, [30, 10, 20]);
 });
 
-test("a PR-scoped dispatch under either run-name prefix is not a sweep, and the workflow's own name is", () => {
+test("a PR-scoped dispatch under the run-name prefix is not a sweep, and the workflow's own name is", () => {
   const dispatch = (title) => ({ ...wf(1, "workflow_dispatch"), display_title: title });
-  assert.equal(trustedRun(dispatch("pr-merge: arm #42")), false);
   assert.equal(trustedRun(dispatch("PR Merge: arm #42")), false);
   assert.equal(trustedRun(dispatch("PR Merge")), true, "a sweep's default title");
 });

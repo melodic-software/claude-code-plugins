@@ -705,6 +705,19 @@ async function scan(env) {
   console.log(`::warning::branches[${held}] changes a hold path; Claude Code v${release} stops with stop_reason hold-path and no branch is opened`);
 }
 
+async function planFiles(env) {
+  const { IN, RELEASE: release, BASE_SHA: baseSha } = env;
+  const plan = readPlan(readFileSync(`${IN}/plan.json`, "utf8"), { release, baseSha });
+  writeFileSync(`${IN}/heads.txt`, plan.branches.map((b) => `${b.head_sha}\n`).join(""));
+  writeFileSync(`${IN}/publish.txt`, publishText(plan, release));
+  console.log(`${plan.branches.length} branches, ${plan.handoffs.length} handoffs`);
+}
+
+async function synthetic(env) {
+  const heads = readFileSync(`${env.IN}/heads.txt`, "utf8").split("\n").filter(Boolean);
+  console.log(JSON.stringify(syntheticBundle(env.REPO_DIR, env.BASE_SHA, heads, `${env.OUT}/branches.bundle`)));
+}
+
 async function publish(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repo } = env;
   const plan = readPlan(readFileSync(PLAN_FILE, "utf8"), { release, baseSha });
@@ -737,10 +750,10 @@ async function publish(env) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const commands = { gate, scan, push, publish };
+  const commands = { gate, "plan-files": planFiles, scan, synthetic, push, publish };
   const run = commands[process.argv[2]];
   if (!run) {
-    console.error("usage: upstream-apply-changelog.mjs gate|scan|push|publish");
+    console.error("usage: upstream-apply-changelog.mjs gate|plan-files|scan|synthetic|push|publish");
     process.exit(2);
   }
   run(process.env).catch((error) => {

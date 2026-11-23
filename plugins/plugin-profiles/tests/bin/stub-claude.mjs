@@ -10,7 +10,6 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileS
 import { join } from "node:path";
 
 const env = process.env;
-/** Once, before answering `plugin list`, runs the node command the file PP_STUB_DURING_LIST holds ({argv, cwd}), as another terminal would mid-run. */
 if (env.PP_STUB_DURING_LIST && existsSync(env.PP_STUB_DURING_LIST) && process.argv.slice(2).join(" ") === "plugin list --json") {
   const { argv, cwd } = JSON.parse(readFileSync(env.PP_STUB_DURING_LIST, "utf8"));
   rmSync(env.PP_STUB_DURING_LIST);

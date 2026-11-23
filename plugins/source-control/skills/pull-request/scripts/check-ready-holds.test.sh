@@ -16,8 +16,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
-# The pull request's facts come from $TEST_TMPDIR/pr.json; an issue's state
-# from $TEST_TMPDIR/issue-<n>, and a missing file fails the lookup.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
@@ -51,7 +49,6 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
-# pr <title> <body> [labels-json] [closing-refs-json]
 pr() {
   jq -n --arg t "$1" --arg b "$2" --argjson l "${3:-[]}" --argjson c "${4:-[]}" \
     '{title: $t, body: $b, labels: $l, closingIssuesReferences: $c, url: "https://github.com/acme/app/pull/7"}' >"$TEST_TMPDIR/pr.json"

@@ -177,7 +177,6 @@ hook_anchor() {
   printf '%s\n' "$anchor"
 }
 
-# The configured root, its origin, and whether the hooks would accept it.
 ROOT_REL="$SLOG_DEFAULT_ROOT"
 ROOT_ORIGIN="default"
 ROOT_VALID=1
@@ -187,8 +186,6 @@ if ! unset_value "$ROOT_ARG"; then
   slog_contained "$ROOT_REL" || ROOT_VALID=0
 fi
 
-# The shared file and the .1 the sink rotates it to at its size cap.
-# Populated by shared_files <abs-root> into SHARED_FILES.
 SHARED_FILES=()
 shared_files() {
   local f
@@ -199,8 +196,6 @@ shared_files() {
   return 0
 }
 
-# The files the hook log holds: sessions/*.jsonl plus the shared files.
-# Populated by hook_files <abs-root> into HOOK_FILES.
 HOOK_FILES=()
 hook_files() {
   local f
@@ -271,7 +266,6 @@ case "$MODE" in
   ;;
 --otel-store)
   STORE="${CC_OTEL_STORE:-$(repo_root)/.claude/observability/otel}"
-  # Same Windows backslash normalization as prune-otel-store.sh.
   is_windows && STORE="${STORE//\\//}"
   for name in cc-logs.json cc-metrics.json cc-traces.json; do
     if [[ -f "$STORE/$name" ]]; then
@@ -341,7 +335,6 @@ case "$MODE" in
     printf 'guard: %s\n' "$guard_state"
   fi
 
-  # Session files, newest by mtime; the shared file's line count.
   session_count=0
   newest=""
   if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/sessions" ]]; then
@@ -414,7 +407,6 @@ case "$MODE" in
     exit 0
   fi
 
-  # The six options as rendered, defaults applied where unset.
   logging="off"
   # Only the literal "true" turns it on, so an unset value and a placeholder
   # both fall through to the default without a separate unset_value test.

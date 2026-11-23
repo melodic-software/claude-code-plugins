@@ -18,6 +18,5 @@ function Resolve-SkillRoot {
     [OutputType([string])]
     param()
 
-    # lib -> windows -> scripts -> skill root
     return Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent | Split-Path -Parent
 }

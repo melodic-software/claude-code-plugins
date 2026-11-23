@@ -38,8 +38,6 @@ source "$SCRIPT_DIR/common.sh"
 FIX="$(mktemp -d)"
 trap 'rm -rf "$FIX"' EXIT
 
-# --- the public surface exists ---
-
 for fn in wit_require_linear_id wit_need_linear_config \
   wit_linear_scope_in_scope wit_linear_token \
   wit_linear_auth_header wit_linear_http \
@@ -47,8 +45,6 @@ for fn in wit_require_linear_id wit_need_linear_config \
   wit_help_if_requested; do
   assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
-
-# --- id grammar: foreign providers are refused before any I/O ---
 
 assert_fails "rejects foreign-provider id" "reject" "accepted" \
   wit_require_linear_id "github:o/r#1"
@@ -59,15 +55,11 @@ else
   fail "accepts a linear id" "accept" "rejected"
 fi
 
-# --- scope membership is the authorization boundary ---
-
 WIT_LINEAR_SCOPES='["acme/ENG"]'
 assert_succeeds "declared scope accepted" "in" "out" \
   wit_linear_scope_in_scope "acme/ENG"
 assert_fails "undeclared scope refused" "out" "in" \
   wit_linear_scope_in_scope "undeclared/elsewhere"
-
-# --- HTTP status → contract exit code ---
 
 check_map() {
   local label="$1" status="$2" want="$3"
@@ -119,7 +111,6 @@ GOOD='{"host":"api.linear.app","auth_env":"WIT_LINEAR_API_KEY","scopes":["acme/E
 
 assert_eq "a well-formed binding is accepted" "0" "$(config_rc "$GOOD")"
 
-# Required keys.
 assert_eq "missing host → exit 3" "3" \
   "$(config_rc "$(jq -c 'del(.host)' <<<"$GOOD")")"
 assert_eq "missing auth_env → exit 3" "3" \
@@ -207,8 +198,6 @@ assert_eq "a non-numeric page_size → exit 3" "3" \
 # the same way. Asserted so a later reader does not "fix" the leniency in one place only.
 assert_eq "a digit-string page_size is accepted, as elsewhere in the binding" "0" \
   "$(config_rc "$(jq -c '.page_size = "50"' <<<"$GOOD")")"
-
-# --- the credential itself ---
 
 # Unset env var → exit 4 (auth), never a request with an empty credential.
 write_binding "$GOOD"

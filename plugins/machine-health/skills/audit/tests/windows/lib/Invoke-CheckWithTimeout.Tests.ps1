@@ -102,7 +102,6 @@ ConvertTo-Json -Compress -InputObject @{ count = $Names.Count; names = @($Names)
 
     Context 'end to end: a mute in mutes.json reaches a check through the job path' {
         BeforeAll {
-            # The fixture check lists two startup items: Updater (WARN) and Notes (INFO).
             $libPath = (Join-Path $script:LibRoot 'New-FindingItem.ps1') -replace "'", "''"
             $script:fixturePath = Write-FixtureCheck -Name 'startup-fixture' -Body @"
 param([string[]] `$MutedKeys = @('unset'))
@@ -122,8 +121,6 @@ ConvertTo-Json -Depth 10 -Compress -InputObject ([ordered]@{
 })
 "@
 
-            # Updater is muted under startup-items. Notes's key sits under another
-            # check id, so it must not mute Notes here.
             $stateDir = Join-Path $TestDrive 'e2e\state'
             New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
             Set-Content -LiteralPath (Join-Path $stateDir 'mutes.json') -Encoding utf8 -Value @'

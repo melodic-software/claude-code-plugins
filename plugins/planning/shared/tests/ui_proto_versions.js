@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// A prototype's versions across rounds in real browsers, against `share.sh ensure-running` with the fake cloudflared.
-// Round 1 asks Q1, a prototype with an html variant "One page" (version 1) and a picture "Two steps"; round 2 asks Q3,
-// whose html variant "One page, shorter" names Q1's "One page" as its previous version (version 2, the current one),
-// beside a picture "Three steps" with no earlier version. A guest on a desktop: finds both prototypes with the
-// Prototypes filter, the rail showing them without scrolling; reads Q3's version list (v1 on Q1, v2 on Q3, v2 marked
-// current, no list for Three steps); opens v1 from Q3's card and reads on its page which version is current; compares
-// v1 and v2 side by side (v1 in a sandboxed frame with no pin helper, beside the current one); sees a note pinned on
-// v1 stay on v1. Q1 is stored as a build before the look-at line wrote it (no lookAt): its page shows no look-at line,
-// while Q3's shows its own. A guest on a 390x844 phone sees the two versions stacked. No 429, no CSP violation, no
-// page error.
-//   node plugins/planning/shared/tests/ui_proto_versions.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the issue's acceptance (open v1 and v2 from a later question, tell which is current, find
-// earlier prototypes without scrolling), the questions and links written below, never from the page.
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
@@ -36,7 +22,6 @@ async function main() {
       q("Q1", "Which checkout layout?", { kind: "prototype", lookAt: "The layout.", variants: [{ id: "v-1", label: "One page", asset: one }, { id: "v-2", label: "Two steps", asset: two }] }),
       q("Q2", "What should the pay button say?", { kind: "text" }),
     ] }]);
-    // Q1 as a build before the look-at line wrote it: the server reads the file again when it starts.
     s.share(A.dir, "stop");
     const file = path.join(A.dir, "state.json"), doc = JSON.parse(fs.readFileSync(file, "utf8"));
     delete doc.questions.find(x => x.id === "Q1").format.lookAt;
@@ -52,7 +37,6 @@ async function main() {
       q("Q5", "Anything else about checkout?", { kind: "text" }),
     ] }]);
 
-    // ---------- finding the prototypes from every round ----------
     const gus = await rec.open(A.localUrl);
     await joinAs(gus, "Gus");
     await until(gus, () => (window.Core?.snapshot()?.questions || []).some(x => x.id === "Q3"));
@@ -67,7 +51,6 @@ async function main() {
     ok("both show without scrolling", rail.inView, JSON.stringify(rail));
     ok("the rail says it shows prototypes only", rail.note.startsWith("Showing Prototypes only"), rail.note);
 
-    // ---------- Q3's version list ----------
     await gus.locator(".vf-q[data-qid=Q3]").click();
     await until(gus, () => !document.querySelector(".vf-proto-versions")?.hidden);
     const list = await gus.evaluate(() => [...document.querySelectorAll(".vf-proto-versions .vf-proto-line")].map(ol => ({
@@ -81,7 +64,6 @@ async function main() {
     ok("only v2 is marked current", JSON.stringify(list[0]?.items.map(i => i.current)) === JSON.stringify([false, true]), JSON.stringify(list[0]?.items));
     ok("Compare opens v2's page with v1 beside it", list[0]?.cmp === "/proto/Q3#v=v-1&with=Q1.v-1", list[0]?.cmp);
 
-    // ---------- v1, opened from the later question ----------
     const [v1] = await Promise.all([gus.context().waitForEvent("page"), gus.locator(".vf-proto-ver", { hasText: "v1 · Q1" }).click()]);
     v1.on("pageerror", e => rec.errors.push(String(e)));
     v1.on("console", m => { if (m.type() === "error") rec.errors.push(m.text()); });
@@ -99,7 +81,6 @@ async function main() {
     await v1.evaluate(() => window.Core.annotate("Q1", "v-1", { selector: "html", rect: { x: 0, y: 0, w: 100, h: 100 } }, "Too long for a phone."));
     ok("a note pinned on v1 shows on v1", await until(v1, () => document.querySelector(".vp-notes-h")?.textContent === "Notes on One page (1)"));
 
-    // ---------- v1 and v2 side by side ----------
     const [both] = await Promise.all([gus.context().waitForEvent("page"), v1.locator(".vp-ver-cmp").click()]);
     both.on("pageerror", e => rec.errors.push(String(e)));
     both.on("console", m => { if (m.type() === "error") rec.errors.push(m.text()); });
@@ -138,7 +119,6 @@ async function main() {
     ok("a note pinned on the page while v1 is beside v2 lands on v2", pinned?.qid === "Q3" && pinned?.variant === "v-1", JSON.stringify(pinned));
     await both.keyboard.press("Escape");
 
-    // ---------- the phone: the two stacked ----------
     const pia = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(pia, "Pia");
     const phone = await rec.openIn(pia.context(), new URL("/proto/Q3#v=v-1&with=Q1.v-1", A.localUrl).href);

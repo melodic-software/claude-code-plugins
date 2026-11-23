@@ -23,7 +23,7 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { ACTIONS_BOT_ID } from "../lib/lane-vocabulary.mjs";
 import { UNARMED_CONTEXT } from "./enable-auto-merge.mjs";
 

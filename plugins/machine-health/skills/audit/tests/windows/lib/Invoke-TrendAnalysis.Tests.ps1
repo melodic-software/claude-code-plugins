@@ -2,8 +2,6 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    # New-HealthResult builds a full schema-valid result and dot-sources
-    # Assert-CheckResult -- both used by the schema-conformance test below.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
         -LibScript 'Invoke-TrendAnalysis.ps1', 'Write-HealthResult.ps1'
 
@@ -57,7 +55,6 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $checks = @(New-CheckStub -Id 'disk-space' -Category 'storage' -Severity 'WARN' -Detail @{ used_pct = 88 })
         $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
         $result[0].trend.last_run | Should -Be '2026-04-22T00:00:00-04:00'
-        # The schema forbids last_severity (additionalProperties:false).
         $result[0].trend.PSObject.Properties.Name | Should -Not -Contain 'last_severity'
     }
 
@@ -113,8 +110,6 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
     }
 
     It 'ignores metrics from runs in which the check did not succeed' {
-        # A failed or partial run's top_metrics is a lower bound absent from checks_ran; a
-        # baseline on it (the newest entry here) would upgrade a WARN to CRIT on nothing.
         $history = @(
             New-HistoryEntry `
                 -TopMetrics @{ 'claude-temp-root.total_gb' = 7.9 } `
@@ -134,8 +129,6 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
     }
 
     It 'produces a trend object that passes Assert-CheckResult (schema sub-shape)' {
-        # Mirror production: the check emits JSON, the orchestrator ingests it
-        # (detail becomes a pscustomobject) before trend analysis runs.
         $base = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
             -Severity 'WARN' -Summary 'C: at 87% used' -Detail @{ used_pct = 87 } `
             -Commands @('Get-Volume') -NeedsAdmin $false -RanSuccessfully $true -DurationMs 10 |
@@ -248,8 +241,6 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
     }
 
     It 'uses the most recent (last) history entry as baseline, not the oldest (regression)' {
-        # The baseline must be the LAST (newest) entry: oldest=20, newest=85, current=87 gives
-        # +2 (no upgrade); using [0] would give +67 and a CRIT upgrade.
         $history = @(
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `

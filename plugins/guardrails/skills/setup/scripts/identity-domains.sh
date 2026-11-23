@@ -148,7 +148,7 @@ PROFILE="" DATA_DIR="" CONFIRM=0 REPLACE=0
 # `:`, which BUILD_JQ strips, so a word that starts with `-` is never read as a
 # jq option.
 EXTRA=()
-add_extra() { # FLAG NAME=VALUE
+add_extra() {
   [[ "$2" == ?*=* ]] || die "--$1 takes NAME=VALUE"
   EXTRA+=(":$1" ":${2%%=*}" ":${2#*=}")
 }

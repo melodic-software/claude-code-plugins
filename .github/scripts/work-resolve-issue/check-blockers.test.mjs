@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, describe, test } from "node:test";
 
-import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
+import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
 import { main } from "./check-blockers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 

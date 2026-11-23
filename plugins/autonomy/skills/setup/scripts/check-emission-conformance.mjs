@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 // Exit 0 = conformant; 1 = findings; 2 = usage/environment error.
-// OTLP JSON encoding uses lowerCamelCase field names (resourceSpans,
-// schemaUrl) — never the proto snake_case forms.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

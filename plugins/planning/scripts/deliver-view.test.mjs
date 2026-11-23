@@ -1,7 +1,3 @@
-// Planning views on the view registries: each kind renders through render(laneId, kind, record),
-// the shipped default is a private Artifact that the publish gate keeps local for a non-public
-// repository or a credential-shaped record, and a medium added only to a registry delivers a plan
-// view with no edit to the planning skills.
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -58,7 +54,6 @@ const PLAN_RECORD = readFileSync(join(HERE, "testdata", "plan-record.md"), "utf8
 const dataOf = (page) => JSON.parse(/<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec(page)[1]);
 const resolution = (medium, decidedBy, preferred = medium) => ({ preferred, medium, decidedBy, notices: [] });
 
-/** A write step that keeps each page in memory and hands back a made-up path. */
 const memory = () => {
   const pages = [];
   return { pages, write: (page, kind) => (pages.push(page), `/views/${kind}-${pages.length}.html`) };

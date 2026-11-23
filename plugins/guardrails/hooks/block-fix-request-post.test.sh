@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-fix-request-post.sh (guardrails plugin).
-#
-# Black-box: invokes the hook as a subprocess with a PreToolUse payload on
-# stdin and asserts on the exit code (2 = blocked, 0 = allowed). The phrase and
-# its line rule come from FIX_REQUEST in
-# .github/scripts/pr-unblock/address-feedback.mjs: a line that starts with
-# `PR-fix lane: please fix this finding`, any case, outside a fence; a quoted
-# (`>`) line never matches.
-#
-# Every stay-quiet case goes through `quiet`, which also asserts the input
-# names the phrase, so a substring matcher would have blocked it.
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json
@@ -29,8 +18,6 @@ P='PR-fix lane: please fix this finding'
 F='```'
 WD="$TEST_TMPDIR/wd"
 mkdir -p "$WD"
-# Its own repository, so the fixture never reads the guardrails.yaml of a
-# checkout the temp directory happens to sit in.
 git init -q "$WD"
 printf 'Thanks for the review.\n%s\n' "$P" >"$WD/body.md"
 printf 'Context.\n\n> %s\n\nThat quoted line is how the owner asks.\n' "$P" >"$WD/quoted.md"
@@ -40,7 +27,6 @@ printf '{"body":"Context\\n%s"}\n' "$P" >"$WD/payload.json"
 printf '{"body":"> %s"}\n' "$P" >"$WD/quoted.json"
 printf 'mutation { addComment(input:{subjectId:"I_1", body:"%s"}) { clientMutationId } }\n' "$P" >"$WD/m.graphql"
 
-# payload <tool> <command> [cwd]: a payload whose cwd holds the fixture files.
 payload() {
   jq -n --arg t "$1" --arg c "$2" --arg d "${3:-$WD}" '{tool_name:$t,cwd:$d,tool_input:{command:$c}}'
 }
@@ -48,9 +34,6 @@ payload() {
 N_DENY=0
 N_QUIET=0
 
-# verdict <payload>: the guard's exit code alone and under the dispatcher,
-# behind block-no-verify so the dispatcher's shared parse is replayed to it,
-# as "<direct> <dispatched>"; the deny reason of each lands in OUT_D / OUT_R.
 verdict() {
   local rd=0 rr=0
   OUT_D=$(bash "$HOOK" <<<"$1" 2>&1) || rd=$?
@@ -58,7 +41,6 @@ verdict() {
   RCS="$rd $rr"
 }
 
-# deny <label> <command> [tool]
 deny() {
   verdict "$(payload "${3:-Bash}" "$2")"
   assert_eq "deny: $1 (direct, dispatched)" "2 2" "$RCS"
@@ -68,8 +50,6 @@ deny() {
   N_DENY=$((N_DENY + 1))
 }
 
-# refused <label> <command>: text shfmt cannot parse, so the command reader
-# denies it (exit 2) with its own reason before the guard looks for a fence.
 refused() {
   verdict "$(payload Bash "$2")"
   assert_eq "refused: $1 (direct, dispatched)" "2 2" "$RCS"
@@ -78,7 +58,6 @@ refused() {
   N_DENY=$((N_DENY + 1))
 }
 
-# quiet <label> <command> [tool] [text a substring matcher would see]
 quiet() {
   local hay="${4:-$2}"
   verdict "$(payload "${3:-Bash}" "$2")"
@@ -91,14 +70,12 @@ quiet() {
   N_QUIET=$((N_QUIET + 1))
 }
 
-# quiet_plain <label> <command>: stays quiet, and names no phrase at all.
 quiet_plain() {
   verdict "$(payload Bash "$2")"
   assert_eq "quiet: $1 (direct, dispatched)" "0 0" "$RCS"
   N_QUIET=$((N_QUIET + 1))
 }
 
-# mcp <label> <tool> <tool_input JSON> <expected>
 mcp() {
   verdict "$(jq -n --arg t "$2" --argjson i "$3" --arg d "${5:-$WD}" '{tool_name:$t,cwd:$d,tool_input:$i}')"
   if (($4 == 2)); then
@@ -111,7 +88,6 @@ mcp() {
   fi
 }
 
-# --- 1. The phrase inline in a posting command --------------------------------
 deny "gh pr comment --body" "gh pr comment 12 --body \"$P\""
 deny "gh pr comment -b, mixed case, trailing period" "gh pr comment 12 -b 'pr-fix LANE: Please fix this finding.'"
 deny "gh pr comment --body=" "gh pr comment 12 --body=\"$P\""
@@ -141,7 +117,6 @@ deny "hidden in an HTML comment (the lane still reads it)" "gh pr comment 12 --b
 deny "~~~ fence closed by a backtick fence (the lane's toggle)" "gh pr comment 12 --body \$'~~~\\n$F\\n$P\\n$F\\n~~~'"
 deny "PowerShell: gh pr comment" "gh pr comment 12 --body \"$P\"" PowerShell
 
-# --- 2. The phrase in a file the command reads ----------------------------------
 deny "gh pr comment --body-file" "gh pr comment 12 --body-file body.md"
 deny "gh pr comment -F" "gh pr comment 12 -F body.md"
 deny "gh pr comment --body-file with an absolute path" "gh pr comment 12 --body-file $WD/body.md"
@@ -155,7 +130,6 @@ deny "body through \$(cat file)" "gh pr comment 12 --body \"\$(cat body.md)\""
 deny "body piped from cat" "cat body.md | gh pr comment 12 --body-file -"
 deny "body from a < redirect" "gh pr comment 12 --body-file - < body.md"
 
-# --- 3. Heredoc bodies -----------------------------------------------------------
 deny "--body-file - from a heredoc" "gh pr comment 12 --body-file - <<'EOF'
 See above.
 $P
@@ -171,12 +145,7 @@ deny "curl -d @- from a heredoc" "curl -s https://api.github.com/repos/o/r/issue
 {\"body\":\"Context\\n$P\"}
 EOF"
 
-# --- 3b. A fence only the guard would see (review on #8448) ------------------
-# The lane opens a fence only on a line starting with up to three spaces and
-# ``` or ~~~ (address-feedback.mjs isFixRequest), so a marker after `x=` or a
-# quote is no fence to it.
 deny "body word with a marker after x=" "gh pr comment 12 --body \$'x=$F\\n$P'"
-# The echo leaves a backtick fence unclosed, which bash rejects too.
 refused "echo of a fence before a heredoc body" "echo \"$F\"
 gh pr comment 12 -F - <<EOF
 $P
@@ -186,7 +155,6 @@ deny "unquoted \$(cat file) as the body" "gh pr comment 12 --body \$(cat body.md
 deny "backtick cat as the body" "gh pr comment 12 --body \`cat body.md\`"
 deny "here-string fed to --input -" "gh api repos/o/r/issues/1/comments --input - <<< '{\"body\":\"$P\"}'"
 
-# --- 3c. A body held outside the posting words (review on #8448) -------------
 deny "body in a variable" "B='$P'; gh pr comment 12 --body \"\$B\""
 deny "body in a variable set from a heredoc" "BODY=\$(cat <<'EOF'
 $P
@@ -203,7 +171,6 @@ $P
 EOF
 gh pr comment 12 --body-file new2.md"
 
-# --- 4. The GitHub MCP server's write tools -------------------------------------
 mcp "MCP add_issue_comment" mcp__github__add_issue_comment "{\"owner\":\"o\",\"repo\":\"r\",\"issue_number\":1,\"body\":\"$P\"}" 2
 mcp "MCP add_reply_to_pull_request_comment, plugin server" mcp__plugin_github_github__add_reply_to_pull_request_comment "{\"body\":\"Done.\\n$P\"}" 2
 mcp "MCP pull_request_review_write" mcp__github__pull_request_review_write "{\"method\":\"create\",\"body\":\"$P\"}" 2
@@ -212,7 +179,6 @@ mcp "MCP add_issue_comment, quoted line" mcp__github__add_issue_comment "{\"body
 mcp "MCP add_issue_comment, fenced" mcp__github__add_issue_comment "{\"body\":\"$F\\n$P\\n$F\"}" 0
 mcp "MCP add_issue_comment, no phrase" mcp__github__add_issue_comment '{"body":"Thanks."}' 0
 
-# --- 5. Reading, grepping or showing the phrase (allowed) -----------------------
 quiet "grep for the phrase" "grep -n \"$P\" .github/scripts/pr-unblock/address-feedback.mjs"
 quiet "rg for the phrase" "rg -n '$P' ."
 quiet "git log --grep" "git log --oneline --grep \"$P\""
@@ -233,7 +199,6 @@ quiet "grep of the phrase, then a body-file post with stderr to /dev/null" "grep
 quiet_plain "git show" "git show HEAD -- .github/scripts/pr-unblock/address-feedback.mjs"
 quiet_plain "gh pr view" "gh pr view 12 --comments"
 
-# --- 6. Posting without a request line (allowed) --------------------------------
 quiet_plain "gh pr comment with no phrase" 'gh pr comment 12 --body "Looks good."'
 quiet_plain "gh pr comment --body-file with no phrase" "gh pr comment 12 --body-file plain.md"
 quiet "phrase mid-line" "gh pr comment 12 --body \"The lane acts on a line that starts with $P, typed by the owner.\""
@@ -249,7 +214,6 @@ quiet "heredoc body with the phrase quoted" "gh pr comment 12 --body-file - <<'E
 > $P
 EOF"
 
-# --- 7. Other tools, and the kill switch --------------------------------------
 rc=0
 bash "$HOOK" <<<"$(jq -n --arg c "$P" '{tool_name:"Write",tool_input:{file_path:"a.md",content:$c}}')" >/dev/null 2>&1 || rc=$?
 assert_exit "quiet: a Write payload carrying the phrase (Write and Edit are not in scope)" 0 "$rc"
@@ -263,7 +227,6 @@ assert_exit "kill switch typo keeps the guard on" 2 "$rc"
 pj_default=$(jq -r '.userConfig.block_fix_request_post_enabled.default' "$HOOK_DIR/../.claude-plugin/plugin.json")
 assert_eq "plugin.json default matches the script fallback" true "$pj_default"
 
-# --- 8. Inputs -----------------------------------------------------------------
 rc=0
 bash "$HOOK" </dev/null >/dev/null 2>&1 || rc=$?
 assert_exit "empty stdin is a skip" 0 "$rc"
@@ -277,11 +240,6 @@ rc=0
 bash "$HOOK" <<<"$(payload Bash "echo $(printf 'x%.0s' {1..17000})")" >/dev/null 2>&1 || rc=$?
 assert_exit "an over-length command without the phrase is left to the row's ceiling" 0 "$rc"
 
-# --- 9. The fix_request_post setting in docs/conventions/guardrails.yaml -------
-# team_repo <name> <yaml> <on-default-branch> [staged yaml]: a repository whose
-# team file holds <yaml>, committed and published as origin/HEAD when
-# <on-default-branch> is 1, else only written and staged; [staged yaml] then
-# overwrites and stages the file on top. Prints its path.
 team_repo() {
   local d="$TEST_TMPDIR/$1" f=docs/conventions/guardrails.yaml
   mkdir -p "$d/docs/conventions" "$d/sub"
@@ -309,7 +267,7 @@ assert_eq "quiet: allow mode, cwd below the repository root (direct, dispatched)
 mcp "MCP add_issue_comment, allow mode" mcp__github__add_issue_comment "{\"body\":\"$P\"}" 0 "$ALLOW"
 N_QUIET=$((N_QUIET + 3))
 
-deny_in() { # deny_in <label> <repo> [reason text]
+deny_in() {
   verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$2")"
   assert_eq "deny: $1 (direct, dispatched)" "2 2" "$RCS"
   [[ -z "${3-}" ]] || assert_contains "deny: $1 -> names the bad value" "$OUT_D" "$3"

@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// A question asked once per device (answerScope "device", follow-up 47), against `share.sh ensure-running` with the
-// fake cloudflared: a guest answers it on a computer, opens the session on a phone with their personal link, sees that
-// they answered on their computer and are asked for this phone too, and answers again; the owner then reads one card
-// per device, each named with its device. A phone turned to landscape is still the phone; a tablet is its own device;
-// two devices answering within the server's one-a-second limit both land.
-//   node plugins/planning/shared/tests/ui_per_device.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from Q94 (one answer per device, a prompt on a new device) and the texts this suite writes,
-// never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -52,12 +43,8 @@ async function main() {
       return mine === "computer:My laptop, mostly.|phone:On the bus, my phone.";
     }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
     ok("  and the prompt goes", await until(phone, () => document.querySelector(".vf-devnote").hidden, null, 10000));
-    // Codex P2: on a per-device choice, the phone reads its own record, not the computer's. The computer picked Saved
-    // cards with a comment; the phone picking the same option is sent and stored as the phone's own card, with nothing
-    // of the computer's (before the fix the page took the computer's pick as the phone's and sent nothing).
     await ann.evaluate(() => window.Core.pick("Q2", "opt-1", "On my laptop the browser keeps them."));
     await until(owner, pid => (window.Core.snapshot()?.cards?.Q2 || []).some(c => c.pid === pid && c.device === "computer" && c.pick === "opt-1"), annPid, 10000);
-    // the phone's answer above went in through Core, so its editing sheet is still open: close it first
     if (await phone.locator(".vf-composer-sheet").count()) await phone.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
     await phone.locator(".vf-tab", { hasText: "Questions" }).tap();
     await phone.locator(".vf-q", { hasText: Q2 }).first().tap();
@@ -72,7 +59,6 @@ async function main() {
     await phone.locator(".vf-tab", { hasText: "Questions" }).tap();
     await phone.locator(".vf-q", { hasText: Q }).first().tap();
 
-    // The review: a phone turned to landscape (844x390) is still the phone, so it edits that card, never adds one.
     const land = await rec.open(link.replace(/^https?:\/\/[^/]+\//, A.localUrl), { context: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true } });
     await until(land, pid => window.Core.snapshot()?.me?.pid === pid, annPid, 10000);
     ok("a phone in landscape is still her phone: its answer is in the box and nothing asks again", await until(land, () => document.getElementById("vf-answer").value === "On the bus, my phone."
@@ -82,7 +68,6 @@ async function main() {
       const mine = (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => `${c.device}:${c.text}`).sort().join("|");
       return mine === "computer:My laptop, mostly.|phone:On the bus, phone sideways.";
     }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
-    // A tablet (820x1180, touch) is its own device: it is asked for an answer and adds a third card.
     const tab = await rec.open(link.replace(/^https?:\/\/[^/]+\//, A.localUrl), { context: { viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true } });
     await until(tab, pid => window.Core.snapshot()?.me?.pid === pid, annPid, 10000);
     ok("a tablet is asked for its own answer", await until(tab, () => /^You answered this on your (computer and phone|phone and computer)\. It asks for one answer per device: answer for this tablet too\.$/.test(document.querySelector(".vf-devnote:not([hidden])")?.textContent || ""), null, 10000),
@@ -90,9 +75,6 @@ async function main() {
     await tab.evaluate(() => window.Core.answerCiting("Q1", "Reading on the sofa.", []));
     ok("  and its answer is a third card", await until(owner, pid => (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => c.device).sort().join() === "computer,phone,tablet", annPid, 10000),
       JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
-    // The server takes one answer a second per person (session.py _throttle) and each page spaces only its own: two of
-    // her devices answering at once both land, the refused one sent again a moment later (core.js send). First wait out
-    // the tablet's answer above, so these two are the only writes inside one second.
     await tab.waitForTimeout(1100);
     const both = await Promise.allSettled([land, tab].map((p, i) => p.evaluate(t => window.Core.answerCiting("Q1", t, []), ["On the bus, at once.", "Reading on the sofa, at once."][i])));
     ok("two of her devices answering within a second both land", both.every(r => r.status === "fulfilled") && await until(owner, pid => {

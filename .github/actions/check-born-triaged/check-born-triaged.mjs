@@ -17,7 +17,7 @@ import { pathToFileURL } from "node:url";
 
 import { AGENT_READY } from "../../scripts/lib/lane-vocabulary.mjs";
 import { trackerBindingText } from "../../scripts/pr-merge/merge-holds.mjs";
-import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../../scripts/lib/github-client.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 

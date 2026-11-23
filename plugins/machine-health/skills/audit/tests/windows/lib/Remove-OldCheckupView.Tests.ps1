@@ -9,7 +9,6 @@ exact paths, newest 12 runs kept.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Remove-OldCheckupView.ps1'
 
-    # Run n of 14 has the stamp 2026-01-<n>T000000000Z, so run 14 is the newest.
     function Get-Stamp([int] $N) { '2026-01-{0:D2}T000000000Z' -f $N }
     function Add-ViewRun([string] $Dir, [int] $N) {
         foreach ($suffix in '.html', '.json', '.ids.json') {
@@ -49,8 +48,6 @@ Describe 'Remove-OldCheckupView' -Tag 'lib' {
     }
 
     It 'counts no file whose stamp holds a non-ASCII digit as a run, and never deletes it' {
-        # U+0662 ARABIC-INDIC DIGIT TWO matches \d; ordinally it sorts after every ASCII digit,
-        # so counted as a run it would be the newest and push run 3 out of the kept 12.
         $odd = Join-Path $script:Views "checkup-$([char]0x0662)026-01-15T000000000Z.html"
         Set-Content -LiteralPath $odd -Value 'keep me'
 

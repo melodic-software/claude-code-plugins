@@ -17,6 +17,10 @@
     {
       "answer": "Use Sonnet at medium effort.",
       "why": "no contract line"
+    },
+    {
+      "answer": "claude: model inherit (leave the model option out) @ effort medium (basis: default; one-file refactor)",
+      "why": "note between the model id and @, or a wording the skill does not print; the skill prints the contract line exactly"
     }
   ]
 }

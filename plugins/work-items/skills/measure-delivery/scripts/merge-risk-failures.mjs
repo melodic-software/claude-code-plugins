@@ -193,8 +193,6 @@ export function renderMarkdown(result) {
   return `${out.join("\n")}\n`;
 }
 
-// ---------------------------------------------------------------- fetch
-
 export class RateLimited extends Error {}
 let calls = 0;
 
@@ -267,8 +265,6 @@ export function fetchSnapshot({ dir, branch, repo, since, until }) {
   }
   return { schema: 1, repo, branch, since, until, truncated, commits, markers, records };
 }
-
-// ---------------------------------------------------------------- CLI
 
 class UsageError extends Error {}
 

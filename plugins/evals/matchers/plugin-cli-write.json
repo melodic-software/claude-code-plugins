@@ -1,0 +1,530 @@
+{
+  "plugin_cli_write": {
+    "summary": "A claude plugin(s) write at the command position before it: install, uninstall, remove, configure, enable, disable or update, with claude on a path, flags or line continuations before plugin. A --help straight after the verb is read-only and does not count. Follow command_position_multishell with it; Bash tool input_match only.",
+    "text": "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?claude(?:\\.exe)?(?:\\\\\\\"|')?(?:(?:\\s|\\\\\\\\\\\\n)+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+plugins?(?:\\s|\\\\\\\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\\b(?!\\s+--help\\b)",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position_multishell"
+        },
+        {
+          "use": "plugin_cli_write"
+        }
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin install actionlint@melodic-software"
+              }
+            }
+          ],
+          "why": "install"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin uninstall actionlint"
+              }
+            }
+          ],
+          "why": "uninstall"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin uninstall actionlint@example-marketplace"
+              }
+            }
+          ],
+          "why": "uninstall resets every option"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin configure actionlint@example-marketplace --values-stdin < values.json"
+              }
+            }
+          ],
+          "why": "configure writes pluginConfigs"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin install actionlint@example-marketplace -s user --config actionlint_enabled=true"
+              }
+            }
+          ],
+          "why": "install with config"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugins disable actionlint"
+              }
+            }
+          ],
+          "why": "plural"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "/usr/local/bin/claude plugin disable guardrails@m"
+              }
+            }
+          ],
+          "why": "by a path"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude --debug plugin install actionlint"
+              }
+            }
+          ],
+          "why": "flag before plugin"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude \\\n  plugin install actionlint"
+              }
+            }
+          ],
+          "why": "continuation"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp && claude plugin configure actionlint"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "git status && claude plugin configure guardrails@m --values-stdin"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin uninstall bash-format@example-marketplace; claude --help"
+              }
+            }
+          ],
+          "why": "a later --help does not excuse the uninstall"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin configure bash-format@example-marketplace --values-stdin < values.json\nclaude plugin list --help"
+              }
+            }
+          ],
+          "why": "a --help on a later line does not excuse the write"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin configure --help"
+              }
+            }
+          ],
+          "why": "--help only prints usage"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin install --help"
+              }
+            }
+          ],
+          "why": "--help only prints usage"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude --version"
+              }
+            }
+          ],
+          "why": "version"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin list"
+              }
+            }
+          ],
+          "why": "read-only"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin marketplace list"
+              }
+            }
+          ],
+          "why": "marketplace list"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "command -v actionlint"
+              }
+            }
+          ],
+          "why": "no claude"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo 'claude plugin install actionlint'"
+              }
+            }
+          ],
+          "why": "inside echo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep -n 'claude plugin install' README.md"
+              }
+            }
+          ],
+          "why": "quoted inside grep"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "ls ~/.claude/plugins/claude/plugin/install"
+              }
+            }
+          ],
+          "why": "a path"
+        }
+      ]
+    }
+  },
+  "plugin_cli_write_with_help": {
+    "summary": "plugin_cli_write without its --help exemption: a --help straight after the verb counts as a write too. Follow command_position_multishell with it; Bash tool input_match only.",
+    "text": "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?claude(?:\\.exe)?(?:\\\\\\\"|')?(?:(?:\\s|\\\\\\\\\\\\n)+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+plugins?(?:\\s|\\\\\\\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\\b",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position_multishell"
+        },
+        {
+          "use": "plugin_cli_write_with_help"
+        }
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin install actionlint@melodic-software"
+              }
+            }
+          ],
+          "why": "install"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin uninstall actionlint"
+              }
+            }
+          ],
+          "why": "uninstall"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin uninstall actionlint@example-marketplace"
+              }
+            }
+          ],
+          "why": "uninstall resets every option"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin configure actionlint@example-marketplace --values-stdin < values.json"
+              }
+            }
+          ],
+          "why": "configure writes pluginConfigs"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin install actionlint@example-marketplace -s user --config actionlint_enabled=true"
+              }
+            }
+          ],
+          "why": "install with config"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugins disable actionlint"
+              }
+            }
+          ],
+          "why": "plural"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "/usr/local/bin/claude plugin disable guardrails@m"
+              }
+            }
+          ],
+          "why": "by a path"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude --debug plugin install actionlint"
+              }
+            }
+          ],
+          "why": "flag before plugin"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude \\\n  plugin install actionlint"
+              }
+            }
+          ],
+          "why": "continuation"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp && claude plugin configure actionlint"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "git status && claude plugin configure guardrails@m --values-stdin"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin uninstall bash-format@example-marketplace; claude --help"
+              }
+            }
+          ],
+          "why": "a later --help does not excuse the uninstall"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin configure bash-format@example-marketplace --values-stdin < values.json\nclaude plugin list --help"
+              }
+            }
+          ],
+          "why": "a --help on a later line does not excuse the write"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin configure --help"
+              }
+            }
+          ],
+          "why": "--help is a write here too"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin install --help"
+              }
+            }
+          ],
+          "why": "--help is a write here too"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude --version"
+              }
+            }
+          ],
+          "why": "version"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin list"
+              }
+            }
+          ],
+          "why": "read-only"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "claude plugin marketplace list"
+              }
+            }
+          ],
+          "why": "marketplace list"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "command -v actionlint"
+              }
+            }
+          ],
+          "why": "no claude"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo 'claude plugin install actionlint'"
+              }
+            }
+          ],
+          "why": "inside echo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep -n 'claude plugin install' README.md"
+              }
+            }
+          ],
+          "why": "quoted inside grep"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "ls ~/.claude/plugins/claude/plugin/install"
+              }
+            }
+          ],
+          "why": "a path"
+        }
+      ]
+    }
+  }
+}

@@ -98,7 +98,6 @@ hooks_of() { jq -S .hooks "$1" | tr -d '\r'; }
 keys_of() { jq -c '.hooks | keys_unsorted' "$1" | tr -d '\r'; }
 run_from() { bash "$SCRIPT" --from "$1" --root "$2" --as-of 2026-09-05 2>&1; }
 
-# --- a full run from the saved table -----------------------------------------
 new_fixture f
 H="$f/plugins/session-telemetry/hooks"
 REG="$H/hook-events.registry.json"
@@ -213,7 +212,6 @@ else
   fail "$disagree of $seen events disagree with slog_category_to"
 fi
 
-# --- a missing register.ts or marker fails, writing nothing ----------------------
 for variant in missing unmarked; do
   if [[ "$variant" == missing ]]; then
     new_fixture f --no-mod
@@ -232,7 +230,6 @@ for variant in missing unmarked; do
   fi
 done
 
-# --- the under-25-rows refusal ---------------------------------------------------
 new_fixture f
 H="$f/plugins/session-telemetry/hooks"
 head -12 "$TABLE" >"$f/short.md"
@@ -244,7 +241,6 @@ else
   fail "short table (rc=$rc): $out"
 fi
 
-# --- an unknown event is excluded with a warning, never hooked ----------------------
 new_fixture f
 H="$f/plugins/session-telemetry/hooks"
 # shellcheck disable=SC2016  # the backticks are markdown table text, not a substitution

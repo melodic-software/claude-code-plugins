@@ -37,19 +37,19 @@ SECRET_LABELS=(
   "Private Key (PEM)"
 )
 SECRET_PATTERNS=(
-  '(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'                            # AWS (AKIA/ASIA/ABIA/ACCA + 16)
-  'ghp_[0-9a-zA-Z]{36}'                                          # GitHub PAT
-  'gho_[0-9a-zA-Z]{36}'                                          # GitHub OAuth
-  'gh[us]_[0-9a-zA-Z]{36}'                                       # GitHub app (ghu_/ghs_)
-  '(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}' # GitHub installation token, current and stateless; a JWT-shaped one needs no left boundary
-  'github_pat_[0-9a-zA-Z_]{82}'                                  # GitHub fine-grained PAT
-  'glpat-[0-9a-zA-Z_-]{20}'                                      # GitLab PAT
-  'xoxb-[0-9]{10,13}-[0-9]{10,13}'                               # Slack bot token
-  'xox[pe]-[0-9]{10,13}-'                                        # Slack user/app token
-  '[sr]k_(test|live|prod)_[0-9a-zA-Z]{10,99}'                    # Stripe key
-  'sk-(proj|svcacct|admin)-[A-Za-z0-9_-]{20,}'                   # OpenAI prefixed API key
-  'sk-[A-Za-z0-9]{20,}'                                          # OpenAI legacy bare sk- key
-  '-----BEGIN [A-Z ]*PRIVATE KEY-----'                           # PEM private key header
+  '(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'
+  'ghp_[0-9a-zA-Z]{36}'
+  'gho_[0-9a-zA-Z]{36}'
+  'gh[us]_[0-9a-zA-Z]{36}'
+  '(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}'
+  'github_pat_[0-9a-zA-Z_]{82}'
+  'glpat-[0-9a-zA-Z_-]{20}'
+  'xoxb-[0-9]{10,13}-[0-9]{10,13}'
+  'xox[pe]-[0-9]{10,13}-'
+  '[sr]k_(test|live|prod)_[0-9a-zA-Z]{10,99}'
+  'sk-(proj|svcacct|admin)-[A-Za-z0-9_-]{20,}'
+  'sk-[A-Za-z0-9]{20,}'
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
 )
 
 # secrets::any_match <content>

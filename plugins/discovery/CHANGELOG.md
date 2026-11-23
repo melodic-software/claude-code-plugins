@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.13] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
 ## [2.2.12] - 2026-11-23
 
 ### Changed

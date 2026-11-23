@@ -39,13 +39,9 @@ assert_line() {
     fail "$1" "no line exactly equal to: $3"
   fi
 }
-# Pulls the one hook-location row whose LOCATION column is <label>.
 row_for() {
   printf '%s\n' "$2" | awk -v want="$1" '$1 == want { print; exit }'
 }
-# The six fixed columns of one hook-location row: LOCATION STATUS KIND PROBED
-# DECLARING HANDLERS. Asserting them together is what makes a wrong count fail
-# rather than a wrong status word only.
 row6() {
   printf '%s\n' "$2" |
     awk -v want="$1" '$1 == want { printf "%s %s %s %s %s %s", $1, $2, $3, $4, $5, $6; exit }'
@@ -59,11 +55,6 @@ help_out="$(bash "$INVENTORY" --help 2>/dev/null)" || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help documents the never-zero contract" "$help_out" "It never reports that location as 0."
 
-# --- Argument handling --------------------------------------------------------
-#
-# Every argument but -h/--help used to be discarded, so `inventory.sh
-# --plugin-data /x` ran a full audit and exited 0 as though the flag had been
-# honored. An unrecognized argument is a usage error.
 
 rc=0
 bad_out="$(cd "$WORK" && bash "$INVENTORY" --plugin-data /x 2>/dev/null)" || rc=$?
@@ -80,12 +71,6 @@ rc=0
 (cd "$WORK" && bash "$INVENTORY" --help --and-more >/dev/null 2>&1) || rc=$?
 assert_exit "--help plus a second argument is a usage error" 2 "$rc"
 
-# --- An unusable project root is fatal ----------------------------------------
-#
-# The header names the requested root, so a run that failed to enter it and kept
-# counting would publish the INVOKING directory's plugins, skills and handlers
-# under a root they have nothing to do with. This suite runs from inside a real,
-# large repository checkout, so the wrong numbers are right there to be picked up.
 
 for badroot in "$WORK/no-such-directory" /etc/hosts -leading-dash; do
   rc=0
@@ -97,19 +82,6 @@ bad_root_err="$(INVENTORY_PROJECT_DIR="$WORK/no-such-directory" bash "$INVENTORY
 assert_contains "the fatal root message names the root" "$bad_root_err" "$WORK/no-such-directory"
 assert_contains "the fatal root message says nothing was counted" "$bad_root_err" "no counts were produced"
 
-# --- The golden fixture -------------------------------------------------------
-#
-# Built to an exactly known size so every count below is an equality. The sizes:
-#   2 plugin roots (plug1, plug2)
-#   3 SKILL.md: .claude/skills/alpha, .claude/skills/beta, plug2/skills/gamma
-#     of which exactly 1 (alpha) opens a frontmatter hooks: block
-#   2 agent definitions in .claude/agents, of which exactly 1 (one.md) opens one
-#   2 plugin hooks.json, of which 1 declares 2 events carrying 3 handlers
-#   project settings: 2 events, 3 handlers; local settings: 1 event, 1 handler
-#   user settings: no hooks, 2 plugins enabled and 1 disabled
-#   hook scripts: 1 under a plugin hooks/ dir, 2 under .claude/hooks, 2 tests
-#   3 mcp servers across 2 .mcp.json files
-#   a marketplace catalog of 3 entries, 1 of them defaultEnabled false
 
 GOLD="$WORK/golden"
 mkdir -p "$GOLD/.claude/skills/alpha" "$GOLD/.claude/skills/beta" \
@@ -157,7 +129,6 @@ gold_out2="$(INVENTORY_PROJECT_DIR="$GOLD" INVENTORY_USER_SETTINGS="$GOLD/user-s
 assert_exit "golden fixture run exits 0" 0 "$rc"
 assert_eq "golden output is deterministic across runs" "$gold_out" "$gold_out2"
 
-# Every hook-location row, all five fixed columns at once.
 assert_eq "user-settings row" \
   "user-settings present standing 1 0 0" "$(row6 user-settings "$gold_out")"
 assert_eq "project-settings row counts 2 events as 3 handlers" \
@@ -173,7 +144,6 @@ assert_eq "skill-frontmatter row counts 3 skills, 1 declaring" \
 assert_eq "subagent-frontmatter row counts 2 agents, 1 declaring" \
   "subagent-frontmatter present conditional 2 1 -" "$(row6 subagent-frontmatter "$gold_out")"
 
-# Every Components figure, verbatim.
 assert_line "components: 2 plugin roots" "$gold_out" "  plugin roots         2"
 assert_line "components: 3 skills" "$gold_out" "  skills               3 SKILL.md"
 assert_line "components: 2 subagents" "$gold_out" "  subagents            2 definitions"
@@ -182,7 +152,6 @@ assert_line "components: 3 mcp servers across 2 files" "$gold_out" \
 assert_line "components: hook scripts and tests" "$gold_out" \
   "  hook scripts on disk 1 in plugin hooks/ dirs, 2 in .claude/hooks (+2 test scripts)"
 
-# Enablement inputs, read per scope with no verdict computed.
 assert_line "enablement: user map read as 2 true, 1 false" "$gold_out" \
   "  user       present      2 true, 1 false"
 assert_line "enablement: project map read as empty" "$gold_out" \
@@ -197,16 +166,9 @@ assert_contains "the conditional rows are explained" "$gold_out" "not part of th
 assert_not_contains "project settings are not conditional" \
   "$(row_for project-settings "$gold_out")" "conditional"
 
-# The output must stay a count table. A row dump of every hook would cost more
-# context than the audit it feeds, so a deterministic fixture pins the exact
-# height rather than a bound loose enough to hide a dump.
 gold_lines="$(printf '%s\n' "$gold_out" | wc -l | tr -d ' ')"
 assert_eq "golden output is exactly the count table" 35 "$gold_lines"
 
-# --- Managed policy carries the status its condition earns ---------------------
-#
-# The old assertion here accepted all six vocabulary words, so it passed for any
-# status the script could emit and could not fail. Each condition now pins one.
 
 managed_present_out="$(INVENTORY_PROJECT_DIR="$GOLD" INVENTORY_USER_SETTINGS="$GOLD/user-settings.json" \
   INVENTORY_MANAGED_PATH="$WORK/managed-present/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
@@ -218,21 +180,12 @@ managed_dir_out="$(INVENTORY_PROJECT_DIR="$GOLD" INVENTORY_USER_SETTINGS="$GOLD/
 assert_eq "a managed path that is a directory is unreadable, not absent" \
   "managed-policy unreadable standing 1 - -" "$(row6 managed-policy "$managed_dir_out")"
 
-# With no managed-scope library to source, no per-OS path exists, so the row is
-# not-probed. Reporting absent there would claim a policy was looked for.
 nolib_out="$(CLAUDE_PLUGIN_ROOT="$WORK/no-lib" INVENTORY_PROJECT_DIR="$GOLD" \
   INVENTORY_USER_SETTINGS="$GOLD/user-settings.json" bash "$INVENTORY" 2>/dev/null)"
 assert_eq "no managed-scope library means not-probed, never absent" \
   "managed-policy not-probed standing - - -" "$(row6 managed-policy "$nolib_out")"
 assert_contains "the not-probed row explains itself" "$nolib_out" "not evidence that no policy is deployed"
 
-# --- A symlinked scope is walked, not reported as an absence -------------------
-#
-# find(1) will not descend a symlinked START POINT without -H, so a repository
-# whose .claude/skills, .claude/agents or .claude/hooks is a symlink into a
-# shared tree used to report 0 for each. -d follows the symlink, so the branch
-# was taken and the walk then found nothing: a zero produced by not looking, in
-# the same script whose header says it removed them.
 
 LINKED="$WORK/linked"
 mkdir -p "$LINKED/real/skills/one" "$LINKED/real/agents" "$LINKED/real/hooks" "$LINKED/.claude"
@@ -253,17 +206,6 @@ assert_line "a symlinked .claude/skills reaches the components count" "$linked_o
 assert_line "a symlinked .claude/hooks reaches the components count" "$linked_out" \
   "  hook scripts on disk 0 in plugin hooks/ dirs, 1 in .claude/hooks (+0 test scripts)"
 
-# --- EVERY directory scope reports unreadable, never absent and never 0 --------
-#
-# A scope that exists and cannot be walked is not an empty scope. The first fix
-# for this wired .claude/hooks and left .claude/skills and .claude/agents on the
-# absent/0 path, which is the same defect surviving in its siblings, so these
-# cases are GENERATED from one table over every scope and both shapes rather
-# than written once by hand. Adding a scope to the table is what covers it.
-#
-# Each row: <directory under .claude> | <hook-location row it feeds, or -> |
-#   <that row's six columns when the scope is unreadable> |
-#   <the Components line it feeds>
 scope_cases=(
   "skills|skill-frontmatter|skill-frontmatter unreadable conditional - - -|  skills               0+unreadable SKILL.md"
   "agents|subagent-frontmatter|subagent-frontmatter unreadable conditional - - -|  subagents            0+unreadable definitions"
@@ -292,13 +234,6 @@ for shape in dangling file; do
   done
 done
 
-# managed-settings.d is the fourth directory scope, and its drop-ins are PART OF
-# the managed policy rather than a footnote beside it: the merge lays them on top
-# of managed-settings.json. A managed-policy row that counted only the base file
-# therefore published an exact-looking handler count with the standing managed
-# hooks missing from it, which is the same shape as the zeros this script exists
-# to stop printing. The row covers base plus readable drop-ins, and a drop-in
-# this run could not read turns the figures into the add_counts floor form.
 PLAINROOT="$WORK/plainroot"
 MD="$WORK/managed-dropin"
 mkdir -p "$PLAINROOT" "$MD/managed-settings.d"
@@ -312,10 +247,6 @@ assert_contains "a readable managed-settings.d reports its exact file count" "$m
 assert_eq "readable drop-ins are probed by the managed-policy row" \
   "managed-policy present standing 3 0 0" "$(row6 managed-policy "$md_ok_out")"
 
-# The case the row used to get wrong: the policy's hooks live in the drop-ins.
-# Base 1 handler, drop-ins 2 and 1, so the row is 3 files, 3 declaring, 4
-# handlers. Counting the base file alone published "1 1 1" here, an exact-looking
-# figure that omits three standing managed handlers.
 MDH="$WORK/managed-dropin-hooks"
 mkdir -p "$MDH/managed-settings.d"
 printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"base"}]}]}}' \
@@ -331,9 +262,6 @@ assert_eq "drop-in handlers reach the managed-policy row" \
 assert_contains "the drop-in note says the row counts them" "$mdh_out" \
   "counted in the managed-policy row above"
 
-# A policy whose base file is missing but whose drop-in directory is not: the
-# drop-ins are still in force, so the row is present with their counts rather
-# than absent with none.
 MDNB="$WORK/managed-dropin-nobase"
 mkdir -p "$MDNB/managed-settings.d"
 printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"a"},{"type":"command","command":"b"}]}]}}' \
@@ -343,9 +271,6 @@ mdnb_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/no
 assert_eq "drop-ins without a base file are still counted" \
   "managed-policy present standing 2 1 2" "$(row6 managed-policy "$mdnb_out")"
 
-# One malformed drop-in does not sink the readable ones, and does not let the
-# row present what is left as a total: the two count columns become floors while
-# PROBED stays exact, because that file WAS examined.
 MDMAL="$WORK/managed-dropin-malformed"
 mkdir -p "$MDMAL/managed-settings.d"
 printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"base"}]}]}}' \
@@ -369,21 +294,11 @@ assert_contains "an unreadable managed-settings.d is named, not passed over" "$m
   "managed-settings.d exists at $MDBAD/managed-settings.d but could not be traversed (unreadable)"
 assert_not_contains "an unreadable managed-settings.d publishes no file count" "$md_bad_out" \
   "drop-in file(s)"
-# An unreadable drop-in directory is the one case where PROBED is a floor too:
-# how many files it holds is exactly what could not be established.
 assert_eq "an unreadable managed-settings.d makes every managed figure a floor" \
   "managed-policy present standing 1+unreadable 0+unreadable 0+unreadable" \
   "$(row6 managed-policy "$md_bad_out")"
 
-# A readable scope still counts: the status-word path must not swallow the
-# normal one. The golden fixture above already pins that for every scope, and
-# the linked fixture pins it through a symlink.
 
-# --- .git and vendored trees are outside the counts ----------------------------
-#
-# A repository that is itself a plugin resolves plugin_roots to ".", and
-# `.git/hooks` ships fourteen executable *.sample files, so an unpruned walk
-# reported 15 hook scripts for a repository carrying exactly one.
 
 SELFPLUG="$WORK/selfplug"
 mkdir -p "$SELFPLUG/.claude-plugin" "$SELFPLUG/hooks" \
@@ -405,12 +320,6 @@ assert_line ".git/hooks samples are not this repository's hook scripts" "$selfpl
 assert_contains "the pruned trees are named in the notes" "$selfplug_out" \
   "prunes .git and node_modules"
 
-# --- A wrong-typed hooks block is invalid-json, never "present, no hooks" ------
-#
-# jq_num used to swallow a jq failure and print 0, so {"hooks":"oops"} reported
-# present/1/0/0: a confident statement that the file registers no hooks, about a
-# file whose hook block is malformed. An array is the sharp case, since
-# to_entries does not even error on it.
 
 for badhooks in '"oops"' '5' 'true' '[1,2]' 'null'; do
   BAD="$WORK/badhooks"
@@ -421,7 +330,6 @@ for badhooks in '"oops"' '5' 'true' '[1,2]' 'null'; do
     INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
   case "$badhooks" in
   'null')
-    # `.hooks // {}` makes an explicit null the same statement as no hooks key.
     assert_eq "a null hooks key is an empty hook block: $badhooks" \
       "project-settings present standing 1 0 0" "$(row6 project-settings "$bad_hooks_out")"
     ;;
@@ -434,11 +342,6 @@ for badhooks in '"oops"' '5' 'true' '[1,2]' 'null'; do
   esac
 done
 
-# A plugin manifest whose hooks block is the wrong type makes the whole
-# plugin-hooks-json row a FLOOR, and the row says so in the notes. The row itself
-# still reads 0 handlers for that manifest, so the note is the only thing that
-# separates "read it, no hooks" from "could not read it": without it, a jq_num
-# that swallowed the failure and returned 0 would be indistinguishable here.
 BADMAN="$WORK/badmanifest"
 mkdir -p "$BADMAN/p/.claude-plugin" "$BADMAN/p/hooks"
 printf '%s\n' '{"name":"p"}' >"$BADMAN/p/.claude-plugin/plugin.json"
@@ -452,8 +355,6 @@ assert_contains "a wrong-shaped plugin manifest is named" "$badman_out" \
 assert_contains "a wrong-shaped plugin manifest makes the row a floor" "$badman_out" \
   "floor rather than a total"
 
-# The catalog's plugins key answers `length` when it is a string too, so a
-# character count would otherwise be published as an entry count.
 BADCAT="$WORK/badcatalog"
 mkdir -p "$BADCAT/.claude-plugin"
 printf '%s\n' '{"plugins":"seventeen"}' >"$BADCAT/.claude-plugin/marketplace.json"
@@ -463,8 +364,6 @@ assert_line "a wrong-typed catalog is invalid-json, not an entry count" "$badcat
   "  catalog    invalid-json .claude-plugin/marketplace.json (plugins is not an array)"
 assert_not_contains "a wrong-typed catalog publishes no entry count" "$badcat_out" "entries, "
 
-# The same rule on the enablement side: a wrong-typed enabledPlugins is not an
-# empty map.
 BADEP="$WORK/badenabled"
 mkdir -p "$BADEP/.claude"
 printf '%s\n' '{"enabledPlugins":"all"}' >"$BADEP/.claude/settings.json"
@@ -475,13 +374,6 @@ assert_contains "a wrong-typed enabledPlugins is invalid-json" "$bad_ep_out" \
 assert_not_contains "a wrong-typed enabledPlugins is not 0 true, 0 false" "$bad_ep_out" \
   "project    present      0 true, 0 false"
 
-# --- An unreadable .mcp.json is never a plain 0 -------------------------------
-#
-# The MCP loop used to drop any .mcp.json it could not parse and leave both
-# figures at a numeric zero, so a repository shipping an MCP configuration that
-# could not be measured reported "0 across 0 .mcp.json file(s)": the exact shape
-# of confident wrong number the directory scopes were already fixed for. The file
-# is counted as examined, and the server figure carries the floor form instead.
 
 MCPBAD="$WORK/mcp-badtype"
 mkdir -p "$MCPBAD"
@@ -493,9 +385,6 @@ assert_line "a wrong-typed mcpServers key is a floor, not a zero" "$mcp_bad_out"
 assert_not_contains "a wrong-typed mcpServers key never reports 0 across 0" "$mcp_bad_out" \
   "0 across 0 .mcp.json file(s)"
 
-# A .mcp.json that is a directory: the -f gate that used to select the project
-# file dropped this one before json_status could call it unreadable, so the row
-# reported the absence of a path that is right there.
 MCPDIR="$WORK/mcp-notafile"
 mkdir -p "$MCPDIR/.mcp.json"
 mcp_dir_out="$(INVENTORY_PROJECT_DIR="$MCPDIR" INVENTORY_USER_SETTINGS="$WORK/none.json" \
@@ -505,8 +394,6 @@ assert_line "an unreadable .mcp.json is examined and reported unreadable" "$mcp_
 assert_contains "an unreadable .mcp.json is explained" "$mcp_dir_out" \
   "is unreadable, so the MCP servers it configures could not be counted"
 
-# The same rule inside a plugin root, and with a readable file beside it: the
-# measured servers survive, and only the unmeasured part shows as a status word.
 MCPMIX="$WORK/mcp-mixed"
 mkdir -p "$MCPMIX/p/.claude-plugin"
 printf '%s\n' '{"name":"p"}' >"$MCPMIX/p/.claude-plugin/plugin.json"
@@ -519,11 +406,6 @@ assert_line "a broken plugin .mcp.json floors the total without losing the read 
 assert_contains "the broken plugin .mcp.json is named" "$mcp_mix_out" \
   "./p/.mcp.json is invalid-json"
 
-# --- A newline inside a path counts once, and is still read --------------------
-#
-# wc -l over a line-delimited file list turned one such path into two records and
-# lost the real one, so the fixture below reported 2 SKILL.md with 0 declaring a
-# hooks block, for one file that does.
 
 NL="$WORK/newline"
 nl_dir="$NL/.claude/skills/we
@@ -537,7 +419,6 @@ assert_eq "a newline in a path is one skill, and its hooks block is seen" \
 assert_line "a newline in a path does not double the components count" "$nl_out" \
   "  skills               1 SKILL.md"
 
-# --- An unreadable scope reports unreadable, never 0 ---------------------------
 
 # A path that exists but is not a regular file: deterministic on every uid,
 # unlike chmod 000, which root reads anyway.
@@ -550,20 +431,17 @@ unreadable_out="$(INVENTORY_PROJECT_DIR="$FIX" INVENTORY_USER_SETTINGS="$FIX/use
 assert_eq "unreadable user settings report unreadable and carry no count" \
   "user-settings unreadable standing 1 - -" "$(row6 user-settings "$unreadable_out")"
 
-# Present but unparsable is invalid-json, which is also not an absence.
 printf 'not json at all\n' >"$WORK/broken.json"
 broken_out="$(INVENTORY_PROJECT_DIR="$FIX" INVENTORY_USER_SETTINGS="$WORK/broken.json" \
   bash "$INVENTORY" 2>/dev/null)"
 assert_eq "unparsable settings report invalid-json" \
   "user-settings invalid-json standing 1 - -" "$(row6 user-settings "$broken_out")"
 
-# A genuinely missing file is absent, and absent is distinct from unreadable.
 absent_out="$(INVENTORY_PROJECT_DIR="$FIX" INVENTORY_USER_SETTINGS="$WORK/nope.json" \
   bash "$INVENTORY" 2>/dev/null)"
 assert_eq "missing settings report absent" \
   "user-settings absent standing 1 - -" "$(row6 user-settings "$absent_out")"
 
-# Missing jq is a skipped read, not an empty landscape.
 nojq_out="$(INVENTORY_PROJECT_DIR="$GOLD" INVENTORY_JQ="jq-that-does-not-exist" \
   INVENTORY_USER_SETTINGS="$GOLD/user-settings.json" \
   INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
@@ -573,10 +451,8 @@ assert_eq "missing jq skips the plugin manifests too" \
   "plugin-hooks-json skipped standing 2 - -" "$(row6 plugin-hooks-json "$nojq_out")"
 assert_contains "missing jq is called out as not a measurement" "$nojq_out" \
   "The count below is not a measurement."
-# The tree walks do not need jq, so they still report their real sizes.
 assert_line "missing jq still counts the tree" "$nojq_out" "  skills               3 SKILL.md"
 
-# --- A repository with no plugins at all --------------------------------------
 
 empty_out="$(INVENTORY_PROJECT_DIR="$FIX" bash "$INVENTORY" 2>/dev/null)"
 assert_eq "a plugin-free repo reports the plugin row absent, not 0 handlers" \
@@ -584,11 +460,6 @@ assert_eq "a plugin-free repo reports the plugin row absent, not 0 handlers" \
 assert_line "a plugin-free repo reports 0 plugin roots" "$empty_out" "  plugin roots         0"
 assert_contains "a plugin-free repo still emits components" "$empty_out" "Components in this repository"
 
-# --- A linked worktree and a subdirectory read the files a session reads -------
-#
-# A linked worktree's local settings file is the main checkout's, which is
-# untracked and so never in the worktree. A run started in a subdirectory reads
-# that subdirectory's shared settings file.
 
 if command -v git >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
   GMAIN="$WORK/git-main"
@@ -630,12 +501,6 @@ else
   fail "worktree and subdirectory roots" "git or jq is not on PATH, so these cases could not run"
 fi
 
-# --- The default project root ------------------------------------------------
-#
-# A run with no INVENTORY_PROJECT_DIR takes the git toplevel, or the working
-# directory outside a repository, and still emits the whole table. It runs in
-# the golden fixture: a run from this checkout walked every plugin of the live
-# tree, files no change to them would select this suite for.
 
 rc=0
 out="$(cd "$GOLD" && env -u CLAUDE_PROJECT_DIR bash "$INVENTORY" 2>/dev/null)" || rc=$?

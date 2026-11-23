@@ -15,7 +15,6 @@ directories and Pester mocks.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CisaKevCache.ps1' -MockHelpers
 
-    # The one-vulnerability KEV document the fetch mock and every cache seed share.
     function ConvertTo-KevCacheJson {
         param([Parameter(Mandatory)] [string] $CveId)
         @{ vulnerabilities = @(@{ cveID = $CveId }) } | ConvertTo-Json
@@ -244,8 +243,6 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
 
             Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath | Out-Null
 
-            # A self-prepended timestamp ("<ts> <ts> egress GET ...") is unparsable by
-            # Read-EgressLog and drops the fetch from urls_called.
             $get = @(Read-EgressLog -LogPath $script:logPath | Where-Object { $_.kind -eq 'GET' })
             $get.Count | Should -BeGreaterOrEqual 1
             $get[0].uri | Should -Match 'cisa\.gov'

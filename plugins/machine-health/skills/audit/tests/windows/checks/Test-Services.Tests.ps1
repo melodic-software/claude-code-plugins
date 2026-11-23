@@ -90,8 +90,6 @@ Describe 'Test-Services -- trigger-start services' -Tag 'check' {
         Mock Test-ServiceTriggerStart { $true }
 
         $result = Invoke-ServicesAsObject
-        # Trigger-start services being stopped is designed behavior --
-        # must not show up in the user-facing severity.
         $result.severity | Should -Be 'OK'
     }
 
@@ -116,7 +114,6 @@ Describe 'Test-Services -- trigger-start services' -Tag 'check' {
 
         $result = Invoke-ServicesAsObject
         $result.severity | Should -Be 'WARN'
-        # Only the unexpected (non-trigger-start) service should surface.
         @($result.detail.stopped_auto_services).Count | Should -Be 1
         $result.detail.stopped_auto_services[0].name | Should -Be 'Spooler'
     }
@@ -148,7 +145,6 @@ Describe 'Test-Services -- delayed auto-start' -Tag 'check' {
         Mock Test-ServiceTriggerStart { $false }
 
         $result = Invoke-ServicesAsObject
-        # Uptime > 10 min: DelayedAutoStart has had time to kick in.
         $result.severity | Should -Be 'WARN'
     }
 
@@ -169,8 +165,6 @@ Describe 'Test-Services -- delayed auto-start' -Tag 'check' {
         Mock Test-ServiceTriggerStart { $false }
 
         $result = Invoke-ServicesAsObject
-        # The low-uptime DelayedAutoStart downgrade must not collapse the
-        # whole severity to INFO; the plain-Auto Spooler still WARNs.
         $result.severity | Should -Be 'WARN'
     }
 }
@@ -189,8 +183,6 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
     }
 
     It 'emits UNKNOWN when Get-Service returns zero entries (catastrophic SCM/RPC failure)' {
-        # A healthy SCM always exposes hundreds of services, so zero returned is an UNKNOWN
-        # signal; this fires if the count-zero check reverts to bare SilentlyContinue.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
         Mock Get-Service { @() }
@@ -203,8 +195,6 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
     }
 
     It 'completes enumeration when Get-Service returns partial results (WaaSMedicSvc ACL class)' {
-        # Services that deny query (WaaSMedicSvc to non-SYSTEM) are silently skipped, so a
-        # populated but partial result must still produce WARN/OK, not UNKNOWN.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
         Mock Get-Service { @(New-MockService -Name 'Spooler' -Status 'Stopped' -StartType 'Automatic') }

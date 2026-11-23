@@ -10,7 +10,6 @@
 #     import parsing skips, or how spaces or quotes in a path are read; update the depth
 #     here and in il_reaches together.
 
-# Print the import targets of one file as absolute paths; `~/` expands against HOME.
 il_imports_of() {
   local file="$1" dir
   [[ -f "$file" ]] || return 0

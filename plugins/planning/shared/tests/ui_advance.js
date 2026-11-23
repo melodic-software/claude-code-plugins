@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// "Go to the next question after I answer" (follow-up item 1), against `share.sh ensure-running` with the fake
-// cloudflared: the switch sits in the person's own settings, off by default, and is kept with their other
-// preferences on the server; with it on, a single pick, a confirm or a scale value with the comment box empty shows
-// "Next question in 2 s · Stay" and moves on; Stay cancels; a pick-many, a rank or a written answer never moves on,
-// and neither does a pick with a comment written, an Undo, a field being typed in, a move elsewhere or following the
-// host; with it off nothing moves. A move lands on the next question still open for me in the round's order.
-//   node plugins/planning/shared/tests/ui_advance.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (follow-up item 1) and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs, png } = require("./browser_harness");
 
@@ -46,27 +37,23 @@ async function main() {
     const stays = async id => { await ann.waitForTimeout(2600); return (await cur()) === textOf(id) && !(await bar()); };
     const pickOn = async (id, label) => { await go(id); await ann.locator(".vf-opt", { hasText: label }).locator(".vf-optchoose").click(); };
 
-    // ---------- the switch: in my own settings, off by default ----------
     await ann.click(".vf-person-me");
     const sw = ann.locator(".vf-pcard .vf-advsw");
     ok("my settings hold \"Go to the next question after I answer\", off by default",
       await until(ann, () => document.querySelector(".vf-pcard .vf-advsw")?.textContent === "Go to the next question after I answer")
       && (await sw.getAttribute("role")) === "switch" && (await sw.getAttribute("aria-checked")) === "false");
 
-    // ---------- off: a single pick stays ----------
     await ann.keyboard.press("Escape");
     await pickOn("Q1", "Card");
     const pickedOff = await until(ann, () => (window.Core.snapshot()?.cards?.Q1 || []).some(c => c.pid === window.Core.me.cid && c.pick === "opt-1"));
     ok("off: a single pick stays on the question and shows no countdown", pickedOff && await stays("Q1"), `picked: ${pickedOff}`);
 
-    // ---------- on: kept on the server with my other preferences ----------
     await ann.click(".vf-person-me");
     await sw.click();
     ok("turning it on checks the switch", (await sw.getAttribute("aria-checked")) === "true");
     ok("the server keeps it in my preferences", await until(ann, () => window.Core.snapshot()?.me?.prefs?.autoAdvance === true, null, 5000));
     await ann.keyboard.press("Escape");
 
-    // ---------- a single pick moves on after showing Next question in 2 s · Stay ----------
     await pickOn("Q6", "Short");
     ok("a single pick with the comment box empty shows \"Next question in 2 s · Stay\"", await until(ann, () => {
       const b = document.querySelector(".vf-advance"); return !!b && !b.hidden && b.textContent === "Next question in 2 s·Stay" && b.querySelector("button")?.textContent === "Stay";
@@ -74,7 +61,6 @@ async function main() {
     ok("then it moves to Q7, the next question still open for me", await until(ann, t => document.querySelector(".vf-qtext")?.textContent === t, textOf("Q7"), 4000)
       && !(await bar()), await cur());
 
-    // ---------- Undo within the 2 s stays ----------
     await go("Q7");
     await ann.locator(".vf-pickbtn", { hasText: "Yes" }).click();
     await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
@@ -82,7 +68,6 @@ async function main() {
     const undone = await until(ann, () => !(window.Core.snapshot()?.cards?.Q7 || []).some(c => c.pid === window.Core.me.cid && c.pick));
     ok("a confirm Yes then Undo within 2 s stays", undone && await stays("Q7"), `${await cur()} / undone ${undone}`);
 
-    // ---------- typing in Ask Claude stays, and keeps what was typed ----------
     await pickOn("Q8", "Standard");
     await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
     await ann.click(".vf-askbtn");
@@ -91,13 +76,11 @@ async function main() {
       && await ann.evaluate(() => !document.querySelector(".vf-askform").hidden && document.getElementById("vf-ask-ta").value === "Is Express worth it?"), await cur());
     await ann.evaluate(() => { const f = document.querySelector(".vf-askform"); if (!f.hidden) f.querySelector(".vf-btn-ghost").click(); });
 
-    // ---------- moving elsewhere cancels ----------
     await pickOn("Q8", "Express");
     await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
     await go("Q3");
     ok("a pick, then opening Q3 by hand, stays on Q3", await stays("Q3"), await cur());
 
-    // ---------- following the host: no move, still following ----------
     await owner.locator(".vf-q", { hasText: textOf("Q6") }).first().click();
     await until(ann, () => (window.Core.state.presence || []).some(p => p.cid === window.Core.state.ownerPid && p.q === "Q6"));
     await ann.click(".vf-follow");
@@ -108,24 +91,20 @@ async function main() {
       `${await cur()} / following ${await ann.getAttribute(".vf-follow", "aria-pressed")}`);
     await ann.click(".vf-follow");
 
-    // ---------- Stay cancels ----------
     await pickOn("Q1", "Saved method");
     await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
     await ann.click(".vf-advance-stay");
     ok("Stay cancels: the question stays and the countdown goes", await stays("Q1"));
 
-    // ---------- a pick with a comment written stays ----------
     await go("Q1");
     await ann.fill("#vf-answer", "Card is what most people already have");
     await ann.locator(".vf-opt", { hasText: "Card" }).locator(".vf-optchoose").click();
     ok("a pick with something in the comment box stays", await stays("Q1"));
 
-    // ---------- a scale value moves on ----------
     await go("Q4");
     await ann.locator(".vf-scale-btn", { hasText: "4" }).click();
     ok("a scale value moves on to Q5, the next question still open for me", await until(ann, t => document.querySelector(".vf-qtext")?.textContent === t, textOf("Q5"), 5000), await cur());
 
-    // ---------- never after pick-many, rank or a written answer ----------
     await go("Q2");
     await ann.locator(".vf-check", { hasText: "PayPal" }).click();
     await ann.click(".vf-fmt-save");
@@ -141,9 +120,6 @@ async function main() {
     const savedQ3 = await until(ann, () => (window.Core.snapshot()?.cards?.Q3 || []).some(c => c.pid === window.Core.me.cid));
     ok("a written answer never moves on", savedQ3 && await stays("Q3"), `saved: ${savedQ3}`);
 
-    // ---------- a filter that hides the only other open question: no countdown, no move ----------
-    // Bo answers Q1 and Q6 with the switch off, then shows only his own questions (the full toolbar, filter Mine): Q1 and
-    // Q6 are listed, both answered, and the open ones are filtered out. Changing his pick on Q1 has nowhere to go.
     const bo = await rec.open(A.localUrl, desk);
     await joinAs(bo, "Bo");
     const boPick = async (id, label) => {

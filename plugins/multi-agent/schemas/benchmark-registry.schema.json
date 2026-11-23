@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Benchmark registry",
+  "description": "Closed schema for benchmark registry files (shipped reference/benchmarks.json and team rows). Rows hold pointers only: no scores, no rankings, no model names.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "rows"],
+  "properties": {
+    "version": {
+      "description": "Registry format version.",
+      "const": 1
+    },
+    "note": {
+      "description": "Optional summary of this registry file.",
+      "type": "string",
+      "minLength": 1
+    },
+    "rows": {
+      "description": "Benchmark pointer rows.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/row" }
+    }
+  },
+  "$defs": {
+    "work_type": {
+      "type": "string",
+      "enum": ["coding", "web-ui", "knowledge", "image"]
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workloads",
+        "link",
+        "publisher",
+        "provider_own",
+        "status",
+        "task_set",
+        "expect"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique lowercase identifier for the benchmark row.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "workloads": {
+          "description": "Work types this benchmark evaluates.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/work_type" }
+        },
+        "link": {
+          "description": "HTTPS URL of the benchmark leaderboard or results page.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "publisher": {
+          "description": "Publishing organization or site. Two boards from one publisher count as one source.",
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_own": {
+          "description": "True when the publisher is a model provider reporting its own evaluations; supports only that provider's models.",
+          "type": "boolean"
+        },
+        "status": {
+          "description": "Trust tier of the row. New rows start support-only and become permanent after passing longevity, accuracy and coverage.",
+          "type": "string",
+          "enum": ["permanent", "support-only"]
+        },
+        "task_set": {
+          "description": "Underlying task set identifier. One task set hosted on two sites counts as one source.",
+          "type": "string",
+          "minLength": 1
+        },
+        "expect": {
+          "description": "Substring expected in a real rendered or markdown page body so an empty shell is detected.",
+          "type": "string",
+          "minLength": 1
+        },
+        "freshness_seconds": {
+          "description": "Optional cache freshness window in seconds. Defaults to 86400 (one day).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "enabled": {
+          "description": "When false, the row is skipped during fetch and decision.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  }
+}

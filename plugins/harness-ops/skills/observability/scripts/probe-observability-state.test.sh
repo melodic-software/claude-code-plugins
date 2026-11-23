@@ -103,16 +103,13 @@ printf '{"a":1}\n{"a":2}\n{"a":3}\n{"a":4}\n' >"$WIRED/.observability/claude/hoo
 printf '0123456789' >"$WIRED/.claude/observability/otel/cc-logs.json"
 printf '01234' >"$WIRED/.claude/observability/otel/cc-traces.json"
 
-# BARE: a checkout with no observability tree at all.
 BARE="$TMP/bare"
 mkdir -p "$BARE/.git"
 
-# MOVED: the root configured elsewhere, one session file.
 MOVED="$TMP/moved"
 mkdir -p "$MOVED/.git" "$MOVED/telemetry/hooks/sessions"
 printf '{"a":1}\n{"a":2}\n{"a":3}\n' >"$MOVED/telemetry/hooks/sessions/s1.jsonl"
 
-# ALTSTORE: a store outside any repo, for the CC_OTEL_STORE override.
 ALTSTORE="$TMP/altstore"
 mkdir -p "$ALTSTORE"
 printf 'xy' >"$ALTSTORE/cc-metrics.json"
@@ -132,7 +129,6 @@ EMPTY_STORE_LINES="$(printf 'cc-logs.json:absent\ncc-metrics.json:absent\ncc-tra
 ALT_STORE_LINES="$(printf 'cc-logs.json:absent\ncc-metrics.json:%sB\ncc-traces.json:absent' \
   "$(wc_c "$ALTSTORE/cc-metrics.json")")"
 
-# run_both <label> <mode> <original-script> <expected-literal>
 run_both() {
   local label="$1" mode="$2" original="$3" expected="$4" got orig
   got="$(bash "$SCRIPT" "$mode" 2>/dev/null | head -n 3)"
@@ -265,7 +261,7 @@ SH
 chmod +x "$STUB/schtasks"
 PWSH='C:\Program Files\PowerShell\7\pwsh.exe'
 GIT_BASH='C:/Program Files/Git/bin/bash.exe'
-task_xml() { # <command> <arguments-text> [settings-extra]
+task_xml() {
   printf '<Task>\n  <Settings>%s\n  </Settings>\n  <Actions Context="Author">\n    <Exec>\n' "${3:-}"
   printf '      <Command>%s</Command>\n' "$1"
   printf '      <Arguments>%s</Arguments>\n    </Exec>\n  </Actions>\n</Task>' "$2"

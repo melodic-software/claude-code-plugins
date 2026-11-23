@@ -46,7 +46,6 @@ run() { # <payload> [extra env k=v...]
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" env "$@" bash "$HOOK" <"$WORK/stdin.json" 2>/dev/null
 }
 
-# 1. Auto trigger recorded.
 run '{"session_id":"s1","hook_event_name":"PostCompact","trigger":"auto"}'
 RC=$?
 if [[ $RC -eq 0 && -f "$MARK/s1.compacted" ]]; then ok "marker written (auto)"; else fail "marker missing: rc=$RC"; fi
@@ -60,15 +59,12 @@ if command -v jq >/dev/null 2>&1; then
   if jq -e . "$MARK/s1.compacted" >/dev/null 2>&1; then ok "marker is valid JSON"; else fail "marker JSON invalid"; fi
 fi
 
-# 2. Manual trigger recorded; marker is last-write-wins.
 run '{"session_id":"s1","hook_event_name":"PostCompact","trigger":"manual"}'
 if grep -q '"trigger":"manual"' "$MARK/s1.compacted" 2>/dev/null; then ok "manual overwrite (last-write-wins)"; else fail "manual overwrite failed"; fi
 
-# 3. Unrecognized trigger degrades to unknown.
 run '{"session_id":"s2","hook_event_name":"PostCompact","trigger":"weird"}'
 if grep -q '"trigger":"unknown"' "$MARK/s2.compacted" 2>/dev/null; then ok "unrecognized trigger → unknown"; else fail "trigger sanitization failed"; fi
 
-# 4. Missing session id → no write, exit 0.
 before=$(find "$MARK" -name '*.compacted' 2>/dev/null | wc -l)
 run '{"hook_event_name":"PostCompact","trigger":"auto"}'
 RC=$?
@@ -84,12 +80,10 @@ else
   fail "hostile sid: rc=$RC"
 fi
 
-# 6. Kill switch honored.
 run '{"session_id":"s4","hook_event_name":"PostCompact","trigger":"auto"}' CLAUDE_PLUGIN_OPTION_CONTEXT_USAGE_HOOKS_ENABLED=false
 RC=$?
 if [[ $RC -eq 0 && ! -e "$MARK/s4.compacted" ]]; then ok "kill switch suppresses the marker"; else fail "kill switch: rc=$RC"; fi
 
-# 7. Empty stdin → no write, exit 0.
 run ''
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "empty stdin fails open"; else fail "empty stdin: rc=$RC"; fi

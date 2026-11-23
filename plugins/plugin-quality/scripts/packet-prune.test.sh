@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for packet-prune.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-#
-# The cases that matter are the ones where a wrong answer destroys the
-# deliverable: an old packet holding `item.md` must survive `--apply`, a bare
-# invocation must delete nothing, and a root that is not an evidence tree must
-# be refused before anything is walked.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +14,6 @@ test_helpers::contract_lane
 OLD="19990101T000000Z"
 NEW="$(date -u +%Y%m%dT%H%M%SZ)"
 
-# fresh_tree — rebuild a known evidence tree, echo its root.
 fresh_tree() {
   local root="$WORK/data/evidence"
   rm -rf "$WORK/data"
@@ -63,8 +54,6 @@ verdict_is() {
   fi
 }
 
-# --- dry run is the default -------------------------------------------------
-
 root="$(fresh_tree)"
 run 0 "bare invocation runs" --root "$root"
 has "WOULD-DELETE" "old packet is reported as a would-delete"
@@ -74,8 +63,6 @@ if [[ -e "$root/sess-1/plugin-a-skill/$OLD/audit-notes.md" ]]; then
 else
   fail "dry run DELETED a packet — the default must never mutate"
 fi
-
-# --- the deliverable safeguard ----------------------------------------------
 
 root="$(fresh_tree)"
 run 0 "apply runs" --root "$root" --apply
@@ -95,8 +82,6 @@ if [[ -e "$root/sess-1/plugin-a-skill/$NEW/audit-notes.md" ]]; then
 else
   fail "--apply deleted a packet inside the retention window"
 fi
-
-# --- fail closed on an ungradable nonce -------------------------------------
 
 if [[ -e "$root/sess-2/plugin-c/not-a-nonce/audit-notes.md" ]]; then
   pass "a directory whose name is not a nonce is never deleted"
@@ -145,9 +130,6 @@ mkdir -p "$shaped_dry/s/g/00000000T000000Z"
 run 0 "dry run over a nonce-shaped non-date" --root "$shaped_dry"
 verdict_is "00000000T000000Z" UNPARSABLE "a dry run grades the non-date UNPARSABLE, not WOULD-DELETE"
 
-# Legitimate calendar values a too-strict round-trip would wrongly condemn. A leap
-# day, the epoch, and a far-future value must all still grade as real nonces —
-# `KEEP` or `DELETE` by age, never UNPARSABLE.
 real="$WORK/real-nonces/evidence"
 rm -rf "$WORK/real-nonces"
 mkdir -p "$real/s/g/20240229T000000Z" "$real/s/g/19700101T000000Z" "$real/s/g/20991231T235959Z"
@@ -237,8 +219,6 @@ else
   echo "SKIP - symlink containment case (cannot create symlinks here; set MSYS=winsymlinks:nativestrict on Git Bash)"
 fi
 
-# --- a second owner's item-*.md is the same deliverable ---------------------
-
 alias_root="$WORK/alias-item/evidence"
 rm -rf "$WORK/alias-item"
 mkdir -p "$alias_root/s/g/$OLD"
@@ -250,8 +230,6 @@ if [[ -e "$alias_root/s/g/$OLD/item-plugin-quality.md" ]]; then
 else
   fail "--apply DELETED item-plugin-quality.md"
 fi
-
-# --- item.md protection is recursive ----------------------------------------
 
 nested="$WORK/nested-item/evidence"
 rm -rf "$WORK/nested-item"
@@ -265,8 +243,6 @@ else
   fail "--apply DELETED a nested item.md — the deliverable guard must not be depth-limited"
 fi
 
-# --- dry-run summary never claims deletions ---------------------------------
-
 root="$(fresh_tree)"
 run 0 "dry run for the summary check" --root "$root"
 has "would-delete=" "a dry run reports would-delete="
@@ -276,16 +252,12 @@ else
   fail "a dry run printed deleted=, which a log reader cannot distinguish from a real delete"
 fi
 
-# --- an unusable --days is diagnosed as such, not as a missing binary -------
-
 run 2 "an out-of-range --days is refused" --root "$(fresh_tree)" --days 999999999999
 if [[ "$last_out" == *"did not yield a usable cutoff"* ]]; then
   pass "the overflow names the real cause"
 else
   fail "the overflow was misdiagnosed — output: $last_out"
 fi
-
-# --- root containment -------------------------------------------------------
 
 mkdir -p "$WORK/not-evidence/sess/slug/$OLD"
 run 2 "a root not named 'evidence' is refused" --root "$WORK/not-evidence"
@@ -301,8 +273,6 @@ run 2 "--root is required" --days 5
 run 2 "a non-numeric --days is refused" --root "$(fresh_tree)" --days thirty
 run 2 "an unknown argument is refused" --root "$(fresh_tree)" --wipe
 run 0 "--help exits clean" --help
-
-# --- --days 0 expires everything except the protected packet ----------------
 
 root="$(fresh_tree)"
 run 0 "--days 0 runs" --root "$root" --days 0 --apply

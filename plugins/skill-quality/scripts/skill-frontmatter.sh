@@ -226,8 +226,6 @@ skill_frontmatter::summary_error() {
 
   lead="${s:0:1}"
   if [[ "$unsafe_lead" == *"$lead"* ]]; then
-    # Naming the remedy matters here: quoting is what an author reaches for
-    # first, and a leading quote is rejected by this very rule.
     printf "summary starts with the YAML-special character '%s' (reword to a plain unquoted scalar; quoting it is rejected too)" "$lead"
     return 1
   fi

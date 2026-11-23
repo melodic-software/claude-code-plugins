@@ -73,8 +73,6 @@ assert_block() {
   assert_exit "$label" 2 "$RC"
 }
 
-# --- Scope: commands the hook must never touch --------------------------------
-
 assert_allow "a non-git command passes" "$REPO" "echo hello"
 assert_allow "a git command that is not worktree passes" "$REPO" "git status"
 assert_allow "git worktree list passes (not add)" "$REPO" "git worktree list"
@@ -82,8 +80,6 @@ assert_allow "git worktree remove passes (not add)" "$REPO" "git worktree remove
 # The pre-filter must not be fooled by the words appearing outside a git call.
 assert_allow "echo naming git worktree add is not a git call" "$REPO" \
   "echo git worktree add $REPO/wt"
-
-# --- The core verdicts ---------------------------------------------------------
 
 assert_allow "an external absolute target passes silently" "$REPO" \
   "git worktree add $EXT/wt-ok -b feat/ok"
@@ -110,8 +106,6 @@ assert_block "a target inside a bare repository blocks" "$UNRELATED" \
 assert_block "'..' after a nonexistent component still blocks" "$UNRELATED" \
   "git worktree add $TEST_TMPDIR/nope/../${REPO##*/}/wt-dotdot"
 
-# --- Base composition: -C, wrapper chdirs, segments ----------------------------
-
 assert_block "git -C <repo> with a relative target blocks" "$UNRELATED" \
   "git -C $REPO worktree add wt-dash-c"
 assert_allow "git -C <repo> with an external absolute target passes" "$REPO" \
@@ -122,8 +116,6 @@ assert_block "env -C <repo> wrapper chdir composes into the base" "$UNRELATED" \
   "env -C $REPO git worktree add wt-env-c"
 assert_block "a later && segment is still judged" "$REPO" \
   "git status && git worktree add wt-seg"
-
-# --- Fail-open: what the hook cannot resolve statically must pass --------------
 
 # shellcheck disable=SC2016  # unexpanded expansions ARE the fixture
 assert_allow "a \$VAR target is dynamic — allow" "$REPO" \
@@ -139,8 +131,6 @@ assert_allow "a segment after cd is unjudgeable — allow" "$REPO" \
 assert_allow "pushd relocates like cd — allow" "$REPO" \
   "pushd $TEST_TMPDIR && git worktree add wt-after-pushd"
 
-# --- Option walking on `git worktree add` itself --------------------------------
-
 assert_block "-b <branch> is consumed; the path after it is the target" "$REPO" \
   "git worktree add -b feat/x $REPO/wt-after-b"
 assert_allow "-b <branch> with an external target passes" "$REPO" \
@@ -149,8 +139,6 @@ assert_block "boolean options are stepped over" "$REPO" \
   "git worktree add --detach --quiet $REPO/wt-bools"
 assert_block "-- ends option parsing; the next word is the target" "$REPO" \
   "git worktree add -- $REPO/wt-ddash"
-
-# --- The block message ----------------------------------------------------------
 
 run "$REPO" "git worktree add $REPO/wt-msg"
 assert_contains "the block message names the resolved target" "$ERR" "$REPO/wt-msg"
@@ -217,13 +205,9 @@ assert_exit "an unexpanded option placeholder still blocks" 2 "$RC"
 assert_not_contains "an unexpanded placeholder is never recommended as the root" "$ERR" \
   'user_config'
 
-# --- Kill switch ----------------------------------------------------------------
-
 assert_allow "disabled by the kill switch, a nested target passes" "$REPO" \
   "git worktree add $REPO/wt-disabled" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED=false
-
-# --- Nothing was ever created: the hook only judges, git never ran --------------
 
 assert_file_absent "no worktree materialized by any blocked case" "$REPO/wt-nested/.git"
 

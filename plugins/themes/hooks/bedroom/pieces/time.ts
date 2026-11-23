@@ -6,7 +6,6 @@ import { PHASES, SEASONS, SEASON_DATES, accepts, minutesOf } from '../core/setti
  * the command that holds a phase. The VCR clock always shows the real time.
  */
 const DAY = 24 * 60
-/** Other words for a phase. */
 const ALIASES: Record<string, (typeof PHASES)[number]> = { late: 'night', midday: 'noon', afternoon: 'noon' }
 
 /** Where each row starts, in minutes of the day, in row order: dusk at sunset, evening, night, predawn, dawn, morning, noon at 11:00, golden. */

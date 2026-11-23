@@ -63,8 +63,6 @@ fail() {
 # skip, and this path is a declared absence of an allowlist, not of a tool.
 note() { echo "NOTE: $1"; }
 
-# Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
-# to the next top-level key so a YAML list is captured whole.
 allowed_tools() {
   awk 'NR==1&&/^---$/{f=1;next} f&&/^---$/{exit} f' "$1" |
     awk '/^allowed-tools:/{f=1;print;next} f&&/^[A-Za-z_-]+:/{exit} f'
@@ -90,8 +88,6 @@ for skill in "${SKILLS[@]}"; do
     pass "$skill: allowed-tools free of \${CLAUDE_PLUGIN_ROOT}"
   fi
 
-  # Every markdown file bundled with the skill must invoke the script the same
-  # way the rule spells it: no `bash` wrapper, no quotes around the path.
   mapfile -t mds < <(find "skills/$skill" -name '*.md' -not -path '*/evals/*' | sort)
   for f in "${mds[@]}"; do
     if grep -qF 'bash ${CLAUDE_SKILL_DIR}' "$f" || grep -qF 'bash "${CLAUDE_SKILL_DIR}' "$f"; then
@@ -107,7 +103,6 @@ for skill in "${SKILLS[@]}"; do
       if grep -qF '${CLAUDE_SKILL_DIR}' "$f" || grep -qF '${CLAUDE_PLUGIN_ROOT}' "$f"; then
         fail "$f: context file must not use a \${…} token for a script path — use <skill-dir>/scripts/"
       fi
-      # Every bundled-script reference must keep the interpreter-led placeholder prefix.
       required='bash <skill-dir>/scripts/'
       invocations="$(grep -F '<skill-dir>/scripts/' "$f" || true)"
       if [[ -n "$invocations" ]]; then
@@ -123,11 +118,6 @@ for skill in "${SKILLS[@]}"; do
     fi
   done
 
-  # The frontmatter must not promise guard coverage the guard does not provide.
-  # `--apply` on the mutating scripts and a forced `git worktree remove` are in
-  # the net, as are bare `git branch -D`/`-d`/`--delete` and `git push --delete`.
-  # A comment that says the scripts "stay behind the PreToolUse destructive guard" without
-  # naming `--apply` overstates a dry-run. The mention has to state both halves.
   if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then
     fail "$skill: allowed-tools uses the overstated 'behind the destructive guard' claim"
   else
@@ -144,13 +134,6 @@ for skill in "${SKILLS[@]}"; do
     pass "$skill: destructive-guard mention names the --apply script scope"
   fi
 
-  # An unguarded repository-root resolution, on a path the skill documents as
-  # usable from anywhere, terminates the run with git's own error status when the
-  # working directory is not a repository. Only the command-substitution form is
-  # checked: `$(git rev-parse --show-toplevel)` is the shape the model actually
-  # executes, whereas a bare mention inside a markdown code span is prose about
-  # the command and runs nothing. Every executable occurrence must suppress the
-  # failure so the caller can test for an empty result instead.
   unguarded_root=0
   while IFS= read -r hit; do
     [[ -z "$hit" ]] && continue
@@ -161,9 +144,6 @@ for skill in "${SKILLS[@]}"; do
   done < <(grep -Hn -F -- '$(git rev-parse --show-toplevel' "${mds[@]}" 2>/dev/null || true)
   [[ "$unguarded_root" -eq 0 ]] && pass "$skill: every executable repo-root resolution is failure-guarded"
 
-  # Each granted script must exist, be executable, and be invoked by the body —
-  # a grant nothing runs is dead weight, and a non-executable target cannot be
-  # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
   if [[ ${#granted[@]} -eq 0 ]]; then
     fail "$skill: no \${CLAUDE_SKILL_DIR} bundled-script grant found"

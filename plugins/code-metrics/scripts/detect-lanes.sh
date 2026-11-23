@@ -35,9 +35,6 @@ source "$SCRIPT_DIR/python-resolve.sh"
 # shellcheck source=entry-common.sh
 source "$SCRIPT_DIR/entry-common.sh"
 
-# Bundled extension map. Lower-cased extension -> lane, returned in LANE
-# rather than printed: a command substitution forks once per file, and over a
-# whole repository that fork is most of the classifier's running time.
 lane_for_extension() {
   case "$1" in
   ts | tsx | mts | cts | js | jsx | mjs | cjs) LANE=typescript ;;
@@ -126,9 +123,6 @@ declare -A GLOB_LANE_OF=()
 GLOB_HITS="$(mktemp)"
 FILE_LIST="$(mktemp)"
 trap 'rm -f "$GLOB_HITS" "$FILE_LIST"' EXIT
-# The matcher reads the scope from a file for the same reason this script
-# accepts one: a whole repository's paths do not fit in one argument vector on
-# every platform this runs on.
 printf '%s\n' "${FILES[@]}" >"$FILE_LIST"
 for lane in "${!LANE_GLOBS[@]}"; do
   IFS=',' read -r -a patterns <<<"${LANE_GLOBS[$lane]}"
@@ -157,8 +151,6 @@ for file in "${FILES[@]}"; do
   else
     base="${normalized##*/}"
     ext=""
-    # Lower-cased in the shell rather than through `tr`: this runs once per
-    # file, and two subprocesses per file is most of a whole-tree run's time.
     if [[ "$base" == *.* ]]; then
       ext="${base##*.}"
       ext="${ext,,}"

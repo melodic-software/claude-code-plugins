@@ -66,9 +66,6 @@ usage() {
   sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
 }
 
-# Every temp file this run creates is named `*.tmp.$$` or `*.err.$$` beside its
-# target, so a run killed mid-edit does not leave clutter inside the consumer's
-# worktree for the resume to trip over.
 TEMPS=()
 # shellcheck disable=SC2329  # invoked by the EXIT trap below, not by name
 cleanup() {
@@ -138,23 +135,14 @@ fi
 
 resolve_git_root
 
-# --- configuration (for the generated set and its regenerators) ---------------
-
 load_config
 
-# One `<path>\t<regenerate>` row per declared generated file.
 generated_rows() {
   printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate // "")] | @tsv'
 }
 
 GENERATED_PATHS=" $(cfg '.file_names.generated[].path' | tr '\n' ' ')"
 
-# `--regenerate-only` is the closing pass of a realign run. A generated record is
-# rebuilt per finding only when the plan recorded a site inside it, so the LAST
-# rename of a run can leave a derived sample or index stale: the record named no
-# site for a file that did not appear in it at audit time. Running every declared
-# regenerator once at the end settles that, and is a no-op on a tree already
-# current.
 if [[ "$REGEN_ONLY" -eq 1 ]]; then
   ran=""
   while IFS="$(printf '\t')" read -r gpath gcmd; do
@@ -169,8 +157,6 @@ EOF
   exit 0
 fi
 
-# --- the record --------------------------------------------------------------
-
 PLAN_BRANCH="$(awk -F': ' '/^branch: /{print $2; exit}' "$ARTIFACT")"
 NOW_BRANCH="$(git -C "$ROOT" branch --show-current 2>/dev/null)"
 if [[ -z "$NOW_BRANCH" ]]; then
@@ -179,11 +165,6 @@ fi
 [[ "$PLAN_BRANCH" == "$NOW_BRANCH" ]] ||
   blocked "the plan was written on branch '$PLAN_BRANCH' and this checkout is on '$NOW_BRANCH'; re-audit here"
 
-# THE ID IS VALIDATED BEFORE IT REACHES A PATTERN. It is interpolated into awk
-# regexes below, so an id carrying regex metacharacters would select more than
-# one record: `--id 'FN-.*'` would take its paths from the first match while
-# absorbing every record's site rows, and one acceptance would then move one
-# file and edit the sites of findings the operator never saw.
 [[ "$ID" =~ ^FN-[0-9a-f]+$ ]] ||
   die "--id must be a finding id of the form FN-xxxxxxxx, not '$ID'"
 
@@ -205,9 +186,6 @@ applied) blocked "finding '$ID' is already applied" ;;
 *) blocked "finding '$ID' is '$STATUS'; only a pending, accepted, or interrupted record is applied" ;;
 esac
 
-# A regenerator that does not resolve stops the run BEFORE anything moves. A
-# tree with the file renamed and its generated record stale is worse than a tree
-# nobody touched.
 check_regenerators() {
   while IFS="$(printf '\t')" read -r gpath gcmd; do
     [[ -n "$gpath" ]] || continue
@@ -232,9 +210,6 @@ $(generated_rows)
 EOF
 }
 
-# Runs awk over the plan with the given arguments and writes the result back
-# through the same inode. A failure dies with "cannot <$1>"; the EXIT trap
-# removes the temp file.
 rewrite_plan() {
   local what="$1" tmp="$ARTIFACT.tmp.$$"
   shift
@@ -253,10 +228,6 @@ set_status() {
   '
 }
 
-# --- the sites ---------------------------------------------------------------
-#
-# Every row of the record's site table, exactly as the audit classified it.
-
 SITES="$(printf '%s' "$RECORD" | awk -F' *\\| *' '
   /^\| `/ {
     file = $2; gsub(/`/, "", file)
@@ -269,8 +240,6 @@ NEW_BASE="${NEW##*/}"
 OLD_STEM="${OLD_BASE%.*}"
 NEW_STEM="${NEW_BASE%.*}"
 
-# --- drift: is the record still true? ----------------------------------------
-
 RESUMING=0
 if git -C "$ROOT" ls-files --error-unmatch "$OLD" >/dev/null 2>&1; then
   :
@@ -278,11 +247,6 @@ elif [[ "$STATUS" == "applying" ]] && git -C "$ROOT" ls-files --error-unmatch "$
   RESUMING=1
   printf 'apply-rename: resuming an interrupted apply of %s\n' "$ID" >&2
 else
-  # A record the operator ACCEPTED, whose file has since moved, is a decision
-  # the tree can no longer carry out. Recording `blocked` is what keeps that
-  # visible across the re-audit: a record left `accepted` reads as work still
-  # queued. A `pending` record is left alone, because nothing was decided about
-  # it yet and there is nothing to block.
   case "$STATUS" in
   accepted | applying) set_status blocked ;;
   *) ;;
@@ -295,8 +259,6 @@ skipped=0
 zero_hits=0
 planned=""
 
-# The tier is read and discarded: the audit already turned it into the action,
-# and re-deriving one here is exactly the second judgment this stage must not make.
 while IFS="$(printf '\t')" read -r file lineno form _tier action; do
   [[ -n "$file" ]] || continue
   case "$action" in
@@ -349,10 +311,6 @@ check_regenerators "$TOUCHED_GENERATED"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   printf 'DRY-RUN\t%s\t%s\t%s\n' "$ID" "$OLD" "$NEW"
-  # The per-tier form table, straight from the record's own rows: one line per
-  # tier naming which forms it would rewrite and which it would only list. An
-  # operator reading a dry run is deciding about the citations, not the move,
-  # and a flat edit list hides which tier each one belongs to.
   printf '%s' "$SITES" | awk -F'\t' '
     NF >= 5 {
       tier = $4
@@ -378,18 +336,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-# --- apply -------------------------------------------------------------------
-
 set_status applying
 
-# Every OTHER record whose sites live in the file being moved now points at a
-# path that no longer exists. Rewriting those site rows in place is what lets a
-# tree whose renamed files cite each other be applied one finding at a time: the
-# next apply finds its sites where the plan says they are.
 remap_sites() {
-  # `new` is spliced in by length, never handed to `sub` as a replacement
-  # string: there an `&` in a path component would expand to the whole match
-  # and corrupt the row.
   rewrite_plan "remap the sibling site rows" -v old="| \`$OLD\` |" -v new="| \`$NEW\` |" '
     index($0, old) == 1 { print new substr($0, length(old) + 1); next }
     { print }
@@ -399,29 +348,14 @@ remap_sites() {
 if [[ "$RESUMING" -eq 0 ]]; then
   git -C "$ROOT" mv "$OLD" "$NEW" || blocked "git mv refused: $OLD to $NEW"
   remap_sites
-  # A file that cites ITSELF has its own sites planned against the old path,
-  # which the move just retired. `remap_sites` fixes the artifact's rows; this
-  # fixes the rows already read into this run, so a self-citing offender does
-  # not fail mid-apply with the tree half-changed.
   planned="$(printf '%s' "$planned" | awk -F'\t' -v old="$OLD" -v new="$NEW" '
     NF == 3 { if ($1 == old) { $1 = new } print $1 "\t" $2 "\t" $3 }
   ')
 "
 fi
 
-# Each edit is written back through the SAME inode so mode bits and symlink
-# targets survive; a sweep across a real repository edits executable scripts.
 while IFS="$(printf '\t')" read -r file lineno form; do
   [[ -n "$file" ]] || continue
-  # The substitution is LITERAL, never a regex. A basename carries dots
-  # (`v1.2.schema.json`), and `gsub` would read each one as "any character" and
-  # rewrite a line the audit never pointed at.
-  #
-  # A BARE STEM IS ANCHORED. The sweep only records a bare-stem site where the
-  # characters around the stem are not name characters, so applying one
-  # unanchored would undo that care: a line naming both `Alpha-One` and
-  # `Alpha-One-notes.md` would have the second rewritten into a reference to a
-  # file nobody renamed.
   if [[ "$form" == "bare-stem" ]]; then
     from="$OLD_STEM"
     to="$NEW_STEM"
@@ -433,52 +367,22 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   fi
   tmp="$ROOT/$file.tmp.$$"
 
-  # AND A BASENAME IS REPLACED ONLY WHERE THE RECORDED FORM PUTS IT. One line
-  # can carry the same basename twice in two shapes, and the tier may allow one
-  # and freeze the other: a historical record reading
-  # "links [Alpha](../Alpha-One.md) and names Alpha-One.md in prose" has an
-  # editable `md-link` and a frozen `plain`, and replacing every occurrence
-  # rewrites the narrative that `links-and-paths` exists to preserve.
-  #
-  # The test is the left context the sweep itself used to classify the form,
-  # applied per occurrence rather than per line. This is not re-deriving the
-  # form: the record names it, and this is where that name is honored.
-  # `plain` and `table-or-key` carry no context requirement, which is what
-  # makes them the forms a frozen tier reports rather than edits.
-  # All three reset every iteration. They are set per form in the branches
-  # below, and a form that sets none would otherwise inherit the last one that
-  # did, so a `plain` row following a `backtick-path` row would be anchored to a
-  # code span it is not in and match nothing.
   prefix_re=''
   suffix_re=''
   exclude_prefix_re=''
   case "$form" in
   md-link) prefix_re='\]\([^)]*$' ;;
-  # A code span is closed as well as opened, so both sides are checked: the
-  # text before must open one and the text after must close it. The left test
-  # alone would also match from a CLOSING backtick, and rewrite a link target
-  # that follows a code span on the same line.
   backtick-path)
     prefix_re='`[^`]*$'
     suffix_re='^[^`]*`'
     ;;
   raw-url) prefix_re='raw\.githubusercontent\.com[^ )"'"'"']*$' ;;
   github-url) prefix_re='github\.com[^ )"'"'"']*$' ;;
-  # `plain` is the residue form, so it is anchored by exclusion: it edits the
-  # occurrences no shaped form covers. Without that, a `plain` row on a line
-  # that also carries a link would rewrite the link target too, which is the
-  # frozen half on a tier that allows prose and not paths.
   plain) exclude_prefix_re='(\]\([^)]*|`[^`]*|https?://[^ )"'"'"']*)$' ;;
   *) ;;
   esac
   awkerr="$ROOT/$file.err.$$"
   TEMPS+=("$tmp" "$awkerr")
-  # ENVIRON[], not `-v`. A `-v` assignment is not a transparent channel: POSIX
-  # has it undergo escape processing, so gawk turns `\]\([^)]*$` into
-  # `]([^)]*$` and dies on the unmatched `(`, while mawk passes unknown escapes
-  # through untouched. A suite run on mawk alone is green over a script that
-  # cannot rewrite a single markdown link on a gawk machine. ENVIRON[] hands
-  # the bytes over verbatim on both.
   if ! AR_LN="$lineno" AR_FROM="$from" AR_TO="$to" AR_ANCHORED="$anchored" \
     AR_PREFIX_RE="$prefix_re" AR_SUFFIX_RE="$suffix_re" \
     AR_EXCLUDE_PREFIX_RE="$exclude_prefix_re" \
@@ -529,8 +433,6 @@ while IFS="$(printf '\t')" read -r file lineno form; do
     msg="$(tr '\n' ' ' <"$awkerr")"
     blocked "cannot rewrite $file:$lineno${msg:+: $msg}"
   fi
-  # A recorded site that matched the pre-flight but substitutes zero times is
-  # reported rather than silently written back unchanged.
   if grep -q '^ZERO$' "$awkerr" 2>/dev/null; then
     printf 'apply-rename: substitution hit zero times, left as found: %s:%s\n' "$file" "$lineno" >&2
     zero_hits=$((zero_hits + 1))
@@ -544,8 +446,6 @@ while IFS="$(printf '\t')" read -r file lineno form; do
 done <<EOF
 $planned
 EOF
-
-# --- regenerate --------------------------------------------------------------
 
 regenerated=""
 while IFS="$(printf '\t')" read -r gpath gcmd; do

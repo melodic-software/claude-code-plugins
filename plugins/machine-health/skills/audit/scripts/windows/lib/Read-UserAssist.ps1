@@ -32,8 +32,6 @@ $script:UserAssistRecordLength = 72
 $script:UserAssistLastRunOffset = 60
 $script:UserAssistSkippedProperty = @('PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider')
 
-# Known-folder GUID -> the Environment.SpecialFolder it names, plus a sub-path
-# where the folder has no SpecialFolder of its own.
 $script:UserAssistKnownFolder = @{
     '{6D809377-6AF0-444B-8957-A3773F02200E}' = @('ProgramFiles', '')
     '{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}' = @('ProgramFilesX86', '')

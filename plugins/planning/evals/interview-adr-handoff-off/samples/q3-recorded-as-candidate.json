@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Open-question register\n\n- Q1 | answered | round 1 | How many delivery attempts per event? | accepted: five attempts in total\n- Q3 | answered | round 2 | What identifier goes in the X-Event-Id header partners deduplicate retries on? | accepted: a UUIDv7 minted at enqueue; ADR candidate (domain_docs: off): the outbox bigint row id was weighed and rejected\n- Q4 | answered | round 2 | Who is alerted when an event exhausts its attempts? | accepted: the integrations chat channel\n",
+      "why": "the Q3 row records the ADR candidate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Open-question register\n\n- Q3 | answered | round 2 | What identifier goes in the X-Event-Id header partners deduplicate retries on? | accepted: a UUIDv7 minted at enqueue\n- Q4 | answered | round 2 | Who is alerted when an event exhausts its attempts? | accepted: the integrations chat channel\n",
+      "why": "Q3 recorded with no ADR candidate note"
+    },
+    {
+      "answer": "- Q3 | answered | round 2 | X-Event-Id | accepted: UUIDv7\n- Q4 | answered | round 2 | alerting | accepted: integrations channel; ADR candidate\n",
+      "why": "the note sits on another row"
+    }
+  ]
+}

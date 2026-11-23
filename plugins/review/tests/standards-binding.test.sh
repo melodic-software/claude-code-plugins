@@ -20,7 +20,6 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# --- binding reference present in every consuming surface -------------------
 for f in "$GATE" "$CRITERIA" "$SETUP"; do
   if grep -q "reference/standards-contract.md" "$f"; then
     ok "binding reference present in ${f#"$PLUGIN_DIR/"}"
@@ -29,7 +28,6 @@ for f in "$GATE" "$CRITERIA" "$SETUP"; do
   fi
 done
 
-# --- criteria.md points at the ladder instead of restating it ---------------
 if grep -q "Resolution ladder" "$CRITERIA"; then
   ok "criteria.md points at the binding's Resolution ladder section"
 else
@@ -46,14 +44,12 @@ for phrase in "present at the resolution root" "exit without interview"; do
   fi
 done
 
-# --- Step 1 item 3 rewired through the index (all modes inherit) ------------
 if grep -q "What conventions apply?.*standards index" "$GATE"; then
   ok "quality-gate Step 1 conventions item routes through the standards index"
 else
   fail "quality-gate Step 1 'What conventions apply?' lost its standards-index routing"
 fi
 
-# --- setup skill keeps its manual-only invocation shape ---------------------
 if [[ "$(grep -c "^disable-model-invocation: true" "$SETUP")" -eq 1 ]]; then
   ok "setup skill is user-invoked only (disable-model-invocation: true)"
 else

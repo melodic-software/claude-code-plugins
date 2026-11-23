@@ -49,8 +49,6 @@ run_rc() {
   printf '%d' "$?"
 }
 
-# --- fixtures -------------------------------------------------------------
-
 # alpha: 3 skills, every claim correct, in several grammars.
 make_skill alpha one
 make_skill alpha two
@@ -148,8 +146,6 @@ make_skill kappa b
 readme kappa \
   'A Claude Code plugin for overlapping grammars. It ships' \
   'two skills, one concern: matching two forms at once.'
-
-# --- assertions -----------------------------------------------------------
 
 out="$(run)"
 

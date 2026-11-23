@@ -37,7 +37,8 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ACTIONS_BOT_ID, NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL } from "../lib/lane-vocabulary.mjs";
 

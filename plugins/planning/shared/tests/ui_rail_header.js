@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// The owner's polish asks of 2026-10-21, against `share.sh ensure-running` with the fake cloudflared, in a session
-// past its first round: in the question rail every round's label starts at one x, at 1440x900 and on a 390x844 phone,
-// a round with something done showing a check and one with nothing done an empty ring in the same slot, both hidden
-// from screen readers (the label says the count); on the phone the question header keeps the arrows on the position's
-// row and the host's Purpose and Ask someone (then Change who) together on one row, each a 44 px target, with a long
-// "Asked of" name following them and nothing past the screen, while at 1440 the header stays one row; and the
-// owner's Approve all in Proposed counts the new proposals in its confirm, makes each a question in the next round,
-// leaves one that arrived after the confirm in New, and is never offered to a guest.
-//   node plugins/planning/shared/tests/ui_rail_header.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the owner's asks (every rail label lines up; one tidy phone header; Approve All with a
-// confirm naming how many), WCAG 2.5.5 Target Size (44 x 44 CSS px), the 1 px tolerance the layout suites use, and the
-// texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
@@ -24,15 +11,12 @@ const Q4 = "What should the receipt email say?";
 const IDEAS = ["Ask how refunds should work", "Ask which delivery slots matter"], LATE = "Arrived after the confirm";
 const LONG = "Bartholomew Fitzgerald-Montgomery";
 
-/** The visible round toggles in the rail: each label's left edge, its slot's width, and whether the slot is a check or a ring. */
 const railRows = async page => ({ still: await settled(page, { rects: true }), rows: await page.evaluate(() => [...document.querySelectorAll(".vf-round .vf-rtoggle")].filter(t => t.getClientRects().length).map(t => {
   const slot = t.querySelector(".vf-rcheck"), l = t.querySelector(".vf-rlabel"), svg = slot?.querySelector("svg");
   return { label: l.textContent, x: l.getBoundingClientRect().left, slot: slot?.getBoundingClientRect().width || 0,
     check: !!svg && svg.getClientRects().length > 0, ring: !!slot && slot.classList.contains("vf-rcheck-none"), hidden: slot?.getAttribute("aria-hidden") };
 })) });
 
-/** The question header's boxes: the position, the arrows, the purpose select, the host's who button and the chip,
- *  read once the page holds still. */
 const header = async page => ({ still: await settled(page, { rects: true }), ...await page.evaluate(() => {
   const box = el => { if (!el || !el.getClientRects().length) return null; const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: r.height }; };
   const m = document.querySelector(".vf-focus .vf-qmeta");
@@ -51,7 +35,6 @@ async function main() {
   const s = suite("ui_rail_header"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("railhead");
-    // Round 1 sent with one of its two questions decided; round 2 open.
     s.apply(A.dir, [{ op: "set-title", title: "Rail and header checks" }, { op: "open-round", questions: [q("Q1", "Which payment method first?", CHOICE), q("Q2", "Where should the summary sit?")] }]);
     const owner = await rec.open(A.ownerUrl, DESK);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
@@ -64,7 +47,6 @@ async function main() {
     const bart = await rec.open(A.localUrl, DESK);
     const bartPid = await joinAs(bart, LONG);
 
-    // ---------- Approve all: the owner's, counted in its confirm, only what was counted ----------
     for (const t of IDEAS) await ann.evaluate(t => window.Core.idea(t), t);
     await until(owner, n => (window.Core.state.ideas || []).filter(i => i.status === "new").length === n, IDEAS.length);
     await owner.locator(".vf-proprow", { hasText: "Proposed" }).click();
@@ -73,7 +55,7 @@ async function main() {
     }), await owner.evaluate(() => document.querySelector(".vf-prop-all")?.textContent));
     await owner.locator(".vf-prop-all").click();
     ok("  behind a confirm that names how many", await until(owner, () => /Approve all 2 proposals\?/.test(document.querySelector("dialog[open]")?.textContent || "")));
-    await ann.evaluate(t => window.Core.idea(t), LATE); // arrives while the confirm is open
+    await ann.evaluate(t => window.Core.idea(t), LATE);
     await until(owner, () => (window.Core.state.ideas || []).filter(i => i.status === "new").length === 3);
     await owner.locator("dialog[open] button", { hasText: /^Approve 2$/ }).click();
     ok("  which makes each counted proposal a question in round 3", await until(owner, ideas => {
@@ -83,7 +65,6 @@ async function main() {
       const fresh = (window.Core.state.ideas || []).filter(i => i.status === "new"); return fresh.length === 1 && fresh[0].text === t;
     }, LATE));
     ok("a guest is never offered Approve all", await ann.evaluate(() => !document.querySelector(".vf-prop-all")?.getClientRects().length));
-    // Round 3 now holds 2 of its 8 (session.py MAX_ROUND), so 6 fit; the server refuses all of a batch that does not.
     const propose = async n => { for (let i = 0; i < n; i++) { await ann.waitForTimeout(1100); await ann.evaluate(t => window.Core.idea(t), `Extra proposal ${i} of ${n}`); } };
     await propose(5);
     ok("with 6 new proposals and room for 6, Approve all 6 can be pressed", await until(owner, () => {
@@ -96,7 +77,6 @@ async function main() {
     }), await owner.evaluate(() => `${document.querySelector(".vf-prop-all")?.textContent} disabled=${document.querySelector(".vf-prop-all")?.disabled} why=${document.querySelector(".vf-prop-all-why")?.textContent}`));
     await owner.keyboard.press("Escape");
 
-    // ---------- the rail: one label x, a check or a ring in every slot ----------
     const ownerPhone = await rec.open(A.ownerUrl, PHONE);
     await until(ownerPhone, () => window.Core.snapshot()?.me?.role === "owner");
     await ownerPhone.locator(".vf-tab", { hasText: "Questions" }).tap();
@@ -110,7 +90,6 @@ async function main() {
       ok("  each slot hidden from screen readers, as the label says the count", rows.every(r => r.hidden === "true"), JSON.stringify(rows));
     }
 
-    // ---------- the phone question header ----------
     await ownerPhone.locator(".vf-q", { hasText: Q4 }).first().tap();
     await until(ownerPhone, t => document.querySelector(".vf-qtext")?.textContent === t, Q4);
     let h = await header(ownerPhone);

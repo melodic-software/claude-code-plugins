@@ -54,7 +54,6 @@ function Get-ProcessSample {
     $startedAt = Get-Date
     $sets = @(Get-Counter -Counter @($counterPaths.Values) -SampleInterval $script:ProcessSampleCounter.SampleInterval `
             -MaxSamples $SampleSeconds -ErrorAction SilentlyContinue)
-    # A counter read that fails early still leaves the CPU deltas a full window.
     $remainingMs = [int]($SampleSeconds * 1000 - ((Get-Date) - $startedAt).TotalMilliseconds)
     if ($remainingMs -gt 0) { Start-Sleep -Milliseconds $remainingMs }
     $second = Get-ProcessSnapshot

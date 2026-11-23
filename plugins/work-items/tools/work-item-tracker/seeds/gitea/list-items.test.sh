@@ -10,7 +10,6 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" --state
@@ -32,7 +31,6 @@ rc="$(gitea_run "$S" --repo "other/repo")"
 assert_eq "undeclared --repo → exit 2" "2" "$rc"
 assert_contains "refusal names the declared scope list" "$(gitea_err)" "config.gitea.scopes"
 
-# --- the single declared scope is the default target ---
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'one')]"
@@ -70,7 +68,6 @@ assert_eq "mixed issue/PR page → exit 0" "0" "$rc"
 assert_eq "the pull request is dropped" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_eq "the issue survives" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
 
-# --- blocker counts are per item, and count OPEN blockers only ---
 gitea_reset_routes
 gitea_seed "/issues/12/dependencies" 200 "$(jq -cn '[{number:1,state:"open"},{number:2,state:"closed"}]')"
 gitea_seed "/dependencies" 200 '[]'
@@ -79,7 +76,6 @@ rc="$(gitea_run "$S")"
 assert_eq "blocked item listed → exit 0" "0" "$rc"
 assert_eq "blocked_by_count is per item and open-only" "1" "$(jq -r '.items[0].blocked_by_count' <<<"$(gitea_out)")"
 
-# --- an empty repository is an empty envelope, never an error ---
 gitea_reset_routes
 gitea_seed "/issues?" 200 '[]'
 rc="$(gitea_run "$S")"
@@ -101,7 +97,6 @@ assert_eq "paged listing → exit 0" "0" "$rc"
 assert_eq "all three items collected across pages" "3" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_contains "a second page was requested" "$(gitea_requests)" "page=2"
 assert_contains "the configured page size is honored" "$(gitea_requests)" "limit=2"
-# A third page must NOT be requested: page 2 came back short.
 if [[ "$(gitea_requests)" == *"page=3"* ]]; then
   fail "pagination stops on a short page" "no page=3" "page=3 requested"
 else
@@ -196,8 +191,6 @@ assert_eq "a clamped short page does not end the walk → exit 0" "0" "$rc"
 assert_eq "both items are collected" "2" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_contains "page 2 was requested" "$(gitea_requests)" "page=2"
 
-# Without the header the short-page heuristic still applies, unchanged — one page, no
-# speculative extra request.
 gitea_reset_routes
 gitea_seed "/issues?state=open&type=issues&page=1" 200 \
   '[{"number":1,"title":"one","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/1","repository":{"full_name":"acme/web"}}]'

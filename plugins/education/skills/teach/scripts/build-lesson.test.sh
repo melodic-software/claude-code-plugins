@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the teach codebase-mode lesson builder: hostile
-# repository text renders as inert text, the concept meta tag carries the raw
-# name escaped, and the page passes the shared validator.
-#
-#   bash plugins/education/skills/teach/scripts/build-lesson.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 

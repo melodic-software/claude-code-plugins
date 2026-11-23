@@ -15,7 +15,6 @@ BeforeAll {
     $script:Root = [System.IO.Path]::Combine($TestDrive, 'User Data')
     $script:InstallDir = [System.IO.Path]::Combine($TestDrive, 'Program Files', 'Browser', 'Application')
 
-    # Mock bodies reach the fake files by closure.
     $script:Fake = @{ files = @{}; sizes = @{}; appPath = $null }
     $fake = $script:Fake
     Set-Item -Path function:Get-FakeFile -Value ({ param([string] $Path) $fake['files'][$Path] }.GetNewClosure())

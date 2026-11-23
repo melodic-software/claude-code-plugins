@@ -71,7 +71,6 @@ EOF
 LEASE_JSON='{"schema_version":"1.0","holder":"tester","acquired_at":"2020-01-01T00:00:00Z","renewed_at":"2020-01-01T00:00:00Z","ttl_hours":24,"lease_comment_id":1}'
 MARKER_LINE="${WIT_LEASE_MARKER}${LEASE_JSON} -->"
 
-# Happy path (real wit_fm_set): both writes land and the helper reports success.
 OK_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$OK_FILE"
 wit_claim_write "$OK_FILE" "$MARKER_LINE" '["tester"]'

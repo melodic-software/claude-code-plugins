@@ -1,25 +1,8 @@
 #!/usr/bin/env node
-// PreToolUse guard on the Artifact tool: deny publishing an HTML page whose content
-// security policy names a loopback connect-src. That is a connected page built with
-// --connect (a plugin's lib/view-builder.mjs): it reaches a session bridge on this machine, so
-// published it is dead weight on claude.ai and leaks the local port.
-//
-// Detection reads the file content, not its path, mode or builder, so a connected page
-// from any builder is caught. Checked: the `file_path` and every HTML entry in `files`.
-// Everything else passes: a call with no file (read, list, open, quickstart, a type_url
-// create), a non-HTML asset, a page without that directive, and a file that cannot be
-// read (the Artifact tool fails on it anyway).
-//
-// Fail-open: a malformed payload or any internal error exits 0 with no output.
-// Kill switch: userConfig connected_page_guard_enabled, read via its hook-process mirror.
-// Option (a), an approval-marker publish gate, is not built here (#7956).
-
 import { closeSync, openSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Each connect-src source list, up to the directive's end; quoted keywords stay in it.
 const CONNECT_SRC = /connect-src\s+([^;"<>]*)/gi;
-// A source's host: scheme and path dropped, a bracketed IPv6 literal kept whole.
 const SOURCE_HOST = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(\[[^\]]*\]|[^/:?#]*)/i;
 const LOOPBACK_HOST = /^(?:localhost|(?:[^.]+\.)+localhost|0\.0\.0\.0|127(?:\.\d{1,3}){0,3}|\[(?:::1|(?:0{1,4}:){7}0{0,3}1|::ffff:127(?:\.\d{1,3}){3})\])$/i;
 const HTML_NAME = /\.html?$/i;

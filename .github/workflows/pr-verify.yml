@@ -310,9 +310,6 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a longer one continues on
-          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
-          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -490,31 +487,7 @@ jobs:
             echo "::error::the chunk count is malformed"
             exit 1
           fi
-          template=$(<.base/.github/scripts/pr-verify/prompt.md)
-          for k in $(seq "$CHUNKS"); do
-            prompt=$template
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
-            prompt=${prompt//DIFF_PARTS/$parts}
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//PR_FILE/$DATA/pr.json}
-            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
-            note=
-            if [ "$CHUNKS" -gt 1 ]; then
-              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
-              # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-              manifest=$(printf '  - `%s`\n' "$DATA"/manifest/part-*.txt)
-              note=${note//MANIFEST_PARTS/$manifest}
-              note=${note//DATA_DIR/$DATA}
-              note=${note//CHUNK_INDEX/$k}
-              note=${note//CHUNK_COUNT/$CHUNKS}
-              note=$'\n'$note
-            fi
-            prompt=${prompt//CHUNK_NOTE/"$note"}
-            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
-          done
+          node .base/.github/scripts/pr-verify/render-prompt.mjs
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -2188,9 +2161,9 @@ jobs:
   # check-intent's from a fresh checkout but for the credential, the reads
   # it takes from check-intent, its own leg checks and the
   # key-only steps (handing the reads on, the credit gate, the credit-stop
-  # and probing markers); workflow.test.mjs holds the rest equal, so the
-  # trigger gate, the kill switch and the hardening run again. Only this
-  # job references the subscription token.
+  # and probing markers); scripts/sync-credential-legs.mjs renders the rest
+  # from check-intent's, so the trigger gate, the kill switch and the
+  # hardening run again. Only this job references the subscription token.
   check-intent-subscription:
     name: Check Intent Subscription
     needs: check-intent
@@ -2349,9 +2322,6 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a longer one continues on
-          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
-          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -2428,31 +2398,7 @@ jobs:
             echo "::error::the chunk count is malformed"
             exit 1
           fi
-          template=$(<.base/.github/scripts/pr-verify/prompt.md)
-          for k in $(seq "$CHUNKS"); do
-            prompt=$template
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
-            prompt=${prompt//DIFF_PARTS/$parts}
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//PR_FILE/$DATA/pr.json}
-            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
-            note=
-            if [ "$CHUNKS" -gt 1 ]; then
-              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
-              # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-              manifest=$(printf '  - `%s`\n' "$DATA"/manifest/part-*.txt)
-              note=${note//MANIFEST_PARTS/$manifest}
-              note=${note//DATA_DIR/$DATA}
-              note=${note//CHUNK_INDEX/$k}
-              note=${note//CHUNK_COUNT/$CHUNKS}
-              note=$'\n'$note
-            fi
-            prompt=${prompt//CHUNK_NOTE/"$note"}
-            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
-          done
+          node .base/.github/scripts/pr-verify/render-prompt.mjs
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -4160,9 +4106,6 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a longer one continues on
-          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
-          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -4240,31 +4183,7 @@ jobs:
             echo "::error::the chunk count is malformed"
             exit 1
           fi
-          template=$(<.base/.github/scripts/pr-verify/prompt.md)
-          for k in $(seq "$CHUNKS"); do
-            prompt=$template
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
-            prompt=${prompt//DIFF_PARTS/$parts}
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//PR_FILE/$DATA/pr.json}
-            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
-            note=
-            if [ "$CHUNKS" -gt 1 ]; then
-              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
-              # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-              manifest=$(printf '  - `%s`\n' "$DATA"/manifest/part-*.txt)
-              note=${note//MANIFEST_PARTS/$manifest}
-              note=${note//DATA_DIR/$DATA}
-              note=${note//CHUNK_INDEX/$k}
-              note=${note//CHUNK_COUNT/$CHUNKS}
-              note=$'\n'$note
-            fi
-            prompt=${prompt//CHUNK_NOTE/"$note"}
-            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
-          done
+          node .base/.github/scripts/pr-verify/render-prompt.mjs
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 

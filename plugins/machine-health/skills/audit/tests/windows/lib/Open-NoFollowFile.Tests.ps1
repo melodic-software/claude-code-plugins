@@ -90,7 +90,6 @@ Describe 'Open-NoFollowFile and Get-FileIdentity' -Tag 'lib' {
         $long.Length | Should -BeGreaterThan 260
         $shortId = (Get-IdentityOf $script:file).FileId
 
-        # A rename on one volume keeps the file record, so the ID must not change.
         [System.IO.File]::Move($script:file, $long)
 
         (Get-IdentityOf $long).FileId | Should -BeExactly $shortId

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for skill-reference-verify.sh (guardrails plugin).
-#
-# Black-box subprocess invocation. Builds a synthetic marketplace working tree so
-# the plugins-root and plugin-scope gates have both a hit and a miss to
-# distinguish, then feeds a PostToolUse Write|Edit payload on stdin.
-
 # shellcheck disable=SC2016
 # Every fixture below is markdown fed to the hook as literal data, and backticks
 # are the code-span delimiters the hook scans for — single quotes are required so
@@ -22,17 +16,8 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 unset CLAUDE_PROJECT_DIR
 
-# hook::buffer_stdin bounds its fd0 read at CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT
-# seconds, default 2, and a timeout makes an advisory hook exit 0 silently. A
-# single invocation costs 10-20 s of wall time on a loaded Windows/Git Bash box, so
-# the default bound produces empty output and a false FAIL that looks like a logic
-# defect. Raised here because these cases test detection, not the read bound.
 export CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30
 
-# --- Synthetic marketplace ---------------------------------------------------
-# Two plugins. `alpha`'s manifest name matches its directory. `beta`'s manifest
-# name deliberately DIVERGES from its directory (`beta-dir`), which is what
-# proves resolution goes through the manifest rather than the directory listing.
 REPO="$TEST_TMPDIR/market"
 mkdir -p "$REPO"
 git -C "$REPO" init -q
@@ -43,7 +28,6 @@ mk_plugin() {
   MSYS_NO_PATHCONV=1 jq -n --arg n "$name" '{name:$n,version:"0.1.0"}' \
     >"$REPO/plugins/$dir/.claude-plugin/plugin.json"
 }
-# mk_skill <plugin-dir> <skill-dir> [frontmatter-name]
 mk_skill() {
   local pdir="$1" sdir="$2" fname="${3:-}"
   mkdir -p "$REPO/plugins/$pdir/skills/$sdir"
@@ -63,9 +47,7 @@ mk_skill() {
 mk_plugin alpha alpha
 mk_skill alpha setup
 mk_skill alpha audit
-# Command name comes from frontmatter, not the directory.
 mk_skill alpha legacy-dir renamed-command
-# Quoted frontmatter name must resolve identically.
 mk_skill alpha quoted-dir '"quoted-name"'
 
 mk_plugin beta-dir beta
@@ -76,14 +58,8 @@ TARGET="$REPO/notes.md"
 
 GUARD_UNDER_TEST="$HOOK"
 
-# HOOK, REPO and TARGET above are the caller contract for `run`, `run_edit`,
-# `run_payload` and `parity` in guardrails-test-helpers.sh; HOOK_OVERRIDE lets a
-# case point them at a stub hook and stays unset elsewhere.
 
-# --- The run helpers must carry the hook's exit code out ---------------------
 assert_run_helpers_propagate_exit
-
-# ============================ MUST FIRE =====================================
 
 run 'Run `/alpha:nonexistent` next.'
 assert_exit "unresolved skill → exit 0 (advisory)" 0 "$?"
@@ -99,13 +75,9 @@ assert_contains "two unresolved → manifest-named plugin resolves to its real d
 run_edit 'Now cites `/alpha:vanished`.'
 assert_contains "Edit hunk scanned via new_string" "$OUT" "  /alpha:vanished"
 
-# The advisory must state its tier — the issue this guard ships under requires
-# the third guard never read as deterministic.
 run 'Run `/alpha:nonexistent`.'
 assert_absent "advisory carries no verdict trailer" "$OUT" "Detect-then-judge"
 assert_contains "advisory exempts a deliberate reference" "$OUT" "A reference kept on purpose"
-
-# Repro-first regressions for review findings on #1284.
 
 # A bare directory under skills/ is NOT a skill. Without a SKILL.md there is no
 # command, so the advisory must still fire — the old directory-only test
@@ -114,8 +86,6 @@ mkdir -p "$REPO/plugins/alpha/skills/ghost"
 run 'Run `/alpha:ghost`.'
 assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
   "  /alpha:ghost"
-# Naming the searched directories must not have changed how the conventional
-# layout reads — one root, rendered exactly as it always was.
 assert_contains "a plugin declaring no paths still reads as plugins/<plugin>/skills/" "$OUT" \
   "(no such skill under plugins/alpha/skills/)"
 
@@ -135,40 +105,31 @@ assert_contains "renamed skill's directory name is NOT an alias → fires" "$OUT
 run 'Current ref `/alpha:renamed-command`.'
 assert_silent "the declared frontmatter name still resolves" "$OUT"
 
-# A skill declaring no frontmatter name answers to its directory name.
 run 'Run `/alpha:setup`.'
 assert_silent "no frontmatter name → directory name is the command" "$OUT"
 
-# An invocation carrying arguments is the common form in this repo. The reference
-# is the leading token of the span, not the whole span.
 run 'Run `/alpha:ghost-arg --apply` now.'
 assert_contains "argument-bearing invocation → leading token extracted" "$OUT" \
   "  /alpha:ghost-arg"
 run 'Run `/alpha:audit --dry-run <target>`.'
 assert_silent "argument-bearing invocation of a real skill → silent" "$OUT"
 
-# ============================ MUST STAY QUIET ===============================
-
 run 'Run `/alpha:setup` and `/alpha:audit` first.'
 assert_exit "resolving skills → exit 0" 0 "$?"
 assert_silent "resolving skills → silent" "$OUT"
 
-# Manifest name diverges from directory name; the reference uses the manifest name.
 run 'Run `/beta:check`.'
 assert_silent "plugin resolved via manifest name, not directory name → silent" "$OUT"
 
-# Frontmatter name diverges from the skill directory name.
 run 'Run `/alpha:renamed-command`.'
 assert_silent "skill resolved via frontmatter name → silent" "$OUT"
 
 run 'Run `/alpha:quoted-name`.'
 assert_silent "skill resolved via quoted frontmatter name → silent" "$OUT"
 
-# PLUGIN-SCOPE GATE: this repo does not own the plugin, so it has no authority.
 run 'Install `/some-other-market:thing` from elsewhere.'
 assert_silent "unowned plugin → not adjudicated" "$OUT"
 
-# A reference to a directory that exists but carries no manifest is not a plugin.
 mkdir -p "$REPO/plugins/not-a-plugin/skills/x"
 run 'Run `/not-a-plugin:x`.'
 assert_silent "directory without a manifest → not a plugin, silent" "$OUT"
@@ -182,7 +143,6 @@ assert_silent "URL fragment and time → silent" "$OUT"
 run 'Uppercase `/Alpha:Setup` does not match the command grammar.'
 assert_silent "uppercase reference → silent (not command-shaped)" "$OUT"
 
-# PLUGINS-ROOT GATE: outside a marketplace repo there is no local authority.
 PLAIN="$TEST_TMPDIR/plain"
 mkdir -p "$PLAIN"
 git -C "$PLAIN" init -q
@@ -193,7 +153,6 @@ RC=$?
 assert_exit "no plugins/ tree → exit 0" 0 "$RC"
 assert_silent "no plugins/ tree → silent (no local authority)" "$OUT"
 
-# A plugins/ directory with no manifests is not a marketplace either.
 EMPTY="$TEST_TMPDIR/empty-market"
 mkdir -p "$EMPTY/plugins/whatever"
 git -C "$EMPTY" init -q
@@ -204,7 +163,6 @@ RC=$?
 assert_exit "plugins/ with no manifests → exit 0" 0 "$RC"
 assert_silent "plugins/ with no manifests → silent" "$OUT"
 
-# Non-markdown files are out of scope.
 SCRIPT="$REPO/tool.sh"
 : >"$SCRIPT"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$SCRIPT" 'echo `/alpha:nonexistent`')" 2>&1)
@@ -219,9 +177,6 @@ RC=$?
 assert_exit "file outside project dir → exit 0" 0 "$RC"
 assert_silent "file outside project dir → silent" "$OUT"
 
-# A CHANGELOG is an append-only historical record — a rename entry must keep
-# naming the old command, so the guard must not adjudicate one. Measured cause of
-# 89% of this guard's findings on the marketplace corpus.
 CL="$REPO/plugins/alpha/CHANGELOG.md"
 : >"$CL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$CL" 'Renamed the `/alpha:nonexistent` skill to `/alpha:audit`.')" 2>&1)
@@ -229,18 +184,12 @@ RC=$?
 assert_exit "CHANGELOG.md → exit 0" 0 "$RC"
 assert_silent "CHANGELOG.md is historical by contract → silent" "$OUT"
 
-# The exclusion is basename-scoped, not a substring: a file merely mentioning the
-# word must still be adjudicated.
 NOTCL="$REPO/docs-CHANGELOG-notes.md"
 : >"$NOTCL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NOTCL" 'Run `/alpha:nonexistent`.')" 2>&1)
 assert_contains "CHANGELOG-in-name but not a CHANGELOG → still adjudicated" "$OUT" \
   "  /alpha:nonexistent"
 
-# PARTIAL-EDIT RECONSTRUCTION. An Edit may replace an arbitrary substring, so a
-# hunk can be a bare word with no command in it. The edit is already applied by
-# PostToolUse time, so the containing reference is recovered from disk, anchored to
-# the hunk's own text.
 PARTIAL="$REPO/partial.md"
 printf 'Run `/alpha:ghost-partial` to begin.\n' >"$PARTIAL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'ghost-partial')" 2>&1)
@@ -249,8 +198,6 @@ assert_exit "bare-word Edit hunk → exit 0" 0 "$RC"
 assert_contains "bare-word Edit hunk → containing reference recovered" "$OUT" \
   "  /alpha:ghost-partial"
 
-# Diff-scope is preserved: a PRE-EXISTING unrelated broken reference on a
-# neighboring line must NOT fire just because reconstruction read from disk.
 PARTIAL2="$REPO/partial2.md"
 printf 'Stale `/alpha:untouched-ghost` here.\nRun `/alpha:ghost-two` to begin.\n' >"$PARTIAL2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'ghost-two')" 2>&1)
@@ -351,24 +298,16 @@ patch_one() {
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$UNTOUCHED")" 2>&1)
 RC=$?
 assert_exit "replace_all + structuredPatch → exit 0" 0 "$RC"
-# Asserted with the trailing backtick so the needle cannot be satisfied by the
-# `/alpha:ghost-old` line this case exists to exclude — otherwise the positive and
-# the negative assertion below overlap, and only the pair is load-bearing.
 assert_contains "replace_all + patch → the WRITTEN reference is still reported" \
   "$OUT" '  /alpha:ghost (no such skill'
 assert_absent "replace_all + patch → the UNTOUCHED reference is not reported" \
   "$OUT" "/alpha:ghost-old"
 
-# LIVENESS. The identical payload against a TRUNCATED, EMPTY target. Silence here
-# is what proves the finding above came from READING THE FILE and not from the
-# payload text — a filter that merely echoed `new_string` would speak either way.
 EMPTYT="$REPO/replall-empty.md"
 : >"$EMPTYT"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$EMPTYT")" 2>&1)
 assert_silent "replace_all + patch → empty target yields nothing at all" "$OUT"
 
-# The filter must not cost a real multi-site finding: when the patch says BOTH
-# lines were written, both references survive it.
 BOTHW="$REPO/replall-both.md"
 printf 'First `/alpha:ghost-one` here.\nSecond `/alpha:ghost-two` there.\n' >"$BOTHW"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_patch_json "$BOTHW" 'ghost' \
@@ -392,15 +331,9 @@ printf 'Run  `/alpha:ghost`  now.\nLegacy `/alpha:ghost-old` stays.\n' >"$REFLOW
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$REFLOW")" 2>&1)
 assert_contains "reflowed line → the written reference still surfaces" \
   "$OUT" '  /alpha:ghost (no such skill'
-# ...and the suppression is not simply switched off by the reflow: the untouched
-# reference on an unreformatted line is still excluded in the same run.
 assert_absent "reflowed line → the untouched reference is still suppressed" \
   "$OUT" "/alpha:ghost-old"
 
-# The abstain rule. When the witness recognizes NO occurrence — a formatter that
-# rewrote more than spacing — Gate 3 must fall back to the unfiltered set rather
-# than mute the advisory entirely. Both references come back, which is exactly the
-# pre-gate behavior and the direction this guard accepts.
 STALE="$REPO/replall-stale.md"
 printf -- '- Run `/alpha:ghost` now (moved).\nLegacy `/alpha:ghost-old` stays.\n' >"$STALE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$STALE")" 2>&1)
@@ -409,16 +342,12 @@ assert_contains "stale witness → written reference still reported" \
 assert_contains "stale witness → gate abstains rather than muting" \
   "$OUT" "  /alpha:ghost-old"
 
-# A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \
   "  /alpha:ghost-three"
 assert_absent "full-command hunk → no disk reconstruction leakage" "$OUT" \
   "untouched-ghost"
 
-# An Edit can replace PART of a segment: `up` -> `host` turns `/alpha:setup` into
-# `/alpha:sethost`. The hunk token is then a substring of the segment, not the
-# whole of it, so the filter must match on substring.
 SUBST="$REPO/substr.md"
 printf 'Run `/alpha:sethost` to begin.\n' >"$SUBST"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SUBST" 'host')" 2>&1)
@@ -440,7 +369,6 @@ assert_contains "mixed hunk → direct reference reported" "$OUT" \
 assert_contains "mixed hunk → reconstructed reference also reported" "$OUT" \
   "  /alpha:ghost-mixed"
 
-# Reconstruction must not double-report a reference reachable both ways.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$MIXED" 'Run `/alpha:ghost-mixed` again.')" 2>&1)
 assert_contains "reference reachable both ways → reported" "$OUT" \
   "  /alpha:ghost-mixed"
@@ -462,8 +390,6 @@ RC=$?
 assert_exit "unique anchor beside an untouched reference → exit 0" 0 "$RC"
 assert_silent "a reference the anchor does not overlap is not reported" "$OUT"
 
-# The same line, edited INSIDE the reference this time: overlap must still admit
-# it, or the fix above would have bought scope by going blind.
 ONELINE2="$REPO/oneline2.md"
 printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updated today.\n' \
   >"$ONELINE2"
@@ -495,10 +421,6 @@ assert_contains "two-character Edit hunk → containing reference recovered" "$O
 # command — so this case fails by going SILENT, the direction that would otherwise
 # hide.
 UTF8="$REPO/utf8.md"
-# The prose is French only to get multibyte bytes cheaply; the words carry no
-# meaning for the assertion. One French preposition was swapped out because the
-# spell-check lane reads it as a truncated English word — a throwaway fixture is
-# not worth a global dictionary entry. Keep any replacement wording clear of it.
 printf 'Préambule des conventions — rien à voir ici.\nExécutez `/alpha:ghost-cafe` après le déploiement — voilà.\n' \
   >"$UTF8"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$UTF8" 'ghost-cafe')" 2>&1)
@@ -559,20 +481,10 @@ for _cand in 'U+3000 IDEOGRAPHIC SPACE:\343\200\200' \
   fi
 done
 if [[ -z "$SEP" ]]; then
-  # This is the ONLY case that separates `local +x LC_ALL=C` from a plain `local
-  # LC_ALL=C` — every other case in this file passes identically under both. So a
-  # skip here silently retires the single guard this fix exists to add, and a green
-  # run would say nothing about it. Both platforms this was developed on select
-  # U+3000, so this branch is expected to be DEAD in CI: a skip appearing in a log
-  # is itself the finding, not a shrug. It stays a skip rather than a failure only
-  # so a host with no UTF-8 locale, or a libc that classifies no non-ASCII space as
-  # `[[:space:]]`, does not block a developer over something this hook does not own.
   ok "SKIP locale-contrast guard — NO SEPARATOR DISCRIMINATES on this host, the +x guard did NOT run ($(uname -s), no candidate classified as [[:space:]] under en_US.UTF-8 but not C)"
 else
   SEPDOC="$REPO/sepspace.md"
   printf 'Intro line.\nRun `/alpha:ghost-sep%sarg` now.\n' "$SEP" >"$SEPDOC"
-  # The hunk is a bare SUBSTRING, so the direct scan cannot see the reference and
-  # only reconstruction can report it.
   OUT=$(LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 CLAUDE_PROJECT_DIR="$REPO" \
     bash "$HOOK" <<<"$(edit_json "$SEPDOC" 'ghost-sep')" 2>&1)
   RC=$?
@@ -581,7 +493,6 @@ else
     "$OUT" "  /alpha:ghost-sep"
 fi
 
-# A short anchor is still subject to the uniqueness gate — it buys no scope.
 SHORT2="$REPO/short2.md"
 printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT2" 'xx')" 2>&1)
@@ -618,11 +529,6 @@ else
   bad "1000-line Edit hunk took ${big_elapsed}s, at or past the hook's 30s timeout"
 fi
 
-# The whole-hunk locate is a fast path, not the only one. When the text on disk is
-# no longer the hunk verbatim — another PostToolUse hook reformatting the file
-# between the write and this read is the realistic cause — the per-line walk must
-# still recover the reference. Here a blank line separates two lines the Edit wrote
-# together, so the whole hunk cannot be found and only the lines can.
 SPLIT="$REPO/split.md"
 printf 'First edited line.\n\nSecond line with `/alpha:ghost-split`.\n' >"$SPLIT"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -633,9 +539,6 @@ assert_exit "hunk no longer contiguous on disk → exit 0" 0 "$RC"
 assert_contains "per-line fallback still recovers the reference" "$OUT" \
   "  /alpha:ghost-split"
 
-# A multi-line hunk whose every LINE repeats but whose whole text does not is where
-# the whole-hunk locate is strictly better than the per-line walk: the walk drops
-# every anchor as ambiguous, while the hunk itself names exactly one place.
 PAIR="$REPO/pair.md"
 printf 'shared line\nother\nshared line\ntail with `/alpha:ghost-pair`.\n' >"$PAIR"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -670,9 +573,6 @@ FBIGHUNK="$TEST_TMPDIR/fallback-hunk.txt"
   printf 'ghost-deep\n'
   for ((i = 302; i <= 401; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
 } >"$FBIGHUNK"
-# On disk those two lines read as part of code spans, so the hunk is not contiguous
-# here and the whole-hunk locate cannot match it. Unrelated prose follows, putting
-# the file just under RECONSTRUCT_MAX_CHARS (128 KiB).
 {
   printf 'Opening line with `/alpha:ghost-fallback` in it.\n'
   for ((i = 2; i <= 300; i++)); do printf 'Body line %s of the reformatted passage.\n' "$i"; done
@@ -685,21 +585,11 @@ FBIGHUNK="$TEST_TMPDIR/fallback-hunk.txt"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$FBIG" "$(cat "$FBIGHUNK")")" 2>&1)
 RC=$?
 assert_exit "large file forced onto the fallback path → exit 0" 0 "$RC"
-# The bound ADMITS: the first hunk line is inside the anchor cap, so its reference
-# is still recovered. A cap that had collapsed to nothing would stop guarding while
-# passing every timing check ever written.
 assert_contains "the capped fallback still reports the reference it admits" "$OUT" \
   "  /alpha:ghost-fallback"
-# The bound BINDS: hunk line 301 is far past the cap this file size buys, so its
-# reference is not reached. Asserting the silence is what makes the cap observable
-# without a clock — if the anchor walk ever went unbounded again, this fails.
 assert_absent "the fallback stops at the anchor cap instead of walking the hunk" "$OUT" \
   "  /alpha:ghost-deep"
 
-# Above the cap, reconstruction does not run at all — one scan of a file that size
-# would spend the budget by itself. The direct hunk scan is unaffected, so a
-# COMPLETE reference in the hunk is still reported; only partial-edit recovery
-# stops, which is this guard's permitted failure direction.
 OVER="$REPO/over-cap.md"
 {
   printf 'Complete reference `/alpha:ghost-over` written by this edit.\n'
@@ -714,17 +604,11 @@ assert_exit "file past RECONSTRUCT_MAX_CHARS → exit 0" 0 "$RC"
 assert_contains "the direct scan still reports a complete reference above the cap" "$OUT" \
   "  /alpha:ghost-over"
 
-# ============ MANIFEST-DECLARED SKILL PATHS =================================
-# A manifest may declare `skills` paths, which ADD to the conventional `skills/`
-# directory rather than replacing it. A command loaded from a declared location is
-# real, so reporting it unresolved is a false advisory.
 mk_plugin gamma gamma
 mk_skill gamma conventional
 mkdir -p "$REPO/plugins/gamma/custom/extras/declared"
 printf -- '---\nname: declared\ndescription: x\n---\n' \
   >"$REPO/plugins/gamma/custom/extras/declared/SKILL.md"
-# A declared path may point straight AT a skill directory, not only at a directory
-# of them.
 mkdir -p "$REPO/plugins/gamma/solo"
 printf -- '---\nname: solo-command\ndescription: x\n---\n' \
   >"$REPO/plugins/gamma/solo/SKILL.md"
@@ -738,28 +622,19 @@ assert_silent "skill under a manifest-declared path resolves" "$OUT"
 run 'Run `/gamma:solo-command`.'
 assert_silent "declared path pointing AT a skill directory resolves" "$OUT"
 
-# Declared paths ADD to `skills/`; the conventional directory must still resolve.
 run 'Run `/gamma:conventional`.'
 assert_silent "declared paths add to skills/, they do not replace it" "$OUT"
 
-# The guard must not go blind for a plugin that declares paths — a command in
-# neither location still fires.
 run 'Run `/gamma:nowhere`.'
 assert_contains "declared paths do not suppress a genuinely missing command" "$OUT" \
   "  /gamma:nowhere"
-# The message names WHERE it looked, and the advisory's next line tells the reader
-# to confirm against the tree — so the full rendering is asserted, not its prefix.
-# A prefix match passes on any wrong directory list, which is the whole subject
-# here.
 assert_contains "the advisory names every directory the search covered" "$OUT" \
   "(no such skill under plugins/gamma/skills/, plugins/gamma/custom/extras/, plugins/gamma/solo/)"
 
-# A declared skill's DIRECTORY name is no more an alias than a conventional one's.
 run 'Run `/gamma:solo`.'
 assert_contains "declared skill's directory name is NOT an alias" "$OUT" \
   "  /gamma:solo"
 
-# A string `skills` value is as valid as an array.
 mk_plugin delta delta
 mkdir -p "$REPO/plugins/delta/elsewhere/one"
 printf -- '---\nname: one\ndescription: x\n---\n' \
@@ -769,9 +644,6 @@ MSYS_NO_PATHCONV=1 jq -n '{name:"delta",version:"0.1.0",skills:"./elsewhere/"}' 
 run 'Run `/delta:one`.'
 assert_silent "a string skills value resolves like a one-element array" "$OUT"
 
-# The single-skill plugin layout: a SKILL.md at the plugin root, no `skills/`
-# subdirectory and no `skills` key, auto-loads as one skill named by its
-# frontmatter.
 mk_plugin epsilon epsilon
 printf -- '---\nname: eps-command\ndescription: x\n---\n' >"$REPO/plugins/epsilon/SKILL.md"
 run 'Run `/epsilon:eps-command`.'
@@ -790,27 +662,16 @@ run 'Run `/zeta:zeta-root`.'
 assert_contains "root SKILL.md beside a populated skills/ is not auto-loaded" "$OUT" \
   "  /zeta:zeta-root"
 
-# ============================ KILL SWITCH ===================================
-
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false \
   bash "$HOOK" <<<"$(write_json "$TARGET" 'Run `/alpha:nonexistent`.')" 2>&1)
 RC=$?
 assert_exit "kill switch → exit 0" 0 "$RC"
 assert_silent "kill switch → silent" "$OUT"
 
-# ============================ EMPTY STDIN ===================================
-
-# Direct-mode only, and unreachable under the dispatcher by design: run-guards.sh
-# reads stdin once for the whole event and exits 0 on rc 1 before any guard is
-# sourced, so no dispatched payload can reach this arm. run-guards.test.sh pins
-# the dispatcher's own answer ("empty stdin: every guard's empty-stdin skip,
-# taken once"); this pins what the guard does when it runs alone.
 OUT=$(bash "$HOOK" </dev/null 2>&1)
 RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
-
-# ============================ MISSING PREREQUISITE ==========================
 
 # Runtime jq-removal is not portably simulable through an isolated bin dir. Assert
 # the fail-open guard is present via the shared helper; hook::require's own
@@ -876,8 +737,6 @@ rm -f "$REPO/.git/guardrails-skill-index"
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/alpha:missing-too`.')" 2>&1)
-# Counted with the hook's own glob shape (plugins/*/.claude-plugin/plugin.json),
-# so a fixture manifest at another depth never skews the expectation.
 shopt -s nullglob
 FIXTURE_MANIFEST_FILES=("$REPO"/plugins/*/.claude-plugin/plugin.json)
 shopt -u nullglob
@@ -942,12 +801,6 @@ else
 fi
 unset SRV_TEST_REAL_JQ SRV_TEST_JQ_LOG
 
-# ============ DECLARED SKILL PATHS (batched index equivalence) ==============
-# The batched jq must carry each manifest's `skills` key exactly as the
-# per-manifest reads did: an array of paths, a single string path, and none.
-# A skill under a declared path resolves; the same name under an undeclared
-# sibling directory does not, which proves the path set is read from the
-# manifest and not from a directory scan.
 mk_plugin_paths() {
   local dir="$1" name="$2" skills_json="$3"
   mkdir -p "$REPO/plugins/$dir/.claude-plugin"
@@ -995,8 +848,6 @@ MSYS_NO_PATHCONV=1 jq -n '{name:"bslash",version:"0.1.0",skills:".\\extra"}' \
 run 'Use `/bslash:held`.'
 assert_silent "backslash in a declared path: read byte-identical, skill resolves" "$OUT"
 
-# A manifest jq cannot parse still names its plugin by directory, so a reference
-# to a skill under its conventional `skills/` still resolves and stays quiet.
 mkdir -p "$REPO/plugins/broken/.claude-plugin" "$REPO/plugins/broken/skills/works"
 printf '{ not json' >"$REPO/plugins/broken/.claude-plugin/plugin.json"
 : >"$REPO/plugins/broken/skills/works/SKILL.md"
@@ -1006,8 +857,6 @@ assert_silent "malformed manifest: conventional skills/ still resolves → silen
 run 'Use `/gamma:deep` after a malformed sibling manifest.'
 assert_silent "malformed manifest: the other manifests are still read" "$OUT"
 rm -rf "$REPO/plugins/broken"
-
-# ============================ TELEMETRY =====================================
 
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
@@ -1023,15 +872,6 @@ else
   bad "telemetry: no envelope written"
 fi
 
-# ==================== THE SAME VERDICTS UNDER THE DISPATCHER =================
-# Every case above invokes this guard alone. hooks.json ships it under
-# run-guards.sh, where stdin is read once and re-served, the Write/Edit content
-# fields come from the dispatcher's primed jq cache instead of the guard's own
-# jq call, and the guard is `source`d into a subshell rather than exec'd.
-#
-# An advisory guard exits 0 whether or not it found anything, so the exit code
-# alone is not its verdict: the additionalContext document is. `parity` in
-# guardrails-test-helpers.sh asserts both, on both paths.
 parity "dispatched parity: unresolved reference" 'Run `/alpha:nonexistent`.' 0 \
   "  /alpha:nonexistent"
 parity "dispatched parity: resolving reference" 'Run `/alpha:setup`.' 0 ""
@@ -1058,19 +898,15 @@ done
 IDX_PAYLOAD=$(write_json "$IDX_REPO/notes.md" 'Run `/alpha:gone` and `/beta:gone`.')
 IDX_CACHE="$IDX_REPO/.git/guardrails-skill-index"
 
-# One fire against the fixture; the jq shim counts the manifest reads.
 idx_fire() {
   : >"$JQ_LOG"
   OUT=$(CLAUDE_PROJECT_DIR="$IDX_REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" <<<"$IDX_PAYLOAD" 2>&1)
   IDX_JQ=$(grep -c 'INVOKE' "$JQ_LOG" || true)
 }
-# idx_finds <label>: both plugins are indexed, so both references are adjudicated.
 idx_finds() {
   assert_contains "$1: alpha is still adjudicated" "$OUT" "  /alpha:gone"
   assert_contains "$1: beta is still adjudicated" "$OUT" "  /beta:gone"
 }
-# idx_is_whole <file>: two manifests put the header at four lines; the last line
-# is `end <n>` with n equal to the rows between them, and no row looks like one.
 idx_is_whole() {
   local -a l
   local n
@@ -1094,7 +930,6 @@ idx_fire
 idx_finds "index cache: a whole file"
 assert_eq "index cache: a whole file is trusted, no manifest read" 0 "$IDX_JQ"
 
-# Cut after its header: no rows, no sentinel.
 printf '%s\n' "${IDX_GOOD[@]:0:4}" >"$IDX_CACHE"
 idx_fire
 idx_finds "index cache: a file cut after its header is a miss"
@@ -1112,29 +947,23 @@ idx_finds "index cache: a file cut inside its last row is a miss"
 assert_eq "index cache: the file cut inside a row is rebuilt through jq" 1 "$IDX_JQ"
 assert_idx_whole "index cache: the file cut inside a row is rebuilt whole"
 
-# A shorter body under a longer body's sentinel: one row, `end 2`.
 printf '%s\n' "${IDX_GOOD[@]:0:5}" 'end 2' >"$IDX_CACHE"
 idx_fire
 idx_finds "index cache: a count that disagrees with the rows read is a miss"
 assert_eq "index cache: the miscounted file is rebuilt through jq" 1 "$IDX_JQ"
 assert_idx_whole "index cache: the miscounted file is rebuilt whole"
 
-# Two writers leave the later one's sentinel inside the earlier one's rows; the
-# count can still agree by chance, so a sentinel-shaped row is a miss.
 printf '%s\n' "${IDX_GOOD[@]:0:5}" 'end 9' 'end 2' >"$IDX_CACHE"
 idx_fire
 idx_finds "index cache: a sentinel inside the rows is a miss even when the count agrees"
 assert_eq "index cache: the mixed file is rebuilt through jq" 1 "$IDX_JQ"
 
-# A header naming another manifest set is a miss however whole the file is.
 printf '%s\n' "${IDX_GOOD[0]}" /elsewhere/plugin.json "${IDX_GOOD[@]:2}" >"$IDX_CACHE"
 idx_fire
 idx_finds "index cache: a file for another manifest set is a miss"
 assert_eq "index cache: the other-set file is rebuilt through jq" 1 "$IDX_JQ"
 assert_idx_whole "index cache: the other-set file is rebuilt whole"
 
-# A whole file that is not newer than a manifest is stale, and is rebuilt. The
-# last manifest is the one touched, so the check has to look past the first.
 touch "$IDX_REPO/plugins/beta/.claude-plugin/plugin.json"
 idx_fire
 idx_finds "index cache: a file older than the manifests is a miss"
@@ -1143,7 +972,6 @@ assert_idx_whole "index cache: the stale file is replaced whole"
 idx_fire
 assert_eq "index cache: the rebuilt file is newer than the manifests, so it is trusted" 0 "$IDX_JQ"
 
-# Two cold fires at once both report the findings and leave a whole file.
 IDX_BAD=0
 for _ in 1 2 3 4 5; do
   rm -f "$IDX_CACHE"
@@ -1164,20 +992,12 @@ idx_fire
 idx_finds "index cache: the file the concurrent fires left"
 assert_eq "index cache: and it is trusted, so no manifest read runs" 0 "$IDX_JQ"
 
-# A git directory the hook cannot write costs it the index, not a diagnostic on
-# stderr. (Where chmod does not restrict the owner, the write succeeds and the
-# case holds trivially.)
 rm -f "$IDX_CACHE"
 chmod 555 "$IDX_REPO/.git"
 RO_ERR=$(CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" 2>&1 >/dev/null)
 chmod 755 "$IDX_REPO/.git"
 assert_silent "index cache: an unwritable git directory leaves stderr empty" "$RO_ERR"
 
-# ===================== CODEX AND CURSOR MARKETPLACES ========================
-# A marketplace whose plugins carry only a .codex-plugin/ or .cursor-plugin/
-# manifest is still one: its references are judged against the same `name` and
-# `skills` keys. Each runs in its own repository, so no Claude manifest opens
-# the plugins-root gate for it.
 for HOST in codex cursor; do
   REPO="$TEST_TMPDIR/$HOST-market"
   mkdir -p "$REPO/plugins/$HOST-dir/.$HOST-plugin" "$REPO/plugins/$HOST-dir/skills/setup" \

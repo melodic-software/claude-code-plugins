@@ -174,7 +174,6 @@ DOT_CLAUDE="$ROOT/.claude/CLAUDE.md"
 # BINMODE=3 stops gawk on Windows from stripping and re-adding carriage returns,
 # so a CRLF file stays CRLF; a POSIX awk reads it as an ordinary variable.
 
-# analyze <file> : prints "<state> <dx-line-no> <end-line-no> <crlf>".
 analyze() {
   awk -v BINMODE=3 -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v D="$DRAFT_MARKER" \
     -v P="$DX_PREFIX" -v W="$DX_LINE" '
@@ -254,9 +253,6 @@ has_import() {
     }' "$1" 2>/dev/null | grep -E "(^|[[:space:]])$2([[:space:]]|\$)" >/dev/null
 }
 
-# load_report : print load:/add: lines for files that keep AGENTS.md out of
-# context. Sets MISSING_IMPORTS (only these fail check) and LOAD_NOTE (the
-# first finding, worded for a newly created AGENTS.md).
 MISSING_IMPORTS=0
 LOAD_NOTE=""
 load_report() {
