@@ -368,6 +368,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-verify/write-verdict.mjs", "enforcement"],
   [".github/scripts/intake-triage/admit.mjs", "enforcement"],
   [".github/scripts/intake-triage/size-split.mjs", "enforcement"],
+  [".github/scripts/intake-triage/issue-spec.mjs", "enforcement"],
   [".github/actions/select-trusted-text/select-trusted-text.mjs", "enforcement"],
   ["lib/publish-gate.mjs", "enforcement"],
   [".github/recurring-schedule.json", "enforcement"],

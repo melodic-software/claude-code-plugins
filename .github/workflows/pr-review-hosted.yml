@@ -389,6 +389,7 @@ jobs:
         .github/scripts/pr-verify/write-verdict.mjs
         .github/scripts/intake-triage/admit.mjs
         .github/scripts/intake-triage/size-split.mjs
+        .github/scripts/intake-triage/issue-spec.mjs
         .github/actions/select-trusted-text/select-trusted-text.mjs
         lib/publish-gate.mjs
         .github/recurring-schedule.json
