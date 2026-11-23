@@ -19,6 +19,9 @@ import { statusBotSetters } from "./issue-status.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 
+process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
 const json = (relative) => JSON.parse(read(relative));
@@ -687,14 +690,18 @@ test("live config: label-unblocked and sync-status may only write issues", () =>
 
 test("live config: upstream-apply-changelog pushes with contents write only and publishes without it", () => {
   const grant = (activity) => resolveGrant(FILES, { lane: "upstream-apply-changelog", activity, configPath: CONFIG_PATH });
-  assert.deepEqual(grant("apply-changelog-branches"), {
-    effect: "mutate-branch",
-    grant: { contents: "write", "pull-requests": "read", issues: "read" },
-  });
-  assert.deepEqual(grant("publish-changelog-intake"), {
-    effect: "publish-artifact",
-    grant: { contents: "read", "pull-requests": "write", issues: "write" },
-  });
+  for (const activity of ["apply-changelog-branches", "push-native-baseline-branch"]) {
+    assert.deepEqual(grant(activity), {
+      effect: "mutate-branch",
+      grant: { contents: "write", "pull-requests": "read", issues: "read" },
+    }, activity);
+  }
+  for (const activity of ["publish-changelog-intake", "publish-native-baseline-pr"]) {
+    assert.deepEqual(grant(activity), {
+      effect: "publish-artifact",
+      grant: { contents: "read", "pull-requests": "write", issues: "write" },
+    }, activity);
+  }
 });
 
 test("live config: the skill-edit lane pushes with contents write only, publishes without it, and may not merge or label (AL-Q11)", () => {
