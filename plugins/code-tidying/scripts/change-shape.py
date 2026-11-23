@@ -9,13 +9,14 @@ comment-dissolving edit has to make and a test suite can only sample:
                  to apply in a repository with no tests at all.
   DOCSTRING-ONLY Python only: the one difference is removed module, class or
                  function docstrings, every kept one unchanged and in place.
-                 Refused (CODE-CHANGED) when the file could read a docstring
-                 at run time (`__doc__`, `__dict__`, `vars`, `getdoc`,
-                 `getmembers`, `__init_subclass__`, `pydoc`, `doctest`), when
-                 the docstring holds `>>>` examples, when its owner or any
-                 class enclosing it is decorated or has bases or a metaclass,
-                 or when its removal leaves a body empty. Readers in other
-                 files are out of its sight.
+                 Refused (CODE-CHANGED) when the file holds `__doc__` or
+                 `__dict__` in any token, or one of the identifiers `vars`,
+                 `help`, `getdoc`, `getmembers`, `__init_subclass__`, `pydoc`
+                 or `doctest`; when the docstring holds `>>>`; when its owner
+                 or any class enclosing it is decorated or has bases or a
+                 metaclass; when the owner's name appears anywhere but its
+                 own def/class line or directly before `(`; or when removal
+                 leaves a body empty. It reads this one file only.
   RENAME-ONLY    every differing leaf is an identifier and the old->new mapping
                  is consistent. A SHAPE claim, not a safety claim: it knows
                  nothing about shadowing, outer-scope collisions, reflection or
@@ -243,10 +244,11 @@ class Docstring(NamedTuple):
     text: str
     line: int
     refusal: str | None
+    owner: str | None
 
 
 DOC_READERS = frozenset(
-    {"getdoc", "getmembers", "pydoc", "doctest", "vars", "__init_subclass__"}
+    {"getdoc", "getmembers", "help", "pydoc", "doctest", "vars", "__init_subclass__"}
 )
 
 
@@ -267,9 +269,12 @@ def is_docstring(stmt, src: bytes) -> bool:
     return True
 
 
-def python_docstrings(root, src: bytes) -> dict[int, tuple[str, int, str | None]]:
-    """Docstring statement node id -> (text, line, why its removal is refused)."""
-    found: dict[int, tuple[str, int, str | None]] = {}
+def python_docstrings(
+    root, src: bytes
+) -> dict[int, tuple[str, int, str | None, str | None]]:
+    """Docstring statement node id -> (text, line, why its removal is refused,
+    the owner's name, None for the module)."""
+    found: dict[int, tuple[str, int, str | None, str | None]] = {}
     stack = [root]
     while stack:
         node = stack.pop()
@@ -294,8 +299,23 @@ def python_docstrings(root, src: bytes) -> dict[int, tuple[str, int, str | None]
             refusal = "the docstring holds doctest examples"
         else:
             refusal = owner_refusal(node)
-        found[stmt.id] = (text, stmt.start_point[0] + 1, refusal)
+        name = node.child_by_field_name("name")
+        owner = src[name.start_byte : name.end_byte].decode() if name else None
+        found[stmt.id] = (text, stmt.start_point[0] + 1, refusal, owner)
     return found
+
+
+def referenced_as_value(stream, name: str) -> bool:
+    """Whether `name` appears other than as its own def/class name or as the
+    callee of a direct call, which is how a library or a table reaches it."""
+    for i, (kind, text) in enumerate(stream):
+        if kind != "identifier" or text != name:
+            continue
+        defined = i > 0 and stream[i - 1][1] in ("def", "class")
+        called = i + 1 < len(stream) and stream[i + 1][1] == "("
+        if not (defined or called):
+            return True
+    return False
 
 
 def owner_refusal(owner) -> str | None:
@@ -399,6 +419,10 @@ def classify_docstrings(a, b, a_docs, b_docs) -> tuple[str, int, dict] | None:
     for doc in removed:
         if doc.refusal:
             return code_changed(reason=doc.refusal, line=doc.line)
+        if doc.owner and referenced_as_value(a, doc.owner):
+            return code_changed(
+                reason="the owner is referenced as a value", at=doc.owner, line=doc.line
+            )
     return (
         "DOCSTRING-ONLY",
         EXIT_DOCSTRING_ONLY,

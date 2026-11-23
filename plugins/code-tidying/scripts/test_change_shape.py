@@ -312,6 +312,33 @@ class PythonVerdicts(unittest.TestCase):
         self.assertEqual(code, 20, out)
         self.assertIn('"at": "vars"', out)
 
+    def assert_value_reference_refused(self, use: str, owner: str, at: str):
+        before = (
+            f'def {owner}():\n    """Shown as help text."""\n    return 1\n\n{use}\n'
+        )
+        after = before.replace('    """Shown as help text."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn(f'"at": "{at}"', out)
+
+    def test_function_passed_to_typer_run_is_code_changed(self):
+        self.assert_value_reference_refused("typer.run(_main)", "_main", "_main")
+
+    def test_function_passed_to_fire_is_code_changed(self):
+        self.assert_value_reference_refused("fire.Fire(_cli)", "_cli", "_cli")
+
+    def test_function_stored_in_a_dict_is_code_changed(self):
+        self.assert_value_reference_refused('handlers = {"x": _f}', "_f", "_f")
+
+    def test_function_given_to_help_is_code_changed(self):
+        self.assert_value_reference_refused("help(_f)", "_f", "help")
+
+    def test_function_only_called_is_docstring_only(self):
+        before = 'def _f():\n    """Return one."""\n    return 1\n\n\nx = _f() + _f()\n'
+        after = before.replace('    """Return one."""\n', "")
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 11, out)
+
     def test_f_string_first_statement_is_not_a_docstring(self):
         before = 'def f(x):\n    f"{x}"\n    return x\n'
         after = "def f(x):\n    return x\n"

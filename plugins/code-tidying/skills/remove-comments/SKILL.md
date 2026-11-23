@@ -236,12 +236,13 @@ an UNPROVABLE file yields proposals only.
   reverts the edit and demotes it to a proposal, and so does UNAVAILABLE or no verdict. This holds
   however the file is written: a shell edit needs the same verdict as an Edit call.
 - **A non-public Python docstring deletion applies under DOCSTRING-ONLY**, the verdict
-  `change-shape.sh` gives when removed docstrings are the edit's only difference and the file gives
-  no sign of reading one at run time ([reference/safety.md](reference/safety.md), tier 0). It gates
+  `change-shape.sh` gives when removed docstrings are the edit's only difference and none of the
+  file checks in [reference/safety.md](reference/safety.md) (tier 0) refuses it. It gates
   docstring deletions the way COMMENT-ONLY gates comment deletions, under `necessary` and `none`;
-  under `explanatory`, or with any other verdict, a docstring deletion is a proposal. The proof cannot see a reader in
-  another file, so a repository search for `__doc__` or `getdoc` naming the docstring's owner
-  comes first, and a hit makes the deletion a proposal.
+  under `explanatory`, or with any other verdict, a docstring deletion is a proposal. The proof
+  reads one file, so a repository search for the owner's name in every other file comes first:
+  any hit other than a direct call (the name immediately followed by `(`), or any `__doc__`,
+  `__dict__`, `vars`, `help`, `getdoc` or `getmembers` beside it, makes the deletion a proposal.
 - **RENAME-ONLY is a shape claim, not a safety claim.** It cannot see other files, reflection or
   string-keyed access. Report every rename applied on its strength with its mapping.
 - **An identifier named in a repo-local marker row is never renamed.** Dissolve the comment if it

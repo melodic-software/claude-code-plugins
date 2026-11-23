@@ -27,7 +27,8 @@ Run the workflow's steps 3 to 7 over that scope, with these limits:
   `change-shape.sh` on the file before and after, and restored when the verdict is not
   COMMENT-ONLY. A non-public Python docstring is the one string you may delete, under `necessary`
   and `none` only, and it stays deleted only when the verdict is DOCSTRING-ONLY and a repository
-  search for `__doc__` or `getdoc` naming its owner finds no reader in another file; otherwise
+  search finds no other file naming its owner except as a direct call (the name immediately
+  followed by `(`), per the skill's hard rule on DOCSTRING-ONLY; otherwise
   restore it and list it as a proposal with the verdict. Never apply a class-B move, a rename, an encoding or any other code change: list
   each as a proposal with its tier, and the skill applies it.
 - **Trace thin claims.** In triage, a comment that says `IMPORTANT`, `do not remove`, `too
