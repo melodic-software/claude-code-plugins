@@ -8,10 +8,13 @@ import intakeTriage from "./credential-legs/intake-triage.mjs";
 import auditLaneRuns from "./credential-legs/maintenance-audit-lane-runs.mjs";
 import tidyCodeUpkeep from "./credential-legs/maintenance-tidy-code-upkeep.mjs";
 import prRateMergeRisk from "./credential-legs/pr-rate-merge-risk.mjs";
+import prRefine from "./credential-legs/pr-refine.mjs";
+import prUnblock from "./credential-legs/pr-unblock.mjs";
 import prVerify from "./credential-legs/pr-verify.mjs";
+import workResolveIssue from "./credential-legs/work-resolve-issue.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const DECLARATIONS = [prVerify, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns];
+export const DECLARATIONS = [prVerify, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns, prRefine, ...prUnblock, workResolveIssue];
 
 const STEP = /^ {6}- name: (.*)$/;
 const STEP_ID = /^ {8}id: (.*)$/;
@@ -28,7 +31,7 @@ export function jobSpan(lines, id) {
 
 function parse(job) {
   const at = job.indexOf("    steps:");
-  if (at === -1) throw new Error("sync-credential-legs: the key job has no steps");
+  if (at === -1) return { header: job, steps: [] };
   const steps = [];
   const first = { body: [null] };
   for (const line of job.slice(at + 1)) {
