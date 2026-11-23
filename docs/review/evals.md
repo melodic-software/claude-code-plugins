@@ -63,10 +63,12 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - Three kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
   cases with deterministic graders only and changes no skill text, because compare mode refuses
   arms that do not differ (Q43, Q56); a cut whose changed behavior cannot be checked without a
-  judge (Q45); and one whose plugin change adds or edits a script or a case scaffold, which
-  compare mode never runs beside a credential (`select-plugins.mjs`; owner decision,
-  melodic-software/architecture#208). One suite run on the default branch, scoped to the affected cases, follows. For a
-  judged case, the dispatching session posts the record by hand under [Graders](#graders).
+  judge (Q45); and one that adds or edits a script or a case scaffold and cuts no existing skill
+  text, since compare mode never runs a script beside a credential (`select-plugins.mjs`; owner
+  decision, melodic-software/architecture#208). A cut keeps its compare run before merge: split it
+  from the script change. One suite run on the default branch, scoped to the affected cases,
+  follows. For a judged case, the dispatching session posts the record by hand under
+  [Graders](#graders).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
   follow-up does (Q57).
