@@ -79,7 +79,8 @@ import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-t
 import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
-import { authorTrust, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorTrust, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { trustedSplitChild } from "../intake-triage/size-split.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;

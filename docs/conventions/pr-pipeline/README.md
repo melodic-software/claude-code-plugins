@@ -3813,7 +3813,7 @@ those keys, and `small` must run. An option no entry maps fails the resolve with
 `unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
 its Size is `split`, except a sub-issue intake's size split filed whose body counts as its parent's
-text (`admit.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
+text (`size-split.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
 sub-issue whatever its Size, so when `split-child-size` names a size that runs, a split size reads
 as that size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
@@ -3884,7 +3884,7 @@ and `attended` labels, and a retry adds them to a part it reuses.
 
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
-(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+(`size-split.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
 for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
 up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
 number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window

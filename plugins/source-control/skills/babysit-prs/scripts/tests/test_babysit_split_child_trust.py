@@ -1,6 +1,6 @@
-# test-scope: .github/scripts/intake-triage/split-child.vectors.json .github/scripts/intake-triage/admit.mjs .github/actions/resolve-config/admission-rules.json
+# test-scope: .github/scripts/intake-triage/split-child.vectors.json .github/scripts/intake-triage/admit.mjs .github/scripts/intake-triage/size-split.mjs .github/actions/resolve-config/admission-rules.json
 """The gate's split-child trust rule (`babysit_verify_evidence._trusted_spec`)
-agrees with Issue Triage's (admit.mjs splitChildBody, its one home).
+agrees with Issue Triage's (size-split.mjs splitChildBody, its one home).
 
 Expected values come from `.github/scripts/intake-triage/split-child.vectors.json`,
 the cases admit.test.mjs and resolve-pr.test.mjs also read: each case's

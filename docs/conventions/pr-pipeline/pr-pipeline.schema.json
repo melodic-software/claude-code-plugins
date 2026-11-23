@@ -1184,7 +1184,7 @@
         },
         "split-child-size": {
           "$ref": "#/$defs/name",
-          "description": "The size a trusted size-split sub-issue (admit.mjs splitChildBody) runs at when its Size is one that splits; a key of sizes that runs. Absent, such a child skips with split-required like any other."
+          "description": "The size a trusted size-split sub-issue (size-split.mjs splitChildBody) runs at when its Size is one that splits; a key of sizes that runs. Absent, such a child skips with split-required like any other."
         },
         "complexity-profiles": {
           "type": "object",

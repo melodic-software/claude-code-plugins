@@ -2598,11 +2598,7 @@ for (const vector of VECTORS.cases) {
   test(`split-child vector: ${vector.name}`, async () => {
     const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
     const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
-    const { child } = vector;
-    const ownAgent =
-      (child.labels ?? []).filter((name) => /^source:/i.test(name)).length === 1 &&
-      appId !== null && child.author.type === "Bot" && child.author.id === appId && !child.body.startsWith("<!-- intake-triage size-split child -->") && (child.last_edited_at === null || child.editor?.id === appId);
-    assert.deepEqual(body, [[8, vector.expect.trusted || ownAgent ? child.body : null]], vector.expect.reason);
+    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
   });
 }
 

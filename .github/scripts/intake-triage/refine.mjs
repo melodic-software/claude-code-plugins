@@ -96,7 +96,8 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
-import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, bodyVersion, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, SPLIT_PENDING, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { partitionProblem, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildHeader, splitDigest, splitRecord, splitTaskLines, subsetProblem, taskText } from "./size-split.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -449,11 +450,6 @@ export async function applySizeDecline({ github, repository, number, appId, cont
   return { outcome: "declined" };
 }
 
-// The split record's `items`: the digest of the lines split, and of the
-// refinement they copy when they copy one, so a newer refinement with the
-// same lines files no second set of sub-issues. Pure.
-export const splitDigest = ({ lines, source }) => linesDigest(source === null ? lines : [...lines, splitSourceLine(source)]);
-
 // The body of the lanes App's admission comment, or undefined.
 const admissionComment = (comments, appId) => comments.find((comment) => byApp(comment, appId) && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
 
@@ -526,108 +522,6 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
       triage: String(lane.body),
     },
   };
-}
-
-// Why `output` is no partition of `count` items, or null: exactly `parts`
-// and `order`; 2 to `maxParts` parts, none empty, covering items 1..count
-// once each; order pairs of distinct part numbers, none repeated, with no
-// cycle. Pure.
-export function partitionProblem(output, count, maxParts = 10) {
-  if (output === null || typeof output !== "object" || Array.isArray(output) || Object.keys(output).sort().join() !== "order,parts") {
-    return "the output must hold exactly parts and order";
-  }
-  const { parts, order } = output;
-  if (!Array.isArray(parts) || parts.length < 2 || parts.length > maxParts || parts.length > count) {
-    return `parts must be a list of 2 to ${Math.min(maxParts, count)} parts`;
-  }
-  const seen = new Set();
-  for (const part of parts) {
-    if (!Array.isArray(part) || part.length === 0) {
-      return "each part must be a non-empty list";
-    }
-    for (const n of part) {
-      if (!Number.isInteger(n) || n < 1 || n > count || seen.has(n)) {
-        return `each item 1 to ${count} must be in exactly one part`;
-      }
-      seen.add(n);
-    }
-  }
-  if (seen.size !== count) {
-    return `each item 1 to ${count} must be in exactly one part`;
-  }
-  return orderProblem(order, parts.length);
-}
-
-// Why `groups` and `order` are no target-subset split over task lines
-// `lines`, or null: 2 to `maxParts` non-empty groups, each target an
-// admit.mjs scopeTarget over the lines' texts after their `taskList`
-// marker, named once and inside no other target (two parts would own the
-// same work), every line's text holding one of the targets (none left out
-// of every part), an order as partitionProblem takes it, and groups the
-// split record holds: they must
-// come back from renderSplitRecord through splitRecord, so the record's
-// cap and its parser stay one source. Pure.
-export function subsetProblem({ groups, order }, lines, maxParts, taskList) {
-  const texts = lines.map((line) => taskText(line, taskList));
-  if (!Array.isArray(groups) || groups.length < 2 || groups.length > maxParts) {
-    return `groups must be a list of 2 to ${maxParts} groups`;
-  }
-  const seen = new Set();
-  for (const group of groups) {
-    if (!Array.isArray(group) || group.length === 0) {
-      return "each group must be a non-empty list";
-    }
-    for (const name of group) {
-      if (!scopeTarget(name, texts) || seen.has(name)) {
-        return "each target must be text copied from one task-list line, named once";
-      }
-      seen.add(name);
-    }
-  }
-  const names = [...seen];
-  if (names.some((name) => names.some((other) => other !== name && other.includes(name)))) {
-    return "no target may be text inside another target";
-  }
-  if (!texts.every((text) => names.some((name) => text.includes(name)))) {
-    return "the targets must cover every task-list line";
-  }
-  const problem = orderProblem(order, groups.length);
-  if (problem !== null) {
-    return problem;
-  }
-  const every = lines.map((_, index) => index + 1);
-  const record = renderSplitRecord({ items: "0".repeat(64), parts: groups.map(() => every), order, groups });
-  return isDeepStrictEqual(splitRecord(`${SIZE_SPLIT_MARKER}\n${record}`)?.groups, groups) ? null : "the groups are too long for the split record";
-}
-
-// Why `order` is no acyclic list of distinct pairs over parts 1..count. Pure.
-function orderProblem(order, count) {
-  const pairs = new Set();
-  if (!Array.isArray(order)) {
-    return "order must be a list of pairs";
-  }
-  for (const pair of order) {
-    const valid = Array.isArray(pair) && pair.length === 2 && pair.every((p) => Number.isInteger(p) && p >= 1 && p <= count) && pair[0] !== pair[1];
-    if (!valid || pairs.has(pair.join(">"))) {
-      return "each order pair must name two different parts, once";
-    }
-    pairs.add(pair.join(">"));
-  }
-  // Kahn's algorithm: every part leaves the queue only when the order has no cycle.
-  const waits = Array.from({ length: count }, (_, index) => order.filter(([, b]) => b === index + 1).length);
-  const ready = waits.flatMap((w, index) => (w === 0 ? [index + 1] : []));
-  let done = 0;
-  while (ready.length > 0) {
-    const a = ready.pop();
-    done += 1;
-    for (const [, b] of order.filter(([from]) => from === a)) {
-      waits[b - 1] -= 1;
-      if (waits[b - 1] === 0) {
-        ready.push(b);
-      }
-    }
-  }
-  return done === count ? null : "the order has a cycle";
 }
 
 // {refine, reason, context}. Reads only.

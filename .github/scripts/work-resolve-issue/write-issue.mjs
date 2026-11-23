@@ -24,10 +24,10 @@
 // issue lane's web hosts); a split refinement whose record does not stand is
 // left out, so its prose excuses no item. `split_parent` holds the body of the
 // native parent a size split filed the issue from, only while the issue
-// counts as that parent's text (admit.mjs splitChildBody) and a listed human
+// counts as that parent's text (size-split.mjs splitChildBody) and a listed human
 // wrote, and last edited before the admission if ever, that body: the split
 // copies only its task-list lines. `scope` lists, for such a part split by
-// target, the targets its Scope line names (admit.mjs splitScope).
+// target, the targets its Scope line names (size-split.mjs splitScope).
 // `verify_close` lists, for a finished parent (admit.mjs finishedParent), its
 // sub-issues, each closed as completed by a trusted close: the run checks the
 // issue's own done-when and stops verified-done or verify-unmet. On any failure no file is left, so
@@ -82,7 +82,8 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
-import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssue, driftShaped, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
+import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssue, driftShaped, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, specOf, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
+import { SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope } from "../intake-triage/size-split.mjs";
 import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
