@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 # Tests for watch.sh against a live server started through round.sh ensure-running.
 #   bash watch.test.sh
 # Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), the note: line for a

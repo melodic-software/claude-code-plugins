@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/python-format/hooks/python-format.test.sh
 # test-scope: plugins/python-format/hooks/hooks.json plugins/python-format/git-hooks/lint.sh plugins/python-format/.claude-plugin/plugin.json plugins/python-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_ENABLED
