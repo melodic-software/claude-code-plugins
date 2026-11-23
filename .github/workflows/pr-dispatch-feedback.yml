@@ -140,8 +140,6 @@ jobs:
       pr-number: ${{ steps.post.outputs.pr-number }}
       head-sha: ${{ steps.post.outputs.head-sha }}
       pass-head-sha: ${{ steps.post.outputs.pass-head-sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -348,10 +346,7 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
-      # Each guarded API call's rate-limit reading, for the job-end api-budget
-      # notice (.github/actions/log-api-budget).
       API_BUDGET_TOKEN: github-token
     steps:
       - name: Resolve main's tip
@@ -399,19 +394,11 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
-      # The script resolves the pr-unblock lane's address-feedback slot with
-      # the base's resolve-config once it has found the PR and its head, and
-      # dispatches only when the lane and both address-feedback slots are
-      # enabled and the slot applies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # The gate's verifier reader (babysit_verify_evidence.py), which the
-      # dispatch reads for a pull request whose pr-verify FAILs are at the cap
-      # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
-      # A failed install warns; the reader then fails and the round runs.
       - name: Set up Python
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -435,12 +422,6 @@ jobs:
           # more index names than one whole listing costs reads that listing,
           # saved here for the next such read instead of every page again.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
-          # The FAIL run records, run heads on main and head refs pr-merge's
-          # last scheduled or hand-started run on main kept, which
-          # verify-cap.mjs fetches on the first FAIL-cap read only, so a run
-          # that reads no FAIL cap spends none of their calls: the reader
-          # otherwise reads them for every FAIL it counts, and each read shares
-          # what it adds here.
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The reader's gh calls, with this job's read scopes.
@@ -452,7 +433,6 @@ jobs:
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
           VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: |
-          # The listed review bots' ids (review-threads.reviewer-ids), one per line.
           REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
@@ -740,8 +720,6 @@ jobs:
       contents: read # check out the default branch's trusted-actors list
       actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
       pull-requests: read # the PR's state and live head
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
