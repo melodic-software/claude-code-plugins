@@ -72,11 +72,9 @@ fail_write() {
   exit 1
 }
 
-need_value() {
-  if [[ $# -lt 2 ]]; then
-    die "$1 needs a value"
-  fi
-}
+# shellcheck source=opt-value.sh
+source "${BASH_SOURCE[0]%/*}/opt-value.sh"
+OPT_VALUE_STDIN=1
 
 PLUGIN_DATA=""
 COMPONENT=""
@@ -89,22 +87,22 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   --plugin-data)
-    need_value "$@"
+    require_opt_value "$PROG" "$@"
     PLUGIN_DATA="$2"
     shift 2
     ;;
   --component)
-    need_value "$@"
+    require_opt_value "$PROG" "$@"
     COMPONENT="$2"
     shift 2
     ;;
   --report)
-    need_value "$@"
+    require_opt_value "$PROG" "$@"
     REPORT="$2"
     shift 2
     ;;
   --root)
-    need_value "$@"
+    require_opt_value "$PROG" "$@"
     ROOT="$2"
     shift 2
     ;;
