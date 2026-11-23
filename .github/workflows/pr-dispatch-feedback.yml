@@ -373,6 +373,7 @@ jobs:
             /docs/conventions/
             /lib/publish-gate.mjs
             /plugins/multi-agent/reference/defaults.yaml
+            /plugins/source-control/lib/yaml-subset.awk
             /plugins/source-control/skills/babysit-prs/scripts/
             /plugins/work-items/scripts/charge-words.json
             /.node-version

@@ -282,7 +282,7 @@ test("pr-dispatch-feedback.yml: each job's sparse checkout holds what its steps 
     [
       "dispatch",
       ".github/scripts/pr-unblock/feedback-dispatch.mjs",
-      ["docs/conventions/work-items.yaml", ".github/actions/resolve-config/resolve-config.mjs", "plugins/multi-agent/reference/defaults.yaml", "docs/conventions/pr-pipeline/pr-pipeline.schema.json"],
+      ["docs/conventions/work-items.yaml", ".github/actions/resolve-config/resolve-config.mjs", "plugins/multi-agent/reference/defaults.yaml", "docs/conventions/pr-pipeline/pr-pipeline.schema.json", "plugins/source-control/lib/yaml-subset.awk"],
     ],
   ]) {
     const steps = doc.jobs[job].steps;
