@@ -288,6 +288,14 @@ is invoked via the Skill tool.
 
 It checks the batch against the repo's own build, test and lint gates.
 
+## Related
+
+- Route-lane candidate needs boundary design: /architecture:improve.
+- Pure markdown prose dedup: /docs-hygiene:extract-ssot.
+- Identifier rename rather than value change: /docs-hygiene:rename-references.
+- Duplicate-writer ownership rule to codify: /corrections:codify.
+- General non-coupling tidying: /code-tidying:tidy.
+
 ## Gotchas
 
 The counterweights this skill exists to hold. Add here when a new one surfaces.
