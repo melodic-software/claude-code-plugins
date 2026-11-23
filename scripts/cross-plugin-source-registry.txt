@@ -883,3 +883,19 @@ reference/config-locations.md
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the canonical contract and the copies.
 docs/contracts/config-cascade/locations.md -> plugins/*/reference/config-locations.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/mod-load-check.sh.
+lib/mod-load-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/mod-load-check.sh -> plugins/*/lib/mod-load-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/hook-registration-check.sh.
+lib/hook-registration-check.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/hook-registration-check.sh -> plugins/*/lib/hook-registration-check.sh
