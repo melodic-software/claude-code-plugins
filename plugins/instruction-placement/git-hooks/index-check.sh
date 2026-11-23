@@ -34,9 +34,6 @@ renderer="$here/render-index.sh"
 
 checks_init pre-commit "$@" || exit 0
 
-# At pre-commit the verdict is on what the commit holds: the index copies of the
-# instruction files and rules, materialized into a scratch tree. --worktree
-# judges the work tree.
 src="$PWD"
 if [[ "$CHECKS_MODE" == pre-commit ]]; then
   src="$CHECKS_TMP/index"

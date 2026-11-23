@@ -1,71 +1,4 @@
 #!/usr/bin/env bash
-# automode-entry-diff.sh — what entering auto mode does to the effective allow
-# set, per rule, with the drop reason named.
-#
-# "On entering auto mode, broad allow rules that grant arbitrary code execution
-# are dropped, including: Blanket Bash(*) or PowerShell(*); Wildcarded
-# interpreters like Bash(python*); A wrapper followed only by a wildcard, like
-# Bash(timeout *); Shell rules that start with a wildcard, like
-# Bash(* --version); Some wildcarded paths, like Bash($HOME/bin/*) or
-# PowerShell(C:\tools\x.exe *); Package-manager run commands; Agent allow
-# rules; Monitor allow rules, because Claude Code runs Monitor commands through
-# the shell. Narrow rules like Bash(npm test) stay in effect."
-# https://code.claude.com/docs/en/changelog 2.1.327 adds path and version forms
-# of package runners. This script classifies every
-# effective allow rule from the merge into exactly one of those documented
-# classes or `kept`, using the same shared vocabulary (lib/permission-patterns.sh)
-# that audit-permission-grants check P1 scans with — one definition, two consumers.
-# The two whole-tool classes (Agent, Monitor) carry no shell shape, so they are
-# tested on the tool token here rather than through that vocabulary.
-#
-# `autoMode.classifyAllShell` inverts the carry-over answer wholesale: when
-# true it "suspend[s] every Bash and PowerShell allow rule while auto mode is
-# active", so narrow rules do not carry over. The classifier reads `autoMode`
-# from user settings, managed settings, and inline --settings/SDK JSON only —
-# never project or local settings — so this script resolves the key from the
-# managed and user conf records alone and says so when a non-read scope sets it.
-#
-# Input: permission-merge.sh output on stdin (records pass through above the
-# diff section unless --diff-only). With no piped input the sibling pipeline is
-# run directly and its exit status is propagated.
-#
-# Output (diff section):
-#   DIFF-NOTE: <text>                                    classifyAllShell state, bounds
-#   entry-diff dropped class=<class> scopes=<a,b> <rule> one per dropped allow rule
-#   entry-diff suspended reason=classifyAllShell scopes=<a,b> <rule>
-#   entry-diff kept scopes=<a,b> <rule>                  one per carried-over allow rule
-#   entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
-#
-#   class  blanket | interpreter-wildcard | wrapper-wildcard | leading-wildcard |
-#          path-wildcard | package-manager-run | agent | monitor
-#          (the documented eight; the vocabulary's script-glob alternative is an
-#          interpreter-wildcard shape and reports as that class, and path-wildcard
-#          covers only the $HOME and Windows backslash forms upstream names)
-#
-# Only allow rules change on entry: deny and ask rules are evaluated before the
-# classifier in every mode and are not part of this diff.
-#
-# --oracle (opt-in, explicitly priced): cross-check the prediction against the
-# harness's own drop narration by spawning `claude --debug-file <scratch> -p` and
-# parsing `Ignoring dangerous permission <rule> from <path> (bypasses
-# classifier)` lines. The prediction stays the default read path: the oracle
-# costs a real session spawn (tokens, and the session writes its own state — see
-# the cost notice) and parses undocumented [DEBUG] strings with no stability
-# contract. Never spawned without the flag; never spawned silently. Criterion
-# 8's defensive contract binds this read too: exit status is never trusted, a
-# missing or empty capture is reported as "oracle unavailable" and the
-# prediction stands — an empty capture is never read as an empty drop set.
-#
-# Test seams:
-#   ENTRY_DIFF_ORACLE_CAPTURE  parse this capture file instead of spawning
-#   ENTRY_DIFF_ORACLE_PROMPT   probe prompt (default "Reply with exactly: OK")
-#
-# Prerequisites: POSIX text tools only. The oracle additionally needs `claude`
-# on PATH; absent, it degrades to "oracle unavailable" and the prediction stands.
-#
-# Usage:
-#   permission-state.sh | permission-merge.sh | automode-entry-diff.sh
-#   automode-entry-diff.sh [--diff-only] [--oracle] [--help]
 
 set -uo pipefail
 
@@ -138,18 +71,11 @@ if [[ -z "$records" ]]; then
 fi
 
 if [[ "$diff_only" == 1 ]]; then
-  # --diff-only drops the pass-through records, and the merge's CAVEAT lines and
-  # the inventory's unread-scope NOTEs live there. Suppressing them turns "two
-  # scopes were unreadable" into silence directly above a summary of zeros, so
-  # they survive the filter; only the per-rule records are withheld.
   printf '%s\n' "$records" | grep -E '^(CAVEAT|NOTE|MANAGED-NOTE|LINT-NOTE):' || true
 else
   printf '%s\n' "$records"
 fi
 
-# A scope that could not be read contributes no allow rules, so an all-zero diff
-# is indistinguishable from a machine with no broad rules unless the summary says
-# which case it is.
 unread_scopes=""
 while IFS= read -r rec; do
   # Word splitting is the point here: a surface record is positional, and $1/$3
@@ -159,24 +85,19 @@ while IFS= read -r rec; do
   [[ $# -ge 3 ]] || continue
   case "$1" in
   rule | effective | inert | carveout | conf | entry-diff | CAVEAT: | NOTE: | MANAGED-NOTE: | LINT-NOTE: | DIFF-NOTE:) continue ;;
-  *) ;; # anything else is a surface record, which is what this loop reads
+  *) ;;
   esac
   case "$3" in
   skipped | unreadable | invalid-json)
     case ",$unread_scopes," in
-    *",$1,"*) ;; # already recorded
+    *",$1,"*) ;;
     *) unread_scopes="${unread_scopes:+$unread_scopes,}$1" ;;
     esac
     ;;
-  *) ;; # present, absent and not-applicable are all answers, not failures to look
+  *) ;;
   esac
 done <<<"$records"
 
-# --- classifyAllShell resolution --------------------------------------------
-#
-# Managed is the highest settings scope, so a managed value wins over user.
-# conf records from scopes the classifier does not read change nothing here and
-# are called out instead of silently honored.
 cas_value=""
 cas_scope=""
 cas_ignored=""
@@ -202,26 +123,16 @@ if [[ "$cas_value" == "true" ]]; then
   cas_active=1
   echo "DIFF-NOTE: autoMode.classifyAllShell is true in $cas_scope settings — every Bash and PowerShell allow rule is suspended while auto mode is active, so narrow shell rules do not carry over. Requires Claude Code v2.1.193 or later; earlier versions ignore the key and carry narrow rules."
 elif [[ "$cas_value" == "false" ]]; then
-  # `false` is the documented default and a perfectly valid setting. Describing
-  # it as a type error told an operator their correct configuration was wrong.
   echo "DIFF-NOTE: autoMode.classifyAllShell is false in $cas_scope settings (the default), so narrow Bash and PowerShell allow rules carry over into auto mode as usual."
 elif [[ -n "$cas_value" ]]; then
   echo "DIFF-NOTE: autoMode.classifyAllShell in $cas_scope settings is $cas_value, which is neither of the documented boolean values — treated as inactive here; the harness's handling of a non-boolean value is undocumented."
 fi
-# The classifier reads autoMode from three sources and this reader can see two.
-# Inline --settings / SDK JSON has no file to open, and it can invert the whole
-# answer: classifyAllShell true there suspends every shell allow rule while this
-# diff reports them kept. The merge's command-line caveat covers rules, not this
-# key, so it is stated here or nowhere.
 echo "DIFF-NOTE: inline --settings and Agent SDK JSON are a third scope the classifier reads autoMode from, and they have no file for this reader to open. If classifyAllShell is set there, every Bash and PowerShell verdict below is inverted — this diff reflects the settings files only."
 if [[ -n "$cas_ignored" ]]; then
   echo "DIFF-NOTE: autoMode.classifyAllShell also appears in scope(s) the classifier does not read ($cas_ignored) — the classifier reads autoMode from user settings, managed settings, and inline --settings/SDK JSON only. Those entries have no effect and are not part of this diff."
 fi
 
-# --- Per-rule classification --------------------------------------------------
 
-# Every shell-shape class is the same question asked of a different alternation
-# from the shared vocabulary: does the rule text match this ERE.
 rule_matches() { grep -qE "$2" <<<"$1"; }
 
 n_before=0 n_dropped=0 n_suspended=0 n_kept=0
@@ -236,26 +147,9 @@ while read -r rec kind scopes_field _basis rule; do
   if [[ "$rule" == "Agent" || "$rule" == "Agent("* ]]; then
     verdict="dropped class=agent"
   elif [[ "$rule" == "Monitor" || "$rule" == "Monitor("* ]]; then
-    # Upstream added Monitor to the dropped list in v2.1.236, "because Claude
-    # Code runs Monitor commands through the shell". It behaves like Agent, not
-    # like Bash: the whole class drops, so a scoped Monitor(...) rule is not a
-    # narrow carry-over. Reporting one as kept would tell an operator a grant
-    # survives that the harness has already suspended.
-    #
-    # This verdict is version-dependent and this script cannot read the running
-    # version, so it emits a DIFF-NOTE below rather than asserting the verdict
-    # unqualified. Before v2.1.236 a Monitor allow rule stayed in effect, and
-    # reporting it as dropped there is the worse direction of error: it tells an
-    # operator a live grant is already suspended.
     monitor_seen=1
     verdict="dropped class=monitor"
   elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]] || rule_matches "$rule" "$CCPERM_P1_BLANKET_ERE"; then
-    # A bare tool name is the whole-tool grant -- strictly broader than
-    # Bash(*), which this same run classifies as blanket. Reporting it as
-    # surviving auto mode while dropping the narrower form would be backwards
-    # in the direction that matters: it tells an operator their broadest shell
-    # grant is safe. The Agent branch above already handles its own bare form;
-    # this is the same rule for the two shell tools.
     verdict="dropped class=blanket"
   elif rule_matches "$rule" "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
     verdict="dropped class=interpreter-wildcard"
@@ -270,8 +164,6 @@ while read -r rec kind scopes_field _basis rule; do
   elif [[ "$cas_active" == 1 && ("$tool" == "Bash" || "$tool" == "PowerShell") ]]; then
     verdict="suspended reason=classifyAllShell"
   fi
-  # Every rule that did not carry over is a predicted drop, whichever of the two
-  # labels it carries; only the counter differs.
   if [[ -z "$verdict" ]]; then
     verdict="kept"
     n_kept=$((n_kept + 1))
@@ -290,16 +182,8 @@ if [[ "$monitor_seen" == 1 ]]; then
   echo "DIFF-NOTE: a Monitor allow rule is reported as dropped. Requires Claude Code v2.1.236 or later; earlier versions leave Monitor allow rules in effect in auto mode, so on an older version that rule carries over and this verdict is inverted. This script cannot read the running version; confirm it before acting on a monitor verdict."
 fi
 
-# Both classes are restored on leaving auto mode. Neither label means a permanent
-# edit to your rules, and "dropped" alone reads as one.
 echo "DIFF-NOTE: dropped and suspended rules alike are RESTORED when the session leaves auto mode. Neither verdict changes any settings file; both describe what is in force while auto mode is active."
 
-# Not every run shape starts in auto mode (headless and Agent SDK runs with no
-# mode set do not), so printing this diff unconditionally hands those runs a
-# verdict for a transition they never make. The note states that precondition
-# and points at the live start-mode table instead of copying it, so an upstream
-# change to the table cannot make the note false.
-# Start-mode table: https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in
 echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Not every session does: a 'claude -p' or Agent SDK run with no permission mode set starts in Manual and never makes this transition. Which sessions start in auto mode depends on the Claude Code version, how it is run, the provider and model, and settings such as disableAutoMode; read the current conditions at https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in before acting on this diff."
 
 printf '%s' "$diff_lines"
@@ -310,7 +194,6 @@ echo "entry-diff summary allow_before=$n_before dropped=$n_dropped suspended=$n_
 
 [[ "$oracle" == 1 ]] || exit 0
 
-# --- Debug-channel oracle (opt-in, priced) ------------------------------------
 
 capture="${ENTRY_DIFF_ORACLE_CAPTURE:-}"
 if [[ -z "$capture" ]]; then
@@ -340,17 +223,6 @@ EOF
   }
   trap 'rm -rf "$scratch"' EXIT
   capture="$scratch/capture.log"
-  # `--permission-mode auto` is passed so the probe does not depend on the
-  # consumer's own defaultMode. What was actually measured is narrower than that
-  # framing suggests, and reference/criteria.md carries the measurement: a `-p`
-  # run with no mode flag emitted 216 drop lines, on a machine whose defaultMode
-  # may already have been auto. So the flag is known-valid (`claude --help`
-  # lists `auto`) and known-harmless, but "drops appear only in auto mode" is
-  # not established — it is a plausible reading of one capture. The zero-drop
-  # path below degrades to `unavailable` precisely because this is unproven.
-  #
-  # Exit status is deliberately not consulted — the capture file is the evidence
-  # either way.
   claude --debug-file "$capture" --permission-mode auto -p "${ENTRY_DIFF_ORACLE_PROMPT:-Reply with exactly: OK}" >/dev/null 2>&1 || true
 fi
 
@@ -363,28 +235,8 @@ if ! grep -q 'Applying permission update' "$capture"; then
   exit 0
 fi
 
-# `Ignoring dangerous permission <rule> from <abs path> (bypasses classifier)`.
-# This strips the fixed prefix and suffix; splitting rule from path is the
-# block below, which explains how.
 oracle_raw="$(sed -n 's/^.*Ignoring dangerous permission \(.*\) (bypasses classifier).*$/\1/p' "$capture")"
 
-# Neither field is delimited, so a line carrying more than one " from " must be
-# resolved rather than guessed at. The discriminator is the rule side, not the
-# path: a permission rule is a tool token, optionally with one parenthesized
-# payload, and that grammar already exists as CCPERM_TOOL_TOKEN_ERE in the shared
-# vocabulary. Each candidate separator is tried and kept only when the text to
-# its left is a well-formed rule.
-#
-# That distinguishes the two cases a single expression cannot. In
-# `Bash(python3 import from x *) from <path>` the first candidate leaves
-# `Bash(python3 import` -- unbalanced, rejected. In
-# `Bash(uv run *) from C:\...\notes from work\...\settings.json` the second
-# leaves `Bash(uv run *) from C:\...\notes` -- not a tool token, rejected. Each
-# resolves to exactly one survivor, and the path may contain anything at all.
-# The grammar is checked structurally rather than by regex: awk strips the
-# backslashes out of an ERE passed through -v, which turns the vocabulary's
-# escaped parens into grouping and matches nothing. Balance and shape are what
-# matter here, and both are cheaper to check directly than to re-escape.
 split_lines="$(printf '%s\n' "$oracle_raw" | awk '
   function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
   # A rule is a tool token, optionally followed by one balanced parenthesized
@@ -419,8 +271,6 @@ split_lines="$(printf '%s\n' "$oracle_raw" | awk '
 
 oracle_dropped="$(printf '%s\n' "$split_lines" | sed -n 's/^OK\t//p' | LC_ALL=C sort -u)"
 
-# Everything else carries a real harness drop this run cannot name. Saying so
-# beats guessing, and beats dropping them in silence.
 oracle_unparsed="$(printf '%s\n' "$split_lines" | sed -n 's/^AMBIGUOUS\t//p')"
 if [[ -n "$oracle_unparsed" ]]; then
   n_unparsed="$(printf '%s\n' "$oracle_unparsed" | grep -c .)"
@@ -432,8 +282,6 @@ if [[ -z "$oracle_dropped" ]]; then
   [[ -z "$predicted_dropped" ]] || exit 0
 fi
 
-# Compare on rule text over the union of both sets: one verdict line per rule,
-# exactly — a disagreement in either direction is a finding.
 predicted_sorted="$(printf '%s' "$predicted_dropped" | LC_ALL=C sort -u)"
 while IFS= read -r rule; do
   in_pred=0

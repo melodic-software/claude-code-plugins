@@ -109,15 +109,10 @@ set -uo pipefail
 
 PROG="findings-state.sh"
 
-# Rule 1's `<component>` segment: the skill's own directory name.
 COMPONENT="audit-automation-gaps"
 
-# Bumped when the on-disk envelope changes shape, so `--implement` can refuse an
-# artifact it does not understand.
 SCHEMA_VERSION=1
 
-# Categories are the skill's `argument-hint` filter tokens; verdicts are its
-# three Phase 2 outcomes.
 CATEGORIES='["hooks","mcp","skills","subagents","scheduled"]'
 VERDICTS='["PASS","CONDITIONAL","REJECT"]'
 
@@ -165,15 +160,11 @@ die() {
   exit 2
 }
 
-# Exit 5: the persisted state is unusable. The caller did nothing wrong (not 2),
-# and state this script cannot read is not state that is absent (not 4).
 die_state() {
   printf '%s: %s\n' "$PROG" "$1" >&2
   exit "$EXIT_STATE"
 }
 
-# Refuse a damaged history file or pointer BEFORE anything is published, so a
-# failure cannot leave a findings file that `read` and `list` report as absent.
 preflight_state_file() {
   local path="$1" label="$2"
   if [[ -e "$path" ]] && [[ ! -f "$path" ]]; then
@@ -184,8 +175,6 @@ preflight_state_file() {
   fi
 }
 
-# A publish that cannot be completed releases its reserved name rather than
-# leaving a findings file nothing points at.
 rollback_publish() {
   if [[ -n "$RESERVED_TARGET" ]]; then
     rm -f "$RESERVED_TARGET"
@@ -236,10 +225,6 @@ require_jq() {
   fi
 }
 
-# A run id becomes a filename, so accept only a plain segment: the regex (no
-# separator, no leading dot) is what stops traversal. The `..` arm keeps the id a
-# plain readable segment and survives if the regex is ever loosened; it is
-# stricter than the `--plugin-data` rule, which refuses only a `..` component.
 validate_run_id() {
   local id="$1"
   if [[ -z "$id" ]]; then
@@ -282,7 +267,6 @@ resolve_plugin_data() {
   PLUGIN_DATA="$value"
 }
 
-# Sets STATE_KEY by RUNNING the shared library (rule 1a), never reimplementing it.
 derive_state_key() {
   local root="$1" plugin_root state_key_lib
   plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
@@ -303,14 +287,11 @@ derive_state_key() {
   fi
 }
 
-# The repo root, recorded in the envelope as an operator breadcrumb only; the
-# key, not this, decides attribution.
 derive_repo_root() {
   local here="${1:-.}"
   (cd "$here" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null | tr -d '\r') || true
 }
 
-# Sets BASE_DIR, HISTORY_FILE, LATEST_FILE, STATE_KEY, PLUGIN_DATA.
 resolve_locations() {
   resolve_plugin_data "$1"
   derive_state_key "$2"
@@ -319,10 +300,6 @@ resolve_locations() {
   LATEST_FILE="$BASE_DIR/latest"
 }
 
-# The jq program that judges a payload: one line per problem, nothing for a
-# conforming document. `candidates` is the verdict table, `evidence` what backed
-# each verdict, and `plan` (on PASS and CONDITIONAL) what `--implement` reads
-# back. An empty `candidates` array is a legal clean bill of health.
 payload_problems_program() {
   cat <<JQ
 def fields: ["id","candidate","category","verdict"];
@@ -540,13 +517,9 @@ cmd_write() {
           findings: $p
         }' >"$TMP_ENVELOPE" || die "cannot compose the findings envelope"
 
-  # Atomic publish onto the reserved name: a reader never sees a half-written
-  # findings file.
   mv -f "$TMP_ENVELOPE" "$target" || rollback_publish "cannot publish the findings file: $target"
   TMP_ENVELOPE=""
 
-  # The history line is derived from the published envelope, so the two never
-  # disagree.
   local line
   line=$(jq -c '{schema_version, run_id, written_at, state_key, file, counts}' "$target") ||
     rollback_publish "cannot compose the history line, so the findings file was rolled back: $target"
@@ -555,8 +528,6 @@ cmd_write() {
   # Committed: a later failure is reported, not rolled back.
   RESERVED_TARGET=""
 
-  # `latest` is written last, so it never names a missing run, and replaced with
-  # `mv` so a reader never sees a half-written pointer.
   TMP_LATEST="$LATEST_FILE.$$"
   printf '%s\n' "$run_id" >"$TMP_LATEST" ||
     die_state "run $run_id is published and recorded, but the latest pointer could not be staged. Read it with --run-id $run_id: $LATEST_FILE"
@@ -575,8 +546,6 @@ no_artifact() {
   exit "$EXIT_NO_ARTIFACT"
 }
 
-# Findings files with no pointer at them are an INCOMPLETE PUBLISH, not an
-# absence. Called only on paths about to report absence.
 refuse_orphans() {
   local missing="$1" file orphans=()
   for file in "$BASE_DIR"/findings-*.json; do
@@ -596,8 +565,6 @@ refuse_orphans() {
   exit "$EXIT_STATE"
 }
 
-# A path that exists but is not a readable regular file is exit 5, never an
-# absence.
 require_readable_file() {
   local path="$1" label="$2"
   if [[ -e "$path" ]] && [[ ! -f "$path" ]]; then
@@ -652,8 +619,6 @@ cmd_read() {
   if [[ ! -s "$target" ]]; then
     die_state "the findings file for run id $run_id is empty, so there is nothing to serve (a write may be in flight, or it was truncated): $target"
   fi
-  # Parsed before it is served: a foreign writer can reach this tree, and state
-  # that cannot be trusted is reported under exit 5, never returned under 0.
   if ! jq -e 'type == "object"' "$target" >/dev/null 2>&1; then
     die_state "the findings file for run id $run_id is not a JSON object, so it cannot be trusted (something outside this script wrote it): $target"
   fi
@@ -672,8 +637,6 @@ cmd_list() {
   fi
   require_readable_file "$HISTORY_FILE" "the history file"
 
-  # An empty listing is an answer: empty stdout, exit 0. Only `read`, asked for
-  # a specific artifact, treats absence as exit 4.
   if [[ ! -f "$HISTORY_FILE" ]]; then
     refuse_orphans "the history file"
     printf '%s: no persisted runs for this project (state key %s)\n' "$PROG" "$STATE_KEY" >&2

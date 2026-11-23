@@ -28,12 +28,6 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 diff_only() { printf '%s\n' "$1" | bash "$SCRIPT" --diff-only; }
 
-# --- Case 1: one rule of each documented drop class, plus a narrow survivor ---
-# "On entering auto mode, broad allow rules that grant arbitrary code execution
-# are dropped: Blanket Bash(*) or PowerShell(*); Wildcarded interpreters like
-# Bash(python*); Package-manager run commands; Agent allow rules; Monitor allow
-# rules, because Claude Code runs Monitor commands through the shell. Narrow
-# rules like Bash(npm test) carry over."
 FIVE_CLASSES=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -55,10 +49,6 @@ assert_contains "a narrow exact rule carries over" "$OUT" "entry-diff kept scope
 assert_eq "all five classes appear in the dropped set" 5 "$(count_matching "$OUT" '^entry-diff dropped ')"
 assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before=6 dropped=5 suspended=0 kept=1"
 
-# The monitor verdict is version-dependent: before v2.1.236 a Monitor allow rule
-# stayed in effect, so reporting it dropped on an older version is inverted in
-# the direction that matters. The script cannot read the running version, so it
-# must say so rather than assert the verdict unqualified.
 assert_contains "a monitor verdict carries its version bound" "$OUT" \
   "Requires Claude Code v2.1.236 or later"
 
@@ -92,8 +82,6 @@ assert_contains "a version-suffixed runner is dropped" "$OUT" "entry-diff droppe
 assert_contains "a narrow version-suffixed runner carries over" "$OUT" "entry-diff kept scopes=user Bash(pnpm@9 install)"
 assert_contains "the newer-class summary reconciles" "$OUT" "entry-diff summary allow_before=11 dropped=6 suspended=0 kept=5"
 
-# A SCOPED Agent rule is dropped too: auto mode drops all Agent allow rules
-# categorically, unlike Bash where narrow rules survive.
 SCOPED_AGENT=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -103,9 +91,6 @@ EOF
 OUT=$(diff_only "$SCOPED_AGENT")
 assert_contains "a scoped Agent allow rule is dropped like a bare one" "$OUT" "entry-diff dropped class=agent scopes=user Agent(model:haiku)"
 
-# A SCOPED Monitor rule is dropped for the same reason: upstream drops the whole
-# Monitor class (v2.1.236+), so the parenthesized form is not a narrow survivor.
-# Reporting it kept is the silent failure this class exists to prevent.
 SCOPED_MONITOR=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -116,8 +101,6 @@ OUT=$(diff_only "$SCOPED_MONITOR")
 assert_contains "a scoped Monitor allow rule is dropped like a bare one" "$OUT" "entry-diff dropped class=monitor scopes=user Monitor(npm test)"
 assert_not_contains "a scoped Monitor rule is never reported kept" "$OUT" "entry-diff kept"
 
-# Deny and ask rules are evaluated before the classifier in every mode; the
-# entry diff must not touch them.
 DENY_ASK=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -131,8 +114,6 @@ assert_contains "the summary shows an empty allow set, not a missing one" "$OUT"
 assert_not_contains "no monitor note when no Monitor allow rule was classified" "$OUT" \
   "Requires Claude Code v2.1.236 or later"
 
-# --- Case 2: classifyAllShell inverts the carry-over answer -------------------
-# "suspend[s] every Bash and PowerShell allow rule while auto mode is active."
 CAS_ON=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -150,7 +131,6 @@ assert_contains "a non-shell rule is untouched by classifyAllShell" "$OUT" "entr
 assert_contains "a blanket rule still reports its drop class, not suspension" "$OUT" "entry-diff dropped class=blanket scopes=user Bash(*)"
 assert_contains "the inversion is announced with its version gate" "$OUT" "v2.1.193"
 
-# Managed is the highest scope: a managed false beats a user true.
 CAS_MANAGED=$(
   cat <<'EOF'
 managed file present /policy/managed-settings.json
@@ -164,8 +144,6 @@ OUT=$(diff_only "$CAS_MANAGED")
 assert_eq "a managed false overrides a user true" 0 "$(count_matching "$OUT" '^entry-diff suspended ')"
 assert_contains "the narrow rule stays kept" "$OUT" "entry-diff kept scopes=user Bash(git status)"
 
-# "The classifier doesn't read autoMode from project settings in
-# .claude/settings.json or .claude/settings.local.json."
 CAS_PROJECT=$(
   cat <<'EOF'
 project settings present /proj/.claude/settings.json
@@ -177,7 +155,6 @@ OUT=$(diff_only "$CAS_PROJECT")
 assert_eq "a project-scope classifyAllShell suspends nothing" 0 "$(count_matching "$OUT" '^entry-diff suspended ')"
 assert_contains "the ignored scope is named, not silently honored" "$OUT" "scope(s) the classifier does not read (project)"
 
-# A string "true" is not the documented boolean and must not activate.
 CAS_STRING=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -189,8 +166,6 @@ OUT=$(diff_only "$CAS_STRING")
 assert_eq "a string-typed value suspends nothing" 0 "$(count_matching "$OUT" '^entry-diff suspended ')"
 assert_contains "the type mismatch is called out" "$OUT" "neither of the documented boolean values"
 
-# `false` is the DOCUMENTED DEFAULT, not a type error: reporting it with the
-# malformed values tells operators their correct configuration is wrong.
 CAS_FALSE=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -203,14 +178,10 @@ assert_eq "false suspends nothing" 0 "$(count_matching "$OUT" '^entry-diff suspe
 assert_contains "and is described as the default, not as malformed" "$OUT" "(the default)"
 assert_not_contains "false is never called a type error" "$OUT" "neither of the documented boolean values"
 
-# The classifier reads autoMode from three scopes and this reader can see two.
-# Inline --settings can invert every shell verdict below, so the bound is stated
-# on every run rather than only when something else happens to be set.
 OUT=$(diff_only "$CAS_FALSE")
 assert_contains "the unreadable inline scope is disclosed" "$OUT" "inline --settings and Agent SDK JSON"
 assert_contains "and the disclosure says what it would change" "$OUT" "every Bash and PowerShell verdict below is inverted"
 
-# --- Case 3: pass-through default, --diff-only suppression --------------------
 PASS_IN=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -223,13 +194,8 @@ assert_contains "input records pass through by default" "$OUT" "NOTE: something 
 assert_contains "the diff section follows" "$OUT" "entry-diff kept scopes=user Bash(git status)"
 OUT=$(diff_only "$PASS_IN")
 assert_not_contains "--diff-only drops the per-rule input records" "$OUT" "effective allow scopes=user"
-# --diff-only withholds the rule inventory, never the readability record. A NOTE
-# or CAVEAT is how the input says a scope could not be read, and suppressing it
-# leaves an all-zero summary as the only thing on screen — a clean-looking report
-# for a machine nothing was read from.
 assert_contains "--diff-only keeps the NOTE records" "$OUT" "NOTE: something the operator"
 
-# --- Case 4: no records is an error, never an empty diff ----------------------
 rc=0
 err_out=$(printf '' | bash "$SCRIPT" --diff-only 2>&1) || rc=$?
 assert_exit "exit 2 on empty input" 2 "$rc"
@@ -244,11 +210,6 @@ help_out=$(bash "$SCRIPT" --help </dev/null 2>&1) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prices the oracle" "$help_out" "real token cost"
 
-# The oracle cases below need a rule set with predicted drops in it; which
-# classes those drops fall into is not what they assert. They carry their own
-# fixture so that adding a drop class to Case 1 does not silently change an
-# oracle union count, which is an assertion about the comparison and not about
-# the vocabulary.
 ORACLE_INPUT=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -260,9 +221,6 @@ effective allow scopes=user precedence_basis=uncontested Bash(git status)
 EOF
 )
 
-# --- Case 5: oracle OFF by default — no spawn, no scratch file ----------------
-# A recording stub claude sits FIRST on PATH; if anything invoked it, the
-# marker file would exist.
 STUB="$TEST_TMPDIR/stub"
 mkdir -p "$STUB"
 cat >"$STUB/claude" <<EOF
@@ -280,9 +238,6 @@ else
 fi
 assert_not_contains "no flag, no oracle output" "$OUT" "oracle"
 
-# --- Case 6: oracle ON spawns only after the cost notice ----------------------
-# The stub writes an empty capture, so this also proves a dead spawn is
-# reported as unavailable rather than as an empty drop set.
 OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$STUB:$PATH" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "the cost notice printed" "$OUT" "ORACLE COST NOTICE"
 if [[ -s "$TEST_TMPDIR/claude-invocations.txt" ]]; then
@@ -295,18 +250,12 @@ assert_contains "an empty capture is unavailable, not an empty drop set" "$OUT" 
 assert_not_contains "no verdicts from a dead capture" "$OUT" "oracle AGREES"
 rm -f "$TEST_TMPDIR/claude-invocations.txt"
 
-# claude missing entirely: the notice still precedes the (refused) spawn. bash
-# is invoked by absolute path so the stub PATH cannot hide the interpreter.
 NOCLAUDE="$TEST_TMPDIR/noclaude"
 make_stub_path "$NOCLAUDE" cat grep sed sort mktemp rm tr
 OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$NOCLAUDE" "$real_bash" "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "notice before any spawn attempt" "$OUT" "ORACLE COST NOTICE"
 assert_contains "a missing claude degrades to unavailable" "$OUT" "'claude' is not on PATH"
 
-# --- A bare tool name is the BROADEST shell grant, not a surviving one --------
-# `Bash` with no parens is strictly broader than `Bash(*)`, which this same run
-# classifies as blanket. Reporting it kept told an operator their widest grant
-# survives auto mode — wrong in the direction that costs them.
 BARE_SHELL=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
@@ -321,7 +270,6 @@ assert_contains "bare Bash drops as blanket" "$OUT" "entry-diff dropped class=bl
 assert_contains "bare PowerShell drops as blanket" "$OUT" "entry-diff dropped class=blanket scopes=user PowerShell"
 assert_eq "all three shell grants drop" 3 "$(count_matching "$OUT" '^entry-diff dropped ')"
 
-# --- Case 7: oracle comparison — one verdict per compared rule, exactly -------
 CAPTURE="$TEST_TMPDIR/capture.log"
 cat >"$CAPTURE" <<'EOF'
 [DEBUG] Applying permission update: Adding 3 allow rule(s) to destination 'userSettings': [...]
@@ -330,16 +278,12 @@ cat >"$CAPTURE" <<'EOF'
 [DEBUG] Ignoring dangerous permission Bash(uv run *) from C:\Users\x\.claude\settings.json (bypasses classifier)
 [DEBUG] Applying permission update: Removing 3 allow rule(s) from source 'userSettings'
 EOF
-# Prediction: Bash(*), Bash(python3 *), Bash(npx *), Agent dropped. Oracle:
-# Bash(*), Bash(python3 *), Bash(uv run *). Union: 5 rules, 2 agreements,
-# 2 predicted-only, 1 oracle-only.
 OUT=$(printf '%s\n' "$ORACLE_INPUT" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_eq "one verdict line per rule in the union, exactly" 5 "$(count_matching "$OUT" '^oracle (AGREES|DIVERGES) ')"
 assert_contains "agreement is stated per rule" "$OUT" "oracle AGREES Bash(*)"
 assert_contains "a predicted drop the oracle kept diverges" "$OUT" "oracle DIVERGES prediction=dropped oracle=kept Bash(npx *)"
 assert_contains "an oracle drop the prediction kept diverges too" "$OUT" "oracle DIVERGES prediction=kept oracle=dropped Bash(uv run *)"
 
-# A rule containing the word "from" must not truncate itself.
 CAPTURE_FROM="$TEST_TMPDIR/capture-from.log"
 cat >"$CAPTURE_FROM" <<'EOF'
 [DEBUG] Applying permission update: Adding 1 allow rule(s) to destination 'userSettings': [...]
@@ -354,10 +298,6 @@ EOF
 OUT=$(printf '%s\n' "$FROM_IN" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_FROM" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "a rule containing 'from' survives parsing intact" "$OUT" "oracle AGREES Bash(python3 import from x *)"
 
-# The mirror image, and the one a fixed split cannot also satisfy: the word is
-# in the PATH, because a directory may be named anything. Cutting at the last
-# separator here produced two false verdicts and a phantom rule. The split is
-# resolved by which side parses as a rule, so both directions work.
 CAPTURE_FROM_PATH="$TEST_TMPDIR/capture-from-path.log"
 cat >"$CAPTURE_FROM_PATH" <<'EOF'
 [DEBUG] Applying permission update: Adding 1 allow rule(s) to destination 'userSettings'
@@ -373,8 +313,6 @@ OUT=$(printf '%s\n' "$FROM_PATH_IN" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_FROM_P
 assert_contains "a PATH containing 'from' does not truncate the rule" "$OUT" "oracle AGREES Bash(uv run *)"
 assert_eq "and produces no phantom rule" 0 "$(count_matching "$OUT" 'oracle DIVERGES')"
 
-# A line no candidate split resolves is ANNOUNCED, not dropped. A real harness
-# drop that silently vanishes turns an incomplete comparison into a clean one.
 CAPTURE_UNSPLIT="$TEST_TMPDIR/capture-unsplit.log"
 cat >"$CAPTURE_UNSPLIT" <<'EOF'
 [DEBUG] Applying permission update: Adding 1 allow rule(s) to destination 'userSettings'
@@ -392,7 +330,6 @@ assert_contains "an unresolvable drop line is announced" "$OUT" "could not be sp
 assert_contains "and the comparison is called incomplete, not clean" "$OUT" "incomplete rather than clean"
 assert_contains "the resolvable line is still compared" "$OUT" "oracle AGREES Bash(npx *)"
 
-# --- Case 8: capture without drop strings never becomes an empty drop set -----
 CAPTURE_NODROPS="$TEST_TMPDIR/capture-nodrops.log"
 cat >"$CAPTURE_NODROPS" <<'EOF'
 [DEBUG] Applying permission update: Adding 3 allow rule(s) to destination 'userSettings': [...]
@@ -401,8 +338,6 @@ OUT=$(printf '%s\n' "$ORACLE_INPUT" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_NODROP
 assert_contains "zero drop lines with predicted drops reads as unavailable" "$OUT" "treat the oracle as unavailable rather than as an empty drop set"
 assert_eq "no verdict is emitted from it" 0 "$(count_matching "$OUT" '^oracle (AGREES|DIVERGES) ')"
 
-# A capture with no permission narration at all (the [DEBUG] strings changed,
-# or the session died before the merge) is unavailable, with the reason named.
 CAPTURE_ALIEN="$TEST_TMPDIR/capture-alien.log"
 cat >"$CAPTURE_ALIEN" <<'EOF'
 [DEBUG] something else entirely
@@ -410,7 +345,6 @@ EOF
 OUT=$(printf '%s\n' "$ORACLE_INPUT" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_ALIEN" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "a capture without merge narration is unavailable" "$OUT" "no permission-merge narration"
 
-# --- Case 9: end to end — reader conf record reaches the diff -----------------
 if command -v jq >/dev/null 2>&1; then
   FX="$TEST_TMPDIR/fx"
   mkdir -p "$FX/proj/.claude" "$FX/home/.claude"
@@ -433,12 +367,6 @@ else
   pass "end-to-end conf record flow (skipped — jq not installed)"
 fi
 
-# --- The diff states its precondition and its reversibility -------------------
-# Not every run shape starts in auto mode (headless and Agent SDK runs with no
-# mode set do not), so those runs get a diff for a transition they never make
-# unless the precondition is stated. And the docs say dropped rules are restored
-# on leaving auto mode, which "dropped" alone does not convey.
-# Start-mode table: https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in
 BASE_IN=$(
   cat <<'EOF'
 user settings present <userhome>/.claude/settings.json
@@ -452,8 +380,6 @@ assert_contains "and points at the live start-mode table" "$OUT_BASE" "permissio
 assert_contains "the diff says both classes are restored on leaving" "$OUT_BASE" "RESTORED"
 assert_contains "the broad rule is still classified" "$OUT_BASE" "entry-diff dropped class=blanket"
 
-# An unread scope contributes no allow rules, so an all-zero diff has two very
-# different meanings. status= separates them.
 assert_contains "a fully-read diff reports status=read" "$OUT_BASE" "status=read"
 UNREAD_DIFF=$(
   cat <<'EOF'

@@ -9,9 +9,6 @@ SCRIPT="$SCRIPT_DIR/check-doc-citations.sh"
 MANIFEST="$SCRIPT_DIR/../reference/doc-citations.tsv"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
-# A case that serves its own content for a slug another case also serves runs
-# with its own DOCS_CACHE_DIR, so no cached title or quarantine carries over.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$TEST_TMPDIR/cache" XDG_CONFIG_HOME="$TEST_TMPDIR/config"
 
@@ -22,7 +19,6 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected $2, got $3"; fi
 }
 
-# index_of <dir>: write <dir>/llms.txt linking every page under <dir>, as the docs index does.
 index_of() {
   local d="$1" p
   {
@@ -34,9 +30,6 @@ index_of() {
   } >"$d/llms.txt"
 }
 
-# A curl stand-in serving local files by docs path. It logs every request to
-# $CURL_SHIM_LOG, serves $CURL_SHIM_SRC, answers 404 for a file it lacks, and
-# reports an off-origin final URL for the page named in $CURL_SHIM_REDIRECT_PAGE.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 cat >"$SHIM/curl" <<'EOF'
@@ -69,8 +62,6 @@ printf '%s' "$wfmt"
 EOF
 chmod +x "$SHIM/curl"
 
-# shim_run <served dir> <log> <script args...>: run the script through the stand-in with no fixture seam,
-# and a docs cache of its own beside the log.
 shim_run() {
   local src="$1" log="$2"
   shift 2
@@ -78,7 +69,6 @@ shim_run() {
     FETCH_DOCS_FIXTURE_DIR="" bash "$SCRIPT" "$@" 2>&1
 }
 
-# --- Case 1: every span present on fixture pages passes --------------------
 fx="$TEST_TMPDIR/present"
 mkdir -p "$fx"
 man="$TEST_TMPDIR/manifest-present.tsv"
@@ -92,7 +82,6 @@ assert_exit "case 1: all present exits 0" 0 "$rc"
 assert_contains "case 1: OK rows" "$out" "OK    alpha: ### \`keyOne\`"
 assert_contains "case 1: summary counts" "$out" "Checked 3 citation(s), 0 missing, 0 skipped"
 
-# --- Case 2: a span the page lost is a MISS and exit 1 ------------------------
 man="$TEST_TMPDIR/manifest-missing.tsv"
 printf '%s\n' 'alpha	### `keyOne`' 'alpha	### `keyGone`' >"$man"
 rc=0
@@ -101,7 +90,6 @@ assert_exit "case 2: missing span exits 1" 1 "$rc"
 assert_contains "case 2: MISS row names the span" "$out" "MISS  alpha: ### \`keyGone\`"
 assert_contains "case 2: summary counts the miss" "$out" "1 missing"
 
-# --- Case 3: an unreadable page is a SKIP, never a pass or a failure -----------
 man="$TEST_TMPDIR/manifest-skip.tsv"
 printf '%s\n' 'alpha	### `keyOne`' 'gamma	anything' 'gamma	anything else' >"$man"
 rc=0
@@ -112,10 +100,6 @@ assert_contains "case 3: SKIP line carries the reason" "$out" "not-in-index"
 assert_contains "case 3: summary counts skips" "$out" "2 skipped"
 assert_not_contains "case 3: no OK claimed for the skipped page" "$out" "OK    gamma"
 
-# --- Case 4: --docs-dir pages are read before any fetch -------------------------
-# The stand-in serves an index listing both pages but only one page file, so the
-# run proves both that a page on disk is never requested and that a page the
-# fetch cannot read is a SKIP.
 served="$TEST_TMPDIR/served4"
 mkdir -p "$served"
 printf '%s\n' '# Docs' '- [a](https://code.claude.com/docs/en/alpha.md): a' '- [d](https://code.claude.com/docs/en/delta.md): d' >"$served/llms.txt"
@@ -130,7 +114,6 @@ calls="$(cat "$TEST_TMPDIR/curl-4.log" 2>/dev/null || true)"
 assert_not_contains "case 4: the on-disk page was never fetched" "$calls" "alpha.md"
 assert_contains "case 4: the absent page was fetched once" "$calls" "delta.md"
 
-# --- Case 5: fatal cases ---------------------------------------------------------
 rc=0
 bash "$SCRIPT" --manifest "$TEST_TMPDIR/absent.tsv" >/dev/null 2>&1 || rc=$?
 assert_exit "case 5: missing manifest exits 2" 2 "$rc"
@@ -142,12 +125,10 @@ out=$(CLAUDE_PLUGIN_ROOT="$TEST_TMPDIR/no-plugin" SETTINGS_AUDIT_DOCS_FIXTURE_DI
 assert_exit "case 5: a missing shared fetcher exits 2" 2 "$rc"
 assert_contains "case 5: the missing fetcher is named" "$out" "shared fetcher not found"
 
-# --- Case 6: the shipped manifest is well-formed --------------------------------
 rc=0
 bad=$(grep -vE '^(#|$)' "$MANIFEST" | grep -vcE $'^[a-z-]+(/[a-z-]+)*\t.+$' || true)
 if [[ "$bad" == "0" ]]; then pass "case 6: every manifest row is slug<TAB>span"; else fail "case 6: every manifest row is slug<TAB>span" "$bad malformed row(s)"; fi
 
-# --- Case 7: a manifest with no trailing newline still checks its last row ------
 fx7="$TEST_TMPDIR/lastrow"
 mkdir -p "$fx7"
 man="$TEST_TMPDIR/manifest-lastrow.tsv"
@@ -160,7 +141,6 @@ assert_exit "case 7: the unterminated last row is checked and fails" 1 "$rc"
 assert_contains "case 7: MISS names the last row" "$out" "MISS  alpha: ### \`keyGone\`"
 assert_contains "case 7: both rows counted" "$out" "Checked 2 citation(s), 1 missing"
 
-# --- Case 8: a nested slug is fetched into its own subdirectory -----------------
 served="$TEST_TMPDIR/served8"
 mkdir -p "$served/plugins"
 printf 'a nested span\n' >"$served/plugins/install.md"
@@ -172,9 +152,6 @@ out=$(shim_run "$served" "$TEST_TMPDIR/curl-8.log" --manifest "$man") || rc=$?
 assert_exit "case 8: the nested page is fetched and checked" 0 "$rc"
 assert_contains "case 8: OK for the nested slug" "$out" "OK    plugins/install: a nested span"
 
-# --- Case 9: a slug that could leave the page directory is refused --------------
-# A page sits beside the fixture directory, so a slug that climbed out of it
-# would read that page and pass.
 fx9="$TEST_TMPDIR/slugs/pages"
 mkdir -p "$fx9"
 printf '%s\n' 'an escaped span' >"$TEST_TMPDIR/slugs/escape.md"
@@ -190,11 +167,6 @@ for bad in '../escape' '/escape' 'alpha/../../escape' 'Alpha'; do
   assert_not_contains "case 9: slug '$bad' checks no row" "$out" "OK "
 done
 
-# --- Case 10: a slug the index does not list is skipped, never fetched -----------
-# The index lists skills but not slash-commands. slash-commands.md sits in the
-# fixture and on the served side byte-identical to skills.md, the shape of a
-# retired slug that answers with another page's body: a span skills carries
-# must not pass as slash-commands' own.
 fx10="$TEST_TMPDIR/retired"
 mkdir -p "$fx10"
 printf '%s\n' '# Skills' 'a span the skills page carries' >"$fx10/skills.md"
@@ -219,7 +191,6 @@ calls="$(cat "$TEST_TMPDIR/curl-10.log" 2>/dev/null || true)"
 assert_contains "case 10: fetch route, the indexed page was requested" "$calls" "skills.md"
 assert_not_contains "case 10: fetch route, no request for slash-commands.md" "$calls" "slash-commands.md"
 
-# --- Case 11: every request is HTTPS only and stays on the docs origin -----------
 served="$TEST_TMPDIR/served11"
 mkdir -p "$served"
 printf '%s\n' 'alpha span' >"$served/alpha.md"
@@ -242,7 +213,6 @@ timed="$(grep -c -- '--connect-timeout .* --max-time ' "$TEST_TMPDIR/curl-11.log
 assert_eq "case 11: every request carries a connect timeout and a max time" "$total" "$timed"
 assert_not_contains "case 11: no plain-http request" "$calls" "http://"
 
-# --- Case 12: a jq that ends each @tsv line with CR (Windows) leaves no CR in the reason ---
 crjq="$TEST_TMPDIR/crjq"
 mkdir -p "$crjq"
 real_jq="$(command -v jq)"
