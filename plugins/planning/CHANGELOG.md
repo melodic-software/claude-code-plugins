@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.1] - 2026-11-23
+
+### Changed
+
+- `/planning:audit-answers`, `/planning:design`, `/planning:design-handoff`, `/planning:interview`, `/planning:plan`, `/planning:prd` gather their repository context as separate Bash calls sent in parallel in one message, one turn instead of one per command, with the rule text generated from `docs/conventions/gather-block/block.md`.
+- `/planning:devils-advocate` no longer gather repository context that no step read.
+
 ## [5.14.0] - 2026-11-23
 
 ### Added
