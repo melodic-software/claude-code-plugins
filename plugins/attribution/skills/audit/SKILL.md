@@ -10,17 +10,6 @@ metadata:
   summary: Find prose copied from external sources and convert it into pointers
 ---
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation").
-
 ## Pre-computed context
 
 Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh" --show-config 2>/dev/null | head -10`

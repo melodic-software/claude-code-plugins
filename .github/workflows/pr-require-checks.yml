@@ -1434,6 +1434,12 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh config-cascade-semantics {0}
         run: python3 scripts/sync-config-cascade-semantics.py --check
 
+      - name: Check the skill gather blocks against `docs/conventions/gather-block/block.md`
+        id: gather_block
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh gather-block {0}
+        run: python3 scripts/sync-gather-block.py --check
+
       # code-metrics resolves every tunable from one defaults file and restates
       # every key in a reference table with its default. A test pins the setup
       # template to that file leaf for leaf; this gate pins the table, where a
@@ -2051,6 +2057,7 @@ jobs:
             artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             workflow-template-size=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_template_size.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
+            gather-block=${{ steps.gather_block.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
             line-citations=${{ steps.line_citations.outcome }}

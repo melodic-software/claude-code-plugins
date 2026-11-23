@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for collect-containers.sh and render-containers.sh.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -28,8 +27,6 @@ node_line() {
   awk -v id="$2" 'index($0, "\"" id "\"") && $0 ~ /\{"id":/ { print; exit }' "$1"
 }
 
-# charted_text <record>: the record without its uncharted-projects finding, which
-# names every project the record does not chart.
 charted_text() {
   grep -v '"kind":"uncharted-projects"' "$1"
 }
@@ -200,8 +197,6 @@ assert_contains "likec4 is a container view" "$(cat "$MOUT/containers.md")" "vie
 assert_likec4_golden "containers.c4" "$MOUT/containers.md"
 assert_contains "module evidence cites the whole reference tag" "$mono_text" 'Include=\"..\\Billing\\Billing.csproj\" />'
 
-# The no-graph path reads references with the shared reader: a tag that spans
-# lines with a single-quoted Include is a module, and a commented-out one is not.
 SHARED="$TEST_TMPDIR/shared-reader"
 mkdir -p "$SHARED/src/Host" "$SHARED/src/Lib" "$SHARED/src/Ghost"
 cat >"$SHARED/src/Host/Host.csproj" <<'EOF'
@@ -245,7 +240,6 @@ cat >"$BUS/src/Worker/Worker.csproj" <<'EOF'
   <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
 </Project>
 EOF
-# Fixture credentials expand from variables so no committed line reads as a live credential to a secret scanner.
 leak_sql="super-secret-password"
 leak_blob="abcDEF123secretkey"
 leak_bearer="sk-live-abc123secret"
@@ -427,7 +421,6 @@ collect_render() {
   bash "$RENDER" --record "$2/containers.json" --out "$2" --dialect c4-plantuml >"$2/render.out" 2>"$2/render.err"
 }
 
-# FROM: a digest, options, a variable, and stages do not become the image name.
 DOCK="$TEST_TMPDIR/docker-repo"
 web_project "$DOCK/src/Api" Api
 digest="sha256:$(printf 'a%.0s' {1..64})"
@@ -477,7 +470,6 @@ assert_equals "FROM stage: a last stage that names an earlier stage resolves to 
 assert_equals "FROM stage: the resolved aspnet image is kind api" "$(field "$stage_line" kind)" "api"
 assert_equals "FROM stage: a stage built on a variable stays unknown" "$(field "$(node_line "$DREC" 'images/argstage/Dockerfile')" technology)" "unknown"
 
-# Test projects are not deployables, even when the output type is Exe.
 TESTS="$TEST_TMPDIR/tests-repo"
 web_project "$TESTS/src/Api" Api
 mkdir -p "$TESTS/tests/Api.Tests" "$TESTS/tests/Api.Bench" "$TESTS/tests/Api.Perf" "$TESTS/tests/Lib.Tests" "$TESTS/tools/Tool"
@@ -524,7 +516,6 @@ assert_not_contains "tests: a library test project that was never a candidate is
 assert_contains "tests: the report line carries the excluded count" "$(cat "$TEST_TMPDIR/tests-out/render.out")" "excluded_tests=3"
 assert_equals "tests: the diagram draws the host and the tool only" "$(grep -c 'Container(' "$TEST_TMPDIR/tests-out/containers.md" || true)" "2"
 
-# SQL identity is host, port, and database.
 DBS="$TEST_TMPDIR/dbs-repo"
 for svc in Orders Billing Reports Legacy1 Legacy2; do
   web_project "$DBS/src/$svc" "$svc"
@@ -554,7 +545,6 @@ assert_not_contains "database: a shared known-database edge does not" "$(grep 's
 assert_not_contains "database: the password is redacted" "$(cat "$SREC" "$TEST_TMPDIR/dbs-out/containers.md")" "$leak_sql"
 assert_contains "database: the report line counts both shared rows" "$(cat "$TEST_TMPDIR/dbs-out/render.out")" "shared=2"
 
-# The technology of a sql store is its scheme, never SQL for a host that is not.
 TECH="$TEST_TMPDIR/tech-repo"
 web_project "$TECH/src/Api" Api
 cat >"$TECH/src/Api/appsettings.json" <<EOF
@@ -585,7 +575,6 @@ assert_equals "technology: an Azure AI Search host is Azure AI Search" "$(field 
 assert_not_contains "technology: a SQLite Data Source file is not a store" "$xtext" "embedded-app.db"
 assert_not_contains "technology: the password is redacted" "$xtext" "$leak_sql"
 
-# A search endpoint is a search store, and its api key never reaches an output.
 leak_search="searchAdminKey0123456789"
 SRCH="$TEST_TMPDIR/search-repo"
 web_project "$SRCH/src/Api" Api
@@ -614,7 +603,6 @@ assert_not_contains "search: the api key is in no table" "$(cat "$TEST_TMPDIR/se
 assert_not_contains "search: the api key is not on stdout or stderr" "$(cat "$TEST_TMPDIR/search-out"/*.out "$TEST_TMPDIR/search-out"/*.err)" "$leak_search"
 assert_contains "search: the diagram draws it as a database" "$(cat "$TEST_TMPDIR/search-out/containers.md")" "ContainerDb"
 
-# A store with three owners is one shared row per owner pair.
 THREE="$TEST_TMPDIR/three-repo"
 for svc in Api Worker Batch; do
   web_project "$THREE/src/$svc" "$svc"
@@ -638,7 +626,6 @@ assert_contains "three owners: the table names the store" "$hmd" "| from | to | 
 assert_contains "three owners: the table lists every pair" "$hmd" "| src/Batch/Batch.csproj | src/Worker/Worker.csproj | store:broker:bus.servicebus.windows.net: |"
 assert_contains "three owners: the table lists the first pair" "$hmd" "| src/Api/Api.csproj | src/Batch/Batch.csproj |"
 
-# An endpoint a deployable's config names is an edge only through a cited fact.
 leak_ep_pass="EndpointPass456"
 leak_ep_tok="EndpointTok789"
 leak_semi_tok="semitok321"
@@ -678,7 +665,6 @@ assert_likec4_golden "containers-endpoints.c4" "$TEST_TMPDIR/endpoint-likec4/con
 bash "$RENDER" --record "$EREC" --out "$TEST_TMPDIR/endpoint-none" --dialect none >/dev/null
 assert_contains "endpoint: the tables carry it when no diagram is drawn" "$(cat "$TEST_TMPDIR/endpoint-none/containers.md")" "| src/Web/Web.csproj | src/OrdersApi/OrdersApi.csproj |"
 
-# A launchSettings applicationUrl on the target resolves a loopback endpoint on the same port.
 LS="$TEST_TMPDIR/launch-repo"
 web_project "$LS/src/Web" Web
 web_project "$LS/src/Orders" Orders
@@ -699,7 +685,6 @@ assert_contains "launchSettings: it cites both config keys" "$ledges" "src/Web/a
 assert_contains "launchSettings: it cites the applicationUrl" "$ledges" "src/Orders/Properties/launchSettings.json: profiles.https.applicationUrl"
 assert_not_contains "launchSettings: a deployable's own listen address is not an endpoint" "$(cat "$LREC")" "external-endpoint"
 
-# An endpoint that resolves to nothing, to more than one deployable, or only by resemblance draws no edge.
 UNK="$TEST_TMPDIR/unknown-endpoint-repo"
 web_project "$UNK/src/Web" Web
 web_project "$UNK/src/OrdersApi" OrdersApi
@@ -743,7 +728,6 @@ assert_contains "unresolved: a name that only resembles a project is not matched
 assert_contains "unresolved: a host naming two deployables is not guessed" "$utext" "Services.Both.BaseUrl names host shared:8080; matches more than one deployable"
 assert_contains "unresolved: the findings table lists them" "$(cat "$TEST_TMPDIR/unknown-endpoint-out/containers.md")" "| external-endpoint | 1 |"
 
-# A compose service name resolves whatever its case, and a bare host under a search-named key is no store.
 CASE="$TEST_TMPDIR/case-endpoint-repo"
 web_project "$CASE/src/Web" Web
 web_project "$CASE/src/OrdersApi" OrdersApi
@@ -769,7 +753,6 @@ assert_equals "case: a mixed-case compose service name draws its edge" "$(grep -
 assert_equals "case: a bare host under a search-named key draws no finding" "$(grep -c '"kind":"external-endpoint"' "$CREC" || true)" "0"
 assert_not_contains "case: a bare host under a search-named key is not a store" "$(cat "$CREC")" '"store:search:'
 
-# Only an http or https URL is an endpoint, and an omitted port is the scheme's own default.
 SCH="$TEST_TMPDIR/scheme-endpoint-repo"
 web_project "$SCH/src/Web" Web
 web_project "$SCH/src/PlainApi" PlainApi
@@ -811,7 +794,6 @@ assert_equals "scheme: a non-http URL is neither an edge nor a finding" "$(grep 
 assert_not_contains "scheme: an ftp URL is not recorded" "$stext" "files.example.com"
 assert_not_contains "scheme: an ftp URL under a search-named key is not a search store" "$stext" "logs.internal.example.com"
 
-# Userinfo and a query token do not stop the edge from resolving, and neither reaches an output.
 LEAK="$TEST_TMPDIR/leak-endpoint-repo"
 web_project "$LEAK/src/Web" Web
 web_project "$LEAK/src/OrdersApi" OrdersApi
@@ -833,7 +815,6 @@ assert_not_contains "leak: the password is in no output" "$leak_ep_text" "$leak_
 assert_not_contains "leak: the query token is in no output" "$leak_ep_text" "$leak_ep_tok"
 assert_not_contains "leak: the userinfo is in no output" "$leak_ep_text" "user:"
 
-# A ; inside userinfo is credential text: it is never the host of an edge or a finding.
 SEMI="$TEST_TMPDIR/semi-userinfo-repo"
 web_project "$SEMI/src/Web" Web
 web_project "$SEMI/src/OrdersApi" OrdersApi
@@ -862,7 +843,6 @@ assert_contains "semicolon userinfo: a number before the ; is not the port" "$se
 assert_not_contains "semicolon userinfo: the word is in no output" "$semi_text" "$leak_semi_tok"
 assert_not_contains "semicolon userinfo: the number is in no output" "$semi_text" "$leak_semi_num"
 
-# Files are read from the working tree, and a dirty tracked file is a finding.
 DIRTY="$TEST_TMPDIR/dirty-repo"
 web_project "$DIRTY/src/Api" Api
 config_json "$DIRTY/src/Api" ConnectionStrings Main "Server=committed.example.com;Database=o"
@@ -882,8 +862,6 @@ assert_contains "dirty tree: the report line carries the count" "$(cat "$TEST_TM
 assert_contains "dirty tree: the tables carry the finding" "$(cat "$TEST_TMPDIR/dirty-out/containers.md")" "| dirty-tracked-files | 1 |"
 assert_not_contains "bus: untracked files are not dirty tracked files" "$bus_text" "dirty-tracked-files"
 
-# A project file charted as no deployable, module or excluded test project is
-# named, never dropped without a word; a repository with none has no finding.
 UNCH="$TEST_TMPDIR/uncharted-repo"
 web_project "$UNCH/src/Api" Api
 mkdir -p "$UNCH/src/Legacy" "$UNCH/src/Orphan"
@@ -911,7 +889,6 @@ commit_repo "$CHARTED"
 collect_render "$CHARTED" "$TEST_TMPDIR/charted-out"
 assert_not_contains "uncharted: a repository with neither has no finding" "$(cat "$TEST_TMPDIR/charted-out/containers.json")" "uncharted-projects"
 
-# The findings array is optional, and one that is not one object per line is refused.
 cat >"$TEST_TMPDIR/old-record.json" <<'EOF'
 {
   "schema_version": 1,

@@ -1,129 +1,15 @@
 #!/usr/bin/env bash
-# Stop hook: the deterministic lane-stop gate (autonomy #535 member 3) plus the
-# operator STOP-notification (member 4).
-#
-# "A lane that stops itself before its goal is met is a bug" is otherwise only a
-# prompt admonition. This hook fires on every stop attempt of an opted-in
-# autonomous lane and structurally intercepts it: unless completion is EXPLICITLY
-# signaled, the first stop attempt is blocked with a re-injected completion
-# self-check (converting a silent premature stop into "keep going or declare
-# done"), and a lane that still stops after that one nudge is treated as a
-# genuine down-lane — allowed to stop (never wedged) and the operator is alerted.
-#
-# SCOPE — this gate mechanizes ONE clause of the autonomous-pipeline reminder
-# (reference/autonomous-pipeline-reminder.md): end the turn only on completion or
-# a genuine block. It performs no content classification of the final message
-# beyond the literal sentinel check below, so it cannot tell a blocked-on-user
-# stop from a lazy one — both get the same single nudge. Every other clause of
-# that reminder is carried by instruction alone; a shell hook cannot judge
-# whether a final paragraph describes an action or reports one.
-#
-# DEFAULT-OFF. A Stop-blocking hook that engaged by default would wedge every
-# interactive user's stop, so the gate is inert unless a session explicitly opts
-# in. Every other exit path allows the stop.
-#
-# FAIL-OPEN. Unlike a PreToolUse guard (which fails closed to deny), a Stop gate
-# that fails closed would trap a lane it cannot evaluate. On unreadable stdin,
-# missing jq, or a non-Stop event it allows the stop. An unreadable or malformed
-# TRUSTED CONFIG source likewise contributes no verdict — the default (off)
-# applies — but an enablement claimed only on the untrusted env channel gets a
-# notice to the user, once per session, rather than a silent disengage.
-#
-# CONFIG IS READ FROM TRUSTED SOURCES ONLY (#1784). The gate never reads
-# `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` straight off the environment as a
-# value: that is channel B of docs/contracts/hook-config-delivery, whose
-# unset case a watched repository's own `.claude/settings.json` `env` block
-# owns, and a gate whose enablement (or sentinel, or marker path) the watched
-# repository controls is not a gate. Per-key resolution is, in precedence
-# order:
-#
-#   1. managed settings (fixed root-owned paths + managed-settings.d drop-ins);
-#   2. the per-session ARM RECORD: the harness-ops lane launcher arms a lane at
-#      launch via this plugin's hooks/lane-stop-gate-arm.sh, which writes a
-#      record under the plugin's own install-derived data directory; the session
-#      carries only a random record id through the `lane_stop_gate_arm_id`
-#      userConfig option. The env-delivered id is a capability POINTER, never
-#      authority: it is shape-validated, looked up only in the install-derived
-#      store, claimed by the first session that presents it through an exclusive
-#      create so concurrent presenters cannot both win (a different session
-#      replaying the same id is refused), and TTL-bounded — it lives for the
-#      claiming session's whole life (every /loop cycle's stop stays gated),
-#      retired by its 31-day TTL (GATE_ARM_TTL_DAYS in lane-stop-gate-lib.sh,
-#      past the 30-day /loop expiry at
-#      https://code.claude.com/docs/en/changelog#2-1-330)
-#      and the launcher's relaunch sweep, never by a single stop;
-#   3. user settings.json, located only from this script's own install path;
-#   4. the in-script defaults (enabled=false, sentinel=LANE-STOP-OK, no marker).
-#
-# The `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED/SENTINEL/MARKER` env mirrors
-# are never read as values. ENABLED/ARM_ID presence is used ONLY to decide
-# whether to evaluate at all and to surface the visible not-honored notice.
-#
-# Completion signal (either is sufficient, checked deterministically — a shell
-# hook cannot re-run the /goal evaluator model):
-#   - the exact sentinel token (default LANE-STOP-OK) in the agent's final
-#     message, matched only when it stands alone on its own line, or
-#   - the existence of the configured marker file (consumed on use, so a prior
-#     run's leftover marker never authorizes a later run). Consumption is
-#     recorded in this plugin's own data directory, not carried solely by the
-#     file's deletion: an `rm` the hook is not permitted to perform must not
-#     leave a file a later run reads as a live signal.
-#
-# Config (userConfig keys, delivered per the precedence above):
-#   lane_stop_gate_enabled     opt a session in (default false)
-#   lane_stop_gate_sentinel    completion token (default LANE-STOP-OK)
-#   lane_stop_gate_marker      completion-marker file (absolute, or relative to
-#                              the session cwd; default unset)
-#   lane_stop_gate_arm_id      launcher-written arm-record id (never authority)
 
 set -uo pipefail
-# High-res start stamp for the telemetry envelope, taken first so an evaluated
-# stop's duration includes the library parse. EPOCHREALTIME is Bash 5.0+; on an
-# older host it is empty and hook::emit_telemetry skips fail-open.
 START=${EPOCHREALTIME:-}
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
-# The plugin root, as gate_plugin_root_to derives it: the libraries are not
-# loaded yet (see the pre-filter below), so the derivation is spelled here.
 case "$HOOK_DIR" in
 /*) _gate_root="$HOOK_DIR/.." ;;
 ?:[/\\]*) _gate_root="${HOOK_DIR//\\//}/.." ;;
 *) _gate_root=$(cd "$HOOK_DIR/.." 2>/dev/null && pwd) ;;
 esac
 
-# jq-free, stdin-free, library-free pre-filter: is the gate plausibly configured
-# anywhere this host could honor — or at least CLAIMED, which must produce the
-# visible notice further down rather than silence? Sessions with no gate
-# footprint at all (the interactive default) exit here, before the sourced
-# libraries are parsed, before the stdin buffer, and before the jq
-# gate: an unarmed session pays for nothing it cannot use, and a jq-less machine
-# never sees a lane-stop-gate notice for a session that never opted in. The env
-# presence tests grant no authority: a hit only routes into evaluation, where
-# the trusted sources decide.
-#
-# It reads, with builtins only (no process of any kind):
-#   - the ARM_ID and ENABLED env presences;
-#   - the user settings.json at the install anchor, located exactly as
-#     gate_resolve_anchor + gate_user_settings_file_to locate it;
-#   - every managed-settings file that EXISTS for ANY platform: the fixed
-#     primaries (the GATE_MANAGED_PRIMARY_* literals of lane-stop-gate-lib.sh,
-#     which the suite pins against this copy) and each one's
-#     managed-settings.d/*.json. Testing all three is equivalent to selecting one
-#     by `uname -s` because another platform's path does not exist, and this list
-#     ROUTES only: every managed VALUE still comes from the lib's uname-selected,
-#     absoluteness-asserted list. The Windows spelling carries no leading `/`, so
-#     on a POSIX host it resolves against the cwd, where a repo can plant one;
-#     that routes into evaluation and nothing more, the same forcing power the
-#     repo's own `env` block already has over the presence tests.
-# Nothing here is payload-derived, so it MUST stay above the buffer — and
-# everything payload-derived (hook::require jq, EVENT, SESSION_ID, and the
-# SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).
 gate_maybe_configured() {
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ]] && return 0
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" ]] && return 0
@@ -148,22 +34,8 @@ gate_maybe_configured() {
   done
   return 1
 }
-# gate_file_mentions <file> — `grep -q lane_stop_gate <file>` with no process:
-# the file is read in NUL-delimited chunks (a `read -d ''` returns 1 at EOF
-# while still assigning the final chunk) and each chunk is substring-tested.
-# The token holds no NUL, so it cannot straddle a chunk boundary, and an
-# unreadable file yields no chunk, which is the same "no match" grep gave.
-#
-# `2>/dev/null` is written BEFORE the input redirection, and the order is
-# load-bearing: bash applies a command's redirections left to right, so with
-# the input first an open that fails — an existing settings file this hook may
-# not read — reports "Permission denied" on the stderr the next redirection was
-# about to silence, and this hook runs on every Stop, so the noise would be
-# per-turn. The verdict (no chunk, return 1) is the same either way.
 gate_file_mentions() {
   local chunk=""
-  # Terminates: every successful read consumed a NUL, and at EOF `read`
-  # assigns the empty remainder and returns 1, which ends the loop.
   while IFS= read -r -d '' chunk || [[ -n "$chunk" ]]; do
     [[ "$chunk" == *lane_stop_gate* ]] && return 0
   done 2>/dev/null <"$1"
@@ -177,39 +49,16 @@ source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/lane-notify.sh"
 # shellcheck source=lane-stop-gate-lib.sh
 source "$HOOK_DIR/lane-stop-gate-lib.sh"
-# The ANCHOR half of the install resolution, then — only for an unanchored
-# (--plugin-dir) install — the manifest read that names it, which costs a jq
-# process. gate_settings_options_to needs the name to match a pluginConfigs
-# entry; an anchored install already has its marketplace-qualified id.
 gate_resolve_anchor "$_gate_root" || true
 [[ -n "$GATE_CONFIG_ROOT" ]] || gate_resolve_plugin_name "$_gate_root" || true
 
-# emit_tel <status> <outcome> <signal> — fire-and-forget telemetry for an
-# EVALUATED gate outcome (hook-telemetry convention; no-op unless the consumer
-# sets HOOK_TELEMETRY_SINK). Only the three evaluated outcomes emit; the
-# fail-open/skip exits stay silent — they are pre-evaluation, and emitting on
-# every interactive default-off stop would be noise, not signal. The payload is
-# a closed fixed vocabulary by design: never the sentinel value, the marker
-# path, the cwd, or the branch, so the envelope cannot leak the completion
-# token or lane-identifying paths into the sink.
-#
-# The data object is assembled in the shell, not by `jq -nc --arg …`: both
-# fields are literals from the closed vocabulary at the call sites below (no
-# quote, backslash or control byte among them), so the bytes are the ones jq's
-# compact printer wrote — `{"outcome":"…","signal":"…"}` — without spending a
-# process on every evaluated stop, sink or no sink.
 emit_tel() {
   local data='{"outcome":"'"$2"'","signal":"'"$3"'"}'
   hook::emit_telemetry "lane-stop-gate" "Stop" "$1" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
-# gate that cannot read the payload must not trap the lane).
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq parses the payload and the trusted config. Absent → a once-per-session
-# notice, then allow the stop (fail-open). User only: Stop additionalContext
-# continues the conversation, which would spend a model turn on a notice.
 if ! command -v jq >/dev/null 2>&1; then
   # shellcheck disable=SC2034 # the model text is filled and dropped: user only on Stop
   JQ_MODEL="" JQ_USER=""
@@ -219,15 +68,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Every payload field the gate reads, in ONE jq pass. The shared
-# `hook::jq_fields` helper strips every CR, so `LANE-STOP\r-OK` would become
-# `LANE-STOP-OK` and authorize a stop the parent blocked. LAST is therefore read
-# by this pass and left CR-intact; the other four are CR-stripped after the
-# read. Trailing newlines are chomped as a `$( )` capture would. A malformed
-# payload leaves every field empty, which exits at the event guard.
-# `// false | tostring` keeps stop_hook_active reading "false" when the key is
-# absent. NULs are dropped inside jq so they cannot split the delimiter, the
-# same contract as hook::jq_fields.
 chomp_nl() {
   local __v="${!1}"
   while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
@@ -240,8 +80,6 @@ strip_cr() {
 }
 GATE_PAYLOAD_FIELDS=()
 {
-  # Script-level group, so the loop variable is a global (`local` is invalid
-  # here, SC2168); it is unset after the loop.
   while IFS= read -r -d '' _gate_pf; do
     GATE_PAYLOAD_FIELDS+=("$_gate_pf")
   done < <(printf '%s' "$INPUT" | jq -j '
@@ -265,59 +103,13 @@ done
 unset -v _gate_field
 chomp_nl LAST
 
-# Fire ONLY on a true top-level session stop. A subagent finishing is delivered
-# as SubagentStop; guarding on the event name keeps a Task-tool worker's normal
-# completion from ever tripping the lane gate, whichever way the platform routes
-# the registration.
 [[ "$EVENT" == "Stop" ]] || exit 0
 
-# --- Arm record ---------------------------------------------------------------
-# Load (and claim) the arm record named by the env-carried id, if any. Success
-# sets GATE_ARM_JSON and means: this session was armed by the operator-side
-# launcher. TTL keeps a crashed lane's record from outliving its usefulness; the
-# session claim makes a replayed id (e.g. one a lane leaked and a repo env block
-# later serves to a different session) worthless.
 GATE_ARM_TTL_SECONDS=$((GATE_ARM_TTL_DAYS * 86400))
 GATE_ARM_JSON=""
 
-# Does this session own the record whose claim sidecar is <claim path>?
-#
-# The claim is an EXCLUSIVE CREATE — `set -o noclobber` on a `>` redirection,
-# i.e. open with O_CREAT|O_EXCL — used here for mutual exclusion on a contended
-# name rather than for a process-unique temp name. Read-then-write of the record itself cannot decide this:
-# two Stop invocations presenting the same fresh id both read it unclaimed, both
-# write, and the last rename wins, so BOTH honor the arm for that event while
-# the loser — possibly the legitimate lane — is refused on every later stop.
-# flock is not used: it is absent on macOS.
-#
-# FAIL DIRECTION: a store this hook cannot write leaves no claim file
-# at all and the arm is HONORED. Being gated is never the harm here; the harm is
-# a legitimate lane silently losing its gate. The existence recheck that tells
-# "another session claimed it" apart from "an unwritable store" shares that
-# direction, and so does the fall-through below: durably ownerless — a create
-# that won whose write never landed — or a durably unwritable store honors every
-# presenter for as long as it lasts, the same unbounded over-gating a failed
-# claim write produces, in the same direction. An extra nudge, never an
-# ungated lane.
-#
-# The claim file exists ONLY because some process won the exclusive create, so
-# an EMPTY one is that winner caught between its create and its write, not an
-# ownerless record. Honoring it there would hand one fresh arm to every
-# concurrent presenter — the race this claim exists to close, reopened a few
-# microseconds wide — so the read is retried over a bounded budget to let the
-# winner's line land. Bounded, and the fall-through is still HONOR: refusing a
-# durably ownerless claim would make the record permanently unclaimable, which
-# is the original harm in a new shape.
-#
-# The comparison runs on a newline-stripped session id so the value written and
-# the value read back are the same shape whatever the payload carried.
 gate_arm_owned() {
   local claim="$1" me="${SESSION_ID//[$'\r\n']/}" owner=""
-  # The record path has always been guarded by `[[ -f ]]`; the claim is a second
-  # predictable name in the same store and earns the same asymmetry. Anything
-  # sitting there that this hook did not write is not a claim: a FIFO would
-  # block the write with no reader and hang the whole Stop event, a directory or
-  # a symlink aimed elsewhere decides nothing. Leave it untouched and honor.
   [[ ! -e "$claim" || (-f "$claim" && ! -L "$claim") ]] || return 0
   if [[ -n "$me" ]] && (
     # umask 077 is best-effort on MSYS (the claim may still land 644); the
@@ -330,29 +122,14 @@ gate_arm_owned() {
   fi
   [[ -e "$claim" ]] || return 0
   for _ in 1 2 3 4 5 6 7 8 9 10; do
-    # `|| true`, never `|| owner=""`: read reports failure on a final line with
-    # no newline yet still assigns it, and clearing that would discard a real
-    # owner.
     IFS= read -r owner <"$claim" 2>/dev/null || true
     [[ -n "$owner" ]] && break
-    # A userland whose sleep rejects a fraction leaves a tight re-read, which is
-    # a narrower budget but never a wrong answer.
     sleep 0.02 2>/dev/null || true
   done
   [[ -n "$owner" ]] || return 0
   [[ -n "$me" && "$owner" == "$me" ]]
 }
 
-# The record is read in ONE jq pass that yields, NUL-separated: armed_at,
-# session_id, the sentinel and marker options (each `v:<value>`, or `-` when
-# the record carries no string for it) and the compact document. A document
-# jq cannot parse, or one that is not an object, yields no records and is
-# refused; `null` yields an empty armed_at and is refused at the digit check.
-# The separator is `[0] | implode` so the program text carries no NUL byte, and
-# each field is chomped of trailing newlines as a `$( )` capture would be.
-# `2>/dev/null` is written BEFORE the input redirection: bash applies
-# redirections left to right, so an existing-but-unreadable record would
-# otherwise print "Permission denied" before stderr is silenced.
 GATE_ARM_OPT_HAVE=(0 0 0)
 GATE_ARM_OPT_VALUE=("" "" "")
 gate_load_arm_record() {
@@ -376,30 +153,17 @@ gate_load_arm_record() {
   ((${#fields[@]} == 5)) || return 1
   armed_at="${fields[0]}"
   [[ "$armed_at" =~ ^[0-9]+$ ]] || return 1
-  # EPOCHSECONDS is a clock only on Bash 5.0+; before that it is an ordinary
-  # variable a repo env block can set, and an inherited value would choose the
-  # TTL verdict. gate_epoch_seconds_to trusts it only when this bash provides it.
   gate_epoch_seconds_to now
   if [[ -n "$now" ]] && ((now - armed_at > GATE_ARM_TTL_SECONDS)); then
     rm -f -- "$rec" "$claim" 2>/dev/null
     return 1
   fi
-  # Compatibility read: a record claimed before the sidecar existed carries its
-  # owner in the record itself and has no claim file. That field stays
-  # authoritative so an upgrade cannot let a second session claim a record
-  # already bound to a live lane; nothing writes it any more. Mid-lane downgrade
-  # (newer hook → older without sidecar support) can leave a sidecar the older
-  # hook ignores — over-gating only; re-arm after downgrade.
   claimed="${fields[1]}"
   if [[ -n "$claimed" ]]; then
     [[ -n "$SESSION_ID" && "$claimed" == "$SESSION_ID" ]] || return 1
   else
     gate_arm_owned "$claim" || return 1
   fi
-  # Assigned only past the ownership verdict: an unowned record contributes no
-  # config, which is what keeps a replaying session from being honored at all.
-  # The option slots are index-parallel to GATE_OPTION_KEYS below (enabled is
-  # implied by the arm itself and never read from the record).
   for i in 1 2; do
     [[ "${fields[i + 1]}" == v:* ]] || continue
     GATE_ARM_OPT_HAVE[i]=1
@@ -409,24 +173,6 @@ gate_load_arm_record() {
 }
 gate_load_arm_record || true
 
-# The arm record is NOT consumed on a stop. A lane is one session across many
-# /loop cycles (harness-ops lanes/context/refresh.md), and each cycle ends in a
-# Stop the gate must still guard; deleting the record on the first
-# completion-signaled or post-nudge stop would silently disarm every later
-# cycle. The record instead lives for the claiming session — bound to it by the
-# session-id claim above, so no other session can use it — and is retired by its
-# TTL (checked on load) plus the launcher's own `find -mtime` sweep at the next
-# relaunch.
-
-# Per-key resolution: managed ▷ arm record ▷ user settings ▷ caller default
-# (return 1). An armed session IS enabled; its record may also carry the
-# sentinel and marker the launcher captured from the lane's config.
-#
-# gate_option_to <var> <key> writes the value into <var> in this shell. Each
-# scope is read ONCE for all three keys, on first need, and answered from
-# memory after that: the managed files and the user settings file each cost
-# one jq per file (gate_settings_options_to) instead of one per file per key,
-# and the arm record was read above.
 GATE_OPTION_KEYS=(lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker)
 GATE_MANAGED_RESOLVED=0
 GATE_USER_RESOLVED=0
@@ -469,24 +215,13 @@ gate_option_to() {
 
 gate_option_to ENABLED lane_stop_gate_enabled || ENABLED=""
 if [[ "$ENABLED" != "true" ]]; then
-  # No trusted source says "on". A trusted explicit false stays silent — that is
-  # a configured verdict, not a claim the gate declined to honor. The two ways a
-  # gate a lane EXPECTED can end up off get distinct, accurate notices, once
-  # per session and to the user only (only the operator can relaunch a lane),
-  # instead of a silent disengage:
   if [[ -z "$ENABLED" ]]; then
     if [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" && -z "$GATE_ARM_JSON" ]]; then
-      # An arm id reached the hook, but no valid record backs it — spent,
-      # TTL-expired, claimed by a different session, or malformed. This is the
-      # legitimately-armed-then-stale case; do NOT blame a repo env block.
       if hook::notice_once "autonomy-lane-stop-gate-stale-arm" "$INPUT"; then
         hook::emit_skip_notice "Stop" "" \
           "autonomy: lane-stop gate off: no matching arm record (expired, claimed by another session, or cleaned up). Relaunch the lane through the harness-ops lane launcher."
       fi
     elif [[ "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" == "true" ]]; then
-      # Enablement claimed on the untrusted env channel with no arm id at all —
-      # a pre-0.12.0 launcher still delivering over --settings/env, or a repo
-      # env block attempting the pre-#1784 attack. Surfacing it beats silence.
       if hook::notice_once "autonomy-lane-stop-gate-untrusted-enable" "$INPUT"; then
         hook::emit_skip_notice "Stop" "" \
           "autonomy: lane-stop gate off: enabled only on the environment channel, which it does not trust. Launch the lane through the harness-ops lane launcher."
@@ -496,24 +231,11 @@ if [[ "$ENABLED" != "true" ]]; then
   exit 0
 fi
 
-# Has completion been explicitly signaled? SIGNAL records which channel fired
-# (telemetry vocabulary: sentinel | marker | none — never the token itself).
 SIGNALED=0
 SIGNAL="none"
 
-# Signal 1 — the sentinel token in the agent's final message. Matched only when
-# the token stands alone on its own line (surrounding whitespace allowed), which
-# is exactly the "emit the exact token ... on its own line" instruction the block
-# reason gives. Requiring a dedicated line — not merely a standalone word — means
-# a message that only mentions or negates the token inline (e.g. "I should not
-# emit LANE-STOP-OK yet") does not authorize the stop.
-# An empty configured sentinel falls back to the default rather than silencing
-# the token channel: emptiness is not a documented way to disable it, and the
-# block reason below would otherwise instruct the agent to emit an empty token.
 gate_option_to SENTINEL lane_stop_gate_sentinel || SENTINEL=""
 [[ -n "$SENTINEL" ]] || SENTINEL="LANE-STOP-OK"
-# Escape any regex metacharacters in the (configurable) sentinel before use,
-# one backslash each.
 SENTINEL_RE=""
 for ((i = 0; i < ${#SENTINEL}; i++)); do
   c="${SENTINEL:i:1}"
@@ -522,50 +244,12 @@ for ((i = 0; i < ${#SENTINEL}; i++)); do
   *) SENTINEL_RE+="$c" ;;
   esac
 done
-# Matched by the shell's own ERE engine (`[[ =~ ]]`): no process, and no
-# pipeline for an early match to be lost in. The pattern is "TOKEN preceded by
-# start-of-message or a newline plus whitespace, followed by whitespace plus a
-# newline or end-of-message", which is one line holding nothing but whitespace
-# and the token. bash compiles the pattern without REG_NEWLINE, so `^` and `$`
-# are message ends here, never line ends, which is why the newline alternatives
-# are spelled out. A configured token that itself holds a newline is one
-# pattern, so only the whole token standing alone matches.
 SENTINEL_LINE_RE="(^|"$'\n'")[[:space:]]*${SENTINEL_RE}[[:space:]]*("$'\n'"|\$)"
 if [[ "$LAST" =~ $SENTINEL_LINE_RE ]]; then
   SIGNALED=1
   SIGNAL="sentinel"
 fi
 
-# --- Marker consumption ledger ------------------------------------------------
-# One marker, one authorized stop. Deleting the marker is the tidy-up, NOT the
-# latch: the marker lives in the watched checkout, which the hook may not be
-# permitted to write, and a delete the OS refuses would otherwise leave a file
-# that satisfies `[[ -f ]]` on a later, unrelated lane run — the cross-run
-# bypass consuming the marker exists to close. The durable record therefore
-# lives under this plugin's own data directory (gate_data_dir_to: install-derived
-# first, CLAUDE_PLUGIN_DATA fallback only on an unanchored install). The
-# fallback reaches nothing but THIS ledger — enablement and the arm record use
-# the install-anchored gate_trusted_data_dir_to — and the marker it gates is an
-# agent-writable declaration in the checkout anyway; see gate_data_dir_to in the
-# lib for why a redirected/unwritable fallback degrades to the documented
-# "deletion is the only latch" behavior rather than opening a new hole.
-
-# Identity of the file currently at <path>, as "<mtime> <size>", or "" when this
-# host's `stat` reports neither. Used to tell a recreated marker apart from the
-# consumed one — BEST-EFFORT, and deliberately coarse. Both dialects' portable
-# mtime is whole-second, so a marker recreated at the same size within the same
-# second (an empty `touch`-style marker is the realistic case) is
-# indistinguishable, and stays latched until the marker's NEXT write lands in a
-# different second — an mtime does not advance on its own, so the clock passing
-# the second is not what clears it. Sub-second and inode spellings would narrow
-# that window but are GNU-only, and this identity feeds a GATE: the coarse read
-# costs one skipped completion signal, while a wrong "recreated" verdict costs
-# the unearned second authorization the ledger exists to prevent. A withheld
-# stop is the correct failure direction, so the portable spelling stands.
-#
-# marker_identity_to <var> <path> writes the identity into <var>. Each rung is
-# its own `{ …; } 2>/dev/null` group so the one stat that answers is exec'd
-# straight from its substitution's fork.
 marker_identity_to() {
   local __id=""
   # portability-ok: GNU-first of a dual-dialect ladder — the BSD `-f` spelling is
@@ -578,15 +262,6 @@ marker_identity_to() {
   printf -v "$1" '%s' "$__id"
 }
 
-# Ledger path for a marker path. cksum keys the file name (POSIX, present where
-# md5sum is not); the recorded path is re-checked on read, so a cksum collision
-# costs a miss, never a wrong verdict.
-#
-# marker_ledger_path_to <var> <path>. The key is the digits of cksum's output
-# (checksum and byte count run together); existing ledger entries are named by
-# that key, so it must not change. cksum reads the path from a process
-# substitution (printf, no exec), and the digit filter is a parameter
-# expansion.
 marker_ledger_path_to() {
   local dir key
   gate_data_dir_to dir
@@ -597,13 +272,6 @@ marker_ledger_path_to() {
   printf -v "$1" '%s/consumed-markers/%s' "$dir" "$key"
 }
 
-# Has the file now at <path> already authorized a stop? True when a ledger entry
-# names this exact path AND the file has not changed since (or this host cannot
-# tell, in which case a marker whose deletion failed stays consumed — the strict
-# direction for a gate: it withholds authorization rather than granting it
-# twice). A record whose file now reads as a different one is stale and removed,
-# so the fresh marker authorizes normally — within the identity read's
-# documented coarseness above.
 marker_already_consumed() {
   local path="$1" ledger recorded_path="" recorded_id="" current
   marker_ledger_path_to ledger "$path" || return 1
@@ -618,25 +286,14 @@ marker_already_consumed() {
   return 0
 }
 
-# Record that the file at <path> has authorized a stop: its path on line 1, its
-# identity on line 2. Best-effort — a data directory this hook cannot write
-# leaves the deletion as the only latch, which is the behavior that predates
-# this ledger.
 marker_record_consumed() {
   local path="$1" ledger identity
   marker_ledger_path_to ledger "$path" || return 0
-  # `${ledger%/*}`, not `$(dirname …)`: the ledger path always carries the
-  # consumed-markers/ segment, so the strip is dirname's answer with no process.
   mkdir -p -- "${ledger%/*}" 2>/dev/null || return 0
   marker_identity_to identity "$path"
   printf '%s\n%s\n' "$path" "$identity" >"$ledger" 2>/dev/null || true
 }
 
-# Signal 2 — the completion-marker file. Absolute path used as-is; a relative
-# path resolves against the session cwd from the payload. A marker already
-# consumed by an earlier stop is not a signal, however long it survives on
-# disk. On use it is deleted AND — when the delete did not take — recorded, so
-# the next run reads the same verdict the delete was meant to produce.
 gate_option_to MARKER lane_stop_gate_marker || MARKER=""
 if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
   case "$MARKER" in
@@ -649,34 +306,18 @@ if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
     SIGNALED=1
     SIGNAL="marker"
     rm -f -- "$MARKER" 2>/dev/null || true
-    # The record is written only when the file survived the delete: a marker
-    # that is gone cannot resurrect, and an empty ledger is one less thing to
-    # keep correct.
     [[ -e "$MARKER" ]] && marker_record_consumed "$MARKER"
   fi
 fi
 
-# Completion signaled → this is a legitimate stop. Allow it, silently. The arm
-# record is NOT consumed here — the session may /loop into another cycle whose
-# stop must still be gated (see the load block).
 if [[ "$SIGNALED" -eq 1 ]]; then
   emit_tel "ok" "completion-signaled" "$SIGNAL"
   exit 0
 fi
 
-# Already nudged once this stop cluster (stop_hook_active), yet the lane still
-# stops without signaling completion → a genuine down/stuck lane. Alert the
-# operator (member 4) and ALLOW the stop — blocking again risks a runaway loop,
-# and Claude Code caps consecutive Stop continuations regardless (pointer record
-# in the README's lane-stop-gate section). The one bounded
-# structural nudge is the mechanism; the notification is the fail-safe handoff.
 if [[ "$STOP_ACTIVE" == "true" ]]; then
   BRANCH=""
   if [[ -n "$CWD" ]]; then
-    # git alone in the capture, stderr on the group; a failed git leaves BRANCH
-    # empty. git refuses every `[[:cntrl:]]` byte in a ref name, so the strip
-    # changes no branch git can print; lane::notify strips C0 bytes again on
-    # its own before any sink.
     { BRANCH=$(hook::git_untrusted -C "$CWD" branch --show-current); } 2>/dev/null || BRANCH=""
     BRANCH="${BRANCH//[[:cntrl:]]/}"
   fi
@@ -689,10 +330,6 @@ if [[ "$STOP_ACTIVE" == "true" ]]; then
   exit 0
 fi
 
-# First stop attempt without a completion signal → block once and re-inject the
-# completion self-check. This directly counters the fabricated-context-percentage
-# premature-stop failure (#576/#577): a self-estimated "~50% context" is not a
-# completion condition. Emitted as the documented Stop stdout decision.
 REASON="Lane-stop gate: this lane's completion is not signaled. A context estimate, turn count, status summary, offer to continue or a sense that enough was done is not completion; put status in the same message as your next action. Continue toward the lane's goal. If the goal is verifiably met, print ${SENTINEL} on its own line (or create the completion-marker file), then stop. If you need the operator, or the next step is destructive, irreversible or outward-facing and the lane prompt does not authorize it, say what blocks you and stop without the token; do not take that step. A second unsignaled stop alerts the operator."
 
 emit_tel "blocked" "nudged" "none"
