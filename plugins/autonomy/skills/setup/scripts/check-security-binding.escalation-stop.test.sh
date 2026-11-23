@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/autonomy/reference/guardrails.md
+# test-scope: plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

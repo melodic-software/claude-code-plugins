@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/architecture/skills/improve/SKILL.md plugins/architecture/skills/improve/actions/*.md
 # Exit 0 clean, 1 findings, 2 environment.
 set -euo pipefail
 
