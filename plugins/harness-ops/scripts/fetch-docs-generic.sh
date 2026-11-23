@@ -337,6 +337,7 @@ login_wall() {
 
 get_generic() {
   generic_read "$@"
+  check_expect "$2" || return 0
   [[ "$G_STATE" == read ]] || return 0
   if login_wall "$1" "$2"; then
     rm -f "$2"

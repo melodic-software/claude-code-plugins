@@ -1430,6 +1430,10 @@ assert_eq "render stale: 429 serves cached copy stale with age when rendering fa
   "read cache true 86500 http-429 429" \
   "$(gpage ro-st3 '"\(.state) \(.source) \(.stale) \(.age_seconds) \(.reason) \(.status)"')"
 
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st3e $T3 --cache --cache-dir "$C" --max-age 86400 --render-fallback --expect 'Score:' "$PAGE_URL"
+assert_eq "render stale: a stale cached copy without the --expect marker stays unread" "unread no-content" \
+  "$(gpage ro-st3e '"\(.state) \(.reason)"')"
+
 DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-st4 $T3 --cache --cache-dir "$C" --max-age 0 --render-fallback "$PAGE_URL"
 assert_eq "render stale: --max-age 0 never serves stale on 429" "unread http-429 false" \
   "$(gpage ro-st4 '"\(.state) \(.reason) \(.stale)"')"
