@@ -9,7 +9,7 @@ No step is restated here.
 - **Pointer**: for the `/claude-api` subcommands, `build-eval` and `hillclimb` among them, see
   <https://code.claude.com/docs/en/skills#work-on-claude-api-projects>.
 - **Pointer**: for the hillclimb guide itself, see
-  [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/eval-hillclimb.md)
+  [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/eval-hillclimb.md);
   for the guide that builds the eval first, see
   [`build-eval.md`](https://github.com/anthropics/skills/blob/main/skills/claude-api/shared/evals/build-eval.md).
 - Correlate with <https://claude.dev/blog/automating-eval-design-and-hillclimbing#claude-api-hillclimb>.
