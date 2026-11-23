@@ -36,7 +36,7 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [PR Require Checks]
     types: [completed]
-    branches: ['work-resolve-issue/**', 'chore/tidy-**']
+    branches: ['work-resolve-issue/**', 'chore/tidy-**', 'changelog/**', 'red-main-revert/**']
 
 # merge-risk-line.mjs runTitle: the arm side tells a run still going for this
 # pull request and head by it.
