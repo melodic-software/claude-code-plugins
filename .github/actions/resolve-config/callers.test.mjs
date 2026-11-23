@@ -11,6 +11,7 @@
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -1398,6 +1399,22 @@ test("work-resolve-issue.yml: a Work status field write to agent-ready from a pe
   const text = JSON.stringify(jobs);
   assert.doesNotMatch(text, /github\.event\.label\b/);
   assert.doesNotMatch(text, /'labeled'/);
+});
+
+test("every Work status field id written outside models.issue-status equals its field-id", () => {
+  const sites = [
+    [".github/workflows/intake-reenter.yml", /github\.event\.issue_field\.id == (\d+)/g],
+    [".github/workflows/maintenance-file-dead-links.yml", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/workflows/post-merge-file-demotion-issues.yml", /field_id: (\d+), value: "needs-human"/g],
+    [".github/scripts/maintenance-audit-lane-runs/file-findings.mjs", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/scripts/maintenance-monitor-signals/monitor.mjs", /WORK_STATUS_FIELD = (\d+);/g],
+    [".github/scripts/post-merge-demotion-alert/handoff.bash", /jq -n '\[\[(\d+), /g],
+  ];
+  for (const [path, pattern] of sites) {
+    const ids = [...read(`../../../${path}`).matchAll(pattern)].map((match) => Number(match[1]));
+    assert.ok(ids.length > 0, `${path} names the Work status field`);
+    assert.deepEqual(ids, ids.map(() => ISSUE_STATUS["field-id"]), path);
+  }
 });
 
 // Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
