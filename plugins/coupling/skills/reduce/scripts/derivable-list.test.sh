@@ -33,7 +33,6 @@ new_fixture() {
   git -C "$fx" init -q
   printf '%s' "$fx"
 }
-# put FX RELPATH LINE...: write each LINE, LF-terminated, to the file.
 put() {
   local fx="$1" rel="$2"
   shift 2
@@ -41,17 +40,14 @@ put() {
   printf '%s\n' "$@" >"$fx/$rel"
 }
 stage() { git -C "$1" add -A; }
-# row KIND OUT: the rows of OUT whose first field is KIND.
 row() { printf '%s\n' "$2" | awk -F'\t' -v k="$1" '$1 == k' || true; }
 count_rows() { if [[ -z "$1" ]]; then echo 0; else printf '%s\n' "$1" | wc -l | tr -d ' '; fi; }
-# plugin_dirs FX NAME...: a tracked plugin.json under plugins/NAME for each NAME.
 plugin_dirs() {
   local fx="$1" n
   shift
   for n in "$@"; do put "$fx" "plugins/$n/plugin.json" '{}'; done
 }
 
-# --- derived list: every entry names a tracked folder ------------------------
 FX=$(new_fixture derived)
 plugin_dirs "$FX" ant bee cat dog elk fox
 put "$FX" registry/index.json '{"name": "kennel", "plugins": [' \
@@ -67,7 +63,6 @@ assert_exit "D1: exit 0" 0 $?
 assert_eq "D1: six of six entries name a folder" \
   $'candidate\t6\t6\tregistry/index.json\t/plugins' "$OUT"
 
-# --- one stale entry of six: 5/6 is 83%, still a candidate, entry reported ---
 FX=$(new_fixture stale)
 plugin_dirs "$FX" ant bee cat dog elk
 put "$FX" list.json '["plugins/ant", "plugins/bee", "plugins/cat", "plugins/dog", "plugins/elk", "plugins/gone"]'
@@ -76,7 +71,6 @@ OUT=$(dl --root "$(host_path "$FX")" list.json)
 assert_eq "S1: five of six is a candidate" $'candidate\t5\t6\tlist.json\t' "$(row candidate "$OUT")"
 assert_eq "S1: the dangling entry is listed" $'unnamed\tlist.json\t\t"plugins/gone"' "$(row unnamed "$OUT")"
 
-# --- four of six is 67%: below the threshold ---------------------------------
 FX=$(new_fixture below)
 plugin_dirs "$FX" ant bee cat dog
 put "$FX" list.json '["plugins/ant", "plugins/bee", "plugins/cat", "plugins/dog", "plugins/x", "plugins/y"]'
@@ -85,7 +79,6 @@ OUT=$(dl --root "$(host_path "$FX")" list.json)
 assert_eq "B1: four of six is below" $'below\t4\t6\tlist.json\t' "$OUT"
 assert_eq "B1: no unnamed rows for a list below the threshold" "0" "$(count_rows "$(row unnamed "$OUT")")"
 
-# --- a list of words that name nothing is not derivable ----------------------
 FX=$(new_fixture words)
 plugin_dirs "$FX" ant
 put "$FX" tags.json '{"tags": ["alpha", "beta", "gamma", "delta", "epsilon"]}'
@@ -93,7 +86,6 @@ stage "$FX"
 OUT=$(dl --root "$(host_path "$FX")" tags.json)
 assert_eq "W1: words name no path" $'below\t0\t5\ttags.json\t/tags' "$OUT"
 
-# --- fewer than five entries is not a list worth flagging --------------------
 FX=$(new_fixture short)
 plugin_dirs "$FX" ant bee cat dog
 put "$FX" list.json '["plugins/ant", "plugins/bee", "plugins/cat", "plugins/dog"]'
@@ -101,7 +93,6 @@ stage "$FX"
 OUT=$(dl --root "$(host_path "$FX")" list.json)
 assert_eq "N1: four entries is no list" $'no-list\t0\t0\tlist.json\t-' "$OUT"
 
-# --- line mode: a text file listing tracked files, comments skipped ----------
 FX=$(new_fixture lines)
 put "$FX" lib/a.sh 'a'
 put "$FX" lib/b.sh 'b'
@@ -113,7 +104,6 @@ stage "$FX"
 OUT=$(dl --root "$(host_path "$FX")" copies.txt)
 assert_eq "L1: five lines name five tracked files" $'candidate\t5\t5\tcopies.txt\tlines' "$OUT"
 
-# --- entries resolve against the list's own folder too -----------------------
 FX=$(new_fixture relative)
 for n in 1 2 3 4 5; do put "$FX" "sub/f$n.md" x; done
 put "$FX" sub/index.json '["f1.md", "f2.md", "f3.md", "f4.md", "f5.md"]'
@@ -121,7 +111,6 @@ stage "$FX"
 OUT=$(dl --root "$(host_path "$FX")" sub/index.json)
 assert_eq "R1: names beside the list resolve" $'candidate\t5\t5\tsub/index.json\t' "$OUT"
 
-# --- the tree is the tracked tree: an untracked folder does not count --------
 FX=$(new_fixture untracked)
 plugin_dirs "$FX" ant bee cat dog
 put "$FX" list.json '["plugins/ant", "plugins/bee", "plugins/cat", "plugins/dog", "build/out"]'
@@ -131,7 +120,6 @@ mkdir -p "$FX/build/out"
 OUT=$(dl --root "$(host_path "$FX")" list.json)
 assert_eq "U1: an untracked folder names nothing" $'candidate\t4\t5\tlist.json\t' "$(row candidate "$OUT")"
 
-# --- object keys are a list too ----------------------------------------------
 FX=$(new_fixture keys)
 plugin_dirs "$FX" ant bee cat dog elk
 put "$FX" owners.json '{"owners": {"plugins/ant": "a", "plugins/bee": "b", "plugins/cat": "c", "plugins/dog": "d", "plugins/elk": "e"}}'

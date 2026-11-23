@@ -197,8 +197,6 @@ else
   fail "prefix-only table did not parse"
 fi
 
-# --- compare: identical runs are comparable, deltas are zero --------------
-
 write_snapshot "$WORK/a.json" sdk 9.9.9 sigAAAA 5000 2000
 write_snapshot "$WORK/b.json" sdk 9.9.9 sigAAAA 4000 2000
 write_snapshot "$WORK/c.json" sdk 9.9.9 sigBBBB 4000 2000
@@ -210,8 +208,6 @@ assert_eq "$(jsonget "$row" 'j.comparability.ok')" "true" \
 assert_eq "$(jsonget "$row" 'j.delta["System tools"]')" "0" \
   "self-compare delta is zero" "self-compare delta nonzero"
 
-# --- compare: a real delta, signed after-minus-before ---------------------
-
 row2="$WORK/row-delta.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/b.json" --lever "deny:Example" --out "$row2" >/dev/null
 assert_eq "$(jsonget "$row2" 'j.delta["System tools"]')" "-1000" \
@@ -220,8 +216,6 @@ assert_eq "$(jsonget "$row2" 'j.comparability.systemToolsComparable')" "true" \
   "same-signature runs keep System tools comparable" "same-signature runs lost comparability"
 assert_eq "$(jsonget "$row2" 'j.comparability.modeBinaryComparable')" "true" \
   "same-signature runs keep the shared mode/binary predicate" "same-signature runs lost modeBinaryComparable"
-
-# --- compare: signature mismatch poisons the System tools delta -----------
 
 row3="$WORK/row-sig.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/c.json" --out "$row3" >/dev/null
@@ -256,8 +250,6 @@ assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.modeBinaryComparab
   "Skills-token drift does not poison the shared mode/binary predicate" \
   "Skills-token drift wrongly flipped modeBinaryComparable"
 
-# --- compare: a bucket missing from a cli-parse snapshot -------------------
-
 jsonmutate "$WORK/a.json" "$WORK/dA.json" 'delete j.categories["System tools"]'
 jsonmutate "$WORK/b.json" "$WORK/dB.json" 'delete j.categories["System tools"]'
 node "$ENGINE" compare --before "$WORK/dA.json" --after "$WORK/dB.json" --out "$WORK/row-donly.json" >/dev/null
@@ -276,8 +268,6 @@ fi
 assert_eq "$(jsonget "$WORK/row-self.json" 'Object.keys(j.unmeasured).length')" "0" \
   "fully measured runs carry no unmeasured reasons" "unmeasured reasons on a fully measured compare"
 
-# --- emit: --out creates missing parent directories -----------------------
-
 deepout="$WORK/fresh/data/dir/parsed.json"
 if node "$ENGINE" parse-context --file "$FIXTURE" --out "$deepout" >/dev/null && [[ -f "$deepout" ]]; then
   ok "--out creates its parent directories (fresh data dir does not ENOENT)"
@@ -285,14 +275,10 @@ else
   fail "--out into a nonexistent directory failed"
 fi
 
-# --- compare: schema validation -------------------------------------------
-
 printf '{"schema":"something-else/9"}\n' >"$WORK/notsnap.json"
 assert_exit 2 "compare rejects a non-snapshot input as a usage error" \
   "compare accepted a non-snapshot input" \
   node "$ENGINE" compare --before "$WORK/notsnap.json" --after "$WORK/a.json"
-
-# --- ledger: one file per run plus an appended line -----------------------
 
 LDIR="$WORK/data"
 if node "$ENGINE" ledger --append "$row2" --dir "$LDIR" >/dev/null; then
@@ -319,8 +305,6 @@ runfiles=$(find "$LDIR/runs" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "$runfiles" "3" \
   "colliding runId gets a suffix instead of overwriting (3 run files)" \
   "runId collision overwrote a run file"
-
-# --- ledger: schema-checked append ----------------------------------------
 
 assert_exit 2 "ledger rejects a non-ledger row (snapshots are not ledger rows)" \
   "ledger accepted a snapshot as a row" \
@@ -846,8 +830,6 @@ mo_err="$(cd "$WORK" && node "$ENGINE" snapshot --measure-only --binary "$FAKE" 
 assert_eq "$(printf '%s\n' "$mo_err" | wc -l | tr -d ' ')" "1" \
   "measure-only prints a one-line message on stderr" "measure-only stderr message is not one line"
 if [[ -e "$WORK/mo-should-not-exist.json" ]]; then fail "measure-only --out wrote a file"; else ok "measure-only --out wrote nothing"; fi
-
-# --- summary ---------------------------------------------------------------
 
 echo
 echo "passed: $PASS, failed: $FAIL"

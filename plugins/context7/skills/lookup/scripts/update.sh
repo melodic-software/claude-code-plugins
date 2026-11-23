@@ -39,7 +39,6 @@ BASELINE_CLI_SKILL="$SNAPSHOT_DIR/cli/SKILL.md"
 UPSTREAM_REPO="https://github.com/upstash/context7"
 UPSTREAM_RAW="https://raw.githubusercontent.com/upstash/context7"
 
-# --- prerequisite checks ---
 for cmd in npm curl diff git; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✖ Required command not found: $cmd" >&2
@@ -76,7 +75,6 @@ install_and_verify() {
   return 0
 }
 
-# --- CLI version check ---
 echo "=== Context7 CLI version ==="
 INSTALLED=$(verify_ctx7_callable) || INSTALLED="not-installed"
 LATEST=$(npm view ctx7 version 2>/dev/null | tr -d '\r')

@@ -91,8 +91,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Anchor caller-supplied paths to the invocation cwd BEFORE the cd, or they resolve against the
-# repo root instead and silently miss (git-status discovery below stays repo-relative by design).
 if [[ ${#TARGETS[@]} -gt 0 ]]; then
   for i in "${!TARGETS[@]}"; do TARGETS[i]="$(cr_anchor_path "${TARGETS[i]}")"; done
 fi
@@ -188,7 +186,6 @@ if [[ -n "$EXCLUDE_FILE" ]]; then
 fi
 excluded=0
 
-# True when the target, made root-relative, matches an --exclude-from glob.
 cr_is_excluded() {
   local rel="$1" glob
   rel="${rel#"$repo_root"/}"
@@ -213,7 +210,6 @@ cr_keep_target() {
   if cr_is_excluded "$1"; then excluded=$((excluded + 1)); else EXPANDED+=("$1"); fi
 }
 
-# Expand directory targets to the files inside them (recursive).
 EXPANDED=()
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$target" ]]; then
@@ -223,7 +219,6 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   fi
 done
 
-# Under --added-since, a target that gained no lines has nothing in scope.
 if [[ -n "$ADDED_SINCE" && ${#EXPANDED[@]} -gt 0 ]]; then
   IN_SCOPE=()
   for target in "${EXPANDED[@]}"; do
@@ -247,7 +242,6 @@ mapfile -t SORTED < <(printf '%s\n' "${EXPANDED[@]}" | LC_ALL=C sort -u)
 
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
-# Print one finding and count it. Reads t1/t2/t3 from audit_file's frame (dynamic scope).
 emit_finding() {
   local file="$1" shape="$2" line_num="$3" excerpt="$4" tier
   tier="$(cr_shape_tier "$shape")"
@@ -260,8 +254,6 @@ emit_finding() {
   esac
 }
 
-# Under --added-since, true when any named line of the file is an added line. Reads rel
-# from audit_file's frame (dynamic scope). Always true without --added-since.
 in_scope() {
   [[ -z "$ADDED_SINCE" ]] && return 0
   local l

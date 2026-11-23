@@ -115,7 +115,6 @@ const byTs = (a, b) => {
   return compareTs(x, y);
 };
 
-// Written a group at a time, so a large buffer never builds one string of the whole view.
 const write = (lines) => process.stdout.write(`${lines.join("\n")}\n`);
 write([`grouped by: ${keys.join(", ")}`, "occurrences: distinct source_id in the group; a row without one counts once"]);
 if (sorted.length === 0) {

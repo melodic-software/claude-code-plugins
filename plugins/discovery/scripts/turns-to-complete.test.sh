@@ -41,7 +41,6 @@ with open(path, "w") as fh:
 PY
 }
 
-# expect <label> <expected-exit> <grep-pattern-or-empty> <args...>
 expect() {
   local label="$1" want="$2" pattern="$3"
   shift 3
@@ -57,7 +56,6 @@ expect() {
   fi
 }
 
-# expect_absent <label> <pattern> <args...>
 expect_absent() {
   local label="$1" pattern="$2"
   shift 2

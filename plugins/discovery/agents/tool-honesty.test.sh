@@ -24,17 +24,14 @@ cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 # shellcheck source=../lib/test-helpers.sh
 source ../lib/test-helpers.sh
 
-# frontmatter <file> — the YAML block between the first two `---` lines.
 frontmatter() {
   awk 'NR==1 && $0=="---" {inside=1; next} inside && $0=="---" {exit} inside' "$1"
 }
 
-# body <file> — everything after the frontmatter.
 body() {
   awk 'NR==1 && $0=="---" {inside=1; next} inside && $0=="---" {inside=0; started=1; next} started' "$1"
 }
 
-# fm_value <file> <key> — the raw value of a top-level frontmatter key, or "".
 fm_value() {
   frontmatter "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -1 | tr -d '"'
 }
