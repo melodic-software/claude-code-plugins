@@ -69,7 +69,7 @@ read_api() {
     fi
     if [ -n "$wait" ]; then
       if [ $((waited + wait)) -gt "$RATE_WAIT_SECONDS" ]; then
-        echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${RATE_WAIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
+        echo "::error::the token's rate limit blocks reading $2 until $(jq -rn --argjson t "$reset" '$t | strftime("%H:%M:%SZ")'), past this job's ${RATE_WAIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
         exit 1
       fi
       echo "Rate limited reading $2; waiting ${wait}s for the reset."
