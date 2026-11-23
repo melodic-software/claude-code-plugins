@@ -7,6 +7,8 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { workflowText } from "../lib/workflow-text.mjs";
+
 const text = readFileSync(new URL("../../workflows/pr-run-plugin-evals.yml", import.meta.url), "utf8");
 const step = (name) => {
   const start = text.indexOf(`- name: ${name}\n`);
@@ -119,13 +121,7 @@ test("the eval leg takes its cost ceiling from the checked max-cost-usd input, d
 });
 
 const compare = text.slice(text.indexOf("\n  compare-prepare:\n"));
-const job = (name) => {
-  const start = compare.indexOf(`\n  ${name}:\n`);
-  assert.ok(start >= 0, `job ${name}`);
-  const rest = compare.slice(start + 1);
-  const next = rest.slice(1).search(/\n {2}[a-z][a-z-]*:\n/);
-  return next < 0 ? rest : rest.slice(0, next + 1);
-};
+const { job } = workflowText(text);
 const armsScript = readFileSync(new URL("./compare-arms.sh", import.meta.url), "utf8");
 
 test("compare mode reads the pull request's commits only as git objects for the arm patches", () => {
