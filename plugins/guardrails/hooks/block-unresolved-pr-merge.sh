@@ -235,6 +235,9 @@ BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd, Set-Location)
 BUPM_GHREPO=0 # 1: the command text names GH_REPO or GH_HOST
 BUPM_HOST=""  # a host other than github.com that qualified the repo
 BUPM_SHELL=0  # 1: a heredoc body may run as commands (_bupm_runs_shell)
+BUPM_UNLABEL=0
+BUPM_UNLABEL_VAR=0
+BUPM_UNLABEL_IDS=""
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
 # cannot evaluate (a parameter, `$(...)` or a backtick substitution).
@@ -251,6 +254,33 @@ emit_tel() {
 
 _bupm_mutation_re='(mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest)'
 
+# shellcheck disable=SC2329  # reached from the recorders below
+_bupm_unlabel_value() {
+  if ! _bupm_literal "$1"; then
+    BUPM_UNLABEL_VAR=1
+  elif [[ ",${1,,}," =~ ,[[:space:]]*pr-verify-failed[[:space:]]*, ]]; then
+    BUPM_UNLABEL=1
+  fi
+}
+
+# shellcheck disable=SC2329
+_bupm_label_edit() {
+  local a
+  while (($#)); do
+    a="$1"
+    shift
+    case "$a" in
+    --remove-label)
+      _bupm_unlabel_value "${1-}"
+      (($#)) && shift
+      ;;
+    --remove-label=*) _bupm_unlabel_value "${a#*=}" ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
 # The five recorders below are reached from the hook::bash_parse_segments
 # callback, which shellcheck cannot follow.
 
@@ -263,6 +293,12 @@ _bupm_rest_path() {
   p="${p#/}"
   p="${p%%\?*}"
   p="${p%/}"
+  if [[ "$p" =~ ^repos/[^/]+/[^/]+/issues/[^/]+/labels/(.+)$ ]] && { [[ "$m" == DELETE ]] || ! _bupm_literal "$m"; }; then
+    local label="${BASH_REMATCH[1]}"
+    _bupm_literal "$label" && printf -v label '%b' "${label//%/\\x}"
+    _bupm_unlabel_value "$label"
+    return 1
+  fi
   if [[ "$m" != PUT ]]; then
     # A method from a variable (`-X "$M"`) may be PUT: refuse a merge route
     # called that way, since the method cannot be read.
@@ -291,10 +327,22 @@ _bupm_rest_path() {
 # _bupm_graphql <arg>...: record a merge mutation named anywhere in the args.
 # shellcheck disable=SC2329
 _bupm_graphql() {
-  local a hit=""
+  local a hit="" unlabel=0 ids=" " lid
   for a in "$@"; do
     [[ "$a" =~ $_bupm_mutation_re ]] && hit="${BASH_REMATCH[1]}"
+    [[ "$a" == *removeLabelsFromLabelable* ]] && unlabel=1
   done
+  if ((unlabel)); then
+    for a in "$@"; do
+      while [[ "$a" =~ (LA_[A-Za-z0-9_-]+) ]]; do
+        lid="${BASH_REMATCH[1]}"
+        [[ "$ids" == *" $lid "* ]] || ids+="$lid "
+        a="${a#*"$lid"}"
+      done
+    done
+    read -r BUPM_UNLABEL_IDS <<<"$ids"
+    [[ -n "$BUPM_UNLABEL_IDS" ]] || BUPM_UNLABEL_VAR=1
+  fi
   [[ -n "$hit" ]] || return 1
   BUPM_FORM=graphql
   [[ "$hit" == mergePullRequest ]] || BUPM_AUTO=1
@@ -530,9 +578,12 @@ _bupm_command() {
         BUPM_UNRESOLVED="the gh pr subcommand $1 is not literal"
         return 0
       fi
+      [[ "${1-}" == edit ]] && _bupm_label_edit "${@:2}"
       [[ "${1-}" == merge ]] || return 1
       shift
       _bupm_gh_pr_merge ${pre_repo:+-R "$pre_repo"} "$@"
+    elif [[ "${1-}" == issue ]]; then
+      _bupm_label_edit "${@:2}"
     elif [[ "${1-}" == api ]]; then
       _bupm_gh_api "${@:2}"
     else
@@ -563,8 +614,8 @@ else
   # A second copy with quotes and backslashes dropped, as the tokenizer drops
   # them, reads `mer"ge"` and `en\queue` as the words they spell.
   _bupm_bare="${_bupm_joined//[\"\'\\]/}"
-  [[ "$_bupm_joined" == *merge* || "$_bupm_joined" == *enqueue* ||
-    "$_bupm_bare" == *merge* || "$_bupm_bare" == *enqueue* ]] || exit 0
+  _bupm_pre_re='merge|enqueue|pr-verify-failed|removelabelsfromlabelable'
+  [[ "$_bupm_joined" =~ $_bupm_pre_re || "$_bupm_bare" =~ $_bupm_pre_re ]] || exit 0
   # The bare copy too: `export GH_RE""PO=x` sets GH_REPO.
   [[ "$_bupm_lc" == *gh_repo* || "$_bupm_bare" == *gh_repo* ||
     "$_bupm_lc" == *gh_host* || "$_bupm_bare" == *gh_host* ]] && BUPM_GHREPO=1
@@ -698,7 +749,7 @@ else
     BUPM_CONT=1
     BUPM_FORM=continuation
   else
-    [[ -n "$BUPM_FORM" ]] || exit 0
+    [[ -n "$BUPM_FORM$BUPM_UNLABEL_IDS" ]] || ((BUPM_UNLABEL || BUPM_UNLABEL_VAR)) || exit 0
   fi
 fi
 
@@ -775,7 +826,9 @@ _bupm_api() {
 _bupm_unchecked() {
   local what="this pull request"
   [[ -n "$BUPM_NUM" ]] && what="${BUPM_REPO}#${BUPM_NUM}"
-  local msg="guardrails block-unresolved-pr-merge: could not check $what for unresolved review threads, change requests or failing checks ($1), so this merge will run unchecked. Read the PR's review threads and checks yourself before relying on it."
+  local subject="${2:-unresolved review threads, change requests or failing checks}" read="the PR's review threads and checks"
+  [[ -n "${2-}" ]] && read="$2"
+  local msg="guardrails block-unresolved-pr-merge: could not check $what for $subject ($1), so this merge will run unchecked. Read $read yourself before relying on it."
   hook::emit_channels PreToolUse "$msg" "$msg"
   emit_tel "unchecked" "$BUPM_FORM"
   exit 0
@@ -807,6 +860,26 @@ _bupm_refuse_target() {
     "BLOCKED: guardrails could not tell which pull request this merge targets ($1), so it could not check it for unresolved review threads, change requests or failing checks." \
     'Fix: write the repository and PR number literally: gh pr merge <number> -R owner/repo (or PUT repos/owner/repo/pulls/<number>/merge). A shell variable, $(...) or backticks hide the target; in a loop, write each merge as its own literal command.'
 }
+if [[ -n "$BUPM_UNLABEL_IDS" ]]; then
+  _bupm_ids=()
+  for _bupm_id in $BUPM_UNLABEL_IDS; do _bupm_ids+=(-f "ids[]=$_bupm_id"); done
+  # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
+  if command -v gh >/dev/null 2>&1 &&
+    _bupm_api graphql -f query='query($ids:[ID!]!){nodes(ids:$ids){... on Label{name}}}' "${_bupm_ids[@]}" \
+      --jq '[.data.nodes[]? | .name? // empty | ascii_downcase] | index("pr-verify-failed") != null'; then
+    [[ "$BUPM_OUT" == true ]] && BUPM_UNLABEL=1
+  else
+    _bupm_msg="guardrails block-unresolved-pr-merge: could not read which labels this removeLabelsFromLabelable removes (${BUPM_ERR:-gh is not on PATH}), so it runs unchecked. Never remove pr-verify-failed: only a PASS verdict at a newer head clears it."
+    hook::emit_channels PreToolUse "$_bupm_msg" "$_bupm_msg"
+  fi
+fi
+if ((BUPM_UNLABEL)) || { ((BUPM_UNLABEL_VAR)) && [[ "${_bupm_bare-}" == *pr-verify-failed* ]]; }; then
+  _bupm_block pr-verify-label-removal \
+    'BLOCKED: this command removes the pr-verify-failed label, which is pr-verify'"'"'s FAIL hold on the pull request.' \
+    'Only a PASS verdict at a newer head clears it, and pr-verify'"'"'s own workflow removes it then. Fix what the FAIL comment names, push, and let pr-verify judge the new head.'
+fi
+[[ -n "$BUPM_FORM" ]] || exit 0
+
 ((BUPM_BT)) &&
   _bupm_refuse_target "the command holds a backtick, and a backtick substitution can change or hide the target; remove every backtick, and pass a body that holds one with --body-file"
 ((BUPM_CONT)) &&
@@ -927,9 +1000,13 @@ _bupm_holdset='["do-not-merge","pr-verify-failed","security: outside-actor"]'
 # after a unit separator, the hold labels it carries.
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq "$_bupm_holdset"' as $h
-  | "\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)\u001f\([.labels[]?.name // empty | select(ascii_downcase | IN($h[]))] | join(", "))"' ||
+  | (if .base.ref != .base.repo.default_branch or .head.repo.full_name != .base.repo.full_name then "no-single-pr"
+    elif .user.type == "Bot" and ((.user.login // "" | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; ""))
+      | IN("dependabot", "dependabot-preview", "renovate", "renovate-bot")) then "dependency-manager"
+    else "-" end) as $skip
+  | "\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)\u001f\([.labels[]?.name // empty | select(ascii_downcase | IN($h[]))] | join(", "))\u001f\($skip) \(.user.id // 0) \(.user.login // "-") \(.base.repo.default_branch // "-") \(.head.ref // "-")"' ||
   _bupm_pr_unreadable
-IFS=$'\x1f' read -r _bupm_prline _bupm_holds <<<"$BUPM_OUT"
+IFS=$'\x1f' read -r _bupm_prline _bupm_holds _bupm_pv <<<"$BUPM_OUT"
 read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$_bupm_prline"
 # A closed or merged PR has nothing to guard; gh reports the refusal itself.
 [[ "$_bupm_state" == open ]] || exit 0
@@ -1171,6 +1248,71 @@ _bupm_threads="$BUPM_OUT"
 # own reads, which then fail toward blocking, never the thread read's.
 [[ -n "$_bupm_failed" ]] && _bupm_exempt
 
+_bupm_verify() {
+  local skip uid login default head conf="" base def repo digest suffix run judged
+  read -r skip uid login default head <<<"$_bupm_pv"
+  [[ "$skip" == - && -n "$_bupm_base" && "$_bupm_base" != null ]] || return 0
+  local wf=.github/workflows/pr-verify.yml pp=docs/conventions/pr-pipeline.yaml ta=.github/standards/trusted-actors/trusted-actors.json
+  # shellcheck disable=SC2016  # GraphQL variables and jq, not shell expansions
+  if _bupm_api graphql -f query='query($o:String!,$r:String!,$w:String!,$c:String!,$t:String!){repository(owner:$o,name:$r){w:object(expression:$w){oid} c:object(expression:$c){... on Blob{text}} t:object(expression:$t){... on Blob{text}}}}' \
+    -f o="${BUPM_REPO%%/*}" -f r="${BUPM_REPO#*/}" -f w="$_bupm_base:$wf" -f c="$_bupm_base:$pp" -f t="$_bupm_base:$ta" \
+    --jq '.data.repository | if . == null then error("no repository in the response") else . end
+      | {w: (.w != null), c: (.c.text // ""), t: (.t.text // "")}'; then
+    conf="$BUPM_OUT"
+  else
+    _bupm_urlencode base "$_bupm_base"
+    local pp_text="" ta_text=""
+    _bupm_api "repos/$BUPM_REPO/contents/$wf?ref=$base" --jq .path || {
+      [[ "$BUPM_ERR" == *"HTTP 404"* ]] && return 0
+      _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+    }
+    if _bupm_api -H 'Accept: application/vnd.github.raw' "repos/$BUPM_REPO/contents/$pp?ref=$base"; then
+      pp_text="$BUPM_OUT"
+    elif [[ "$BUPM_ERR" != *"HTTP 404"* ]]; then
+      _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+    fi
+    if _bupm_api -H 'Accept: application/vnd.github.raw' "repos/$BUPM_REPO/contents/$ta?ref=$base"; then
+      ta_text="$BUPM_OUT"
+    elif [[ "$BUPM_ERR" != *"HTTP 404"* ]]; then
+      _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+    fi
+    conf="$(jq -cn --arg c "$pp_text" --arg t "$ta_text" '{w: true, c: $c, t: $t}')" ||
+      _bupm_unchecked "the pr-verify settings could not be read" "its pr-verify verdict"
+  fi
+  # shellcheck disable=SC2016
+  judged="$(jq -r --arg id "$uid" --arg login "$login" '
+    def setting($k): [.c | split("\n")[] | capture("^  " + $k + ": *(?<v>[^ #]*)").v] | first // "";
+    if .w | not then "no" else
+      (setting("verify-authors") | if . == "" then "lane" else . end) as $mode
+      | [(.t | fromjson? // {}) | .actors[]? | .id | tostring] as $trusted
+      | if $mode == "any" or ($mode == "lane-or-owner" and ($id | IN($trusted[])))
+          or $login == setting("agent-identity") then "yes" else "no" end
+    end' <<<"$conf")" || _bupm_unchecked "the pr-verify settings could not be judged" "its pr-verify verdict"
+  [[ "$judged" == yes ]] || return 0
+  digest="$(printf '%s' "$head" | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | cut -c1-16)"
+  [[ "$digest" =~ ^[0-9a-f]{16}$ ]] || _bupm_unchecked "no SHA-256 tool to name the pass artifact" "its pr-verify verdict"
+  if ! def="$(jq -cn --arg d "$default" '$d')" || ! repo="$(jq -cn --arg r "$BUPM_REPO" '$r')"; then
+    _bupm_unchecked "jq could not quote the branch name" "its pr-verify verdict"
+  fi
+  for suffix in pass "pass-$digest" pass-notes "pass-notes-$digest"; do
+    _bupm_api "repos/$BUPM_REPO/actions/artifacts?name=pr-verify-$BUPM_NUM-$_bupm_sha-$suffix&per_page=100" \
+      --jq "[.artifacts[] | select(.expired == false and .workflow_run.head_branch == $def) | .workflow_run.id] | unique | .[]" ||
+      _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+    for run in $BUPM_OUT; do
+      [[ "$run" =~ ^[0-9]+$ ]] || continue
+      _bupm_api "repos/$BUPM_REPO/actions/runs/$run" --jq ".status == \"completed\" and .conclusion == \"success\"
+        and .path == \".github/workflows/pr-verify.yml\" and .event == \"workflow_run\" and .head_branch == $def
+        and .repository.full_name == $repo and .head_repository.full_name == $repo" ||
+        _bupm_unchecked "$BUPM_ERR" "its pr-verify verdict"
+      [[ "$BUPM_OUT" == true ]] && return 0
+    done
+  done
+  _bupm_block "$BUPM_FORM-no-verify-pass" \
+    "BLOCKED: ${BUPM_REPO}#${BUPM_NUM} has no pr-verify PASS or PASS-NOTES verdict at its head ${_bupm_sha}, so this merge is refused (--auto and merge-queue requests included)." \
+    'pr-verify judges this author, and its verdict lands minutes after CI Status turns green. A PR queued before it fails in the merge group and rebuilds every entry behind it.' \
+    "Wait for pr-verify's verdict on ${_bupm_sha}, then retry. A FAIL puts the pr-verify-failed label on the PR: fix what its comment names and push, and pr-verify judges the new head."
+}
+
 # --- verdict --------------------------------------------------------------------
 
 ((BUPM_AUTO)) && _bupm_pending=""
@@ -1178,6 +1320,7 @@ _bupm_nonreq_line=""
 [[ -n "$_bupm_nonreq" ]] &&
   _bupm_nonreq_line="Failing checks that the base branch's rules do not require (not blocking, because this PR changes a workflow or action definition file and each one's run loaded the base branch's copy of this repository's workflows, so it may not run the fix yet): $_bupm_nonreq"
 if [[ -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
+  _bupm_verify
   if [[ -n "$_bupm_nonreq_line" ]]; then
     _bupm_msg="guardrails block-unresolved-pr-merge: ${BUPM_REPO}#${BUPM_NUM} is allowed to merge. $_bupm_nonreq_line. Check that each one fails only because it ran the base branch's copy of the workflow or action this PR fixes."
     hook::emit_channels PreToolUse "$_bupm_msg" "$_bupm_msg"
