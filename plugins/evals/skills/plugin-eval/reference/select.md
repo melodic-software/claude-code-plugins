@@ -1,9 +1,10 @@
 # select: which cases a change runs
 
 `select` names the eval cases a branch's change affects and what running them costs, before any
-run. It makes no model call. The policy it applies is `docs/review/evals.md` in this repository
-("Terms", "When a run is required", "Which cases run", "Budget"); this page says how to run it and
-read it.
+run. It makes no model call. The change classes below are what it applies: a removed or changed
+instruction word is a cut that runs the affected cases, added text runs nothing, and a case,
+grader, prompt, fixture or scaffold change runs its own case and the cases that call it. Where the
+repository records its own eval run policy, that policy decides what each line obliges.
 
 ## Run it
 
@@ -23,8 +24,8 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 
 | Line | Meaning | What to do |
 |---|---|---|
-| `cases:` | Cases with at least one deterministic grader that this change must run | Pass the list as the eval workflow's `cases` input: one dispatch runs exactly these |
-| `judged:` | Run-requiring cases whose graders are all judged | Run them as `docs/review/evals.md` "Where and on what" says for judged cases |
+| `cases:` | Cases with at least one deterministic grader that this change must run | Pass the list as the run's case filter (an eval workflow with a `cases` input takes it as is) |
+| `judged:` | Run-requiring cases whose graders are all judged | Run them where a judge grades them, and check that judge against labeled samples first |
 | `run-after-merge:` | Triggering and no-fire cases of an additive-only `description` or `when_to_use` edit | Merge first, then run them on the default branch |
 | `affected-no-run:` | Cases the change touches that the policy runs nothing for (added body text, scripts, samples) | Nothing; they are listed so the author sees them |
 | `uncovered:` | A changed skill or agent with no affected case | Add a case with `/evals:design` |
@@ -43,6 +44,6 @@ Which skill a case tests comes from the plugin's shared `case_skills.py` rule, t
 
 ## Before dispatch
 
-State the `cases:` list and the `agent-runs:` count in the pull request, then dispatch through the
-eval workflow with that list as its `cases` input. A list that exceeds one run's ceiling splits
-across several dispatches as "Budget" says; never drop a listed case to fit.
+State the `cases:` list and the `agent-runs:` count in the pull request, then start the run with
+that list as its case filter. A list that exceeds one run's ceiling splits
+across several dispatches; never drop a listed case to fit.
