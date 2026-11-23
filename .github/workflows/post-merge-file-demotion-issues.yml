@@ -189,7 +189,6 @@ jobs:
     concurrency:
       group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'PR Require Checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
       cancel-in-progress: false
-    # The run as the step below and the report job read it.
     outputs:
       name: ${{ steps.run.outputs.name }}
       event: ${{ steps.run.outputs.event }}

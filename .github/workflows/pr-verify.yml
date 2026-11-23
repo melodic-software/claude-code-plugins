@@ -403,8 +403,6 @@ jobs:
           known-failure-class: credit-stop
           handoff: "true"
 
-      # The judgment's model, turns and effort: the verify-pr route of the
-      # base config's models block.
       - name: Resolve the verifier's model
         id: models
         if: steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true'
