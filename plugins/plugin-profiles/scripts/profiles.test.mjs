@@ -1916,11 +1916,23 @@ test("#18319 AC6: a resumed session's start notice names a profile change both w
   assert.doesNotMatch(hookStart(w, { session_id: "new-3", source: "startup" }, reviewEnv), /now runs in/, "a fresh start says nothing");
 });
 
+test("#18319: -c whose recorded profile no longer exists starts with the folder's settings and names the missing profile", () => {
+  const w = world();
+  sessionInBuild(w, "abc-1");
+  const rec = folderRecordOf(w);
+  const recordFile = join(byFolderDir(w), readdirSync(byFolderDir(w))[0]);
+  writeFileSync(recordFile, JSON.stringify({ ...rec, profile: "gone" }));
+  const s = argsJson(w, ["-c"]);
+  assert.equal(s.profile, null);
+  assert.deepEqual(s.argv, ["claude", "-c"]);
+  assert.match(s.stderr, /^The folder's last session ran in profile gone, which no longer exists; continuing with this folder's settings\.$/m);
+});
+
 test("#18319: a claude -p or Agent SDK session start leaves the folder's record unchanged, since claude -c skips those sessions", () => {
   const w = world();
   const file = sessionInBuild(w, "abc-1");
   const before = folderRecordOf(w);
-  hookStart(w, { session_id: "headless-2", source: "startup" }, { CLAUDE_CODE_ENTRYPOINT: "sdk-cli" });
+  for (const entrypoint of ["sdk-cli", "sdk-ts", "sdk-py"]) hookStart(w, { session_id: `headless-${entrypoint}`, source: "startup" }, { CLAUDE_CODE_ENTRYPOINT: entrypoint });
   assert.deepEqual(folderRecordOf(w), before);
   assert.deepEqual(argsJson(w, ["-c"]).argv, ["claude", "--settings", file, "-c"]);
   hookStart(w, { session_id: "plain-3", source: "startup" });

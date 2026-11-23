@@ -934,15 +934,16 @@ function runClaude(args, env, io) {
 }
 
 /** What a start resumes and in which profile: the claude arguments to run, the profile, a session file to reuse, and the line to print. */
-function resumePlan(args, given, where) {
+function resumePlan(args, given, where, catalog) {
   const res = resumeOf(args);
   const plan = { args, name: given, reuse: null, folder: null, line: null, res, added: [] };
   if (res?.kind === "pick" && !given) plan.line = "Pick the session; if it ran in a profile, its start notice gives the command that resumes it there.";
   if (res?.kind === "continue" && !given) {
-    plan.name = folderSessionProfile(where);
-    plan.line = plan.name
-      ? `Continuing this folder's last conversation in profile ${plan.name}.`
-      : "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
+    const last = folderSessionProfile(where);
+    plan.name = last && profileNamed(catalog, last) ? last : null;
+    if (plan.name) plan.line = `Continuing this folder's last conversation in profile ${plan.name}.`;
+    else if (last) plan.line = `The folder's last session ran in profile ${last}, which no longer exists; continuing with this folder's settings.`;
+    else plan.line = "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
   }
   if (res?.kind !== "resume") return plan;
   const rec = validId(res.id) ? sessionRecord(where, res.id) : null;
@@ -1003,7 +1004,7 @@ async function start(opts, where, env, io) {
     if (given) throw new UsageError("start takes the profile once: as its first word or with --profile");
     given = named(args.shift());
   }
-  const plan = resumePlan(args, given, where);
+  const plan = resumePlan(args, given, where, catalog);
   const at = plan.folder && !opts.with ? locate(env, where.projectDir, plan.folder) : where;
   const add = opts.add.length ? addedFor(opts.add, plan, at, catalog) : { ids: plan.added, records: undefined };
   const plain = opts.passthrough && !plan.res && !given;
@@ -1180,8 +1181,8 @@ function hookInput(io) {
 }
 
 /**
- * Records this session as the folder's last, with its profile or none, unless it is a claude -p or Agent SDK session, which
- * claude -c skips (https://code.claude.com/docs/en/cli-reference); and the profile it runs in under its id; returns the line
+ * Records this session as the folder's last, with its profile or none, unless it is a claude -p or Agent SDK session (an sdk-*
+ * entrypoint: sdk-cli, sdk-ts, sdk-py), which claude -c skips (https://code.claude.com/docs/en/cli-reference); and the profile it runs in under its id; returns the line
  * for a resumed session whose profile changed: to another, to one from none, or to none.
  */
 function sessionStartRecord(where, env, input) {
@@ -1189,7 +1190,7 @@ function sessionStartRecord(where, env, input) {
   const name = sessionProfile(env);
   const profiled = Boolean(name && env[SESSION_FILE_VAR]);
   const at = new Date().toISOString();
-  if (where.surface.id !== "sdk-cli") {
+  if (!env.CLAUDE_CODE_ENTRYPOINT?.startsWith("sdk-")) {
     const folderFile = byFolderFile(where.dataDir, where.projectDir);
     replaceFile(folderFile, `${JSON.stringify({ sessionId: input.session_id, profile: profiled ? name : null, at }, null, 2)}\n`);
     sweepSessions(where, folderFile, byFolderDir(where.dataDir));
