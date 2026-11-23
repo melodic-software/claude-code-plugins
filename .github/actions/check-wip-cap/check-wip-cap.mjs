@@ -61,7 +61,7 @@ import { pathToFileURL } from "node:url";
 
 import { readRouting, ROUTING_DEFAULTS, routingLabel } from "../check-born-triaged/check-born-triaged.mjs";
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../../scripts/lib/github-client.mjs";
 import { loadTrustedActors, StatusReadError, statusLabels } from "../resolve-config/read-status.mjs";
 import { blockersOf, stillBlocking } from "../../scripts/intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS, resolveAdmission, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";

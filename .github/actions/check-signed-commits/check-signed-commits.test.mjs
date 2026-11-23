@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -5,7 +6,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
-import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../../scripts/lib/github-client.mjs";
 import { main, SIGNED_COMMITS_HOLD } from "./check-signed-commits.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 

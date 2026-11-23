@@ -49,7 +49,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { decide } from "../lib/lane-level.mjs";
 import { describeLevel, effectiveLevel, encodeLevel, LEVEL_VARIABLE, levelSettings, parseLevel, variableOf } from "../lib/lane-level-value.mjs";
 import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";

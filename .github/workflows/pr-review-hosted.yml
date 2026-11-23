@@ -205,6 +205,7 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
+            /.github/scripts/lib/github-client.mjs
             /.github/scripts/pr-review/
             /.github/scripts/pr-unblock/request-budget.mjs
             /.node-version
@@ -333,6 +334,7 @@ jobs:
         **/AGENTS.md
         REVIEW.md
         .github/actions/check-trusted-trigger/**
+        .github/scripts/lib/github-client.mjs
         .github/actions/resolve-config/**
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**

@@ -4,7 +4,7 @@
 // main (a 404 unless `mainTag`), main's tip, and the compare of a head commit
 // with that tip or with refs/heads/main (`offMain` lists the commits not on main). Any other URL is
 // undefined.
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 
 export const TIP = "f".repeat(40);
 

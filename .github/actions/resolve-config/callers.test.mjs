@@ -73,14 +73,14 @@ function assertMainTip(steps, checkout, branch = "main") {
 // Sibling action directories this action's modules import, followed
 // transitively: the sparse checkout must hold each of them.
 function importedActionDirs() {
-  const actions = new URL("../", import.meta.url);
-  const files = new Set(["resolve-config/resolve-config.mjs"]);
+  const root = new URL("../../../", import.meta.url);
+  const files = new Set([".github/actions/resolve-config/resolve-config.mjs"]);
   for (const file of files) {
-    for (const [, spec] of read(`../${file}`).matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
-      files.add(new URL(spec, new URL(file, actions)).pathname.slice(actions.pathname.length));
+    for (const [, spec] of readFileSync(new URL(file, root), "utf8").matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
+      files.add(new URL(spec, new URL(file, root)).pathname.slice(root.pathname.length));
     }
   }
-  return [...new Set([...files].map((file) => `/.github/actions/${file.split("/")[0]}/`))];
+  return [...new Set([...files].map((file) => (file.startsWith(".github/actions/") ? `/.github/actions/${file.split("/")[2]}/` : `/${file}`)))];
 }
 
 const BASE_FILES = [

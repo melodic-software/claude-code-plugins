@@ -84,7 +84,8 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
-import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, isStatusLabel, statusReader } from "../../actions/resolve-config/read-status.mjs";

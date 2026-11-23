@@ -770,6 +770,7 @@ jobs:
             /.github/standards/trusted-actors/
             /.github/actions/log-api-budget/
             /.github/actions/check-trusted-trigger/
+            /.github/scripts/lib/github-client.mjs
             /.github/actions/check-kill-switch/
             /lib/publish-gate.mjs
             /.node-version
