@@ -225,9 +225,9 @@ test("a patch bump whose commits listing is short of its total is review", async
 
 test("a PR whose review-dependency run is not done yet is not sent again, and the slot goes to the next PR", async () => {
   const runs = [
-    { id: 901, status: "in_progress", display_title: "pr-unblock review-dependency #21" },
-    { id: 902, status: "queued", display_title: "pr-unblock resolve-conflicts #22" },
-    { id: 903, status: "completed", display_title: "pr-unblock review-dependency #22" },
+    { id: 901, status: "in_progress", display_title: "PR Unblock review-dependency #21" },
+    { id: 902, status: "queued", display_title: "PR Unblock resolve-conflicts #22" },
+    { id: 903, status: "completed", display_title: "PR Unblock review-dependency #22" },
   ];
   const api = fakeApi({ nodes: [pr(21), pr(22), pr(23)], runs });
   const lines = [];
