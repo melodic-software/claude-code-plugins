@@ -70,6 +70,11 @@ The record behind this section is
 - The answer needs more than one source: `/discovery:research <topic>`.
 - The page settles the approach: `/planning:plan`.
 
+## Related
+
+- Library docs lookup via Context7: /context7:lookup.
+- Audit repo config or code against vendor docs: /discipline:recheck-against-upstream.
+
 ## Gotchas
 
 - A note or summary is another session's model output. Use it to pick sections; check every

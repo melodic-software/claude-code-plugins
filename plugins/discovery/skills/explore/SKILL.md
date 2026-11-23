@@ -216,6 +216,11 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 - The contract is locked and the work adds types, contracts, or module boundaries: `/planning:design`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
+## Related
+
+- Reconstruct historical design rationale: /discovery:trace-intent.
+- Surface user unknown-unknowns first: /discovery:blindspot.
+
 ## Gotchas
 
 - **Fan-out without a numbered gap-list**. Dispatching subagents before writing gaps produces duplicate reads and missed areas. The gap-list is the coverage-discipline gate.

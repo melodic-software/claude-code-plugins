@@ -208,6 +208,12 @@ summary states whether anything was persisted.
 - Findings filed on an artifact: /overengineering:realign.
 - A proposal judged: /planning:plan.
 
+## Related
+
+- Auditing the whole enforcement surface: /overengineering:audit.
+- Hunting unreachable dead code: /code-tidying:audit-dead-code.
+- Auditing derivable documentation: /docs-hygiene:audit-derivability.
+
 ## Gotchas
 
 - **A single grep is not a search.** A phrase wrapped across a line break defeats a single-line
