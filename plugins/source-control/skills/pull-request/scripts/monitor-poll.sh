@@ -15,7 +15,8 @@ the GitHub facts behind each read: reference/providers/github/pull-request/monit
 
   --checkout  the checkout of the PR's repository; target-repo.sh resolves the repository
   --repo      the PR's base repository, named explicitly (a triangular flow); wins over --checkout
-  --interval  seconds between polls, default 60; raise it to poll less often with several watchers
+  --interval  seconds between polls, default 60; every read is a conditional request, so a poll
+              where nothing changed counts nothing against the REST rate limit
   --baseline  re-arm only: the file a --snapshot run of this script wrote
   --snapshot  read the checks once, write them to this file under a marker line, then exit
   --once      exit 0 at the end of the first poll that printed a check, comment or thread line
@@ -71,7 +72,8 @@ if [[ -n "$BASELINE_FILE" && "$(head -n 1 "$BASELINE_FILE" 2>/dev/null | tr -d '
 elif [[ -n "$BASELINE_FILE" ]]; then
   echo "BASELINE-UNREADABLE $BASELINE_FILE — missing or not a snapshot this script wrote; first checks poll only records; run a full scan"
 fi
-last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+watch_start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+last_comment_ts=$watch_start
 prev_threads=""
 poll=0
 emitted=0
@@ -85,12 +87,54 @@ read_into() {
   return "${rest%%:*}"
 }
 
+# Every read is a conditional GET: each page goes out with the ETag of its last answer, and a 304
+# replays that answer's body. GitHub does not count an authorized 304 against the primary rate
+# limit, so a poll where nothing changed costs no requests:
+# https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests
+# Each page is cached on its own because a change can land on any page, and every URL stays the
+# same from poll to poll, since a different query string gets a different ETag.
+declare -A etag_of body_of next_of
+link_next='<([^>]*)>; rel="next"'
+cget() {
+  local url=$1 pages="" head body status tag next line
+  local -a cond
+  fresh=0
+  while [[ -n "$url" ]]; do
+    cond=()
+    [[ -n "${etag_of[$url]:-}" ]] && cond=(-H "If-None-Match: ${etag_of[$url]}")
+    read_into gh api -i "${cond[@]}" "$url"
+    out=${out//$'\r'/}
+    head=${out%%$'\n\n'*} body=""
+    [[ "$head" != "$out" ]] && body=${out#*$'\n\n'}
+    status=${head%%$'\n'*} status=${status#* } status=${status%% *}
+    tag="" next=""
+    while IFS= read -r line; do
+      case "$line" in
+      [Ee][Tt][Aa][Gg]:*) tag=${line#*: } ;;
+      [Ll][Ii][Nn][Kk]:*) [[ "$line" =~ $link_next ]] && next=${BASH_REMATCH[1]} ;;
+      *) ;;
+      esac
+    done <<<"$head"
+    if [[ "$status" == 304 && -n "${etag_of[$url]:-}" ]]; then
+      body=${body_of[$url]} next=${next_of[$url]}
+    elif [[ "$status" == 200 ]]; then
+      fresh=1
+      [[ -n "$tag" ]] && etag_of[$url]=$tag body_of[$url]=$body next_of[$url]=$next
+    else
+      return 1
+    fi
+    pages+=$body$'\n'
+    url=$next
+  done
+  out=$pages
+}
+
 while true; do
-  if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
-    --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' 2>&1); then
-    read -r state head_sha <<<"$(printf '%s' "$out" | tr -d '\r')"
-  elif grep -qiE 'rate limit|HTTP 429' <<<"$out"; then
-    echo "RATE-LIMITED — watch stopped: $out"
+  if cget "repos/$OWNER/$REPO/pulls/$PR_NUMBER" &&
+    pr=$(printf '%s' "$out" | jq -r '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"'); then
+    read -r state head_sha <<<"${pr//$'\r'/}"
+  elif grep -qiE 'rate limit|HTTP 429' <<<"$errs"; then
+    echo "RATE-LIMITED — watch stopped: $(grep -iE -m1 'rate limit|HTTP 429' <<<"$errs")"
     exit 2
   fi
   if [[ "$state" == "MERGED" || "$state" == "CLOSED" ]]; then
@@ -104,17 +148,16 @@ while true; do
   checks_ok=1
   [[ -n "${head_sha:-}" ]] || checks_ok=0
   if [[ "$checks_ok" -eq 1 ]]; then
-    if read_into gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
-      --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}'; then
-      wf=$(printf '%s\n' "$out" | jq -s -c 'add // {}') || checks_ok=0
+    if cget "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100"; then
+      wf=$(printf '%s' "$out" | jq -s -c '[.[].workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}] | add // {}') || checks_ok=0
     else checks_ok=0; fi
   fi
   if [[ "$checks_ok" -eq 1 ]]; then
-    read_into gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" || checks_ok=0
+    cget "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" || checks_ok=0
     runs_raw=$out
-    read_into gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
-      --jq "$b"' .statuses[] | "\(.context): \(.state | b)"' || checks_ok=0
-    stat_raw=$out
+    if cget "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100"; then
+      stat_raw=$(printf '%s' "$out" | jq -r "$b"' .statuses[] | "\(.context): \(.state | b)"') || checks_ok=0
+    else checks_ok=0; fi
   fi
   if [[ "$checks_ok" -eq 1 ]]; then
     run_rows=$(printf '%s\n' "$runs_raw" | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"') || checks_ok=0
@@ -142,21 +185,29 @@ while true; do
 
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   fetch_ok=1
-  if read_into gh api --paginate "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
-    --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"'; then
-    printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . && emitted=1
-  else fetch_ok=0; fi
-  if read_into gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
-    --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"'; then
-    printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . && emitted=1
-  else fetch_ok=0; fi
-  # The reviews endpoint takes no `since` parameter, so this read filters on
-  # submitted_at itself and must paginate to reach the newest reviews:
+  # `since` stays at the watch's start so the URL, and so its ETag, holds from poll to poll; the
+  # watermark filter runs here, on updated_at, the field `since` filters on. A surface whose every
+  # page came back 304 holds nothing the poll that cached it did not already report, so it is
+  # skipped rather than filtered again.
+  # The reviews endpoint takes no `since` parameter, so its filter is on submitted_at and the read
+  # must paginate to reach the newest reviews:
   # https://docs.github.com/en/rest/pulls/reviews#list-reviews-for-a-pull-request
-  if read_into gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
-    --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\""; then
-    printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . && emitted=1
-  else fetch_ok=0; fi
+  for surface in "issues/$PR_NUMBER/comments?since=$watch_start&" "pulls/$PR_NUMBER/comments?since=$watch_start&" \
+    "pulls/$PR_NUMBER/reviews?"; do
+    # shellcheck disable=SC2016 # $ts is a jq variable
+    case "$surface" in
+    issues/*) row='select(.updated_at >= $ts) | "COMMENT \(.user.login): \(.body[:80])"' ;;
+    */comments*) row='select(.updated_at >= $ts) | "INLINE-COMMENT \(.user.login): \(.body[:80])"' ;;
+    *) row='select(.submitted_at > $ts) | "REVIEW \(.user.login) [\(.state)]: \(.body[:80])"' ;;
+    esac
+    if ! cget "repos/$OWNER/$REPO/${surface}per_page=100"; then
+      fetch_ok=0
+    elif [[ "$fresh" -eq 1 ]]; then
+      if new=$(printf '%s' "$out" | jq -r --arg ts "$last_comment_ts" ".[] | $row"); then
+        printf '%s\n' "$new" | tr -d '\r' | grep --line-buffered . && emitted=1
+      else fetch_ok=0; fi
+    fi
+  done
   [[ "$fetch_ok" -eq 1 ]] && last_comment_ts="$now"
 
   if ((poll % 4 == 0)); then

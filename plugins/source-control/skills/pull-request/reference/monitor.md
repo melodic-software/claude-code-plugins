@@ -165,8 +165,9 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    The `command` runs it by path, with no script body inline:
    `bash "<skill-dir>/scripts/monitor-poll.sh" --pr <N> --checkout "<checkout>"`, `<skill-dir>` and
    `<checkout>` put in place; `<skill-dir>` is the pull-request skill's directory even when another
-   skill, such as babysit-prs, arms the watch. Add `--interval <seconds>` above its default 60 when other watchers
-   run, per the [API budget](../../../reference/providers/github/README.md#api-budget). It resolves
+   skill, such as babysit-prs, arms the watch. Its reads are conditional requests, so a poll where
+   nothing changed counts nothing against the REST limit; add `--interval <seconds>` above its default 60
+   only when the [API budget](../../../reference/providers/github/README.md#api-budget) arithmetic says so. It resolves
    `OWNER` and `REPO` itself from `<checkout>` and exits 1 when that read refuses; on a triangular
    flow, add `--repo <base-owner>/<repo>`, the PR's base repository, as the provider reference
    shows. The re-arm's snapshot run adds `--snapshot <file>` and the re-armed watch

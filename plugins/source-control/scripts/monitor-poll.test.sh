@@ -37,30 +37,72 @@ POLL="$PLUGIN/skills/pull-request/scripts/monitor-poll.sh"
 
 cat >"$BIN/gh" <<'STUB'
 #!/usr/bin/env bash
-# Stub gh. $FX holds poll (the counter), checks.<n> (JSON, or FAIL) per poll
-# and merged_at (the poll number at which the PR reports MERGED).
+# Stub gh. $FX holds poll (the counter), checks.<n> (JSON, or FAIL) per poll,
+# merged_at (the poll number at which the PR reports MERGED), and optionally
+# statuses.<n> (JSON) and comment_at (the poll from which one issue comment exists).
+# Each answer is logged to $FX/calls as "<poll> <status> <path>".
 set -u
 args="$*"
+inm="" prev=""
+for a in "$@"; do
+  [[ "$prev" == -H && "$a" == "If-None-Match: "* ]] && inm=${a#If-None-Match: }
+  prev=$a
+done
+# reply <json>: what `gh api -i` prints for <json>. The ETag is a hash of the body, so an
+# unchanged body answers a request naming it with 304 Not Modified, as GitHub does; gh then
+# prints the headers only, says "gh: HTTP 304" on stderr and exits 1.
+reply() {
+  local tag
+  tag="\"$(printf '%s' "$1" | cksum | cut -d' ' -f1)\""
+  if [[ "$inm" == "$tag" ]]; then
+    echo "$(cat "$FX/poll") 304 ${args##* }" >>"$FX/calls"
+    printf 'HTTP/2.0 304 Not Modified\r\nEtag: %s\r\n\r\n' "$tag"
+    echo "gh: HTTP 304" >&2
+    exit 1
+  fi
+  echo "$(cat "$FX/poll") 200 ${args##* }" >>"$FX/calls"
+  printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\n' "$tag"
+  [[ -n "${2:-}" ]] && printf 'Link: <%s>; rel="next", <%s>; rel="last"\r\n' "$2" "$2"
+  printf '\r\n%s\n' "$1"
+  exit 0
+}
 case "$args" in
   "repo set-default --view"*) echo "No default remote repository has been set." >&2 ;;
-  *"/pulls/7 "*|*"/pulls/7")
+  *"/pulls/7")
     n=$(($(cat "$FX/poll" 2>/dev/null || echo 0) + 1))
     echo "$n" >"$FX/poll"
-    if [ "$n" -ge "$(cat "$FX/merged_at")" ]; then echo "MERGED sha1"; else echo "OPEN sha1"; fi ;;
+    if [ "$n" -ge "$(cat "$FX/merged_at")" ]; then state=closed merged=true; else state=open merged=false; fi
+    reply "{\"state\":\"$state\",\"merged\":$merged,\"head\":{\"sha\":\"sha1\"}}" ;;
   *"/actions/runs"*)
     n=$(cat "$FX/poll")
-    [ "$(cat "$FX/fault.$n" 2>/dev/null)" = actions ] && { echo "boom: transient" >&2; exit 1; } ;;
+    [ "$(cat "$FX/fault.$n" 2>/dev/null)" = actions ] && { echo "boom: transient" >&2; exit 1; }
+    reply '{"workflow_runs":[]}' ;;
   *"/check-runs"*)
     n=$(cat "$FX/poll")
     [ "$(cat "$FX/fault.$n" 2>/dev/null)" = ratelimit ] && { echo "API rate limit exceeded" >&2; exit 1; }
     if [ "$(cat "$FX/checks.$n")" = FAIL ]; then echo "boom: transient" >&2; exit 1; fi
-    cat "$FX/checks.$n" ;;
+    # checks.<n>.p2, when present, is a second page the first page's Link header names.
+    case "$args" in
+      *"&page=2") reply "$(cat "$FX/checks.$n.p2")" ;;
+      *) [ -e "$FX/checks.$n.p2" ] && reply "$(cat "$FX/checks.$n")" "https://api.github.com/repos/owner/repo/commits/sha1/check-runs?per_page=100&page=2"
+         reply "$(cat "$FX/checks.$n")" ;;
+    esac ;;
   *"/status"*)
     n=$(cat "$FX/poll")
-    [ "$(cat "$FX/fault.$n" 2>/dev/null)" = status ] && { echo "boom: transient" >&2; exit 1; } ;;
+    [ "$(cat "$FX/fault.$n" 2>/dev/null)" = status ] && { echo "boom: transient" >&2; exit 1; }
+    reply "$(cat "$FX/statuses.$n" 2>/dev/null || echo '{"statuses":[]}')" ;;
   *"/issues/7/comments"*)
     n=$(cat "$FX/poll")
-    [ "$(cat "$FX/fault.$n" 2>/dev/null)" = comments-ratelimit ] && { echo "API rate limit exceeded" >&2; exit 1; } ;;
+    [ "$(cat "$FX/fault.$n" 2>/dev/null)" = comments-ratelimit ] && { echo "API rate limit exceeded" >&2; exit 1; }
+    # The comment is stamped with the time it is first read, the way a comment posted between
+    # two polls carries a time no later than the read that finds it.
+    if [ -e "$FX/comment_at" ] && [ "$n" -ge "$(cat "$FX/comment_at")" ]; then
+      [ -e "$FX/comment.json" ] ||
+        printf '[{"user":{"login":"bot"},"updated_at":"%s","body":"hello"}]' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$FX/comment.json"
+      reply "$(cat "$FX/comment.json")"
+    fi
+    reply '[]' ;;
+  "api "*) reply '[]' ;;
   *) ;;
 esac
 exit 0
@@ -120,6 +162,32 @@ echo 3 >"$FX3/merged_at"
 out3="$(run_poll "$FX3")"
 assert_not_contains "clean polls: baseline check a not emitted" "$out3" "a: pass"
 assert_eq "clean polls: b is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out3")"
+
+FX8="$TEST_TMPDIR/fx8"
+mkdir -p "$FX8"
+for n in 1 2 3 4; do runs_json a >"$FX8/checks.$n"; done
+for n in 2 3 4; do echo '{"statuses":[{"context":"ci/x","state":"success"}]}' >"$FX8/statuses.$n"; done
+echo 2 >"$FX8/comment_at"
+echo 5 >"$FX8/merged_at"
+out8="$(run_poll "$FX8")"
+assert_eq "304 replay: a status finishing beside unchanged check runs is emitted once" "1" "$(grep -c '^ci/x: pass$' <<<"$out8")"
+assert_not_contains "304 replay: the replayed baseline check a is not emitted" "$out8" "a: pass"
+assert_eq "304 replay: the new comment is emitted once, not again from the replayed body" "1" \
+  "$(grep -c '^COMMENT bot: hello$' <<<"$out8")"
+assert_eq "304 replay: no read in the unchanged poll 3 got a full answer" "" "$(awk '$1 == 3 && $2 != 304' "$FX8/calls")"
+assert_contains "304 replay: poll 3 reads were answered 304" "$(awk '$1 == 3 { print $2 }' "$FX8/calls")" "304"
+assert_contains "304 replay: the watch completes" "$out8" "PR #7 MERGED — watch complete"
+
+FX9="$TEST_TMPDIR/fx9"
+mkdir -p "$FX9"
+for n in 1 2 3; do runs_json a >"$FX9/checks.$n"; done
+runs_json b | sed 's/"completed","conclusion":"success"/"in_progress","conclusion":null/' >"$FX9/checks.1.p2"
+runs_json b >"$FX9/checks.2.p2"
+runs_json b >"$FX9/checks.3.p2"
+echo 4 >"$FX9/merged_at"
+out9="$(run_poll "$FX9")"
+assert_eq "paged checks: a check finishing on the second page is emitted once" "1" "$(grep -c '^b: pass$' <<<"$out9")"
+assert_not_contains "paged checks: the first page's unchanged check is not emitted" "$out9" "a: pass"
 
 FX7="$TEST_TMPDIR/fx7"
 mkdir -p "$FX7"
