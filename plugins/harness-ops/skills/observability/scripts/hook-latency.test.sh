@@ -21,15 +21,15 @@ trap 'rm -rf "$TMP"' EXIT
 
 # Shape of a real Collector record; cc_logs_from binds intValue, traceId and spanId, so the
 # fixture must carry them.
-record() { # <session> <hook_event> <ms> <seconds-ago>
+record() {
   printf '{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.hook_execution_complete"},"attributes":[{"key":"claude.lane","value":{"stringValue":"windows"}},{"key":"session.id","value":{"stringValue":"%s"}},{"key":"event.name","value":{"stringValue":"hook_execution_complete"}},{"key":"event.sequence","value":{"intValue":"7"}},{"key":"hook_event","value":{"stringValue":"%s"}},{"key":"total_duration_ms","value":{"stringValue":"%s"}}],"traceId":"","spanId":""}' \
     "$((EPOCHSECONDS - $4))" "$1" "$2" "$3"
 }
-line() { # <records...>: one Collector batch line
+line() {
   local IFS=,
   printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[%s]}]}]}\n' "$*"
 }
-store() { # <name> <ms-expression in pos> <sessions> <fires> [age-seconds]: Stop fires only
+store() {
   local d="$TMP/$1" s p recs age="${5:-3600}"
   mkdir -p "$d"
   for ((s = 1; s <= $3; s++)); do
@@ -39,13 +39,13 @@ store() { # <name> <ms-expression in pos> <sessions> <fires> [age-seconds]: Stop
   done
   printf '%s' "$d"
 }
-run() { # <store> <args...>
+run() {
   out="$(CC_OTEL_STORE="$1" bash "$SCRIPT" "${@:2}" 2>&1)"
   rc=$?
 }
-flagged() { grep '^!' <<<"$out"; } # rows the script marked
+flagged() { grep '^!' <<<"$out"; }
 # A cannot-evaluate exit names both routes: the telemetry switch and the Stop-hook transcript route.
-assert_routes() { # <case label>
+assert_routes() {
   assert_contains "$1 names the telemetry-enable step" "$out" "CLAUDE_CODE_ENABLE_TELEMETRY=1"
   assert_contains "$1 names the setup doc" "$out" "context/operator-setup.md"
   assert_contains "$1 names the audit-performance skill" "$out" "/harness-ops:audit-performance"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for normalize-enabled-plugins.sh.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
