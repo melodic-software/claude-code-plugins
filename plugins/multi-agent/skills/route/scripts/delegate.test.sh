@@ -16,6 +16,11 @@ while [[ $# -gt 0 ]]; do
 done
 EOF
 chmod +x "$T/bin/external-agents"
+mkdir -p "$T/home" "$T/repo"
+printf 'schema: 1\nvendors:\n  auto_delegation: %s\n' true >"$T/home/on.yaml"
+printf 'schema: 1\nvendors:\n  auto_delegation: %s\n' false >"$T/home/off.yaml"
+git -C "$T/repo" init -q
+cp "$T/home/on.yaml" "$T/repo/on.yaml"
 
 fails=0
 check() {
@@ -24,7 +29,12 @@ check() {
     fails=1
   fi
 }
-run() { PATH="$T/bin:$PATH" "$HERE/delegate" "$@"; }
+run_as() {
+  local f="$1"
+  shift
+  (cd "$T" && PATH="$T/bin:$PATH" "$HERE/delegate" --user-file "$f" "$@")
+}
+run() { run_as "$T/home/on.yaml" "$@"; }
 
 out="$(printf 'draw a cat' | run codex 2>&1)"
 check "codex runs with the fixed flags" "[run][codex][--use][task][--mode][write][--prompt-file]" "$(head -1 <<<"$out" | sed 's/\[[^]]*prompt\.md\]//')"
@@ -44,5 +54,14 @@ printf 'x' | run codex --model 'a b' >/dev/null 2>&1
 check "rejects a model id with a space" 2 "$?"
 run codex </dev/null >/dev/null 2>&1
 check "rejects an empty prompt" 2 "$?"
+
+printf 'x' | run_as "$T/home/off.yaml" codex >/dev/null 2>&1
+check "refuses when the user layer has auto-delegation off" 2 "$?"
+printf 'x' | run_as "$T/home/missing.yaml" codex >/dev/null 2>&1
+check "refuses when the user layer file is missing" 2 "$?"
+printf 'x' | run_as "$T/repo/on.yaml" codex >/dev/null 2>&1
+check "refuses a user file inside a git work tree" 2 "$?"
+printf 'x' | (cd "$T" && PATH="$T/bin:$PATH" "$HERE/delegate" codex) >/dev/null 2>&1
+check "refuses without --user-file" 2 "$?"
 
 exit "$fails"

@@ -144,11 +144,12 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
       `board-reader` output). Name the target file path and the vendor's built-in image tool (for
       Codex, say explicitly: "use your built-in image generation tool, not code"; for Antigravity,
       name its built-in image generation tool). Pass the prompt on stdin to the bundled
-      `delegate` script, which runs only `external-agents run <product> --use task --mode write`
-      on it and refuses any other flag:
+      `delegate` script. It re-checks that `vendors.auto_delegation` is on in the user layer
+      (outside any repository), runs only `external-agents run <product> --use task --mode write`
+      on the prompt, and refuses any other flag:
 
       ```bash
-      ${CLAUDE_SKILL_DIR}/scripts/delegate <product> <<'PROMPT'
+      ${CLAUDE_SKILL_DIR}/scripts/delegate --user-file '${user_config.role_map_file}' <product> <<'PROMPT'
       <the prompt>
       PROMPT
       ```

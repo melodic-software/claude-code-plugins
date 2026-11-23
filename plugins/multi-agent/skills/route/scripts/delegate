@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# delegate <codex|antigravity> [--model <id>] [--effort <level>] < prompt
+# delegate --user-file <role_map_file> <codex|antigravity> [--model <id>] [--effort <level>] < prompt
 # Runs one auto-delegated task: external-agents run <product> --use task --mode write
 # --prompt-file <a temp file holding stdin>. No other external-agents flag can be passed.
+# Refuses unless vendors.auto_delegation resolves true from the user layer, and refuses a
+# --user-file inside a git work tree, so no repository can supply the setting.
 set -euo pipefail
 
 die() {
@@ -9,9 +11,24 @@ die() {
   exit 2
 }
 
-[[ $# -ge 1 ]] || die "usage: delegate <codex|antigravity> [--model <id>] [--effort <level>] < prompt"
-product="$1"
-shift
+USAGE="usage: delegate --user-file <role_map_file> <codex|antigravity> [--model <id>] [--effort <level>] < prompt"
+[[ $# -ge 3 && "$1" == --user-file ]] || die "$USAGE"
+user_file="$2"
+product="$3"
+shift 3
+
+resolve_args=(worker --session-model opus)
+if [[ -n "$user_file" ]]; then
+  [[ "$user_file" == /* || "$user_file" =~ ^[A-Za-z]:[/\\] ]] || die "--user-file must be an absolute path"
+  [[ -f "$user_file" ]] || die "auto-delegation is off: no user layer file at the --user-file path"
+  if git -C "$(dirname "$user_file")" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    die "the --user-file is inside a git work tree; only a user layer outside any repository can turn on auto-delegation"
+  fi
+  resolve_args+=(--user-file "$user_file")
+fi
+resolved="$("$(dirname "${BASH_SOURCE[0]}")/../../../scripts/resolve-roles.sh" "${resolve_args[@]}" 2>/dev/null)" || die "could not resolve vendors.auto_delegation"
+[[ "$resolved" == *'"auto_delegation":true,'* ]] || die "auto-delegation is off (vendors.auto_delegation is not true)"
+[[ "$resolved" =~ \"auto_delegation\":\"user-(config|global)\" ]] || die "auto-delegation is off: only the user layer sets it"
 case "$product" in
 codex | antigravity) ;;
 *) die "product must be codex or antigravity, got '${product//[^[:print:]]/?}'" ;;
