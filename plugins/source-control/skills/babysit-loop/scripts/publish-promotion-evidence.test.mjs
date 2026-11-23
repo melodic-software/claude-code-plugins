@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// test-scope: .github/scripts/post-merge-demotion-alert/demotion-record.vectors.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -17,6 +18,12 @@ const THROUGH = "2026-10-05T00:00:00Z";
 
 const base = mkdtempSync(join(tmpdir(), "publish-promotion-evidence-"));
 after(() => rmSync(base, { recursive: true, force: true }));
+
+test("the demotion marker finds every demotion record vector and no post-merge-failure one", () => {
+  const { markers } = JSON.parse(readFileSync(join(HERE, "../../../../../.github/scripts/post-merge-demotion-alert/demotion-record.vectors.json"), "utf8"));
+  assert.ok(markers.some((v) => v.kind === "post-merge-failure"));
+  for (const { name, kind, line } of markers) assert.equal(line.includes(publisher.DEMOTION_MARKER), kind === "babysit-merge-demotion", name);
+});
 
 const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
 // Every promotable cell: what a merge with no rung has its contrary events counted against.
