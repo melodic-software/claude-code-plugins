@@ -3874,3 +3874,30 @@ test("#18314 D5: a profile session's start hook tells the model the reopen line,
   assert.equal(folder.hookSpecificOutput, undefined, "a folder profile without a one-session profile gets no reopen line");
   assert.equal(hookJson(w, { session_id: "plain-2", source: "compact" }), null, "nor after compaction");
 });
+
+test("#18314: a reopen keeps the settings a launcher recorded with --with, and adds only the plugin", () => {
+  const w = world();
+  installOnDisk(w);
+  const recorded = launchJson(w, ["build", "--with", '{"model":"recorded-model","hooks":{"Stop":[{"hooks":[{"type":"command","command":"true"}]}]}}']).file;
+  hookStart(w, { session_id: "abc-1", source: "startup" }, JSON.parse(readFileSync(recorded, "utf8")).env);
+  const r = reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]);
+  const doc = JSON.parse(readFileSync(r.file, "utf8"));
+  assert.equal(doc.model, "recorded-model");
+  assert.deepEqual(doc.hooks, JSON.parse(readFileSync(recorded, "utf8")).hooks);
+  assert.deepEqual(doc.enabledPlugins, { ...pluginsIn(recorded), [SONG]: true });
+});
+
+test("#18314: an unattended resume of a reopened conversation checks the added plugin's required prerequisites too", () => {
+  const w = world();
+  addInstalled(w, "gadget@vendor");
+  writeTree(join(w.root, "installs", "gadget-at-vendor"), {
+    "prerequisites.json": { requires: [{ id: "pp-absent-tool", kind: "cli", need: "required", for: ["plugin"], detect: { any: ["pp-absent-tool-zz9"] }, degrade: "Without it gadget does nothing.", install: { docs: "https://example.com/pp-absent-tool" } }] },
+  });
+  sessionInBuild(w, "abc-1");
+  assert.equal(w.run(["start", "--resume", "abc-1", "--unattended", "--dry-run"]).status, 0, "build alone has every required tool");
+  const exception = reopen(w, ["--resume", "abc-1", "--profile-add", "gadget"]).file;
+  hookStart(w, { session_id: "abc-1", source: "resume" }, JSON.parse(readFileSync(exception, "utf8")).env);
+  const refused = w.run(["start", "--resume", "abc-1", "--unattended", "--dry-run"]);
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.match(refused.stderr, /not resumed: profile build switches on a plugin missing a required prerequisite/);
+});

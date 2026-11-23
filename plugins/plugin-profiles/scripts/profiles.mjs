@@ -992,9 +992,10 @@ async function start(opts, where, env, io) {
   let file = plan.reuse;
   let settingsArgs = plan.reuse && !opts.with && !opts.add.length ? ["--settings", plan.reuse] : null;
   if (settingsArgs) {
-    if (opts.unattended) profileGate(plan.name, opts, where, env, "resumed");
+    if (opts.unattended) profileGate(plan.name, { ...opts, add: add.ids }, where, env, "resumed");
   } else {
-    ({ file, settingsArgs } = launchSettings(plan.name, { ...opts, add: add.ids, records: add.records }, at, env, io));
+    const kept = opts.with ?? (opts.add.length ? plan.reuse : null);
+    ({ file, settingsArgs } = launchSettings(plan.name, { ...opts, with: kept, add: add.ids, records: add.records }, at, env, io));
   }
   const argv = [...settingsArgs, ...plan.args];
   const reopened = opts.add.length ? `Reopening ${plan.res.id} in profile ${plan.name} with ${list(add.ids)} on, for this conversation only.` : null;
