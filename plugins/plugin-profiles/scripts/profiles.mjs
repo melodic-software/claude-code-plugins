@@ -570,10 +570,8 @@ function commit(p, opts, where, finishing = null) {
     if (changeCount(p)) writeSettings(p.file, p.settings.hash, text);
   } catch (error) {
     const ours = recordText(record);
-    if (finishing) {
-      swapRecord(finishing.path, ours, finishing.text);
-      if (finishing.path !== p.recPath) rollbackRecord(p.recPath, ours, null);
-    } else rollbackRecord(p.recPath, ours, p.recFound === p.recPath ? p.previous : null);
+    if (finishing) swapRecord(finishing.path, ours, finishing.text);
+    if (finishing?.path !== p.recPath) rollbackRecord(p.recPath, ours, p.recText);
     throw error;
   }
   if (p.recFound && p.recFound !== p.recPath) deleteRecord(p.recFound);

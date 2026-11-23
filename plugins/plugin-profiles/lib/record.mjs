@@ -140,9 +140,9 @@ export function swapRecord(path, expected, text) {
   }
 }
 
-/** Undoes this apply's record write only while the file still holds `ours`: puts `previous` back, or deletes the file when there is none. False when another writer replaced it, which is left as it is. */
-export function rollbackRecord(path, ours, previous) {
-  if (previous) return swapRecord(path, ours, recordText(previous));
+/** Undoes this apply's record write only while the file still holds `ours`: puts back `previousText`, the exact text its claim replaced, or deletes the file when it held none. False when another writer replaced it, which is left as it is. */
+export function rollbackRecord(path, ours, previousText) {
+  if (previousText !== null) return swapRecord(path, ours, previousText);
   if (readText(path) !== ours) return false;
   removeFile(path);
   return true;
