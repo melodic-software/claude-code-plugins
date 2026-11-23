@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/evals/evals/*
+# test-scope: plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/evals/evals/* plugins/evals/.claude-plugin/plugin.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

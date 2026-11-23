@@ -3,6 +3,7 @@
 # test-scope: plugins/evals/skills/validate/scripts/validate-cases.py
 # test-scope: plugins/evals/skills/audit/scripts/audit-suite.py
 # test-scope: plugins/evals/evals/*
+# test-scope: plugins/evals/.claude-plugin/plugin.json
 """Fixture suite for audit-suite.py.
 
 Run directly with: python3 plugins/evals/skills/audit/scripts/test_audit_suite.py
