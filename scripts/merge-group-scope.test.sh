@@ -207,10 +207,10 @@ else
   fail "the step lost its merge_group condition or continue-on-error: $step"
 fi
 step_id="$(sed -n 's/^        id: //p' <<<"$step")"
-if [[ -n "$step_id" ]] && ! grep -qE "steps\.$step_id\b" "$WORKFLOW" && ! grep -q GITHUB_OUTPUT "$TMP_ROOT/body.sh"; then
+if [[ -n "$step_id" ]] && ! grep -qE "steps\.$step_id([^A-Za-z0-9_]|$)" "$WORKFLOW" && ! grep -q GITHUB_OUTPUT "$TMP_ROOT/body.sh"; then
   ok "nothing reads the step and it writes no output, so no job skips on it"
 else
-  fail "the step can feed a gate (id '$step_id'): $(grep -nE "steps\.${step_id:-none}\b" "$WORKFLOW")"
+  fail "the step can feed a gate (id '$step_id'): $(grep -nE "steps\.${step_id:-none}([^A-Za-z0-9_]|$)" "$WORKFLOW")"
 fi
 order="$(grep -nE "^  (select-tests|lint-repo):$|^      - name: (Plan the test lanes|$NAME|Log the API budget at the end)$" "$WORKFLOW" | cut -d: -f1 | head -5 | paste -sd' ')"
 read -r job_line plan_line step_line log_line next_job <<<"$order"

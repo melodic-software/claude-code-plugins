@@ -148,8 +148,10 @@ merge="$found"
 GIT_NO_LAZY_FETCH=1 git -C "$repo" cat-file -e "$merge^{commit}" 2>/dev/null ||
   git -C "$repo" fetch --quiet --no-tags origin "$merge" 2>/dev/null ||
   fallback tested-merge-fetch-refused
-[[ "$(git -C "$repo" rev-parse --verify --quiet "$merge^2")" == "$head" ]] || fallback tested-merge-not-of-head
-tested_base=$(git -C "$repo" rev-parse --verify --quiet "$merge^1") || fallback tested-merge-no-parent
+parents=$(git -C "$repo" show -s --format=%P "$merge" 2>/dev/null) || parents=
+read -r tested_base second _ <<<"$parents"
+[[ ${second:-} == "$head" ]] || fallback tested-merge-not-of-head
+[[ -n ${tested_base:-} ]] || fallback tested-merge-no-parent
 git -C "$repo" merge-base --is-ancestor "$tested_base" "$group_base" 2>/dev/null || fallback tested-base-not-ancestor
 
 git -C "$repo" diff --no-renames --name-only "$merge" HEAD -- >"$WORK/x.txt" || fallback x-diff-failed
