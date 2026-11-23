@@ -289,21 +289,21 @@ writing it into a brief: we never rely on a `${…}` token in a file read from d
 later. Where each plugin variable resolves: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
-## Related
-
-- `/review:explain-change` writes a pull request digest; it never posts to the PR.
-- `/explainer-video:produce` renders a storyboard into the narrated video, contact sheet and
-  `manifest.json` that the `media` action places.
-- `/review:reviewer-media` decides which media a PR needs, builds the storyboard from the digest
-  and hands the manifest to the `media` action.
-- `/playwright:demo-video` records a live UI flow as PR evidence; the `evidence` action posts it.
-- `/education:illustrate` explains a concept, with a video view through the same producer.
-
 ## Next
 
 - PR merged, optional review of how the session went: /session-flow:retro.
 - `reassess` returned `rework`: /implementation:implement.
 - A reviewer walkthrough still to build for the `media` action: /review:reviewer-media <pr>.
+
+## Related
+
+- Fleet pass across all open PRs: /source-control:babysit-prs.
+- Remove merged worktree after merge: /source-control:worktree.
+- Write a PR digest without posting: /review:explain-change.
+- Record a live UI flow for evidence action: /playwright:demo-video.
+- Render a storyboard for media action: /explainer-video:produce.
+- Decide which media the PR needs and build its storyboard: /review:reviewer-media.
+- Explain a concept, with a video view through the same producer: /education:illustrate.
 
 ## Gotchas
 

@@ -135,6 +135,13 @@ outcome. Do not manufacture retirements or ledger edits to look thorough.
   Revisit when a generic tool-state surface appears in the harness, or a
   per-tool seam convention is established for it.
 
+## Related
+
+- Resume interrupted or stuck off-thread work: /session-flow:keep-going.
+- Read-only situation report without mutating ledger: /session-flow:orient.
+- Make git and PR state durable before shutdown: /session-flow:clean-stop.
+- Mid-session retro observations: /session-flow:running-retro.
+
 ## Gotchas
 
 - **Closing a task is evidence-gated, exactly like a kill.** The pull is to
