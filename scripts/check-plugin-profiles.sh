@@ -17,7 +17,7 @@ root="${1:-$here}"
 home="$(mktemp -d)"
 trap 'rm -rf "${home:?}"' EXIT
 changed=()
-if [[ -n "${DIFF_BASE:-}" ]] && git -C "$root" -c core.quotePath=false diff --name-only "$DIFF_BASE...HEAD" -- >"$home/changed" 2>/dev/null; then
+if [[ -n "${DIFF_BASE:-}" ]] && git -C "$root" -c core.quotePath=false diff --no-renames --name-only "$DIFF_BASE...HEAD" -- >"$home/changed" 2>/dev/null; then
   changed=(--changed "$home/changed")
 fi
 HOME="$home" USERPROFILE="$home" CLAUDE_CONFIG_DIR="$home/.claude" CLAUDE_PROJECT_DIR="$root" \

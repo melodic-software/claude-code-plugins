@@ -5,6 +5,16 @@ import { profileMembers } from "./plan.mjs";
 import { alphabetical, everyProfile, sourcesOf } from "./profile-files.mjs";
 
 const nameOf = (id) => id.slice(0, id.lastIndexOf("@"));
+const marketplaceOf = (id) => id.slice(id.lastIndexOf("@") + 1);
+const skillToken = (path) => /[\\/]plugins[\\/]([^\\/]+)[\\/]skills[\\/]([^\\/]+)[\\/]SKILL\.md$/.exec(path)?.slice(1).join(":");
+
+function readTargets(path) {
+  try {
+    return sectionTargets(readFileSync(path, "utf8"));
+  } catch (error) {
+    return { next: new Set(), related: new Set(), unreadable: error.code ?? error.message };
+  }
+}
 
 function sectionTargets(text) {
   const targets = { next: new Set(), related: new Set() };
@@ -35,7 +45,7 @@ export function readSkillLinks(plugins, { tree = false, changed = new Set(), roo
   const entries = [...plugins.values()].flatMap(({ id, installPath, skills }) =>
     skills.map((skill) => {
       const path = join(installPath, "skills", skill, "SKILL.md");
-      return { id, path, shown: root ? relative(root, path) : path, skill, ...sectionTargets(readFileSync(path, "utf8")) };
+      return { id, path, shown: root ? relative(root, path) : path, skill, ...readTargets(path) };
     }));
   return { plugins, entries, tree, changed };
 }
@@ -57,6 +67,8 @@ export function skillLinkReports({ plugins, entries, tree, changed }, files, pro
       changed: files.some((file) => sources.some((p) => p.name === file.name) && changed.has(file.path)),
     };
   });
+  const governed = new Set(everyProfile(profiles).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
+  const changedTargets = new Set([...changed].map(skillToken).filter(Boolean).map((token) => `/${token}`));
   const targets = new Map();
   for (const { id, skill } of entries) {
     const token = `/${nameOf(id)}:${skill}`;
@@ -65,17 +77,17 @@ export function skillLinkReports({ plugins, entries, tree, changed }, files, pro
   }
   const rows = [];
   const add = (kind, line, touched = false) => rows.push({ kind, line, touched });
-  for (const { id, path, shown, next, related } of entries) {
+  for (const { id, path, shown, next, related, unreadable } of entries) {
     const active = profileRows.filter((p) => p.members.has(id));
-    if (!active.length) continue;
+    if (unreadable) add("unreadable", `links.unreadable: ${shown} cannot be read (${unreadable})`, changed.has(path));
     for (const [kind, tokens] of Object.entries({ next, related })) {
       for (const token of tokens) {
         const ids = targets.get(token);
         const skill = token.split(":")[1];
-        const touched = changed.has(path);
+        const touched = changed.has(path) || changedTargets.has(token);
         if (!ids) {
           add("unresolved", `links.unresolved: ${shown} (links.${kind}) -> ${token} has no skill`, touched || active.some((p) => p.changed));
-        } else if (!ids.includes(id)) {
+        } else if (!ids.includes(id) && ids.some((target) => governed.has(marketplaceOf(target)))) {
           for (const p of active) {
             if (ids.some((target) => p.members.has(target)) && !p.hidden.has(skill) && !p.hidden.has(token.slice(1))) continue;
             add(kind, `links.${kind}: ${shown} -> ${token} is off in profile ${p.name}`, touched || p.changed);
@@ -99,6 +111,7 @@ export function skillLinkReports({ plugins, entries, tree, changed }, files, pro
     links: { next: lines("next"), related: lines("related") },
     unnamed: lines("unnamed"),
     unresolved: lines("unresolved"),
+    unreadable: lines("unreadable"),
     skillReports: { changed: touched.map((row) => row.line), remaining: remaining.map((row) => row.line) },
   };
 }

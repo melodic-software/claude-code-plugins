@@ -60,9 +60,35 @@ test("tree links use profile membership, report each kind, and leave failures un
     next("toy:go", "build"), next("flow:hidden", "build"),
   ]);
   assert.deepEqual(links.related, [`links.related: ${source} -> /toy:go is off in profile build`]);
-  assert.deepEqual(unresolved, [`links.unresolved: ${source} (links.next) -> /gone:go has no skill`]);
+  const offSource = join(root, "plugins", "off", "skills", "start", "SKILL.md");
+  assert.deepEqual(unresolved, [
+    `links.unresolved: ${source} (links.next) -> /gone:go has no skill`,
+    `links.unresolved: ${offSource} (links.next) -> /gone:off has no skill`,
+  ]);
   assert.deepEqual(unnamed, [`Catalog plugin no shipped profile names: toy@${M}`]);
-  assert.deepEqual(skillReports.changed, [...links.next.slice(0, 3), ...unresolved]);
+  assert.deepEqual(skillReports.changed, [...links.next.slice(0, 3), unresolved[0]]);
+});
+
+test("links to another marketplace's plugin, to a changed target, and from an unreadable skill", () => {
+  const root = writeTree(tempDir(), {
+    ...PASSING,
+    "shipped/build.yaml": `description: Build.\nplugins: [impl@${M}]\n`,
+    "plugins/impl/skills/start/SKILL.md": "## Next\n/vendor:go /ui:go /ui:moved\n",
+    "plugins/ui/skills/go/SKILL.md": "",
+    "plugins/impl/skills/broken/SKILL.md/.keep": "",
+    "other/vendor/skills/go/SKILL.md": "",
+  });
+  const plugins = new Map([...readTreePlugins(join(root, "plugins"), M), ...readTreePlugins(join(root, "other"), "elsewhere")]);
+  const source = join(root, "plugins", "impl", "skills", "start", "SKILL.md");
+  const moved = join(root, "plugins", "ui", "skills", "moved", "SKILL.md");
+  const files = readProfileFiles([{ level: "shipped", dir: join(root, "shipped") }]);
+  const skills = readSkillLinks(plugins, { tree: true, changed: new Set([moved]) });
+  const { links, unresolved, unreadable, failures, skillReports } = checkProfiles({ files, catalog: CATALOG, installed: new Set(), skills });
+  assert.deepEqual(failures, []);
+  assert.deepEqual(links.next, [`links.next: ${source} -> /ui:go is off in profile build`]);
+  assert.deepEqual(unresolved, [`links.unresolved: ${source} (links.next) -> /ui:moved has no skill`]);
+  assert.match(unreadable[0], /links\.unreadable: .*broken.*SKILL\.md cannot be read \(EISDIR\)/);
+  assert.deepEqual(skillReports.changed, unresolved);
 });
 
 test("AC5: a shipped profile naming a plugin the catalog lacks fails, naming the profile and the plugin", () => {
