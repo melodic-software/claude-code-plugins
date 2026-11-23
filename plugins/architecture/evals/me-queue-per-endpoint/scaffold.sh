@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Setup.cs binds OrderHandler and BillingHandler on ReceiveEndpoint("orders"), AuditHandler on
-# ReceiveEndpoint("audit"), then registers LateHandler with AddConsumer outside any endpoint and
-# publishes OrderPlaced. All four handlers consume OrderPlaced and are declared below the setup.
-# The convention home declares architecture_dir docs/architecture.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

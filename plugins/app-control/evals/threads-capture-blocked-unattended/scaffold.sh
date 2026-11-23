@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop app's control skill and the run directory holding this run's launch record.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

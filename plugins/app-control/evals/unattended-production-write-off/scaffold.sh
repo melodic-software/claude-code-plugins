@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop control skill with a refund write on a production environment whose committed
-# config grants that write unattended, and commits it.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

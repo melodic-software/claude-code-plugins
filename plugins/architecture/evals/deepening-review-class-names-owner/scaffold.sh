@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# An invoicing path of three one-step classes with Any-typed parameters, a tax rate written into
-# the code, and a store that catches every exception and discards it. The arithmetic is right:
-# there is no live bug, only review-class problems a design scan also sees.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

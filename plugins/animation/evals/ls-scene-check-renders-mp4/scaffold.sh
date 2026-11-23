@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A scene module for a harbor and a workspace copy of the woodcut-ink pack.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" scenes packs frames

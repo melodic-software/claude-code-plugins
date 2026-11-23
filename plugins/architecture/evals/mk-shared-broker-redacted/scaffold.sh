@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Two deployables bind the same RabbitMQ host with credentials in their connection
-# strings; a class library sits in a directory named Gateway.
 set -euo pipefail
 
 git init -q -b main

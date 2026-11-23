@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a control skill whose checkout feature is a folder, with a stale flat file at the same id.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

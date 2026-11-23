@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A small invoicing tool whose one module, tax, is already deep: compute_tax(order) is the only
-# entry point, the rate tables, exemptions and rounding sit behind it, and the tests drive only it.
 set -euo pipefail
 
 git init -q -b main

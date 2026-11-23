@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Control for the no-findings cases: an order-intake path of three one-method pass-through classes,
-# with the pricing and validation rules spread across them and tests that mock each hop. A correct
-# scan names this chain as a candidate, so a skill that always answers "no candidates" fails here.
 set -euo pipefail
 
 git init -q -b main

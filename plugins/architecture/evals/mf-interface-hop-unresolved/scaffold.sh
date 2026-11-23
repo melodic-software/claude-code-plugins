@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# OrdersController.Place calls the service through an interface, then publishes an event.
-# OrderService is the only class that implements IOrderService, and it calls the repository.
 set -euo pipefail
 
 git init -q -b main

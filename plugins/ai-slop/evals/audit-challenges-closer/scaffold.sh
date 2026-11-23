@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds one doc with a formulaic challenges closer and a dated closing line.
 set -euo pipefail
 
 mkdir -p docs

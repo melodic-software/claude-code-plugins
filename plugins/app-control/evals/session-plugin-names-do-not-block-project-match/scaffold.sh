@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds two plugins kept in the skills folder: shopkit ships control-shop, otherkit ships an unrelated control-other.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

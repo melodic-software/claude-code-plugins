@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a committed legacy testing-format feature map at .claude/skills/feature-map, then leaves an
-# uncommitted edit in one of its tracked files, so a refresh must refuse to convert it.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

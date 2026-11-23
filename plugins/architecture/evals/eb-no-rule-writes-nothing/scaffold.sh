@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A JavaScript repository with billing, reporting and shared folders and a check script, whose
-# architecture topic doc records no boundary rule and no other file states one.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

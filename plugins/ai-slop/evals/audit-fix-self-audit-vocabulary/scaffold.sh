@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a release note whose model vocabulary no detector rule flags.
 set -euo pipefail
 
 mkdir -p docs

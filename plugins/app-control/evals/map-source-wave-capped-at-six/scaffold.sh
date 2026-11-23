@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a contract-clean control skill with eight feature folders, so the source wave needs two waves.
 set -euo pipefail
 
 skill=.claude/skills/control-shop

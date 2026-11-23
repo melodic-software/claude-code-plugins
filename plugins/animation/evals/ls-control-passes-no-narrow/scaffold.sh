@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A style pack copy and a controls.py check table where one control passes.
 set -euo pipefail
 bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/ro-workdir.sh"
 mkdir -p packs/woodcut-ink

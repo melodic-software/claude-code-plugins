@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Node package a depends on sibling package b through file:../b; Go module c replaces its
-# example.com/foo requirement with ../a, which also holds a go.mod; a Gemfile sits at the root.
-# The convention home declares architecture_dir docs/architecture.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

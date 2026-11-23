@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Two tracked docs in different directories: docs/env/widget-env.md restates a fictional tool's
-# environment variables with no citation in the file or its directory; notes/concurrency.md quotes
-# the same tool's docs with the attribution beside each quotation.
 set -euo pipefail
 
 here="$(pwd -P)"

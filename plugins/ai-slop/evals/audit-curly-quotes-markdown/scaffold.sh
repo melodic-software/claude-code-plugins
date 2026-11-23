@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds one markdown file with a curly apostrophe and curly double quotes.
 set -euo pipefail
 
 mkdir -p docs

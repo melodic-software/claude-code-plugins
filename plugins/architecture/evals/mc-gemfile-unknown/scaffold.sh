@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Ruby service: a Gemfile and its source, no .NET project and no dependency-graph.json. The
-# convention home declares architecture_dir docs/architecture and diagram_dialect.system c4-plantuml.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A rotoscope work directory with a passing measure.py table, a review.py table flagging one drawing, and four 1:1 crops.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" work

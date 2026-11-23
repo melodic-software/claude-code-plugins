@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Billing publishes Billing.Contracts.OrderPlaced; Shipping consumes a different type,
-# Shipping.Contracts.OrderPlaced. Same short name, two messages, and neither side has a
-# partner. Billing also publishes a variable whose type the scan cannot resolve, sends
-# RefundRequested, a type declared nowhere, and sends Billing.Contracts.ChargeCard, which nothing
-# consumes. The convention home declares architecture_dir docs/architecture and
-# landscape_dialect structurizr.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

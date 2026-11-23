@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a narrative design note carrying an em dash, filler, stacked hedges and chat residue.
 set -euo pipefail
 
 mkdir -p docs

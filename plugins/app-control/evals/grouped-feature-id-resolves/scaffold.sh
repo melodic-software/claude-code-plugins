@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop app's control skill with one grouped feature, billing/export.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

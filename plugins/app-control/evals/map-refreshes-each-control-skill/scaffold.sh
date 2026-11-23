@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds two committed control skills, control-admin and control-shop, on main, so a bare unattended
-# refresh must take each in turn on its own upkeep branch.
 set -euo pipefail
 
 # Init a repository here unless this directory already is one's top level, so the commit never lands
@@ -82,7 +80,6 @@ seed admin "Admin console" users 'the `/admin/people` page'
 seed shop Shop cart 'the `Add to basket` button'
 git add -A
 git commit -q -m "Admin console and shop with their control skills"
-# Name the starting branch main whatever branch an existing repository started on.
 git branch -M main
 # Give the pass the origin remote it fetches the default branch from. The bare repository sits under
 # .git, so it stays out of git status.

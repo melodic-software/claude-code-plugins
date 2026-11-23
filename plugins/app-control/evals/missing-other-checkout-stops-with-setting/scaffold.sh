@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop control skill whose sign-in steps come from an integrated app in another
-# repository, with no setting saying where that repository's checkout is.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

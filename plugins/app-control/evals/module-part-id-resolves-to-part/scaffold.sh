@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the repo app's control skill with one module feature, testing, whose skills are Parts.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A parcel-quote path of three one-step classes. The fuel surcharge is added in both
-# QuoteService.quote and RateTable.price, so a 2 kg zone B parcel is quoted 7.50 against the
-# published 6.75, and the committed test states 6.75. LabelPrinter is imported by nothing.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

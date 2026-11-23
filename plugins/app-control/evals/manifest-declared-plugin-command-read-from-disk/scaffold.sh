@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a plugin kept in the skills folder whose manifest maps control-shop to a file outside commands/.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

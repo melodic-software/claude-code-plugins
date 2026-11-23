@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A storefront whose tracked config names a partner API and a SQL server (with a password),
-# whose CODEOWNERS and README name people, and whose operator-stated actors file holds one
-# clean row and one row carrying a token.
 set -euo pipefail
 
 git init -q -b main

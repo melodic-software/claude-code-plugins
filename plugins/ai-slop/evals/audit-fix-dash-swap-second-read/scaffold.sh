@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds an upgrade note with five "claim, em dash, elaboration" lines whose easy fix is a colon swap.
 set -euo pipefail
 
 mkdir -p docs

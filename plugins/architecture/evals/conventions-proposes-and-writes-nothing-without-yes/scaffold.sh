@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Five request handlers under src/Orders/Handlers, each implementing IRequestHandler<TRequest> and
-# registered in src/Orders/Startup.cs, each added by its own feature commit. No paved-path index,
-# no recorded boundary rule, no ADR.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "${here}/../fixtures/repo-scaffold-guard.sh" .git src

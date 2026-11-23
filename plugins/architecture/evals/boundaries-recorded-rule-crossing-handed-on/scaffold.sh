@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# On branch feature/billing-split: ARCHITECTURE.md line 14 forbids Billing.Reports referencing
-# Billing.Ledger, Billing.Reports.csproj declares that ProjectReference, the convention home's
-# topic doc sets architecture_dir docs/architecture, and a current dependency-graph.json there,
-# written by this plugin's own collector, holds the edge.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "${here}/../fixtures/repo-scaffold-guard.sh" .git src docs ARCHITECTURE.md AGENTS.md

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a proving run's evidence: the screenshot is on disk, the trace the report lists is not.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

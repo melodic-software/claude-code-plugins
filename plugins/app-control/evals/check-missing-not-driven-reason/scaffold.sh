@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a control skill whose export feature has an entry point marked not driven with no reason.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

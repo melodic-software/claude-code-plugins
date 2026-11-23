@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# No recorded style: no ADR, no architecture topic doc, no boundary rule. OrderForm.tsx, orders.ts,
-# orderRepo.ts and orders.test.ts change together in six commits; each of their folders also holds
-# files that change alone, so the co-change script finds one four-folder cluster.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "${here}/../fixtures/repo-scaffold-guard.sh" .git src

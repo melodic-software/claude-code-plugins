@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds one doc whose specific paragraph ends in a bare optimism closer.
 set -euo pipefail
 
 mkdir -p docs

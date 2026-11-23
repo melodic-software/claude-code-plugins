@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Two deployables (a web API and a worker) share one domain library, so no single
-# container covers every project and the component view must ask which one to chart.
 set -euo pipefail
 
 git init -q -b main

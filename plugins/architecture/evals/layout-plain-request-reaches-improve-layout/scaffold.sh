@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A repository whose order feature is spread over four folders: OrderForm.tsx, orders.ts,
-# orderRepo.ts and orders.test.ts change together in six commits, and each folder also holds files
-# that change on their own. The co-change script finds one four-file cluster over four folders, so
-# a run that reaches improve-layout and runs its script has a card to show.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "${here}/../fixtures/repo-scaffold-guard.sh" .git src tests

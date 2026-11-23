@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a doc with a colon crutch and a colon that introduces a list.
 set -euo pipefail
 
 mkdir -p docs

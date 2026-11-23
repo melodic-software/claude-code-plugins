@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a plugin kept in the skills folder that ships control-shop as a command file with a dynamic-context line.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

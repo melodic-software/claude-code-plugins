@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a control skill whose cart feature file is about twice its size budget.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

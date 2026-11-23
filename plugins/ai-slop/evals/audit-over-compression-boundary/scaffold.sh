@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a README with terse reference tables and one clipped troubleshooting paragraph.
 set -euo pipefail
 
 mkdir -p docs

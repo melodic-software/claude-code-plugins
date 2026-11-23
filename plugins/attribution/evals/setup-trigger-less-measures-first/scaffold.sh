@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The stamps-repo docs tree: two ISO stamps with recheck triggers and one month-name stamp
-# with no trigger. No attribution config.
 set -euo pipefail
 
 here="$(pwd -P)"

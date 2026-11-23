@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Two decision records. 0001 chose Redis for session storage; a later commit removed the Redis
-# store and its dependency. 0002 (PostgreSQL for orders) still matches the code.
 set -euo pipefail
 
 git init -q -b main

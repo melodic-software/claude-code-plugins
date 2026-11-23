@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# One archived briefing (meeting 5) in archives/, copied by name from the shared fixtures.
 set -euo pipefail
 set -o noclobber
 here="$(pwd -P)"

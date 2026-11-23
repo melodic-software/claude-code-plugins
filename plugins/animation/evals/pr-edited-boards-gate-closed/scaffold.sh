@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# An approved production whose boards/vibe.md changed after approval, so the boards digest no longer matches.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" film

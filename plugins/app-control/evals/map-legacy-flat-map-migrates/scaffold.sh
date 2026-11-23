@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a legacy testing-format feature map at .claude/skills/feature-map and no control skill, and
-# commits the whole tree on main so the refresh starts from a clean, committed repository.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

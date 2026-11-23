@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Orders references Payments, Payments references Shipping, and Shipping references Orders: one
-# directed cycle. Orders also references the Logging project, which sits on no cycle, and a C# file
-# in Orders has a using directive for Analytics.Events, which no project file references. The
-# convention home declares architecture_dir docs/architecture.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

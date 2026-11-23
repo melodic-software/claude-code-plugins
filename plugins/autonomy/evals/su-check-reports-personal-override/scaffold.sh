@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A solo-adopter checkout with a tracked project binding (budget_posture free) and an ignored
-# personal override beside it that refines budget_posture to paid-opt-in. No org_policy_home pointer.
 set -euo pipefail
 
 git init -q -b main .

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# An orders service with docs but no decision records, no ADR directory, and no declared
-# place for them.
 set -euo pipefail
 
 git init -q -b main

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A committed repository with no attribution config in any layer.
 set -euo pipefail
 
 here="$(pwd -P)"

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A library catalogue's hold-cancel path of three one-step classes. HoldsApi.cancel takes the
-# signed-in member's id but no hop compares it with the hold's owner, so any member can cancel
-# another member's hold.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

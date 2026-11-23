@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The setup-repo team layer, with no .gitignore, so docs/conventions/attribution.local.yaml
-# would be tracked if written.
 set -euo pipefail
 
 here="$(pwd -P)"

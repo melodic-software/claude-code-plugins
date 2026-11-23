@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# One web project with no project references. The convention home declares architecture_dir
-# docs/architecture and diagram_dialect.system c4-plantuml.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

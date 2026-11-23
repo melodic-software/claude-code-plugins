@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a worker note with four plain idioms or field terms and one real figure, each on its own line.
 set -euo pipefail
 
 mkdir -p docs

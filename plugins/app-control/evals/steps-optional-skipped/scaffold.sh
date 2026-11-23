@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop control skill with a feature whose steps file has one optional step.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

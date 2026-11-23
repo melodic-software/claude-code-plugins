@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# docs/adr/0004-folder-per-feature.md line 9 records "Each feature lives in one folder under
-# src/features/." CartView.tsx changes with cartTotals.ts, useCart.ts and cart.ts, which live
-# outside src/features/cart, in six commits, so the cart cluster contradicts the recorded style.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "${here}/../fixtures/repo-scaffold-guard.sh" .git src docs

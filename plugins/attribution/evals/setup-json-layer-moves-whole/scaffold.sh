@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A tracked .claude/attribution.json (attribution-r003) setting excluded_paths and
-# budgets.corpus_fetch_ceiling, with no docs/conventions/attribution.yaml and no pointer.
 set -euo pipefail
 
 here="$(pwd -P)"

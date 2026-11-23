@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop control skill with a feature whose steps file includes one month-picker file twice.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

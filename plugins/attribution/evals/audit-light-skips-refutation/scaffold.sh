@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A sandbox repository whose default branch, pushed to a local bare origin, sets
-# `verification: light` for attribution. docs/http.md restates a fact an external source owns
-# (HTTP status 418) with no pointer, so a candidate reaches the judges and the refutation pass.
 set -euo pipefail
 
 git init -q -b main

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# src/App/App.csproj references src/Lib/Lib.csproj and the Newtonsoft.Json package. The convention
-# home declares architecture_dir docs/architecture, and no dependency-graph.json exists yet.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the report of a proving run whose sign-in step failed against a shared identity server.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

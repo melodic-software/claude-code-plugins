@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A gitignored personal override docs/conventions/attribution.local.yaml (judge_samples 5) and
-# the retired .claude/attribution.local.json (attribution-r004: judge_samples 3,
-# trigger_less_stamp_check true). No convention-home pointer, no team layer.
 set -euo pipefail
 
 here="$(pwd -P)"

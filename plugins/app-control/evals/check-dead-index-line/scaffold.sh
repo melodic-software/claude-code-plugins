@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a control skill whose index has one line naming a feature file that does not exist.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

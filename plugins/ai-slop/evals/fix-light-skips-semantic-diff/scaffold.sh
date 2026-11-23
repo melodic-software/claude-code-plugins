@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A sandbox repository whose default branch, pushed to a local bare origin, sets
-# `verification: light` for ai-slop. docs/intro.md carries AI-writing tells for the fix flow to
-# rewrite; at the standard level a fresh-context semantic-diff subagent would check each rewrite.
 set -euo pipefail
 
 git init -q -b main

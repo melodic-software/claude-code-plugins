@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a shift note whose figurative parenthetical names one paper, next to a paragraph about another paper at the same door.
 set -euo pipefail
 
 mkdir -p docs

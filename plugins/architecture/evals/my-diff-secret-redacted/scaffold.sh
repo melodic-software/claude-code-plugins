@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Two Compose environments, one directory each. Production runs a newer image with more
-# replicas and a different database password.
 set -euo pipefail
 
 git init -q -b main

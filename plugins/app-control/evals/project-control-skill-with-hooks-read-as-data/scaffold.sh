@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a project control skill that grants tools, registers a hook and holds a dynamic-context command.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

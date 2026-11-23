@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a failed nightly export: the log shows an S3 AccessDenied on upload, and the role's
-# policy grants GetObject and ListBucket but not PutObject.
 set -euo pipefail
 
 mkdir -p logs infra/iam

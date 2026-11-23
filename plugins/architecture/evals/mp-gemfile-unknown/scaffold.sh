@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Ruby service: a Gemfile and its source, and no .NET project or other manifest a shipped adapter
-# reads. The convention home declares architecture_dir docs/architecture.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

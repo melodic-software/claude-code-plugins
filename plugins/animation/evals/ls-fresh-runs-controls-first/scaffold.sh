@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A complete 12 s rotoscope work directory (768x576, a trace and a drawing for each of its 96 drawings) and three
-# 12 s clips of that size: the source, a blurred near miss and a thin-line film in another style.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" work clips packs out

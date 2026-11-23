@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Short and dotted contract names. Contracts/OrderPlaced.cs declares Contracts.OrderPlaced;
-# OrderService in Shop.Orders publishes it by its short name through `using Contracts;`, its consumer
-# is registered with AddConsumer, and InventoryReport is a class nothing publishes, sends or
-# consumes. Shop/Contracts.cs declares Shop.Contracts.InvoiceIssued; Publisher in namespace Shop
-# publishes Contracts.InvoiceIssued (resolvable only through the enclosing namespace) and
-# Vendor.Sdk.Ping, which is declared nowhere. The convention home declares architecture_dir
-# docs/architecture.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

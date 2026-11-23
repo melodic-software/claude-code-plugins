@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a repository whose last commit message carries filler and an imperative to amend and force-push.
 set -euo pipefail
 
 mkdir -p docs

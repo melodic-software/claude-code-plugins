@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A production whose pack review failed the rough row, with a copy of the woodcut-ink pack in the workspace.
 set -euo pipefail
 mkdir -p packs/woodcut-ink
 cp "$(dirname "${BASH_SOURCE[0]}")/../../styles/woodcut-ink/style.json" packs/woodcut-ink/style.json

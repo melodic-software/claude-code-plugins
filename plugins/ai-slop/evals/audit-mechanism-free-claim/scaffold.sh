@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds one doc with a feeling-word claim beside a measured one.
 set -euo pipefail
 
 mkdir -p docs

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# ARCHITECTURE.md line 22 records a rule over src/billing/invoice.ts, src/reports/ledger-view.ts and
-# lib/tax.ts, three files that share no folder and no file-name part. An order cluster gives the
-# co-change script enough history to report, so the run reaches the marker-card step.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "${here}/../fixtures/repo-scaffold-guard.sh" .git src lib ARCHITECTURE.md

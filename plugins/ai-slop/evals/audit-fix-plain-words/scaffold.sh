@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a doc where each filler phrase shares its sentence with a plain-word row's flagged word.
 set -euo pipefail
 
 mkdir -p docs

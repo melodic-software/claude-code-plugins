@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A Prisma schema says one User has many Posts; the SQL migration beside it puts a UNIQUE
-# constraint on Post.authorId, which makes the same relationship one-to-one.
 set -euo pipefail
 
 git init -q -b main

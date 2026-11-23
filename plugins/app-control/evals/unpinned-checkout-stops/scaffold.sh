@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop control skill and a checkout of the identity repository with its own control skill,
-# both committed, with checkouts.identity set but no pins.identity in the shop's committed config.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

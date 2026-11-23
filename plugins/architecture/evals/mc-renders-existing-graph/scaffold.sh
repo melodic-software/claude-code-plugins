@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Billing.Api references Billing.Application, which references Billing.Domain. The convention home
-# declares architecture_dir docs/architecture and diagram_dialect.system c4-plantuml, declares no
-# component_layers, and docs/architecture/dependency-graph.json already holds the collected graph.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

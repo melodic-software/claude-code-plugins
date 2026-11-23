@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Seeds the shop control skill and a checkout of the identity repository with its own control skill;
-# both apps are the two-process identity fixture. Each is its own repository with its config committed,
-# and the shop's committed config pins the identity checkout's HEAD commit.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A service with two local decision records whose AGENTS.md also declares an ADR directory in a
-# sibling repository that does not exist.
 set -euo pipefail
 
 git init -q -b main

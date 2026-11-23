@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# A Go module where billing keeps its ledger in the subpackage billing/ledger, reporting imports
-# only package billing, and the topic doc records an entry-points-only rule for billing. The
-# checks run through scripts/check.sh (go vet and go test). No Go toolchain is needed: the case
-# asks for the plan only.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

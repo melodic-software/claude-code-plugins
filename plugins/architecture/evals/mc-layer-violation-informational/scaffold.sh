@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Billing.Api (src/host) references Billing.Application and Billing.Shared; Billing.Application
-# references Billing.Domain, and Billing.Domain references Billing.Application back: an edge from
-# the inner domain layer out to the application layer. The convention home declares
-# component_layers host, application, domain and diagram_dialect.system c4-plantuml. Billing.Shared
-# (src/shared) matches no declared layer.
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

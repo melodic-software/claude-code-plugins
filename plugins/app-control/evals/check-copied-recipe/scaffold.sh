@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Seeds a control skill whose Launch section copies the run-shop recipe's steps.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

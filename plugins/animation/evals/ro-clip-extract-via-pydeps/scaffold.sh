@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# A one-second reference clip; the work dir roto/ink-short does not exist yet.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" clips roto

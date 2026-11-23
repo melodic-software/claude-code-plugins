@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A storefront repository whose committed landscape record still lists an edge to
-# acme-labs/legacy-reports. The commit after the record removed every reference to it
-# and added one to acme-labs/pricing-engine, so the record has drifted.
 set -euo pipefail
 
 git init -q -b main

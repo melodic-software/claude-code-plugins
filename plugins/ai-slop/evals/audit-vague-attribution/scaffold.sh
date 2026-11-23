@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Seeds one doc with weasel attribution, a "some critics argue" line, and paragraphs whose claims
-# carry their sources, one of them a list of outlets each with what it said.
 set -euo pipefail
 
 mkdir -p docs

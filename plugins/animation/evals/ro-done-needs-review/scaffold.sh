@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A complete rotoscope work directory whose full measure run passes every drawing (the measure.py table,
-# its rep/heat/ab images and its learnings line); review.py has not run.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 bash "${here}/../fixtures/scaffold-guard.sh" work
