@@ -140,7 +140,7 @@ Kept traces (`--keep-temp`):
   At that version a skill's `context/`, `reference/`, `actions/` and `templates/` reads succeeded
   with no grant.
 - 2.1.316, one with-arm run each of this plugin's `grading-method-choice`: copied to a directory
-  named `evals`, the `Read` of `skills/methodology/reference/grading.md` was denied with the text
+  named `evals`, the `Read` of a methodology reference file (`grading.md` then; its content is now the upstream [Grade your evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#grade-your-evaluations) section) was denied with the text
   above and listed in `permission_denials`; copied to `evals-plugin`, the same `Read` succeeded,
   verified 2026-10-31. The run's sandbox settings listed the plugin root under `denyRead`. Every
   denial above is this plugin, whose directory is named `evals` like the default eval directory,

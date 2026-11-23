@@ -137,33 +137,22 @@ test("every ci-workflows action is pinned to one full commit", () => {
   for (const found of pins) assert.equal(found, pin);
   // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.deepEqual(classifier, Array(3).fill(pin));
+  assert.deepEqual(classifier, [pin]);
 });
 
-test("the model steps are read-only, on the maintenance key, then its token, then the fallback token, and frame what they read as data", () => {
-  assert.equal(main.match(/run-claude-cli@/g).length, 3);
+test("the model step is read-only, on the maintenance key alone, and frames what it reads as data", () => {
+  assert.equal(main.match(/run-claude-cli@/g).length, 1);
   assert.doesNotMatch(pass, /run-claude-cli@/);
   const propose = jobs(main)["generate-edit"];
   const key = step(propose, "Propose the edit on the API key");
-  const leg = step(propose, "Propose the edit");
-  const fallback = step(propose, "Propose the edit on the fallback token");
   assert.match(key, /api-key: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n/);
   assert.match(key, /if: steps\.prompt\.outcome == 'success' && steps\.key\.outputs\.present == 'true'\n/);
-  assert.match(leg, /subscription-token: \$\{\{ secrets\.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
-  // Each leg runs on its select-model-credential call's present; the
-  // subscription call runs only on the key's next-leg call naming it, and the
-  // fallback call only on the subscription's (maintenance-measure-skill-edit/
-  // credential-legs.test.mjs holds them to the old conditions).
-  assert.match(leg, /if: steps\.prompt\.outcome == 'success' && steps\.credential\.outputs\.present == 'true'\n/);
-  assert.match(step(propose, "Check the credentials"), /if: steps\.next-key\.outputs\.next-leg == 'subscription'\n/);
-  assert.match(fallback, /fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}\n/);
-  assert.match(fallback, /if: steps\.prompt\.outcome == 'success' && steps\.fallback\.outputs\.present == 'true'\n/);
-  assert.match(step(propose, "Check the fallback token"), /if: steps\.next\.outputs\.next-leg == 'fallback'\n/);
+  assert.doesNotMatch(propose, /CLAUDE_CODE_OAUTH_TOKEN|subscription-token|fallback-token/);
   // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
   assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.check-key-credit\.outputs\.next-leg \}\}/);
   assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-MAINTENANCE_CLAUDE_API_KEY' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}role: maintenance\n {10}key-job: propose\n/);
-  for (const model of [key, leg, fallback]) {
+  for (const model of [key]) {
     assert.match(model, /role: maintenance\n/);
     assert.match(model, /permission-mode: dontAsk\n/);
     assert.match(model, /tools: \|\n {12}Read\n {12}Grep\n {12}Glob\n {10}allowed-tools:/);
