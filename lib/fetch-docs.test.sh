@@ -1271,11 +1271,16 @@ printf 'rate limited\n' >"$src/page"
 printf '429' >"$src/page.status"
 printf '%s' 'text/html' >"$src/page.ctype"
 printf '%s\n' '# Page' 'from 429' >"$fcsrc/page.md"
-touch "$fcsrc/page.wrapped" "$fcsrc/page.sourceurl"
+touch "$fcsrc/page.wrapped"
 : >"$fcsrc.log"
 DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-429 $G1 --render-fallback "$PAGE_URL"
-assert_eq "render: 429 is rendered (wrapped JSON and sourceURL)" "read rendered 1" \
+assert_eq "render: 429 is rendered (wrapped JSON)" "read rendered 1" \
   "$(gpage ro-429 '"\(.state) \(.format)"') $(wc -l <"$fcsrc.log" | tr -d ' ')"
+touch "$fcsrc/page.sourceurl"
+DOCS_CACHE_RENDERER=firecrawl render_run "$src" "$fcsrc" ro-429s $G1 --render-fallback "$PAGE_URL"
+assert_eq "render: a render reporting only sourceURL, no final url, stays unread" "unread" \
+  "$(gpage ro-429s '.state')"
+rm -f "$fcsrc/page.sourceurl"
 
 rm -f "$src/page" "$src/page.status" "$src/page.ctype"
 : >"$fcsrc.log"

@@ -145,7 +145,7 @@ render_fallback() {
     else (if (.data | type) == "object" then .data else . end)
     | (.metadata | if type == "object" then . else {} end) as $m
     | [
-        (([$m.url, $m.sourceURL] | map(select(type == "string" and length > 0)) | .[0]) // "" | if (test("[[:cntrl:]]") | not) then . else "" end),
+        (([$m.url] | map(select(type == "string" and length > 0)) | .[0]) // "" | if (test("[[:cntrl:]]") | not) then . else "" end),
         ($m.statusCode // "" | tostring | if test("^[0-9]+$") then . else "" end),
         ($m.title // "" | if type == "string" then gsub("[\u001f\r\n]"; " ") else "" end),
         (if (.markdown | type) == "string" and (.markdown | length) > 0 then "1" else "0" end)
