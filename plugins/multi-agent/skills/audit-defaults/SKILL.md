@@ -1,5 +1,5 @@
 ---
-description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to reference/benchmarks.json. Proposes only; never edits a file in its default modes (an explicit apply request in registry mode opens a PR in the marketplace repository only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
+description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a file in its default modes (an explicit apply request in registry mode opens a PR in the repository that ships this plugin only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
 argument-hint: "[<role>|fanout|repo|registry]"
 user-invocable: true
 disable-model-invocation: false
@@ -30,7 +30,7 @@ upstream source now, or restate it with no pointer record.
 [`${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`](${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json)
 plus a repository's `docs/conventions/multi-agent/benchmarks.json` team rows
 for reachability, page date and age, work-type coverage, and whether each board
-tests current models, then proposes a diff to `reference/benchmarks.json`. A
+tests current models, then proposes a diff to `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`. A
 manual `registry` recheck always runs, whatever `vendors.routing`,
 `vendors.trials`, or `vendors.auto_delegation` switches say.
 
@@ -41,7 +41,7 @@ independent skeptics who try to refute each finding. In `repo` mode a
 `multi-agent:drift-reader` (file reads only) first quotes each area's claims;
 every judging stage runs as `multi-agent:drift-checker` (web fetch only). The
 `registry` pass runs as `multi-agent:registry-audit`: one
-`multi-agent:registry-fetcher` (Bash gated to `reference/benchmarks.json` hosts
+`multi-agent:registry-fetcher` (Bash gated to `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` hosts
 only) per row page, then one no-tool `multi-agent:registry-judge` returning a
 closed JSON verdict only. No agent can edit or write, none holds both file and
 web access, and page text never enters this session.
@@ -53,7 +53,7 @@ web access, and page text never enters this session.
 | *(empty)* | `defaults` | every owner in `defaults.yaml` |
 | `<role>` or `fanout` | `defaults` | that owner only |
 | `repo` | `repo` | the repository's tracked markdown |
-| `registry` | `registry` | every shipped row in `reference/benchmarks.json` plus `docs/conventions/multi-agent/benchmarks.json` team rows |
+| `registry` | `registry` | every shipped row in `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` plus `docs/conventions/multi-agent/benchmarks.json` team rows |
 
 ## Steps
 
@@ -177,7 +177,7 @@ file:line with the reason, then any `skippedAreas` by name.
 `registry` mode: a table of `source_id`, `source` (`shipped` or `team`),
 `status`, `reachable`, `page_date` and age (`age_days`), `covers_work_types`,
 `tests_current_models`, and `notes`. Then the proposed diff to
-`reference/benchmarks.json` (shipped rows only) in one fenced `diff` block, or
+`${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` (shipped rows only) in one fenced `diff` block, or
 `No changes proposed.` State how many rows were read and how many were not, any
 `skippedRows`, and every label in `nulls`.
 
@@ -190,12 +190,12 @@ Run this step only when the user explicitly asks to apply a proposed `registry`
 diff. A normal `/multi-agent:audit-defaults registry` run proposes only and
 edits nothing.
 
-1. Check the current repository's origin/name. Only the marketplace repository
-   (`melodic-software/claude-code-plugins`) may apply changes to the shipped
-   `plugins/multi-agent/reference/benchmarks.json` and open a pull request. In
-   any other repository, report the proposed changes only and edit and open
-   nothing.
-2. In `melodic-software/claude-code-plugins`, create and enter a git worktree
+1. Check that the current repository ships this plugin: its tracked tree holds
+   `plugins/multi-agent/reference/benchmarks.json` and
+   `plugins/multi-agent/.claude-plugin/plugin.json`. Only that repository may
+   apply changes to the shipped registry and open a pull request. In any other
+   repository, report the proposed changes only and edit and open nothing.
+2. In that repository, create and enter a git worktree
    using `/source-control:worktree` (if enabled); otherwise create one with
    `git worktree add`.
 3. Write only the approved changes to `plugins/multi-agent/reference/benchmarks.json`
@@ -213,10 +213,10 @@ edits nothing.
 
 ## What this skill does not do
 
-- Edit `defaults.yaml`, `reference/benchmarks.json`, a consumer layer, any
+- Edit `defaults.yaml`, `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`, a consumer layer, any
   script, or any file a `repo` finding names during its read-only modes
   (`defaults`, `repo`, `registry`). The `registry` apply step runs only when
-  explicitly asked, and only in `melodic-software/claude-code-plugins`.
+  explicitly asked, and only in the repository that ships this plugin.
 - Judge a consumer's own overrides or propose edits to a consumer's team
   `benchmarks.json`. Their layer is their decision.
 
