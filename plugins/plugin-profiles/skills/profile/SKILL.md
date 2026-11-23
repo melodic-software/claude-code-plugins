@@ -71,8 +71,9 @@ clear); otherwise recommend No. Reset's questions take the tool's own advice, as
   flag. `claude -c` continues the same conversation it would without the function, with the
   folder's settings, and its start notice prints the `claude --resume <id>` that reopens it in
   its profile. Tell them both forms.
-- **reopen with an off plugin**: in a one-session profile, the session-start notice gives the model
-  the reopen line: `claude --resume <id>` with `--profile-add <plugin or plugin:skill>` added.
+- **reopen with an off plugin**: in a one-session profile, the session-start hook gives the model
+  the reopen line as context, at start and again after compaction (the notice the user sees does
+  not carry it): `claude --resume <id>` with `--profile-add <plugin or plugin:skill>` added.
   When the work needs a plugin or skill the profile switched off (a `## Next` pointer into it, or
   the user asking for it), offer that line with the session's id: it reopens this conversation in its profile with the
   plugin and its dependencies on, for this conversation only, and a later `claude --resume <id>`
