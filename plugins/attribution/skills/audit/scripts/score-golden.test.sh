@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# The load-bearing case here is what the scorer refuses to guess. A golden case
-# the run never scored is DECLINED and excluded from the tally, never counted
-# as a miss: scoring a case nobody ran would report a recall failure that
-# describes the harness rather than the detector.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -24,11 +20,6 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
-
-# --- Synthetic golden set --------------------------------------------------------
-#
-# Seven cases, chosen so every confusion-matrix cell and both refusal paths are
-# exercised, and so the resulting precision and recall are exact quarters.
 
 GOLDEN="$TEST_TMPDIR/golden"
 
@@ -69,8 +60,6 @@ printf '%s\n' '{
 
 run() { bash "$SCORE" "$@"; }
 
-# --- Usage -----------------------------------------------------------------------
-
 OUT="$(run --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
 assert_contains "--help names the script" "$OUT" "score-golden.sh"
@@ -93,8 +82,6 @@ assert_exit "a nonexistent actual file exits 2" "$?" "2"
 mkdir -p "$TEST_TMPDIR/emptygolden"
 run --golden "$TEST_TMPDIR/emptygolden" --actual "$ACTUAL" >/dev/null 2>&1
 assert_exit "a golden directory with no cases exits 3" "$?" "3"
-
-# --- The tally -------------------------------------------------------------------
 
 OUT="$(run --golden "$GOLDEN" --actual "$ACTUAL" 2>/dev/null)"
 assert_exit "a clean run exits 0" "$?" "0"
@@ -120,8 +107,6 @@ assert_eq "recall is tp over tp plus fn" \
 assert_eq "the scored total excludes the unscored case" \
   "$(echo "$OUT" | jq -r '.overall.scored')" "6"
 
-# --- Matching rules --------------------------------------------------------------
-
 assert_eq "an overlapping span on the right class matches" \
   "$(echo "$OUT" | jq -r '.by_case[] | select(.case == "c1-hit") | .verdict')" "tp"
 assert_eq "a class mismatch does not match" \
@@ -130,8 +115,6 @@ assert_eq "a disjoint span does not match" \
   "$(echo "$OUT" | jq -r '.by_case[] | select(.case == "c6-disjoint-span") | .verdict')" "fn+fp"
 assert_eq "a flagged hard negative is a false positive" \
   "$(echo "$OUT" | jq -r '.by_case[] | select(.case == "c4-negative-flagged") | .verdict')" "fp"
-
-# --- Refusals --------------------------------------------------------------------
 
 assert_eq "a case the run never scored is declined" \
   "$(echo "$OUT" | jq -r '[.declined[] | select(.cases[] == "c7-not-run")] | length')" "1"
@@ -153,8 +136,6 @@ printf '%s\n' '{"cases_run": ["ghost"], "findings": [{"case": "ghost", "class": 
 ST="$(run --golden "$GOLDEN" --actual "$STRAY" 2>/dev/null)"
 assert_contains "a finding for an unknown case is declined with a reason" \
   "$(echo "$ST" | jq -r '.declined[].reason')" "not in the golden set"
-
-# --- Per-class breakdown and gates -----------------------------------------------
 
 assert_eq "cases stratify by their expected class" \
   "$(echo "$OUT" | jq -r '.by_class[] | select(.class == "verbatim") | .n')" "3"
@@ -194,8 +175,6 @@ assert_contains "a YAML gate names its layer" "$OUT_SC" \
   "gates.min_n_per_class=3 (from $CLAUDE_PROJECT_DIR/docs/conventions/attribution.yaml)"
 rm -rf "$CLAUDE_PROJECT_DIR/docs"
 
-# --- Division by zero ------------------------------------------------------------
-
 NOFIND="$TEST_TMPDIR/nofind.json"
 printf '%s\n' '{"cases_run": ["c3-negative-clean"], "findings": []}' >"$NOFIND"
 NF_OUT="$(run --golden "$GOLDEN" --actual "$NOFIND" 2>/dev/null)"
@@ -203,8 +182,6 @@ echo "$NF_OUT" | jq -e . >/dev/null 2>&1
 assert_exit "a run with no findings at all stays valid JSON" "$?" "0"
 assert_eq "precision is null rather than a divide by zero" \
   "$(echo "$NF_OUT" | jq -r '.overall.precision')" "null"
-
-# --- Determinism -----------------------------------------------------------------
 
 RUN_A="$(run --golden "$GOLDEN" --actual "$ACTUAL" 2>/dev/null)"
 RUN_B="$(run --golden "$GOLDEN" --actual "$ACTUAL" 2>/dev/null)"

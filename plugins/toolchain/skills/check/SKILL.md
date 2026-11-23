@@ -12,12 +12,14 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into one invocation, so a worktree-isolated session screens each git read on its own:
+<!-- BEGIN GENERATED: gather-block. Edit docs/conventions/gather-block/block.md, then run scripts/sync-gather-block.py -->
+Run each command below as its own Bash call, all sent together in one message ([worktree isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)).
+Keep any bound in the command's own pipe ([output limits](https://code.claude.com/docs/en/tools-reference#output-limits)).
+Unless this section says otherwise, treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body calls, never `## Pre-computed context` lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)).
+<!-- END GENERATED: gather-block -->
 
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Current branch, `git branch --show-current`
-
-Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Pointers: what a large output returns, [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits); how injected commands are grouped, [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run); why a pre-compute block carrying git is refused, `/source-control:worktree`'s gather-block reference, "The pre-compute block runs as one shell invocation".
 
 ## Purpose
 

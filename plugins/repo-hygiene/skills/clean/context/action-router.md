@@ -51,7 +51,7 @@ Conflicting tokens → `menu`.
 
 ## Bare invocation (empty `$ARGUMENTS`)
 
-1. **Survey**: conversation triggers, `git status --porcelain`, and the repository context SKILL.md gathers first.
+1. **Survey**: conversation triggers and `git status --porcelain`.
 2. **Resolve**: `resolve-clean-action.sh` on `$ARGUMENTS`; if empty, infer from conversation phrases above.
 3. **Route:**
    - **High-confidence match** → run that action starting with dry-run / scan (never jump straight to `--apply`).
