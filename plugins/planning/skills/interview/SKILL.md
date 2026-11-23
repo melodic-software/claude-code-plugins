@@ -447,7 +447,7 @@ Read [`context/session-config.md`](context/session-config.md) at that boundary, 
 
 ## Routing by size and fog
 
-Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns the entry gate's diff-size and retry-cost thresholds with the one-line quick-change skip, the round-1 question recommending `/planning:wayfind chart` when the request itself names unknowns in several areas, the problems agreed in round 1 as P1, P2, the round header's `Scope check:` line from `round.sh scope-check`, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone and suggests wayfind once the register passes `wayfind_suggest_questions`, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
+Read [`context/routing.md`](context/routing.md) once at entry and apply it at every round boundary. It owns the entry gate's diff-size and retry-cost thresholds with the one-line quick-change skip, the round-1 question recommending `/planning:wayfind chart` when the request itself names unknowns in several areas, the problems agreed in round 1 as P1, P2, the round header's `Scope check:` line from `round.sh scope-check`, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone and suggests wayfind once the register passes `wayfind_suggest_questions`, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 Failure patterns from real sessions: `context/gotchas.md`.
 

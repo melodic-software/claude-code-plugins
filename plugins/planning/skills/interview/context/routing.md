@@ -1,7 +1,7 @@
 # Routing by size and fog
 
-Reference detail for the `## Routing by size and fog` section of `SKILL.md`. Read it at entry
-and at every round boundary: it owns the entry gate's thresholds, the round-1 wayfind question,
+Reference detail for the `## Routing by size and fog` section of `SKILL.md`. Read it once at entry
+and apply it at every round boundary: it owns the entry gate's thresholds, the round-1 wayfind question,
 the problems list, the round header's scope-check line, the bigger-than-you-thought check, what the handoff to `/planning:wayfind` carries, and the "this
 is small, ship it" exit.
 
