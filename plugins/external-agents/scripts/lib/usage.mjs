@@ -29,22 +29,25 @@ function parseJsonRpcReply(msg, source) {
     const code = typeof msg.error?.code === "number" ? ` ${msg.error.code}` : "";
     return { ok: false, reason: `app-server returned error${code}` };
   }
-  const primary = msg.result?.rateLimits?.primary;
-  if (!isMap(primary) || typeof primary.usedPercent !== "number" || !Number.isFinite(primary.usedPercent)) {
-    return { ok: false, reason: "rateLimits.primary.usedPercent missing in reply" };
-  }
-  const remaining = clamp01(1 - primary.usedPercent / 100);
-  const window = formatMinutes(primary.windowDurationMins);
-  const resetsAt = typeof primary.resetsAt === "number" && Number.isFinite(primary.resetsAt) && primary.resetsAt > 0
-    ? new Date(primary.resetsAt * 1000).toISOString()
-    : null;
+  const limits = msg.result?.rateLimits;
+  const windows = ["primary", "secondary"]
+    .map((name) => limits?.[name])
+    .filter((w) => isMap(w) && typeof w.usedPercent === "number" && Number.isFinite(w.usedPercent))
+    .map((w) => {
+      const window = formatMinutes(w.windowDurationMins);
+      const resetsAt = typeof w.resetsAt === "number" && Number.isFinite(w.resetsAt) && w.resetsAt > 0
+        ? new Date(w.resetsAt * 1000).toISOString()
+        : null;
+      return { remaining: clamp01(1 - w.usedPercent / 100), ...(window ? { window } : {}), ...(resetsAt ? { resets_at: resetsAt } : {}) };
+    });
+  if (!windows.length) return { ok: false, reason: "rateLimits.primary.usedPercent missing in reply" };
+  const lowest = windows.reduce((min, cur) => (cur.remaining < min.remaining ? cur : min));
   return {
     ok: true,
     reading: {
       status: "ok",
-      remaining,
-      ...(window ? { window } : {}),
-      ...(resetsAt ? { resets_at: resetsAt } : {}),
+      ...lowest,
+      ...(windows.length > 1 ? { windows } : {}),
       source,
     },
   };

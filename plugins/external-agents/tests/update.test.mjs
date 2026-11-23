@@ -447,6 +447,37 @@ describe("usage", () => {
     assert.deepEqual(sent[2], { method: "account/rateLimits/read", id: 1 });
   });
 
+  test("usage codex reports the secondary window when it has less left than the primary", () => {
+    const root = join(scratch, `u${(count += 1)}`);
+    const env = cliEnv(root, {
+      product: "codex",
+      fake: join(fixtures, "fake-codex.mjs"),
+      scenario: {
+        app_server: {
+          messages: [
+            { id: 0, result: { userAgent: "fake-codex/0.1.0" } },
+            {
+              id: 1,
+              result: {
+                rateLimits: {
+                  primary: { usedPercent: 10, windowDurationMins: 300, resetsAt: 1795420800 },
+                  secondary: { usedPercent: 100, windowDurationMins: 10080, resetsAt: 1795900000 },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    const got = spawnSync(process.execPath, [bin, "usage", "codex"], { encoding: "utf8", cwd: env.cwd, env: env.env });
+    assert.equal(got.status, 0, got.stdout + got.stderr);
+    const reading = JSON.parse(got.stdout);
+    assert.equal(reading.remaining, 0);
+    assert.equal(reading.window, "7d");
+    assert.equal(reading.resets_at, new Date(1795900000 * 1000).toISOString());
+    assert.equal(reading.windows.length, 2);
+  });
+
   test("Antigravity usage runs without --disable-slash-commands, parses tab lines, reports lowest remaining with all windows, and prints no email or plan", async () => {
     const response = [
       "Account: person@example.com (Secret Tier)",
