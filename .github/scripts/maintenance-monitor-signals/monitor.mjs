@@ -23,7 +23,7 @@ import { FILING, fenced, incidentRules, partlyReadSignals, planIssues, readMarke
 import { detect, holdRule } from "./signals.mjs";
 import { budgetedClient } from "../lib/github-rest.mjs";
 import { graphqlCall } from "../lib/run-jobs.mjs";
-import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
+import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 
 const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
 // The checkout's pipeline config, three levels above this file.
@@ -45,10 +45,11 @@ export async function readJobsCarry({ env, repo, actions, download, now = new Da
   const warn = (what, error) => console.log(`::warning::monitoring lane: ${what}: ${error?.message ?? error}`);
   let text;
   try {
-    const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: JOBS_ARTIFACT, workflow: WORKFLOW_PATH });
-    if (id === undefined) return carry;
-    download ??= ghDownload({ repo, token: env.GITHUB_TOKEN, dir: env.RUNNER_TEMP ?? tmpdir(), name: JOBS_ARTIFACT, file: JOBS_FILE });
-    text = download(id);
+    const found = await newestTrustedArtifact({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: JOBS_ARTIFACT, workflow: WORKFLOW_PATH });
+    if (found === undefined) return carry;
+    if (found.artifactId === undefined) throw new Error(`run ${found.runId}'s ${JOBS_ARTIFACT} artifact has no id`);
+    download ??= ghDownloadArtifact({ repo, token: env.GITHUB_TOKEN, dir: env.RUNNER_TEMP ?? tmpdir(), name: JOBS_ARTIFACT, file: JOBS_FILE });
+    text = download(found.artifactId);
   } catch (error) {
     warn("nothing carried, so every run's jobs are read", error);
     return carry;
