@@ -54,10 +54,8 @@ SKILL=$(
 ) || exit 0
 SKILL="${SKILL#/}"
 
-# --- Second store: skill-usage.jsonl (unconditional) ------------------------
 harness_ops::record_skill_use "PostToolUse" "skill-usage-audit" "$INPUT" "$SKILL" "tool" ""
 
-# --- Telemetry envelope (only when a sink is wired) -------------------------
 if hook::telemetry_enabled; then
   DATA=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "Skill:$SKILL" --arg skill "$SKILL" \
     '{subject: $subject, skill: $skill, source: "tool"} + (if $session_id == "" then {} else {session_id: $session_id} end)')
