@@ -1877,28 +1877,29 @@ def judge_js_engines(jobs, runs, findings):
             findings.append(Finding("FAIL", case, job["sample_path"], message))
 
 
-def check_js_engine(case, graders, samples, findings):
+def check_js_engine(jobs, findings):
     """Compile each regex grader and tool_used `input_match` with JavaScript's
     RegExp and grade its samples there, under node (V8) and bun
     (JavaScriptCore, the engine of the Bun-built `claude` binary that runs
-    `claude plugin eval`). An engine not on PATH is skipped; with bun absent
-    the findings are node's alone, worded as before."""
-    jobs = js_jobs(case, graders, samples)
+    `claude plugin eval`), one process per engine for the whole suite. An
+    engine not on PATH is skipped; with bun absent the findings are node's
+    alone, worded as before."""
     runs = {}
     for engine in JS_ENGINES:
         results, problem = run_js_jobs(jobs, engine)
         if results is not None:
             runs[engine] = results
         elif problem:
-            findings.append(
-                Finding(
-                    "WARN",
-                    case,
-                    "graders/",
-                    "graders not checked under JavaScript: %s failed (%s)"
-                    % (engine, problem),
+            for case in dict.fromkeys(job["case"] for job in jobs):
+                findings.append(
+                    Finding(
+                        "WARN",
+                        case,
+                        "graders/",
+                        "graders not checked under JavaScript: %s failed (%s)"
+                        % (engine, problem),
+                    )
                 )
-            )
     if list(runs) == ["node"]:
         judge_js_jobs(jobs, runs["node"], findings)
     elif runs:
@@ -2186,9 +2187,9 @@ def check_samples(case, graders, samples, findings):
 
 
 def analyze_case(
-    case_dir, case, findings, plugin_root=None, containment=None, references=None
+    case_dir, case, findings, plugin_root, containment, references, js_jobs_out
 ):
-    """Validate one case, appending its findings."""
+    """Validate one case, appending its findings and its JavaScript jobs."""
     fields = {}
     tags = None
     tag_sources = []
@@ -2362,7 +2363,7 @@ def analyze_case(
 
     samples = load_samples(case_dir, case, findings)
     check_samples(case, graders, samples, findings)
-    check_js_engine(case, graders, samples, findings)
+    js_jobs_out.extend(js_jobs(case, graders, samples))
 
     if kinds and all(kind in JUDGE_TYPES for kind in kinds):
         findings.append(
@@ -2395,11 +2396,13 @@ def validate(eval_dir):
 
     root = containment_root(eval_dir)
     references = plugins_root(eval_dir)
+    jobs = []
     for case_dir in cases:
         case = os.path.relpath(case_dir, eval_dir).replace(os.sep, "/")
         analyze_case(
-            case_dir, case, findings, os.path.dirname(eval_dir), root, references
+            case_dir, case, findings, os.path.dirname(eval_dir), root, references, jobs
         )
+    check_js_engine(jobs, findings)
 
     findings.sort(key=Finding.sort_key)
     return findings
