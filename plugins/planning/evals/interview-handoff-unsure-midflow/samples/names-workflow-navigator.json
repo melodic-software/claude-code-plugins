@@ -19,6 +19,14 @@
     {
       "answer": "For “I arrived mid-flow and don't know the stage”, run /session-flow:workflow; it reads the ledger on disk.",
       "why": "a negation inside a curly-quoted user phrase does not negate the navigator"
+    },
+    {
+      "answer": "Run \"/session-flow:workflow\" now; it names the stage from disk.",
+      "why": "a quoted navigator with no negation"
+    },
+    {
+      "answer": "Start with “session-flow:workflow” before picking a step.",
+      "why": "a curly-quoted navigator with no negation"
     }
   ],
   "fail": [
