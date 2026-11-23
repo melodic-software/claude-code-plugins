@@ -683,9 +683,6 @@ def client_key(ip):
     return str(ipaddress.ip_network(f"{addr}/64", strict=False)) if addr.version == 6 else str(addr)
 
 
-# -- control listener -------------------------------------------------------------------------
-
-
 class ControlHub(session_bridge.LoopbackWatcher):
     """The session-bridge loopback adapter over the session's event log."""
 
@@ -784,9 +781,6 @@ class ControlHandler(session_bridge.LoopbackHandler):
         app.changed()
         app.log.info("ops applied: %d", len(msg.get("ops", [])))
         return self.send(200, {"ok": True, **out})
-
-
-# -- guest listener ---------------------------------------------------------------------------
 
 
 def raw_answer(code, reason, body):
@@ -1296,9 +1290,6 @@ class GuestHandler(BaseHTTPRequestHandler):
             self.fail(DomainError(404, "not-found", "Nothing here."))
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = refuse_method  # no CORS preflight is ever answered
-
-
-# -- the process ------------------------------------------------------------------------------
 
 
 class App:
