@@ -1,5 +1,3 @@
-// Structural checks on /review:merge-risk: the rubric has one home, the
-// checker is the read-only brief-reviewer and is never handed the rated rows.
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
