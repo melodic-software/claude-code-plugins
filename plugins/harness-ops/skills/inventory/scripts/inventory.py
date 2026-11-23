@@ -215,11 +215,6 @@ PLUGIN_COMPONENTS: dict[str, dict[str, str]] = {
 }
 
 
-# --------------------------------------------------------------------------
-# Locating the binary
-# --------------------------------------------------------------------------
-
-
 def candidate_binaries() -> list[Path]:
     """Ordered candidates for the Claude Code executable."""
     out: list[Path] = []
@@ -513,10 +508,6 @@ def detect_container(data: bytes) -> str:
     return "unknown"
 
 
-# --------------------------------------------------------------------------
-# Minified-JS scanning
-# --------------------------------------------------------------------------
-
 _ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$")
 _REGEX_PRECEDERS = set("(,=:[!&|?{};+-*%^~<>") | {"\n"}
 _REGEX_KEYWORDS = {
@@ -707,10 +698,6 @@ def _unescape(raw: str) -> str:
     except Exception:
         return raw
 
-
-# --------------------------------------------------------------------------
-# Static values: descriptions and argument hints
-# --------------------------------------------------------------------------
 
 _QUOTES = "\"'`"
 _ELLIPSIS = "\u2026"
@@ -2960,10 +2947,6 @@ def _apply_field(
         rec[f"{key}_variants"] = resolved["variants"]
 
 
-# --------------------------------------------------------------------------
-# Extracting the registries
-# --------------------------------------------------------------------------
-
 _TYPE_RE = re.compile(r'type:"(local|local-jsx|prompt)"')
 _NAME_RE = re.compile(r"(?:^|[,{])name:" + _STR)
 _NAME_IDENT_RE = re.compile(r"(?:^\{|,)name:([A-Za-z_$][A-Za-z0-9_$]*)(?=[,}])")
@@ -3898,10 +3881,6 @@ def _workflow_invocation(
         rec["model_invocable"] = None
     return rec
 
-
-# --------------------------------------------------------------------------
-# Built-in subagents and tools
-# --------------------------------------------------------------------------
 
 _PASCAL_RE = re.compile(r"[A-Z][A-Za-z0-9]*")
 _NAME_EXPR_RE = re.compile(_STR + r"|(" + _IDENT + r")(\.[A-Za-z_$][\w$]*)?(?=\s*[,}])")
@@ -5766,11 +5745,6 @@ def check_integrity(
     }
 
 
-# --------------------------------------------------------------------------
-# Disk inventory
-# --------------------------------------------------------------------------
-
-
 def config_dir() -> Path:
     env = os.environ.get("CLAUDE_CONFIG_DIR")
     return Path(env) if env else Path.home() / ".claude"
@@ -6240,10 +6214,6 @@ def builtin_plugin_state(
     }
 
 
-# --------------------------------------------------------------------------
-# Skills index
-# --------------------------------------------------------------------------
-
 SKILL_STATES = ("enabled", "disabled", "not-installed")
 
 
@@ -6451,11 +6421,6 @@ def skills_index(root: Path, project_root: Path) -> list[dict[str, Any]]:
                 rec["state"] = "disabled"
             records.append(rec)
     return records
-
-
-# --------------------------------------------------------------------------
-# Assembly
-# --------------------------------------------------------------------------
 
 
 _BINARY_LANES = (
