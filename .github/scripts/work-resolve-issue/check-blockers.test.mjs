@@ -87,7 +87,6 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
       return blockers.find((item) => String(item.number) === match[2] && item.repository_url.endsWith(`/repos/${match[1]}`));
     }
     if (method === "POST" && path === "/graphql") {
-      // No merged pull request closed it.
       return GRAPHQL;
     }
     throw new Error(`unexpected ${method} ${path} ${JSON.stringify(body)}`);
