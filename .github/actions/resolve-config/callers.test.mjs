@@ -11249,6 +11249,28 @@ test("pr-unblock.yml: fix-test-scope posts its check on every decided outcome, a
   assert.equal(jobs["apply-test-scope"].with["patch-prepare"], "test-scope");
   const select = jobs["fix-test-scope-select"];
   assert.equal(evaluate(select.outputs.apply, { "steps.build.outputs.apply": "" }), "false", "an absent flag is off");
+  const built = (outputs) => ({
+    "steps.build.outputs.state": "",
+    "steps.head.outputs.applicable": "true",
+    "steps.slot.outputs.applies": "true",
+    "steps.slot.outputs.skip-reason": "",
+    "steps.locate.outputs.skip-reason": "",
+    "steps.locate.outputs.escalation-reason": "",
+    "steps.build.outputs.skip-reason": "",
+    "steps.build.outputs.escalation-reason": "",
+    ...outputs,
+  });
+  const dark = built({ "steps.build.outputs.skip-reason": "lane-stopped" });
+  assert.equal(evaluate(select.outputs.proceed, dark), "false");
+  assert.equal(evaluate(select.outputs["skip-reason"], dark), "lane-stopped");
+  assert.equal(evaluate(select.outputs["escalation-reason"], dark), "");
+  assert.equal(evaluate(jobs["fix-test-scope-not-run"].if, notRun("false", "lane-stopped")), true, "the dark stop still posts the check");
+  const live = built({ "steps.build.outputs.escalation-reason": "test-scope-not-all-gaps" });
+  assert.equal(evaluate(select.outputs.proceed, live), "false");
+  assert.equal(evaluate(select.outputs["escalation-reason"], live), "test-scope-not-all-gaps");
+  for (const id of ["locate", "build"]) {
+    assert.equal(select.steps.find((step) => step.id === id).env.BASE_DIR, "${{ github.workspace }}/.base", `${id} reads test-scope.apply from the base`);
+  }
   const download = select.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
   assert.equal(download.with["run-id"], "${{ steps.locate.outputs.run-id }}");
   const head = select.steps.find((step) => step.name === "Check out the PR head");

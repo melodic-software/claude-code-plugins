@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { budgetedClient, pages } from "../lib/github-rest.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { AGGREGATE_JOBS, FAILED } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { stopSkip } from "./escalation-routes.mjs";
 import { declaredPaths, exactPath, insertDeclarations, suiteComment } from "./test-scope.mjs";
 
 export const TRAILER = "Lane-Activity: pr-unblock/fix-test-scope";
@@ -232,22 +233,31 @@ export async function main(argv, env, { call, log = (line) => console.log(line),
   if (!/^[1-9][0-9]{0,9}$/.test(env.PR_NUMBER) || !SHA.test(env.HEAD_SHA)) {
     throw new Error("PR_NUMBER and HEAD_SHA must be a PR number and a commit id");
   }
+  need(["BASE_DIR"]);
   const client = call ?? budgetedClient(env, { budget: 20 });
+  let applyOn;
+  const live = async () => (applyOn ??= (await loadTestScope(env.BASE_DIR)).apply === true);
+  const stop = async (reason, why) => {
+    output(env, (await live()) ? { "escalation-reason": reason } : { "skip-reason": stopSkip(reason) });
+    log(`declare-test-scope: ${reason}: ${why}`);
+  };
   if (argv[0] === "locate") {
     const found = await locate({ call: client, repository: env.GITHUB_REPOSITORY, pr: env.PR_NUMBER, headSha: env.HEAD_SHA });
     if (found.runId) {
       output(env, { "run-id": found.runId, "run-attempt": found.attempt });
       log(`declare-test-scope: run ${found.runId} attempt ${found.attempt} failed at ${TRACE_STEP} alone`);
+    } else if (found.reason) {
+      await stop(found.reason, found.why);
     } else {
-      output(env, found.reason ? { "escalation-reason": found.reason } : { "skip-reason": found.skip });
-      log(`declare-test-scope: ${found.reason ?? found.skip}: ${found.why}`);
+      output(env, { "skip-reason": found.skip });
+      log(`declare-test-scope: ${found.skip}: ${found.why}`);
     }
     return 0;
   }
   if (argv[0] !== "build") {
     throw new Error("usage: declare-test-scope.mjs locate|build");
   }
-  need(["TRACE_DIR", "HEAD_DIR", "BASE_DIR", "PATCH_OUT"]);
+  need(["TRACE_DIR", "HEAD_DIR", "PATCH_OUT"]);
   const head = treeReader(env.HEAD_DIR);
   const base = treeReader(env.BASE_DIR);
   if (gitIn(env.HEAD_DIR)(["rev-parse", "HEAD"]).toString("utf8").trim() !== env.HEAD_SHA) {
@@ -262,15 +272,13 @@ export async function main(argv, env, { call, log = (line) => console.log(line),
     plan = planDeclarations({ gaps: gaps.gaps, changed, headEntry: head.entry, baseHas: (path) => base.entry(path)?.type === "blob", headText: head.text });
   }
   if (plan.reason) {
-    output(env, { "escalation-reason": plan.reason });
-    log(`declare-test-scope: ${plan.reason}: ${plan.why}`);
+    await stop(plan.reason, plan.why);
     return 0;
   }
   const patch = buildPatch(env.HEAD_DIR, plan.files);
   writeFileSync(env.PATCH_OUT, patch);
   const declarations = plan.files.reduce((sum, file) => sum + file.paths.length, 0);
-  const { apply } = await loadTestScope(env.BASE_DIR);
-  output(env, { state: "written", sha256: createHash("sha256").update(patch).digest("hex"), suites: plan.files.length, declarations, apply: apply === true });
+  output(env, { state: "written", sha256: createHash("sha256").update(patch).digest("hex"), suites: plan.files.length, declarations, apply: await live() });
   log(`declare-test-scope: ${declarations} declaration(s) in ${plan.files.length} suite(s): ${plan.files.map((file) => file.path).join(", ")}`);
   return 0;
 }

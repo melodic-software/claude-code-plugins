@@ -1292,7 +1292,7 @@ jobs:
     outputs:
       proceed: >-
         ${{ steps.build.outputs.state == 'written' && 'true'
-        || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.locate.outputs.skip-reason != '' || steps.locate.outputs.escalation-reason != '' || steps.build.outputs.escalation-reason != '') && 'false' || '' }}
+        || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.locate.outputs.skip-reason != '' || steps.locate.outputs.escalation-reason != '' || steps.build.outputs.skip-reason != '' || steps.build.outputs.escalation-reason != '') && 'false' || '' }}
       apply: ${{ steps.build.outputs.apply == 'true' && 'true' || 'false' }}
       head-sha: ${{ steps.head.outputs.sha }}
       patch-sha256: ${{ steps.build.outputs.sha256 }}
@@ -1301,7 +1301,7 @@ jobs:
       skip-reason: >-
         ${{ steps.head.outputs.applicable == 'false' && 'not-applicable'
         || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
-        || steps.locate.outputs.skip-reason || '' }}
+        || steps.locate.outputs.skip-reason || steps.build.outputs.skip-reason || '' }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1379,6 +1379,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_DIR: ${{ github.workspace }}/.base
         run: node .base/.github/scripts/pr-unblock/declare-test-scope.mjs locate
 
       - name: Download the selection trace

@@ -125,15 +125,17 @@ test("build writes a patch that applies to the head and that apply-patch's conte
   }
 });
 
-test("build refuses a deleted verdict and writes no patch", async (t) => {
+test("build refuses a deleted verdict and writes no patch: a stop with test-scope.apply on, a lane-stopped skip while dark", async (t) => {
   const head = repo(t, { "t/a.test.sh": "# A.\n", "lib/x.sh": "x\n" });
   const trace = traceDir(t, { gaps: "t/a.test.sh\tlib/x.sh\tdeleted\n", suites: "t/a.test.sh\t1\n" });
-  const out = scratch(t);
-  const env = { GITHUB_OUTPUT: join(out, "output"), GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: head.head, TRACE_DIR: trace, HEAD_DIR: head.dir, BASE_DIR: head.dir, PATCH_OUT: join(out, "patch.diff") };
-  writeFileSync(env.GITHUB_OUTPUT, "");
-  await main(["build"], env, { call: async () => [], log: () => {} });
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "escalation-reason=test-scope-not-all-gaps\n");
-  assert.throws(() => readFileSync(env.PATCH_OUT));
+  for (const [apply, expected] of [[true, "escalation-reason=test-scope-not-all-gaps\n"], [false, "skip-reason=lane-stopped\n"], [undefined, "skip-reason=lane-stopped\n"]]) {
+    const out = scratch(t);
+    const env = { GITHUB_OUTPUT: join(out, "output"), GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: head.head, TRACE_DIR: trace, HEAD_DIR: head.dir, BASE_DIR: head.dir, PATCH_OUT: join(out, "patch.diff") };
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    await main(["build"], env, { call: async () => [], log: () => {}, loadTestScope: async () => ({ apply }) });
+    assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), expected, `apply ${apply}`);
+    assert.throws(() => readFileSync(env.PATCH_OUT));
+  }
 });
 
 const HEAD = "a".repeat(40);
@@ -158,10 +160,10 @@ function locateApi({ pull = {}, commits = [{ commit: { message: "feat: x" } }], 
   };
 }
 
-async function locateWith(t, api) {
+async function locateWith(t, api, scope = { apply: true }) {
   const out = join(scratch(t), "output");
   writeFileSync(out, "");
-  await main(["locate"], { GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: HEAD }, { call: api, log: () => {} });
+  await main(["locate"], { GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: HEAD, BASE_DIR: "/base" }, { call: api, log: () => {}, loadTestScope: async () => scope });
   return readFileSync(out, "utf8");
 }
 
@@ -176,4 +178,8 @@ test("locate names the run whose trace failed alone, and skips or stops every he
   assert.equal(await locateWith(t, locateApi({ commits: [{ commit: { message: "feat: x" } }, own] })), "escalation-reason=test-scope-gaps-remain\n", "the head is the lane's own commit");
   assert.equal(await locateWith(t, locateApi({ commits: [own, own, { commit: { message: "fix: y" } }] })), "escalation-reason=test-scope-gaps-remain\n", "two lane commits already");
   assert.equal(await locateWith(t, locateApi({ commits: [own, { commit: { message: "fix: y" } }] })), "run-id=9\nrun-attempt=2\n", "one lane commit leaves room for a second");
+  for (const apply of [false, undefined]) {
+    assert.equal(await locateWith(t, locateApi({ commits: [{ commit: { message: "feat: x" } }, own] }), { apply }), "skip-reason=lane-stopped\n", `dark (apply ${apply}): the stop posts no failing status`);
+    assert.equal(await locateWith(t, locateApi({ pull: { user: { login: "dependabot[bot]" } } }), { apply }), "skip-reason=not-applicable\n", `dark (apply ${apply}): a skip stays a skip`);
+  }
 });
