@@ -40,8 +40,8 @@ budget="$(sed -nE 's/^ +MERGE_GROUP_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
 # A draft's ci-status passes by design (`Note a draft`), so the step makes no
 # read there; the ready_for_review run judges the holds. A merge group has no
 # pull_request.draft, which is not true, so the queue still runs it.
-if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}"* ]]; then
-  ok "step runs on pull_request and merge_group, and skips on a draft"
+if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
+  ok "step runs on pull_request and merge_group, and skips on a draft unless a re-run finds the pull request ready"
 else
   fail "step lost its pull_request and merge_group condition, or its draft skip"
 fi
