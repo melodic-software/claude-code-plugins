@@ -1242,19 +1242,18 @@ def cdn_sync_paths(text: str | None) -> frozenset[str] | None:
 def cdn_sync_refusal(
     detail: Any,
     lane_identity: str | None,
-    paths: frozenset[str] | None,
+    paths: Callable[[], frozenset[str] | None],
     entry: Callable[[str, str], Any],
 ) -> str | None:
     """Why one pull-request commit (a REST commit with its `files`) is not the
     CDN pins sync pr-unblock pushes, or None. The merge path alone reads it:
     GitHub signed it for the lanes App (author login `lane_identity`,
     committer web-flow), one parent, the `[dependabot skip]` marker, and each
-    file one of `paths` (`cdn_sync_paths`; None when that read failed)
-    modified in place, a regular non-executable file on both sides
-    (`entry(side, path)`, side "before" or "after"). The pr-unblock lane's
-    twin is `cdnSyncRefusal` in dependency-classify.mjs."""
-    if not paths:
-        return "cdn-sync-base-unreadable"
+    file one of `paths()` (`cdn_sync_paths`, read only once the commit's own
+    checks pass; None when that read failed) modified in place, a regular
+    non-executable file on both sides (`entry(side, path)`, side "before" or
+    "after"). The pr-unblock lane's twin is `cdnSyncRefusal` in
+    dependency-classify.mjs."""
     item = json_object(detail)
     commit = json_object(item.get("commit"))
     verification = json_object(commit.get("verification"))
@@ -1275,12 +1274,15 @@ def cdn_sync_refusal(
     files = item.get("files")
     if not isinstance(files, list) or not files:
         return "cdn-sync-files"
+    scope = paths()
+    if not scope:
+        return "cdn-sync-base-unreadable"
     for each in files:
         file = json_object(each)
         path = str(file.get("filename") or "")
         if file.get("status") != "modified" or file.get("previous_filename"):
             return f"cdn-sync-status:{path}"
-        if path not in paths:
+        if path not in scope:
             return f"cdn-sync-scope:{path}"
         if not (
             is_fix_file(entry("before", path)) and is_fix_file(entry("after", path))

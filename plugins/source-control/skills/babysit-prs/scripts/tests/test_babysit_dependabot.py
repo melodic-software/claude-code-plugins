@@ -1918,7 +1918,7 @@ const [vectors, records, appId] = JSON.parse(process.argv[1]);
 const refusals = [];
 for (const [detail, entries, paths] of vectors) {
   const entry = async (side, path) => entries[`${side}:${path}`] ?? %s;
-  refusals.push(await cdnSyncRefusal(detail, appId, paths && new Set(paths), entry));
+  refusals.push(await cdnSyncRefusal(detail, appId, async () => paths && new Set(paths), entry));
 }
 const sets = records.map((text) => {
   try {
@@ -1963,7 +1963,7 @@ class CdnSyncIsTheGates(unittest.TestCase):
             py = dependabot.cdn_sync_refusal(
                 detail,
                 IDENTITY,
-                None if paths is None else frozenset(paths),
+                lambda p=paths: None if p is None else frozenset(p),
                 lambda side, path, e=entries: e.get(f"{side}:{path}", _REGULAR),
             )
             with self.subTest(name):

@@ -235,7 +235,7 @@ async function commitFixRefusal(api, item, pairs, appId, cdn) {
   if (!fix) return null;
   let sync;
   try {
-    sync = await cdnSyncRefusal(detail, appId, await cdn(), (side, path) => entryAt(api, side === "before" ? parent : sha, path));
+    sync = await cdnSyncRefusal(detail, appId, cdn, (side, path) => entryAt(api, side === "before" ? parent : sha, path));
   } catch (error) {
     sync = `cdn-sync-unreadable:${String(error?.message ?? error).slice(0, 120)}`;
   }

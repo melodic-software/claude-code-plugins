@@ -433,7 +433,6 @@ export const isFixFile = (entry) => entry?.type === "blob" && entry.mode === FIX
 export const SKIP_MARKER = "[dependabot skip]";
 
 export async function cdnSyncRefusal(detail, appId, paths, entry) {
-  if (!(paths instanceof Set) || paths.size === 0) return "cdn-sync-base-unreadable";
   const verification = detail?.commit?.verification;
   if (
     !Number.isInteger(appId) ||
@@ -447,10 +446,12 @@ export async function cdnSyncRefusal(detail, appId, paths, entry) {
   if (!Array.isArray(detail.parents) || detail.parents.length !== 1) return "cdn-sync-parents";
   if (!String(detail.commit?.message ?? "").includes(SKIP_MARKER)) return "cdn-sync-message";
   if (!Array.isArray(detail.files) || detail.files.length === 0) return "cdn-sync-files";
+  const scope = await paths();
+  if (!(scope instanceof Set) || scope.size === 0) return "cdn-sync-base-unreadable";
   for (const file of detail.files) {
     const path = String(file?.filename ?? "");
     if (file?.status !== "modified" || file.previous_filename) return `cdn-sync-status:${path}`;
-    if (!paths.has(path)) return `cdn-sync-scope:${path}`;
+    if (!scope.has(path)) return `cdn-sync-scope:${path}`;
     if (!isFixFile(await entry("before", path)) || !isFixFile(await entry("after", path))) return `cdn-sync-mode:${path}`;
   }
   return null;

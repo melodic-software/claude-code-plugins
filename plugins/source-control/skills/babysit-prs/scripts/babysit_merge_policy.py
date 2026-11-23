@@ -5717,7 +5717,7 @@ def _fix_commit_refusal(
         sync = dependabot.cdn_sync_refusal(
             detail,
             lane_identity,
-            cdn(),
+            cdn,
             lambda side, path: entry_at(parent if side == "before" else sha, path),
         )
     except PolicyReadError as exc:

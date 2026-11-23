@@ -10274,7 +10274,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.lane_fix(gh, [path])
                 self.assertEqual(
                     self.eligibility(hold_majors=False).reason,
-                    f"dependabot-fix-content:fix-scope:{path}",
+                    f"dependabot-fix-content:fix-scope:{path};cdn-sync-author",
                 )
 
     PARENT = "d" * 40
@@ -10423,7 +10423,7 @@ class DependabotEligibility(unittest.TestCase):
                         ["package.json"],
                         modes={"package.json": {"type": kind, "mode": mode}},
                     ),
-                    "dependabot-fix-content:fix-mode:package.json",
+                    "dependabot-fix-content:fix-mode:package.json;cdn-sync-author",
                 )
         steal = {"test": "node t.js", "postinstall": "node steal.js"}
         self.assertEqual(
@@ -10431,7 +10431,8 @@ class DependabotEligibility(unittest.TestCase):
                 ["package.json"],
                 after={"package.json": self.pkg("^2.0.0", scripts=steal)},
             ),
-            "dependabot-fix-content:fix-content:package.json:package-json-key:scripts",
+            "dependabot-fix-content:fix-content:package.json:package-json-key:scripts"
+            ";cdn-sync-author",
         )
         self.assertEqual(
             self.lane_fix_reason(
@@ -10443,7 +10444,7 @@ class DependabotEligibility(unittest.TestCase):
                 },
             ),
             "dependabot-fix-content:fix-content:package-lock.json:"
-            "lock-resolved:node_modules/x",
+            "lock-resolved:node_modules/x;cdn-sync-author",
         )
         evil = "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz"
         self.assertEqual(
@@ -10452,7 +10453,7 @@ class DependabotEligibility(unittest.TestCase):
                 after={"package-lock.json": self.lock("2.0.0", evil)},
             ),
             "dependabot-fix-content:fix-content:package-lock.json:"
-            "lock-resolved:node_modules/x",
+            "lock-resolved:node_modules/x;cdn-sync-author",
         )
 
     def test_a_lanes_app_install_script_pin_move_is_eligible_and_no_other_pin(
@@ -10481,7 +10482,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertEqual(
                     reason(pin),
                     "dependabot-fix-content:fix-content:package.json:"
-                    "package-json-key:allowScripts",
+                    "package-json-key:allowScripts;cdn-sync-author",
                 )
 
     PIN_MESSAGE = (
