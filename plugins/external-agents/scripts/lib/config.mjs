@@ -1,10 +1,28 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, posix, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolve } from "../../lib/config-cascade.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../../lib/plugin-options.mjs";
 
-export const pluginRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+export const pluginRoot = join(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..");
+
+const USER_OPTIONS = ["antigravity_uses_task_mode"];
+
+/**
+ * The plugin's userConfig options from the operator's own user and managed settings (pluginConfigs),
+ * the cascade's userConfig layer. A Bash-run command gets no CLAUDE_PLUGIN_OPTION_* variables, so the
+ * settings are read directly; an unreadable source leaves the layer empty and names the problem.
+ */
+export function operatorUserConfig({ install = resolveInstall(pluginRoot), managed = managedSettingsFiles() } = {}) {
+  try {
+    const found = readOperatorOptions(install, managed, USER_OPTIONS);
+    return { userConfig: Object.fromEntries(Object.entries(found).map(([key, { value }]) => [key, value])), problem: null };
+  } catch (error) {
+    if (!(error instanceof OptionsError)) throw error;
+    return { userConfig: {}, problem: `${error.message}; the userConfig layer is not read` };
+  }
+}
 const readJson = (file) => JSON.parse(readFileSync(join(pluginRoot, file), "utf8"));
 
 const HELPER_FAIL = 3;

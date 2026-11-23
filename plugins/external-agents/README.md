@@ -107,6 +107,25 @@ precedence are in the
 [config-cascade contract](../../docs/contracts/config-cascade/README.md). An unset model, effort or
 profile leaves the CLI's own configuration in charge.
 
+One key also has a per-user setting, the plugin's `userConfig` option `antigravity_uses_task_mode`
+(`read-only` by default, or `write`), which sets `antigravity.uses.task.mode` in every repository
+and worktree for that user. Set it in `/config`, or in `pluginConfigs` in your user
+`settings.json`:
+
+```json
+{
+  "pluginConfigs": {
+    "external-agents@melodic-software": {
+      "options": { "antigravity_uses_task_mode": "write" }
+    }
+  }
+}
+```
+
+The command reads it from your user and managed settings itself, since a command run through the
+Bash tool gets no `CLAUDE_PLUGIN_OPTION_*` variables. A repository's team or personal file still
+wins over it.
+
 ## Job files
 
 Job files, logs, the breaker state and the CLI-facts cache (`cli-facts/<product>/<version>/`, the

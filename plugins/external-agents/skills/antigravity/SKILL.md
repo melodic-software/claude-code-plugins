@@ -79,8 +79,9 @@ process tree; stopping the background Bash task alone may leave agy running.
 ## Gotchas
 
 - **Write is opt-in.** Every use runs read-only until the user sets
-  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml` (ADR 0119
-  decision 2). Pass `--mode write` with a task that should change files: under a read-only ceiling
+  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml`, or the
+  per-user `userConfig` option `antigravity_uses_task_mode` to `write`, which those files override
+  (ADR 0119 decision 2). Pass `--mode write` with a task that should change files: under a read-only ceiling
   it runs read-only and prints a notice naming that key, and an `--add-dir` or `--unsandboxed` on
   it is refused. Relay the notice, and never set the key yourself.
 - **A refused action makes the run `blocked-by-mode`, even with a full answer.** agy keeps going

@@ -22,7 +22,8 @@ external-agents run antigravity --use <task|investigate> --prompt-file <file> [-
   `investigate` when it should only read and answer. The use's configured mode
   (`antigravity.uses.<use>.mode`, bundled values in the plugin's `defaults.json`) is both the
   default and the ceiling. Every use is read-only by default: writes need
-  `antigravity.uses.task.mode: write` from the user. `--mode write` never lifts a read-only
+  `antigravity.uses.task.mode: write` from the user, in a convention file or the per-user
+  `antigravity_uses_task_mode` option. `--mode write` never lifts a read-only
   ceiling; under one, the run is read-only and prints the notice naming that key. Pass
   `--mode read-only` to run a task without writes.
 - **Model and effort.** By default pass neither: `antigravity.model` and `antigravity.effort` from config
