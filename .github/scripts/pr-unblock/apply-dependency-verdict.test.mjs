@@ -503,7 +503,6 @@ test("a merge verdict on a review-only dependency must quote each matched contro
     assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
     assert.match(api.calls.comments.join("\n"), /verdict=escalate/);
   }
-  // Every control, not just one.
   const two = fakeApi();
   assert.equal((await go(two, runOf({ controls: [CONTROL, "docs/y.md#z"], output: cited }))).escalationReason, "dependency-control-uncited");
   // No control to cite: a merge stands, and a non-merge verdict is not checked.
@@ -630,7 +629,6 @@ test("main acts on a context and a verdict each matching the SHA-256 its job rec
   // The verdict file alone is the model's: run fields beside it are refused.
   const widened = await outcome(mainFiles({ verdict: { ...output(), security: false } }));
   assert.equal(widened.escalation, "dependency-invalid");
-  // A context that is missing, or carries the verdict, is refused.
   const missingContext = mainFiles();
   writeFileSync(join(missingContext.DEPENDENCY_VERDICT_DIR, "context.json"), "");
   assert.equal((await outcome({ ...missingContext, DEPENDENCY_RUN_SHA256: sha256("") })).escalation, "dependency-invalid");
@@ -654,7 +652,6 @@ test("main counts a round with no verdict and skips no-model-turn only on the sc
   assert.deepEqual([none.escalation, none.skip], ["", "no-model-turn"]);
   assert.equal(none.comments.length, 1, "the round counts");
   assert.match(none.comments[0], new RegExp(`head=${HEAD} verdict=invalid run=none -->`));
-  // An attempt whose artifact did not arrive reads the same.
   const absent = mainFiles({ verdict: null, env: { DEPENDENCY_RUN_ATTEMPT: "2" } });
   assert.deepEqual(Object.values(await outcome(absent)).slice(0, 2), ["", "no-model-turn"]);
   for (const [why, env, api, want] of [
@@ -678,7 +675,6 @@ test("main counts a round with no verdict and skips no-model-turn only on the sc
   // An empty marker directory is no refusal.
   const empty = tempDir("scan-refused-");
   assert.deepEqual(Object.values(await outcome(mainFiles({ verdict: null, env: { SCAN_REFUSED_DIR: empty, SCAN_REFUSED_READ: "success" } }))).slice(0, 2), ["", "no-model-turn"]);
-  // A scan output outside its closed set fails the job.
   await assert.rejects(main(mainFiles({ env: { DEPENDENCY_PATCH_STATE: "true" } }), { api: fakeApi(), log: () => {} }), /scan output/);
 });
 

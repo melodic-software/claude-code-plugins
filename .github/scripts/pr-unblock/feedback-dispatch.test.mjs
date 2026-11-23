@@ -69,7 +69,6 @@ const failedRun = (fields, completed = "2026-10-17T10:00:00Z") => ({
         }),
   },
 });
-// A usage-limit stop that resets at `at`.
 const limited = (at) => ({ class: "rate-limit", resets: { at, window: "five_hour" } });
 // The first comment's review, as THREADS_QUERY reads it: its author's
 // review of `reviewed`.
@@ -158,7 +157,6 @@ function fakeApi({
       calls.permission.push(login);
       return permissions[login] ?? "none";
     },
-    // A run that names no check is the address-feedback one.
     listCheckRuns: async ({ checkName }) => checkRuns.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName),
     listWorkflowRuns: async () => workflowRuns,
     listArtifactsNamed: async () => [],
@@ -623,8 +621,6 @@ test("the gate's untrusted-trigger skip on the head does not block a dispatch", 
   assert.equal((await decide(api)).result.number, 42);
 });
 
-// FINAL-DESIGN C5: a limit-stopped address-feedback run holds the head only
-// until its limit resets; the next review completion then dispatches again.
 test("a limit-stopped check on the head blocks a dispatch only until its reset", async () => {
   for (const [resets, expected] of [
     ["2026-10-17T11:00:00Z", 42],
@@ -1028,8 +1024,6 @@ test("a listed human's relayed reply dispatches with the relay run as the upstre
   assert.equal(output, "run-id=38779200001\nupstream-run-id=77\n");
 });
 
-// The acceptance case: the head already has an address-feedback check run,
-// and a handled record, from before the reply.
 test("a relayed reply dispatches past a check run and a handled record from before the relay run", async (t) => {
   const dir = tempDir("pr-dispatch-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -1189,7 +1183,6 @@ test("a reply posted while the PR conflicted dispatches on the review run after 
   const { result } = await decide(api);
   assert.equal(result?.number, 42);
   assert.equal(api.calls.dispatch.length, 1);
-  // A round already at the new head handles it, as for any review run.
   const handled = bySha(fakeApi({ threads: [conflicted] }), [atOld, { ...atOld, head_sha: HEAD, started_at: "2026-10-17T21:00:00Z" }]);
   assert.equal((await decide(handled)).result, null);
 });
@@ -1640,7 +1633,6 @@ for (const [label, source, options] of [
     const { result, lines } = await decide(api);
     assert.equal(result, null, lines.join("\n"));
     assert.deepEqual(api.calls.dispatch, []);
-    // The skip names why the label does not admit the PR.
     assert.ok(lines.at(-1).includes(`is labeled needs-human (${source}: `), lines.at(-1));
   });
 }
@@ -1802,24 +1794,20 @@ test("a lanes App PR refused verify:earlier-fail with no unresolved thread gets 
   assert.equal(api.calls.dispatch[0].inputs["verify-earlier-fail-heads"], OLD_HEAD);
   assert.equal(api.calls.dispatch[0].inputs["verify-pass-head"], undefined);
 
-  // Two FAILed heads go space-separated, in the reader's order.
   const two = fakeApi({ threads: resolvedOnly });
   await decide(two, resolvedLane(), { verifyCapped: () => ({ ...earlier, earlierFailHeads: [OLD_HEAD, "3".repeat(40)] }) });
   assert.equal(two.calls.dispatch[0].inputs["verify-earlier-fail-heads"], `${OLD_HEAD} ${"3".repeat(40)}`);
 
-  // No earlier-fail refusal: no thread, no round.
   const none = fakeApi({ threads: resolvedOnly });
   const skipped = await decide(none, resolvedLane(), { verifyCapped: () => ({ cap: null, supersededAtHead: false, earlierFailHeads: [] }) });
   assert.equal(skipped.result, null);
   assert.deepEqual(none.calls.dispatch, []);
   assert.match(skipped.lines.at(-1), /has no unresolved review thread/);
 
-  // The cap still skips first.
   const capped = fakeApi({ threads: resolvedOnly });
   await decide(capped, resolvedLane(), { verifyCapped: () => ({ ...earlier, cap: "verify:repeated-fail: fails at 3 heads, the cap is 3" }) });
   assert.deepEqual(capped.calls.dispatch, []);
 
-  // A head a round already handled skips before any read.
   const handledRun = { status: "completed", conclusion: "success", started_at: "2026-10-17T10:00:00Z" };
   const handled = fakeApi({ threads: resolvedOnly, checkRuns: [handledRun] });
   let reads = 0;
@@ -1960,7 +1948,6 @@ test("a head a finished run handled is recorded, and a later run at that head re
   const record = emptyRecord();
   const first = counting(fakeApi({ checkRuns: [handled, reply] }));
   assert.equal((await decideWith(first.api, record)).result, null);
-  // Without a record: the PR, comments, threads, run listing and both checks' runs.
   assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 2 });
   const later = counting(fakeApi({ checkRuns: [handled, reply] }));
   const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
@@ -2006,9 +1993,6 @@ test("a limit-stopped run is not recorded", async () => {
   assert.equal(record.handled.size, 0);
 });
 
-// Three limit stops under a resolved limit-stops-per-head of 5: the newest one
-// holds the head until its reset, and the head is not recorded, so after the
-// reset it dispatches again.
 test("three limit stops under a cap of 5 leave the head unrecorded and dispatched after the last reset", async () => {
   const stop = (resets, started) => ({
     ...failedRun(limited(resets), started),
@@ -2084,14 +2068,12 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   const api = fakeApi({ permissions, workflowRuns });
   api.listOpenPulls = async () => openPulls;
   api.pullsForCommit = async (sha) => openPulls.filter((p) => p.head.sha === sha);
-  // Both review lanes marked each PR's head reviewed.
   const headOf = (number) => openPulls.find((p) => p.number === number).head.sha;
   api.listIssueComments = async (number) => [marker("claude-review", headOf(number)), marker("claude-security-review", headOf(number))];
   api.listReviewThreads = async (number) => threads ?? [thread([CLAUDE], false, headOf(number))];
   api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
   api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
   api.listStatuses = async () => [];
-  // No lost pr-dispatch-feedback.yml run in the lookback window.
   api.listRecentRuns = async () => [];
   api.listRunJobs = async () => assert.fail("no lost run, so no jobs read");
   return api;
@@ -2143,7 +2125,6 @@ test("the sweep leaves a head whose last round answered, one at its no-model-tur
     assert.deepEqual(api.calls.dispatch, [], label);
     assert.equal(output, "", label);
   }
-  // Two no-model-turn rounds are under the cap.
   const two = sweepApi({ checksAt: { [HEAD]: [failedRound, noModelTurn("2026-10-17T10:05:00Z"), noModelTurn("2026-10-17T11:05:00Z")] } });
   await sweepMain(t, two);
   assert.equal(two.calls.dispatch.length, 1);
@@ -2200,12 +2181,10 @@ const releasedSweepApi = (count, overrides = {}) => {
 };
 
 test("a tick sends every released head after deciding them all, and moves past one dispatchFeedback skips", async (t) => {
-  // PR 42 is labeled do-not-merge, so dispatchFeedback skips it.
   const api = releasedSweepApi(3, { 42: { labels: [{ name: "do-not-merge" }] } });
   const { output } = await sweepMain(t, api);
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43", "44"]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\nrun-id-2=38779200002\nupstream-run-id-2=15\n");
-  // Every decision's reads come before the first POST.
   const firstSend = api.events.findIndex((event) => event.startsWith("send"));
   assert.ok(firstSend > 0 && api.events.slice(firstSend).every((event) => event.startsWith("send")), api.events.join(", "));
 });
@@ -2432,7 +2411,6 @@ const lostRun = (overrides = {}) => ({
   created_at: "2026-10-17T13:00:00Z",
   ...overrides,
 });
-// The dispatch job lost mid-run: its first step ran, the running one was cancelled.
 const startedJobs = [
   { id: 1, name: "Dispatch", conclusion: "cancelled", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Dispatch", conclusion: "cancelled" }] },
 ];
@@ -2805,13 +2783,11 @@ test("a deferred record that cannot be read is skipped, and the next head and lo
 });
 
 test("a lost run that already dispatched is not dispatched again", async (t) => {
-  // Its round's address-feedback check run is on the head.
   const checked = recoveryApi({ checksAt: { [HEAD]: [answeredRound] } });
   const first = await sweepMain(t, checked, TICK, NOW);
   assert.deepEqual(checked.calls.dispatch, []);
   assert.equal(first.output, "");
   assert.match(first.lines.join("\n"), /already has a pr-unblock \/ address-feedback check run/);
-  // Its dispatched run is still going.
   const going = recoveryApi();
   going.listWorkflowRuns = async () => [{ id: 7, status: "in_progress", display_title: TITLE_42, created_at: "2026-10-17T13:05:00Z" }];
   const second = await sweepMain(t, going, TICK, NOW);
@@ -3124,7 +3100,6 @@ test("the stale-stop sweep leaves a passing or newer status, an open thread, a r
     assert.deepEqual(api.calls.dispatch, [], label);
     assert.equal(output, "", label);
   }
-  // A run from before the stop does not hold it.
   const older = staleApi({ workflowRuns: [{ id: 6, status: "completed", display_title: "PR Unblock address-feedback #42", created_at: "2026-10-17T11:00:00Z" }] });
   await sweepMain(t, older);
   assert.equal(older.calls.dispatch.length, 1);
@@ -3191,7 +3166,6 @@ const sweepUnsent = async (api, verifyCapped, now = Date.parse("2026-10-17T12:20
 const unsentApi = (options = {}) => {
   const api = sweepApi({ checksAt: {}, threads: [LANE_FINDING], reviewRuns: { [HEAD]: [REVIEWED] }, ...options });
   api.listWorkflowRuns = async () => options.workflowRuns ?? [];
-  // Completed runs of the other workflows at the head, by path.
   const listCompletedRuns = api.listCompletedRuns;
   api.listCompletedRuns = async (path, head, event) => [...(await listCompletedRuns(path, head, event)), ...(options.others?.[path] ?? [])];
   return api;
@@ -3250,7 +3224,6 @@ test("a thread-less head whose verifier read failed is read again by a later pas
   assert.equal(result?.number, 42);
   assert.equal(api.calls.dispatch[0].inputs["verify-earlier-fail-heads"], OLD_HEAD);
 
-  // A cap read that could not count every FAIL records nothing either.
   const unread = emptyRecord();
   await decide(fakeApi({ threads: notes }), resolvedLane(), { record: unread, verifyCapped: () => ({ cap: DEADLINE, supersededAtHead: false, earlierFailHeads: [] }) });
   assert.equal(unread.handled.size, 0);
@@ -3263,12 +3236,10 @@ test("an answered thread-less head may be re-read inside the window, never past 
     reads += 1;
     return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
   };
-  // Two passes inside the window each read the answered head once.
   for (let pass = 0; pass < 2; pass += 1) {
     assert.equal((await sweepUnsent(unsentApi({ threads: notes }), answer)).result, null);
   }
   assert.equal(reads, 2);
-  // A pass whose cap is spent reads nothing.
   await sweepUnsent(unsentApi({ threads: notes }), answer, undefined, { earlierFailReads: { left: 0 } });
   assert.equal(reads, 2);
   // Past the window after the review run completed (REVIEWED, 12:10), nothing is read.
@@ -3277,11 +3248,9 @@ test("an answered thread-less head may be re-read inside the window, never past 
   assert.equal((await sweepUnsent(outside, answer, past)).result, null);
   assert.equal(reads, 2);
   assert.deepEqual(outside.calls.dispatch, []);
-  // The window's last moment still reads.
   await sweepUnsent(unsentApi({ threads: notes }), answer, past - 1);
   assert.equal(reads, 3);
 
-  // A thread-less head with no fail note from another head stays out of the sweep.
   let none = 0;
   await sweepUnsent(unsentApi({ threads: [thread([CLAUDE], true)] }), () => {
     none += 1;
@@ -3317,7 +3286,6 @@ test("the unsent-head sweep leaves a head with a round, no unresolved thread, a 
     assert.equal(result, null, label);
     assert.deepEqual(api.calls.dispatch, [], label);
   }
-  // A run from before the review does not hold it.
   const older = unsentApi({ workflowRuns: [{ id: 8, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T11:00:00Z" }] });
   assert.equal((await sweepUnsent(older, () => null)).result?.number, 42);
 });
@@ -3389,7 +3357,6 @@ test("a needs-human unlabel at a head released under the cap dispatches it once"
   const api = mergeApi({ checkRuns });
   const dispatch = api.dispatchWorkflow;
   api.dispatchWorkflow = async (request) => {
-    // The dispatched round's address-feedback check run, its reply still to come.
     checkRuns.push(roundRun("address-feedback", "failure", "Failed", "2026-10-17T11:00:00Z"));
     return dispatch(request);
   };
@@ -3629,7 +3596,6 @@ test("the sweep dispatches an idle owner PR whose reviewed head the lane has not
   const idle = sweepApi(ownerPull());
   assert.equal((await sweep(idle))?.number, 42);
   assert.equal(idle.calls.dispatch.length, 1);
-  // Still active: the listing's update time skips it before any read.
   const active = sweepApi(ownerPull({ updated_at: "2026-10-28T11:00:00Z" }));
   assert.equal(await sweep(active), null);
   assert.deepEqual(active.calls.commits, []);
@@ -3695,7 +3661,6 @@ test("the sweep decides an idle owner head with no round only within the idle wi
   assert.equal(await ownerSweep(settled), null);
   assert.deepEqual(reads, ["listCheckRuns"]);
   assert.equal(IDLE_OWNER_WINDOW_HOURS, 2);
-  // A new update opens the window again.
   const reopened = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:59:00Z" }));
   assert.equal((await ownerSweep(reopened))?.number, 42);
 });
@@ -3726,7 +3691,6 @@ test("the sweep clears an idle owner PR's failing stop once no thread is left, p
   const result = await ownerSweep(api);
   assert.equal(result?.number, 42);
   assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
-  // A Hold: line or a recent head commit still keeps the lane off.
   for (const [label, held] of [
     ["a Hold: line", stopped({ body: "Hold: mine" })],
     ["a recent head commit", stopped({}, "2026-10-28T11:30:00Z")],
@@ -3788,7 +3752,6 @@ test("a fix request's dispatch goes before a released head", async (t) => {
   api.listCheckRuns = async ({ sha, checkName }) => (sha === HEAD ? [answeredRound, answeredReply] : [failedRound, noModelTurn()]).filter((run) => run.name === checkName);
   api.listReviewThreads = async (number) => (number === 42 ? [askedThread({ author: KYLE_LOGIN, body: REQUEST })] : [thread([CLAUDE], false, SECOND_HEAD)]);
   await requestMain(t, api);
-  // PR 43 is listed first, but the fix-request pass decides PR 42 before it.
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42", "43"]);
 });
 

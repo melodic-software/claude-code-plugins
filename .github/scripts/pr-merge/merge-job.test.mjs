@@ -221,7 +221,6 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
 test("the listing retries a failed GraphQL read", () => {
   const run = runListing(2);
   assert.equal(run.status, 0, run.stderr);
-  // Three tries of the one list.
   assert.equal(run.calls, 3);
   assert.match(run.output, /^count=1$/m);
   assert.match(run.output, /^listed=true$/m);
@@ -1035,7 +1034,6 @@ test("the early check names the stopped pool and its reset in its rate-limited o
   // A CRLF line, a torn last line and a past stop count for nothing.
   const torn = runEarlyCheck(75, false, "graphql 4102448400\r\ncore 1\nsearch 4102444800\ncore 41024");
   assert.match(torn.output, /^rate-limited=the search pool until 2100-01-01T00:00:00Z$/m);
-  // No readable stop still stops the next jobs.
   assert.match(runEarlyCheck(75).output, /^rate-limited=an unrecorded pool until its reset$/m);
   for (const code of [0, 1, 3]) {
     assert.doesNotMatch(runEarlyCheck(code, false, "core 4102444800\n").output, /rate-limited=/);
@@ -2527,7 +2525,6 @@ test("the merge job reuses this run's post-merge report that settle keeps, with 
   assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --repo o/r --postmerge-result \\S+/post-merge-kept/post-merge\\.json --code-sha ${KEPT_SHA}$`));
   // With no commit kept, an empty one, which settle refuses.
   assert.match(runMergeCheck({ kept: keptReport(), codeSha: null }).settled, / --code-sha$/);
-  // A report kept with no lane records leaves the ones read in.
   assert.equal(run.records, "read in");
   // The identity read (yq) is the fresh check's alone: a reused report
   // needs none, so a failing yq fails only the check that needs it.
@@ -2553,7 +2550,6 @@ test("the merge job runs the check itself for no report, a report settle refuses
     assert.deepEqual(run.report, { ran: true }, why);
     assert.equal(run.records, "read in", why);
   }
-  // A code that could not judge is not offered to settle.
   assert.equal(runMergeCheck({ kept: keptReport(), code: "3" }).settled, null);
 });
 
