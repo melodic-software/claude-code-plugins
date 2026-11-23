@@ -117,10 +117,12 @@ A skill step that hands a self-contained brief to a fresh agent can ask
    as instructions to the vendor. The brief keeps its use: `task` when it changes files.
 4. **Once per run per work type.** A skill asks route once per run for each work type it
    delegates. For each later brief of that work type in the run, it passes route's `delegate:`
-   line back with the new brief, and route runs it without deciding again.
-5. **One sentence per call site**, seam-phrased with its fallback:
-   "When `/multi-agent:route` is among the available skills, ask it (`vendors`) which vendor runs
-   this step and follow its Caller contract; otherwise run it here as before."
+   line back with the new brief, and route runs it without deciding again: the line supplies the
+   product, model and effort, and each brief sets its own use (`task` when it changes files, else
+   `investigate`).
+5. **One sentence per call site**, in the optional-plugin form:
+   "Route this step per the caller contract of `/multi-agent:route` (if enabled); otherwise run it
+   here as before."
 
 Without the external-agents plugin, route covers only Claude, so the step runs here.
 
