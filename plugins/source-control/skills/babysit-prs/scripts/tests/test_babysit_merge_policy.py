@@ -6144,6 +6144,34 @@ class IssueHoldLabels(unittest.TestCase):
         self.assertEqual(policy.stricter_config(base, main).issue_holds, ("a", "b"))
 
 
+class BaselineFile(unittest.TestCase):
+    """`merge.baseline-file` is read through the merge config reader, unset is
+    None, and the stricter config keeps it only when both sides name it."""
+
+    FILE = "docs/upstream/claude-code-native-surfaces.min.json"
+
+    def test_the_configured_file_is_read(self) -> None:
+        text = LANE_PIPELINE.replace(
+            "  diff-check:", f"  baseline-file: {self.FILE}\n  diff-check:"
+        )
+        config_fake(self, text)
+        self.assertEqual(policy.read_config_at(REPO, SHA).baseline_file, self.FILE)
+
+    def test_unset_is_none(self) -> None:
+        config_fake(self, LANE_PIPELINE)
+        self.assertIsNone(policy.read_config_at(REPO, SHA).baseline_file)
+
+    def test_the_stricter_config_keeps_only_an_agreed_file(self) -> None:
+        base = policy.PipelineConfig(
+            SHA, "C2", "pr-merge", IDENTITY, None, (), None, baseline_file=self.FILE
+        )
+        for other, want in ((self.FILE, self.FILE), (None, None), ("docs/x", None)):
+            with self.subTest(other=other):
+                main = dataclasses.replace(base, base_sha="b" * 40, baseline_file=other)
+                self.assertEqual(policy.stricter_config(base, main).baseline_file, want)
+                self.assertEqual(policy.stricter_config(main, base).baseline_file, want)
+
+
 def refs_answer(*issues: dict[str, Any], pulls: tuple[int, ...] = ()) -> Any:
     """The PolicyRefsIssue answer: each issue node by number, a pull request
     for each number in `pulls`, and for any other number GitHub's NOT_FOUND

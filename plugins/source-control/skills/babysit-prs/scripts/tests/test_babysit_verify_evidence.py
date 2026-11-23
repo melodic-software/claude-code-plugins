@@ -8658,18 +8658,26 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
 
 
 LANES_BOT = {"login": "agent-lanes[bot]", "type": "Bot"}
+BASELINE = "docs/upstream/claude-code-native-surfaces.min.json"
 
 
-class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
-    """Owner decision Q152 (B), https://github.com/melodic-software/architecture/pull/197:
-    a lanes App pull request whose changed files are exactly
-    `policy.NATIVE_BASELINE` arms with no issue link and no verdict; its risk
-    score still holds. Any other file, or any other author, keeps the link
-    refusal."""
+class TheBaselineFileTakesNoLinkOrVerdict(unittest.TestCase):
+    """`merge.baseline-file`: a lanes App pull request whose changed files are
+    exactly the configured file arms with no issue link and no verdict; its
+    risk score still holds. Any other file, any other author, or no file
+    configured keeps the link refusal, and a failed read or a trust hold
+    refuses whatever the files are."""
 
     def setUp(self) -> None:
         config = policy.PipelineConfig(
-            EARLIER, "C2", "pr-merge", "agent-lanes[bot]", None, (), "c2-mechanical"
+            EARLIER,
+            "C2",
+            "pr-merge",
+            "agent-lanes[bot]",
+            None,
+            (),
+            "c2-mechanical",
+            baseline_file=BASELINE,
         )
         for name in ("read_config_at", "_default_branch_config"):
             patcher = mock.patch.object(policy, name, return_value=config)
@@ -8681,20 +8689,25 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
             mock.Mock(path=path, previous_path=previous) for path, previous in paths
         )
 
-    def test_baseline_only_matches_the_lanes_app_and_exactly_the_baseline(self) -> None:
+    def test_baseline_only_matches_the_lanes_app_and_exactly_the_file(self) -> None:
         lanes = pull(user=LANES_BOT)
-        self.assertTrue(
-            policy.baseline_only(lanes, "agent-lanes", [policy.NATIVE_BASELINE])
-        )
+        self.assertTrue(policy.baseline_only(lanes, "agent-lanes", BASELINE, [BASELINE]))
         for paths in (
-            [policy.NATIVE_BASELINE, "docs/a.md"],
-            [policy.NATIVE_BASELINE, "docs/upstream/old.json"],
+            [BASELINE, "docs/a.md"],
+            [BASELINE, "docs/upstream/old.json"],
             ["docs/upstream/claude-code.md"],
             [],
             None,
         ):
             with self.subTest(paths=paths):
-                self.assertFalse(policy.baseline_only(lanes, "agent-lanes[bot]", paths))
+                self.assertFalse(
+                    policy.baseline_only(lanes, "agent-lanes[bot]", BASELINE, paths)
+                )
+        for file in (None, ""):
+            with self.subTest(file=file):
+                self.assertFalse(
+                    policy.baseline_only(lanes, "agent-lanes[bot]", file, [BASELINE])
+                )
         for author, identity in (
             ({"login": "agent-lanes[bot]", "type": "User"}, "agent-lanes[bot]"),
             ({"login": "other-app[bot]", "type": "Bot"}, "agent-lanes[bot]"),
@@ -8703,19 +8716,17 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
         ):
             with self.subTest(author=author, identity=identity):
                 self.assertFalse(
-                    policy.baseline_only(
-                        pull(user=author), identity, [policy.NATIVE_BASELINE]
-                    )
+                    policy.baseline_only(pull(user=author), identity, BASELINE, [BASELINE])
                 )
 
     def test_native_baseline_reads_the_files_whole(self) -> None:
         lanes = pull(user=LANES_BOT, changed_files=1)
-        baseline = (policy.NATIVE_BASELINE, None)
+        baseline = (BASELINE, None)
         for files, complete, want in (
             (self.files(baseline), True, True),
             (self.files(baseline), False, False),
             (self.files(baseline, ("docs/a.md", None)), True, False),
-            (self.files((policy.NATIVE_BASELINE, "docs/upstream/old.json")), True, False),
+            (self.files((BASELINE, "docs/upstream/old.json")), True, False),
         ):
             with (
                 self.subTest(files=files, complete=complete),
@@ -8724,22 +8735,54 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
                 ),
             ):
                 self.assertEqual(
-                    ve._native_baseline(REPO, lanes, "agent-lanes[bot]"), want
+                    ve._native_baseline(REPO, lanes, "agent-lanes[bot]", BASELINE),
+                    want,
                 )
         with mock.patch.object(
             policy, "changed_files", side_effect=policy.PolicyReadError("down")
         ):
-            self.assertFalse(ve._native_baseline(REPO, lanes, "agent-lanes[bot]"))
+            self.assertFalse(
+                ve._native_baseline(REPO, lanes, "agent-lanes[bot]", BASELINE)
+            )
         with mock.patch.object(policy, "changed_files") as listed:
             for count in (2, policy.FILES_API_CAP + 1, None):
                 many = pull(user=LANES_BOT, changed_files=count)
-                self.assertFalse(ve._native_baseline(REPO, many, "agent-lanes[bot]"))
+                self.assertFalse(
+                    ve._native_baseline(REPO, many, "agent-lanes[bot]", BASELINE)
+                )
             person = pull(user={"login": "maintainer", "type": "User"}, changed_files=1)
-            self.assertFalse(ve._native_baseline(REPO, person, "agent-lanes[bot]"))
+            self.assertFalse(
+                ve._native_baseline(REPO, person, "agent-lanes[bot]", BASELINE)
+            )
+            self.assertFalse(ve._native_baseline(REPO, lanes, "agent-lanes[bot]", None))
             listed.assert_not_called()
 
+    def test_only_a_link_shape_refusal_is_set_aside(self) -> None:
+        for refusal in (
+            "linked-issues:0",
+            "linked-issues:2",
+            "linked-issue-other-repository",
+            policy.REFS_NOT_PLAIN,
+            policy.REFS_NOT_AN_ISSUE,
+            f"{policy.REFS_SEVERAL}2",
+        ):
+            with self.subTest(refusal=refusal):
+                self.assertTrue(ve._link_shape(refusal))
+        for refusal in (
+            None,
+            "unreadable: closing issues: down",
+            "untrusted-provenance",
+            "untrusted-provenance-removed-by-non-human",
+        ):
+            with self.subTest(refusal=refusal):
+                self.assertFalse(ve._link_shape(refusal))
+
     def cli(
-        self, baseline: bool, *flags: str, linked: bool = False
+        self,
+        baseline: bool,
+        *flags: str,
+        linked: bool = False,
+        refusal: str | None = None,
     ) -> tuple[dict[str, Any], Any]:
         fake = passing()
         if not linked:
@@ -8750,6 +8793,9 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
             mock.patch.object(policy, "gh_capture", side_effect=fake),
             mock.patch.object(ve, "_native_baseline", return_value=baseline) as judged,
+            mock.patch.object(ve.Reader, "link_refusal", return_value=refusal)
+            if refusal is not None
+            else contextlib.nullcontext(),
             mock.patch.object(
                 ve,
                 "lane_risk_refusal",
@@ -8768,13 +8814,29 @@ class TheNativeBaselineTakesNoLinkOrVerdict(unittest.TestCase):
     def test_the_baseline_arms_on_its_risk_score_alone(self) -> None:
         report, _ = self.cli(True, "--lane-reviews", "--rung", "C2")
         self.assertEqual((report["ineligible"], report["refusal"]), (None, None))
-        self.assertEqual(report["detail"], ve.NATIVE_BASELINE_DETAIL)
+        self.assertEqual(report["detail"], ve.baseline_detail(BASELINE))
         self.assertEqual(report["reviews"], "review-path:docs/upstream/**")
 
     def test_a_linked_baseline_arms_with_no_verdict_read(self) -> None:
         report, _ = self.cli(True, "--lane-reviews", "--rung", "C2", linked=True)
         self.assertEqual((report["ineligible"], report["refusal"]), (None, None))
-        self.assertEqual(report["detail"], ve.NATIVE_BASELINE_DETAIL)
+        self.assertEqual(report["detail"], ve.baseline_detail(BASELINE))
+
+    def test_a_failed_read_or_trust_hold_refuses_the_baseline_too(self) -> None:
+        for refusal in (
+            "unreadable: closing issues: down",
+            "untrusted-provenance",
+            "untrusted-provenance-removed-by-non-human",
+        ):
+            with self.subTest(refusal=refusal):
+                report, judged = self.cli(
+                    True, "--lane-reviews", "--rung", "C2", refusal=refusal
+                )
+                self.assertEqual(
+                    (report["ineligible"], report["refusal"]), (refusal, ve.INELIGIBLE)
+                )
+                self.assertNotIn("reviews", report)
+                judged.assert_not_called()
 
     def test_any_other_pull_request_keeps_the_link_refusal(self) -> None:
         report, _ = self.cli(False, "--lane-reviews", "--rung", "C2")

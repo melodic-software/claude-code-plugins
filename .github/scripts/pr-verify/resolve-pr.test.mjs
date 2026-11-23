@@ -28,7 +28,7 @@ import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MER
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
-import { holds, labelHolds, NATIVE_BASELINE } from "../pr-merge/merge-holds.mjs";
+import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1380,14 +1380,17 @@ test("a PR the lanes App did not open is not judged", async () => {
   assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: "" }), "author-not-lane", "no identity");
 });
 
-test("the lanes App's PR changing only the native-surface baseline is not judged; any other file or author is", async () => {
-  const baseline = { filename: NATIVE_BASELINE, status: "modified" };
-  const app = { laneAppId: 337595936 };
+test("the lanes App's PR changing only merge.baseline-file is not judged; any other file or author, or no file set, is", async () => {
+  const file = "docs/upstream/claude-code-native-surfaces.min.json";
+  const baseline = { filename: file, status: "modified" };
+  const app = { laneAppId: 337595936, baselineFile: file };
   assert.equal(await reason({ prFiles: [baseline] }, app), "native-baseline");
   assert.equal(await reason({ prFiles: [baseline, { filename: "docs/a.md", status: "added" }] }, app), "ok");
   assert.equal(await reason({ prFiles: [{ ...baseline, status: "renamed", previous_filename: "docs/upstream/old.json" }] }, app), "ok");
   assert.equal(await reason({ pulls: [pull({ user: { id: 6, login: LANE, type: "Bot" } })], prFiles: [baseline] }, app), "ok");
-  assert.equal(await reason({ prFiles: [baseline] }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { laneAppId: 337595936 }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "" }), "ok");
+  assert.equal(await reason({ prFiles: [baseline] }, { ...app, baselineFile: "docs/upstream/other.json" }), "ok");
   await assert.rejects(resolve({ prFiles: null }, app), /pulls\/41\/files/);
 });
 

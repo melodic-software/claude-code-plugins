@@ -1538,6 +1538,7 @@ merge:
   # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
   # both. Absent is native.
   lane-prs: native
+  baseline-file: docs/upstream/claude-code-native-surfaces.min.json
   # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
   # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
   # to a pull request from one, and pr-unblock never runs fix-ci on one

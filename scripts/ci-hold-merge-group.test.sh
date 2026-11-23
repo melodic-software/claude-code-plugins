@@ -142,6 +142,12 @@ expect() {
   rm -rf "$config"
   mkdir -p "$config"
   [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$config/docs/conventions/work-items.yaml"; }
+  mkdir -p "$config/docs/conventions"
+  if [[ -n "${STUB_BASELINE_FILE:-}" ]]; then
+    printf 'merge:\n  baseline-file: %s\n' "$STUB_BASELINE_FILE" >"$config/docs/conventions/pr-pipeline.yaml"
+  else
+    printf 'merge:\n  lane-prs: native\n' >"$config/docs/conventions/pr-pipeline.yaml"
+  fi
   mkdir -p "$config/.github/standards/trusted-actors" "$config/.github/scripts/pr-merge"
   printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
   # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
@@ -350,10 +356,16 @@ LANES=$app_id
 STUB_LINK='' STUB_ISSUE_LABELS=''
 
 NATIVE=docs/upstream/claude-code-native-surfaces.min.json
+STUB_BASELINE_FILE=$NATIVE
 STUB_LINK="$(link Bot '[]' 'No related issue: baseline.' "$LANES")"
 STUB_PULL="$(jq -nc --arg login "$identity" --argjson id "$LANES" '{user: {login: $login, id: $id, type: "Bot"}, changed_files: 1}')"
 STUB_FILES="[\"$NATIVE\",null]"
-trust "the lanes App's native-surface baseline linking nothing passes" 0 1 "changes only the native-surface baseline"
+trust "the lanes App's merge.baseline-file linking nothing passes" 0 1 "changes only $NATIVE (merge.baseline-file)"
+STUB_BASELINE_FILE=''
+trust "with no merge.baseline-file the baseline still needs a link" 1 1 "its Refs: lines name no single issue"
+STUB_BASELINE_FILE=docs/upstream/other.json
+trust "another merge.baseline-file does not take the baseline" 1 1 "its Refs: lines name no single issue"
+STUB_BASELINE_FILE=$NATIVE
 STUB_PULL="$(jq -c '.changed_files = 2' <<<"$STUB_PULL")" STUB_FILES="[\"$NATIVE\",null]
 [\"docs/a.md\",null]"
 trust "the baseline beside another file still needs a link" 1 1 "its Refs: lines name no single issue"
@@ -365,7 +377,7 @@ STUB_PULL="$(jq -c '.user.id = 1' <<<"$STUB_PULL")" STUB_FILES="[\"$NATIVE\",nul
 trust "another bot id's baseline still needs a link" 1 1 "its Refs: lines name no single issue"
 STUB_PULL='' STUB_FILES=''
 trust "an unread pull request still needs a link" 1 1 "its Refs: lines name no single issue"
-STUB_LINK=''
+STUB_LINK='' STUB_BASELINE_FILE=''
 
 # A jq error is neither a match nor a miss: it fails closed.
 STUB_LINK="$(link Bot "[$(issue 16 '[null]')]")"

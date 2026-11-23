@@ -919,7 +919,8 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
     assert.match(block, /SPEC_FROM_BODY_APPS=\$\(yq '\.adoption\."spec-from-body-apps" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
     // The issue lane's web hosts, as admission reads them, so a split record holds under the same hosts.
     assert.match(block, /ISSUE_LANE_WEB_HOSTS=\$\(yq -o=json -I=0 '\(\.activities\."resolve-issue"\."web-access" \| select\(\.enabled == true\) \| \.domains\) \/\/ \[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
-    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS\n/, job);
+    assert.match(block, /BASELINE_FILE=\$\(yq '\.merge\."baseline-file" \/\/ ""' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
+    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS BASELINE_FILE\n/, job);
     assert.match(step("Write the verdict", job), /SPEC_TEXT_FILE: \$\{\{ github\.workspace \}\}\/pr-verify-data\/spec-text\.json\n/, job);
   }
 });

@@ -2409,8 +2409,8 @@ pull request. The linked issue is its closing issues here, or with none, the one
 containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
 one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
 lanes App pull request that does not link exactly one issue here also fails, so dropping the link
-after arming does not skip the check, unless its files, read whole, are exactly the native-surface
-baseline (`merge-holds.mjs` `baselineOnly`, owner decision Q152 (B)); another automation's pull
+after arming does not skip the check, unless its files, read whole, are exactly the base's
+`merge.baseline-file` (`merge-holds.mjs` `baselineOnly`, owner decision Q152 (B)); another automation's pull
 request that links none passes. An
 unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
 the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a

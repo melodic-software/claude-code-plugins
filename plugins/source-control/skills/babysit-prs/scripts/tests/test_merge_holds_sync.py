@@ -691,23 +691,28 @@ class TheHoldLabelsAreTheGates(unittest.TestCase):
 class TheNativeBaselineIsTheGates(unittest.TestCase):
     """Owner decision Q152 (B): ci-status (`baselineOnly`) and the arm's
     reader (`baseline_only`) take the same lanes App pull requests, those
-    changing exactly the same one file, with no link or verdict."""
+    changing exactly the configured `merge.baseline-file`, with no link or
+    verdict, and none when it is unset."""
 
     def test_both_take_the_same_pull_requests(self) -> None:
+        file = "docs/upstream/claude-code-native-surfaces.min.json"
         lanes = {"login": "melodic-automation-lanes[bot]", "id": 9, "type": "Bot"}
         cases = [
-            (lanes, [policy.NATIVE_BASELINE]),
-            (lanes, [policy.NATIVE_BASELINE, "docs/a.md"]),
-            (lanes, [policy.NATIVE_BASELINE, "docs/upstream/old.json"]),
-            (lanes, ["docs/upstream/claude-code.md"]),
-            (lanes, []),
-            ({**lanes, "type": "User"}, [policy.NATIVE_BASELINE]),
-            ({**lanes, "login": "melodic-agent[bot]"}, [policy.NATIVE_BASELINE]),
+            (lanes, [file], file),
+            (lanes, [file], None),
+            (lanes, [file], ""),
+            (lanes, [file], "docs/upstream/other.json"),
+            (lanes, [file, "docs/a.md"], file),
+            (lanes, [file, "docs/upstream/old.json"], file),
+            (lanes, ["docs/upstream/claude-code.md"], file),
+            (lanes, [], file),
+            ({**lanes, "type": "User"}, [file], file),
+            ({**lanes, "login": "melodic-agent[bot]"}, [file], file),
         ]
         script = (
-            f"const {{ baselineOnly, NATIVE_BASELINE }} = await import({json.dumps(MODULE.as_uri())});"
+            f"const {{ baselineOnly }} = await import({json.dumps(MODULE.as_uri())});"
             "const cases = JSON.parse(process.argv[1]);"
-            "console.log(JSON.stringify([NATIVE_BASELINE, cases.map(([user, files]) => baselineOnly(user, files, 9))]));"
+            "console.log(JSON.stringify(cases.map(([user, files, file]) => baselineOnly(user, files, 9, file ?? undefined))));"
         )
         proc = subprocess.run(
             ["node", "--input-type=module", "-e", script, json.dumps(cases)],
@@ -715,11 +720,12 @@ class TheNativeBaselineIsTheGates(unittest.TestCase):
             text=True,
             check=True,
         )
-        path, answers = json.loads(proc.stdout)
-        self.assertEqual(path, policy.NATIVE_BASELINE)
+        answers = json.loads(proc.stdout)
         py = [
-            policy.baseline_only({"user": user}, "melodic-automation-lanes[bot]", files)
-            for user, files in cases
+            policy.baseline_only(
+                {"user": user}, "melodic-automation-lanes[bot]", baseline, files
+            )
+            for user, files, baseline in cases
         ]
         self.assertEqual(answers, py)
         self.assertEqual(answers.count(True), 1)

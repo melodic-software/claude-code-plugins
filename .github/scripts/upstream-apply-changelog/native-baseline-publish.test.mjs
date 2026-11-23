@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { BASELINE, publishBaseline, pushBaseline } from "./native-baseline-publish.mjs";
-import { BODY_HOLD, LANE_HOLD, NATIVE_BASELINE } from "../pr-merge/merge-holds.mjs";
+import { BODY_HOLD, LANE_HOLD } from "../pr-merge/merge-holds.mjs";
 
 const repository = "owner/repo";
 const release = "2.1.330";
@@ -82,8 +83,9 @@ test("reuses only an existing branch with the expected parent and tree", async (
   assert.deepEqual(different.calls.map(([path]) => path), ["git/trees"]);
 });
 
-test("the published path is the one merge-holds.mjs lets merge with no issue or verdict", () => {
-  assert.equal(BASELINE, NATIVE_BASELINE);
+test("the published path is merge.baseline-file, the one file that merges with no issue or verdict", () => {
+  const pipeline = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
+  assert.equal(/^merge:\n(?: .*\n|\n)*? {2}baseline-file: (\S+)$/m.exec(pipeline)?.[1], BASELINE);
 });
 
 test("publishes a ready pull request with the scripted report at the pushed head only once", async () => {

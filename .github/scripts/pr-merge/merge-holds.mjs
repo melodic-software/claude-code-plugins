@@ -46,21 +46,24 @@ export const HUMAN_VETO =
 // The lanes App's bot login. A `Hold:` line on its own pull request holds the
 // merge, not a fix pushed to it (apply-patch.mjs's held()).
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-// The one file a lanes App pull request may change and merge with no linked
-// issue and no pr-verify verdict: each release's native-surface baseline,
-// which native-baseline-publish.mjs pushes (owner decision Q152 (B),
-// https://github.com/melodic-software/architecture/pull/197).
-// babysit_merge_policy.NATIVE_BASELINE, which test_merge_holds_sync.py keeps equal.
-export const NATIVE_BASELINE = "docs/upstream/claude-code-native-surfaces.min.json";
-export const baselineOnly = (author, files, appId) =>
+// Whether the lanes App's pull request changes exactly `baselineFile`,
+// pr-pipeline.yaml's merge.baseline-file: the one file such a pull request may
+// change and merge with no linked issue and no pr-verify verdict (owner
+// decision Q152 (B), https://github.com/melodic-software/architecture/pull/197).
+// An unset file takes none. babysit_merge_policy.baseline_only, which
+// test_merge_holds_sync.py keeps equal.
+export const baselineOnly = (author, files, appId, baselineFile) =>
+  typeof baselineFile === "string" &&
+  baselineFile !== "" &&
   author?.type === "Bot" &&
   String(author.login).toLowerCase() === LANES_APP_LOGIN &&
   /^[1-9][0-9]*$/.test(String(appId)) &&
   String(author.id) === String(appId) &&
   Array.isArray(files) &&
   files.length === 1 &&
-  files[0] === NATIVE_BASELINE;
-export const BASELINE_NOTE = `the lanes App's pull request changes only ${NATIVE_BASELINE}, which merges with no linked issue or pr-verify verdict (owner decision Q152 (B))`;
+  files[0] === baselineFile;
+export const baselineNote = (baselineFile) =>
+  `the lanes App's pull request changes only ${baselineFile} (merge.baseline-file), which merges with no linked issue or pr-verify verdict`;
 // report-outcome.mjs HOLD_LINE on a line of its own, which
 // enable-auto-merge.test.mjs checks; it holds whoever wrote the body.
 export const LANE_HOLD = /(?:^|[\r\n])Hold: a human merges this[^\S\r\n]*(?:[\r\n]|$)/;
@@ -1755,9 +1758,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     // The verifier's holds, recorded under their own annotation title
     // (VERIFIER_TITLE): they share this step with the path holds.
     const verifier = [];
-    if (verdictsFile && baselineOnly(pullAuthor(env.BABYSIT_VERIFY_PULL), files, env.LANES_APP_ID)) {
-      console.log(`#${number}: no verifier hold: ${BASELINE_NOTE}.`);
-      console.log(`#${number}: no pr-verify FAIL hold: ${BASELINE_NOTE}.`);
+    if (verdictsFile && baselineOnly(pullAuthor(env.BABYSIT_VERIFY_PULL), files, env.LANES_APP_ID, env.BASELINE_FILE)) {
+      console.log(`#${number}: no verifier hold: ${baselineNote(env.BASELINE_FILE)}.`);
+      console.log(`#${number}: no pr-verify FAIL hold: ${baselineNote(env.BASELINE_FILE)}.`);
     } else if (verdictsFile) {
       const records = lines(verdictsFile).map((line) => JSON.parse(line));
       let unverified = verdictHold(records, env.GITHUB_REPOSITORY);
