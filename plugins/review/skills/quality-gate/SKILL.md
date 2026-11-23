@@ -169,6 +169,11 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 `/verification:confirm`, when it is among the available skills, after an all-clear verdict, then
 PR creation; after fixes, a `self` re-run of this skill (Step 4).
 
+## Related
+
+- Multi-surface breadth review into one ranked report: /review:fanout.
+- Multi-model reviewer panel with fix rounds: /review:council.
+
 ## Gotchas
 
 - **Don't skip self-review for "small" changes**. Small changes have the highest ratio of "obviously fine" to "actually had a bug."

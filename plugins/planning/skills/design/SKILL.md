@@ -469,6 +469,13 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - Design finished, to gate and write into PLAN.md's `## Design`, which /planning:plan reads: /planning:design-handoff.
 - The contract is a UI component's props API (parts, variants, controlled state): /user-interface:design.
 
+## Related
+
+- Scanning existing code for module friction: /architecture:improve.
+- Recording a one-way-door decision: /architecture:adr.
+- Exploring UI layout variants for a thread: /prototype:explore-directions.
+- Testing competing logic variants: /prototype:pressure-test.
+
 ## Relationship to other skills
 
 | Skill | Relationship |

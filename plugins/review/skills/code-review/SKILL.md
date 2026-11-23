@@ -47,6 +47,12 @@ host; this section states what to do when one resolves, never that it is present
 records behind these statements live in
 [reference/bundled-code-review.md](reference/bundled-code-review.md).
 
+## Related
+
+- Dedicated PR security review lane: /review:security-review.
+- Codify uncovered rules from review summary: /corrections:codify.
+- Local single-lens review before push: /review:quality-gate.
+
 ## Gotchas
 
 - Command/skill frontmatter `allowed-tools` grants permission but does **not**

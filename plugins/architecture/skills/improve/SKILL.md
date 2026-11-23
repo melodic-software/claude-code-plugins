@@ -119,6 +119,13 @@ Graceful degradation: where a named step below is not available in the consuming
 - A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries
 - An agreed candidate's module has no tests to protect the refactor: /testing:write, characterization tests first.
 
+## Related
+
+- Co-change folder layout check: /architecture:improve-layout.
+- Cross-dimension improvement hunt: /improvement:find.
+- Curate domain vocabulary during interview: /domain-driven-design:ubiquitous-language.
+- Paved-path convention proposal: /discipline:reuse-or-replace.
+
 ## Gotchas
 
 Failure modes this lens runs into, each stated as the rule it implies.

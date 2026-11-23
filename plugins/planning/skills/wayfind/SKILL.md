@@ -415,6 +415,10 @@ intent is unsettled and escalating here when it outgrows one session → referen
 - The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.
 - The map closed on a PRD: /planning:prd.
 
+## Related
+
+- Map closed on a decision record: /architecture:adr.
+
 ## Reference
 
 - [`context/tracker-mechanics.md`](context/tracker-mechanics.md). The `/work-items:track` (if enabled) actions

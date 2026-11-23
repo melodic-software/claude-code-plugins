@@ -290,6 +290,10 @@ and offer the repository's own observed shape, or the bundled template, instead.
 - The audit found candidates to remove: /architecture:adr prune.
 - A retirement left terms to rename: /docs-hygiene:rename-references.
 
+## Related
+
+- Decision defines a domain term rather than system structure: /domain-driven-design:ubiquitous-language.
+
 ## Gotchas
 
 Failure modes this skill runs into, each stated as the rule it implies.

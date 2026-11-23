@@ -92,6 +92,12 @@ tool, to persist the `EXPLORE.md` artifact.
 - The prompt is sharpened and ready to scope: `/planning:interview`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
+## Related
+
+- Domain too deep for a lightweight ladder: /education:teach.
+- Needs multi-source external research: /discovery:research.
+- Explore divergent options before interviewing: /planning:brainstorm.
+
 ## Gotchas
 
 - **Presenting training recall as domain fact**. The domain lane grounds its vocabulary ladder

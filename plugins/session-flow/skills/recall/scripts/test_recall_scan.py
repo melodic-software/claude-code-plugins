@@ -1,5 +1,3 @@
-"""Tests for recall_scan.py, run as a subprocess over transcripts written into a temp store."""
-
 from __future__ import annotations
 
 import json

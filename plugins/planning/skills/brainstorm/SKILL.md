@@ -130,6 +130,12 @@ routes write nothing.
 - Type and module decisions, with the contract already locked: /planning:design.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
+## Related
+
+- Need a visual spike before scoping: /prototype:explore-directions.
+- Need a logic or feasibility spike: /prototype:pressure-test.
+- Want to raise ambition without comparing options: /discipline:be-ambitious.
+
 ## What this skill does not do
 
 - **Does not decide**. User reactions drive selection; the skill recommends, marked (RECOMMENDED)

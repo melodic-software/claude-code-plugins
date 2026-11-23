@@ -285,6 +285,11 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 - PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
+## Related
+
+- Need codebase grounding on the product area: /discovery:explore.
+- Need external market or API research: /discovery:research.
+
 ## Gotchas
 
 - **Goals as outcomes, never implementations.** "Add a search box" is not a goal; "users can find a song from any of its lyrics in <2 seconds" is. Goals that pre-decide the architecture are the most common PRD failure

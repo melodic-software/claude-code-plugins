@@ -250,6 +250,12 @@ current one. End with the question for any blocking install.
 - existing violations to hold at today's count while they are cleaned up: /toolchain:ratchet.
 - a module-boundary rule: /architecture:enforce-boundaries.
 
+## Related
+
+- Mine past sessions for corrections: /session-flow:audit-sessions.
+- Redesign without architecture plugin: /planning:design.
+- Session-level retrospective: /session-flow:retro.
+
 ## Gotchas
 
 - **The check must fail for the right reason.** A command that fails on the old ref because a tool is

@@ -385,7 +385,6 @@ class MypyReportCollectTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = rows_of(result)
-            # An empty table lists no module, so the lane row is the only row.
             self.assertEqual(len(rows), 1)
             self.assertEqual(
                 rows[0]["values"],

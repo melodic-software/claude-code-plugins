@@ -146,20 +146,20 @@ with the same label flags, `<code>` a short code (`no-digest`, `storyboard`, `re
 Remove `<dir>` with `rm -rf -- <dir>` (the literal path) at the end, keeping `<out>` when the
 reader named it.
 
-## Related
-
-- `/review:explain-change` writes the digest this skill builds from; it never posts.
-- `/explainer-video:produce` renders the storyboard into the narrated video and its manifest.
-- `/source-control:pull-request` claims the head, places the section, and records a failure.
-- `/playwright:demo-video` records a live UI flow, the source of screenshot moments.
-- `/education:illustrate` explains a concept, not a pull request, with the same producer.
-
 ## Next
 
 /source-control:pull-request monitor
 
 The posted section is marked out of date by later pushes; monitor's next pass hands the PR back
 here.
+
+## Related
+
+- Write PR digest without posting: /review:explain-change.
+- Render storyboard into narrated video: /explainer-video:produce.
+- Record live UI flow for screenshots: /playwright:demo-video.
+- Explain a concept rather than a PR: /education:illustrate.
+- Claim the head, place the section, record a failure: /source-control:pull-request.
 
 ## Gotchas
 

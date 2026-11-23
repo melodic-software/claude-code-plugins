@@ -237,6 +237,11 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
 
 The component view reads dependency-graph.json.
 
+## Related
+
+- Chart deployables using dependency-graph.json: /architecture:map-containers.
+- Check manifest edges against boundary rules: /architecture:improve boundaries.
+
 ## Gotchas
 
 - **The shared .NET reader is the one portfolio-facts uses.** It reads each reference tag

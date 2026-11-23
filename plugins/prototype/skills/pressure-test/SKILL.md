@@ -307,6 +307,11 @@ the shell, terminal app or page alike; the module is often worth keeping, the sh
 - The model holds and no design question is open: `/planning:plan`, which schedules the logic module's lift.
 - The prototype invalidates the model: `/planning:design`.
 
+## Related
+
+- Visual layout or appearance questions: /prototype:explore-directions.
+- Fork turns on a qualified performance target: /performance:goal.
+
 ## Anti-patterns
 
 | Mistake | Why it fails | Instead |

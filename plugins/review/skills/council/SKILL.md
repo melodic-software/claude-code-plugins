@@ -296,6 +296,11 @@ changed any file adds: "Fixes from the council's rounds are unbuilt and untested
 - Findings to apply after the last round: /review:fanout fix.
 - Fixes applied between rounds: /verification:confirm.
 
+## Related
+
+- Single-lens focused review: /review:quality-gate.
+- Rate PR merge risk standalone: /review:merge-risk.
+
 ## Gotchas
 
 - `council-plan.mjs` prints to stdout and `select` reads files: Write its output with the Write

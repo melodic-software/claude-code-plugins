@@ -449,6 +449,11 @@ Failure patterns from real sessions: `context/gotchas.md`.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
+## Related
+
+- Problem still too rough to frame approaches: /planning:brainstorm.
+- Unfamiliar area needs blindspot pass first: /discovery:blindspot.
+
 ## Spoke paths
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is

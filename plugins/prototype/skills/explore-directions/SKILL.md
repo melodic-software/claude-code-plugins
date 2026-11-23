@@ -465,6 +465,11 @@ Before acting on a row, read [reference/boundaries.md](reference/boundaries.md) 
 - A direction wins but one artifact in it (a texture, a curve, a generated shape) keeps missing
   after prompting: `/prototype:build-generator`, run by the person, so hand over the command.
 
+## Related
+
+- Need an interactive parameter explorer returning a prompt: /playgrounds:use.
+- Need project design system tokens or props API: /user-interface:design.
+
 ## Anti-patterns
 
 Ordered from the costliest outcome on `/shipments` down:

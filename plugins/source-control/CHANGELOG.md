@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.10.1] - 2026-11-23
+
+### Changed
+
+- `/source-control:pull-request merge` now says that where the guardrails `block-unresolved-pr-merge` hook is enabled, a head pr-verify has not passed stays held after the 30-minute verdict wait instead of merging with no verdict read.
+
+- Skills now list their context-dependent links under `## Related`, placed after `## Next`, and `setup` names its successors under `## Next`, matching the committed skill-link table.
+
 ## [13.10.0] - 2026-11-23
 
 ### Changed

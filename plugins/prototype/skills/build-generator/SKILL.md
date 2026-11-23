@@ -197,6 +197,11 @@ When the user picks a keeper:
 
 /verification:confirm. It checks the harvested artifact against what the user approved in the tool.
 
+## Related
+
+- Product UI with nameable layout directions instead of parameter tuning: /prototype:explore-directions.
+- Parameter explorer returning a prompt instead of saved files: /playgrounds:use.
+
 ## Gotchas
 
 - A generic playground built before the diagnosis targets nothing: diagnose first, every time.
