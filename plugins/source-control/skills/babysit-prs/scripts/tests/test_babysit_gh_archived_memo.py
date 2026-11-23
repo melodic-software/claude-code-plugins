@@ -1,6 +1,3 @@
-"""`repository_is_archived` reads each repository's archived flag once per
-process; a failed read is not kept."""
-
 from __future__ import annotations
 
 import pathlib
