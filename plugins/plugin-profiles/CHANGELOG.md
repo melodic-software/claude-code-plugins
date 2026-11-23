@@ -3,6 +3,19 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-11-23
+
+### Added
+
+- **Skill links that leave a profile are reported.** `profiles.mjs check` reads each skill's `## Next` and `## Related` `/plugin:skill` targets and reports, without failing, a target whose plugin a profile switches off or whose skill it hides (`links.next`, and `links.related` as a separate informational list) and a target that resolves to no skill (`links.unresolved`). A profile's members are its plugins, its optional plugins, always-on unless it opts out, and their manifest dependencies, minus `exclude`. `--skills <plugins dir>` checks a repository tree against its shipped profiles and also lists catalog plugins no shipped profile names; without it the installed plugins are checked against your own profiles. `--changed <file>` puts the lines for the skills and profiles a change touched first, and with `GITHUB_STEP_SUMMARY` set the tree check writes them to the job summary, the rest under a collapsed heading.
+
+- `start --resume <id> --profile-add <plugin>` (and `claude --resume <id>` with `--profile-add <plugin>` through the dotfiles `claude` function) reopens a conversation in its recorded profile with an installed plugin the profile switched off, and its dependencies, on for that conversation only. It takes a plugin id, a plugin name, `plugin:skill` or a skill name, never settings text; an ambiguous name is refused with its candidates, and a plugin that is not installed with its `claude plugin install` line. A later `claude --resume <id>` of that conversation keeps the plugin; `claude -c`, new sessions, `launch` and handoffs start without it. `status` and the start notice name the added plugins.
+- In a one-session profile the session-start hook now tells the model how to reopen the conversation with an off plugin, through `additionalContext`, at start and again after compaction (the hook now also runs on `compact`, and there returns only that line).
+
+### Changed
+
+- Profile setup ends by offering the `claude` function's `--profile <name>` for one session instead of a folder apply.
+
 ## [0.9.8] - 2026-11-23
 
 ### Fixed

@@ -482,13 +482,19 @@ export const HOLD_LANES = [
   // but that one, whose rest later runs read.
   { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], names: ["Label Unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
   // A failed Refine pass reds its run, so this lane's red runs are read too,
-  // for record-passes's refine-failed warning.
+  // for record-passes's refine-failed warning. The 24 hours to
+  // 2026-11-23T04:40Z had about 105 green and red runs, 7 hours over the
+  // default cap of 6, and a peak of 14 completed in one hour. 12 covers
+  // every hour but that one, whose remaining runs a later pass reads from
+  // where the carry stopped. The raise from 6 to 12:
+  // https://github.com/melodic-software/claude-code-plugins/issues/16656
   {
     lane: "pr-refine",
     workflow: "pr-refine.yml",
     jobs: ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff", "record-passes"],
     names: ["Fix Docs Head Held", "Fix Docs Handoff", "Fix Docs Subscription Handoff", "Record Passes"],
     area: "PR refine lane (pr-refine fix-docs)",
+    holdRuns: 12,
     statuses: ["success", "failure"],
   },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9

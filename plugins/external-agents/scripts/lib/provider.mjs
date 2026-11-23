@@ -12,6 +12,7 @@ const REVIEW_KIND = ["native", "diff_file"];
 const UNAVAILABLE = ["auth", "usage-limit"];
 const HELP_NAME = /^[a-z0-9][a-z0-9-]*$/;
 const MODEL_FORMATS = ["tab_lines", "codex_catalog"];
+const USAGE_KINDS = ["jsonrpc_stdio", "json_envelope_lines"];
 const PREFACE_TOKENS = ["{base}", "{merge_base}", "{file_count}", "{files}"];
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -19,7 +20,7 @@ const isText = (v) => typeof v === "string" && v !== "";
 const isStrings = (v) => Array.isArray(v) && v.every((s) => typeof s === "string");
 const isStringMap = (v) => isMap(v) && Object.values(v).every((s) => typeof s === "string");
 
-const TOP = ["schema", "product", "docs_index", "config_reference", "help", "models", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
+const TOP = ["schema", "product", "docs_index", "config_reference", "help", "models", "harness", "usage", "binary", "version", "login_status", "unset_model", "model_flag", "profile_flag", "profile_on", "effort_flag", "effort_config", "config_arg", "always_args", "prompt", "output", "run", "resume", "review", "modes", "soft_deny", "unavailable"];
 const MODE = ["enforcement", "args", "settings", "settings_arg", "fallback_warning", "prompt_preface", "add_dir", "unsandboxed"];
 const VARIANT = ["args", "settings", "fallback_warning"];
 const OUTPUT = {
@@ -82,6 +83,29 @@ export function validateProvider(record) {
     need(MODEL_FORMATS.includes(record.models?.format), "models.format", `expected one of ${MODEL_FORMATS.join(", ")}`);
     optional(record.models?.effort_help, (v) => Object.hasOwn(record.help ?? {}, v) && isText(record.effort_flag), "models.effort_help", "expected a help entry name, with effort_flag set");
     need(!Object.hasOwn(record.help ?? {}, "models"), "help.models", "the models file is reserved for the models.args output");
+  }
+
+  if (record.harness !== undefined) {
+    if (!isMap(record.harness)) {
+      problems.push("harness: expected a mapping");
+    } else {
+      known(record.harness, ["tools", "image"], "harness");
+      optional(record.harness.tools, isStrings, "harness.tools", "expected a list of tool names");
+      optional(record.harness.image, (v) => typeof v === "boolean", "harness.image", "expected a boolean");
+    }
+  }
+
+  if (record.usage !== undefined) {
+    if (!isMap(record.usage)) {
+      problems.push("usage: expected a mapping");
+    } else {
+      const kind = record.usage.kind;
+      need(USAGE_KINDS.includes(kind), "usage.kind", `expected one of ${USAGE_KINDS.join(", ")}`);
+      known(record.usage, kind === "jsonrpc_stdio" ? ["kind", "args", "method", "timeout_ms"] : ["kind", "args", "timeout_ms"], "usage");
+      need(isStrings(record.usage.args) && record.usage.args.length > 0, "usage.args", "expected a list of arguments");
+      if (kind === "jsonrpc_stdio") need(isText(record.usage.method), "usage.method", "required for jsonrpc_stdio");
+      optional(record.usage.timeout_ms, (v) => Number.isInteger(v) && v > 0, "usage.timeout_ms", "expected a positive integer");
+    }
   }
 
   known(record.version, ["args", "sources", "markers"], "version");

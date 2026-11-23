@@ -2002,6 +2002,14 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh workflow-template-size {0}
         run: scripts/check-workflow-template-size.sh --check
 
+      - name: Check committed GraphQL operations against GitHub's schema
+        id: graphql_operations
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/check-graphql-operations@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        with:
+          paths: .github plugins
+          allowlist: .github/scripts/graphql-operations/unextractable.txt
+
       # Workflow, job, step and action names against melodic-software/standards'
       # github-actions-conventions naming lint, which the action runs from
       # standards main. It checks out standards under the workspace, so it
@@ -2038,7 +2046,7 @@ jobs:
           # the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene workflow-naming
+          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene workflow-naming graphql-operations
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
@@ -2076,6 +2084,7 @@ jobs:
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             workflow-naming=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_naming.outcome }}
+            graphql-operations=${{ steps.graphql_operations.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
             workflow-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}

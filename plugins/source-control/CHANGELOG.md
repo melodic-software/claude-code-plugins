@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.8.4] - 2026-11-23
+
+### Fixed
+
+- `/source-control:pull-request merge` waits for pr-verify's verdict at the pinned head before it merges or enqueues, in a repository that runs pr-verify and for an author pr-verify judges. It reads the four pass names the merge queue's CI Status step reads, waits up to 30 minutes while pr-verify has not judged the head, and holds on a FAIL (the `pr-verify-failed` label), a moved head or a failed read. With still no verdict after 30 minutes (pr-verify down), it merges and reports that, so an outage stops no merge. A PR queued before its verdict was removed from the merge queue when pr-verify then failed it.
+
 ## [13.8.3] - 2026-11-23
 
 ### Changed

@@ -7,6 +7,13 @@ models:
   args: [models]
   format: tab_lines
   effort_help: agy
+harness:
+  tools: [file, shell, web, mcp, invoke_subagent, define_subagent, manage_subagents, send_message, run_workflow, generate_image]
+  image: true
+usage:
+  kind: json_envelope_lines
+  args: [--output-format, json, "-p=/usage"]
+  timeout_ms: 15000
 binary:
   name: agy
   candidates:

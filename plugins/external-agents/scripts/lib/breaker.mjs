@@ -35,3 +35,11 @@ export function blockedBy(dataDir, product, now) {
   const state = readBreaker(dataDir, product);
   return state && Date.parse(state.next_trial_at) > now ? state : null;
 }
+
+/** @returns {{ open: boolean, reason: string | null, reset_at: string | null }} */
+export function breakerStatus(dataDir, product, now) {
+  const state = blockedBy(dataDir, product, now);
+  return state
+    ? { open: true, reason: state.reason ?? null, reset_at: state.next_trial_at ?? null }
+    : { open: false, reason: null, reset_at: null };
+}

@@ -1,14 +1,13 @@
-# The GraphQL sites graphql-operations.test.cjs cannot check, and the paths it
-# skips because their operations go to another GraphQL API. The schema,
-# schemas/github/schema.docs.graphql.gz, is
-# https://docs.github.com/public/fpt/schema.docs.graphql, gzipped.
+# The GraphQL sites the ci-workflows check-graphql-operations action cannot
+# check, and the paths it skips because their operations go to another GraphQL
+# API.
 #
 #   exclude <path prefix> <reason>
 #   <file> <count> <reason>
 #
 # <count> is the file's operations that do not parse after substitution, plus
 # its shorthand and query=@file sites, plus its request sites beyond the
-# operations extracted. The test fails when a file's count differs from its
+# operations extracted. The check fails when a file's count differs from its
 # row, a file has a count and no row, or an exclude matches no tracked file.
 
 exclude plugins/work-items/tools/work-item-tracker/seeds/linear/ Linear's GraphQL API

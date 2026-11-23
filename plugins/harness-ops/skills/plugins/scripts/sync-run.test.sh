@@ -1190,17 +1190,12 @@ assert_timings_shape "default path" "$out"
 # golden. A missing golden prints the actual report so a reviewer can freeze it.
 # ============================================================================
 GOLDEN_DIR="$SCRIPT_DIR/fixtures/render"
-# normalize_report <run_dir> <case_dir>: stdin's report with the run-specific
-# paths replaced, each Timing row elided and its sub-lines dropped.
 normalize_report() {
   sed -e "s|$1|<run_dir>|g" -e "s|$(norm_path "$2")|<case>|g" -e "s|$2|<case>|g" \
     -e 's/^Timing: .*/Timing: <elided>/' -e '/^  slowest step: /d' -e '/^  outside the named steps: /d' \
     -e '/^  outside the marketplace blocks: /d' -e '/^  clock resolution: /d' -e '/^  first pass: /d' \
     -e '/^  --only-install re-entry: /d' -e '/^  the wait between the passes /d'
 }
-# report_of <case_dir> <sync-run args...>: the normalized report from a
-# --render run. The digest line lands in REPORT_DIGEST, the exit status in
-# REPORT_RC, and the report body in REPORT_TEXT.
 report_of() {
   local case_dir="$1" out run_dir
   shift
@@ -1222,7 +1217,6 @@ assert_golden() {
     fail "$label" "report differs from $golden:"$'\n'"$d"
   fi
 }
-# A golden case's fleet: alpha installed at user scope, the catalog at $2.
 golden_fixture() {
   local case_dir="$1" catalog_version="$2" installed_version="$3" auto_update="$4"
   catalog_plugin "$case_dir" market1 alpha "$catalog_version"
@@ -1379,7 +1373,7 @@ assert_eq "text result: the update line still yields an Updated row" "alpha@mark
 # install-config-partial rows, 2.1.330. Each stub line must carry the same keys
 # and updateOutcome as its recording, so a stub drifting from the CLI fails here:
 # https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
-stub_line() { # stub_line <env...> -- <args...>: the stub's last stdout line
+stub_line() {
   local -a vars=()
   while [[ "$1" != -- ]]; do
     vars+=("$1")
@@ -3377,14 +3371,12 @@ fixture_git "$case_dir/origin" commit -q -m one
 git clone -q "$case_dir/origin" "$case_dir/mkt"
 origin_url=$(git -C "$case_dir/mkt" remote get-url origin)
 clone_head=$(git -C "$case_dir/mkt" rev-parse HEAD)
-# known_mkt <ref>: the marketplace record for the clone, pinned to <ref> when given.
 known_mkt() {
   jq -n --arg loc "$case_dir/mkt" --arg url "$origin_url" --arg ref "$1" \
     '{market1: {source: ({source: "git", url: $url} + (if $ref == "" then {} else {ref: $ref} end)),
                 installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}' \
     >"$case_dir/known_marketplaces.json"
 }
-# skip_run: one sync with a fresh CLI log.
 skip_run() {
   : >"$case_dir/claude.log"
   run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
@@ -3482,8 +3474,6 @@ exec bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
   chmod +x "$case_dir/stubs/fleet-state.sh"
   : >"$case_dir/fs.log"
 }
-# reuse_run <extra env...>: a sync run; sets out, run_dir and reads (the live
-# fleet-state.sh reads, projections left out).
 reuse_run() {
   EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1
     SYNC_FLEET_STATE_STORE_MARGIN_S=0 "$@")

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Why eol-normalizer ships no pre-commit entry: `git add` applies the same
-# .gitattributes to the bytes it stores, so rewriting a staged file's working-tree
-# line endings and re-staging it can never change what a commit holds.
-#
-# For each path shape the plugin handles, the file is staged twice in throwaway
-# repos with the same .gitattributes: once with the bytes as written, once after
-# normalize_eol_file (the plugin's own rewrite) has rewritten them. The blob git
-# stores must be identical, and for the `eol=` arms it must carry no CR. The
-# shapes the plugin skips (-text, binary under text=auto) are stored as written
-# either way, so the plugin and git agree there too.
 # test-scope: plugins/eol-normalizer/hooks/normalize-eol.sh
 
 set -uo pipefail
@@ -26,7 +16,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -41,7 +31,6 @@ source "$HOOK_DIR/normalize-eol.sh"
 
 ATTRS=$'*.sh eol=lf\n*.txt eol=crlf\n*.auto text=auto eol=lf\n*.raw -text eol=lf\n'
 
-# stored <repo-name> <file> <content-printf-arg> <rewrite:0|1> -> "<blob-sha> <CR count>"
 stored() {
   local r="$WORK/$1" f="$2" rewrite="$4"
   rm -rf "$r"
@@ -54,7 +43,7 @@ stored() {
   printf '%s %s' "$(git -C "$r" rev-parse ":$f")" "$(git -C "$r" cat-file blob ":$f" | tr -cd '\r' | wc -c | tr -d ' ')"
 }
 
-check() { # <label> <file> <bytes> <want CR in blob>
+check() {
   local raw rewritten
   raw="$(stored raw "$2" "$3" 0)"
   rewritten="$(stored rewritten "$2" "$3" 1)"

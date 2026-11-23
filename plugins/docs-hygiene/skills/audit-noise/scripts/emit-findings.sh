@@ -1,40 +1,4 @@
 #!/usr/bin/env bash
-# Compose a conforming review-findings file from detect.sh output.
-#
-#   emit-findings.sh --from <detect-output> --out <path> [--branch <b>]
-#
-# The FINDINGS HOME is never resolved here: the caller (the audit-noise skill)
-# resolves it from the memory root per the detector-findings convention and its
-# fetch-and-refuse gate, then hands the resolved path in as --out. This script
-# owns only the deterministic composition.
-#
-# ONLY the `negation` shape is emitted. The eight other shapes (citation,
-# ghost-ref, preamble, enum-list, scope-meta, plan-reference,
-# conversational-antecedent, ticket-pr-residue) carry no severity-crosswalk row,
-# and the detector-findings contract admits no row whose tier cannot be looked
-# up from one — those stay in the human report. Their rows are counted as
-# declined, never silently dropped. This list mirrors the appends in
-# lib/noise-shapes.sh:audit_noise_detect_shapes_into; that function is the
-# source, and a shape added there without touching this comment makes the
-# comment wrong, not the code.
-#
-# The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/contracts/detector-findings/README.md ("The severity crosswalk"); that
-# table is the source of truth — a tier change lands there first and is copied
-# here, never the reverse.
-#
-# BODY-SCOPE FENCE, RE-VERIFIED HERE. detect.sh already skips YAML frontmatter,
-# but this script recomputes the fence rather than trusting its input, and
-# additionally drops any body row whose line quotes a `'trigger phrase'` that
-# also appears in the file's own `description:` or `when_to_use:`. The reason is
-# plugins/skill-quality/scripts/check-skill.sh's trigger-phrase drop check: it
-# warns when a trigger phrase present at the base ref is missing from the working
-# tree, and a remediation that edits a description or a quoted trigger phrase is
-# an auto-invocation regression, because the description stops routing the intent
-# that phrase carried. Named rather than pinned to a line, because a line moves. A fence that
-# lives only in the caller is one caller away from being bypassed; findings that
-# reach an APPLY relay carry it in the writer.
-#
 # Exit: 0 on success, 2 on usage error, 3 when --from carries no detect.sh
 # blocks at all (not scanner output; refusing beats composing from garbage).
 # Zero EMITTABLE findings with blocks present still WRITES the file — coverage
@@ -113,10 +77,6 @@ done
   exit 2
 }
 
-# `branch:` is load-bearing for the consumer: fix-pass-mode.md "Step 1" admits a
-# candidate only on an EXACT branch match, so with no branch resolvable there is
-# no file the relay could ever match. Refuse rather than write one. This is the
-# normal state on a detached-HEAD CI checkout of a PR merge ref.
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null || true)"
   [[ -n "$BRANCH" ]] || {
@@ -130,14 +90,11 @@ if [[ -n "$CARVEOUT" && ! "$CARVEOUT" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-# A detect.sh block always opens with a `File: ` line. Anything without one is
-# not scanner output.
 if ! LC_ALL=C grep -qE '^File: .' "$FROM"; then
   echo "emit-findings.sh: $FROM has no detect.sh blocks; not scanner output" >&2
   exit 3
 fi
 
-# Non-overwrite naming: never clobber an unconsumed findings file.
 if [[ -e "$OUT" ]]; then
   n=2
   while [[ -e "${OUT%.md}-$n.md" ]]; do n=$((n + 1)); done
@@ -145,27 +102,8 @@ if [[ -e "$OUT" ]]; then
 fi
 mkdir -p "$(dirname "$OUT")"
 
-# ISO-8601 EXTENDED, colons in the time portion. The consumer parses this field:
-# fix-pass-mode.md "Step 1" reads a value only if it is a full ISO-8601 date-time
-# carrying an explicit UTC designator (Z) or numeric offset. The colon-free rule
-# the convention states elsewhere binds the FILE NAME, never this field.
 DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Repo root, for relativizing Location. The fix action fences each remediation
-# to its finding's Location, and an absolute path is not portable to the
-# checkout that applies the fix.
-#
-# One directory has SEVERAL SPELLINGS on Git Bash, and matching the wrong one
-# declines a real in-repo finding: this producer FAILS CLOSED, so a path it
-# cannot prove is under the root never reaches the relay. Measured on a Windows
-# host: `git rev-parse --show-toplevel` answers `<drive>:/Users/<user>/.../t`,
-# `cd` then `pwd` answers `/<drive>/Users/<user>/.../t`, and a caller reaching the same directory
-# as `/tmp/t` matches neither. Every finding was declined as outside the root and
-# the counts said so in a section nothing downstream reads.
-#
-# Three anchors, same shape as the harness-config sibling: the caller's own `pwd`
-# spelling (derived by removing the sub-path git reports for it), git's
-# toplevel, and `cd`-then-`pwd`.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 REPO_ROOT_PWD=""

@@ -187,7 +187,6 @@ elif [[ -f "$LEGACY" ]]; then
   current="$(jqr -e . "$LEGACY" 2>/dev/null)" || die "the old JSON team file is not valid JSON: $LEGACY"
   note="$(jqr -r '._comment // empty' <<<"$current")"
   header="# Migrated from $LEGACY_REL by /docs-naming:setup apply."
-  # Prefix every line: a multi-line _comment must not leave a bare line that parses as a key.
   [[ -z "$note" ]] || header="$header
 $(tr -d '\r' <<<"$note" | sed 's/^/# /')"
   current="$(jqr -c 'del(._comment) | .file_names |= (. // {})' <<<"$current")" || die "cannot read the old JSON team file: $LEGACY"
@@ -216,7 +215,6 @@ EOF
 
 current="$(jqr -c '.schema = 1' <<<"$current")" || die "cannot stamp the schema"
 
-# Compare as parsed documents so formatting alone never rewrites the file.
 if [[ -f "$TARGET" ]] && jqr -e -n --argjson a "$before" --argjson b "$current" '$a == $b' >/dev/null 2>&1; then
   printf 'already configured: %s\n' "$TARGET_REL"
   exit 0
