@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.0] - 2026-11-23
+
+### Changed
+
+- `audit-derivability` gains a `## Next` naming `/docs-hygiene:audit-noise`, `/docs-hygiene:extract-ssot` and `/work-items:track add` by verdict.
+
 ## [4.3.2] - 2026-11-23
 
 ### Changed
