@@ -40,7 +40,6 @@ assert_exit() {
   fi
 }
 
-# --- Build a fixture project with one TS, one Python, and one .NET server. ---
 proj="$TEST_TMPDIR/proj"
 mkdir -p "$proj/payments/node/src" "$proj/reports/python" "$proj/inventory/dotnet"
 git -C "$proj" init -q
@@ -113,7 +112,6 @@ public class InventoryTools
 }
 CS
 
-# A tool buried deeper than the scan-depth cap (12) — must NOT be discovered.
 deep="$proj/d1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/d13/d14"
 mkdir -p "$deep"
 cat >"$deep/server.py" <<'PY'
@@ -123,7 +121,6 @@ def deep_buried_tool() -> str:
     return ""
 PY
 
-# --- Cases ---
 assert_exit "--help exits 0" 0 "$(
   bash "$DISCOVER" --help >/dev/null 2>&1
   echo $?
@@ -182,11 +179,9 @@ case "$scoped" in
   *) pass "scoped run excludes out-of-scope tool" ;;
 esac
 
-# Unscoped scan uses CLAUDE_PROJECT_DIR even from a server subdirectory cwd.
 unscoped="$(cd "$proj/payments/node/src" && CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER")"
 assert_contains "unscoped CLAUDE_PROJECT_DIR scan finds sibling server" "$unscoped" "Tool: get_report"
 
-# --path outside the project boundary is refused (exit 3).
 outside="$(mktemp -d)"
 assert_exit "--path outside project refused (exit 3)" 3 "$(
   CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER" --path "$outside" 2>/dev/null

@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Find external citations into private skill internals (.claude/skills/<X>/...,
-# plugins/<plugin>/skills/<X>/... in marketplace monorepos, and relative forms
-# `skills/<X>/...` / `../`-resolved sibling cites — #2716).
-#
-# Contract this detector encodes: ../context/public-surface-contract.md
-# (bundled with this skill).
-# Scan root: the git repository the script runs in (the consumer repo), or the
-# current directory when outside a git repo.
-# Output TSV: file, line, match-text. Use --apply-filters to drop known
-# mechanically-decidable legal hits (self-citation, worktree paths).
-#
 # This script is a candidate enumerator, not a violation adjudicator. Exit 1
 # means candidates exist after mechanical filters — not that those hits are
 # illegal. Classify via the skill's filter taxonomy before treating any hit as
@@ -75,9 +64,6 @@ USAGE
   esac
 done
 
-# Allowlist: one `path<TAB>reason` row per exempt path (a file, or a directory
-# prefix ending in `/`); blank lines and `#` comments are skipped. A row with no
-# reason is an error: the file records why each path is exempt.
 ALLOW_PATHS=()
 if [[ -f "$ALLOWLIST_FILE" ]]; then
   allow_n=0
@@ -111,15 +97,6 @@ is_allowlisted() {
   return 1
 }
 
-# In-scope authoring surfaces, generalized for any consumer repo and filtered
-# to what exists (absent surfaces are skipped silently):
-#   - every .claude/ child directory EXCEPT skills/ (intra-skill self-citation
-#     is legal; opt back in via --include-skills) and worktrees/ (worktrees
-#     share the tracked tree; the same rules apply at the root path)
-#   - .github/ (workflows), docs/, .lefthook/ (git-hook scripts), plugins/
-#   - root instruction/config files plus .claude/ top-level files
-# CI/hook surfaces stay IN-SCOPE for hit detection; the scripts/ entry-surface
-# carve-out and the filter taxonomy decide legality downstream, not exclusion.
 SCOPE_DIRS=()
 for d in .claude/*/; do
   d="${d%/}"
@@ -143,51 +120,10 @@ if [[ ${#SCOPE_DIRS[@]} -eq 0 && ${#SCOPE_FILES[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# Private-surface pattern per ../context/public-surface-contract.md: any
-# subdir under a skill root is private; *.schema.json at any depth is
-# private; <skill>/SKILL.md#<anchor> heading-anchor cites are private.
-# Alternations (ERE form via grep -E):
-#   1. `<skill>/<subdir>/`          — any subdirectory name (contract: all
-#      subdirs regardless of name; excludes bare SKILL.md by requiring `/`)
-#   2. `<skill>/SKILL.md#<anchor>`  — heading-anchor cites
-#   3. `<skill>/<file>.schema.json` — schema files at any depth
-# Skill and subdir segments are `[A-Za-z0-9_.-]+` so uppercase, single-char,
-# digit-leading, and underscore-leading names match, while whitespace and prose
-# punctuation between roots cannot span a false multi-root match. Bare
-# `<skill>/SKILL.md` path cites still pass (discouraged-but-legal) because they
-# lack `#` and a trailing subdir slash. Does NOT match plain-JSON data files at
-# skill root (`<skill>/catalog.json`) per the data-file carve-out.
-# Skill-root layouts the detector matches (absolute + relative, #2716):
-#   - consumer-installed: `.claude/skills/<skill>/...`
-#   - marketplace monorepo: `plugins/<plugin>/skills/<skill>/...`
-#   - plugin-relative / short: `skills/<skill>/...` (README links, and the
-#     `skills/` suffix of `../`-prefixed paths that still name a skills root)
-# Absolute alternations are listed first so grep -o prefers the longer
-# leftmost match over the bare `skills/` suffix of the same path.
 PATTERN='\.claude/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/|\.claude/skills/[A-Za-z0-9_.-]+/SKILL\.md#|\.claude/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.schema\.json|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/SKILL\.md#|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.schema\.json|skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/|skills/[A-Za-z0-9_.-]+/SKILL\.md#|skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.schema\.json'
 
-# scripts/ entry-surface carve-out: a skill's `scripts/` is its declared ENTRY
-# surface — harness / CI / hooks / workflow registries MAY path-cite it. Like
-# the data-file public surface, scripts/ cites from callers outside plugins/
-# are never private, so they are dropped here rather than emitted as raw hits;
-# a file under plugins/<q>/ citing another plugin's scripts/ is not carved out
-# (is_cross_plugin_scripts). PATTERN
-# still matches scripts/ (the subdir alternation; ERE has no lookahead to
-# exclude one name), so the carve-out is a post-grep exclusion. The scan grep
-# below uses `-o` to emit ONE record per cite, so this carve-out drops only
-# the scripts/ cite — a line co-citing a scripts/ entry script AND another
-# skill's private subdir keeps the genuine cite instead of dropping the whole
-# line. Bare `skills/<x>/scripts/` is included so plugin-relative entry cites
-# stay carved out too (#2716). Filter on the matched *citation text* only —
-# never on the citing file's path — so a file that itself lives under
-# `skills/<x>/scripts/` does not have every citation it makes swallowed.
-# The skill-to-skill half of the asymmetry (a sibling SKILL.md citing
-# another skill's scripts/ stays slash-only) is out of this inbound audit's
-# scope — see the contract file.
 SCRIPTS_RE='^(\.claude/skills/[A-Za-z0-9_.-]+/scripts/|plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+/scripts/|skills/[A-Za-z0-9_.-]+/scripts/)'
 
-# Lexically resolve a repo-relative path with `.` / `..` segments. Returns 1 if
-# the path escapes the repo root. Used by the `../` relative-cite pass (#2716).
 lex_resolve() {
   local raw="$1" seg
   [[ "$raw" == /* ]] && return 1
@@ -209,9 +145,6 @@ lex_resolve() {
   printf '%s' "$joined"
 }
 
-# True when a resolved path is a private skill surface (subdir / SKILL.md#
-# / *.schema.json), matching the same contract as PATTERN. Trailing slash is
-# optional — lex_resolve drops a final empty segment.
 is_private_skill_path() {
   local p="$1"
   [[ "$p" =~ ^(\.claude/skills/|plugins/[^/]+/skills/)[A-Za-z0-9_.-]+/scripts(/|$) ]] && return 1
@@ -221,9 +154,6 @@ is_private_skill_path() {
   return 1
 }
 
-# When grep -o emitted only a bare `skills/<x>/...` suffix of a `../`-prefixed
-# cite, recover the leading `../...` span from the source line so resolution
-# can see the real target (cross-plugin same-leaf-name defense).
 recover_dotdot_prefix() {
   local file="$1" line_no="$2" text="$3" src before
   src="$(sed -n "${line_no}p" "$file" 2>/dev/null || true)"
@@ -236,12 +166,6 @@ recover_dotdot_prefix() {
   return 1
 }
 
-# True when a RELATIVE cite resolves back inside the citing file's own skill
-# root ($4, e.g. `.claude/skills/foo/` or `plugins/<plugin>/skills/<skill>/`). Both
-# relative shapes land here: a `../`-prefixed path resolves directly, while a
-# bare `skills/<self>/` short cite resolves through its recovered `../` prefix.
-# A bare short cite with no prefix to recover counts as self-citation outright,
-# because a plugin-relative cite names the citing file's own root.
 resolves_into_self() {
   local file="$1" line_no="$2" text="$3" self_root="$4"
   local full resolved
@@ -256,17 +180,11 @@ resolves_into_self() {
   [[ -n "$resolved" && "$resolved" == "$self_root"* ]]
 }
 
-# The plugin a repo path belongs to (`plugins/<q>/...` → q); status 1 when the
-# path is outside plugins/.
 plugin_of() {
   [[ "$1" =~ ^plugins/([^/]+)/ ]] || return 1
   printf '%s' "${BASH_REMATCH[1]}"
 }
 
-# Path of the skill folder a cite names, resolved against the citing file:
-# an absolute `plugins/<p>/skills/...` cite is itself; a `../`-prefixed cite, or
-# a bare `skills/...` one with a recoverable `../` prefix, resolves lexically.
-# Status 1 when the cite cannot be placed under a plugin.
 cite_target() {
   local file="$1" line_no="$2" text="$3" full
   if [[ "$text" == plugins/* ]]; then
@@ -283,9 +201,6 @@ cite_target() {
   lex_resolve "$(dirname "$file")/$full" || return 1
 }
 
-# True when a scripts/ cite comes from a file under plugins/<q>/ and lands in
-# another plugin p≠q. The entry-surface carve-out holds for callers outside
-# plugins/ (CI workflows, repo hooks) and for a plugin's own files.
 is_cross_plugin_scripts() {
   local file="$1" line_no="$2" text="$3" q p target
   # shellcheck disable=SC2310  # status 1 = file outside plugins/
@@ -297,10 +212,6 @@ is_cross_plugin_scripts() {
   [[ "$p" != "$q" ]]
 }
 
-# Skill-root and bare-SKILL.md cites (no trailing subdirectory, so PATTERN
-# misses them) from a file under plugins/<q>/ into plugins/<p>/skills/<s> with
-# p≠q. $1 = file, $2 = line, $3 = matched text. Prints nothing and returns 1
-# for any other shape; subdirectory, scripts/ and anchor cites are other passes'.
 is_cross_plugin_surface() {
   local file="$1" line_no="$2" text="$3" q p rest target
   [[ "$text" == *'#' ]] && return 1
@@ -315,9 +226,6 @@ is_cross_plugin_surface() {
   [[ -z "$rest" || "$rest" == "/SKILL.md" ]]
 }
 
-# Self-citation and worktree-path hits: the mechanically-decidable legal shapes
-# --apply-filters drops. A self-citation is a skill citing its own internals
-# (absolute, bare skills/<self>/, or ../-resolved into the same skill root).
 is_mechanically_legal() {
   local file="$1" line_no="$2" text="$3" self self_root
   if [[ "$file" =~ ^\.claude/skills/([^/]+)/ ]]; then
@@ -327,9 +235,6 @@ is_mechanically_legal() {
   elif [[ "$file" =~ ^(plugins/[^/]+)/skills/([^/]+)/ ]]; then
     self="${BASH_REMATCH[2]}"
     self_root="${BASH_REMATCH[1]}/skills/${self}/"
-    # Require same plugin root for absolute self-cites so a cross-plugin
-    # `.../other/skills/<same-name>/...` match cannot vacate as self-citation
-    # merely by skill leaf name (#2716 review).
     [[ "$text" == "$self_root"* || "$text" == *"/$self_root"* ]] && return 0
   else
     [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ||
@@ -337,13 +242,10 @@ is_mechanically_legal() {
       "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]
     return
   fi
-  # A bare skills/<self>/ may be the suffix of a ../-prefixed cross-root
-  # cite, so both relative shapes go through lexical resolution.
   [[ "$text" == "skills/${self}/"* || "$text" == ../* ]] || return 1
   resolves_into_self "$file" "$line_no" "$text" "$self_root"
 }
 
-# Split a grep "file:line:match" hit into the globals file, line_no and text.
 split_hit() {
   file="${1%%:*}"
   local rest="${1#*:}"
@@ -354,9 +256,6 @@ split_hit() {
 HITS_FILE="$(mktemp)"
 trap 'rm -f "$HITS_FILE"' EXIT
 
-# Emit "file:line:match" hits for a pattern across every in-scope surface.
-# Every text file type is read (-I skips binaries). Always returns 0: a
-# pattern with no hits is an ordinary outcome, not a failure.
 scan_scope() {
   local pattern="$1"
   if [[ ${#SCOPE_DIRS[@]} -gt 0 ]]; then
@@ -369,8 +268,6 @@ scan_scope() {
   fi
 }
 
-# Aggregate hits, then drop scripts/ entry-surface cites (carve-out above)
-# unless a plugin file reaches into another plugin's scripts/.
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   split_hit "$line"
@@ -381,23 +278,16 @@ while IFS= read -r line; do
   printf '%s\n' "$line" >>"$HITS_FILE"
 done < <(scan_scope "$PATTERN")
 
-# Cross-plugin pass: skill-root and bare-SKILL.md cites, which PATTERN misses
-# for want of a trailing subdirectory. Absolute paths (a github.com tree/blob or
-# raw.githubusercontent.com URL contains one) and ../-prefixed paths with a
-# `skills/` segment; a trailing `#` keeps an anchor cite out (PATTERN has it).
 CROSS_PATTERN='plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*#?|(\.\./)+([A-Za-z0-9_.-]+/)*skills/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*#?'
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   split_hit "$line"
-  # A trailing dot is sentence punctuation, not part of the name.
   text="${text%"${text##*[!.]}"}"
   # shellcheck disable=SC2310  # pure predicate; both branches handled
   is_cross_plugin_surface "$file" "$line_no" "$text" || continue
   printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
 done < <(scan_scope "$CROSS_PATTERN")
 
-# Own-marketplace-id pass: `<plugin>@<id>` for the id this repo's marketplace
-# manifest declares, outside install-recipe lines. Third-party ids never match.
 MARKETPLACE_ID=""
 if [[ -f .claude-plugin/marketplace.json ]]; then
   MARKETPLACE_ID="$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
@@ -418,17 +308,10 @@ if [[ -n "$MARKETPLACE_ID" ]]; then
   done < <(scan_scope "[A-Za-z0-9_.-]+@${ID_ESCAPED}\\.?([^A-Za-z0-9_.-]|\$)")
 fi
 
-# Second pass (#2716): `../`-prefixed cites whose lexical resolution lands on
-# a private skill surface. Covers sibling-skill links like
-# `../other-skill/reference/...` that never spell `skills/` in the cite text.
-# Candidates already matched by the bare `skills/` alternation (paths that
-# still contain a `skills/` segment after `../`) are skipped here to avoid
-# duplicate rows.
 DOTDOT_PATTERN='(\.\./)+([A-Za-z0-9_.-]+/)+([A-Za-z0-9_.-]+/|SKILL\.md#|[A-Za-z0-9_.-]+\.schema\.json)'
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   split_hit "$line"
-  # Already covered by the skills/-segment alternation.
   [[ "$text" == *"/skills/"* || "$text" == skills/* ]] && continue
   # shellcheck disable=SC2310  # lex_resolve returns status; continue is the handled miss
   resolved="$(lex_resolve "$(dirname "$file")/$text")" || continue
@@ -437,14 +320,6 @@ while IFS= read -r line; do
   printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
 done < <(scan_scope "$DOTDOT_PATTERN")
 
-# Convert grep "file:line:match" → "file<TAB>line<TAB>match". The `-o` scan
-# emits only the matched path text, which contains no colons, so colon
-# splitting is unambiguous. Under --apply-filters, drop the known
-# mechanically-decidable legal hit shapes (is_mechanically_legal); worktree
-# paths share the tracked tree, so the same rules apply at the root path.
-# Plugin-cache cites that only match via the bare `skills/` suffix are still
-# candidates for in-session Plugin-cache taxonomy judgment (#2776); the
-# mechanical cache branch stays absent.
 raw=0
 candidates=0
 while IFS= read -r line; do

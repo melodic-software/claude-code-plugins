@@ -49,13 +49,11 @@ assert_not_contains "merge --help never reaches gh" "$merge_out" "gh must not be
 assert_not_contains "merge --help does not reach the fail-closed guard" \
   "$merge_out" '"inScope"'
 
-# --- Case: the resolve wrapper behaves the same ------------------------------
 resolve_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-babysit-resolve-thread" --help 2>&1)
 assert_exit "resolve --help exit 0" 0 "$?"
 assert_contains "resolve --help prints usage" "$resolve_out" "usage: babysit_resolve_thread.py"
 assert_not_contains "resolve --help never reaches gh" "$resolve_out" "gh must not be invoked"
 
-# --- Case: the review-thread gate wrapper behaves the same -------------------
 threads_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-review-threads" --help 2>&1)
 assert_exit "review-threads --help exit 0" 0 "$?"
 assert_contains "review-threads --help prints usage" "$threads_out" "usage: pr_review_threads.py"

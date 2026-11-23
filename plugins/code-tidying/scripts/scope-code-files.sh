@@ -123,7 +123,6 @@ if [[ -n "$(git status --porcelain -uall 2>/dev/null)" ]]; then
   exit 0
 fi
 
-# Rung 2: branch diff against the base's merge-base.
 base=$(resolve_base) || base=""
 if [[ -n "$base" ]]; then
   head=$(git rev-parse HEAD)
@@ -135,7 +134,6 @@ if [[ -n "$base" ]]; then
   fi
 fi
 
-# Rung 3: whole repository.
 list=$(git ls-files -z | nul_lines | code_only)
 emit repository "$base" "$list"
 exit 0

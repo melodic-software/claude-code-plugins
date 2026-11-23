@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for emit-findings.sh, driven against the committed fixture
-# tree in fixtures/tree via fixtures/build-fixture.sh.
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -26,7 +21,6 @@ new_fixture() {
   printf '%s' "$d"
 }
 
-# audit <root> <workdir> : run the three stages, leave inv/sweep/plan behind
 audit() {
   mkdir -p "$2"
   bash "$INVENTORY" --root "$1" >"$2/inv.tsv"
@@ -34,8 +28,6 @@ audit() {
   bash "$SWEEP" --root "$1" --pairs "$2/pairs.tsv" >"$2/sweep.tsv"
   bash "$SUT" --root "$1" --inventory "$2/inv.tsv" --sweep "$2/sweep.tsv" --out "$2/plan.md"
 }
-
-# --- a plan from the clean fixture -------------------------------------------
 
 root="$(new_fixture)"
 work="$TEST_TMPDIR/w1"
@@ -59,8 +51,6 @@ assert_contains "each record counts the sites needing a human" "$plan" "- **Need
 assert_contains "a generated file touched by a rename is named" "$plan" "build/out.json"
 assert_contains "every site is listed with its form, tier, and action" "$plan" "| file | line | form | tier | action | excerpt |"
 
-# --- ids come from the old path, not from rank -------------------------------
-
 id_a="$(grep -m1 '^### FN-.*Alpha-One' "$work/plan.md" | awk '{print $2}')"
 assert_eq "an id is eight hex characters behind FN-" "1" "$(printf '%s' "$id_a" | grep -cE '^FN-[0-9a-f]{8}$')"
 
@@ -69,21 +59,15 @@ audit "$root" "$work2" >/dev/null
 id_a2="$(grep -m1 '^### FN-.*Alpha-One' "$work2/plan.md" | awk '{print $2}')"
 assert_eq "the same file keeps the same id across runs" "$id_a" "$id_a2"
 
-# --- a re-audit merges rather than overwriting decisions ----------------------
-
 sed -i.bak "/^### $id_a /,/^- \*\*Collision/ s/^- \*\*Status:\*\* pending/- **Status:** declined/" "$work/plan.md"
 rm -f "$work/plan.md.bak"
 audit "$root" "$work" >/dev/null
 assert_eq "a declined decision survives a re-audit" "1" "$(grep -c '^- \*\*Status:\*\* declined' "$work/plan.md")"
 assert_eq "the other records are still pending" "2" "$(grep -c '^- \*\*Status:\*\* pending' "$work/plan.md")"
 
-# --- --replace starts fresh ---------------------------------------------------
-
 bash "$SUT" --root "$root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" \
   --out "$work/plan.md" --replace >/dev/null
 assert_eq "--replace drops the carried decisions" "0" "$(grep -c '^- \*\*Status:\*\* declined' "$work/plan.md" || true)"
-
-# --- a branch mismatch refuses ------------------------------------------------
 
 sed -i.bak 's/^branch: .*/branch: some-other-branch/' "$work/plan.md"
 rm -f "$work/plan.md.bak"
@@ -91,8 +75,6 @@ assert_eq "an artifact from another branch is refused" "2" "$(
   bash "$SUT" --root "$root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" --out "$work/plan.md" >/dev/null 2>&1
   printf '%s' "$?"
 )"
-
-# --- an empty root cannot wipe a plan that holds findings ---------------------
 
 root="$(new_fixture)"
 work="$TEST_TMPDIR/w-empty"
@@ -119,8 +101,6 @@ bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empt
 assert_contains "scanned 0 with no existing plan writes findings: 0" "$(cat "$work/fresh.md")" "findings: 0"
 assert_contains "and records files_scanned: 0" "$(cat "$work/fresh.md")" "files_scanned: 0"
 
-# --- a collision refuses the whole plan ---------------------------------------
-
 root="$(new_fixture collision)"
 work="$TEST_TMPDIR/w3"
 mkdir -p "$work"
@@ -136,8 +116,6 @@ assert_contains "the colliding pair is named on stderr" "$err" "docs/beta.md"
 assert_contains "the reason is stated, not just the refusal" "$err" "case-insensitive checkout"
 assert_eq "nothing is written when a collision stands" "0" "$([[ -e "$work/plan.md" ]] && printf 1 || printf 0)"
 
-# --- garbage input refuses rather than composing ------------------------------
-
 printf 'this is not inventory output\n' >"$TEST_TMPDIR/garbage.tsv"
 assert_eq "an input with no records exits 3" "3" "$(
   bash "$SUT" --root "$root" --inventory "$TEST_TMPDIR/garbage.tsv" --sweep "$TEST_TMPDIR/garbage.tsv" --out "$TEST_TMPDIR/never.md" >/dev/null 2>&1
@@ -145,14 +123,10 @@ assert_eq "an input with no records exits 3" "3" "$(
 )"
 assert_eq "and writes nothing" "0" "$([[ -e "$TEST_TMPDIR/never.md" ]] && printf 1 || printf 0)"
 
-# --- read-only on the tree ----------------------------------------------------
-
 root="$(new_fixture)"
 work="$TEST_TMPDIR/w4"
 audit "$root" "$work" >/dev/null
 assert_eq "the audited tree is byte-identical afterwards" "" "$(git -C "$root" status --porcelain)"
-
-# --- a detached checkout still names its own branch slug ----------------------
 
 git -C "$root" checkout -q --detach >/dev/null 2>&1
 bash "$SUT" --root "$root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" \
@@ -162,8 +136,6 @@ assert_eq "and a branch change is refused rather than silently rewritten" "2" "$
   bash "$SUT" --root "$root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" --out "$work/plan.md" >/dev/null 2>&1
   printf '%s' "$?"
 )"
-
-# --- usage --------------------------------------------------------------------
 
 assert_eq "--help exits 0" "0" "$(
   bash "$SUT" --help >/dev/null 2>&1

@@ -261,8 +261,6 @@ test('every judging agent runs as the web-only sweep-worker; only fetchers run a
   assert.equal(toolsOf('sweep-worker'), 'WebFetch, WebSearch')
 })
 
-// ---- fetch stage and inline slices ----
-
 test('every selected page is fetched before any reader runs, and fetch prompts carry neither question nor claim', async () => {
   const { calls, result } = await run({ question: 'secret question text' })
   const firstRead = calls.findIndex(c => c.opts.label.startsWith('read:'))

@@ -7,7 +7,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, paginate, readPull, REPOSITORY } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../../scripts/lib/github-client.mjs";
+import { readPull, REPOSITORY } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { SIGNED_COMMITS_HOLD } from "../../scripts/pr-unblock/gate-source.mjs";
 
 // The escalation comment's first line, which the lane fixers and

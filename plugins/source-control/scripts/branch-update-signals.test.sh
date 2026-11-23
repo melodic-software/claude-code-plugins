@@ -182,9 +182,6 @@ one_signal() {
   expect "$label" "$signal" "$value"
 }
 
-########################################################################
-# The overlap helper
-########################################################################
 make_repo help-disjoint
 advance_main b.txt
 git -C "$WC" fetch -q origin main 2>/dev/null
@@ -262,9 +259,6 @@ patch pull '.base.ref = "release"'
 one_signal "non-default base with a rule: overlap from the paths" base_change_needed yes --repo example-org/rule-nondefault
 assert_file_absent "non-default base with a rule: the rule never ran" "$WORKDIR/release-rule-ran"
 
-########################################################################
-# Pull request mode: base_change_needed
-########################################################################
 make_repo app
 advance_main b.txt
 git -C "$WC" fetch -q origin main 2>/dev/null
@@ -317,9 +311,6 @@ expect "overlap: base_change_needed yes" base_change_needed yes
 WC="$WORKDIR/app"
 reset_fake "$SHA"
 
-########################################################################
-# Pull request mode: rewrite
-########################################################################
 one_signal "rewrite: pushed head without the flag" rewrite blocked
 echo '[{"type":"deletion"}]' >"$FAKE/head_rules"
 one_signal "rewrite: --allow-rewrite, no non_fast_forward" rewrite allowed --allow-rewrite
@@ -340,9 +331,6 @@ reset_fake "$SHA"
 FAKE_ERROR_BODY=1 FAKE_REFUSE='pulls/7$' one_signal "an error body for the pull request is not a stack answer" native_stack unknown
 reset_fake "$SHA"
 
-########################################################################
-# Pull request mode: other_authors and human_review
-########################################################################
 patch commits '.[0].author.login = "ALICE[bot]"'
 one_signal "other_authors: case and [bot] suffix normalized" other_authors no
 reset_fake "$SHA"
@@ -376,9 +364,6 @@ reset_fake "$SHA"
 FAKE_REFUSE='pulls/7/reviews' one_signal "human_review: reviews unreadable" human_review unknown
 reset_fake "$SHA"
 
-########################################################################
-# Pull request mode: landing
-########################################################################
 echo '[{"type":"merge_queue","parameters":{"merge_method":"MERGE"}}]' >"$FAKE/base_rules"
 one_signal "landing: the queue's method wins over squash allowed" landing keeps-commits
 echo '[{"type":"merge_queue","parameters":{"merge_method":"SQUASH"}}]' >"$FAKE/base_rules"
@@ -401,9 +386,6 @@ reset_fake "$SHA"
 FAKE_REFUSE='rules/branches/main' one_signal "landing: base rules unreadable" landing unknown
 reset_fake "$SHA"
 
-########################################################################
-# Pull request mode: the remaining signals
-########################################################################
 for login in "app/dependabot" "dependabot[bot]" "Renovate[bot]" "app/renovate-bot"; do
   patch pull ".user.login = \"$login\""
   one_signal "managed_head: $login" managed_head yes
@@ -485,9 +467,6 @@ reset_fake "$(git -C "$WC" rev-parse HEAD)"
 LABEL="other merge" run "$WC" --pr 7 --repo example-org/merged-other
 expect "base_merged: a merge of another branch" base_merged no
 
-########################################################################
-# No --repo: the repository comes from GH_REPO, not gh's recorded default
-########################################################################
 WC="$WORKDIR/app"
 reset_fake "$SHA"
 GH_REPO=example-org/app LABEL="GH_REPO" run "$WC" --pr 7
@@ -547,9 +526,6 @@ assert_exit "usage: --dir naming no directory" 2 "$?"
 (cd "$WORKDIR" && bash "$SIGNALS" --pr 7 --dir "$WC" --dir "$WC" >/dev/null 2>&1)
 assert_exit "usage: --dir given twice" 2 "$?"
 
-########################################################################
-# Refused reads: every field unknown, nothing fails
-########################################################################
 WC="$WORKDIR/app"
 reset_fake "$SHA"
 FAKE_REFUSE='.' LABEL="all refused" run "$WC" --pr 7
@@ -578,9 +554,6 @@ assert_exit "usage: branch without base" 2 "$?"
 (cd "$WC" && bash "$SIGNALS" --pr 7 --repo '-x/y' >/dev/null 2>&1)
 assert_exit "usage: repository starting with -" 2 "$?"
 
-########################################################################
-# Branch-only mode
-########################################################################
 branch_run() {
   LABEL="$1" run "$WC" --branch "${BRANCH_NAME:-feat/x}" --base main --repo "example-org/$REPO_NAME" "${@:2}"
 }
@@ -666,9 +639,6 @@ expect "branch: base fetch failed: behind" behind unknown
 expect "branch: base fetch failed: base_change_needed" base_change_needed unknown
 expect "branch: base fetch failed: other_authors" other_authors unknown
 
-########################################################################
-# The setting
-########################################################################
 WC="$WORKDIR/app"
 reset_fake "$SHA"
 echo 'pr_update_method: rebase' >"$FAKE/config"

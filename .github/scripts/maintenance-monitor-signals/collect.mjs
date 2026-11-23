@@ -6,6 +6,7 @@ import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
 import { HOLD_LANES, holdJob, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { CHECK_RUN_ANNOTATIONS, isObject, jobsKey, readNodes, restAnnotations, restJobs, RUN_CHECK_RUNS, slimJob } from "../lib/run-jobs.mjs";
 
 export const LIMITS = {
   prMergeRuns: 12,
@@ -46,15 +47,18 @@ export const LIMITS = {
   stalledCommentRounds: 2,
   stalledChecks: 20,
   // Uncarried green runs per hold lane read in one window, oldest completion
-  // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
-  // up to holdListPages run list pages (pr-verify's and pr-merge's own 5,
-  // pr-review-main's 4), then each run's jobs and the annotations of each
-  // green job that prints a hold. Every lane's jobs are read in one GraphQL
-  // query per 25 runs, and its annotations in one per 25 jobs. A run has one
-  // green hold job (pr-verify's one of three), but pr-review-main's about 3
-  // (its trigger and two review legs) and pr-merge's up to 2, so at most
-  // 4 × 3 + 5 + 4 + 5 list pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 list queries and
-  // 1 + 1 + 1 + 2 + 4 + 9 + 7 annotation queries (67 calls, 41 of them
+  // first. Only work-resolve-issue uses this default. The other lanes,
+  // including pr-refine, set their own caps (signals.mjs HOLD_LANES holdRuns).
+  // Each status costs up to holdListPages run list pages (pr-verify and
+  // pr-merge set 5, pr-review-main sets 4, and pr-refine lists green and red
+  // separately), then each run's jobs and the annotations of each green
+  // hold job are read. Every lane's jobs are read in one GraphQL query per
+  // 25 runs, and its annotations in one per 25 jobs. A run has one green
+  // hold job (pr-verify's one of three), with up to 4 for pr-refine, about 3
+  // for pr-review-main (its trigger and two review legs), and up to 2 for
+  // pr-merge. In lane order, that is at most 3 + 3 + 6 + 3 + 5 + 4 + 5 list
+  // pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 job list queries and
+  // 1 + 1 + 2 + 2 + 4 + 9 + 7 annotation queries (71 calls, 42 of them
   // GraphQL), plus one lane-hold marker list per lane (7). A re-run, or a
   // node GraphQL does not answer, is read through REST, one call a jobs or
   // annotation read; a REST list has steps, so pr-verify and pr-review-main
@@ -64,9 +68,10 @@ export const LIMITS = {
   // lists but not the annotations, those two lanes spend at most 7 + 150
   // list calls and one annotation read per held job, not 290 for every green
   // hold job; the other lanes'
-  // 152 jobs and about 232 annotation reads put the source past
+  // 158 job lists and about 274 annotation reads put the source past
   // CALL_BUDGET at the caps either way. Past the cap, the span stops at the
-  // last run read and the window is a gap.
+  // last run read and the window is a gap. pr-refine's cap of 12:
+  // https://github.com/melodic-software/claude-code-plugins/issues/16656
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own
   // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the
@@ -94,54 +99,6 @@ async function queryRepo(graphql, repo, query) {
   const result = await graphql(query, { owner, name });
   if (result?.errors?.length) throw new Error(`GraphQL: ${result.errors.map((e) => e.message).join("; ")}`);
   return result?.data?.repository ?? {};
-}
-// GraphQL reads that stand in for REST job lists and annotation reads, so
-// they spend the GraphQL limit rather than core. One query reads NODES_BATCH
-// runs' check runs, or NODES_BATCH check runs' annotations, in about a second;
-// check-run steps stay on REST, since a GraphQL read of 5 runs' steps timed
-// out. A re-run's list stays on REST, whose filter=latest keeps only its last
-// attempt's jobs.
-const NODES_BATCH = 25;
-const CHECK_RUNS_PAGE = 30;
-const RUN_CHECK_RUNS = `query($ids: [ID!]!) { nodes(ids: $ids) { ... on WorkflowRun { databaseId runAttempt checkSuite { checkRuns(first: ${CHECK_RUNS_PAGE}, filterBy: { checkType: ALL }) { totalCount nodes { id databaseId name status conclusion } } } } } }`;
-const CHECK_RUN_ANNOTATIONS = "query($ids: [ID!]!) { nodes(ids: $ids) { ... on CheckRun { databaseId annotations(first: 100) { totalCount nodes { annotationLevel title message } } } } }";
-// Each id's node, in order, or null where the answer has none, an error names
-// it, or the query failed: the caller reads that one through REST.
-async function readNodes(graphql, query, ids) {
-  const out = ids.map(() => null);
-  for (let at = 0; at < ids.length; at += NODES_BATCH) {
-    let result;
-    try {
-      result = await graphql(query, { ids: ids.slice(at, at + NODES_BATCH) });
-    } catch {
-      continue;
-    }
-    const errors = result?.errors ?? [];
-    const named = errors.map((e) => (e?.path?.[0] === "nodes" && Number.isInteger(e.path[1]) ? e.path[1] : null));
-    if (!Array.isArray(result?.data?.nodes) || named.includes(null)) continue;
-    result.data.nodes.forEach((node, i) => {
-      if (at + i < out.length && !named.includes(i)) out[at + i] = node ?? null;
-    });
-  }
-  return out;
-}
-// A whole connection's nodes, or null when it is missing, cut short or holds a null.
-const wholeNodes = (connection) =>
-  Array.isArray(connection?.nodes) && connection.nodes.length === connection.totalCount && connection.nodes.every((n) => n !== null && typeof n === "object") ? connection.nodes : null;
-const lower = (value) => (typeof value === "string" ? value.toLowerCase() : null);
-// A run's check runs as the REST jobs list shapes them, oldest first, without
-// steps, or null when the node does not answer for the run in full.
-export function restJobs(node, run) {
-  const runs = node?.databaseId === run.id && node.runAttempt === 1 ? wholeNodes(node.checkSuite?.checkRuns) : null;
-  if (!runs?.length || !runs.every((c) => Number.isSafeInteger(c.databaseId) && typeof c.id === "string")) return null;
-  return runs
-    .map((c) => ({ id: c.databaseId, node_id: c.id, name: c.name, status: lower(c.status), conclusion: lower(c.conclusion) }))
-    .sort((a, b) => a.id - b.id);
-}
-// A check run's annotations as REST shapes the fields the sources read, or null.
-export function restAnnotations(node, job) {
-  const nodes = node?.databaseId === job.id ? wholeNodes(node.annotations) : null;
-  return nodes && nodes.map((a) => ({ annotation_level: lower(a.annotationLevel), title: a.title, message: a.message }));
 }
 
 // A comment connection's page, oldest first; GraphQL names a Bot without
@@ -172,6 +129,7 @@ const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 export const QUEUE_HOLD_STEPS = new Set(["Fail a queued pull request a hold stops, before the lanes", "Fail a lanes App pull request on kill switch, hold path, verifier or veto"]);
 export const KILL_SWITCH = /^#\d+: the lanes kill switch is on \(/;
 const QUEUE_ITEMS = 100;
+const QUEUE_PULLS_BATCH = 25;
 const QUEUE_FIELDS =
   "pageInfo { hasPreviousPage } nodes { __typename ... on AddedToMergeQueueEvent { createdAt } ... on RemovedFromMergeQueueEvent { createdAt reason } ... on LabeledEvent { createdAt label { name } } }";
 
@@ -226,18 +184,8 @@ const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 // or the rule for keeping them change.
 export const JOBS_ARTIFACT = "monitor-signals-jobs";
 export const JOBS_FILE = "jobs.json";
-export const JOBS_VERSION = 1;
-const jobsKey = (id, attempt) => `${id}:${attempt}`;
-const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+export const JOBS_VERSION = 2;
 const isTimeOrNull = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
-// A job with only the fields the sources read.
-const slimJob = (job) => ({
-  id: job.id,
-  name: job.name,
-  status: job.status,
-  conclusion: job.conclusion,
-  steps: Array.isArray(job.steps) ? job.steps.map((s) => ({ name: s?.name, number: s?.number, status: s?.status, conclusion: s?.conclusion })) : job.steps,
-});
 
 // The carried job reads by run id and attempt, or an error for any other shape.
 export function parseJobsCarry(text, repo) {
@@ -605,8 +553,8 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     const from = iso(new Date(since.getTime() - RUN_LOOKBACK_HOURS * 3600_000));
     data.mergeQueueRemovals = [];
-    for (let i = 0; i < pulls.length; i += NODES_BATCH) {
-      const batch = pulls.slice(i, i + NODES_BATCH);
+    for (let i = 0; i < pulls.length; i += QUEUE_PULLS_BATCH) {
+      const batch = pulls.slice(i, i + QUEUE_PULLS_BATCH);
       const answer = await queryRepo(graphql, repo, batchQuery(batch.map((n) => `pullRequest(number: ${n}) { timelineItems(since: "${from}", last: ${QUEUE_ITEMS}, itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT, LABELED_EVENT]) { ${QUEUE_FIELDS} } }`)));
       batch.forEach((pr, j) => {
         const items = answer[`a${j}`]?.timelineItems;

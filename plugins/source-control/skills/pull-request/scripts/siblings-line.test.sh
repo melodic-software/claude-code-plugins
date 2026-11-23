@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for siblings-line.sh, black-box with a stubbed `gh` on PATH.
 
 set -uo pipefail
 

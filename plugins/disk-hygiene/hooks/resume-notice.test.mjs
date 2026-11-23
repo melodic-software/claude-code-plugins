@@ -1,7 +1,4 @@
 // test-scope: plugins/disk-hygiene/hooks/hooks.json
-// Contract tests for the resume notice (#9853): a resumed session hears that the
-// clean skill's guard is gone only when /disk-hygiene:clean ran in that session,
-// and every other session start stays quiet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
@@ -74,8 +71,6 @@ test('an unexpanded data placeholder falls back to the tmp candidate off Windows
   ])
 })
 
-// End to end through the registered rows: the UserPromptExpansion row writes the
-// marker through the real launcher, and the SessionStart row reads it.
 function registered(event, needle) {
   const rows = hooksJson.hooks[event].flatMap((group) => group.hooks)
   const row = rows.find((h) => [h.command, ...(h.args ?? [])].join(' ').includes(needle))

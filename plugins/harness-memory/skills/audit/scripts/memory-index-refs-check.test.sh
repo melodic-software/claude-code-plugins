@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for memory-index-refs-check.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,13 +14,10 @@ slug_of() {
   printf '%s' "$root" | sed 's/[:\\/.]/-/g'
 }
 
-# A fixture repo; the script resolves the memory dir via its sibling resolver, which
-# derives the dir from the cwd repo root + HOME. Each case gets its own HOME.
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 SLUG=$(slug_of "$REPO")
 
-# mem_dir_for <home> — create + echo the memory dir the resolver will pick for that HOME.
 mem_dir_for() {
   local dir="$1/.claude/projects/$SLUG/memory"
   mkdir -p "$dir"
@@ -31,13 +27,11 @@ mem_dir_for() {
 # for the fixture. Case 7 drops GIT_DIR as well and calls `env` directly.
 run() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT" "${2:-}"); }
 
-# --- Case 1: --help ---
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: clean index (all links resolve, no orphans) ---
 H2="$TEST_TMPDIR/h2"
 M2=$(mem_dir_for "$H2")
 printf '# Index\n- [a.md](a.md)\n- [b.md](b.md)\n' >"$M2/MEMORY.md"
@@ -47,7 +41,6 @@ OUT=$(run "$H2")
 assert_contains "clean index reports OK" "$OUT" "integrity OK"
 assert_eq "clean count == 0" "0" "$(run "$H2" --count)"
 
-# --- Case 3: missing target (index links absent file) ---
 H3="$TEST_TMPDIR/h3"
 M3=$(mem_dir_for "$H3")
 printf '# Index\n- [a.md](a.md)\n- [gone.md](gone.md)\n' >"$M3/MEMORY.md"
@@ -56,7 +49,6 @@ OUT=$(run "$H3")
 assert_contains "flags M2-missing" "$OUT" "M2-missing"
 assert_contains "names the missing file" "$OUT" "gone.md"
 
-# --- Case 4: orphan topic file (present, not indexed) ---
 H4="$TEST_TMPDIR/h4"
 M4=$(mem_dir_for "$H4")
 printf '# Index\n- [a.md](a.md)\n' >"$M4/MEMORY.md"
@@ -67,7 +59,6 @@ assert_contains "flags M2-orphan" "$OUT" "M2-orphan"
 assert_contains "names the orphan file" "$OUT" "loose.md"
 assert_eq "orphan count == 1" "1" "$(run "$H4" --count)"
 
-# --- Case 5: orphan opt-out marker suppresses ---
 H5="$TEST_TMPDIR/h5"
 M5DIR=$(mem_dir_for "$H5")
 printf '# Index\n- [a.md](a.md)\n' >"$M5DIR/MEMORY.md"
@@ -77,7 +68,6 @@ OUT=$(run "$H5")
 assert_not_contains "opt-out orphan not flagged" "$OUT" "staging.md"
 assert_eq "opt-out count == 0" "0" "$(run "$H5" --count)"
 
-# --- Case 6: no MEMORY.md (fresh) ---
 H6="$TEST_TMPDIR/h6"
 mem_dir_for "$H6" >/dev/null
 rc=0

@@ -21,12 +21,8 @@ BeforeAll {
 
     $script:Pwsh = (Get-Process -Id $PID).Path
     $script:SavedOneDrive = $env:OneDrive
-    # The session token of an administrator under UAC; a case below overrides it.
     Mock Get-TokenElevationType { 'Limited' }
 
-    # Run the launch string in a child pwsh; returns its exit code, its stderr and the
-    # parameters the stub orchestrator wrote to bound.json (UTF-8, so no console code page
-    # alters them), or $null when the stub did not run.
     function Invoke-LaunchString {
         param([string] $ArgumentString, [string] $WorkDir, [string] $BoundPath)
         $stdout = Join-Path $WorkDir "stdout-$([guid]::NewGuid()).txt"
@@ -41,8 +37,6 @@ BeforeAll {
         return [pscustomobject]@{ ExitCode = $process.ExitCode; Bound = $bound; Stderr = Get-Content -LiteralPath $stderr -Raw }
     }
 
-    # A skill root holding a stub orchestrator, which writes what it received to -BoundPath
-    # (outside the root, since the elevated run executes a copy it then removes), and one lib script.
     function New-StubSkillRoot {
         param([string] $Root, [string] $BoundPath)
         $skillRoot = Join-Path $Root 'skill root'
@@ -73,7 +67,6 @@ Describe 'New-ElevatedLaunch' -Tag 'lib' {
         $script:boundPath = Join-Path $script:work 'bound.json'
         $script:skillRoot = New-StubSkillRoot -Root $root -BoundPath $script:boundPath
         $script:libPath = Join-Path $script:skillRoot 'scripts\windows\lib\Stub-Lib.ps1'
-        # Characters PowerShell would read as code outside a single-quoted literal.
         $script:root = $root
         $script:stateBase = Join-Path $root ('state base $x;&(%)' + [char]96 + 'n')
         $script:outputBase = Join-Path $root 'reports out; $(1)'
@@ -342,7 +335,6 @@ Describe 'Get-ElevatedPassManifest' -Tag 'lib' {
             New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
             Set-Content -LiteralPath $path -Value $relative
         }
-        # A hidden lib script still loads, so it is still listed.
         $hidden = Get-Item -LiteralPath (Join-Path $root 'scripts\windows\lib\A.ps1')
         $hidden.Attributes = $hidden.Attributes -bor [System.IO.FileAttributes]::Hidden
 
@@ -400,8 +392,6 @@ Describe 'Get-SystemEnvironmentVariable' -Tag 'lib' {
 
 Describe 'Invoke-ElevatedBootstrap' -Tag 'lib' {
     BeforeAll {
-        # Runs the bootstrap in its own pwsh, since it rewrites that process's environment, with the
-        # staging-folder seam: a plain folder under -StagingParent in place of the admin-only one.
         $script:runner = Join-Path $TestDrive 'run-bootstrap.ps1'
         Set-Content -LiteralPath $script:runner -Encoding utf8 -Value @'
 param([string] $LibRoot, [string] $SkillRoot, [string] $StagingParent, [string] $ChangeAfterManifest)
@@ -465,7 +455,6 @@ Describe 'Elevated pass round trip' -Tag 'lib' {
             } }
         Start-Sleep -Milliseconds 20
 
-        # -Elevated $true stands in for the admin token.
         Write-ElevatedResult -Path $launch.ResultPath -FileId $launch.ResultFileId -Elevated $true `
             -Results @(& $result 'disk-space' 'WARN' 'elevated reading') -Log @('check_ok id=disk-space')
         $import = Import-ElevatedResult -Path $launch.ResultPath -CheckResults @(& $result 'disk-space' 'UNKNOWN' 'standard reading')

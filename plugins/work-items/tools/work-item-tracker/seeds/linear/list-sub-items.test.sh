@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/seeds/linear/*.sh
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # list-sub-items: offline contract tests.
 #

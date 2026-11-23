@@ -80,28 +80,9 @@ set -uo pipefail
 
 PROG="run-state.sh"
 
-# A fenced append is neither success nor a usage error, so it gets its own code:
-# the record was written (to the writer's own epoch file), and the run that wrote
-# it has been superseded and must stop.
 EXIT_FENCED=3
 
-# Defaults for the liveness window. Stated here rather than left to the caller
-# because "live or abandoned" is a classification two implementations must reach
-# identically or `--resume` is nondeterministic — and every lease records the
-# values its writer committed to, so `classify` reads them from the artifact
-# instead of assuming its own.
-#
-# 1800s, not 300s: 300s assumes a 60-second wall-clock heartbeat, and a
-# skill-driven run has no timer: it acts between tool calls, so it can only refresh at boundaries it
-# actually reaches — acquire, each lane's persistence point, release. A single
-# delegated lane can outlast five minutes, and a threshold shorter than a lane
-# makes a *running* pass classify as abandoned, which is the one direction that
-# is unsafe. Longer only ever costs an operator a wait, and the `released`
-# tombstone removes that cost from every clean exit.
 DEFAULT_STALE_AFTER_S=1800
-# One refresh boundary of tolerance for a clock that jumped forward and was
-# corrected. A heartbeat further ahead than this is a clock artifact, not
-# evidence of life.
 DEFAULT_SKEW_GRACE_S=60
 
 die() {
@@ -134,11 +115,6 @@ EOF
 now_epoch() { date -u +%s; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
-# A run id becomes a directory component. Accept only a plain segment: no
-# separators, no `..`, no leading dot, no absolute path. Rejecting here is what
-# keeps a caller-supplied id from walking the run directory out of the plugin's
-# own namespace — the same class of defect lib/state-key.sh validates a remote
-# URL against.
 validate_run_id() {
   local id="$1"
   if [[ -z "$id" ]]; then
@@ -159,8 +135,6 @@ physical_path() {
   (cd "$1" 2>/dev/null && pwd -P) || return 1
 }
 
-# Physical form of the deepest existing ancestor of a path, which is the only
-# part of it a symlink can be in before the path is created.
 physical_existing_prefix() {
   local p="$1" guard=0
   while [[ ! -d "$p" ]]; do
@@ -191,18 +165,6 @@ require_non_negative_int() {
   fi
 }
 
-# `--stale-after 0` and `--epoch 0` are not merely odd values, they invert the
-# mechanism. A lease carrying stale_after_s=0 satisfies `delta >= stale_after`
-# on the very first classify, so it is born abandoned: acquire it and `--resume`
-# will adopt it out from under the live run that just wrote it. Zero has to be
-# refused rather than clamped, because a clamp would silently give the caller a
-# threshold it did not ask for and `classify` would then report a window nobody
-# chose — the shape of defect this script exists to remove. `--skew-grace 0` is
-# left legal: it means "tolerate no forward clock jump", which is a coherent
-# choice and inverts nothing.
-# `--epoch 0` is refused for a different reason — epochs start at 1, so 0 names no
-# writer's file — which is why the reason travels as an argument rather than being
-# hardcoded to the staleness case.
 require_int_at_least_one() {
   local name="$1" value="$2" why="$3"
   require_non_negative_int "$name" "$value"
@@ -211,29 +173,6 @@ require_int_at_least_one() {
   fi
 }
 
-# Is this string one well-formed single-line JSON object?
-#
-# `case "$record" in '{'*)` was not enough: it accepts `{bad json}`, and a
-# malformed row in an append-only artifact is permanent — resume and assembly
-# then cannot parse the record stream they are the only readers of, so a
-# serialization slip in the caller costs the run's persisted state rather than
-# one record. The check has to fire on construction errors, not just on obviously
-# non-JSON input.
-#
-# THREE RUNGS, AND THE WEAKEST ONE SAYS SO. `jq` answers definitively where it is
-# installed; `python3` answers definitively where it is not (and this plugin
-# already depends on it elsewhere), so the structural rung is reached only on a
-# host with neither. That rung tracks string context and escapes to verify
-# brace/bracket balance, string termination, and that the object opens with a
-# quoted key or closes empty — which rejects `{bad json}`, truncated rows and
-# unbalanced ones, but NOT every malformed object: `{"a" garbage}` balances and
-# opens with a quoted key, and no non-parser catches it. So the structural rung
-# ANNOUNCES itself on stderr rather than passing for the real thing. A check that
-# claims more than it verifies is the defect this whole file exists to remove.
-#
-# Neither parser is made a hard requirement: this is the run's state-persistence
-# path, and failing it closed on a missing optional tool would cost the artifact
-# the check exists to protect. The residual is disclosed instead of hidden.
 record_is_json_object() {
   local s="$1"
   [[ "$s" == '{'*'}' ]] || return 1
@@ -291,7 +230,6 @@ record_is_json_object() {
   esac
 }
 
-# Read one key=value field out of a lease file. Prints the value, or nothing.
 lease_field() {
   local file="$1" key="$2" line
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -302,7 +240,6 @@ lease_field() {
   done <"$file"
 }
 
-# Read the lease fields a rewrite carries forward into LEASE_* globals.
 read_lease() {
   local file="$1/lease"
   LEASE_RUN_ID=$(lease_field "$file" run_id)
@@ -313,11 +250,6 @@ read_lease() {
   LEASE_HEARTBEAT=$(lease_field "$file" heartbeat_at)
 }
 
-# write_lease <dir> <state> <released_at> <heartbeat_at> <heartbeat_at_iso>,
-# every other field from the LEASE_* globals; released_at is written only for
-# the `released` state. Replaced atomically: a reader never observes a half-written lease,
-# and a crash mid-write leaves the previous lease intact rather than a truncated
-# one that would classify as unreadable.
 write_lease() {
   local dir="$1" state="$2" released_at="$3" heartbeat="$4" heartbeat_iso="$5"
   local tmp body
@@ -465,14 +397,6 @@ cmd_lease_acquire() {
     die "--run-dir is required"
   fi
 
-  # ACQUIRE IS THE ONLY COMMAND THAT CREATES A DIRECTORY, so it is where
-  # containment is established — every later command operates on a run dir this
-  # one already validated. Without the check, a caller that hands over a wrong or
-  # invented `--run-dir` gets that directory created and a `lease` written into
-  # it, and the skill keeps Bash specifically for state writes while promising a
-  # bare audit writes nothing into the target: passing the target root here would
-  # have broken that promise silently. So the run directory must lie under
-  # `<plugin-data>/runs/`, which is the only tree this script may write.
   plugin_data="${plugin_data:-${CLAUDE_PLUGIN_DATA:-}}"
   [[ -n "$plugin_data" ]] ||
     die "--plugin-data is required so --run-dir can be checked for containment; pass the same value given to 'paths'"
@@ -586,10 +510,6 @@ cmd_lease_classify() {
     die "--run-dir is required"
   fi
 
-  # A lease that is missing or unreadable is not evidence of life. Say `missing`
-  # rather than erroring: the absence of a heartbeat is itself the answer resume
-  # needs, and treating it as a failure would make an interrupted run
-  # unresumable.
   if [[ ! -f "$run_dir/lease" ]] || [[ ! -r "$run_dir/lease" ]]; then
     printf '%s\n' "missing"
     return 0
@@ -617,13 +537,6 @@ cmd_lease_classify() {
   now=$(now_epoch)
   delta=$((now - heartbeat))
 
-  # Two-sided, and both sides are load-bearing. The upper bound is the ordinary
-  # staleness test. The LOWER bound is what keeps a forward clock jump from
-  # pinning a dead run live forever: liveness tested only as
-  # `now - heartbeat < stale_after` reads a future timestamp as live for the
-  # whole skew interval even after the process is gone, so every --resume refuses
-  # an abandoned run indefinitely — the failure that costs the artifact rather
-  # than a re-run.
   if [[ "$delta" -lt $((-skew_grace)) ]]; then
     printf '%s\n' "stale"
     printf '%s: heartbeat_at is %ss in the future (grace %ss) — clock skew, not life\n' \
@@ -661,10 +574,6 @@ cmd_partial_append() {
   done
   require_run_dir "$run_dir"
 
-  # A record with no lease could not be classified on resume — resume reads the
-  # lease before it reads the partial — so the partial is never written without
-  # one. This is also what makes the epoch in the filename a real value rather
-  # than a default.
   if [[ ! -f "$run_dir/lease" ]]; then
     die "no lease at $run_dir/lease — acquire one before appending to the partial"
   fi
@@ -672,9 +581,6 @@ cmd_partial_append() {
   if [[ -z "$record" ]]; then
     die "--record must not be empty"
   fi
-  # One JSON object per line is the whole point of an append-only artifact: a
-  # record carrying a newline would split into two rows, and the second would be
-  # unparsable.
   case "$record" in
   *$'\n'*) die "--record must be a single line" ;;
   *) : ;;
@@ -689,14 +595,6 @@ cmd_partial_append() {
     die "lease carries no usable owner_epoch at: $run_dir/lease"
   fi
 
-  # THE EPOCH IN THE FILENAME IS THE WRITER'S, NEVER THE LEASE'S CURRENT ONE.
-  # Reading it from the lease at append time is what defeats the isolation §3
-  # describes: a stale holder that wakes after an adopter incremented the epoch
-  # would read the adopter's value and append into the adopter's file, so two
-  # writers interleave under one attempt ordinal — the one failure the attempt
-  # machinery cannot absorb. A writer that knows the epoch it holds passes it,
-  # and it lands in its OWN superseded file no matter what the lease now says.
-  # Omitting the flag is only correct for a run whose epoch nothing has moved.
   local fenced=0
   if [[ -n "$held_epoch" ]]; then
     require_int_at_least_one "--epoch" "$held_epoch" "epochs start at 1"
@@ -709,15 +607,9 @@ cmd_partial_append() {
   fi
   file="$run_dir/findings.partial.$epoch.jsonl"
 
-  # Appended, never rewritten. A single JSON document would be rewritten whole on
-  # every append, which is exactly the operation an interrupted run leaves
-  # half-done.
   printf '%s\n' "$record" >>"$file" || die "cannot append to: $file"
   printf '%s\n' "$file"
 
-  # THE FENCE IS ENFORCED BY THE EXIT CODE, NOT BY THE MESSAGE: a stderr line
-  # depends on the caller noticing a substring. The record IS written, to the
-  # writer's own file, and the exit tells the caller to stop dispatching.
   if [[ "$fenced" -eq 1 ]]; then
     return "$EXIT_FENCED"
   fi

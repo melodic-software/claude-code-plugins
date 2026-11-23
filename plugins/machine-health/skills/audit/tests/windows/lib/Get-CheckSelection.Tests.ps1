@@ -44,14 +44,14 @@ Describe 'Get-CheckSelection -- non-weekly run modes run everything' -Tag 'lib' 
 
 Describe 'Get-CheckSelection -- weekly run cadence gating' -Tag 'lib' {
     It 'always runs a weekly-cadence (or cadence-absent) check' {
-        $checks = @(New-Check -Id 'disk-space')  # no cadence -> weekly default
+        $checks = @(New-Check -Id 'disk-space')
         $hist = @(New-HistEntry -RunId '2026-07-11T12:00:00Z' -ChecksRan @('disk-space'))
         $result = Get-CheckSelection -Checks $checks -RunMode 'weekly' -HistoryTail $hist -Now $script:Now
         Get-DueId $result | Should -Contain 'disk-space'
     }
 
     It 'defers a monthly check that ran within the monthly interval' {
-        $checks = @(New-Check -Id 'cert-expiry' -Cadence 'monthly')  # 10 days ago
+        $checks = @(New-Check -Id 'cert-expiry' -Cadence 'monthly')
         $hist = @(New-HistEntry -RunId '2026-07-02T12:00:00Z' -ChecksRan @('cert-expiry'))
         $result = Get-CheckSelection -Checks $checks -RunMode 'weekly' -HistoryTail $hist -Now $script:Now
         Get-DueId $result | Should -Not -Contain 'cert-expiry'
@@ -63,7 +63,7 @@ Describe 'Get-CheckSelection -- weekly run cadence gating' -Tag 'lib' {
     }
 
     It 'runs a monthly check whose last run is past the monthly interval' {
-        $checks = @(New-Check -Id 'cert-expiry' -Cadence 'monthly')  # 32 days ago
+        $checks = @(New-Check -Id 'cert-expiry' -Cadence 'monthly')
         $hist = @(New-HistEntry -RunId '2026-06-10T12:00:00Z' -ChecksRan @('cert-expiry'))
         $result = Get-CheckSelection -Checks $checks -RunMode 'weekly' -HistoryTail $hist -Now $script:Now
         Get-DueId $result | Should -Contain 'cert-expiry'

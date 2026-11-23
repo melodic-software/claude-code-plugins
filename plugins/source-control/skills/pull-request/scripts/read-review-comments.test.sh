@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for read-review-comments.sh. A stub gh on PATH serves fixed JSON
-# fixtures per request and logs every call; jq is the real one. Every expected
-# value below comes from the fixtures written in this file.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,10 +28,6 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
 }
 
-# The stub: logs its arguments, fails when a fail-<key> marker exists, and
-# otherwise prints the fixture for the request (one-<n>.json for a read of PR
-# <n> itself); a pr list reads prs-<limit>.json
-# when that fixture exists, else prs.json.
 STUB_BIN="$TEST_TMPDIR/bin"
 mkdir -p "$STUB_BIN"
 # shellcheck disable=SC2016 # the stub's own source, expanded when it runs
@@ -61,8 +54,6 @@ printf '%s\n' '#!/usr/bin/env bash' \
   'cat "$FIX/$key.json"' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
 
-# run FIXDIR ARGS...: run the script with the stub first on PATH, from a
-# scratch working directory; sets OUT and RC.
 run() {
   local fix="$1"
   shift
@@ -71,7 +62,6 @@ run() {
   RC=$?
 }
 
-# Main fixture: repository o/r, merged PRs 11 (author alice) and 12 (author bob).
 F="$TEST_TMPDIR/main"
 mkdir -p "$F"
 printf '%s\n' '{"nameWithOwner":"o/r"}' >"$F/repo.json"
@@ -136,15 +126,12 @@ assert_eq "main: merged PRs listed, 3x the --prs limit, newest updated first" 1 
 BASH_COMPAT=51 run "$F" --prs 2
 assert_eq "BASH_COMPAT=51: exit 0 and no file created" "0:" "$RC:$(ls "$F/work")"
 
-# --repo skips the repo lookup and is passed to gh pr list.
 : >"$F/calls.log"
 run "$F" --prs 2 --repo o/r
 assert_eq "--repo: exit 0" 0 "$RC"
 assert_eq "--repo: no repo view call" 0 "$(grep -c 'repo view' "$F/calls.log")"
 assert_eq "--repo: passed to pr list" 1 "$(grep -c -- 'pr list .*--repo o/r' "$F/calls.log")"
 
-# --pr reads that one PR: no pr list, and only its rows. PR 11 merged, so its
-# author alice's own comments and review (no time stamp) are dropped.
 printf '%s\n' '{"number":11,"user":{"login":"alice"},"merged_at":"2026-09-01T00:00:00Z"}' >"$F/one-11.json"
 : >"$F/calls.log"
 run "$F" --pr 11 --repo o/r
@@ -157,7 +144,6 @@ run "$F" --pr 11 --repo o/r
 assert_eq "--pr: a failed read of the PR exits 2 with empty stdout" "2:" "$RC:$OUT"
 rm -f "$F/fail-one-11"
 
-# An open PR has no merge time, so its author's comments are always dropped.
 O="$TEST_TMPDIR/open-pr"
 mkdir -p "$O"
 cp "$F/repo.json" "$O/"
@@ -173,7 +159,6 @@ assert_eq "open PR: exit 0" 0 "$RC"
 assert_eq "open PR: only the reviewer's comment, labeled human" '[{"pr":71,"source":"human","body":"reviewer on the open PR"}]' \
   "$(q '[.[] | {pr, source, body}]')"
 
-# Usage errors: exit 2, nothing on stdout, and no gh call.
 for bad in "--prs 1" "--prs 201" "--prs abc" "--prs 2 --repo o/r/x" "--prs 2 --repo o;r/x" "--prs" "--bogus" \
   "--pr 11 --prs 2" "--pr 0" "--pr abc" "--pr 1;2" "--pr"; do
   : >"$F/calls.log"
@@ -185,7 +170,6 @@ done
 run "$F" --help
 assert_eq "--help: exit 0 with usage" "0:1" "$RC:$(printf '%s\n' "$OUT" | grep -c -- '--prs <n>')"
 
-# A failed gh call: exit 2, nothing on stdout.
 touch "$F/fail-comments-12"
 run "$F" --prs 2
 assert_eq "failed gh call: exit 2 and empty stdout" "2:" "$RC:$OUT"
@@ -206,8 +190,6 @@ OUT="$(cd "$NOGH/work" && FIX="$F" PATH="$ONLY_GH" "$BASH" "$SCRIPT" --prs 2 2>/
 RC=$?
 assert_eq "missing jq: exit 2 and empty stdout" "2:" "$RC:$OUT"
 
-# The PR author counts only after the merge. PR 51 merged at noon; author ann
-# commented before and after it, and replied after it.
 A="$TEST_TMPDIR/after-merge"
 mkdir -p "$A"
 cp "$F/repo.json" "$A/"
@@ -232,8 +214,6 @@ assert_eq "after merge: only the author's own comment and review after the merge
   '["after the merge","review after the merge"]' "$(q '[.[].body] | sort')"
 assert_eq "after merge: they are labeled human" '["human"]' "$(q '[.[].source] | unique')"
 
-# "Last n merged" is by merge time: PR 41 was opened last but merged first,
-# so --prs 2 reads 42 then 43 and never 41.
 M="$TEST_TMPDIR/merged-order"
 mkdir -p "$M"
 cp "$F/repo.json" "$M/"
@@ -271,7 +251,6 @@ assert_eq "crowd-out: the read widens from 6 to 12" "6 12" "$(grep -o -- '--limi
 assert_eq "crowd-out: the two merged last, newest first" "68 67" \
   "$(grep -o 'pulls/[0-9]*/reviews' "$C/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
 
-# Output cap: 200 human comments of 1,000 characters each on one PR.
 T="$TEST_TMPDIR/big"
 mkdir -p "$T"
 cp "$F/repo.json" "$T/"

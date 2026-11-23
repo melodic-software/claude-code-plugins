@@ -37,7 +37,6 @@ $commands = @(
     '& "$env:SystemRoot\System32\netsh.exe" http show servicestate view=requestq'
 )
 
-# Bind scopes ranked widest first (merge rule: check-catalog.md section 24).
 $scopeRank = @{ any = 2; specific = 1; loopback = 0 }
 
 $FailureSummary = 'Network listener check failed.'
@@ -90,7 +89,6 @@ $CheckBody = {
         $title = "$label $($l.Protocol)/$($l.Port) ($($g.Scope))"
 
         if (-not $g.Identity) {
-            # No stable identity to key or mute, and no binary to judge.
             New-FindingItem -NoKey -NoKeyReason 'owning program could not be resolved without elevation' `
                 -Severity 'UNKNOWN' -Title $title -Fields $fields
             continue

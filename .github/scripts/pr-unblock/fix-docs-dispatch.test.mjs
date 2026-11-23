@@ -376,23 +376,15 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
   const { api } = await run({
     pages: [[pr(50), pr(51)]],
     workflowRuns: [
-      { id: 1, status: "in_progress", display_title: "pr-refine fix-docs #50" },
-      { id: 2, status: "completed", conclusion: "cancelled", display_title: "pr-refine fix-docs #51" },
-      { id: 3, status: "queued", display_title: "pr-unblock fix-docs #51" },
-    ],
-  });
-  assert.deepEqual(numbers(api), ["51"]);
-  const titled = await run({
-    pages: [[pr(50), pr(51)]],
-    workflowRuns: [
       { id: 1, status: "in_progress", display_title: "PR Refine fix-docs #50" },
+      { id: 2, status: "completed", conclusion: "cancelled", display_title: "PR Refine fix-docs #51" },
       { id: 3, status: "queued", display_title: "PR Unblock fix-docs #51" },
     ],
   });
-  assert.deepEqual(numbers(titled.api), ["51"], "the Title Case run-name holds as the old one does, and pr-unblock's does not");
+  assert.deepEqual(numbers(api), ["51"]);
 });
 
-const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `pr-refine fix-docs #${number}` });
+const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `PR Refine fix-docs #${number}` });
 
 test("a PR whose fix-docs run completed without a check run is not dispatched again, and its head is recorded", async () => {
   // success: the run job stopped at its trigger gate or emitted an empty head.
@@ -419,7 +411,7 @@ test("a PR whose only fix-docs run was lost without a check run is dispatched on
   }
   const mixed = await run({ pages: [[pr(56)]], workflowRuns: [ran(12, 56, "success"), ran(13, 56, "cancelled")] });
   assert.deepEqual(numbers(mixed.api), [], "a lost run after one that ended is not retried");
-  const going = await run({ pages: [[pr(56)]], workflowRuns: [{ id: 15, status: "in_progress", display_title: "pr-refine fix-docs #56" }, ran(13, 56, "cancelled")] });
+  const going = await run({ pages: [[pr(56)]], workflowRuns: [{ id: 15, status: "in_progress", display_title: "PR Refine fix-docs #56" }, ran(13, 56, "cancelled")] });
   assert.deepEqual(numbers(going.api), [], "the retry already going holds the dispatch");
   assert.equal(isHandled(going.record, CHECK, pr(56).headRefOid), false);
 });
@@ -561,7 +553,7 @@ test("a same-repository PR whose fix-docs dispatch stopped at the trigger gate d
 test("a fix-docs run an outage lost before its check gets a fresh dispatch from this dispatcher, never a re-run", async () => {
   const { api } = await run({
     pages: [[pr(52)]],
-    workflowRuns: [{ id: 4, status: "completed", conclusion: "cancelled", display_title: "pr-refine fix-docs #52" }],
+    workflowRuns: [{ id: 4, status: "completed", conclusion: "cancelled", display_title: "PR Refine fix-docs #52" }],
   });
   assert.deepEqual(api.calls.dispatch, [
     { workflow: "pr-refine.yml", ref: "refs/heads/main", inputs: { "pr-number": "52", activity: "fix-docs", "dispatcher-run-id": "4242" } },
@@ -596,7 +588,6 @@ const EMPTY_HEAD = ended(
   job("Fix Docs / Report", "success"),
   job("Fix Docs Handoff", "success"),
 );
-// The broker refused it: record-broker-allow and the run job skipped.
 const REFUSED = ended(
   job("Fix Docs Head", "success"),
   job("Fix Docs / Check Broker", "failure"),
@@ -775,7 +766,7 @@ test("the GitHub API reads a run's latest jobs alone, with no run read; a gone r
 });
 
 test("a PR whose history has a fix-docs check run is skipped and recorded before the runs listing is read", async () => {
-  for (const workflowRuns of [[], [ran(9, 54, "success")], [{ id: 1, status: "in_progress", display_title: "pr-refine fix-docs #54" }], [ran(9, 54, "failure")]]) {
+  for (const workflowRuns of [[], [ran(9, 54, "success")], [{ id: 1, status: "in_progress", display_title: "PR Refine fix-docs #54" }], [ran(9, 54, "failure")]]) {
     const { api, lines, record } = await run({ pages: [[pr(54)]], histories: { 54: history([0, 1]) }, workflowRuns });
     const label = JSON.stringify(workflowRuns);
     assert.deepEqual(numbers(api), [], label);
@@ -790,7 +781,7 @@ test("a PR with no fix-docs check run in its history still reads the runs listin
   const { api } = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, "failure")] });
   assert.deepEqual(numbers(api), ["54"]);
   assert.equal(api.calls.runListings, 1);
-  const going = await run({ pages: [[pr(54)]], workflowRuns: [{ id: 1, status: "in_progress", display_title: "pr-refine fix-docs #54" }] });
+  const going = await run({ pages: [[pr(54)]], workflowRuns: [{ id: 1, status: "in_progress", display_title: "PR Refine fix-docs #54" }] });
   assert.deepEqual(numbers(going.api), [], "a run going still holds it");
 });
 

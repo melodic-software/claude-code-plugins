@@ -3,9 +3,6 @@ set -euo pipefail
 d="${PROBE_WORKDIR:?set by probe.py}"
 bash "${PROBE_LIB:?set by probe.py}/effort-probe.sh" "$d"
 
-# The shared agents preload print-effort, so a driver that picked one would measure
-# the preloaded path. The only agent left has no skills key and loads it through
-# the Skill tool.
 rm "$d/.claude/agents/effort-probe.md" "$d/.claude/agents/effort-probe-unpinned.md"
 cat >"$d/.claude/agents/effort-probe-skill-tool.md" <<'EOF'
 ---

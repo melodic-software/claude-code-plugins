@@ -13,7 +13,6 @@ const record = (settingsFile, profile = "build") => ({
   entries: { "songwriting@melodic-software": { before: true, after: false } }, skillOverrides: {},
 });
 
-/** Writes rec into home as apply would, and returns its path. */
 function saved(home, rec) {
   const path = recordPath(home, rec.settingsFile);
   writeTree(home, { [`records/${path.split(/[\\/]/).pop()}`]: rec });

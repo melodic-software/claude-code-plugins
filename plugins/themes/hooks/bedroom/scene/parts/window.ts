@@ -8,7 +8,6 @@ const SU = 0.976
 const SS = 0.964
 const MX = 387
 
-/** f() without the leading zero. */
 const g = (v: number): string => f(v).replace(/^(-?)0\./, '$1.')
 const pt = (p: readonly number[]): string => `${g(p[0])},${g(p[1])}`
 const pts = (list: readonly (readonly number[])[]): string => list.map(pt).join(' ')
@@ -22,7 +21,6 @@ const lin = (id: string, x1: number, y1: number, x2: number, y2: number, list: S
   `<linearGradient id="window-${id}"${user ? ' gradientUnits="userSpaceOnUse"' : ''} x1="${g(x1)}" y1="${g(y1)}" x2="${g(x2)}" y2="${g(y2)}">${stops(list)}</linearGradient>`
 const rad = (id: string, cx: number, cy: number, r: number, list: Stop[], extra = ''): string =>
   `<radialGradient id="window-${id}" gradientUnits="userSpaceOnUse" cx="${g(cx)}" cy="${g(cy)}" r="${g(r)}"${extra}>${stops(list)}</radialGradient>`
-/** Paint a shape kept in defs. */
 const use = (id: string, a: string): string => `<use href="#window-${id}" ${a}/>`
 
 function sub(x0: number, y0: number, x1: number, y1: number, s: number): string {

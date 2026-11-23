@@ -134,14 +134,15 @@ while IFS= read -r c; do
   fi
 done < <(git ls-files '.github/*.yaml' '.github/*.yml')
 if [[ -z "$wf_yaml" ]]; then
-  fail "no unreferenced .github YAML found to probe — the case below would be vacuous"
+  wf_yaml=.github/unreferenced-$$-$RANDOM.yaml
+  : >"$wf_yaml"
+  trap 'rm -f -- "$wf_yaml"' EXIT
+fi
+select_for "$wf_yaml"
+if [[ "$RC" -eq 0 && -z "$out" ]]; then
+  ok ".github YAML stays a recorded no-suite class via .github/*: $wf_yaml"
 else
-  select_for "$wf_yaml"
-  if [[ "$RC" -eq 0 && -z "$out" ]]; then
-    ok ".github YAML stays a recorded no-suite class via .github/*: $wf_yaml"
-  else
-    fail ".github YAML should exit 0 with no suites (rc=$RC): $out"
-  fi
+  fail ".github YAML should exit 0 with no suites (rc=$RC): $out"
 fi
 
 # --- LIVE repo: the false coverage that masked a real suite ----------------

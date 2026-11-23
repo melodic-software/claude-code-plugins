@@ -26,7 +26,6 @@ need_jq() {
   }
 }
 
-# Windows user directories as WSL sees them: <mnt>/<drive>/Users/<user>.
 windows_homes() {
   local d
   for d in "$MNT_ROOT"/?/Users/*/; do

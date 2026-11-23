@@ -18,10 +18,8 @@ import { spawnAsync } from "@melodic/video-digestion/shared/process";
 export const ASR_MODEL = "large-v3";
 export const ASR_BATCH_SIZE = 8;
 
-/** Child env var carrying the `asr_python` option (set by `run.mjs --asr-python`). */
 const ASR_PYTHON_ENV = "VIDEO_DIGEST_ASR_PYTHON";
 
-/** PATH interpreter candidates probed in order after any configured one; first importable wins. */
 const PYTHON_CANDIDATES = Object.freeze(["python", "python3", "py"]);
 
 const DETECT_ARGS = Object.freeze([

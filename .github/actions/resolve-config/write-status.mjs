@@ -190,7 +190,7 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
     let names;
     let holds;
     try {
-      const { paginate } = await import("../check-trusted-trigger/check-trusted-trigger.mjs");
+      const { paginate } = await import("../../scripts/lib/github-client.mjs");
       ({ HOLD_STATES: holds } = await import("./read-status.mjs"));
       names = (await paginate(github, path)).map((label) => String(label?.name ?? label));
     } catch (error) {

@@ -42,14 +42,12 @@ FIRST="$(git -C "$REPO" rev-parse HEAD)"
 fixture_git rm -q docs/old.md && fixture_git commit -qm second
 SECOND="$(git -C "$REPO" rev-parse HEAD)"
 
-# plan <file> <line>...: a PLAN.md whose body is the given lines.
 plan() {
   local file="$TMP/$1"
   shift
   { printf '## Plan\n\n### Phase 1: Build\n'; printf '%s\n' "$@"; } >"$file"
 }
 
-# run <label> <want_exit> <plan file> <pattern> [extra args]
 run() {
   local label="$1" want="$2" file="$TMP/$3" pattern="$4" out got
   shift 4
@@ -68,7 +66,6 @@ run() {
   pass "$label"
 }
 
-# quiet <label> <plan file>: exit 0 and no per-citation line.
 quiet() {
   local out
   if out="$(bash "$SUT" --repo "$REPO" "$TMP/$2" 2>&1)" && ! grep -q '^citation=' <<<"$out"; then

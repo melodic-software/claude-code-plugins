@@ -38,7 +38,7 @@ top=$(git rev-parse --show-toplevel 2>/dev/null) || top=$PWD
 IFS=: read -ra dirs <<<"${REPO_SWEEP_PLUGIN_DIRS:-}"
 cc=""
 
-loaded_version() { # <plugin> <dir>
+loaded_version() {
   local plugin=$1 d=${2//\\//} manifest segment
   local path=$d
   d=${d%/}
@@ -58,7 +58,7 @@ loaded_version() { # <plugin> <dir>
   return 0
 }
 
-installed_version() { # <plugin>
+installed_version() {
   [[ -f $installed ]] || return 0
   jq -r --arg p "$1@" --arg main "$main" '
     [.plugins | to_entries[] | select(.key | startswith($p)) | .value[]] as $all

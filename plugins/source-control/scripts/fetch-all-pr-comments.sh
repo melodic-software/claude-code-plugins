@@ -50,8 +50,6 @@
 
 set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit N }
 
-# --- Argument parsing --------------------------------------------------------
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER=""
 CHECKOUT=""
@@ -114,8 +112,6 @@ if [[ -n "$CHECKOUT" && ! -d "$CHECKOUT" ]]; then
   exit 1
 fi
 
-# --- Prerequisites -----------------------------------------------------------
-
 have() { command -v "$1" >/dev/null 2>&1; }
 
 have gh || {
@@ -126,8 +122,6 @@ have jq || {
   printf 'fetch-all-pr-comments: jq required\n' >&2
   exit 5
 }
-
-# --- Repo resolution ---------------------------------------------------------
 
 if [[ -n "$CHECKOUT" ]]; then
   OWNER_REPO=""
@@ -148,8 +142,6 @@ if [[ -z "$OWNER" || -z "$REPO" ]]; then
   printf 'fetch-all-pr-comments: cannot resolve owner/repo - gh repo view found no repository for the current directory (%s). Run from a checkout of the target repo, or set FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO.\n' "$PWD" >&2
   exit 2
 fi
-
-# --- Surface fetch -----------------------------------------------------------
 
 # fetch_surface <endpoint> <jq-projection>: page one API surface, project each
 # of its comments into the shared schema, and append the JSONL to ALL_JSON.

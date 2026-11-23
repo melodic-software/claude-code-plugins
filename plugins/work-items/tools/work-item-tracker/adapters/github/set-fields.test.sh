@@ -13,12 +13,12 @@ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/set-fields.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
-assert_usage_error "$S"                                                  # no id
-assert_usage_error "$S" "github:o/r#1"                                   # no --field
-assert_usage_error "$S" "github:o/r#1" --field 15462270                  # no option id
-assert_usage_error "$S" "github:o/r#1" --field a=1                       # field id not a number
-assert_usage_error "$S" "github:o/r#1" --field 1=2 --field 1=3           # one field twice
-assert_usage_error "$S" "local-markdown:o/r#1" --field 15462270=27053568 # foreign provider
+assert_usage_error "$S"
+assert_usage_error "$S" "github:o/r#1"
+assert_usage_error "$S" "github:o/r#1" --field 15462270
+assert_usage_error "$S" "github:o/r#1" --field a=1
+assert_usage_error "$S" "github:o/r#1" --field 1=2 --field 1=3
+assert_usage_error "$S" "local-markdown:o/r#1" --field 15462270=27053568
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 

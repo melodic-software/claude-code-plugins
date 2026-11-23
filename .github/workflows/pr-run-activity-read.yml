@@ -1304,21 +1304,10 @@ jobs:
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-        run: |
-          mkdir -p "$BIN"
-          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,context}.sh \
-            .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
-            name=$(basename "$file" .sh)
-            cp "$file" "$BIN/$name.sh"
-            sum=$(sha256sum <"$BIN/$name.sh")
-            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-          done
-          no_progress=$(jq -r '.loop["no-progress"] // empty' "$RESOLVED")
-          if ! [[ $no_progress =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::the resolved config holds no loop.no-progress"
-            exit 1
-          fi
-          echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+        run: >-
+          bash .base/.github/scripts/merge-base/stage-bin.sh
+          .base/.github/scripts/merge-base/{prepare,run-prepare,context}.sh
+          .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh
 
       # Every job-token call this job makes is above, from base code, so the
       # budget is logged here, before the head checkout replaces .base: no
@@ -2098,7 +2087,6 @@ jobs:
           VERDICT_FILE: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
             && format('{0}/skill-reply/dependency-verdict.json', runner.temp) || '' }}
-          # Issue mode: the collect step's outcome files.
           OUTCOME_DIR: ${{ inputs.issue-number != '' && format('{0}/work-outcome', runner.temp) || '' }}
           CARRY_DIR: ${{ runner.temp }}/carry
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
@@ -3545,8 +3533,6 @@ jobs:
             diff_bytes: $bytes, truncated: ($bytes > 1000000)}' >"$DATA/branch.json"
           echo "tip=$tip" >>"$GITHUB_OUTPUT"
 
-      # The summary pass's model, turns and effort: the summarize-reuse route
-      # of the base config's models block.
       - name: Resolve the summary pass's model
         id: summary-models
         if: steps.summary-data.outcome == 'success'
@@ -3711,8 +3697,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: reuse-summary${{ inputs.fallback == 'fallback' && '-fallback' || inputs.fallback != '' && '-subscription' || '' }}
 
-      # The summary leg's lane-outcome record: its credential, outcome and
-      # durationMs.
       - name: Record the summary leg
         if: always() && (steps.summary-key.outcome != 'skipped' || steps.summary-token.outcome != 'skipped' || steps.summary-fallback.outcome != 'skipped')
         continue-on-error: true

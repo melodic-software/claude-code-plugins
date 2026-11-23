@@ -44,8 +44,8 @@ NAME='Clear a cost-only review hold the owner decided'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 # A draft's ci-status passes by design (`Note a draft`), so the step makes no
 # read there; the ready_for_review run judges the hold.
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}"* ]]; then
-  ok "step runs on every pull_request run that is not cancelled or a draft"
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
+  ok "step runs on every pull_request run that is not cancelled or a draft, and on a draft run's re-run once the pull request is ready"
 else
   fail "step lost its pull_request condition or its draft skip"
 fi

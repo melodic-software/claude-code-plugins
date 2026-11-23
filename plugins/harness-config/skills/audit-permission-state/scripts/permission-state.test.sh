@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for permission-state.sh (self-contained — ships with the plugin).
-#
-# Every run is fully fixtured: project root, start directory, managed policy, and
-# the user home all point into a temp tree, with CLAUDE_CONFIG_DIR unset. No test
-# reads or writes the operator's real ~/.claude or the machine's real managed
-# policy — which is also why the Windows registry surface is exercised through
-# its key-list seam rather than against a deployed policy.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +21,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Fixture tree: all five scopes populated ---------------------------------
 FX="$TEST_TMPDIR/fx"
 mkdir -p "$FX/proj/.claude" "$FX/home/.claude" "$FX/policy/managed-settings.d" "$FX/startdir/.claude"
 jq -n '{permissions:{allow:["Bash(git status)"],deny:["WebFetch"]}}' >"$FX/proj/.claude/settings.json"
@@ -41,11 +33,6 @@ jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/policy/managed-settings.d/.hidd
 jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/startdir/.claude/settings.local.json"
 
 run() {
-  # CLAUDE_CODE_REMOTE is unset here rather than inherited: the suite is fully
-  # fixtured, and a run inside a real cloud session would otherwise emit the
-  # cloud note in every case and make the local-session assertion unrunnable
-  # exactly where it matters. TEST_CLOUD_REMOTE puts it back for the one case
-  # that is about it.
   env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_REMOTE \
     ${TEST_CLOUD_REMOTE:+CLAUDE_CODE_REMOTE="$TEST_CLOUD_REMOTE"} \
     HOME="$FX/home" \
@@ -58,10 +45,6 @@ run() {
 }
 
 run_tree() {
-  # run_tree <root>: the reader over a second fixture tree laid out as
-  # <root>/proj, <root>/home, <root>/pol and <root>/sd, with both optional
-  # platform surfaces switched off. A case that varies one of those paths, or
-  # the environment itself, builds its own `env` invocation instead.
   env -u CLAUDE_CONFIG_DIR HOME="$1/home" \
     PERMISSION_STATE_FIXTURE_DIR="$1/proj" \
     PERMISSION_STATE_STARTDIR="$1/sd" \
@@ -71,15 +54,11 @@ run_tree() {
     bash "$SCRIPT"
 }
 
-# --- Case 1: --help ----------------------------------------------------------
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: every file scope appears EXACTLY once ---------------------------
-# Exactly one, not "at least one": a count of >=1 passes on project+local alone
-# and leaves the two scopes this reader exists to add entirely unverified.
 rc=0
 OUT=$(run) || rc=$?
 assert_exit "full run exits 0" 0 "$rc"
@@ -89,15 +68,11 @@ assert_eq "project toplevel surface appears exactly once" "1" "$(count_matching 
 assert_eq "local scope appears exactly once" "1" "$(count_matching "$OUT" '^local ')"
 assert_eq "start-directory scope appears exactly once" "1" "$(count_matching "$OUT" '^startdir-local ')"
 
-# --- Case 3: every managed SURFACE appears exactly once, on every OS ----------
-# The managed scope is four surfaces with different costs. Asserting a single
-# aggregate "managed" row would pass with three of the four never attempted.
 assert_eq "managed base file surface" "1" "$(count_matching "$OUT" '^managed file ')"
 assert_eq "managed drop-in directory surface" "1" "$(count_matching "$OUT" '^managed dropin-dir ')"
 assert_eq "managed registry surface" "1" "$(count_matching "$OUT" '^managed registry ')"
 assert_eq "managed preferences-domain surface" "1" "$(count_matching "$OUT" '^managed plist ')"
 
-# --- Case 4: rules are inventoried per scope and kind ------------------------
 assert_contains "managed deny rule" "$OUT" "rule managed file deny Read(./.env)"
 assert_contains "user allow rule" "$OUT" "rule user settings allow Bash(python*)"
 assert_contains "project allow rule" "$OUT" "rule project settings allow Bash(git status)"
@@ -105,25 +80,17 @@ assert_contains "project deny rule" "$OUT" "rule project settings deny WebFetch"
 assert_contains "local allow rule" "$OUT" "rule local settings allow Bash(npm test)"
 assert_contains "start-directory allow rule" "$OUT" "rule startdir-local settings allow Bash(ls)"
 
-# --- Case 5: drop-ins in documented order, dotfiles ignored ------------------
-# "all *.json files in the drop-in directory are sorted alphabetically and merged
-# on top… Hidden files starting with . are ignored." Order is load-bearing: later
-# files override earlier ones, so a reader that emits them out of order hands the
-# merge step the wrong answer.
 dropins=$(printf '%s\n' "$OUT" | grep -oE '^managed dropin-file:[^ ]+' | sed 's/^managed dropin-file://')
 assert_eq "drop-ins emitted in alphabetical order" "$(printf '10-first.json\n20-second.json')" "$dropins"
 assert_not_contains "hidden drop-in ignored" "$OUT" ".hidden.json"
 
-# --- Case 6: --scopes suppresses rule records only ---------------------------
 OUT_SCOPES=$(run --scopes)
 assert_eq "no rule records under --scopes" "0" "$(count_matching "$OUT_SCOPES" '^rule ')"
 assert_eq "surface records survive --scopes" "1" "$(count_matching "$OUT_SCOPES" '^managed file ')"
 
-# --- Case 7: server-managed settings are disclosed, never implied absent -----
 assert_contains "server-managed settings disclosed" "$OUT" "Server-managed settings"
 assert_contains "managed-policy diagnosis routes to /status" "$OUT" "Organization policy"
 
-# --- Case 8: status vocabulary distinguishes absent from malformed -----------
 BAD="$TEST_TMPDIR/bad"
 mkdir -p "$BAD/proj/.claude" "$BAD/home/.claude" "$BAD/sd"
 printf '{invalid\n' >"$BAD/proj/.claude/settings.json"
@@ -133,11 +100,6 @@ assert_contains "missing settings reported as absent" "$OUT_BAD" "user settings 
 assert_contains "missing managed file reported as absent" "$OUT_BAD" "managed file absent"
 assert_eq "a malformed file contributes no rules" "0" "$(count_matching "$OUT_BAD" '^rule project ')"
 
-# --- A STRUCTURALLY VALID file with the wrong shape is invalid-json ----------
-# Case 8 above feeds a SYNTACTICALLY broken file, which `jq empty` rejects on its
-# own -- so that assertion passes even with the shape check deleted, and it did:
-# a merge resolution dropped the stage and the suite stayed green. These two
-# files parse cleanly and are still not settings files.
 SHAPE="$TEST_TMPDIR/shape"
 mkdir -p "$SHAPE/proj/.claude" "$SHAPE/home/.claude" "$SHAPE/pol" "$SHAPE/sd/.claude"
 jq -n '{}' >"$SHAPE/pol/managed-settings.json"
@@ -148,18 +110,12 @@ assert_contains "a top-level array is invalid-json, not present" "$OUT_SHAPE" "p
 assert_contains "a string-valued permissions key is invalid-json too" "$OUT_SHAPE" "user settings invalid-json"
 assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rule (user|project) ')"
 
-# A legitimately empty settings file, and one with a null permissions key, are
-# both PRESENT -- the shape check must not reject the ordinary shapes.
 printf '{}\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":null}\n' >"$SHAPE/home/.claude/settings.json"
 OUT_OKSHAPE=$(run_tree "$SHAPE")
 assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
 assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
 
-# String keys under `permissions` (defaultMode, disable*) are ordinary settings.
-# The verdict must not depend on key order: `jq -e` reads only the LAST output,
-# so a per-key verdict would reject a file whose last `permissions` key is a
-# string and hide every conf record in it.
 printf '{"permissions":{}}\n' >"$SHAPE/pol/managed-settings.json"
 printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":{"allow":["Bash(ls)"],"defaultMode":"acceptEdits"}}\n' >"$SHAPE/home/.claude/settings.json"
@@ -170,19 +126,15 @@ assert_contains "an empty permissions object is present" "$OUT_SCALAR" "managed 
 assert_contains "the string-only file's defaultMode is read" "$OUT_SCALAR" 'conf project settings defaultMode "bypassPermissions"'
 assert_contains "rules before a trailing string key still count" "$OUT_SCALAR" "rule user settings allow Bash(ls)"
 
-# A trailing string key must not rescue a rule list of the wrong type.
 printf '{"permissions":{"deny":"Bash(x)","defaultMode":"plan"}}\n' >"$SHAPE/home/.claude/settings.json"
 OUT_SCALAR_BAD=$(run_tree "$SHAPE")
 assert_contains "a string rule list is invalid-json whatever follows it" "$OUT_SCALAR_BAD" "user settings invalid-json"
 
-# A wrong-typed scalar key must not hide the file's other keys: the file stays
-# present, so a mistyped disableAutoMode beside it is still read.
 printf '{"permissions":{"defaultMode":{}},"disableAutoMode":true}\n' >"$SHAPE/home/.claude/settings.json"
 OUT_SCALAR_OBJ=$(run_tree "$SHAPE")
 assert_contains "an object defaultMode leaves the file present" "$OUT_SCALAR_OBJ" "user settings present"
 assert_contains "and its mistyped disableAutoMode is still read" "$OUT_SCALAR_OBJ" "conf user settings disableAutoMode true"
 
-# A guard entry that is not an object must not hide the managed lock beside it.
 for entry in '"x"' '[1]' '7'; do
   printf '{"allowManagedPermissionRulesOnly":true,"pluginConfigs":{"cc-plugin-sec-default@builtin":%s}}\n' "$entry" >"$SHAPE/pol/managed-settings.json"
   OUT_GUARD_SHAPE=$(run_tree "$SHAPE")
@@ -190,9 +142,6 @@ for entry in '"x"' '[1]' '7'; do
   assert_not_contains "a $entry guard entry yields no override record" "$OUT_GUARD_SHAPE" "modsOverrideDenyRules"
 done
 
-# --- Case 9: the start-directory copy is never double-counted ----------------
-# When the session starts at the repository root the two paths are the same file.
-# Reporting it twice would claim two live rule sources where there is one.
 OUT_SAME=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
   PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
   PERMISSION_STATE_STARTDIR="$FX/proj" \
@@ -202,7 +151,6 @@ OUT_SAME=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \
 assert_contains "same directory reported not-applicable" "$OUT_SAME" "startdir-local settings not-applicable"
 assert_eq "its rules are not counted twice" "1" "$(count_matching "$OUT_SAME" '^rule local settings allow Bash\(npm test\)')"
 
-# --- Case 10: an unresolvable user scope is announced ------------------------
 OUT_NOHOME=$(env -u CLAUDE_CONFIG_DIR -u HOME \
   PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
   PERMISSION_STATE_STARTDIR="$FX/startdir" \
@@ -212,8 +160,6 @@ OUT_NOHOME=$(env -u CLAUDE_CONFIG_DIR -u HOME \
 assert_contains "unresolvable user scope is skipped, not absent" "$OUT_NOHOME" "user settings skipped"
 assert_contains "and says why" "$OUT_NOHOME" "neither CLAUDE_CONFIG_DIR nor HOME"
 
-# --- Case 11: optional platform legs degrade visibly, core survives ----------
-# A stub PATH holding every tool the script needs EXCEPT `reg`.
 STUB="$TEST_TMPDIR/stub-path"
 make_stub_path "$STUB" jq git tr find sort sed head grep cat mktemp rm
 rc=0
@@ -232,17 +178,7 @@ assert_contains "portable core still read: base file" "$OUT_NOREG" "managed file
 assert_contains "portable core still read: drop-in dir" "$OUT_NOREG" "managed dropin-dir present"
 assert_contains "other scopes unaffected" "$OUT_NOREG" "rule user settings allow Bash(python*)"
 
-# --- Case 12: registry key selection stops at the first key that EXISTS -------
-# HKCU is documented as lowest policy priority, used only when no admin-level
-# source exists, so an existing higher-priority key must end the search even when
-# its Settings value cannot be read — otherwise a stray admin-level key lets
-# user-level policy be reported as the managed policy.
-#
-# Read-only, and writes nothing to the registry: the fixture keys are one that
-# cannot exist and HKCU\SOFTWARE, which exists on every Windows install and
-# carries no Settings value — exactly the key-present/value-absent case.
 if command -v reg >/dev/null 2>&1; then
-  # Registry key paths, passed through as literals and compared as strings.
   EXISTING_KEY='HKCU\SOFTWARE'                           # portability-ok: a Windows registry key path, not a regex
   ABSENT_KEY='HKCU\SOFTWARE\ClaudeCodeNoSuchKeyExists'   # portability-ok: a Windows registry key path, not a regex
   SECOND_ABSENT_KEY='HKCU\SOFTWARE\ClaudeCodeAlsoAbsent' # portability-ok: a Windows registry key path, not a regex
@@ -275,12 +211,6 @@ else
   pass "registry absence reporting (skipped — reg not on PATH)"
 fi
 
-# --- A rule containing a literal newline is reported, never split ------------
-# These records are line-oriented, so such a rule cannot be represented in one.
-# Reading it line by line turned ONE rule into TWO records, each a rule string
-# that appears in no settings file -- and both would flow downstream into the
-# merge and the entry diff as if they were real grants. Reachable through an
-# ordinary settings file, not only through debug narration.
 NLFX="$TEST_TMPDIR/nlfx"
 mkdir -p "$NLFX/proj/.claude" "$NLFX/home/.claude" "$NLFX/pol" "$NLFX/sd/.claude"
 jq -n '{}' >"$NLFX/proj/.claude/settings.json"
@@ -293,27 +223,16 @@ assert_contains "it is reported as unrepresentable" "$OUT_NL" "cannot be represe
 assert_contains "with the rule text rendered on one line" "$OUT_NL" "Bash(echo hi there *)"
 assert_contains "the well-formed sibling rule is unaffected" "$OUT_NL" "rule user settings allow Bash(npm test)"
 
-# A CARRIAGE RETURN is the same class and was the worse case: the newline fix
-# announced LF while the CRLF line-ending strip silently DELETED an in-string
-# CR, turning a rule into "Bash(ab *)" -- text present in no settings file,
-# flowing downstream as a real grant. That strip is load-bearing (jq emits CRLF
-# on Windows), so the in-string CR is caught BEFORE it reaches the strip rather
-# than by weakening it.
 CRFX="$TEST_TMPDIR/crfx"
 mkdir -p "$CRFX/proj/.claude" "$CRFX/home/.claude" "$CRFX/pol" "$CRFX/sd/.claude"
 jq -n '{}' >"$CRFX/proj/.claude/settings.json"
 jq -n '{}' >"$CRFX/pol/managed-settings.json"
-# The CR reaches the file as a JSON backslash-r escape, which is how a real settings
-# file would carry one.
 jq -n '{permissions:{allow:["Bash(a\rb *)","Bash(npm test)"]}}' >"$CRFX/home/.claude/settings.json"
 OUT_CR=$(run_tree "$CRFX")
 assert_eq "a CR-carrying rule yields no rule record" 0 "$(count_matching "$OUT_CR" '^rule user settings allow Bash.a')"
 assert_contains "it is reported rather than silently stripped" "$OUT_CR" "carriage return"
 assert_contains "the sibling rule is unaffected by the CR case" "$OUT_CR" "rule user settings allow Bash(npm test)"
 
-# --- Case 13: jq is required for correctness ---------------------------------
-# The jq gate runs before any external tool, so an EMPTY stub dir is enough here;
-# bash is invoked by absolute path so the empty PATH cannot hide the interpreter.
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"
 rc=0
@@ -321,10 +240,6 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 when jq missing" 2 "$rc"
 assert_contains "jq required message" "$err_out" "jq required"
 
-# The stop names the install command for the platform. CLAUDE_PLUGIN_ROOT is
-# unset so the message library resolves from this checkout, not an installed
-# plugin. A stub apt-get stands in for the WSL Ubuntu host that has python3 and
-# no jq: the reader finds apt-get and names it.
 apt_path_dir="$TEST_TMPDIR/apt-path"
 mkdir -p "$apt_path_dir"
 printf '#!%s\nexit 0\n' "$real_bash" >"$apt_path_dir/apt-get"
@@ -365,26 +280,15 @@ assert_contains "a foreign-owned repository root moves the anchor" "$OUT_OWNED" 
 OUT_SELF=$(PERMISSION_STATE_OWNER_OVERRIDE=self run)
 assert_contains "a self-owned root keeps the repository-root anchor" "$OUT_SELF" "anchored on the repository root"
 
-# The SDK caveat names the helper the docs actually describe. Claiming a whole
-# session class overstates the source, and there is no documented variable that
-# would let this reader detect such a session anyway.
 assert_contains "the SDK caveat names resolveSettings()" "$OUT_DEFAULT" "resolveSettings()"
 assert_not_contains "it does not claim to describe a session class" "$OUT_DEFAULT" "In an Agent SDK session"
 
-# --- Case 15: the cloud-session scope note -----------------------------------
-# A cloud session does not read the operator's own user or local settings, so a
-# user scope reported there is the container's file. CLAUDE_CODE_REMOTE is the
-# documented signal for that detection.
 OUT_CLOUD=$(TEST_CLOUD_REMOTE=true run)
 assert_contains "a cloud session says which scopes it does not read" "$OUT_CLOUD" "CLAUDE_CODE_REMOTE=true"
 assert_contains "and that the user scope shown is not the operator's" "$OUT_CLOUD" "not yours"
 OUT_LOCAL_SESSION=$(run)
 assert_not_contains "a local session emits no cloud note" "$OUT_LOCAL_SESSION" "CLAUDE_CODE_REMOTE=true"
 
-# --- Case 16: a project root that is the user config dir's parent ------------
-# A session started in the home directory, outside any repository, has the home
-# directory as its project root, so the project path is the user file. Reporting
-# it under both scopes claims two sources where there is one.
 HOMEFX="$TEST_TMPDIR/homefx"
 mkdir -p "$HOMEFX/home/.claude" "$HOMEFX/pol"
 jq -n '{}' >"$HOMEFX/pol/managed-settings.json"
@@ -406,8 +310,6 @@ assert_eq "no project rule records" 0 "$(count_matching "$OUT_HOME" '^rule proje
 assert_eq "no project conf records" 0 "$(count_matching "$OUT_HOME" '^conf project ')"
 assert_contains "the user rules are still read" "$OUT_HOME" "rule user settings allow Bash(ls)"
 
-# CLAUDE_CONFIG_DIR is the other route to the user file, spelled here through a
-# `..` segment so only the same-file test, not string equality, can match it.
 OUT_CFG=$(home_root HOME="$TEST_TMPDIR/nohome" CLAUDE_CONFIG_DIR="$HOMEFX/pol/../home/.claude")
 assert_contains "a differently spelled CLAUDE_CONFIG_DIR is the same file" "$OUT_CFG" "project settings not-applicable"
 assert_eq "and its file is reported once" 1 "$(count_matching "$OUT_CFG" ' present .*/home/\.claude/settings\.json$')"

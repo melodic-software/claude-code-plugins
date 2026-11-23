@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.3] - 2026-11-23
+
+### Changed
+
+- Synced shared `fetch-docs.sh` and `docs-cache.sh` with opt-in generic-profile `--expect` and `--render-fallback` support behind the `renderer` master setting (default `none`), and declared `firecrawl` as an optional CLI prerequisite.
+
+## [0.22.2] - 2026-11-23
+
+### Changed
+
+- `/attribution:audit` no longer gather repository context that no step read.
+- `/attribution:setup` keeps its root-then-home resolution in order, since each call takes the value the one before it returned, under a renamed heading.
+
 ## [0.22.1] - 2026-11-23
 
 ### Changed

@@ -51,7 +51,6 @@ Describe 'Invoke-NativeCommand' -Tag 'lib' {
         $argv = @(Read-RecordedArgv)
         $argv[-2] | Should -BeExactly '--query-gpu=name,driver_version'
         $argv[-1] | Should -BeExactly '--format=csv,noheader'
-        # #3370 spread this one flag into `--query-gpu=name` plus `driver_version`.
         $argv | Should -Not -Contain '--query-gpu=name'
         $argv | Should -Not -Contain 'driver_version'
     }

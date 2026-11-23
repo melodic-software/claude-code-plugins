@@ -49,12 +49,10 @@ mklink() {
   MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]]
 }
 
-# classify_as <home> <root>: classification with HOME pointed at a fixture.
 classify_as() { (HOME="$1" config_root_classify "$2"); }
 same() { config_root_paths_same "$2" "$3"; assert_exit "$1" 0 "$?"; }
 differ() { config_root_paths_same "$2" "$3"; assert_exit "$1" 1 "$?"; }
 
-# --- classification ----------------------------------------------------------
 assert_eq "repo root is a repo" repo "$(classify_as "$HOME_DIR" "$REPO")"
 assert_eq "a nested directory of a repo is a repo" repo "$(classify_as "$HOME_DIR" "$REPO/sub/dir")"
 assert_eq "a repo under HOME is a repo, not home" repo "$(classify_as "$HOME_DIR" "$HOME_DIR/proj")"
@@ -69,7 +67,6 @@ assert_eq "a string prefix of HOME that is not an ancestor is not home" non-repo
   "$(classify_as "$HOME_DIR" "$TEST_TMPDIR/users/ali")"
 assert_eq "an empty HOME makes nothing home" repo "$(classify_as "" "$REPO")"
 
-# --- root resolution ---------------------------------------------------------
 resolved="$(cd "$REPO/sub/dir" && unset CLAUDE_PROJECT_DIR && config_root_resolve)"
 same "with CLAUDE_PROJECT_DIR unset the root is the git toplevel of a nested cwd" "$resolved" "$REPO"
 assert_eq "a nested cwd resolves to a repo root" repo \
@@ -83,7 +80,6 @@ assert_eq "no root at all is non-repo" non-repo \
 assert_eq "CLAUDE_PROJECT_DIR at HOME classifies as home" home \
   "$(cd "$REPO" && CLAUDE_PROJECT_DIR="$HOME_DIR" HOME="$HOME_DIR" config_root_classify)"
 
-# --- physical path equality --------------------------------------------------
 same "a directory equals itself with a trailing slash" "$REPO" "$REPO/"
 differ "two different directories differ" "$REPO" "$PLAIN"
 differ "empty equals nothing" "" ""
@@ -139,7 +135,6 @@ else
   skip_case "Windows native vs MSYS spelling needs MINGW/MSYS with cygpath (uname: $(uname -s))"
 fi
 
-# --- CLI entry ---------------------------------------------------------------
 cli() { (HOME="$HOME_DIR" bash "$LIB" "$@" 2>&1); }
 assert_eq "CLI classify ROOT: repo" repo "$(cli classify "$REPO")"
 assert_eq "CLI classify ROOT: non-repo" non-repo "$(cli classify "$PLAIN")"

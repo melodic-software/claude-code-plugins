@@ -19,7 +19,6 @@ function resolved(laneLevel) {
   return path;
 }
 
-// A quiet window: 400 of the lanes App's 5000 used.
 const QUIET = JSON.stringify({ at: NOW_S, pools: { "lanes-app": { used: 400, limit: 5000 } }, signals: [] });
 
 // The job token's reads: the issue lane's runs in progress, and the
@@ -31,7 +30,6 @@ function fakeActions({ active = 5, state = null } = {}) {
     calls.push(`${method} ${path}`);
     const lane = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/work-resolve-issue\.yml\/runs\?status=([a-z_]+)&per_page=1$/.exec(path);
     if (lane) {
-      // Unfinished runs: `active` in progress and one waiting on a runner.
       return { total_count: { in_progress: active, queued: 1 }[lane[1]] ?? 0, workflow_runs: [] };
     }
     if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs?branch=main&event=schedule&`)) {

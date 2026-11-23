@@ -69,7 +69,6 @@ $CheckBody = {
 
     if (Get-Command wsl -ErrorAction SilentlyContinue) {
         try {
-            # Probe wsl availability; output is unused, only the failure path matters.
             $null = & wsl --list --verbose 2>&1
         } catch {
             $notes.Add("wsl enum failed: $($_.Exception.Message)")

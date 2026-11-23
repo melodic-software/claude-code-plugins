@@ -1031,7 +1031,6 @@ test("a run whose apply failed for a reason a retry does not clear counts", asyn
     const result = await sweep(gh);
     assert.deepEqual(result.handed, [1], message);
   }
-  // A 5xx beside a failure of another kind counts too.
   const mixed = transientRuns(FAILED_500, { 220: [note("failure", "POST /x failed with status 500"), note("failure", "the reasons comment was not written: 403")] });
   assert.deepEqual((await sweep(mixed)).handed, [1]);
   // One edge annotation that joins a 500 and a 403 (apply-verdict's
@@ -1040,7 +1039,6 @@ test("a run whose apply failed for a reason a retry does not clear counts", asyn
     220: [note("warning", "blocked-by edges not written: #2 not written (GitHub answered 500), #3 not written (GitHub answered 403); the verdict's labels are written without status: ready")],
   });
   assert.deepEqual((await sweep(joined)).handed, [1]);
-  // A green hold on a 403 counts too.
   const held = transientRuns(MISSED_502, { 220: [note("notice", "held: POST /repos/o/r/issues/1/labels failed with status 403")] });
   assert.deepEqual((await sweep(held)).handed, [1]);
   // So does an apply-verdict that skipped with no deferral, or failed with no annotation.

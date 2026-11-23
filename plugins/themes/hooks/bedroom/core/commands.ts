@@ -34,7 +34,6 @@ export function withTitle(titles: Titles, key: TitleKey, text: string): Titles {
   return next
 }
 
-/** The words the pieces own. */
 const PIECE_WORDS = ['time', 'date', 'weather', 'signal', 'hall', 'sound']
 const WORDS = `The switches are ${SWITCHES.join(', ')}; also status, posters, dim, glass, blur, title (console, tape, pennant, pennant-top), shader, instant, sync, stats, calibrate, reset, on, off, ${PIECE_WORDS.join(', ')}, and <setting> default`
 

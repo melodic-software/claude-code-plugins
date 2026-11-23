@@ -9,6 +9,14 @@ help:
 models:
   args: [debug, models]
   format: codex_catalog
+harness:
+  tools: [file, shell, web, mcp, image_generation]
+  image: true
+usage:
+  kind: jsonrpc_stdio
+  args: [app-server]
+  method: account/rateLimits/read
+  timeout_ms: 15000
 binary:
   name: codex
   candidates:

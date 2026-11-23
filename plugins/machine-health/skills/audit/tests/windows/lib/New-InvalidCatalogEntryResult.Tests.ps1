@@ -103,8 +103,6 @@ Describe 'New-InvalidCatalogEntryResult' -Tag 'lib' {
         }
 
         It 'falls back to reliability when category is outside the enum' {
-            # Covers any category typo: an invalid category must not make the
-            # synthetic result itself fail Assert-CheckResult.
             $entry = New-NearlyValidEntry -Overrides @{ category = 'platform' }
             $result = New-InvalidCatalogEntryResult -Entry $entry -Index 4 `
                 -ErrorMessage "CatalogEntry 'chezmoi-drift' category 'platform' not in allowed set"
@@ -138,8 +136,6 @@ Describe 'New-InvalidCatalogEntryResult' -Tag 'lib' {
 }
 
 Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
-    # Mirrors the orchestrator's validation loop: continue past bad entries, but collect
-    # synthetic UNKNOWN results for the reporting path.
     It 'collects UNKNOWN results for invalid entries and keeps valid ones' {
         $valid = New-NearlyValidEntry -Overrides @{
             id       = 'disk-space'
@@ -148,8 +144,6 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
         }
         $invalidCategory = New-NearlyValidEntry -Overrides @{ category = 'platform' }
         $invalidId = New-NearlyValidEntry -Overrides @{ id = 'NotKebab' }
-        # A valid custom check whose id occupies the synthetic fallback
-        # namespace -- synthetic ids must still be unique against it.
         $occupyingFallback = New-NearlyValidEntry -Overrides @{
             id       = 'invalid-catalog-entry-2'
             category = 'storage'
@@ -192,7 +186,6 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
         $invalidCatalogResults[0].id | Should -Be 'chezmoi-drift'
         $invalidCatalogResults[0].severity | Should -Be 'UNKNOWN'
         $invalidCatalogResults[0].category | Should -Be 'reliability'
-        # Index 2 would have been invalid-catalog-entry-2, but that id is taken.
         $invalidCatalogResults[1].id | Should -Be 'invalid-catalog-entry-2-2'
         $invalidCatalogResults[1].severity | Should -Be 'UNKNOWN'
 
@@ -200,8 +193,6 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
             { Assert-CheckResult $r } | Should -Not -Throw
         }
 
-        # Severity counts must include the synthetic UNKNOWN findings -- the defect was
-        # that a skipped entry contributed nothing here.
         $severityCounts = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
         foreach ($r in $invalidCatalogResults) { $severityCounts[$r.severity]++ }
         $severityCounts.UNKNOWN | Should -Be 2

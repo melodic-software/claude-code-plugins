@@ -62,17 +62,14 @@ assert_eq "list-sub-items (default all) child count" "2" "$(bash "$TRACKER" list
 assert_eq "children carry parent_id" "$MAP $MAP" \
   "$(bash "$TRACKER" list-sub-items "$MAP" | jq -r '[.items[].parent_id] | join(" ")')"
 
-# --- state filtering ---
 assert_eq "list-sub-items --state open keeps only C1" "$C1" \
   "$(bash "$TRACKER" list-sub-items "$MAP" --state open | jq -r '[.items[].id] | join(",")')"
 assert_eq "list-sub-items --state closed keeps only C2" "$C2" \
   "$(bash "$TRACKER" list-sub-items "$MAP" --state closed | jq -r '[.items[].id] | join(",")')"
 
-# --- a leaf has no children ---
 assert_eq "list-sub-items on a leaf is empty" "0" \
   "$(bash "$TRACKER" list-sub-items "$LEAF" | jq '.items | length')"
 
-# --- container-scoped frontier (list-frontier --parent) ---
 PFRONT="$(bash "$TRACKER" list-frontier --parent "$MAP" | jq -c '[.items[].id]')"
 assert_contains "scoped frontier holds the open child C1" "$PFRONT" "$C1"
 assert_not_contains "scoped frontier drops the closed child C2" "$PFRONT" "$C2"

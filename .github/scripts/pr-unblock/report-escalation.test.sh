@@ -268,7 +268,6 @@ for reason in "${SESSION_REASONS[@]}"; do
   check "$reason, session, status mode: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 done
 
-# With needs-session already on, the comment goes up and the label is not written again.
 setup '[{"name":"needs-session"}]' '[]'
 run ci-fix-weaken-required
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
@@ -351,7 +350,6 @@ for reason in "${SESSION_REASONS[@]}"; do
   check "$reason, session, status mode: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
 done
 
-# With needs-session already on, the comment goes up and the label is not written again.
 setup '[{"name":"needs-session"}]' '[]'
 run ci-fix-escalated
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
@@ -578,7 +576,6 @@ for entry in false null 7 '""' '["needs-human"]'; do
   check "role label: present entry $entry makes no gh call" '' "$(cat "$STUB/calls")"
 done
 
-# Idempotency.
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_A")"
 run feedback-question-design
 check "re-run on the same head: exit 0" 0 "$RC"
@@ -775,7 +772,6 @@ run feedback-incomplete
 check "incomplete, no marker on this head: still escalates" 0 "$RC"
 has "incomplete, no marker on this head: points at the log" 'none named in the lane' "$STUB/bodies"
 
-# Input validation.
 setup '[]' '[]'
 run repeat-cap not-a-sha
 check "rejects a malformed head sha" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"

@@ -11,7 +11,6 @@ trap 'rm -rf "$TMP"' EXIT
 FAILED=0
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { FAILED=$((FAILED + 1)); printf 'FAIL: %s\n  %s\n' "$1" "$2" >&2; }
-# expect <name> <detail> <command...>: pass when the command succeeds.
 expect() {
   local name="$1" detail="$2"
   shift 2
@@ -60,7 +59,6 @@ for want in "--repo/--root: none given" "ghq not installed" "ghq root --all" "5.
   expect "the no-scope message carries: $want" "$noscope_err" has "$noscope_err" "$want"
 done
 
-# Advance origin, leave the clone behind.
 commit_file "$seed" REMOTE_ONLY.md
 git -C "$seed" push -q origin main
 before="$(git -C "$clone" rev-parse HEAD)"

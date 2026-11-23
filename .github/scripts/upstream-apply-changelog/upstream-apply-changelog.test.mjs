@@ -1,10 +1,12 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 import assert from "node:assert/strict";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { evaluate as evalIf } from "../lib/gate-expression.mjs";
@@ -682,24 +684,10 @@ test("the subscription leg runs after a key handoff, an empty key or a credit-ga
   for (const job of ["apply-changelog-subscription", "apply-changelog-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
 });
 
-// The legs are the key leg's steps but for the credential, the marker, the
-// handoff report, the leg record's fallback reason, the seal's job id and the
-// next-leg call the fallback leg, the last, does not make.
-test("the subscription and fallback legs repeat the key leg's steps", () => {
-  const shape = (job) =>
-    wf
-      .steps(job)
-      .map((s) => s.text)
-      .filter((s) => !/^ {6}- name: (?:Write the key's credit-stop marker|Scan the key's credit-stop marker for credentials|Upload the key's credit-stop marker|Report the key's handoff|Report the subscription's handoff|Check the credential|Pick the next leg)\n/.test(s))
-      .map((s) =>
-        s
-          .replace(/^ *#.*(?:\n|$)/gm, "")
-          .trimEnd()
-          .replace(/^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|JOB_ID): .*(?:\n|$)/gm, "")
-          .replace(/ && steps\.run\.outputs\.handoff != 'true'/, ""),
-      );
-  assert.deepEqual(shape("apply-changelog-subscription"), shape("apply-changelog"));
-  assert.deepEqual(shape("apply-changelog-fallback"), shape("apply-changelog"));
+test("the subscription and fallback legs of both chains are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("the gate stops a fourth real run inside 24 hours and lets a third through", async (t) => {

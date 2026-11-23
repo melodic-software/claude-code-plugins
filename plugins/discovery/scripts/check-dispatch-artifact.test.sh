@@ -115,7 +115,6 @@ stderr_has() {
   stderr_raw "$expected" "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
 }
 
-# slice <name> — make an empty slice directory and echo its path.
 slice() {
   local path="$WORK/$1"
   mkdir -p "$path"
@@ -129,7 +128,6 @@ sidecar() {
   printf '%s\n' "$@" >"$dir/$name"
 }
 
-# index <slice-dir> <body...> — write the family's index into a directory.
 index() {
   local dir="$1"
   shift
@@ -145,8 +143,6 @@ suite() {
   WORK="$WORKROOT/$PREFIX"
   mkdir -p "$WORK"
 
-  # --- usable ---------------------------------------------------------------
-
   local good multi sub dupes blank stub placeholder orphan hollow
   local notdir occupied two_sub deep old_baseline future_baseline
 
@@ -158,7 +154,6 @@ suite() {
   stdout_has 0 'sidecars=1 missing=0 freshness=unchecked pointer=unchecked status=usable' \
     "usable run reports its counts" "$good"
 
-  # A trailing slash is what a parent's own path variable usually carries.
   run 0 "a trailing slash on the slice path is accepted" "$good/"
 
   # The same sidecar named in both the abstract list and the section table is
@@ -235,7 +230,6 @@ suite() {
   stdout_has 1 'sidecars=0 missing=0 freshness=unchecked pointer=unchecked status=unusable' \
     "the no-sidecar branch reports the full verdict line" "$stub"
 
-  # The angle-bracketed placeholder is not a filename.
   placeholder="$(slice placeholder)"
   index "$placeholder" "sidecars are named $PREFIX-<section>.md"
   run 1 "the literal <section> placeholder does not count as a sidecar" "$placeholder"
@@ -314,8 +308,6 @@ suite() {
   # appeared to run.
   run 2 "--newer-than naming a missing baseline is ungradeable" "$good" --newer-than "$WORK/no-such-baseline"
   run 2 "--newer-than with no value is a usage error" "$good" --newer-than
-
-  # --- pointer agreement (--expect-index) -----------------------------------
 
   run 0 "a payload pointer naming the graded index is usable" "$good" --expect-index "$good/$INDEX_NAME"
   stdout_has 0 'pointer=matches' "an agreeing pointer reports pointer=matches" "$good" --expect-index "$good/$INDEX_NAME"
@@ -675,8 +667,6 @@ fi
 run_raw 0 "--help exits 0" --help
 stdout_raw 0 'Deterministic acceptance gate' "--help prints the header" --help
 stdout_raw 0 '--index-name' "--help documents the required index name" --help
-
-# ----------------------------------------------------------------------------
 
 if [[ "$fails" -gt 0 ]]; then
   printf '\n%d test(s) failed\n' "$fails" >&2

@@ -52,7 +52,6 @@ _clean_ssh_first_word() {
   [[ -z "$quoted" ]]
 }
 
-# _clean_ssh_command [repo] — prints the batch-mode ssh command for git's child.
 _clean_ssh_command() {
   local repo="${1:-}" cmd="" variant="" explicit=0 base="" candidate ssh_word ssh_word_end
   local sq="'" q="'\\''"

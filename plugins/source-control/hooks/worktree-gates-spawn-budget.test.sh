@@ -69,7 +69,7 @@ mkdir -p "$REPO/sub"
 # read, which is one of the hoists this suite guards.
 git -C "$REPO" config worktreeroot.path "$OUTSIDE"
 
-payload() { # payload <cwd> <command> <event>
+payload() {
   jq -n --arg cwd "$1" --arg cmd "$2" --arg ev "$3" \
     '{session_id:"budget",transcript_path:"/dev/null",cwd:$cwd,hook_event_name:$ev,tool_name:"Bash",tool_input:{command:$cmd}}'
 }
@@ -91,7 +91,6 @@ measure() {
   rm -f "$trace"
 }
 
-# assert_budget <label> <hook> <payload> <max-creations> <max-execve>
 assert_budget() {
   local label="$1" hook="$2" pl="$3" maxc="$4" maxe="$5"
   measure "$hook" "$pl"
@@ -151,7 +150,6 @@ assert_exact "containment, git -C <repo> add (names root)" "$CONTAIN" \
 assert_exact "containment, add into a working tree" "$CONTAIN" \
   "$(payload "$REPO" "git worktree add sub/nested" PreToolUse)" 23 7
 
-# ── claim hook (PostToolUse:Bash) ───────────────────────────────────────────
 assert_budget "claim, non-add command" "$CLAIM" \
   "$(payload "$OUTSIDE" 'git worktree list' PostToolUse)" 7 2
 

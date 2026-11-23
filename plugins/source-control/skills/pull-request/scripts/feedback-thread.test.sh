@@ -79,14 +79,12 @@ recorded() {
   if [[ -f $STUB/replies.jsonl ]]; then wc -l <"$STUB/replies.jsonl"; else echo 0; fi
 }
 
-# list
 setup
 out=$(run list)
 assert_eq "list prints the kept thread ids" "PRRT_a PRRT_b" "$(jq -r 'map(.id) | join(" ")' <<<"$out")"
 assert_eq "list prints each thread's review commit" "$HEAD $OLD" "$(jq -r 'map(.review_commit) | join(" ")' <<<"$out")"
 assert_eq "list prints each thread's outdated state" "false true" "$(jq -r 'map(.is_outdated | tostring) | join(" ")' <<<"$out")"
 
-# check-paths
 setup
 run check-paths src/a.js docs/b.md >/dev/null 2>&1
 assert_exit "check-paths allows paths kept threads name" 0 "$?"
@@ -105,8 +103,6 @@ assert_exit "check-paths refuses a test file beside a .github/workflows/ thread 
 run check-paths .github/scripts/x.mjs .github/scripts/x.test.mjs >/dev/null 2>&1
 assert_exit "check-paths allows a .github/scripts/ thread path and a test file beside it" 0 "$?"
 
-# check-paths: a file in a kept thread's plugins/<p>/ directory other than permission config
-# and package manifests, any plugin's or skill's eval files, and test files beside a thread path
 setup
 jq '.threads += [{"id":"PRRT_e","path":"plugins/p/evals/c/case.yaml","root_comment_id":400,"comments":[]},
   {"id":"PRRT_s","path":"plugins/planning/surface/round.py","root_comment_id":401,"comments":[]}]' \
@@ -207,8 +203,6 @@ for path in plugins/other/x.js .github/workflows/x.yml \
   assert_exit "check-paths refuses named $path" 1 "$?"
 done
 
-# check-paths: the plugin-wide scope holds code and plugin monitors, bin and .lsp.json; package
-# manifests and non-ASCII letters stay out
 for path in plugins/knowledge/README.md plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool plugins/knowledge/.lsp.json \
   plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1; do
   run check-paths "$path" >/dev/null 2>&1
@@ -219,8 +213,6 @@ for path in plugins/knowledge/package-lock.json "plugins/knowledge/hooKs/hooks
   assert_exit "check-paths refuses $path" 1 "$?"
 done
 
-# record VALID: the uncommitted fix is checked in the working tree and the
-# reply appended, with an empty fix_sha and no GitHub call
 setup
 echo 'guarded' >"$STUB/ws/src/a.js"
 mkdir -p "$STUB/ws/.lane/scratch"
@@ -256,7 +248,6 @@ echo 'guarded' >"$STUB/ws/src/a.js"
 mkdir -p "$STUB/ws/src/nested" && : >"$STUB/ws/src/nested/package.json"
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "an empty stub name below the top of the checkout refuses the VALID record" 1 "$?"
-# A plugin's control files are in the plugin-wide scope of a thread on another of its files.
 setup
 mkdir -p "$STUB/ws/plugins/p/.claude-plugin" "$STUB/ws/plugins/p/hooks"
 echo 'r' >"$STUB/ws/plugins/p/README.md"
@@ -298,7 +289,6 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a VALID record with fix_sha left out succeeds" 0 "$?"
 assert_eq "a left-out fix_sha is recorded empty" '' "$(jq -r .fix_sha "$STUB/replies.jsonl")"
 
-# record INCORRECT and UNCERTAIN: no API call at all
 setup
 disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3","docs/b.md:1"],"note":"Line 3 is guarded at src/a.js:2."}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
@@ -309,7 +299,6 @@ assert_exit "an UNCERTAIN record with no evidence succeeds" 0 "$?"
 assert_eq "both are recorded in order" "INCORRECT UNCERTAIN" "$(jq -rs 'map(.disposition) | join(" ")' "$STUB/replies.jsonl")"
 assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
 
-# a note naming a token placeholder and a commit sha is recorded, still with no API call
 setup
 disposition "{\"disposition\":\"UNCERTAIN\",\"note\":\"The fixture uses ghs_job; see $FIX.\"}"
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
@@ -328,8 +317,6 @@ disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a note of 2001 emoji is refused" 1 "$?"
 
-# a fix steered outside the thread paths, or into .github/, is not recorded:
-# a tracked change, a new untracked file, or a removal
 for edit in 'echo f >"$STUB/ws/src/other.js"' 'mkdir -p "$STUB/ws/.github/workflows" && echo f >"$STUB/ws/.github/workflows/release.yml"' \
   'mkdir -p "$STUB/ws/.GitHub" && echo f >"$STUB/ws/.GitHub/CODEOWNERS"' \
   'echo f >"$STUB/ws/src/new.js"' 'rm "$STUB/ws/src/other.js"'; do
@@ -355,7 +342,6 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a checkout git cannot read refuses the VALID record" 1 "$?"
 assert_eq "an unreadable tree records nothing" 0 "$(recorded)"
 
-# the disposition file must match the template and live in the scratch dir
 for bad in \
   "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"a fix sha on VALID\"}" \
   '{"disposition":"INCORRECT","note":"no evidence"}' \
@@ -399,9 +385,6 @@ assert_eq "refused calls make no API call" 0 "$(wc -l <"$STUB/calls")"
 run frobnicate >/dev/null 2>&1
 assert_exit "an unknown subcommand exits 2" 2 "$?"
 
-# An earlier-FAIL round: no thread, the FAIL's notes from its verdict artifact.
-# notes lists them; a note takes VALID or already-addressed with evidence, its
-# path is in scope like a thread's, and a thread takes no already-addressed.
 setup
 assert_eq "notes prints [] in a thread round" "[]" "$(run notes | jq -c .)"
 cat >"$STUB/threads.json" <<EOF
@@ -439,8 +422,6 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a thread refuses already-addressed" 1 "$?"
 assert_eq "the refused records append nothing" 0 "$(recorded)"
 
-# issues and follow-up: only a thread the select job marked may_follow_up
-# takes a follow-up reply, and issues prints the closing issues it read.
 setup
 assert_eq "issues prints [] when the thread file holds no closing issue" "[]" "$(run issues | jq -c .)"
 disposition '{"disposition":"follow-up","evidence":["src/a.js:3"],"note":"Out of scope for the issue."}'
@@ -455,8 +436,6 @@ assert_eq "the follow-up reply is recorded as written" '{"thread":"PRRT_a","disp
 run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "the other thread, not marked, still refuses follow-up" 1 "$?"
 
-# sections and record-body: replacement text only for a section the select job
-# offered, once per round, beside the replies.
 setup
 body_file() {
   printf '%s' "$1" >"$STUB/scratch/body.json"

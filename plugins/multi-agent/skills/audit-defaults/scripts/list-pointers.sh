@@ -22,7 +22,6 @@ if [[ -n "$OWNER" ]] && ! awk -F '\t' -v o="$OWNER" '$1 == o { found = 1 } END {
   exit 2
 fi
 pointer_rows="$(awk -F '\t' -v o="$OWNER" 'o == "" || $1 == o' <<<"$pointers")"
-# A role's values are roles.<role>.*; the fan-out guard's are fanout.* and frontier.
 value_rows="$(awk -f "$PLUGIN_DIR/scripts/yaml-subset.awk" "$PLUGIN_DIR/reference/defaults.yaml" |
   awk -F '\t' -v o="$OWNER" '
     $1 ~ /(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$/ { next }

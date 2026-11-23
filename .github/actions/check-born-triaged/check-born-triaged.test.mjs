@@ -351,8 +351,6 @@ test("CLI emits the listed human ids even when the issue is unreadable", () => {
   }
 });
 
-// A rate-guard stop the job already holds: no request, rate-limited=true for
-// the callers to stop their API jobs on, and the step still exits 0.
 test("CLI reports rate-limited=true and sends nothing while the job's rate guard holds a stop", () => {
   const dir = tempDir("born-triaged-stop-");
   try {

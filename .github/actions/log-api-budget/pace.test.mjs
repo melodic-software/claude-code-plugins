@@ -299,8 +299,6 @@ function assertMarker(file, steps, work, clean, chain) {
   assert.ok(at(work) > at(chain.at(-1)[0]), `${file}: the marker follows ${chain.at(-1)[0]}`);
 }
 
-// The timer-driven lanes that read the pacer: each reads it once on the
-// event, never fails on it, and gates every step that spends the pool.
 test("each paced timer lane reads the pacer before its work and gates every spending step on it", () => {
   const dispatch = "Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs";
   const lanes = {

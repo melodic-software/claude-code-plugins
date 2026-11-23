@@ -43,6 +43,11 @@ fanout:
   as_of: 2026-11-09
   recheck: a new model named on the cost page, or a workflows Cost section change to how a stage's model is chosen
 
+vendors:
+  routing: true
+  trials: false
+  auto_delegation: false
+
 roles:
   orchestrator:
     model: inherit

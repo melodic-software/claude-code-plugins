@@ -5,7 +5,6 @@
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/commit-msg-convention.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
 unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +19,6 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 # shellcheck source=../lib/git-hooks-test-helpers.sh
 source "$PLUGIN/lib/git-hooks-test-helpers.sh"
 
-# Fixtures are assembled at run time, so no real-shape token or machine path
-# sits in this file's own bytes for a scanner to find. Never fold them into
-# literals.
 SL='/'
 FAKE_GHP="ghp_$(printf 'A%.0s' {1..36})"
 FAKE_LINUX="${SL}home${SL}alice${SL}projects${SL}demo${SL}src${SL}main.sh"
@@ -31,8 +27,6 @@ ZERO=0000000000000000000000000000000000000000
 HINT='guardrails: remove the secrets or machine-specific paths above from the commits that add them (use a placeholder, an environment variable or a portable path, and rewrite each named commit: a later commit that deletes the text still publishes it), then push again.'
 
 n=0
-# new_repo: a repository whose main is pushed to a bare origin, with
-# origin/HEAD set, on a new $BRANCH from main.
 new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
@@ -49,7 +43,7 @@ new_repo() {
   git -C "$REPO" switch -q -c "$BRANCH"
 }
 
-commit_text() { # <path> <text> <message>: writes <path> and commits it
+commit_text() {
   mkdir -p "$(dirname "$REPO/$1")"
   printf '%s' "$2" >"$REPO/$1"
   git -C "$REPO" add -- "$1"
@@ -58,8 +52,6 @@ commit_text() { # <path> <text> <message>: writes <path> and commits it
 
 short() { git -C "$REPO" rev-parse --short=12 "$1"; }
 
-# push_check <local-sha> <remote-sha> -> "<rc>|<stderr>", the way git runs a
-# pre-push hook for $BRANCH: remote name and url as args, refs on stdin.
 push_check() {
   local err rc
   err="$(cd "$REPO" && printf 'refs/heads/%s %s refs/heads/%s %s\n' "$BRANCH" "$1" "$BRANCH" "$2" |
@@ -87,8 +79,6 @@ expect "a pushed commit that adds a home path blocks" \
   "1|notes.md:3: machine-specific path (Linux user path detected) (commit $(short HEAD))
 $HINT" "$(new_push)"
 
-# Each commit is judged on its own: the tip no longer holds the token, but the
-# push would publish the commit that does.
 new_repo
 commit_text notes.md $'line one\nline two\ntoken='"$FAKE_GHP"$'\n' "plant"
 planted="$(short HEAD)"
@@ -101,7 +91,6 @@ new_repo
 commit_text tests/fixtures/token.txt "token=$FAKE_GHP"$'\n' "fixture"
 expect "a token under tests/fixtures/ passes, as secret-pattern-detection exempts it" "0|" "$(new_push)"
 
-# An existing branch: only the commits after the remote's tip are judged.
 new_repo
 commit_text notes.md $'line one\nline two\ntoken='"$FAKE_GHP"$'\n' "plant"
 git -C "$REPO" push -q --no-verify origin "$BRANCH" 2>/dev/null
@@ -110,8 +99,6 @@ commit_text other.md $'clean\n' "clean"
 expect "an update judges only the commits after the remote's tip" "0|" \
   "$(push_check "$(git -C "$REPO" rev-parse HEAD)" "$old")"
 
-# A new branch stacked on a pushed branch: the commits a tracking ref holds are
-# on the remote already.
 new_repo
 commit_text notes.md $'line one\nline two\ntoken='"$FAKE_GHP"$'\n' "plant"
 git -C "$REPO" push -q --no-verify origin "$BRANCH:other" 2>/dev/null
@@ -120,8 +107,6 @@ expect "a commit a remote-tracking ref holds is not judged again" "0|" "$(new_pu
 
 expect "a deletion checks nothing" "0|" "$(push_check "$ZERO" "$(git -C "$REPO" rev-parse HEAD)")"
 
-# A merge of the remote's main brings in its lines, which are on the remote
-# already; only what the merge adds against every parent is judged.
 new_repo
 git -C "$REPO" switch -q main
 commit_text main.md "see $FAKE_LINUX"$'\n' "main path"
@@ -131,8 +116,6 @@ commit_text branch.md $'clean\n' "branch"
 git -C "$REPO" merge -q --no-edit --no-verify origin/main >/dev/null 2>&1
 expect "a merge's lines from the remote's main are not judged again" "0|" "$(new_push)"
 
-# A file holding a NUL byte is judged whole, past the ranges: one a merge
-# takes unchanged from the remote's main is not judged again either.
 new_repo
 git -C "$REPO" switch -q main
 printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/n.bin"
@@ -157,8 +140,6 @@ expect "a token a merge's own resolution adds blocks" \
   "1|side.md:2: secret or credential pattern: GitHub PAT (commit $(short HEAD))
 $HINT" "$(new_push)"
 
-# In one file both sides changed, the path the remote's main brings passes and
-# the path the merge's resolution adds blocks.
 new_repo
 git -C "$REPO" switch -q main
 commit_text notes.md $'line one\nmain change\nsee '"$FAKE_LINUX"$' here\n' "main path"
@@ -173,10 +154,6 @@ expect "a path a merge's own resolution adds blocks beside one the remote's main
   "1|notes.md:2: machine-specific path (Linux user path detected) (commit $(short HEAD))
 $HINT" "$(new_push)"
 
-# Two merges of one 3-file branch, with integration branches of 20 and 40
-# changed files, each merge adding a token of its own. The git processes each
-# push starts are counted from a trace, and compared as a difference, not an
-# absolute count, so git's own internal spawns cancel out.
 new_repo
 for i in 1 2 3; do printf 'branch %s\n' "$i" >"$REPO/b$i.md"; done
 git -C "$REPO" add -A
@@ -211,7 +188,6 @@ ptree() {
   blob="$(git -C "$REPO" hash-object -w --stdin)"
   printf '%s blob %s\t%s\n' "$1" "$blob" "$2" | git -C "$REPO" mktree
 }
-# pcommit <tree> <parent>...: a commit of <tree> on those parents.
 pcommit() {
   local tree=$1 p
   local -a args=()
@@ -219,8 +195,6 @@ pcommit() {
   for p in "$@"; do args+=(-p "$p"); done
   git -C "$REPO" commit-tree "${args[@]}" -m plumbing "$tree"
 }
-# on_remote <name> <commit>: a tracking ref holds <commit>, so only a merge on
-# it is pushed.
 on_remote() { git -C "$REPO" update-ref "refs/remotes/origin/$1" "$2"; }
 
 new_repo
@@ -241,8 +215,6 @@ expect "a symlink target turned into a regular file with the same bytes is judge
   "1|t.txt:1: secret or credential pattern: GitHub PAT (commit $(short "$merge"))
 $HINT" "$(push_check "$merge" "$ZERO")"
 
-# A commit that turns its first parent's symlink into a regular file adds every
-# line of it; one that turns a regular file into a symlink adds no content.
 new_repo
 seed="$(git -C "$REPO" rev-parse HEAD)"
 link="$(pcommit "$(printf 'elsewhere' | ptree 120000 t.txt)" "$seed")"
@@ -331,7 +303,6 @@ echo "measured: pre-push-content took ${took_ms} ms on one 28-file commit"
 expect "the entry passes the 28-file push" "0|" "$got"
 expect "the 28-file push runs within check-placement's 3 s pre-push budget" yes "$( ((took_ms <= 3000)) && echo yes)"
 
-# End to end through the plugin's vendored installer and a real git push.
 new_repo
 status="$(node "$INSTALL" copy --scope local --entry pre-push-content --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"pre-push-content","status":"installed"}]' "$status"

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/source-bookmarks.sh: a bookmark moves only after a full,
-# readable read of its source. Self-contained and cwd-independent.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +7,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 FAILED=0
-check() { # name expected actual
+check() {
   if [[ "$2" == "$3" ]]; then
     echo "ok - $1"
   else

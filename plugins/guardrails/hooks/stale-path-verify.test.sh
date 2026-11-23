@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for stale-path-verify.sh (guardrails plugin).
-#
-# Black-box subprocess invocation. The oracle is history, so each fixture repo
-# COMMITS files and then DELETES them — a fixture that only `git init`s has an
-# empty deleted-path set, under which every MUST-fire case would exit quiet and
-# every stay-quiet assertion would pass against an inert guard.
 
 # shellcheck disable=SC2016
 # Every fixture below is markdown fed to the hook as literal data. Backticks are
@@ -22,45 +16,19 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# Neutralize ambient CLAUDE_PROJECT_DIR; cases that need scoping set it.
 unset CLAUDE_PROJECT_DIR
 
-# hook::notice_once keys its once-per-session markers under CLAUDE_PLUGIN_DATA.
-# Inheriting the operator's real one makes the shallow-clone notice fire on the
-# first run of the suite and stay suppressed on every run after.
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/plugin-data"
 
-# hook::buffer_stdin bounds its fd0 read at CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT
-# seconds, default 2, and a timeout makes an advisory hook exit 0 silently. A
-# single invocation costs 10-20 s of wall time on a loaded Windows/Git Bash box, so
-# the default bound produces empty output and a false FAIL that looks like a logic
-# defect. Raised here because these cases test detection, not the read bound.
 export CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30
 
 git_c() { git -C "$1" -c user.email=t@t.test -c user.name=t -c commit.gpgsign=false "${@:2}"; }
 
-# ---------------------------------------------------------------------------
-# Fixture repo. Its history is the oracle, so the shape of each commit matters:
-#
-#   surviving        docs/real.md, .claude/settings.json, lib/keep.js
-#   deleted          plugins/re-anchor/context/re-anchor-audit-correct.md
-#                    docs/gone.md
-#   renamed          tools/legacy-emit.sh -> tools/current-emit.sh
-#   deleted off-HEAD scratch/branch-only.md (on an abandoned branch)
-#   never present    docs/example.md, docs/new-thing.md, .claude/testing/e2e.md,
-#                    lib/emit-slides.js
-#
-# plugins/discipline/context/re-anchor-audit-correct.md survives and is the ONLY
-# tracked file with that basename, which is what the moved-file hint keys on.
-# ---------------------------------------------------------------------------
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"
 git -C "$REPO" init -q
 mkdir -p "$REPO/docs" "$REPO/.claude" "$REPO/lib" "$REPO/tools" "$REPO/scratch" \
   "$REPO/plugins/re-anchor/context" "$REPO/plugins/discipline/context"
-# Keeps scratch/ populated at HEAD after the abandoned branch's `git rm` prunes
-# its own empty parent, so the off-HEAD case is a citation into a directory that
-# genuinely exists rather than one the shape gate would have rejected anyway.
 echo keep >"$REPO/scratch/keep.md"
 echo real >"$REPO/docs/real.md"
 echo gone >"$REPO/docs/gone.md"
@@ -71,19 +39,14 @@ echo anchor >"$REPO/plugins/re-anchor/context/re-anchor-audit-correct.md"
 git_c "$REPO" add -A >/dev/null 2>&1
 git_c "$REPO" commit -qm seed >/dev/null 2>&1
 
-# The move that produces the true-positive shape: the file is gone from its old
-# location and present at a new one.
 git_c "$REPO" rm -q "docs/gone.md" >/dev/null 2>&1
 git_c "$REPO" mv "plugins/re-anchor/context/re-anchor-audit-correct.md" \
   "plugins/discipline/context/re-anchor-audit-correct.md" >/dev/null 2>&1
 git_c "$REPO" commit -qm "move and delete" >/dev/null 2>&1
 
-# A rename git records as R. Without --no-renames on the history walk, --name-only
-# prints only the NEW path and the stale one never enters the set.
 git_c "$REPO" mv "tools/legacy-emit.sh" "tools/current-emit.sh" >/dev/null 2>&1
 git_c "$REPO" commit -qm rename >/dev/null 2>&1
 
-# A path deleted only on an abandoned branch. HEAD's history must not see it.
 BRANCH_BASE=$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)
 git -C "$REPO" checkout -q -b abandoned
 mkdir -p "$REPO/scratch"
@@ -99,14 +62,9 @@ TARGET="$REPO/notes.md"
 
 GUARD_UNDER_TEST="$HOOK"
 
-# HOOK, REPO and TARGET above are the caller contract for `run`, `run_edit`,
-# `run_payload` and `parity` in guardrails-test-helpers.sh; HOOK_OVERRIDE lets a
-# case point them at a stub hook and stays unset elsewhere.
 
-# --- The run helpers must carry the hook's exit code out ---------------------
 assert_run_helpers_propagate_exit
 
-# ============================ MUST FIRE =====================================
 
 run 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.'
 assert_exit "deleted path in code span → exit 0 (advisory)" 0 "$?"
@@ -114,12 +72,9 @@ assert_contains "deleted path → named" "$OUT" \
   "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 assert_contains "deleted path → count" "$OUT" "cited path(s) in"
 
-# Criterion 4: the finding carries the moved-file hint when exactly one tracked
-# file now carries that basename.
 assert_contains "unique surviving basename → moved-file hint" "$OUT" \
   "plugins/discipline/context/re-anchor-audit-correct.md"
 
-# Criterion 8: the advisory must read as a prompt for a verdict, not a verdict.
 assert_absent "advisory carries no verdict trailer" "$OUT" "Detect-then-judge"
 assert_contains "advisory exempts a deliberate deletion record" "$OUT" \
   "A path cited as a deletion record is correct as written."
@@ -128,15 +83,6 @@ run_edit 'Now cites `plugins/re-anchor/context/re-anchor-audit-correct.md` inste
 assert_contains "Edit hunk scanned via new_string" "$OUT" \
   "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 
-# PARTIAL-EDIT RECONSTRUCTION. An Edit may replace a bare substring INSIDE an
-# existing code span: the surrounding backticks are pre-existing and never enter
-# new_string, so the hunk holds no complete span for the direct scan to find. The
-# edit is already applied by PostToolUse time, so the containing citation is
-# recovered from disk, anchored to the hunk's own text.
-#
-# `docs/gone.md` is in the deleted set; `docs/real.md` survives. The fixture holds
-# the post-edit state (`real` -> `gone`), which is what disk carries when the hook
-# runs.
 PARTIAL="$REPO/partial.md"
 printf 'Untouched `tools/legacy-emit.sh` here.\nNow cites `docs/gone.md` today.\n' >"$PARTIAL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'gone')" 2>&1)
@@ -145,15 +91,9 @@ assert_exit "bare-substring Edit hunk → exit 0" 0 "$RC"
 assert_contains "bare-substring Edit hunk → containing citation recovered" "$OUT" \
   "  docs/gone.md"
 
-# Diff-scope is preserved: a PRE-EXISTING unrelated stale citation must NOT fire
-# just because reconstruction read from disk.
 assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
   "legacy-emit"
 
-# Diff-scope again, against the harder shape: the hunk is unrelated prose that
-# merely SHARES a path segment with an untouched stale citation elsewhere in the
-# same file. Anchoring on a word token pulls that citation in — `docs` occurs in
-# both — so the anchor has to be the hunk's own line, which occurs exactly once.
 SEGSHARE="$REPO/segshare.md"
 printf 'Untouched `docs/gone.md` here.\nThe docs folder was reorganized today.\n' >"$SEGSHARE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -162,19 +102,11 @@ RC=$?
 assert_exit "prose hunk sharing a path segment → exit 0" 0 "$RC"
 assert_silent "hunk sharing only a path SEGMENT does not drag in an untouched citation" "$OUT"
 
-# The same shape with the hunk reduced to a BARE FRAGMENT — the normal minimal
-# Edit, and the one the header comment uses to motivate reconstruction. `grep -F`
-# is a substring match, so the line anchor collapses onto the token anchor here
-# and line-anchoring alone recovers the untouched line 1. Occurrence uniqueness is
-# what holds diff-scope: `docs` occurs on both lines, so the anchor is ambiguous
-# and dropped rather than guessed at.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SEGSHARE" 'docs')" 2>&1)
 RC=$?
 assert_exit "bare-fragment hunk → exit 0" 0 "$RC"
 assert_silent "bare-fragment hunk does not adjudicate an untouched citation" "$OUT"
 
-# Face A (#1455): below the old four-character token floor, reconstruction returned
-# immediately and missed a stale citation from a minimal extension swap.
 SHORTFRAG="$REPO/shortfrag.md"
 printf 'See `docs/gone.md` here.\n' >"$SHORTFRAG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORTFRAG" 'md')" 2>&1)
@@ -183,10 +115,6 @@ assert_exit "two-character partial-edit anchor → exit 0" 0 "$RC"
 assert_contains "two-character partial-edit anchor → stale citation recovered" "$OUT" \
   "  docs/gone.md"
 
-# Occurrences, not matching lines. Two occurrences on ONE physical line are a
-# single grep hit, so a line-uniqueness gate would call this unique and adjudicate
-# a citation sharing the line. The anchor cannot say which occurrence the edit
-# landed on, so it is dropped.
 ONELINE="$REPO/oneline.md"
 printf 'The docs folder and the docs tree both hold `docs/gone.md` today.\n' >"$ONELINE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$ONELINE" 'docs')" 2>&1)
@@ -194,11 +122,6 @@ RC=$?
 assert_exit "anchor occurring twice on one line → exit 0" 0 "$RC"
 assert_silent "two occurrences on a single line are ambiguous, not unique" "$OUT"
 
-# SELF-OVERLAPPING anchor. `grep -o` emits only non-overlapping matches, so
-# `docs/docs` against `docs/docs/docs` reports one hit while starts exist at two
-# offsets. A counter built on `grep -o` calls that unique and adjudicates the
-# untouched citation sharing the line — the exact false advisory occurrence
-# uniqueness was added to prevent. Counting starts with index() catches it.
 OVERLAP="$REPO/overlap.md"
 printf 'The docs/docs/docs tree still cites `docs/gone.md` today.\n' >"$OVERLAP"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$OVERLAP" 'docs/docs')" 2>&1)
@@ -214,21 +137,14 @@ assert_exit "replace_all Edit → exit 0" 0 "$RC"
 assert_contains "replace_all → repeated anchor still adjudicated" "$OUT" \
   "  docs/gone.md"
 
-# A line-citation suffix is stripped for resolution; the finding names the path
-# without it.
 run 'Per `plugins/re-anchor/context/re-anchor-audit-correct.md:12` the rule applies.'
 assert_contains "line citation suffix stripped → still fires" "$OUT" \
   "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 
-# CRITERION 2, behaviorally. git records tools/legacy-emit.sh -> tools/current-emit.sh
-# as a rename; with git's default rename detection --name-only prints only the new
-# path, so this case fails and the guard is silently inert.
 run 'Run `tools/legacy-emit.sh` to build.'
 assert_contains "renamed-away path fires (--no-renames in effect)" "$OUT" \
   "  tools/legacy-emit.sh"
 
-# #1446: deleted root-level paths are valid citations when the basename is
-# referentially unambiguous.
 ROOT_FIRE="$TEST_TMPDIR/root-fire-repo"
 mkdir -p "$ROOT_FIRE/docs"
 git -C "$ROOT_FIRE" init -q
@@ -246,7 +162,6 @@ RC=$?
 assert_exit "deleted root-level path → exit 0 (advisory)" 0 "$RC"
 assert_contains "deleted root-level path fires" "$OUT" "  CONTRIBUTING.md"
 
-# Generic root basenames stay out even when this repo once deleted its root copy.
 ROOT_QUIET="$TEST_TMPDIR/root-quiet-repo"
 mkdir -p "$ROOT_QUIET/docs" "$ROOT_QUIET/plugins/a"
 git -C "$ROOT_QUIET" init -q
@@ -265,7 +180,6 @@ RC=$?
 assert_exit "generic root README.md mention → exit 0" 0 "$RC"
 assert_silent "generic root README.md mention stays quiet after root deletion" "$OUT"
 
-# Enumerated generic names stay quiet even when the basename is unique in-tree.
 ROOT_PKG="$TEST_TMPDIR/root-pkg-repo"
 mkdir -p "$ROOT_PKG"
 git -C "$ROOT_PKG" init -q
@@ -282,49 +196,29 @@ RC=$?
 assert_exit "generic root package.json mention → exit 0" 0 "$RC"
 assert_silent "generic root package.json mention stays quiet after root deletion" "$OUT"
 
-# ============================ MUST STAY QUIET ===============================
-#
-# One case per false-positive class measured on the corpus sweep. Each is a
-# citation whose leading directory DOES exist here, so a gate keyed on path shape
-# rather than provenance adjudicates it; the provenance gate must not.
 
-# Cause 1 (72% of findings): consumer-project config a marketplace documents but
-# never carries. `.claude/` exists locally, which is exactly why shape-based
-# gating could not tell these apart.
 run 'Consumers put their suite under `.claude/testing/e2e.md`.'
 assert_exit "consumer config path → exit 0" 0 "$?"
 assert_silent "consumer config path never in this repo → silent" "$OUT"
 
-# Cause 2: a subtree-relative citation. `lib/` exists at the root, but the cited
-# file is relative to a skill root, not the repo root.
 run 'The generator lives at `lib/emit-slides.js` beside the skill.'
 assert_silent "subtree-relative citation → silent" "$OUT"
 
-# Cause 3: forward-looking — a path this change set has not written yet.
 run 'CREATE: `docs/new-thing.md` in the next step.'
 assert_silent "forward-looking path never committed → silent" "$OUT"
 
-# Cause 4: an illustrative placeholder.
 run 'For instance `docs/example.md` would do.'
 assert_silent "illustrative placeholder → silent" "$OUT"
 
-# Cause 5: a code span holding markdown link syntax is example text, not a link.
-# Its destination must never be extracted as one.
 run 'Write it as `[the guide](docs/gone.md)` in prose.'
 assert_silent "link literal inside a code span → silent" "$OUT"
 
-# Link destinations are out of scope entirely — including one naming a genuinely
-# removed file, which is the case a destination extractor would most want.
 run 'See [the guide](docs/gone.md) for details.'
 assert_silent "link destination to a removed file → silent (links out of scope)" "$OUT"
 
-# HEAD, not --all: a path that only ever existed on an abandoned branch is not a
-# stale mainline citation.
 run 'Scratch notes were at `scratch/branch-only.md`.'
 assert_silent "path deleted only off HEAD → silent" "$OUT"
 
-# Provenance is required; a coincident leading directory alone is not
-# sufficient (the gate does not layer on a first-segment match).
 run 'Upstream lives at `docs/never-existed.md` and `plugins/other/thing.sh`.'
 assert_silent "coincident first segment with no provenance → silent" "$OUT"
 
@@ -355,8 +249,6 @@ assert_silent "unquoted prose path → not scanned" "$OUT"
 run 'A whole command: `cp docs/gone.md docs/real.md`.'
 assert_silent "multi-token code span → not a path candidate" "$OUT"
 
-# A CHANGELOG is an append-only record and this oracle selects for exactly what
-# such a record documents.
 CHANGELOG="$REPO/CHANGELOG.md"
 : >"$CHANGELOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -365,8 +257,6 @@ RC=$?
 assert_exit "CHANGELOG.md → exit 0" 0 "$RC"
 assert_silent "CHANGELOG.md citing a removed path → silent" "$OUT"
 
-# Non-markdown files are out of scope: a path literal in a script resolves
-# against the runtime CWD, not the repo root.
 SCRIPT="$REPO/tool.sh"
 : >"$SCRIPT"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -375,11 +265,7 @@ RC=$?
 assert_exit "non-markdown file → exit 0" 0 "$RC"
 assert_silent "non-markdown file → not scanned" "$OUT"
 
-# ============================ NO HISTORY ====================================
 
-# A repository with no commits has an unborn HEAD. `git log HEAD` errors there,
-# so the guard must produce an empty set silently rather than leak git's
-# "ambiguous argument 'HEAD'" to stderr.
 UNBORN="$TEST_TMPDIR/unborn"
 mkdir -p "$UNBORN/docs"
 git -C "$UNBORN" init -q
@@ -391,8 +277,6 @@ RC=$?
 assert_exit "unborn HEAD → exit 0" 0 "$RC"
 assert_silent "unborn HEAD → silent, no git error leaked" "$OUT"
 
-# A non-git directory: hook::repo_root falls back to the written file's own
-# directory, where no history exists at all.
 NOGIT="$TEST_TMPDIR/nogit"
 mkdir -p "$NOGIT/docs"
 NOGIT_TARGET="$NOGIT/notes.md"
@@ -403,15 +287,7 @@ RC=$?
 assert_exit "non-git directory → exit 0" 0 "$RC"
 assert_silent "non-git directory → silent" "$OUT"
 
-# ============================ PRESENT BUT NOT ON DISK =======================
-#
-# Two shapes where the working tree does not answer "is this path here". Both need
-# a repo whose history deletes the path, so the provenance gate is satisfied and
-# only the existence gate stands between the citation and a false finding.
 
-# A path deleted historically and then restored is BOTH in the deleted set and
-# tracked at HEAD. A sparse checkout leaves such a path unmaterialized on purpose;
-# skip-worktree is the index bit sparse checkout itself sets to mark that.
 SPARSE="$TEST_TMPDIR/sparse"
 mkdir -p "$SPARSE/docs"
 git -C "$SPARSE" init -q
@@ -421,7 +297,6 @@ git_c "$SPARSE" add -A >/dev/null 2>&1
 git_c "$SPARSE" commit -qm seed >/dev/null 2>&1
 git_c "$SPARSE" rm -q docs/restored.md docs/truly-gone.md >/dev/null 2>&1
 git_c "$SPARSE" commit -qm delete >/dev/null 2>&1
-# `git rm` prunes the parent it emptied, so the directory has to come back first.
 mkdir -p "$SPARSE/docs"
 echo v2 >"$SPARSE/docs/restored.md"
 git_c "$SPARSE" add docs/restored.md >/dev/null 2>&1
@@ -437,12 +312,6 @@ RC=$?
 assert_exit "unmaterialized sparse path → exit 0" 0 "$RC"
 assert_silent "tracked at HEAD but not materialized → silent (index consulted)" "$OUT"
 
-# The exemption is the SKIP-WORKTREE BIT, not the mere index entry. Clearing the
-# bit leaves the same path tracked and the same absence from disk, but the shape is
-# now an UNSTAGED DELETION (`git status` reports ` D`) — a genuine working-tree
-# disappearance rather than a by-design sparse one, so it must be adjudicated.
-# `ls-files --error-unmatch` reports the entry in both shapes and cannot separate
-# them; the `S` tag can.
 git -C "$SPARSE" update-index --no-skip-worktree docs/restored.md >/dev/null 2>&1
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
   <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
@@ -451,14 +320,6 @@ assert_exit "unstaged deletion → exit 0" 0 "$RC"
 assert_contains "unstaged deletion is not a sparse exemption → fires" "$OUT" \
   "  docs/restored.md"
 
-# assume-unchanged (`ls-files -v` tag `h`) is deliberately NOT exempted. It is a
-# stat-skipping performance promise about a path the user keeps on disk, not a
-# declaration that the path is absent by design, so a deleted one is a real
-# working-tree disappearance — the same shape as the unstaged deletion above.
-# Exempting `h` would reinstate the suppression this change removes, for a
-# narrower set. #1509's acceptance text names the variant alongside
-# skip-worktree; only the skip-worktree letter (`S` or `s`) earns the exemption,
-# and this case pins that assume-unchanged alone does not.
 git -C "$SPARSE" update-index --assume-unchanged docs/restored.md >/dev/null 2>&1
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
   <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
@@ -467,11 +328,6 @@ assert_exit "assume-unchanged deletion → exit 0" 0 "$RC"
 assert_contains "assume-unchanged is not a sparse exemption → fires" "$OUT" \
   "  docs/restored.md"
 
-# BOTH bits together: `ls-files -v` marks assume-unchanged by LOWERCASING the
-# letter, so a skip-worktree entry that is also assume-unchanged is tagged `s`,
-# not `S`. The skip-worktree bit is still set — the path is still absent by
-# design — so the exemption must hold; an exact-uppercase comparison would
-# misread the combination as a genuine deletion.
 git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
   <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
@@ -480,15 +336,11 @@ assert_exit "skip-worktree + assume-unchanged → exit 0" 0 "$RC"
 assert_silent "lowercase s still carries the skip-worktree exemption → silent" "$OUT"
 git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 2>&1
 
-# The index check must not swallow a genuine removal. Same repo, same absence from
-# disk — the only difference is that this one is in no index entry either.
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
   <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/truly-gone.md` first.')" 2>&1)
 assert_contains "deleted and never restored → still fires" "$OUT" \
   "  docs/truly-gone.md"
 
-# A deleted path reintroduced as a symlink whose target is unavailable is present
-# in the working tree, but `-e` reports false for it.
 DANGLE="$TEST_TMPDIR/dangle"
 mkdir -p "$DANGLE/docs"
 git -C "$DANGLE" init -q
@@ -506,25 +358,17 @@ if ln -s "missing-target.md" "$DANGLE/docs/link.md" 2>/dev/null && [[ -L "$DANGL
   assert_exit "dangling symlink → exit 0" 0 "$RC"
   assert_silent "dangling symlink is a present path → silent" "$OUT"
 else
-  # A Windows box without the symlink privilege cannot build the fixture at all, so
-  # the arm is pinned in source instead — the same fallback the jq-removal case
-  # takes for its own non-simulable condition.
   assert_contains "existence gate accepts the link itself" "$(cat "$HOOK")" \
     '|| -L "$REPO_ROOT/${cand%/}"'
 fi
 
-# ============================ SHALLOW CLONE =================================
 
-# Over truncated history the deleted-path set is empty and the guard would do
-# nothing while appearing healthy. The degradation must be announced.
 SHALLOW_REPO="$TEST_TMPDIR/shallow"
 if git clone -q --no-local --depth 1 "$REPO" "$SHALLOW_REPO" >/dev/null 2>&1 &&
   [[ "$(git -C "$SHALLOW_REPO" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
   SHALLOW_TARGET="$SHALLOW_REPO/notes.md"
   : >"$SHALLOW_TARGET"
 
-  # Ordered before the notice has ever fired, so this proves the notice is gated
-  # on a candidate the guard could not adjudicate rather than on once-per-session.
   OUT=$(CLAUDE_PROJECT_DIR="$SHALLOW_REPO" bash "$HOOK" \
     <<<"$(write_json "$SHALLOW_TARGET" 'Read `docs/real.md` first.')" 2>&1)
   assert_silent "shallow clone with nothing absent → silent" "$OUT"
@@ -542,9 +386,6 @@ if git clone -q --no-local --depth 1 "$REPO" "$SHALLOW_REPO" >/dev/null 2>&1 &&
     <<<"$(write_json "$SHALLOW_TARGET" 'The spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" 2>&1)
   assert_silent "shallow clone → notice is once per session, not per write" "$OUT"
 
-  # The notice is once-per-session but telemetry is per-run, and a sink reading
-  # `ok` here would record an un-run check as a healthy one — the same
-  # looks-healthy-while-inert failure the visible notice exists to prevent.
   SHALLOW_TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   SHALLOW_SINK="$(make_sink "cat >\"$SHALLOW_TEL\"")"
   CLAUDE_PROJECT_DIR="$SHALLOW_REPO" HOOK_TELEMETRY_SINK="$SHALLOW_SINK" \
@@ -559,13 +400,7 @@ else
   bad "shallow clone: fixture could not be built"
 fi
 
-# ======================= INCOMPLETE HISTORY WALK ============================
 
-# A clone that is NOT shallow can still fail mid-walk — a partial clone offline,
-# a damaged object store. git emits the deletions it already resolved and THEN
-# exits nonzero, so a partial deleted-path set is indistinguishable from a
-# complete one unless the status is checked. The fixture reproduces exactly that:
-# HEAD's own diff resolves (docs/late.md is emitted) and the older one cannot.
 WALK_REPO="$TEST_TMPDIR/walkfail"
 mkdir -p "$WALK_REPO/docs"
 git -C "$WALK_REPO" init -q >/dev/null 2>&1
@@ -587,8 +422,6 @@ WALK_OUT=$(git -C "$WALK_REPO" log HEAD --no-renames --diff-filter=D --name-only
   --pretty=format: 2>/dev/null)
 WALK_RC=$?
 
-# The fixture is only meaningful when the walk BOTH emitted something AND failed;
-# anything else is testing a different condition than the one the guard guards.
 if ((WALK_RC != 0)) && [[ "$WALK_OUT" == *docs/late.md* ]] &&
   [[ "$(git -C "$WALK_REPO" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" != "true" ]]; then
   WALK_TARGET="$WALK_REPO/notes.md"
@@ -598,8 +431,6 @@ if ((WALK_RC != 0)) && [[ "$WALK_OUT" == *docs/late.md* ]] &&
     <<<"$(write_json "$WALK_TARGET" 'Read `docs/keep.md` first.')" 2>&1)
   assert_silent "incomplete walk with nothing absent → silent" "$OUT"
 
-  # docs/late.md IS in the partial set. Adjudicating off it would look like a
-  # correct finding while the rest of history went unread.
   OUT=$(CLAUDE_PROJECT_DIR="$WALK_REPO" bash "$HOOK" \
     <<<"$(write_json "$WALK_TARGET" 'The spoke is `docs/late.md`.')" 2>&1)
   RC=$?
@@ -616,7 +447,6 @@ else
   bad "incomplete history walk: fixture could not be built"
 fi
 
-# ============================ KILL SWITCH ===================================
 
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false \
   bash "$HOOK" <<<"$(write_json "$TARGET" 'Cite `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" 2>&1)
@@ -624,21 +454,12 @@ RC=$?
 assert_exit "kill switch → exit 0" 0 "$RC"
 assert_silent "kill switch → silent" "$OUT"
 
-# ============================ EMPTY STDIN ===================================
 
-# hook::buffer_stdin returns 1 (no payload) → this advisory hook skips silently.
-#
-# Direct-mode only, and unreachable under the dispatcher by design: run-guards.sh
-# reads stdin once for the whole event and exits 0 on rc 1 before any guard is
-# sourced, so no dispatched payload can reach this arm. run-guards.test.sh pins
-# the dispatcher's own answer ("empty stdin: every guard's empty-stdin skip,
-# taken once"); this pins what the guard does when it runs alone.
 OUT=$(bash "$HOOK" </dev/null 2>&1)
 RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
 
-# --- non-ASCII deleted paths: core.quotePath=false on the history walk (#1452) -
 UNI_REPO="$TEST_TMPDIR/uni-repo"
 mkdir -p "$UNI_REPO/docs"
 git -C "$UNI_REPO" init -q
@@ -652,33 +473,19 @@ UNI_TARGET="$UNI_REPO/notes.md"
 out=$(CLAUDE_PROJECT_DIR="$UNI_REPO" bash "$HOOK" <<<"$(write_json "$UNI_TARGET" 'See `docs/café.md`.')" 2>&1)
 assert_contains "non-ASCII deleted path fires" "$out" "  docs/café.md"
 
-# ============================ SOURCE CONTRACT ===============================
 
 HOOK_SRC=$(cat "$HOOK")
 
-# Runtime jq-removal is not portably simulable through an isolated bin dir. Assert
-# the fail-open guard is present; hook::require's own behavior is covered by
-# lib/hook-utils.test.sh and the plugin-wide notice label by
-# require-jq-notice-isolation.test.sh.
 assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 
-# The repo root is resolved from the written file, never from the process CWD, so
-# the hook is correct in a linked worktree and in a bare-hub clone.
-# The directory comes from parameter expansion, not a `$(dirname …)` subshell:
-# this hook runs on every Write and Edit, and a command substitution is a fork
-# per call on Windows Git Bash. The anchor is still the FILE's directory, which
-# is what this case exists to hold.
 assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root_to REPO_ROOT "$FILE_DIR"'
 assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
 assert_file_dir_seam "$HOOK"
 
-# The whole-index `git ls-files` must not run for a write that cites nothing.
 assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \
   '((${#RAW_TOKENS[@]})) && ensure_tracked_files'
 
-# The behavioral rename case above is the real proof, but pin the flags too: a
-# refactor that drops either one changes the guard's meaning silently.
 assert_contains "history walk passes --no-renames" "$HOOK_SRC" '--no-renames'
 assert_contains "history walk uses core.quotePath=false" "$HOOK_SRC" 'core.quotePath=false'
 assert_contains "history walk includes merge commits" "$HOOK_SRC" 'log HEAD -m'
@@ -686,7 +493,6 @@ assert_contains "history walk is scoped to HEAD, not --all" "$HOOK_SRC" 'log HEA
 assert_absent "history walk does not read --all" "$HOOK_SRC" 'log --all'
 assert_contains "root basename ambiguity discriminator" "$HOOK_SRC" 'root_basename_is_ambiguous'
 
-# ============================ TELEMETRY =====================================
 
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
@@ -703,26 +509,12 @@ else
   bad "telemetry: no envelope written"
 fi
 
-# ==================== THE SAME VERDICTS UNDER THE DISPATCHER =================
-# Every case above invokes this guard alone. hooks.json ships it under
-# run-guards.sh, where stdin is read once and re-served, the Write/Edit content
-# fields come from the dispatcher's primed jq cache instead of the guard's own
-# jq call, and the guard is `source`d into a subshell rather than exec'd.
-#
-# An advisory guard exits 0 whether or not it found anything, so the exit code
-# alone is not its verdict: the additionalContext document is. `parity` in
-# guardrails-test-helpers.sh asserts both, on both paths.
 parity "dispatched parity: deleted path" 'See `docs/gone.md` here.' 0 \
   "  docs/gone.md"
 parity "dispatched parity: surviving path" 'See `docs/real.md` here.' 0 ""
 parity "dispatched parity: renamed-away path" 'Run `tools/legacy-emit.sh` to build.' 0 \
   "  tools/legacy-emit.sh"
 
-# --- Builtin twins answer what the pipelines answer ------------------------------
-# The twins replace grep/sed/sort/head pipelines for printable-ASCII text. Each
-# case runs both on this host's own grep and sed (GNU on CI Linux, Git Bash on
-# Windows), in a child shell that sources the library and the twins alone.
-# Token sets compare sorted, since the caller only tests membership.
 TWIN_CASES=(
   'See `docs/gone.md` and `a b` here' '``x`' 'a`b`c`d' '`unclosed docs/gone.md' '````' '` `'
   $'line one `x.md`\r\nline two `y.md`\r\n' $'\t`tab.md`\t\n   \n\t\n' $'v\vf\f`z.md`'
@@ -802,8 +594,6 @@ else
   bad "word-anchor split counter differs from the character walk: $OCC_OUT"
 fi
 
-# The non-word counter replaced awk's index() walk. Same advance: one byte past
-# each start, so `docs/docs` against `docs/docs/docs` is 2, not grep -o's 1.
 FIXED_WALK='BEGIN { n = 0; a = ENVIRON["HOOK_ANCHOR"] }
 { p = 1
   while (p <= length($0)) {
@@ -832,7 +622,6 @@ else
   bad "non-word anchor counter differs from awk index(): $FIXED_OUT"
 fi
 
-# A second fire at the same HEAD must not walk history again. The finding stays.
 SPV_GIT_LOG="$TEST_TMPDIR/stale-git.log"
 SPV_REAL_GIT=$(type -P git)
 SPV_GIT_SHIM="$TEST_TMPDIR/git-shim"
@@ -873,14 +662,6 @@ else
   bad "deleted-path cache: a new HEAD reused the previous set"
 fi
 
-# ============ A CACHE THAT ANOTHER FIRE IS REWRITING ==========================
-# Parallel sessions and subagents in one repo share both caches. A reader can
-# see a file while a writer is still on it, and two writers that both truncate
-# leave a mix of their bytes. A header over a partial list would pass as a whole
-# cache and every finding in the missing part would go silent, so each cache
-# ends with `end <count>` and a file that is not exactly that shape is a miss
-# that recomputes. A fresh fixture keeps this section's edits to the caches and
-# the index off every case above.
 CACHE_REPO="$TEST_TMPDIR/cache-repo"
 mkdir -p "$CACHE_REPO/docs" "$CACHE_REPO/guides"
 git -C "$CACHE_REPO" init -q
@@ -898,15 +679,12 @@ CACHE_LS="$CACHE_REPO/.git/guardrails-ls-files"
 CACHE_HEAD=$(git -C "$CACHE_REPO" rev-parse HEAD | tr -d '\r')
 CACHE_PREV=$(git -C "$CACHE_REPO" rev-parse HEAD~1 | tr -d '\r')
 
-# One fire against the fixture. The git shim logs the history walks.
 cache_fire() {
   : >"$SPV_GIT_LOG"
   OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" \
     <<<"$CACHE_PAYLOAD" 2>&1)
   CACHE_WALKS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
 }
-# cache_is_whole <file> <header lines>: the last line is `end <n>` with n equal to
-# the lines between the header and it, and no other line looks like a sentinel.
 cache_is_whole() {
   local -a l
   local n
@@ -915,7 +693,6 @@ cache_is_whole() {
   ((n >= 0)) && [[ "${l[${#l[@]} - 1]}" == "end $n" ]] &&
     [[ "$(printf '%s\n' "${l[@]:0:${#l[@]}-1}" | grep -c '^end [0-9]')" == 0 ]]
 }
-# assert_whole <label> <file> <header lines> [<needle the file must hold>]
 assert_whole() {
   if cache_is_whole "$2" "$3" && { [[ -z "${4-}" ]] || [[ "$(cat "$2")" == *"$4"* ]]; }; then
     ok "$1"
@@ -924,14 +701,11 @@ assert_whole() {
   fi
 }
 
-# Whole caches are still trusted: this is what makes the misses below mean
-# something, and it holds the no-second-walk property.
 printf '%s\nok\nend 0\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_absent "cache: a whole file at this HEAD is trusted, not walked over" "$OUT" "deleted from this repo"
 assert_eq "cache: a whole file at this HEAD starts no history walk" 0 "$CACHE_WALKS"
 
-# A file cut after its header carries no sentinel.
 printf '%s\nok\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a deleted-path file cut after its header is a miss, the finding stays" "$OUT" \
@@ -942,21 +716,17 @@ else
   bad "cache: the cut file was not rebuilt whole (walks=$CACHE_WALKS)"
 fi
 
-# A shorter body under a longer body's sentinel: the count disagrees.
 printf '%s\nok\nsome/other.md\nend 3\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a sentinel count that disagrees with the lines read is a miss" "$OUT" \
   "  docs/old-spec.md"
 assert_whole "cache: the disagreeing file is rebuilt whole" "$CACHE_DEL" 2 docs/old-spec.md
 
-# Two writers leave the later one's sentinel inside the earlier one's body; the
-# count can still agree by chance, so a sentinel-shaped line inside is a miss.
 printf '%s\nok\nsome/other.md\nend 1\nmore/other.md\nend 3\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a sentinel inside the body is a miss even when the count agrees" "$OUT" \
   "  docs/old-spec.md"
 
-# A different HEAD is a miss however whole the file is.
 printf '%s\nok\nend 0\n' "$CACHE_PREV" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a file keyed to another HEAD is a miss, the finding stays" "$OUT" \
@@ -967,14 +737,11 @@ else
   bad "cache: the other-HEAD file was reused (walks=$CACHE_WALKS)"
 fi
 
-# The tracked-file list, judged by the moved-file hint it feeds. A poisoned but
-# whole list newer than the index is trusted and yields no hint.
 touch -t 202001010000 "$CACHE_REPO/.git/index"
 printf 'poison.md\nend 1\n' >"$CACHE_LS"
 cache_fire
 assert_absent "cache: a whole tracked-file list newer than the index is trusted" "$OUT" "guides/old-spec.md"
 
-# The same list, cut or miscounted, is a miss: git is asked again and the hint returns.
 printf 'poison.md\n' >"$CACHE_LS"
 cache_fire
 assert_contains "cache: a tracked-file list with no sentinel is a miss" "$OUT" "guides/old-spec.md"
@@ -986,7 +753,6 @@ cache_fire
 assert_contains "cache: a sentinel inside the tracked-file list is a miss" "$OUT" "guides/old-spec.md"
 assert_whole "cache: the rebuilt tracked-file list is whole and current" "$CACHE_LS" 0 guides/old-spec.md
 
-# A whole list older than the index is invalid and rebuilt.
 printf 'poison.md\nend 1\n' >"$CACHE_LS"
 touch -t 202001010000 "$CACHE_LS"
 touch "$CACHE_REPO/.git/index"
@@ -995,7 +761,6 @@ assert_contains "cache: a tracked-file list older than the index is rebuilt" "$O
 assert_absent "cache: the stale tracked-file list is gone from the file" "$(cat "$CACHE_LS")" poison.md
 assert_whole "cache: the stale tracked-file list was replaced whole" "$CACHE_LS" 0 guides/old-spec.md
 
-# No tracked files at all is a whole list of zero, not a missing one.
 EMPTY_CACHE_REPO="$TEST_TMPDIR/cache-empty"
 mkdir -p "$EMPTY_CACHE_REPO/docs"
 git -C "$EMPTY_CACHE_REPO" init -q
@@ -1013,7 +778,6 @@ assert_contains "cache: a repo with no tracked files still reports the removed p
 assert_eq "cache: an empty tracked-file list is written as a whole file of zero" \
   "end 0" "$(cat "$EMPTY_CACHE_REPO/.git/guardrails-ls-files" 2>/dev/null)"
 
-# Two cold fires at once in one repo both report the finding and leave whole caches.
 CONC_BAD=0
 for _ in 1 2 3 4 5; do
   rm -f "$CACHE_DEL" "$CACHE_LS"
@@ -1035,9 +799,6 @@ cache_fire
 assert_contains "cache: the caches the concurrent fires left are readable" "$OUT" "  docs/old-spec.md"
 assert_eq "cache: and they are trusted, so no walk runs" 0 "$CACHE_WALKS"
 
-# A git directory the hook cannot write costs it the caches, not a diagnostic on
-# stderr. (Where chmod does not restrict the owner, the write succeeds and the
-# case holds trivially.)
 rm -f "$CACHE_DEL" "$CACHE_LS"
 chmod 555 "$CACHE_REPO/.git"
 RO_ERR=$(CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" 2>&1 >/dev/null)

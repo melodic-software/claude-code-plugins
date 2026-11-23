@@ -10,6 +10,8 @@
 // work-resolve-issue.yml caps its concurrent runs.
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -73,14 +75,14 @@ function assertMainTip(steps, checkout, branch = "main") {
 // Sibling action directories this action's modules import, followed
 // transitively: the sparse checkout must hold each of them.
 function importedActionDirs() {
-  const actions = new URL("../", import.meta.url);
-  const files = new Set(["resolve-config/resolve-config.mjs"]);
+  const root = new URL("../../../", import.meta.url);
+  const files = new Set([".github/actions/resolve-config/resolve-config.mjs"]);
   for (const file of files) {
-    for (const [, spec] of read(`../${file}`).matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
-      files.add(new URL(spec, new URL(file, actions)).pathname.slice(actions.pathname.length));
+    for (const [, spec] of readFileSync(new URL(file, root), "utf8").matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
+      files.add(new URL(spec, new URL(file, root)).pathname.slice(root.pathname.length));
     }
   }
-  return [...new Set([...files].map((file) => `/.github/actions/${file.split("/")[0]}/`))];
+  return [...new Set([...files].map((file) => (file.startsWith(".github/actions/") ? `/.github/actions/${file.split("/")[2]}/` : `/${file}`)))];
 }
 
 const BASE_FILES = [
@@ -574,60 +576,10 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
-// The refine-issue legs as the parity check compares them: every step, in
-// order, with every field, except the places the legs may differ: the
-// credential call's leg, secrets tested and reason (its action and role stay
-// equal), the launcher's credential and fallback-ready inputs, the handoff
-// report (the fallback leg never hands off), the key leg's credit-stop marker,
-// the leg record's fallback reason, the next-leg call the fallback leg, the
-// last, does not make, and the last step's `if`.
-const UNSHARED_STEPS = new Set(["handoff", "credit-marker", "credit-marker-scan", "credit-marker-upload", "next"]);
-function refineLegShape(job) {
-  return job.steps
-    .filter((step) => !UNSHARED_STEPS.has(step.id))
-    .map((step) => {
-      const shape = structuredClone(step);
-      if (step.id === "credential") {
-        for (const input of ["leg", "credential-set", "fallback-set", "key-off", "reason"]) delete shape.with[input];
-      }
-      if (step.id === "run") {
-        delete shape.with["api-key"];
-        delete shape.with["subscription-token"];
-        delete shape.with["fallback-token"];
-        delete shape.with["fallback-ready"];
-      }
-      if (step.name === "Record the leg") delete shape.with["fallback-reason"];
-      if (step.name === "Fail without a refinement") delete shape.if;
-      return shape;
-    });
-}
-
-test("intake-triage.yml: the refine legs' parity check fails on any other difference, step order included", () => {
-  const { jobs } = workflow("intake-triage.yml");
-  const key = jobs["refine-issue"];
-  const sub = jobs["refine-issue-subscription"];
-  assert.deepEqual(refineLegShape(key), refineLegShape(sub));
-  assert.deepEqual(refineLegShape(key), refineLegShape(jobs["refine-issue-fallback"]));
-  const differs = (mutate) => {
-    const copy = structuredClone(sub);
-    mutate(copy);
-    assert.notDeepEqual(refineLegShape(key), refineLegShape(copy));
-  };
-  const step = (job, name) => job.steps.find((s) => s.name === name);
-  differs((job) => delete step(job, "Refine the issue")["continue-on-error"]);
-  differs((job) => (step(job, "Refine the issue")["timeout-minutes"] = 30));
-  differs((job) => (step(job, "Refine the issue").env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "0"));
-  differs((job) => {
-    const settings = job.steps.findIndex((s) => s.name === "Apply the Claude managed settings");
-    const isolate = job.steps.findIndex((s) => s.name === "Isolate the runner");
-    [job.steps[settings], job.steps[isolate]] = [job.steps[isolate], job.steps[settings]];
-  });
-  differs((job) => (step(job, "Collect the refinement").run += "\ntrue"));
-  differs((job) => (step(job, "Upload the refinement").with["retention-days"] = 2));
-  differs((job) => (step(job, "Check the credential").if = "always()"));
-  differs((job) => (step(job, "Check the credential").with.role = "issue-lane"));
-  differs((job) => (step(job, "Check the context").run = "true"));
-  differs((job) => job.steps.pop());
+test("intake-triage.yml, maintenance-tidy-code-upkeep.yml, post-merge-test-mutation.yml, pr-refine.yml, pr-unblock.yml and work-resolve-issue.yml: the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("intake-triage.yml: a thin issue's refinement runs its model with no write token and writes through the lanes App only", () => {
@@ -805,7 +757,6 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(collect.env.MODE, "dontAsk");
     assert.match(collect.run, /check-permission-mode\.sh/);
   }
-  assert.deepEqual(refineLegShape(model), refineLegShape(sub), "the legs differ only where refineLegShape allows");
   const { "api-key": keyLegKey, "subscription-token": keyLegToken } = launcher(model).with;
   const { "api-key": subLegKey, "subscription-token": subLegToken } = launcher(sub).with;
   assert.equal(keyLegKey, "${{ secrets.INTAKE_CLAUDE_API_KEY }}");
@@ -1448,6 +1399,22 @@ test("work-resolve-issue.yml: a Work status field write to agent-ready from a pe
   const text = JSON.stringify(jobs);
   assert.doesNotMatch(text, /github\.event\.label\b/);
   assert.doesNotMatch(text, /'labeled'/);
+});
+
+test("every Work status field id written outside models.issue-status equals its field-id", () => {
+  const sites = [
+    [".github/workflows/intake-reenter.yml", /github\.event\.issue_field\.id == (\d+)/g],
+    [".github/workflows/maintenance-file-dead-links.yml", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/workflows/post-merge-file-demotion-issues.yml", /field_id: (\d+), value: "needs-human"/g],
+    [".github/scripts/maintenance-audit-lane-runs/file-findings.mjs", /field_id: (\d+), value: "needs-triage"/g],
+    [".github/scripts/maintenance-monitor-signals/monitor.mjs", /WORK_STATUS_FIELD = (\d+);/g],
+    [".github/scripts/post-merge-demotion-alert/handoff.bash", /jq -n '\[\[(\d+), /g],
+  ];
+  for (const [path, pattern] of sites) {
+    const ids = [...read(`../../../${path}`).matchAll(pattern)].map((match) => Number(match[1]));
+    assert.ok(ids.length > 0, `${path} names the Work status field`);
+    assert.deepEqual(ids, ids.map(() => ISSUE_STATUS["field-id"]), path);
+  }
 });
 
 // Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
@@ -10349,19 +10316,6 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
     assert.equal(record.with["lane-id"], "maintenance-tidy-code-upkeep", id);
     assert.equal(record.with.credential, "${{ steps.run.outputs.credential }}", id);
   }
-  const shape = (id) =>
-    jobs[id].steps
-      .filter((s) => !["credit-marker", "credit-marker-scan", "credit-marker-upload", "credential", "next"].includes(s.id) && !/handoff$/.test(s.name))
-      .map((s) => {
-        const copy = structuredClone(s);
-        if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
-        if (copy.id === "seal") delete copy.env.JOB_ID;
-        if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
-        return copy;
-      });
-  assert.deepEqual(shape("sweep-areas-subscription"), shape("sweep-areas"));
-  assert.deepEqual(shape("sweep-areas-fallback"), shape("sweep-areas"));
-
   // select-model-credential decides each leg (credential-legs.test.mjs in
   // .github/scripts/maintenance-tidy-code-upkeep holds it to the old
   // conditions); these are the conditions that read it.
@@ -10787,12 +10741,6 @@ test("the mutant-job check names each way a credential could reach mutated code"
   assert.equal(runsMutants({ steps: [{ run: "echo hi" }] }), false);
 });
 
-// Both of the mutation lane's model chains run key, subscription and fallback
-// legs, one credential per job, each the key leg's steps but for the
-// credential, the no-token stop, the key's credit-stop marker, the leg record's
-// fallback reason and the next-leg call the fallback leg, the last, does not
-// make. post-merge-test-mutation/credential-legs.test.mjs drives each leg's
-// start and credential through every state.
 for (const stage of ["generate", "triage"]) {
   test(`post-merge-test-mutation.yml: the ${stage} chain runs key, subscription and fallback legs, each with one credential`, () => {
     const { jobs } = workflow("post-merge-test-mutation.yml");
@@ -10807,17 +10755,6 @@ for (const stage of ["generate", "triage"]) {
       assert.ok(ifTerms(jobs[id].if).includes(SAME_REPO), `${id} keeps the same-repo gate`);
       assert.doesNotMatch(run(id).with.tools, /^\s*(?:Edit|Write)\s*$/m, `${id} edits nothing`);
     }
-    const shape = (id) =>
-      jobs[id].steps
-        .filter((s) => !["credential", "no-token", "next", "credit-marker", "credit-marker-scan", "credit-marker-upload"].includes(s.id))
-        .map((s) => {
-          const copy = structuredClone(s);
-          if (copy.id === "run") for (const k of ["api-key", "subscription-token", "fallback-token", "fallback-ready"]) delete copy.with[k];
-          if (copy.name === "Record the leg") delete copy.with["fallback-reason"];
-          return copy;
-        });
-    assert.deepEqual(shape(ids[1]), shape(ids[0]));
-    assert.deepEqual(shape(ids[2]), shape(ids[0]));
     // Each leg starts on the leg the one before it names; the subscription
     // leg also on the gate's, for a key job that failed before its credential.
     assert.ok(ifTerms(jobs[ids[1]].if).includes(`(needs.${ids[0]}.outputs.next-leg == 'subscription' || needs.check-key-credit.outputs.${stage}-next-leg == 'subscription')`));
