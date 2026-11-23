@@ -51,8 +51,6 @@ Describe 'Test-WindowsUpdate -- PFRO value-array regression' -Tag 'check' {
     It 'does NOT flag reboot pending when PendingFileRenameOperations exists but value is empty' {
         Mock Get-HotFix { @() }
         Mock Test-Path { $false }
-        # The key scenario: the property exists but its value array is empty; a presence-only
-        # test flags reboot_pending=true on most healthy machines.
         Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
             [pscustomobject]@{ PendingFileRenameOperations = @() }
         }
@@ -85,7 +83,6 @@ Describe 'Test-WindowsUpdate -- PFRO value-array regression' -Tag 'check' {
     It 'treats missing PendingFileRenameOperations property as no pending ops' {
         Mock Get-HotFix { @() }
         Mock Test-Path { $false }
-        # Property genuinely absent -- Get-ItemProperty throws PropertyNotFound.
         Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
             throw [System.Management.Automation.PSArgumentException]::new(
                 "Property 'PendingFileRenameOperations' does not exist")
@@ -151,10 +148,7 @@ Describe 'Test-WindowsUpdate -- degraded enumeration' -Tag 'check' {
         $result.severity | Should -Be 'INFO'
         $result.detail.update_enum_degraded | Should -BeTrue
         $result.summary | Should -Match 'degraded'
-        # The check itself ran: reboot signals are valid, so ran_successfully stays true.
         $result.ran_successfully | Should -BeTrue
-        # pending_update_count is null (not 0) so the degraded run does not persist
-        # a false "no pending updates" into the windows-update trend metric.
         $result.detail.pending_update_count | Should -BeNullOrEmpty
     }
 
@@ -182,7 +176,6 @@ Describe 'Test-WindowsUpdate -- failure modes' -Tag 'check' {
         Mock Get-Module { $null }
 
         $result = Invoke-WindowsUpdateAsObject
-        # Get-HotFix failure is non-fatal -- reboot signals still run.
         { Assert-CheckResult $result } | Should -Not -Throw
         $result.ran_successfully | Should -BeTrue
         @($result.detail.recent_hotfixes).Count | Should -Be 0

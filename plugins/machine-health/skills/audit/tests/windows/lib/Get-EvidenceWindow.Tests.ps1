@@ -4,7 +4,6 @@
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-EvidenceWindow.ps1'
 
-    # 2026-06-26T00:00:00Z: 20630 days after the Unix epoch, times 86400.
     $script:InstallSeconds = 1782432000
     $script:InstalledAt = [datetime]::new(2026, 6, 26, 0, 0, 0, [DateTimeKind]::Utc)
     $script:ProfileAt = [datetime]::new(2026, 6, 27, 1, 52, 48, [DateTimeKind]::Utc)
