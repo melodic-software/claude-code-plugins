@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/pr-verify/probe/fixtures/*
 // The fixture set, the data the replay lays out from it, and the scoring.
 // Expected counts come from the planted-defect plan (fixture mix and scoring
 // rules); the data expectations from prompt.md and resolve-pr.mjs's spec
