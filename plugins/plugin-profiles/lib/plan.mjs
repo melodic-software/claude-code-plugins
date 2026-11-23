@@ -47,7 +47,6 @@ export function profileMembers(wanted, inventory, exclude) {
   return out;
 }
 
-/** The levels above the target whose entries the target must leave alone, each with its report name. */
 function pinsFor(target, layers) {
   const pins = new Map();
   const take = (level, by) => {
