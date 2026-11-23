@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for collision-hotspots.sh (assertions from test-helpers.sh
-# beside this file). A builder repository pushes each PR head to a bare
-# "remote" as refs/pull/<n>/head; each case runs in a fresh clone of that
-# remote with a stub gh on PATH that serves a fixed PR listing.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,16 +26,12 @@ JQ_BIN="$(command -v jq)"
 
 g() { git -c user.name=t -c user.email=t@example.com -c init.defaultBranch=main "$@"; }
 
-# Builder: base commit on main, then one branch per PR, each pushed to the
-# bare remote as refs/pull/<n>/head. The remote's main is the base only.
 BUILD="$TEST_TMPDIR/build"
 REMOTE="$TEST_TMPDIR/remote.git"
 g init -q "$BUILD"
 g init -q --bare "$REMOTE"
 printf '%s\n' a b c d e f g h i j >"$BUILD/shared.txt"
 printf '%s\n' base >"$BUILD/CHANGELOG.md"
-# Hostile file names: each would create a marker file in the clone if the
-# script ever evaluated a path as shell or arithmetic text.
 # shellcheck disable=SC2016 # literal names, never expanded
 HOSTILE=('x$(touch pwned-dollar)' 'y`touch pwned-tick`' 'a[1]' 'b[$(touch pwned-sub)]')
 for h in "${HOSTILE[@]}"; do printf '%s\n' a b c d e f g h i j >"$BUILD/$h"; done
@@ -47,8 +39,6 @@ g -C "$BUILD" add .
 g -C "$BUILD" commit -qm base
 g -C "$BUILD" push -q "$REMOTE" main
 
-# pr N SED_EXPR CHANGELOG_LINE: branch from main, edit shared.txt, optionally
-# append to CHANGELOG.md, push as refs/pull/N/head.
 pr() {
   g -C "$BUILD" checkout -q -b "pr$1" main
   sed -i.bak "$2" "$BUILD/shared.txt"
@@ -63,8 +53,6 @@ pr 3 '10s/j/ten/'
 pr 4 '1s/a/eins/'
 PR1_SHA="$(git -C "$BUILD" rev-parse pr1)"
 
-# hpr N LINE A1_LINE: branch from main and rewrite line LINE of every hostile
-# file except a[1], whose line A1_LINE is rewritten; push as refs/pull/N/head.
 hpr() {
   local h line
   g -C "$BUILD" checkout -q -b "pr$1" main
@@ -77,8 +65,6 @@ hpr() {
   g -C "$BUILD" commit -qam "pr $1"
   g -C "$BUILD" push -q "$REMOTE" "pr$1:refs/pull/$1/head"
 }
-# 11 and 12 both rewrite line 1 of a[1] (one conflict); the other hostile
-# files are edited on separate lines (no conflict).
 hpr 11 1 1
 hpr 12 5 1
 hpr 13 10 10
@@ -87,8 +73,6 @@ HOSTILE_LISTING="$TEST_TMPDIR/hostile.json"
 "$JQ_BIN" -n --args '[11, 12, 13] | map({number: ., createdAt: "2026-09-01T00:00:00Z",
   closedAt: null, files: ($ARGS.positional | map({path: .}))})' "${HOSTILE[@]}" >"$HOSTILE_LISTING"
 
-# The PR listing: 1-3 open together from September; 4 closed in August, so it
-# overlaps none of them; 6 lists exactly 100 files and closed in July.
 FILES100="$("$JQ_BIN" -nc '[range(1; 101) | {path: "bulk/f\(.).txt", additions: 1, deletions: 0}]')"
 LISTING="$TEST_TMPDIR/prs.json"
 # shellcheck disable=SC2016 # a jq program, not a shell expansion
@@ -125,8 +109,6 @@ esac
 EOF
 chmod +x "$BIN/gh"
 
-# A git wrapper whose merge-tree fails on a fetched PR head (the capability
-# probe on HEAD still passes), for the cleanup-after-failure case.
 FAILBIN="$TEST_TMPDIR/failbin"
 mkdir -p "$FAILBIN"
 cp "$BIN/gh" "$FAILBIN/gh"
@@ -145,16 +127,12 @@ ln -s "$JQ_BIN" "$NOGH/jq"
 export STUB_GH_LOG="$TEST_TMPDIR/gh.log"
 export STUB_GH_URL="$REMOTE"
 
-# fresh_clone: clone the remote (main only) into a new directory and print its
-# path. Called in a command substitution, so the name comes from mktemp.
 fresh_clone() {
   local dir
   dir="$(mktemp -d "$TEST_TMPDIR/work.XXXXXX")/repo"
   git clone -q --no-local "$REMOTE" "$dir"
   printf '%s' "$dir"
 }
-# run DIR LISTING [ARGS...]: run the script in DIR with the stub gh first on
-# PATH; sets OUT (stdout and stderr) and RC.
 run() {
   local dir="$1" listing="$2"
   shift 2
@@ -197,7 +175,6 @@ assert_exit "--exclude exits 0" 0 "$RC"
 assert_contains "--exclude moves the file to the bump line" "$OUT" "shared.txt (4 PRs)"
 assert_contains "--exclude leaves no pair" "$OUT" "pairs: 0 overlapping pairs"
 
-# --repo reads through gh and fetches from the URL gh reports.
 W="$(fresh_clone)"
 : >"$STUB_GH_LOG"
 run "$W" "$LISTING" --prs 50 --repo octo/demo
@@ -205,8 +182,6 @@ assert_exit "--repo exits 0" 0 "$RC"
 assert_eq "--repo ranks the same file" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 assert_contains "--repo is passed to gh" "$(cat "$STUB_GH_LOG")" "--repo octo/demo"
 
-# A fork clone without --repo: origin lacks the pull heads, gh's default
-# repository holds them. The listing and the fetch both use that repository.
 FORK="$TEST_TMPDIR/fork.git"
 g init -q --bare "$FORK"
 g -C "$BUILD" push -q "$FORK" main
@@ -221,9 +196,6 @@ assert_not_contains "a fork clone fetches every head from gh's repository" "$OUT
 assert_eq "a fork clone ranks from gh's repository" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 assert_contains "a fork clone lists from the resolved repository" "$(cat "$STUB_GH_LOG")" "--repo up/stream"
 
-# origin names gh's repository (an https form, rewritten to the bare remote by
-# insteadOf, as a credential-less SSH or HTTPS clone reaches its own server)
-# while gh's own URL cannot be fetched: the heads come from origin.
 NOWHERE="$TEST_TMPDIR/nowhere.git"
 W="$(fresh_clone)"
 git -C "$W" remote set-url origin https://github.com/Octo/Demo.git
@@ -234,14 +206,12 @@ assert_exit "origin naming gh's repository exits 0" 0 "$RC"
 assert_not_contains "origin naming gh's repository fetches every head from origin" "$OUT" "could not be fetched"
 assert_eq "origin naming gh's repository ranks" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 
-# The same with an scp-style SSH origin.
 W="$(fresh_clone)"
 git -C "$W" remote set-url origin git@github.com:octo/demo
 git -C "$W" config url."$REMOTE".insteadOf git@github.com:octo/demo
 OUT="$(cd "$W" && STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
 assert_eq "an SSH origin naming gh's repository ranks" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 
-# An SSH origin naming another repository: gh's sshUrl is fetched, not its https url.
 W="$(fresh_clone)"
 git -C "$W" remote set-url origin git@github.com:me/fork.git
 git -C "$W" config url."$REMOTE".insteadOf git@github.com:up/stream.git
@@ -250,7 +220,6 @@ OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_SSH=git@g
   STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
 assert_eq "an SSH fork clone fetches gh's sshUrl" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 
-# Neither origin nor gh's URL serves the heads: the gap line carries git's error.
 W="$(fresh_clone)"
 # spellchecker:ignore-next-line
 OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" \
@@ -258,14 +227,12 @@ OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LI
 assert_contains "an unfetchable head names its source and git's error" "$OUT" "gap: PR #1 head could not be fetched from $NOWHERE: "
 assert_contains "the gap line carries the error text" "$OUT" "nowhere.git"
 
-# A GitHub Enterprise URL: the listing names the host.
 W="$(fresh_clone)"
 : >"$STUB_GH_LOG"
 (cd "$W" && STUB_GH_URL=https://ghe.example.com/octo/demo STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" \
   bash "$SCRIPT" --prs 50 --dry-run >/dev/null 2>&1)
 assert_contains "a GHES repository is listed as host/owner/repo" "$(cat "$STUB_GH_LOG")" "--repo ghe.example.com/octo/demo"
 
-# A failure after the fetch still removes the run's refs.
 W="$(fresh_clone)"
 OUT="$(cd "$W" && STUB_GH_JSON="$LISTING" PATH="$FAILBIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
 RC=$?
@@ -274,8 +241,6 @@ if git -C "$W" cat-file -e "$PR1_SHA^{commit}" 2>/dev/null; then fetched=yes; el
 assert_eq "the failing run had fetched the heads" yes "$fetched"
 assert_eq "run namespace is gone after a failure" 0 "$(ref_count "$W")"
 
-# Hostile file names, under the default bash and under bash 5.1 compatibility
-# (where an arithmetic array subscript is expanded twice).
 for compat in default 51; do
   W="$(fresh_clone)"
   if [[ "$compat" == default ]]; then
@@ -294,7 +259,6 @@ for compat in default 51; do
   done
 done
 
-# A configured remote.origin.fetch for pull heads must not gain refs.
 W="$(fresh_clone)"
 git -C "$W" config --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
 before="$(git -C "$W" for-each-ref refs/remotes)"
@@ -302,7 +266,6 @@ run "$W" "$LISTING" --prs 50
 assert_exit "a pull-head fetch refspec run exits 0" 0 "$RC"
 assert_eq "remote-tracking refs are unchanged by the run" "$before" "$(git -C "$W" for-each-ref refs/remotes)"
 
-# Untrusted path with a control character.
 W="$(fresh_clone)"
 run "$W" "$TAB_LISTING" --prs 50
 assert_exit "a path with a tab exits 2" 2 "$RC"

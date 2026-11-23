@@ -1,29 +1,6 @@
 #!/usr/bin/env bash
-# Rank files by measured merge conflicts between pull requests that were open
-# at the same time. Run from the root of a clone of the repository.
-#
 #   collision-hotspots.sh --prs <n> [--repo <owner>/<repo>] [--max-pairs <m>]
 #                         [--exclude <glob>]... [--dry-run]
-#
-# Resolves the repository once through gh (--repo, else gh's default
-# repository), reads its last <n> PRs of every state (number, open and close
-# times, changed files), pairs PRs whose open intervals overlap and that share a
-# file, fetches each paired PR head into refs/collision-hotspots/<run-id>/pr/<n>
-# (from origin when it names that repository, else from gh's URL for it),
-# and replays every pair with `git merge-tree --write-tree`. A file is ranked
-# once at least 3 replayed pairs shared it. Output, path last on every line:
-#
-#   gap: ...                   a PR whose file list hit gh's limit, or a head
-#                              that could not be fetched
-#   known bump hotspots: ...   excluded files (changelogs, lockfiles, version
-#                              manifests, each --exclude) touched by 2+ PRs
-#   pairs: ...                 pairs found, replayed and skipped by the cap
-#   would replay: #a #b ...    --dry-run only; nothing is fetched or written
-#   ranked: ...                then one `conflicts<TAB>pairs<TAB>path` row per
-#                              ranked file, most conflicts first
-#
-# The run's refs are deleted on exit, on failure too; fetched objects stay
-# until git's own gc. PR file paths are data: they never reach a shell word.
 #
 # Exit 0 done, 2 usage error, missing gh, jq or `merge-tree --write-tree`, not
 # a repository, a failed gh or git call, or a PR path with a control character.
@@ -91,9 +68,6 @@ fi
 listing="$(gh pr list --state all --limit "$prs" --json number,createdAt,closedAt,files --repo "$list_repo")" ||
   die "gh pr list failed$fallback"
 
-# Fetch from origin when its configured URL (https, ssh:// or scp form; insteadOf
-# is applied by the fetch, not here) names the same owner/repo: it carries the
-# clone's own credentials. Otherwise fetch gh's URL, its SSH form for an SSH origin.
 origin_url="$(git config --get remote.origin.url 2>/dev/null)" || origin_url=""
 origin_path="" origin_ssh=0
 if [[ "$origin_url" =~ ^(https?|git|ssh|git\+ssh)://([^/@]+@)?[^/]+/(.+)$ ]]; then
@@ -111,11 +85,8 @@ elif ((origin_ssh)) && [[ -n "$gh_ssh" ]]; then
 else
   remote="$gh_url"
 fi
-# A fetch that needs a credential fails instead of waiting on a prompt.
 export GIT_TERMINAL_PROMPT=0
 
-# Shape and safety checks before any path is used: integer PR numbers, and no
-# control character in any path (a tab or newline would split a row).
 bad="$(jq -r '
   if type != "array" then "the gh listing is not an array"
   else
@@ -130,9 +101,6 @@ bad="$(jq -r '
 jq -r --argjson limit "$GH_FILE_LIMIT" '.[] | select((.files // []) | length >= $limit)
   | "gap: PR #\(.number) lists \($limit) files, gh\u0027s limit; files past it are not counted"' <<<"$listing"
 
-# Classify each distinct path once: excluded when its basename matches a
-# default glob, or when an --exclude glob matches the basename (glob without a
-# slash) or the whole path (glob with one).
 excluded=""
 while IFS= read -r path; do
   base="${path##*/}" hit=0
@@ -156,12 +124,6 @@ bump="$(jq -r --arg excl "$excluded" '
   | sort_by(-.n, .p) | map("\(.p) (\(.n) PRs)") | join(", ")' <<<"$listing")"
 printf 'known bump hotspots: changelogs, lockfiles and version manifests conflict on every version bump, not through design, so they are left out of the ranking: %s\n' "${bump:-none}"
 
-# Pairs: open intervals overlap (an open PR runs to now) and at least one
-# ranked file is shared. Most shared files first, then the newest PRs. Each
-# shared path appears once as a `p<TAB>path` line in index order, and each pair
-# as `r<TAB>a<TAB>b<TAB>index...`, so no PR path is ever an array subscript:
-# with bash 5.1 compatibility an arithmetic subscript is expanded twice, which
-# would run a `$(...)` inside a file name.
 pairs="$(jq -r --arg excl "$excluded" '
   ($excl | split("\n") | map(select(length > 0)) | map({key: ., value: true}) | from_entries) as $ex
   | [.[] | {n: .number, s: (.createdAt | fromdateiso8601),
@@ -250,8 +212,6 @@ for n in "${numbers[@]}"; do
   fi
 done
 
-# Counts are indexed by path index; the names git reports as conflicted are
-# compared as strings and never used as subscripts.
 pair_count=() conflict_count=()
 for line in "${pair_lines[@]}"; do
   IFS=$'\t' read -r a b shared_rest <<<"$line"
