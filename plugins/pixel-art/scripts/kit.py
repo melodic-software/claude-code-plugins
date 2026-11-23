@@ -156,7 +156,6 @@ def _hair(canvas, box, style, direction):
     if style == "swept":
         canvas.ellipse(cx + rx * 0.15, cy - ry * 0.1, rx, ry * 0.85, "hair", clip=lambda x, y: y < cy + 1 or x > cx)
         return
-    # bangs
     canvas.ellipse(cx, cy - ry * 0.05, rx * 1.05, ry * 0.8, "hair",
                    clip=lambda x, y: y < cy or x < cx - rx * 0.6 or x > cx + rx * 0.6)
     if direction == "down":

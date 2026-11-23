@@ -58,7 +58,6 @@ class GateHarness(unittest.TestCase):
         rows = []
         for node in cls.manifest["nodes"]:
             start = node["start_byte"]
-            # evidence: first 10 bytes of the node (ASCII fixture, safe)
             quote = SNAPSHOT[start:start + 10].decode("utf-8")
             rows.append({
                 "node_id": node["id"],
@@ -209,8 +208,6 @@ class TestFailNamedRow(GateHarness):
 
 class TestEvidenceToken(GateHarness):
     def test_token_moved_outside_node_range_fails(self):
-        # completion criterion: gate exits non-zero when a token is moved
-        # outside its node's byte range
         inv = copy.deepcopy(self.inventory)
         row = inv["rows"][1]
         node = self.manifest["nodes"][1]

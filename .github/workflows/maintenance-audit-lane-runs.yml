@@ -84,7 +84,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -128,7 +128,7 @@ jobs:
         if: steps.collect.outputs.units != '' && steps.collect.outputs.units != '[]'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: start
           role: automations
@@ -142,7 +142,7 @@ jobs:
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: skipped
           lane: lane-sweep
@@ -155,7 +155,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.collect.outcome == 'success' && steps.collect.outputs.units != '[]'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-sweep
@@ -209,7 +209,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -249,7 +249,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: key
           role: automations
@@ -260,7 +260,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success'
@@ -312,7 +312,7 @@ jobs:
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -358,7 +358,7 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -392,7 +392,7 @@ jobs:
         id: next
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outputs.clean == 'true' }}
@@ -415,7 +415,7 @@ jobs:
         id: scan-handoff
         if: >-
           steps.handoff.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-sweep-handoff/judge-handoff-${{ matrix.unit }}.json
@@ -433,7 +433,7 @@ jobs:
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -463,7 +463,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.findings.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
@@ -517,7 +517,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -572,7 +572,7 @@ jobs:
         if: steps.credit-marker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop/run-id
@@ -623,7 +623,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -665,7 +665,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: subscription
           role: automations
@@ -677,7 +677,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success'
@@ -730,7 +730,7 @@ jobs:
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -777,7 +777,7 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -808,7 +808,7 @@ jobs:
         id: next
         continue-on-error: true
         timeout-minutes: 1
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           state: ${{ steps.credential.outputs.state }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outputs.clean == 'true' }}
@@ -831,7 +831,7 @@ jobs:
         id: scan-handoff
         if: >-
           steps.handoff.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-sweep-handoff/judge-subscription-handoff-${{ matrix.unit }}.json
@@ -849,7 +849,7 @@ jobs:
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -881,7 +881,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.findings.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
@@ -932,7 +932,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -992,7 +992,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -1034,7 +1034,7 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           leg: fallback
           role: automations
@@ -1045,7 +1045,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success'
@@ -1096,7 +1096,7 @@ jobs:
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1142,7 +1142,7 @@ jobs:
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
@@ -1154,7 +1154,7 @@ jobs:
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -1185,7 +1185,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.findings.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
@@ -1241,7 +1241,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -1333,7 +1333,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 

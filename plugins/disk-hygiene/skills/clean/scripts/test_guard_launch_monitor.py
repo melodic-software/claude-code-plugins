@@ -223,7 +223,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         ):
             self.assertIsNotNone(self.run_monitor())
 
-    # -- criterion 3: the #1423 discriminating shape -----------------------
 
     def test_1423_shape_states_exit_code_and_duration_explicitly(self) -> None:
         self.write_transcript(
@@ -247,7 +246,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         message = self.run_monitor()
         self.assertIn("(no stderr output)", message)
 
-    # -- criterion 4: launch-refusal shape -----------------------------------
 
     def test_launch_refusal_shape_warns(self) -> None:
         self.write_transcript(
@@ -271,7 +269,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIn("exitCode: 1", message)
         self.assertIn("durationMs: 11", message)
 
-    # -- criterion 5: no false positives -------------------------------------
 
     def test_clean_session_with_other_hook_failure_emits_nothing(self) -> None:
         self.write_transcript(
@@ -292,7 +289,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         message = self.run_monitor()
         self.assertIsNone(message)
 
-    # -- criterion 7: unreadable transcript degrades silently ---------------
 
     def test_unreadable_transcript_path_exits_quietly(self) -> None:
         missing = Path(self.tmp.name) / "does-not-exist.jsonl"
@@ -328,7 +324,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertEqual("", stdout.getvalue().strip())
 
-    # -- criterion 8: once-per-session cap -----------------------------------
 
     def test_second_invocation_same_session_is_suppressed(self) -> None:
         self.write_transcript([_record(exit_code=1, duration_ms=17054)])
@@ -380,7 +375,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIsNotNone(retry)
         self.assertIn("exitCode: 1", retry)
 
-    # -- data-root placeholder handling --------------------------------------
 
     def test_unsubstituted_data_root_placeholder_treated_as_absent(self) -> None:
         self.write_transcript([_record(exit_code=1, duration_ms=17054)])
@@ -400,7 +394,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         parsed = json.loads(text)
         self.assertIn("exitCode: 1", parsed["systemMessage"])
 
-    # -- multiple failures: count and most-recent selection ------------------
 
     def test_multiple_failures_report_count_and_most_recent(self) -> None:
         self.write_transcript(
@@ -415,7 +408,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIn("durationMs: 200", message)
         self.assertIn("second failure", message)
 
-    # -- large transcripts: the cold scan reads the whole file ----------------
 
     def test_tail_read_still_finds_failure_near_end_of_large_transcript(self) -> None:
         filler = json.dumps({"type": "other", "noise": "x" * 200})
@@ -504,7 +496,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertNotIn("decision", parsed)
         self.assertEqual({"systemMessage"}, set(parsed.keys()))
 
-    # -- telemetry (#1505) ----------------------------------------------------
 
     def _make_telemetry_sink(self) -> tuple[Path, str]:
         out_file = Path(self.tmp.name) / f"telemetry-{id(self)}.json"
@@ -591,7 +582,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
                     monitor.main(["--data-root", str(self.data_root)])
         self.assertFalse(out_file.exists())
 
-    # -- incremental scan: a per-session byte-offset cursor -----------------
 
     def cursor_path(self, session_id: str = "session-1") -> Path:
         return self.data_root / "guard-launch-monitor" / f"{session_id}.cursor"
@@ -758,7 +748,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.append("\n".join(failures) + "\n")
         self.assertEqual(expected, self.run_monitor(session_id="warm"))
 
-    # -- seen launches: what lets the Stop row skip until the next launch ----
 
     def launch_path(self, session_id: str = "session-1") -> Path:
         return self.data_root / "guard-launch-monitor" / f"{session_id}.launched"
