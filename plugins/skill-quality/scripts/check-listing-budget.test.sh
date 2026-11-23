@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-listing-budget.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway git repo with fixture
-# skill roots, runs the reporter, and asserts on exit code + output.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,8 +16,6 @@ trap 'rm -rf "$TMP"' EXIT
 
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_CONFIG 2>/dev/null || true
-# Never read the developer's real settings or inherit a budget override: every
-# settings file the reporter can see is a fixture under $TMP.
 unset SLASH_COMMAND_TOOL_CHAR_BUDGET CLAUDE_PROJECT_DIR CHECK_SKILL_SKILLS_ROOT \
   CHECK_SKILL_LISTING_BUDGET_CHARS CHECK_SKILL_LISTING_CONTEXT_TOKENS \
   CHECK_SKILL_LISTING_BUDGET_FRACTION CHECK_SKILL_LISTING_CHARS_PER_TOKEN \
@@ -49,9 +43,6 @@ make_skill() {
 
 run() { (cd "$TMP" && bash "$SUT" "$@"); }
 
-# 1. --help exits 0 and prints the WHOLE header block — no clipping, no
-#    overrun past the header into code. usage() derives its range from the
-#    comment block itself, so adding header lines can never desync it again.
 out="$(run --help 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
@@ -93,7 +84,6 @@ else
   fail "no-args resolution failure should exit 2 with 'no skills root found' (rc=$rc): $out"
 fi
 
-# 3. A root that exists but has no skills reports zero and exits 0.
 mkdir -p "$TMP/empty-root"
 out="$(run "$TMP/empty-root" 2>&1)"
 rc=$?
@@ -155,8 +145,6 @@ else
   fail "oversized entry should cap at 50 chars, not count all 200 (expected 'aggregate: 50 chars'): $out"
 fi
 
-# 8. Multiple roots pool into ONE shared aggregate (the marketplace-repo use
-#    case: plugins/*/skills passed as separate positional roots).
 make_skill "$TMP/root-x" x-skill "12345"
 make_skill "$TMP/root-y" y-skill "67890"
 out="$(run "$TMP/root-x" "$TMP/root-y" 2>&1)"
@@ -259,8 +247,6 @@ assert_env_error CHECK_SKILL_LISTING_BUDGET_CHARS "a nonnumeric fixed budget" \
 assert_env_error CHECK_SKILL_LISTING_BUDGET_CHARS "a zero fixed budget" \
   CHECK_SKILL_LISTING_BUDGET_CHARS=0
 
-# 11. A valid decimal ratio/fraction is NOT rejected by the numeric guard —
-#     the validation must accept the documented 0.01 default shape.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_CONTEXT_TOKENS=1000000 CHECK_SKILL_LISTING_BUDGET_FRACTION=0.02 \
   CHECK_SKILL_LISTING_CHARS_PER_TOKEN=3.5 bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
@@ -270,8 +256,6 @@ else
   fail "decimal overrides should reconstruct the budget and exit 0 (rc=$rc): $out"
 fi
 
-# 12. A supplied CHECK_SKILL_LISTING_BUDGET_CHARS is labeled an override, not
-#     the "documented default" — the provenance the report promises to state.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=4000 bash "$SUT" "$ROOT_A" 2>&1)"
 if grep -q 'budget:.*4000 chars (override (CHECK_SKILL_LISTING_BUDGET_CHARS))' <<<"$out"; then
   pass "a supplied fixed budget is labeled an override, not the documented default"
@@ -279,7 +263,6 @@ else
   fail "an overridden budget should not be labeled the documented default: $out"
 fi
 
-# 12b. With no override, the default IS labeled the documented default.
 out="$(run "$ROOT_A" 2>&1)"
 if grep -q 'budget:.*8000 chars (documented default' <<<"$out"; then
   pass "the unoverridden budget is labeled the documented default"
@@ -522,7 +505,6 @@ else
   fail "non-git explicit root should report OK without git (rc=$rc): $out"
 fi
 
-# 20b. Outside git with no args and no override is still an environment error.
 out="$(
   cd "$CACHE_TMP" &&
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
@@ -536,7 +518,6 @@ else
   fail "outside git with no args should exit 2 (rc=$rc): $out"
 fi
 
-# 20c. CHECK_SKILL_SKILLS_ROOT from a non-git cwd still resolves (no-args form).
 out="$(
   cd "$CACHE_TMP" &&
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
@@ -574,7 +555,6 @@ run_cfg() {
   (cd "$TMP" && CLAUDE_PROJECT_DIR="$proj" CLAUDE_CONFIG_DIR="$cfg" bash "$SUT" "$@")
 }
 
-# 21. A user-scope fraction of 0.05 names its file and reports both window rows.
 CFG21="$TMP/s21/config"
 write_fraction "$CFG21/settings.json" 0.05
 out="$(run_cfg "$TMP/s21/project" "$CFG21" --from-settings "$BIG_ROOT" 2>&1)"
@@ -589,7 +569,6 @@ else
   fail "--from-settings should report 40000 (WARN) and 200000 (OK) from the user settings file (rc=$rc): $out"
 fi
 
-# 22. Precedence: project local beats shared project beats user.
 P22="$TMP/s22/project"
 CFG22="$TMP/s22/config"
 write_fraction "$P22/.claude/settings.local.json" 0.03
@@ -617,7 +596,6 @@ else
   fail "project settings.json should beat user settings (0.02 -> 16000/80000) (rc=$rc): $out"
 fi
 
-# 23. SLASH_COMMAND_TOOL_CHAR_BUDGET is the budget regardless of settings.
 out="$(cd "$TMP" && CLAUDE_PROJECT_DIR="$P22" CLAUDE_CONFIG_DIR="$CFG22" \
   SLASH_COMMAND_TOOL_CHAR_BUDGET=12345 bash "$SUT" --from-settings "$BIG_ROOT" 2>&1)"
 rc=$?
@@ -658,8 +636,6 @@ else
   fail "CHECK_SKILL_LISTING_BUDGET_FRACTION alone should give 40000/200000 (rc=$rc): $out"
 fi
 
-# 26. --from-settings with no settings file falls back to the documented 0.01:
-#     8000 and 40000, both exceeded by 41472, and labeled the default.
 out="$(run_cfg "$TMP/s26/project" "$TMP/s26/config" --from-settings "$BIG_ROOT" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
@@ -673,7 +649,6 @@ else
   fail "no settings file should give the 0.01 band 8000/40000 labeled default (rc=$rc): $out"
 fi
 
-# 27. Malformed settings JSON is an environment error, not a silent default.
 CFG27="$TMP/s27/config"
 mkdir -p "$CFG27"
 printf '{"skillListingBudgetFraction": \n' >"$CFG27/settings.json"
@@ -685,7 +660,6 @@ else
   fail "malformed settings JSON should exit 2 (rc=$rc): $out"
 fi
 
-# An option-shaped argument is reported as an unknown option, not a missing root.
 out="$(run --bogus 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'unknown option: --bogus' <<<"$out"; then
