@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # test-scope: plugins/multi-agent/skills/route/scripts/delegate
+# test-scope: plugins/multi-agent/scripts/resolve-roles.sh plugins/multi-agent/scripts/yaml-subset.awk
+# test-scope: plugins/multi-agent/reference/defaults.yaml plugins/multi-agent/lib/config-root.sh
+# test-scope: plugins/multi-agent/lib/resolve-convention-home.sh
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 T="$(mktemp -d)"
