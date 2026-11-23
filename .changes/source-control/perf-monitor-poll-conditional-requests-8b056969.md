@@ -15,4 +15,5 @@ bump: patch
   event lines are unchanged.
 - The floor for any GitHub watch or poll is 90 seconds, up from 60: the monitor's default
   interval, the API budget, and the merge, merge-queue, async-merge and babysit docs that gave a
-  60-second GitHub poll cadence now state 90.
+  60-second GitHub poll cadence now state 90, and the babysit merge gate polls an async merge
+  every 90 seconds for up to 90.
