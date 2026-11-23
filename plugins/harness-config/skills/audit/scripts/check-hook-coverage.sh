@@ -64,44 +64,10 @@
 
 set -uo pipefail
 
-# Every `jq` result that re-enters the shell goes through this. On Git for
-# Windows, jq writes stdout in TEXT mode and appends a CR to every line — a
-# property of jq's own output stream, NOT of the input file's line endings, so
-# it happens even when every fixture is pure LF. Verified here by deleting the
-# `tr` and re-running the suite: 17 of 34 checks failed, including cases whose
-# fixtures contain no CR at all. Untreated, a plugin key read out of jq is
-# `name@marketplace\r`, every registry lookup misses, and the plugin is reported
-# as not installed on a machine where it is installed — a silent false negative
-# on exactly the axis this script exists to make trustworthy.
 jqs() { jq "$@" 2>/dev/null | tr -d '\r'; }
 
-# Every value the --json emitter builds a node from goes through this. A jq
-# --arg value is DATA, never a path for jq to open, but on Git for Windows the
-# call crosses CreateProcess and MSYS rewrites any argument whose tail looks
-# like a POSIX path: a plugin's shipped hook command
-# "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh arrives as
-# "${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/x.sh, so the engine reports
-# hook-path-missing for a file that exists. Suppressing the conversion is safe
-# for every call routed here because not one passes a file for jq to OPEN; a
-# site that does must keep the conversion, or jq could no longer find the file.
-# Set inline per call, never exported.
-#
-# The CR strip is the same one jqs() above does, for the same reason: native jq
-# writes stdout in TEXT mode here and ends every line CRLF. In a node fragment
-# the stray CR lands between JSON tokens, where it is only whitespace, so it
-# corrupts nothing today; stripping it keeps the two jq wrappers honest about the
-# same platform quirk, so a value ever captured from this one cannot carry a CR
-# into a comparison. jq escapes a control character inside a string as \r, so a
-# literal CR byte in its output is only ever the line terminator.
 jqn() { MSYS2_ARG_CONV_EXCL='*' jq -cn "$@" | tr -d '\r'; }
 
-# json_nodes <width> <jq-program> <field>...: one compact JSON node per line,
-# one for every <width> fields, from a single jq call, so a large inventory
-# costs one process per array rather than one per node (each is tens to
-# hundreds of milliseconds on Windows). The program sees each group as $f. The
-# fields cross as one base64 text of NUL-terminated strings, which has no argv
-# cap, needs no MSYS rewriting guard, and carries a CR in a value through jq's
-# text-mode stdin on Windows.
 json_nodes() {
   local w="$1" prog="$2"
   shift 2
@@ -111,9 +77,6 @@ json_nodes() {
     tr -d '\r'
 }
 
-# print_array <name> <width> <jq-program> <field>...: the --json array <name>,
-# its nodes built by one json_nodes call and laid out as the emitter always
-# has, up to its closing bracket; the caller prints what follows it.
 print_array() {
   local name="$1" sep="" n nodes=()
   shift
@@ -171,14 +134,9 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# --- Roots -------------------------------------------------------------------
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
-# The project-root, user-dir and registry ladders are shared vocabulary
-# (lib/resolve-scopes.sh), not this script's to restate. Fail loudly rather than
-# fall through: an unsourced library leaves every root empty and the inventory
-# would report "no settings scope" on a machine that has them.
 RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
 if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
   echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
@@ -199,14 +157,10 @@ scopes::installed_registry_to INSTALLED_JSON "${HOOK_COVERAGE_INSTALLED_JSON:-}"
 SCOPES=()
 SCOPE_LABELS=()
 add_scope() {
-  # add_scope <path> <label> — register a settings file that exists and parses.
   [[ -f "$1" ]] || return 0
   if ! jq empty "$1" 2>/dev/null; then
     UNREADABLE+=("$2 ($1): not valid JSON")
     PARTIAL=1
-    # A scope that exists but does not parse may carry a suppression lever, so
-    # the lever set is unknown rather than empty. An ABSENT scope carries no
-    # lever and leaves the state complete.
     LEVER_STATE=unknown
     return 0
   fi
@@ -248,7 +202,6 @@ if [[ ${#SCOPES[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# --- Hook extraction ---------------------------------------------------------
 
 # One jq program, used for every hook source. Input is the object that holds a
 # `hooks` map (a settings file, or a plugin hook config). Output is one
@@ -289,7 +242,6 @@ PLUGIN_HOOK_NORMALIZE_JQ='if has("hooks") then . else {hooks: .} end'
 
 ROWS=()
 emit_rows() {
-  # emit_rows <source-label> <json-file-or-inline> [--inline]
   local src="$1" input="$2" mode="${3:-file}" out
   if [[ "$mode" == "--inline" ]]; then
     out="$(printf '%s' "$input" | jqs -r "$PLUGIN_HOOK_NORMALIZE_JQ | $HOOK_ROWS_JQ")"
@@ -299,8 +251,6 @@ emit_rows() {
   add_rows "$src" $? "$out"
 }
 
-# add_rows <source-label> <jq-exit> <rows>: record the rows one hook source
-# yielded, or the source as unreadable when its jq failed.
 add_rows() {
   local src="$1" rc="$2" out="$3" line
   if [[ $rc -ne 0 ]]; then
@@ -318,12 +268,6 @@ for i in "${!SCOPES[@]}"; do
   emit_rows "settings:${SCOPE_LABELS[$i]}" "${SCOPES[$i]}"
 done
 
-# --- Suppression levers ------------------------------------------------------
-#
-# A hook that is installed but switched off is not coverage. These are the three
-# levers the audit's own narrowing rules name; the two managed-only ones are
-# reported wherever they are visible, because a run that cannot see managed
-# settings must not read their absence as "not set".
 
 LEVERS=()
 for i in "${!SCOPES[@]}"; do
@@ -339,12 +283,6 @@ for i in "${!SCOPES[@]}"; do
     | select(. as $k | $s | has($k)) | . + "\t" + ($s[.] | tojson) + "\n"' "${SCOPES[$i]}")
 done
 
-# --- Mod-plane keys ----------------------------------------------------------
-#
-# Settings that govern mods (plugins of function hooks) rather than settings
-# hooks: none switches a settings hook off, so they stay out of LEVERS and
-# never feed the narrowing. The two guard options live under the built-in
-# guard's pluginConfigs entry, the one spelling Claude Code reads them under.
 
 MOD_PLANE=()
 # shellcheck disable=SC2016  # a jq program; $k is a jq variable
@@ -362,7 +300,6 @@ for i in "${!SCOPES[@]}"; do
   done < <(jqs -r "$MOD_PLANE_JQ" "${SCOPES[$i]}")
 done
 
-# --- Enabled plugins (local > project > user) --------------------------------
 
 declare -A ENABLED_STATE=()
 merge_enabled_plugins() {
@@ -387,11 +324,6 @@ done
 
 PLUGIN_STATUS=()
 
-# Every per-plugin step below runs in this shell and sets a variable rather
-# than printing into a command substitution, and every lookup a marketplace or
-# the registry answers for all plugins at once is made once: on Windows each
-# process costs tens to hundreds of milliseconds, and this loop runs once per
-# enabled plugin.
 
 # nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
 # array NUL_FIELDS, one element per field, byte for byte. `-d` is GNU, macOS
@@ -415,10 +347,6 @@ FIELDS_FILE="$(mktemp 2>/dev/null)" || {
 }
 trap 'rm -f "$FIELDS_FILE"' EXIT
 
-# installPath per enabled plugin key, from one read of installed_plugins.json.
-# The registry maps "<plugin>@<marketplace>" to install records each carrying a
-# version-pinned installPath and a scope; when several records exist, the one
-# for this project wins with local > project > user precedence.
 declare -A INSTALL_PATH=()
 if [[ -f "$INSTALLED_JSON" && ${#ENABLED[@]} -gt 0 ]]; then
   project_norm="${PROJECT_ROOT//\\//}"
@@ -458,8 +386,6 @@ norm_path_to() {
 }
 
 join_path_to() {
-  # join_path_to <var> <base> <path>: <path> as is when absolute, else under
-  # <base>. A leading ./ is dropped; an empty or "." path is <base> itself.
   local _base _p
   norm_path_to _base "$2"
   norm_path_to _p "$3"
@@ -474,9 +400,6 @@ join_path_to() {
 }
 
 canon_dir_to() {
-  # canon_dir_to <var> <dir>: the physical path when the directory exists, else
-  # as given, so two spellings of one directory compare equal and a symlinked
-  # checkout is not reported as diverging from itself.
   local _here="$PWD"
   if cd -P -- "$2" 2>/dev/null; then
     printf -v "$1" '%s' "$PWD"
@@ -487,14 +410,6 @@ canon_dir_to() {
 }
 
 resolve_marketplace_dir_to() {
-  # resolve_marketplace_dir_to <var> <marketplace-name>: the directory a
-  # directory-source marketplace is loaded from; returns 1 when there is none.
-  # Looked up in the extraKnownMarketplaces block of each settings scope read
-  # (project, then local, then user), then in the user dir's
-  # plugins/known_marketplaces.json. A relative path in a settings scope
-  # resolves against that file's base: the project root for project and local,
-  # the directory that contains the user config dir for user.
-  # known_marketplaces.json carries installLocation.
   local _name="$2" label i base rel known
   for label in project local user; do
     for i in "${!SCOPE_LABELS[@]}"; do
@@ -525,13 +440,6 @@ resolve_marketplace_dir_to() {
   norm_path_to "$1" "$rel"
 }
 
-# Per marketplace, read once: MKT_STATE is none (no directory-source catalog),
-# bad (its catalog does not parse) or ok; MKT_DIR its directory; MKT_SRC the
-# string source of the first catalog entry of each plugin name, keyed
-# "<marketplace><US><name>". The marketplace's .claude-plugin/marketplace.json
-# names each plugin and its `source`, a path relative to the marketplace
-# directory; only a string source is a local path, so an object source
-# (github, url) is left to the registry route.
 US=$'\x1f'
 declare -A MKT_STATE=() MKT_DIR=() MKT_SRC=()
 load_marketplace() {
@@ -561,9 +469,6 @@ load_marketplace() {
 }
 
 marketplace_plugin_path_to() {
-  # marketplace_plugin_path_to <var> <plugin-key>: the directory a
-  # directory-source marketplace loads this plugin from. Returns 1 when there
-  # is none, and 2 when the marketplace's catalog does not parse.
   local _key="$2" _plugin _mkt _dir
   printf -v "$1" '%s' ""
   [[ "$_key" == *@* ]] || return 1
@@ -581,20 +486,13 @@ marketplace_plugin_path_to() {
   printf -v "$1" '%s' "$_dir"
 }
 
-# Divergence rows: <plugin-key> <marketplace-dir-path> <registry-path>, one per
-# plugin that resolves both ways to different directories. Info only.
 DIVERGENCE=()
-# Enabled plugins that did not resolve through a marketplace directory and so
-# needed the registry. Only these make a missing registry a reportable gap.
 REGISTRY_FALLBACKS=0
 
 for key in ${ENABLED+"${ENABLED[@]}"}; do
   marketplace_plugin_path_to mpath "$key"
   mrc=$?
   if [[ $mrc -eq 2 ]]; then
-    # What the session loads from an unparsable catalog is unknown, so the
-    # inventory is partial even though the registry route still resolves the
-    # plugin. Reported once per marketplace.
     bad_mkt="${key##*@}"
     if [[ -z "${BAD_CATALOG[$bad_mkt]:-}" ]]; then
       BAD_CATALOG[$bad_mkt]=1
@@ -666,8 +564,6 @@ for key in ${ENABLED+"${ENABLED[@]}"}; do
 
   if [[ $found -eq 0 && -f "$path/hooks/hooks.json" ]]; then
     if jq empty "$path/hooks/hooks.json" 2>/dev/null; then
-      # One jq normalizes and flattens the file; a value the normalization
-      # cannot take yields no rows.
       out="$(jqs -r "(try ($PLUGIN_HOOK_NORMALIZE_JQ) catch empty) | $HOOK_ROWS_JQ" "$path/hooks/hooks.json")"
       add_rows "plugin:$key" $? "$out"
       found=1
@@ -690,7 +586,6 @@ if [[ $REGISTRY_FALLBACKS -gt 0 && ! -f "$INSTALLED_JSON" ]]; then
   PARTIAL=1
 fi
 
-# --- Output ------------------------------------------------------------------
 
 # Every single-quoted string in this block is a jq program and every $name in one
 # is a jq binding, not a shell variable. shellcheck special-cases a literal `jq`
@@ -703,8 +598,6 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     printf '  "lever_state": "%s",\n' "$LEVER_STATE"
     printf '  "managed_scope": %s,\n' "$MANAGED_PRESENT"
     printf '  "project_root": %s,\n' "$(jqn --arg r "$PROJECT_ROOT" '$r')"
-    # Each array's fields are split from their tab-joined records here, in the
-    # shell, and every node of the array is built by one json_nodes call.
     fields=()
     for r in ${ROWS+"${ROWS[@]}"}; do
       IFS=$'\t' read -r src event matcher cmd extra <<<"$r"
@@ -726,8 +619,6 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     done
     print_array divergence 3 '{plugin: $f[0], loaded: $f[1], cached: $f[2]}' ${fields+"${fields[@]}"}
     printf ',\n'
-    # A lever value that parses as JSON other than false or null is that JSON;
-    # anything else is the text as read.
     fields=()
     for l in ${LEVERS+"${LEVERS[@]}"}; do
       IFS=$'\t' read -r sc lk lv <<<"$l"

@@ -233,7 +233,6 @@ test("the workflow_call outputs the run and check-broker jobs set, and their sou
   const { "skip-run": skipRun, ...kept } = wf.outputs("check-broker");
   assert.equal(typeof skipRun, "string");
   assert.deepEqual(kept, brokerCheck);
-  // The run job's caller-visible outputs, quoted above, are the same text.
   for (const [name, expression] of Object.entries(OLD.outputs)) assert.equal(wf.outputs("run")[name], expression, name);
 });
 

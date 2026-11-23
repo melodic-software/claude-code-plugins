@@ -62,8 +62,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# The relay admits a findings file only on an exact `branch:` match, so with
-# no branch there is no file it could ever read: refuse before scanning.
 BRANCH=""
 if [[ "$FINDINGS" -eq 1 ]]; then
   [[ "$JSON" -eq 0 ]] || die_usage "--findings prints the markdown report; drop --json"
@@ -104,8 +102,6 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-# A failed read is named here; an empty CFG_BASE would surface later as a
-# missing merge-base.
 if ! cfg="$("${PY[@]}" -I -c '
 import json, sys
 try:
@@ -157,7 +153,6 @@ SCAN_ARGS+=(--correctness-rules "$WORK/rules" --unread-to "$WORK/unread")
 if [[ -s "$WORK/scope" ]]; then
   "${PY[@]}" "$SCANNER" "${SCAN_ARGS[@]}" >"$WORK/found.json" || exit 2
 else
-  # An empty list would read as "scan the repository".
   printf '[]\n' >"$WORK/found.json"
   : >"$WORK/unread"
 fi

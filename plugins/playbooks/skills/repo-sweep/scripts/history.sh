@@ -30,7 +30,6 @@ trap 'rm -rf "$tmp"' EXIT
 
 bash "$dir/catalog.sh" "$1" >"$tmp/rows"
 
-# Last-run lines, "<skill>@<version>", newest and highest-priority source first.
 : >"$tmp/partial"
 if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 1000 \
   --json headRefName,body,mergedAt,isCrossRepository 2>/dev/null); then

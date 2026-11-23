@@ -158,32 +158,9 @@ back-compatible alias; the new name wins when both are set.
 EOF
 }
 
-# --- Argument handling ---------------------------------------------------------
-# EVERY argument is read, and an argument that is not a recognized flag is a hard
-# refusal — usage on stderr, exit 2 — never something silently ignored. This
-# script is a CI gate: a one-character typo in the flag falling through to the
-# advisory report left the invocation exiting 0 on a tree full of error-tier
-# findings, i.e. a gate quietly turned into a permanent no-op that nobody sees
-# fail. An argument the script cannot honor means it cannot establish what was
-# asked of it, which is the same "cannot determine" channel a missing jq and an
-# unresolvable root already take.
-#
-# Flags may appear in ANY ORDER and may be COMBINED; the STRICTEST one wins,
-# ordered report < --count < --check < --strict. Reading only "$1" meant
-# `--check --strict` silently ran as `--check` (passing a warning-only tree) while
-# `--strict --check` ran as `--strict` (failing it) — one command line gating two
-# different ways depending on argument order, with the discarded flag never
-# mentioned.
-#
-# A literal EMPTY argument is the one thing ignored rather than refused: it is
-# what a quoted-but-unset shell variable ("$MODE") expands to, it carries no
-# intent, and it cannot be a misspelling of a flag. So `"" --check` is `--check`,
-# not a report run that never saw the gate flag.
 mode="report"
 mode_rank=0
 raise_mode() {
-  # raise_mode <name> <rank> — move to <name> only when it is stricter than the
-  # mode already selected, so order cannot downgrade a gate.
   if [[ "$2" -gt "$mode_rank" ]]; then
     mode_rank="$2"
     mode="$1"
@@ -216,10 +193,6 @@ canonical_path() {
   fi
 }
 
-# Resolve the plugin root the way every other component in this marketplace
-# does: Claude Code sets CLAUDE_PLUGIN_ROOT in plugin form, and the BASH_SOURCE
-# fallback keeps a direct invocation (the test harness, a developer running the
-# script) working. `cd` and `pwd` are builtins, so this needs nothing on PATH.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -237,9 +210,6 @@ if [[ -n "${PERMISSION_HYGIENE_SCAN_ROOT:-}" ]]; then
   ROOT="$PERMISSION_HYGIENE_SCAN_ROOT"
   ROOT_SOURCE="\$PERMISSION_HYGIENE_SCAN_ROOT"
 elif [[ -n "${PERMISSION_HYGIENE_FIXTURE_DIR:-}" ]]; then
-  # Back-compatible alias. Its name says "fixture", but #2249 made it the
-  # documented operator remedy for the exit-2 refusal below, so it stays working
-  # while $PERMISSION_HYGIENE_SCAN_ROOT is the name every surface now documents.
   ROOT="$PERMISSION_HYGIENE_FIXTURE_DIR"
   ROOT_SOURCE="\$PERMISSION_HYGIENE_FIXTURE_DIR (alias of \$PERMISSION_HYGIENE_SCAN_ROOT)"
 else
@@ -251,9 +221,6 @@ else
   fi
 fi
 
-# No $PWD fallback — see the header. Refuse rather than sweep an unknown tree, and
-# refuse in BOTH modes: a `--count` of 0 from a scan that never resolved a root reads
-# exactly like a clean bill, which is the confusion this refusal exists to remove.
 if [[ -z "$ROOT" ]]; then
   cat >&2 <<'EOF'
 ERROR: no scan root resolved — refusing to scan.
@@ -298,10 +265,6 @@ if [[ "$ROOT_SOURCE" == "git toplevel" ]]; then
   fi
 fi
 
-# --- Detection patterns -------------------------------------------------------
-#
-# P1's auto-mode drop vocabulary is shared with audit-permission-state's entry
-# diff, so it lives in a define-only library rather than here.
 PATTERNS_LIB="$PLUGIN_ROOT/lib/permission-patterns.sh"
 if [[ ! -r "$PATTERNS_LIB" ]]; then
   echo "ERROR: cannot read $PATTERNS_LIB — the plugin's shared permission-pattern library is missing" >&2
@@ -321,16 +284,6 @@ _sl='/'
 _bs='\'
 _seg="[^${_sl}${_bs}*<>\${}~ ]"
 _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs}]Users[${_sl}${_bs}]${_seg}"
-# Capture the WHOLE `Tool(...)` spec so a finding reports the offending rule rather
-# than an eight-character path fragment — the intent already stated for P1 above.
-#
-# The tool name is the OPEN grammar, not an enumerated list. `(Read|Edit|Write|Bash
-# |PowerShell)` would silently stop flagging a hardcoded path in a `WebFetch(...)`,
-# `Glob(...)`, `NotebookEdit(...)`, `mcp__server__tool(...)` or `Agent(...)` rule —
-# and this file has a dedicated `scan_agent()`, so `Agent` is unambiguously in
-# scope. Narrowing an `error`-tier check's reach is not a reporting-format change.
-# The leading `[A-Za-z_][A-Za-z0-9_]*` is `CCPERM_TOOL_TOKEN_ERE`'s own tool-name
-# grammar, kept consistent with the library #2260 extracted.
 P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\(${CCPERM_BALANCED_ERE}(${_p2_path})${CCPERM_BALANCED_ERE}\\)"
 # `~user/…` in a Bash rule — not the portable `~/` anchor (Read/Edit resolve that
 # per user). Bash rules match literally and do not expand tilde-user forms.
@@ -360,49 +313,30 @@ P4_PLUGIN_ONLY_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|\$\{CLAUDE_PLUGIN_DATA\}'
 P4_BASH_PLUGIN_ONLY_ERE="Bash\\(${CCPERM_BALANCED_ERE}(${P4_PLUGIN_ONLY_TOKEN_ERE})${CCPERM_BALANCED_ERE}\\)"
 
 findings=()
-# Severity tallies, kept by `emit` so the gate modes partition on the SAME
-# severity every finding line prints rather than re-deriving a check-id -> tier
-# map at exit time. A second mapping is a second thing to drift: adding a check
-# and forgetting to list its id in the gate would silently make it ungated.
 error_findings=0
 warning_findings=0
 
-# --- Denominator ---------------------------------------------------------------
-# What the coverage block reports. Successes and non-successes are counted
-# separately on purpose: the point of the block is that a reader can tell a clean
-# bill from a scan that read nothing, or from one whose inputs it could not open.
-# The four frontmatter buckets are exhaustive and mutually exclusive by
-# construction, and `reconcile_frontmatter` asserts it: every enumerated
-# candidate is excluded, unreadable, block-free, or parsed. Nothing may fall
-# out of the walk without landing in one of them.
-fm_candidates=0            # frontmatter files the walk returned
-fm_excluded_non_loadable=0 # …removed by the loadability filter
-fm_unreadable=0            # …enumerated but not openable (or gone) — NOT audited
-fm_no_block=0              # …read fine, carried no allowed-tools block
-fm_with_block=0            # …read fine, carried a non-empty allowed-tools block
-allow_rules_read=0         # allow rules actually parsed, across all settings scopes
-scopes_read=0              # settings scopes successfully read
-unparsable_settings=0      # settings files present but not valid JSON — SKIPPED, not clean
+fm_candidates=0
+fm_excluded_non_loadable=0
+fm_unreadable=0
+fm_no_block=0
+fm_with_block=0
+allow_rules_read=0
+scopes_read=0
+unparsable_settings=0
 plugin_manifests=0
 plugin_settings_parsed=0
 plugin_settings_unparsable=0
 scope_status=()
 
-# `find` stderr was discarded outright. This file's own header argues why that
-# matters — "a swallowed permission error was indistinguishable from a clean bill"
-# — so capture it and count it into the block instead of throwing it away.
 WALK_ERR="$(mktemp)"
 trap 'rm -f "$WALK_ERR"' EXIT
 
 emit() {
-  # emit <severity> <check> <source> <detail>
   case "$1" in
   error) error_findings=$((error_findings + 1)) ;;
   warning) warning_findings=$((warning_findings + 1)) ;;
   *)
-    # A severity outside the two documented tiers cannot be gated on, so it is a
-    # defect in this script rather than a property of the scanned tree — say so
-    # instead of letting it slip past the gate as neither error nor warning.
     printf 'DENOMINATOR BUG: emit() called with unknown severity %s for check %s — this is a defect in permission-rule-check.sh; the finding is reported but cannot be gated.\n' "$1" "$2" >&2
     ;;
   esac
@@ -410,7 +344,6 @@ emit() {
 }
 
 inert_grant_remedy() {
-  # inert_grant_remedy <source-file-path> — branch the P4 remedy per #2397 A7b.
   local file="$1"
   case "$file" in
   */skills/*/SKILL.md)
@@ -423,16 +356,6 @@ inert_grant_remedy() {
 }
 
 portable_path_remedy() {
-  # portable_path_remedy <source-file-path> — the portable-form menu P2 and P2b
-  # offer, branched per scope for the SAME reason inert_grant_remedy branches.
-  # ${CLAUDE_SKILL_DIR} is substituted in a SKILL.md's markdown body and in its
-  # allowed-tools Bash rules (skills page, "Available string substitutions") and
-  # NOWHERE else — not in an agent, not in a command, and not in a settings
-  # permissions.allow array. Offering it unconditionally would tell the author of
-  # a settings rule to swap one inert grant for another, which is exactly the
-  # remedy bug #4134 fixed for P4 and #4149 asks every emitted remedy to be
-  # pinned against. A plugin skill IS a SKILL.md, and the skill-dir token
-  # substitutes there too, so both skill shapes take the first branch.
   local file="$1"
   case "$file" in
   */skills/*/SKILL.md)
@@ -445,13 +368,6 @@ portable_path_remedy() {
 }
 
 is_plugin_skill() {
-  # is_plugin_skill <source-file-path> — 0 when this SKILL.md belongs to a
-  # PLUGIN, which is the only place the plugin-root/plugin-data tokens
-  # substitute in allowed-tools. Prefer the manifest, which holds wherever the
-  # plugin is installed; the `^plugins/` layout check is the
-  # marketplace-monorepo fallback for a checkout whose manifest sits elsewhere.
-  # An empty path (settings scopes pass one) is never a plugin skill, so a
-  # settings rule bearing these tokens stays flagged.
   local file="$1" rel="${1#"$ROOT"/}" plugin_dir
   [[ -n "$file" ]] || return 1
   case "$file" in
@@ -465,15 +381,10 @@ is_plugin_skill() {
 }
 
 rule_matches() {
-  # rule_matches <text> <ere> — the distinct whole-rule matches of <ere>, one per
-  # line. Deduplicated so one rule text repeating an offending spelling reports
-  # once; the caller owns the finding's severity, check id and wording.
   printf '%s\n' "$1" | grep -oE "$2" 2>/dev/null | sort -u
 }
 
 scan_rule() {
-  # scan_rule <rule-string> <source-label> [<source-file>] — one allow rule or
-  # one frontmatter token region. source-file enables the P4 remedy branch.
   local text="$1" src="$2" file="${3:-}" m remedy path_remedy
   path_remedy="$(portable_path_remedy "$file")"
   remedy="$(inert_grant_remedy "$file")"
@@ -490,42 +401,23 @@ scan_rule() {
     [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
   done < <(rule_matches "$text" "$P2_RULE_ERE")
   while IFS= read -r m; do
-    # P2b, not P2 — see the header. criteria.md documents this as its own check
-    # with its own detection rule, and emitting it under P2 made the id
-    # unreportable (#4149 defect 3).
     [[ -n "$m" ]] && emit error P2b "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. $path_remedy"
   done < <(rule_matches "$text" "$P2_TILDE_USER_RULE_ERE")
   while IFS= read -r m; do
     [[ -n "$m" ]] && emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
   done < <(rule_matches "$text" "$P4_BASH_INERT_ERE")
-  # Plugin-root/plugin-data tokens DO substitute in a plugin skill's
-  # allowed-tools, so flagging them there is a false positive. Everywhere else
-  # they stay literal.
   if ! is_plugin_skill "$file"; then
     while IFS= read -r m; do
-      # Routed through the same context-sensitive remedy the always-inert tokens
-      # use. Offering ${CLAUDE_SKILL_DIR} unconditionally would swap one inert
-      # rule for another: that token is substituted in a skill's allowed-tools,
-      # so it is no remedy at all for a settings rule, an agent, or a command.
       [[ -n "$m" ]] && emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
     done < <(rule_matches "$text" "$P4_BASH_PLUGIN_ONLY_ERE")
   fi
 }
 
 top_level_tokens() {
-  # top_level_tokens <text> — split rule text into top-level `Tool` /
-  # `Tool(...)` tokens, one per line. The token grammar is shared vocabulary;
-  # this wrapper is the driver's own I/O around it.
   printf '%s\n' "$1" | grep -oE "$CCPERM_TOOL_TOKEN_ERE" 2>/dev/null
 }
 
 scan_malformed_rule() {
-  # scan_malformed_rule <rule-text> <source-label>
-  # One settings entry is one rule: Tool or Tool(specifier). Parentheses inside
-  # the specifier are literal. Text after the closing parenthesis (Bash(ls) x)
-  # is not a second rule, even though a bare word matches the token grammar.
-  # Claude Code reports that shape as invalid settings. Keeping only the first
-  # token would call it Bash(ls).
   local text="$1" src="$2" rest tok
   rest="${text#"${text%%[![:space:]]*}"}"
   [[ -n "$rest" ]] || return 0
@@ -542,11 +434,6 @@ scan_malformed_rule() {
 }
 
 scan_bare_tool() {
-  # scan_bare_tool <text> <source-label> — flag a bare `Bash`/`PowerShell`
-  # token (the whole-tool grant that auto mode drops). Matching runs on
-  # top-level tokens, so a scoped rule (Bash(npm test)) is not double-flagged
-  # as a bare grant, and a tool name embedded in another rule's payload
-  # (Bash(echo Bash)) is not flagged at all.
   local tool tokens
   # Newline-framed, so each token is matched as a whole line.
   tokens=$'\n'"$(top_level_tokens "$1")"$'\n'
@@ -558,12 +445,6 @@ scan_bare_tool() {
 }
 
 scan_agent() {
-  # scan_agent <text> <source-label> — flag an `Agent` allow rule, whether bare
-  # `Agent` or scoped `Agent(...)`. Unlike Bash/PowerShell, a scoped Agent rule
-  # is NOT a narrow carry-over: auto mode drops all Agent allow rules
-  # categorically, and Agent has no bare-PATH-command analog to re-scope to.
-  # Matching runs on top-level tokens so only a rule whose own tool token IS
-  # `Agent` or begins `Agent(` is flagged.
   local tokens
   tokens=$'\n'"$(top_level_tokens "$1")"$'\n'
   if [[ "$tokens" == *$'\n'Agent$'\n'* || "$tokens" == *$'\n'Agent\(* ]]; then
@@ -571,9 +452,6 @@ scan_agent() {
   fi
 }
 
-# --- Frontmatter allowed-tools scan ------------------------------------------
-# allowed-tools value + its block-list continuation lines, from the leading
-# --- frontmatter block only.
 extract_allowed_tools() {
   awk '
     NR==1 && $0 !~ /^---[[:space:]]*$/ { exit }
@@ -640,16 +518,12 @@ USER_PLUGINS_REAL=""
   USER_PLUGINS_REAL="$(cd "$USER_CONFIG_ROOT/plugins" && pwd -P)"
 ROOT_REAL="$(cd "$ROOT" && pwd -P)"
 under_user_plugins() {
-  # under_user_plugins <path relative to ROOT>
   [[ -n "$USER_PLUGINS_REAL" && "$ROOT_REAL/$1" == "$USER_PLUGINS_REAL"/* ]]
 }
 plugin_root_has_manifest() {
-  # plugin_root_has_manifest <dir relative to ROOT, empty for ROOT itself>
   [[ -f "$ROOT${1:+/$1}/.claude-plugin/plugin.json" ]]
 }
 frontmatter_is_loadable() {
-  # frontmatter_is_loadable <absolute-file-path> — 0 when Claude Code would load
-  # this frontmatter file per the skills/agents/commands discovery rules.
   local file="$1" rel="${1#"$ROOT"/}"
   case "$file" in
   */SKILL.md)
@@ -676,12 +550,6 @@ frontmatter_is_loadable() {
     ;;
   esac
 }
-#
-# EVERY path out of this loop increments exactly one bucket, and
-# `reconcile_frontmatter` below checks that the buckets sum to the enumeration.
-# The invariant is derived in one place rather than trusted at each `continue`,
-# because a per-site convention is what let two surfaces already be examined and
-# counted nowhere in this very change.
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   fm_candidates=$((fm_candidates + 1))
@@ -699,8 +567,6 @@ while IFS= read -r file; do
     fm_unreadable=$((fm_unreadable + 1))
     continue
   fi
-  # Extraction stderr joins the walk's, so a parse-time failure on a readable
-  # file is disclosed rather than escaping to the caller's terminal.
   at="$(extract_allowed_tools "$file" 2>>"$WALK_ERR")"
   if [[ -z "${at//[[:space:]]/}" ]]; then
     fm_no_block=$((fm_no_block + 1))
@@ -719,15 +585,7 @@ done < <(
     \) 2>>"$WALK_ERR" | sort -u
 )
 
-# --- Settings permissions.allow scan -----------------------------------------
 scan_settings_allow() {
-  # scan_settings_allow <file> <finding-label> <coverage-label>
-  #
-  # Both early returns record which case happened: a scope that is absent, or a
-  # scope whose JSON will not parse. Neither may leave no trace behind a clean
-  # bill. An unparsable settings file is the sharper of the two: its rules were
-  # never read, and a rules file that fails to parse is exactly where a fragile
-  # grant would sit unexamined.
   local file="$1" label="$2" short="$3" rule n=0
   if [[ ! -f "$file" ]]; then
     scope_status+=("$short: absent")
@@ -784,16 +642,10 @@ if [[ -n "$USER_CONFIG_ROOT" ]]; then
     scope_status+=("user-global: same file as the project scope, counted once")
   fi
 else
-  # An unresolvable user scope is a skipped check, not a clean one. Silence here
-  # would let a report claiming "no fragile grants" rest on a scope never read.
   scope_status+=("user-global: NOT RESOLVED (neither CLAUDE_CONFIG_DIR nor HOME is set)")
   echo "NOTE: user-global scope not scanned — neither CLAUDE_CONFIG_DIR nor HOME is set, so ~/.claude could not be resolved." >&2
 fi
 
-# --- Plugin self-grant scan (P3) ---------------------------------------------
-# A settings.json sitting at a plugin root (sibling .claude-plugin/plugin.json)
-# takes effect only for the deprecated `agent` key; a `permissions` block is
-# inert. https://code.claude.com/docs/en/changelog#2-1-323
 while IFS= read -r manifest; do
   plugin_manifests=$((plugin_manifests + 1))
   plugin_dir="$(dirname "$(dirname "$manifest")")"
@@ -810,42 +662,15 @@ while IFS= read -r manifest; do
   fi
 done < <(find "$ROOT" -type f -path '*/.claude-plugin/plugin.json' 2>>"$WALK_ERR" | sort -u)
 
-# --- Output -------------------------------------------------------------------
 walk_errors="$(awk 'NF{n++} END{print n+0}' "$WALK_ERR" 2>/dev/null)"
 [[ -n "$walk_errors" ]] || walk_errors=0
 
-# The denominator. ONE RULE, applied identically to all three axes:
-#
-#   the unit is an input SUCCESSFULLY READ AND EXAMINED — never an input that
-#   happened to produce something.
-#
-# State it once and every axis follows, which is the whole point: this formula
-# has now been wrong three separate times, each time because one axis silently
-# used "produced a finding" as its unit while the others used "examined". A
-# frontmatter file with no `allowed-tools` was examined and found to grant
-# nothing — exactly as informative as a plugin settings.json that parsed and
-# declared no `permissions`, which always counted. A settings file that parsed
-# with an empty `allow` array is the same case again. Counting only the
-# productive ones is "a denominator that counts only successes", i.e. the defect
-# this entire block exists to remove, wearing its fourth spelling.
-#
-# `allow_rules_read` is deliberately NOT the settings unit: it counts rules,
-# while the other two axes count files. `scopes_read` is the parallel unit and
-# is what makes the three commensurable. Rule counts stay in the coverage text,
-# where they inform without deciding.
 fm_examined=$((fm_no_block + fm_with_block))
 audited=$((fm_examined + scopes_read + plugin_settings_parsed))
 
-# Inputs the run could not read at all. These are NOT audited and are NOT clean
-# — they are the holes in the denominator, and they exist so that "0 findings"
-# can never be read as "0 problems" when the run could not open its own inputs.
 blocked=$((fm_unreadable + unparsable_settings + plugin_settings_unparsable + walk_errors))
 
 reconcile_frontmatter() {
-  # The completeness invariant, checked ONCE rather than trusted per `continue`.
-  # A candidate that lands in no bucket is a defect in THIS SCRIPT, and it is the
-  # defect class this whole change exists to remove — so it is reported as a bug
-  # in the tool, in the tool's own voice, not silently absorbed.
   local sum=$((fm_excluded_non_loadable + fm_unreadable + fm_no_block + fm_with_block))
   if [[ "$sum" -ne "$fm_candidates" ]]; then
     printf '  DENOMINATOR BUG: %d candidate(s) enumerated but %d accounted for (non-loadable=%d unreadable=%d no-block=%d parsed=%d). A candidate escaped every bucket: this is a defect in permission-rule-check.sh, not a property of the scanned tree, and the coverage above is incomplete. Do not report this run as clean.\n' \
@@ -878,18 +703,10 @@ coverage_block() {
   printf '  NOT read: %d frontmatter candidate(s) enumerated but unopenable; %d error line(s) from the walk/extraction; %d settings file(s) and %d plugin settings.json present but not valid JSON\n' \
     "$fm_unreadable" "$walk_errors" "$unparsable_settings" "$plugin_settings_unparsable"
   printf '  never in scope here: managed-policy and enterprise settings, a --settings flag file, and the pre-v2.1.211 start-directory copy. Which scopes exist and what each holds is audit-permission-state, not this detector.\n'
-  # Deliberately NOT phrased as "exemptions applied: none". This detector never
-  # reads a consumer declaration, so a count of zero here is a statement about
-  # the detector's inputs, not an answer about the run — and a reader who copied
-  # it into a report as "no exemptions were applied" would be asserting exactly
-  # what A15 requires the skill to establish for itself.
   printf '  consumer declarations: NOT READ by this detector, ever — so this line is not the answer to "were any exemptions applied?". The skill body owns that question and requires every declaration it reads to be named in the report.\n'
 }
 
 if [[ "$mode" == "count" ]]; then
-  # stdout stays the bare integer — that is the machine contract. The block goes
-  # to stderr so a `--count` of 0 from a scan of nothing is still distinguishable
-  # from a 0 from a healthy tree, which is the whole point of the denominator.
   printf '%s\n' "${#findings[@]}"
   coverage_block >&2
   exit 0
@@ -897,29 +714,15 @@ fi
 
 if [[ "${#findings[@]}" -eq 0 ]]; then
   if [[ "$audited" -eq 0 ]]; then
-    # NOT a clean bill. "No fragile permission grants found." and "there was
-    # nothing here to find them in" are deliberately different strings: only
-    # one of them is a statement about the grants.
     if [[ "$blocked" -gt 0 ]]; then
       printf 'NOTHING TO AUDIT, AND %d INPUT(S) COULD NOT BE READ: nothing was successfully examined on any of the three axes, and the run failed to open or parse %d of its own inputs. This is neither a clean bill nor an empty tree — it is a scan whose inputs were unavailable. See the coverage block below.\n' "$blocked" "$blocked"
     else
       echo "NOTHING TO AUDIT: 0 frontmatter file(s), 0 settings scope(s) and 0 plugin settings.json were successfully read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
     fi
   elif [[ "$blocked" -gt 0 ]]; then
-    # audited > 0 AND blocked > 0: a PARTIALLY BLIND scan. The clean-bill string
-    # was printed here too, which claimed health for inputs this run never read —
-    # and the input it could not read is exactly where a fragile grant sits
-    # unexamined (the fixture that found this had the violation inside the
-    # settings.json that would not parse). The doctrine this detector states
-    # everywhere else — an unreadable input is a hole in the denominator, never a
-    # clean bill — applies to every non-zero `blocked`, not only to the
-    # `audited == 0` corner where it happened to be implemented.
     printf 'INCOMPLETE SCAN, NOT A CLEAN BILL: no fragile permission grants were found in the %d input(s) this run successfully examined, but %d input(s) could not be read or parsed and were NOT audited. A fragile grant inside an input the run could not open is precisely what it could not see, so this is not a statement about the grants in this tree. See the coverage block below for which inputs were not read.\n' \
       "$audited" "$blocked"
   elif [[ "$fm_candidates" -gt 0 && "$fm_excluded_non_loadable" -eq "$fm_candidates" ]]; then
-    # Settings scopes keep `audited` above zero, so a root whose every
-    # frontmatter candidate sits at an unrecognized layout would otherwise print
-    # the clean bill without having parsed one skill, agent or command.
     printf 'NO FRONTMATTER AUDITED, NOT A CLEAN BILL: all %d frontmatter candidate(s) under this root were excluded as non-loadable, so no skill, agent or command allowed-tools block was parsed. The %d settings input(s) this run examined hold no fragile grant, but that says nothing about frontmatter it never read. A plugin directory loads here when it sits at plugins/<name>/ or holds .claude-plugin/plugin.json. See the coverage block below.\n' \
       "$fm_candidates" "$audited"
   else
@@ -930,43 +733,6 @@ else
 fi
 coverage_block
 
-# --- Gate exit -----------------------------------------------------------------
-# Report and --count already returned above / fall through to exit 0: their
-# contract is that findings are advisory and a completed scan always exits 0.
-# The gate modes print IDENTICAL output — findings and coverage block, nothing
-# silenced — and differ only here.
-#
-#   NOTHING TO AUDIT (audited == 0) -> 2, never 0. A scan that examined nothing on
-#     any of the three axes has no denominator, so "no findings" is not a
-#     statement about the grants and must not pass a gate. This is the same
-#     judgment the fail-closed half of the house pattern already makes for a
-#     missing jq or an unresolvable root; it is the finding-side limb of it.
-#   any error-tier finding (P2, P2b, P4, P5)      -> 1 in both gate modes
-#   any warning-tier finding (P1, P3)             -> 1 in --strict only
-#   a PARTIALLY BLIND scan (blocked > 0)          -> 2, never 0
-#   NO FRONTMATTER AUDITED (every candidate excluded as non-loadable)
-#                                                 -> 0, advisory only
-#   otherwise                                     -> 0
-#
-# NO FRONTMATTER AUDITED is the one "NOT A CLEAN BILL" outcome that still
-# exits 0, deliberately: its warning is printed, not gated. It is reached only
-# with blocked == 0, so no input was unreadable — every candidate was judged
-# non-loadable by its path, and a non-loadable file's allowed-tools never take
-# effect. A layout this detector does not recognize is a coverage question for
-# the reader of the printed warning, not a "cannot determine" that exit 2 means.
-# A CI step that must fail on it has to match the printed string. Case 6g pins
-# this exit code so a change to it is a decision, not drift.
-#
-# The blind-scan limb is the same rule as NOTHING TO AUDIT, applied where it was
-# missing: `audited == 0` is only the total case of it. With `audited > 0` and
-# `blocked > 0` the gate passed a tree whose unreadable input CONTAINED a
-# violation. A gate may not pass while its own inputs were unreadable.
-#
-# It is ordered AFTER the finding limbs on purpose. Exit 2 means "cannot
-# determine"; when a gate-firing finding was actually seen, the gate CAN
-# determine the answer — it is FAIL — and 1 is the more precise and more
-# actionable code. Exit 2 is for the runs where no gate-firing finding was seen
-# and the absence of one cannot be trusted.
 case "$mode" in
 check | strict)
   if [[ "$audited" -eq 0 ]]; then

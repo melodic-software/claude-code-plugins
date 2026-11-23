@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for file-provenance.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,11 +7,10 @@ SCRIPT="$SCRIPT_DIR/file-provenance.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-commit_as() { # <repo> <author name> <subject>
+commit_as() {
   (cd "$1" && git add -A && git -c user.name="$2" -c user.email="bot@example.com" commit -q -m "$3")
 }
 
-# --- Case 1: --help and usage errors ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -21,7 +19,6 @@ rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "no path exits 2" 2 "$rc"
 
-# --- Case 2: header signal, with and without a named source ---
 
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
@@ -37,7 +34,6 @@ assert_eq "header signal without a source line reports unknown upstream" $'synce
 OUT=$(cd "$REPO" && bash "$SCRIPT" local.md)
 assert_eq "a hand-authored file is local" $'local\tnone\tunknown' "$OUT"
 
-# --- Case 3: commit signal by subject, then by author ---
 
 printf 'synced body\n' >"$REPO/by-subject.md"
 commit_as "$REPO" "test" "chore: sync standards components (#1)"
@@ -49,13 +45,11 @@ commit_as "$REPO" "melodic-standards-sync[bot]" "update managed files"
 OUT=$(cd "$REPO" && bash "$SCRIPT" by-author.md)
 assert_eq "a sync author marks the file synced" $'synced\tcommit\tunknown' "$OUT"
 
-# A later hand edit takes ownership back: the LAST commit decides.
 printf 'edited by hand\n' >>"$REPO/by-subject.md"
 commit_as "$REPO" "test" "fix: hand edit"
 OUT=$(cd "$REPO" && bash "$SCRIPT" by-subject.md)
 assert_eq "the last commit decides: a hand edit after a sync is local" $'local\tnone\tunknown' "$OUT"
 
-# --- Case 4: --synced exit codes, untracked and missing files ---
 
 rc=0
 (cd "$REPO" && bash "$SCRIPT" --synced managed.yml) || rc=$?
@@ -69,7 +63,6 @@ assert_eq "an untracked file is local" $'local\tnone\tunknown' "$OUT"
 OUT=$(cd "$REPO" && bash "$SCRIPT" absent.md)
 assert_eq "a missing file is local" $'local\tnone\tunknown' "$OUT"
 
-# --- Case 5: outside a repository, only the header signal can fire ---
 
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"

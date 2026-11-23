@@ -41,7 +41,6 @@ const GROUP_CAP = 8
 // output decides what the runner reports.
 const norm = p => p.trim().replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '')
 const isRelative = p => !!p && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..')
-// The strings of a reported path list, normalized; anything else is dropped.
 const paths = v => (Array.isArray(v) ? v : []).filter(x => typeof x === 'string').map(norm)
 // A reported path under one of these directories, or with one of these names,
 // never reaches a fixer: git internals and ignored dependency trees escape the
@@ -319,7 +318,6 @@ if (!first) {
 // committed change is as visible as an unstaged one, and a moved HEAD stops the run.
 const BASE = first.head
 const ROOT = first.root
-// An absolute path under the repository root the runner reported is relative to it.
 const rel = x => (ROOT && x.startsWith(ROOT + '/') ? x.slice(ROOT.length + 1) : x)
 if (!first.passed && !BASE) {
   return { green: false, rounds: 0, remaining: first.failures, changes: [], stoppedBecause: 'no-base', nulls, ran: ['run:0'] }

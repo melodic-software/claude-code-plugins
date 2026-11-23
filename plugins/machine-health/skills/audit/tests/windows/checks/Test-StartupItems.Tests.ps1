@@ -20,7 +20,6 @@ BeforeAll {
         [pscustomobject]@{ Kind = $Kind; Scope = $Scope; Name = $Name; Command = "X:\Apps\$Name.exe" }
     }
 
-    # Every location empty and readable, no logon tasks, elevated.
     function Set-EmptyHost {
         Mock Get-RunKeyEntry { New-Read -State 'absent' }
         Mock Read-StartupApproved { [pscustomobject]@{ ReadState = 'absent'; Entries = @{} } }
@@ -115,7 +114,6 @@ Describe 'Test-StartupItems' -Tag 'check' {
 
         It 'counts entries that start (enabled or with no approved value), disabled, unknown and tasks' {
             $detail = (Invoke-StartupCheck).detail
-            # Start: Updater, Fresh, Setup, Notes.lnk, Sync. Disabled: Paused, Old. Unknown: Odd.
             $detail.enabled_count | Should -Be 5
             $detail.disabled_count | Should -Be 2
             $detail.unknown_state_count | Should -Be 1

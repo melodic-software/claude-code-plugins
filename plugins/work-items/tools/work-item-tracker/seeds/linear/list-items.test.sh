@@ -10,7 +10,6 @@ source "$D/../../lib/verb-test-helpers.sh"
 # shellcheck source=mock.sh
 source "$D/mock.sh"
 
-# --- offline usage errors (no network) ---
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" --state
@@ -37,7 +36,6 @@ seed_page() {
     '{issues: {nodes: $n, pageInfo: {hasNextPage: $h, endCursor: $c}}}')"
 }
 
-# --- the declared scope is the default target ---
 lin_reset
 seed_page "[$(lin_issue_json 12 started)]"
 rc="$(lin_run "$S")"
@@ -102,7 +100,6 @@ assert_eq "done_state_types override reclassifies for listing" "1" "$(jq -r '.it
 assert_contains "and reaches the query filter" "$(lin_bodies)" '"state":{"type":{"nin":["canceled"]}}' # spellchecker:disable-line
 lin_write_binding
 
-# --- pagination follows the cursor ---
 lin_reset
 seed_page "[$(lin_issue_json 12 started)]" true "cursor-1"
 seed_page "[$(lin_issue_json 13 started)]" false ""
@@ -202,7 +199,6 @@ rc="$(lin_run "$S")"
 assert_eq "no issues → exit 0" "0" "$rc"
 assert_eq "empty items array" "0" "$(jq -r '.items | length' <<<"$(lin_out)")"
 
-# --- multiple declared teams are all listed, and --repo narrows ---
 lin_write_binding '{"scopes":["acme/ENG","acme/OPS"]}'
 lin_reset
 seed_page '[]'
@@ -224,7 +220,6 @@ assert_eq "scopes across two workspaces → exit 3" "3" "$rc"
 assert_contains "and says why" "$(lin_err)" "one workspace"
 lin_write_binding
 
-# --- GraphQL errors inside a 200 still fail ---
 lin_reset
 lin_seed 'issues(filter:' 200 '{"errors":[{"message":"nope","extensions":{"type":"AuthenticationError"}}]}'
 rc="$(lin_run "$S")"

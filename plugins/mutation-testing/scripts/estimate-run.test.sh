@@ -23,11 +23,11 @@ est() {
   code=$?
 }
 
-expect() { # expect <label> <line>: exit 0 and exactly that line on stdout
+expect() {
   if [[ "$code" -eq 0 && "$out" == "$2" ]]; then pass "$1"; else fail "$1 - want exit 0 and [$2], got exit $code: [$out]"; fi
 }
 
-refuse() { # refuse <label>: exit 2 and nothing on stdout
+refuse() {
   if [[ "$code" -eq 2 && -z "$out" ]]; then pass "$1 refuses"; else fail "$1 - want exit 2 and no stdout, got exit $code: [$out]"; fi
 }
 

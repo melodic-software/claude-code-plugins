@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for audit-spine.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +7,6 @@ SCRIPT="$SCRIPT_DIR/audit-spine.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Local assert_contains: the detail line also names the haystack.
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
@@ -16,7 +14,6 @@ assert_contains() {
   esac
 }
 
-# --- Case 1: --help ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -49,13 +46,11 @@ assert_contains "header: M2 count" "$OUT" "MEMORY.md index issues (M2): 0"
 assert_contains "findings: N1 line folded in" "$OUT" "FAIL [N1]: sub/AGENTS.md"
 assert_contains "findings: RD1 line folded in" "$OUT" "WARN [RD1]: .claude/rules/anonymous.md"
 
-# --- Case 3: --summary prints the header only ---
 
 OUT=$(cd "$REPO" && bash "$SCRIPT" --summary)
 assert_contains "--summary keeps the header" "$OUT" "Nested AGENTS.md unwired (N1): 1"
 assert_not_contains "--summary omits the findings block" "$OUT" "Findings:"
 
-# --- Case 4: a clean repo says so ---
 
 printf '@AGENTS.md\n' >"$REPO/sub/CLAUDE.md"
 printf -- '---\ndescription: named\n---\n# Named\n\nbody\n' >"$REPO/.claude/rules/anonymous.md"
@@ -64,9 +59,6 @@ OUT=$(cd "$REPO" && bash "$SCRIPT")
 assert_contains "clean spine reports no findings" "$OUT" "none from the deterministic spine"
 assert_contains "clean N1 count" "$OUT" "Nested AGENTS.md unwired (N1): 0"
 
-# --- Case 5: the project instructions are an AGENTS.md, with no CLAUDE.md ----
-# The header must name the file the session actually loads, or a post-cutover
-# repo reads "Project root file: none" beside a real instruction layer.
 
 AG="$TEST_TMPDIR/agents-repo"
 make_repo "$AG"
@@ -76,8 +68,6 @@ OUT=$(cd "$AG" && bash "$SCRIPT" --summary)
 assert_contains "header names the natively read AGENTS.md" "$OUT" "Project root file: AGENTS.md"
 assert_contains "header counts its lines" "$OUT" "Root file loaded lines, @imports expanded (200 target): 3"
 
-# `.claude/AGENTS.md` loads at session start too, so it answers the header when it
-# is the only instructions file there is.
 DOTAG="$TEST_TMPDIR/dot-agents-repo"
 make_repo "$DOTAG"
 mkdir -p "$DOTAG/.claude"

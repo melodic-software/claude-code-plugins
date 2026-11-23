@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { ownComment as ownMarked, upsert as upsertMarked } from "../lib/upsert-comment.mjs";
 import { MARKER } from "./report.mjs";
 

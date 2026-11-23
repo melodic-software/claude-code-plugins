@@ -112,7 +112,6 @@ function runHelper({ args = {}, env = {}, helper = ADMIN } = {}) {
   return JSON.parse(run.stdout);
 }
 
-// Configures the operator's user settings, then runs the helper.
 function runWith(checker, overrides = {}, run = {}) {
   writeSettings(operatorOptions(checker, overrides));
   return runHelper(run);

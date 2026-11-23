@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// The page on a 390x844 touch phone as a native app would behave (O114), against `share.sh ensure-running` with the fake
-// cloudflared: after a guest saves a long answer (one unbroken 120-letter word and a long link) from the phone sheet,
-// nothing scrolls sideways, the folded answer field and the answer card keep the text inside them, every control in the
-// question's view is a 44 px tap target, the sheet's Save sits under the field in thumb reach, and the chat message menu
-// opens as a bottom sheet the width of the screen, its last row clear of the bottom edge; with "Run it on my own Claude"
-// on, the question's ask box offers no Attach and takes no pasted picture (sweep S11).
-//   node plugins/planning/shared/tests/ui_phone.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from O114 (no sideways scroll, text wraps in its card, 44 px targets, primary action in thumb
-// reach, menus as bottom sheets) and the texts this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
@@ -32,10 +22,8 @@ async function main() {
     const ann = await rec.open(A.localUrl, PHONE);
     await joinAs(ann, "Ann");
     await until(ann, t => document.querySelector(".vf-qtext")?.textContent === t, QT);
-    // the welcome card is not under test here
     await ann.evaluate(() => document.querySelector(".vf-orient-x")?.click());
 
-    // ---------- a long answer from the phone sheet ----------
     await ann.locator("#vf-answer").tap();
     ok("tapping the answer field opens the full-height sheet", await until(ann, () => !!document.querySelector(".vf-composer-sheet")));
     await ann.keyboard.insertText(LONG);
@@ -53,7 +41,6 @@ async function main() {
       const se = document.scrollingElement, app = document.getElementById("app"), ta = document.querySelector("#vf-answer");
       const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => c.textContent.includes(w));
       const r = card?.getBoundingClientRect();
-      // the field's content box (its rect less padding) against the buttons drawn inside it
       const cs = getComputedStyle(ta), tr = ta.getBoundingClientRect(), px = v => parseFloat(v) || 0;
       const box = { l: tr.left + px(cs.borderLeftWidth) + px(cs.paddingLeft), r: tr.right - px(cs.borderRightWidth) - px(cs.paddingRight),
         t: tr.top + px(cs.borderTopWidth) + px(cs.paddingTop), b: tr.bottom - px(cs.borderBottomWidth) - px(cs.paddingBottom) };
@@ -67,8 +54,6 @@ async function main() {
     ok("  the folded answer field wraps the long answer inside itself, under no button", still && fit.field && fit.clear, JSON.stringify(fit));
     ok("  and the answer card holds its text inside its own box, on the screen", still && fit.card && fit.cardText, JSON.stringify(fit));
 
-    // ---------- 44 px tap targets in the question's view ----------
-    // a control drawn small with a transparent ring (::after, absolutely placed) counts the ring's size
     const small = await ann.evaluate(() => [...document.querySelectorAll(".vf-focus :is(button, a[href], [role=button], input, select)")]
       .filter(e => e.getClientRects().length && getComputedStyle(e).visibility !== "hidden" && !e.closest("[hidden], [inert]") && !e.disabled)
       .map(e => {
@@ -80,14 +65,13 @@ async function main() {
       .map(x => `${x.e.tagName.toLowerCase()}.${[...x.e.classList].join(".")} "${(x.e.textContent || x.e.getAttribute("aria-label") || "").trim().slice(0, 24)}" ${Math.round(x.w)}x${Math.round(x.h)}`));
     ok("every control in the question's view is at least 44 x 44 px", small.length === 0, small.slice(0, 8).join("; "));
 
-    // ---------- the message menu is a bottom sheet ----------
     await ann.evaluate(() => window.Core.chat("Hello from my phone"));
     await ann.locator(".vf-fab").tap();
     await until(ann, () => !!document.querySelector(".vf-msg .vf-msgmore"), null, 10000);
     await ann.evaluate(() => [...document.querySelectorAll(".vf-msg .vf-msgmore")].at(-1).click());
     const menu = await ann.evaluate(async () => {
       const m = document.querySelector(".vf-msgmenu");
-      await Promise.all(m.getAnimations().map(a => a.finished.catch(() => null))); // measured once its opening animation ends
+      await Promise.all(m.getAnimations().map(a => a.finished.catch(() => null)));
       const r = m.getBoundingClientRect(), vv = visualViewport;
       const items = [...m.querySelectorAll(".vf-menu-item")].filter(i => i.getClientRects().length);
       return { open: !m.hidden, full: r.left <= 0.5 && r.right >= innerWidth - 0.5, bottom: Math.abs(r.bottom - (vv.offsetTop + vv.height)) <= 1,
@@ -96,10 +80,9 @@ async function main() {
     ok("the chat message menu opens as a bottom sheet the width of the screen", menu.open && menu.full && menu.bottom, JSON.stringify(menu));
     ok("  its last row clear of the bottom edge", menu.lastClear, JSON.stringify(menu));
 
-    // ---------- the question's ask box on my own Claude carries no files (sweep S11) ----------
-    await ann.keyboard.press("Escape"); // the menu
+    await ann.keyboard.press("Escape");
     await until(ann, () => document.querySelector(".vf-msgmenu").hidden);
-    await ann.evaluate(() => { const f = document.querySelector(".vf-fab"); if (f.getAttribute("aria-expanded") === "true") f.click(); }); // the chat
+    await ann.evaluate(() => { const f = document.querySelector(".vf-fab"); if (f.getAttribute("aria-expanded") === "true") f.click(); });
     await until(ann, () => document.querySelector(".vf-chat").hidden);
     await owner.evaluate(() => window.Core.saveSettings({ uploads: true }));
     await until(ann, () => window.Core.state.settings?.uploads === true, null, 10000);

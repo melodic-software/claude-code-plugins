@@ -118,10 +118,6 @@ hpp::prefilter() {
 hpp::_drop_exempt() {
   local cands="$1" exempt="$2" defused="$3" regex="$4" keep
   if [[ "$cands" != *"$exempt"* ]]; then
-    # No exempt token anywhere in the block, so the defang is a provable no-op
-    # and every candidate survives it. This bash-builtin substring test keeps
-    # the common case free; the branch below costs four more processes, and on
-    # Git Bash spawn cost — not matching — dominates.
     printf '%s\n' "$cands" | head -3
     return 0
   fi
@@ -211,12 +207,10 @@ hpp::scan_text() {
   # `--` on every grep whose pattern comes from the project root: a root whose
   # last segment starts with `-` (`-e`, `--help`) is a pattern, not an option.
   if [[ $hpp_gate == grep ]] && ! grep -qE -- 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' < <(printf '%s' "$content") 2>/dev/null; then
-    # Process substitution for the same two reasons as the gate above.
     if [[ -z "$gate_root" ]] || ! grep -qFi -- "$gate_root" < <(printf '%s' "$content") 2>/dev/null; then
       return 0
     fi
   fi
-  # ---- end gate (clean content has returned; fall through to full scan) ----
 
   # Normalize file_path for OS-context matching: backslash→slash, lowercase.
   # tr, not ${var,,}: commit-time hooks source this lib under whatever bash a
@@ -224,7 +218,6 @@ hpp::scan_text() {
   local norm_file="${file_path//\\//}"
   norm_file=$(printf '%s' "$norm_file" | tr '[:upper:]' '[:lower:]')
 
-  # OS-context flags — non-empty when file is unambiguously OS-scoped
   local windows_context="" macos_context="" linux_context=""
   case "$norm_file" in
   *.ps1 | *.psm1 | *.psd1 | *.cmd | *.bat | *.reg | */scripts/windows/* | */tests/windows/* | *-windows.* | *-win32.*)
@@ -241,27 +234,13 @@ hpp::scan_text() {
   *) ;;
   esac
 
-  # Windows user home paths: C:\Users\<name>\ or C:/Users/<name>/
-  # Suppressed in Windows context (.ps1 etc). Cross-OS leaks (macOS/Linux
-  # user paths in a .ps1) still fire from their own blocks below.
   if [[ -z "$windows_context" ]]; then
     match=$(printf '%s' "$content" | grep -nE "$HPP_WIN_USER_BODY" 2>/dev/null | head -3)
     [[ -n "$match" ]] && violations+="Windows user path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # Left boundary for the slash-rooted macOS/Linux bodies — the driver-owned
-  # prefix the pattern lib's contract calls for, so a URL or relative-path
-  # suffix (https://example.test + the home root) is not treated as a
-  # filesystem root. Line start, whitespace, quote, backtick, paren, "=", ":"
-  # (yaml/docker value position), or a file:// scheme. Mirrors the
-  # ci-workflows/medley verification drivers' boundary, plus ":".
   local _posix_boundary="(^|[[:space:]\"'\`(=:]|file://)"
 
-  # macOS user home paths (the Users root with a child segment).
-  # Exclusions (replace Perl lookbehind/lookahead):
-  #   grep -vE '[A-Za-z]:[/\\]' — Windows paths (caught above)
-  #   Shared exclusion — the Users/Shared directory is legitimately shareable;
-  #     hpp::_drop_exempt drops the lines whose sole matches are Shared.
   if [[ -z "$macos_context" ]]; then
     re="${_posix_boundary}${HPP_MACOS_USER_BODY}"
     # `|| true`: the trailing `grep -v` exits 1 when nothing survives (the
@@ -286,7 +265,6 @@ hpp::scan_text() {
     fi
   fi
 
-  # Generic Windows repo checkout roots — suppressed in Windows context.
   if [[ -z "$windows_context" ]]; then
     match=$(printf '%s' "$content" | grep -nE "$HPP_WIN_REPO_BODY" 2>/dev/null | head -3)
     [[ -n "$match" ]] && violations+="Windows repo path detected:${nl}${match}${nl}${nl}"
@@ -295,9 +273,6 @@ hpp::scan_text() {
     [[ -n "$match" ]] && violations+="Escaped Windows repo path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # Current repo absolute path in slash/backslash/escaped forms. ALWAYS
-  # runs — machine-specific marker for THIS checkout, never suppressible by
-  # OS context.
   if [[ -n "$project_root" ]]; then
     local root_fwd root_bslash root_escaped candidate
     root_fwd=${project_root//\\//}
@@ -350,6 +325,5 @@ hpp::resolve_scan_root() {
   tl_norm="${tl_norm%/}"
   hook::normalize_path_to home_norm "${HOME:-${USERPROFILE:-}}"
   home_norm="${home_norm%/}"
-  # An enclosing checkout that is home or an ancestor of home keeps the branch off.
   [[ -n "$home_norm" && ("$tl_norm" == "$home_norm" || "$home_norm" == "$tl_norm"/*) ]] || SCAN_ROOT="$root"
 }

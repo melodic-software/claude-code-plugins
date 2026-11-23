@@ -77,7 +77,7 @@ assert_eq "prime fixture keeps 8 columns" "8
 8
 8" "$(bash "$SCRIPT" "$prime" | awk -F'\t' '{print NF}')"
 
-bad_run() { # <label> <file> <stderr-substring>
+bad_run() {
   local out err rc
   out=$(bash "$SCRIPT" "$2" 2>"$TMP/err")
   rc=$?
@@ -99,7 +99,6 @@ bad_run "entry with an empty skill value" "$TMP/emptyskill.md" "a has no skill"
 bash "$SCRIPT" >/dev/null 2>&1
 assert_eq "no catalog argument: usage exit 2" "2" "$?"
 
-# Shipped catalogs: every entry with an issue carries an override naming it. Pins no ids or order.
 for shipped in "$(dirname "$SCRIPT")"/../catalogs/*.md; do
   name=$(basename "$shipped")
   rows=$(bash "$SCRIPT" "$shipped")

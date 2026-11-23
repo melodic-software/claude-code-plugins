@@ -14,7 +14,6 @@ DRY_RUN=0
 
 echo "=== kindle-dedrm: sync prep ==="
 
-# Pre-flight: status check
 if [[ -x "${SCRIPT_DIR}/status.sh" ]]; then
   echo "[sync-prep] current state:"
   bash "${SCRIPT_DIR}/status.sh"

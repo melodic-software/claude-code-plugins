@@ -9,7 +9,8 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { loadTrustedActors } from "../../actions/resolve-config/read-status.mjs";
 import { DONE_BATCH, mergedRefsPulls } from "../intake-triage/admit.mjs";
 

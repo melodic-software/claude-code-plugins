@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# memory-index-refs-check.sh — deterministic M2 (auto-memory reference integrity).
 
 set -uo pipefail
 
@@ -27,7 +26,6 @@ mode="report"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# No repo guard here: the sibling resolver handles the non-repo case itself.
 memory_dir=$(bash "$SCRIPT_DIR/resolve-memory-dir.sh" 2>/dev/null)
 index="$memory_dir/MEMORY.md"
 

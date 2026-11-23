@@ -94,13 +94,11 @@ GATED_COMPOSITE="$WORK/gated-composite"
 new_repo "$GATED_COMPOSITE" composite
 new_repo "$OTHER" yml
 
-# mk_payload <repo> <command> -> the PreToolUse payload this hook reads, on stdout.
 mk_payload() {
   jq -n --arg cwd "$1" --arg cmd "$2" \
     '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}'
 }
 
-# run <repo> <command> -> sets RC and ERR from one hook invocation.
 RC=0
 ERR=""
 run() {
@@ -110,7 +108,6 @@ run() {
   RC=$?
 }
 
-# assert_allow / assert_block <label> <repo> <command>
 assert_allow() {
   run "$2" "$3"
   if ((RC == 0)); then ok "$1"; else fail "$1: expected allow, got rc=$RC ($ERR)"; fi
@@ -137,8 +134,6 @@ ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidenc
 # A negated closer beside valid linkage and every section: the one body shape
 # the gate blocks on, and the failing body every extraction case below uses.
 BAD=$'Refs: #5\n\nThis does not close #5.'"$SECTIONS"
-
-# --- Scope guard -------------------------------------------------------------
 
 assert_allow "ungated repo: bad body allowed" "$UNGATED" "$(gh_body "$BAD")"
 assert_allow "workflows present but none wires check-contract: bad body allowed" "$NOSTEP" "$(gh_body "$BAD")"
@@ -242,9 +237,6 @@ else
   fail "block message lacks the negated closer, the Refs: remedy or the advisory note: $ERR"
 fi
 
-# --- Closing-keyword shapes --------------------------------------------------
-# Every linkage shape CI accepts passes; none of them is a negated closer.
-
 for kw in Closes closes Closed Fixes fix fixed Resolves resolve resolved; do
   assert_allow "keyword '$kw' accepted" "$GATED" \
     "$(gh_body "$kw #5$SECTIONS")"
@@ -322,16 +314,12 @@ assert_allow "trailing word char after #N is not a match" "$GATED" \
 assert_allow "keyword glued to a preceding word is not a match" "$GATED" \
   "$(gh_body $'Refs: #5\n\nThis does not unclose #5.'"$SECTIONS")"
 
-# --- HTML comments -----------------------------------------------------------
-
 assert_allow "a negated closer inside a terminated comment is stripped" "$GATED" \
   "$(gh_body $'Refs: #5\n\n<!-- This does not close #5. -->'"$SECTIONS")"
 assert_allow "an unterminated comment swallows a later negated closer" "$GATED" \
   "$(gh_body $'Refs: #5\n<!-- oops\nThis does not close #5.'"$SECTIONS")"
 assert_block "a negated closer beside a comment still blocks" "$GATED" \
   "$(gh_body $'This does not close #5 <!-- issue -->'"$SECTIONS")"
-
-# --- Body sources ------------------------------------------------------------
 
 printf '%s\n' "$BAD" >"$GATED/body.md"
 assert_block "--body-file reads the file" "$GATED" "gh pr create -t T --body-file body.md"
@@ -372,19 +360,14 @@ assert_allow "a trailing --body-file with no value is malformed" "$GATED" "gh pr
 assert_allow "everything after -- is positional" "$GATED" "gh pr create -t T -- --body bad"
 assert_allow "a body-file naming a directory is unreadable" "$GATED" "gh pr create -t T --body-file ."
 
-# A body-shaped string sitting in another flag's value is not the body.
 assert_allow "a label value spelled --body is not the body" "$GATED" \
   "gh pr create -t T -l --body --fill"
-
-# --- gh pr edit --------------------------------------------------------------
 
 assert_block "gh pr edit --body is gated" "$GATED" "$(printf "gh pr edit 5 --body '%s'" "$BAD")"
 assert_block "gh pr edit --body-file is gated" "$GATED" "gh pr edit 5 --body-file body.md"
 assert_allow "gh pr edit changing no body allowed" "$GATED" "gh pr edit 5 --add-label ready"
 assert_allow "gh pr new alias with a compliant body allowed" "$GATED" \
   "$(printf "gh pr new -t T --body '%s'" "$GOOD")"
-
-# --- Wrappers and out-of-scope targets ---------------------------------------
 
 assert_block "env-assignment wrapper is unwrapped" "$GATED" \
   "$(printf "GH_TOKEN=x gh pr create -t T --body '%s'" "$BAD")"
@@ -562,15 +545,11 @@ assert_allow "an unknown shorthand letter is not guessed at" "$GATED" \
   "$(printf "gh pr create -zb '%s'" "$BAD")"
 assert_allow "a trailing value-taking cluster has nothing to take" "$GATED" "gh pr create -t T -db"
 
-# --- Attached and absolute body-file forms -----------------------------------
-
 assert_block "--body-file=X attached form" "$GATED" "gh pr create -t T --body-file=body.md"
 assert_block "-FX attached form" "$GATED" "gh pr create -t T -Fbody.md"
 assert_block "an absolute body-file path is read" "$GATED" "gh pr create -t T --body-file $GATED/body.md"
 assert_allow "an absolute path to a compliant body allowed" "$GATED" \
   "gh pr create -t T --body-file $GATED/good.md"
-
-# --- .yaml gate spelling -----------------------------------------------------
 
 printf '%s\n' "$BAD" >"$GATED_YAML/body.md"
 assert_block "a .yaml gate workflow enforces too" "$GATED_YAML" "gh pr create -t T --body-file body.md"
@@ -599,8 +578,6 @@ locale_case() {
 
 locale_case "NBSP between keyword and issue" $'This does not close:\xc2\xa0#5.'"$SECTIONS"
 locale_case "em space between keyword and issue" $'This does not close\xe2\x80\x83#5.'"$SECTIONS"
-
-# --- CRLF --------------------------------------------------------------------
 
 printf 'Closes #5\r\n\r\n## Summary\r\n\r\nx\r\n\r\n## Fix\r\n\r\nx\r\n\r\n## Verification\r\n\r\nx\r\n\r\n## Related\r\n\r\n- x\r\n' >"$GATED/crlf-good.md"
 printf 'Refs: #5\r\n\r\nThis does not close #5.\r\n' >"$GATED/crlf-bad.md"
@@ -940,8 +917,6 @@ if ((jq_stub_ok)) && [[ -x "$BASH_ABS" ]] && ! PATH="$STUB" command -v jq >/dev/
 else
   echo "SKIP: could not build a jq-free PATH -- missing-jq fail-open not measured"
 fi
-
-# --- Kill switch -------------------------------------------------------------
 
 payload=$(mk_payload "$GATED" "$(gh_body "$BAD")")
 # A here-string, never a pipe: the kill switch exits before reading stdin, and

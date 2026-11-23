@@ -85,7 +85,6 @@ function oldRun(s) {
   const out = { started: [KEY], legs: {} };
   const checked = s.checker === "success";
   const base = { ...RUN, "steps.checker.outcome": s.checker };
-  // rate-merge-risk: the credit step, then the credential step's present and run.
   const keyCtx = { ...base };
   if (checked) {
     keyCtx["steps.credit.outputs.skip-key"] = { ok: "false", skip: "true", failed: "" }[s.gate];
@@ -255,11 +254,9 @@ test("a key the credit history holds off hands off after the key job's resolver,
   assert.deepEqual(trace.triggered, [SUB], "only the subscription job runs the trigger check");
   assert.deepEqual(trace.ran, [SUB], "the subscription leg rates");
   assert.equal(out.legs[SUB]["fallback-reason"], "credit-stop");
-  // An empty key hands off the same way, for no-key.
   const empty = traced({ ...s, gate: "ok", key: false });
   assert.deepEqual(empty.trace.triggered, [SUB], "an empty key also skips the key job's trigger check");
   assert.equal(empty.out.legs[SUB]["fallback-reason"], "no-key");
-  // A head the resolver refuses starts no subscription job, credit stop or not.
   const refused = traced({ ...s, checker: "skipped", refusal: "resolver" });
   assert.deepEqual(refused.out.started, [KEY], "a refused head starts only the key job");
   assert.deepEqual(refused.out.legs[KEY].present, "", "and the key job makes no credential call");

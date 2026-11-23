@@ -116,8 +116,6 @@ run_gate() {
 
 pair() { printf 'surfaces/%s|surfaces/%s|%s' "$1" "$2" "$ID_RE"; }
 
-# ============================== full coverage ==============================
-
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P2 SRC "message"' 'emit error P4 SRC "message"'
 mk_evals evals.json "$(evals_json 'classifies P1 and P2 findings' 'reports P4 inert-token findings')"
@@ -128,8 +126,6 @@ else
   fail "full coverage: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
-
-# ===================== emitted id with no eval case ========================
 
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
@@ -155,8 +151,6 @@ else
   fail "unemittable eval id not caught: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
-
-# ========================= inputs the gate cannot see =======================
 
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
@@ -322,8 +316,6 @@ else
   fail "old shfmt not refused: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
-
-# ============================ extraction precision =========================
 
 # A COMMENTED emit call site is prose about the detector, not a call site. A
 # gate that counted it would invent a permanent uncoverable gap.

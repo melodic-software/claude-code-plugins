@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: 'ro-vendor-unread-page-abstains'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ran-fetch-boards'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?fetch-boards\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'ran-vendor-decide'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?vendor-decide\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'marks-cursorbench-unread'
+    type: 'regex'
+    pattern: 'cursorbench[^\n]{0,80}\b(?:unread|fixture-missing)\b|(?:unread|fixture-missing)[^\n]{0,80}\bcursorbench\b'
+    flags: 'i'
+    target: 'last_message'

@@ -17,15 +17,12 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# Extract the hook's additionalContext JSON and assert a substring is present.
 ctx_contains() {
   local ctx
   ctx=$(printf '%s' "$2" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
   assert_contains "$1" "$ctx" "$3"
 }
 
-# Fake CLI double: `--help` (always the verifier's last arg) prints top-level
-# flags; when `sub` appears in the chain it also exposes the subcommand flag.
 FAKE_BIN_DIR="$TEST_TMPDIR/fakebin"
 mkdir -p "$FAKE_BIN_DIR"
 cat >"$FAKE_BIN_DIR/faketool" <<'FAKE'
@@ -44,10 +41,6 @@ exit 0
 FAKE
 chmod +x "$FAKE_BIN_DIR/faketool"
 
-# run_fake: invoke the hook with faketool as the only scanned bin and an
-# isolated per-case verifier cache so a stale 24h --help cache never leaks.
-# Models a Write: the content goes into the payload's `content` (what the hook
-# scans) AND to disk (so the file existence + extension checks pass).
 run_fake() {
   local content="$1" ext="${2:-sh}"
   local case_dir="$TEST_TMPDIR/fake-$((PASS + FAIL + 1))"
@@ -63,10 +56,6 @@ run_fake() {
     bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg c "$content" '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')" 2>&1
 }
 
-# run_edit <disk-body> <new-hunk> [ext]: models an Edit — the file on disk
-# carries <disk-body> (pre-existing lines), the payload's new_string is the
-# changed hunk. The hook must scan ONLY the hunk, never the disk body. Isolates
-# the diff-scope contract: disk and payload deliberately differ.
 run_edit() {
   local disk="$1" hunk="$2" ext="${3:-sh}"
   local case_dir="$TEST_TMPDIR/edit-$((PASS + FAIL + 1))"
@@ -99,17 +88,13 @@ OUT=$(run_fake 'faketool --bogus')
 RC=$?
 assert_exit "top-level fake flag → exit 0" 0 "$RC"
 ctx_contains "top-level fake flag → UNKNOWN_FLAG no chain" "$OUT" "  faketool --bogus"
-# Outside a repository a bare name would name a different file: the path is
-# given as the payload spelled it.
 ctx_contains "outside a repo, the report names the file by its full path" "$OUT" \
   "unknown flag(s) in $TEST_TMPDIR/fake-"
 
-# Inside a repository the file is named repo-relative.
 OUT=$(run_fake 'faketool --bogus' sh repo)
 ctx_contains "report names the file repo-relative" "$OUT" "unknown flag(s) in target.sh,"
 assert_absent "report does not name the absolute file" "$OUT" "$TEST_TMPDIR/"
 
-# Twelve unknown flags: ten listed, the rest counted.
 OUT=$(run_fake "$(printf 'faketool --bad%s\n' 01 02 03 04 05 06 07 08 09 10 11 12)")
 cap_ctx=$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$OUT" 2>/dev/null)
 assert_eq "cap: ten findings listed" 10 "$(grep -c '^  faketool --bad' <<<"$cap_ctx")"
@@ -119,9 +104,6 @@ OUT=$(run_fake 'echo hi && faketool sub --real | cat')
 RC=$?
 assert_exit "subcmd flag after && / before | → exit 0" 0 "$RC"
 
-# A quoted argument is one argument, never flags or a subcommand chain: the
-# prompt of `claude -p "/plugin:skill args --flag"` once bound `on-demand` as a
-# subcommand and `--scheduled` as its flag (machine-health setup SKILL.md).
 OUT=$(run_fake 'faketool -p "/machine-health:audit on-demand --scheduled"')
 assert_absent "double-quoted -p prompt → its words are not flags" "$OUT" "unknown flag(s)"
 OUT=$(run_fake "faketool -p '/machine-health:audit on-demand --scheduled' --toplevel")
@@ -132,7 +114,6 @@ OUT=$(run_fake 'faketool --toplevel="a --bogus value"')
 assert_absent "quoted flag value → its words are not flags" "$OUT" "unknown flag(s)"
 OUT=$(run_fake 'faketool -p "say \"hi --bogus\" now" --toplevel')
 assert_absent "escaped quote stays inside the prompt → no flag" "$OUT" "unknown flag(s)"
-# …while a flag after the closing quote is still the command's own.
 OUT=$(run_fake 'faketool --bogus-flag')
 ctx_contains "unquoted unknown flag still fires" "$OUT" "  faketool --bogus-flag"
 OUT=$(run_fake 'faketool -p "a multi word prompt" --bogus-flag')
@@ -203,51 +184,26 @@ OUT=$(run_fake 'faketool sub --fake' cs)
 RC=$?
 assert_exit "non-target ext (.cs) → exit 0" 0 "$RC"
 
-# ======================= DIFF-SCOPE (edit hunk only) =======================
-# An Edit must verify only its changed hunk, never the whole file on disk. Repro
-# shape: a file already carrying an unknown flag, edited elsewhere with a clean
-# hunk, must stay quiet — the pre-fix whole-file scan re-flagged the untouched
-# line on every unrelated edit.
 OUT=$(run_edit 'faketool sub --fake' 'faketool sub --real')
 RC=$?
 assert_exit "diff-scope: unknown flag on disk, clean hunk → exit 0" 0 "$RC"
 assert_silent "diff-scope: pre-existing flag outside the hunk not re-flagged" "$OUT"
 
-# Counterpart MUST-fire: an unknown flag introduced BY the edit's hunk fires.
 OUT=$(run_edit 'faketool sub --real' 'faketool sub --fake')
 RC=$?
 assert_exit "diff-scope: unknown flag in the hunk → exit 0" 0 "$RC"
 ctx_contains "diff-scope: hunk flag reported" "$OUT" "  faketool sub --fake"
 
-# --------------- PARTIAL-REPLACEMENT (bare-flag hunk reconstruction) ---------
-# An Edit whose new_string is ONLY the swapped-in flag carries no binary or
-# subcommand, so the hunk yields no command candidate and a genuinely-introduced
-# unknown flag would be missed. The disk lines model POST-edit state (PostToolUse
-# runs after the edit applies), so the flag token is already on disk. Bounded
-# context reconstruction pulls the on-disk line carrying the hunk's flag token
-# and scans it. MUST-FIRE: fails against the pre-fix hook, passes after.
 OUT=$(run_edit 'faketool sub --fake' '--fake')
 RC=$?
 assert_exit "partial-edit: bare-flag hunk reconstructs context → exit 0" 0 "$RC"
 ctx_contains "partial-edit: reconstructed hunk flag reported" "$OUT" "  faketool sub --fake"
 
-# MUST-STAY-QUIET: the same bare-flag shape where the disk line ALSO carries a
-# different pre-existing unknown flag NOT in new_string. Reconstruction keeps
-# only candidates whose flag appears in the hunk, so the unrelated --otherbogus
-# never re-fires — the diff-scope contract holds through reconstruction.
 OUT=$(run_edit 'faketool sub --real --otherbogus' '--real')
 RC=$?
 assert_exit "partial-edit: unrelated pre-existing flag not re-fired → exit 0" 0 "$RC"
 assert_silent "partial-edit: only hunk-flag verified, --otherbogus stays quiet" "$OUT"
 
-# ================= FLAG-SHAPE PRE-GATE (spawn cost) =========================
-# A candidate always carries a `-`, so content without one cannot yield a
-# finding, and the fragment pipeline (grep, sed, awk) must not run to build an
-# empty set. Counted, not asserted from the source: a `sed` shim ahead of the
-# real one on PATH records every invocation and then delegates, so the hook
-# still behaves exactly as it would. Both extract_candidates (split_segments)
-# and reconstruct_partial_edit pass through sed, so an Edit whose hunk names a
-# scanned bin but carries no `-` reaches both and must spawn neither.
 SED_SHIM_DIR="$TEST_TMPDIR/sed-shim"
 mkdir -p "$SED_SHIM_DIR"
 SED_LOG="$TEST_TMPDIR/sed-calls"
@@ -259,7 +215,6 @@ REAL_SED="$(command -v sed)"
 } >"$SED_SHIM_DIR/sed"
 chmod +x "$SED_SHIM_DIR/sed"
 
-# run_gated <tool> <disk-body> <payload-content> -> OUT; sed count in SED_COUNT.
 run_gated() {
   local tool="$1" disk="$2" content="$3" case_dir target json
   case_dir="$TEST_TMPDIR/gate-$((PASS + FAIL + 1))"
@@ -280,9 +235,6 @@ run_gated() {
   SED_COUNT=$(wc -l <"$SED_LOG" | tr -d ' ')
 }
 
-# (a) No `-` anywhere: the scan is skipped. The hunk names the scanned bin, so
-#     without the gate extract_candidates would run the pipeline, find no flag,
-#     and reconstruct_partial_edit would then grep the hunk for flag tokens.
 run_gated Edit 'faketool sub --fake' 'faketool sub real'
 assert_exit "flag-shape gate: no-dash hunk -> exit 0" 0 "$RC"
 assert_silent "flag-shape gate: no-dash hunk stays quiet" "$OUT"
@@ -292,15 +244,10 @@ assert_exit "flag-shape gate: no-dash write -> exit 0" 0 "$RC"
 assert_silent "flag-shape gate: no-dash write stays quiet" "$OUT"
 assert_eq "flag-shape gate: no-dash write spawns no sed (scan skipped)" 0 "$SED_COUNT"
 
-# (b) A `--flag` in the content passes the gate and the decision is the one
-#     the cases above pinned before the gate existed: the same UNKNOWN_FLAG
-#     line, the same count, and the scan demonstrably ran.
 run_gated Write 'faketool sub --fake' 'faketool sub --fake'
 assert_exit "flag-shape gate: --flag write -> exit 0" 0 "$RC"
 ctx_contains "flag-shape gate: --flag write reports the same finding" "$OUT" "  faketool sub --fake (not in 'faketool sub --help')"
 ctx_contains "flag-shape gate: --flag write reports the same heading" "$OUT" "cli-flag-verify: unknown flag(s) in"
-# One clause says the finding is unverified; no per-finding fix/skip lines and no
-# multi-line verdict trailer.
 ctx_contains "report: one clause says unverified, not proven wrong" "$OUT" \
   "unverified, not proven wrong: the installed --help may predate the flag."
 assert_absent "report: no verdict trailer" "$OUT" "Detect-then-judge"
@@ -317,15 +264,6 @@ run_gated Write 'faketool sub --real' 'faketool sub --real'
 assert_exit "flag-shape gate: real --flag write -> exit 0" 0 "$RC"
 assert_silent "flag-shape gate: real --flag write stays quiet" "$OUT"
 
-# ================= FILE DIRECTORY ANCHOR (dirname parity) ===================
-# The repo root is anchored on the file's directory, computed by parameter
-# expansion rather than a `$(dirname …)` fork. For a root-level `/bar.md` the
-# shortest `/*` suffix is the whole string, so the bare expansion is EMPTY and
-# hook::repo_root's `${1:-.}` would anchor on the process CWD, not `/`. The
-# root-level shape cannot reach the hook end to end here (hook::read_file_path
-# needs the file to exist and `/` is not writable), so the seam itself is
-# lifted from the hook source and evaluated against each shape; its answer
-# must be dirname's.
 FILE_DIR_SEAM=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$HOOK")
 assert_contains "file-dir seam: lifted from the hook" "$FILE_DIR_SEAM" 'FILE_DIR="${FILE%/*}"'
 for fp in /bar.md bar.md /a/b/bar.md; do
@@ -336,7 +274,6 @@ for fp in /bar.md bar.md /a/b/bar.md; do
   assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
 done
 
-# Kill switch — disabled path is a clean no-op despite a hallucinated flag.
 dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"
 printf 'faketool sub --fake\n' >"$dis_dir/target.sh"
@@ -354,23 +291,12 @@ OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPT
 RC=$?
 assert_exit "per-binary skip → exit 0" 0 "$RC"
 
-# Empty stdin: hook::buffer_stdin returns 1 (no payload) → this advisory hook
-# skips silently. Guards the skip contract through the migrated buffered-read
-# path. NOTE: a here-string / /dev/null cannot reproduce the Win32
-# late-EOF pipe stall the fix targets, and rc-2 (timeout) collapses to the same
-# silent exit 0 as rc-1 for an advisory hook — so this asserts the skip contract,
-# not the stall itself.
 OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   bash "$HOOK" </dev/null 2>&1)
 RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
 
-# Bundled verifier missing (docs/contracts/hook-observability/): a fake
-# CLAUDE_PLUGIN_ROOT with no lib/verification/verify-cli-flag.sh reproduces
-# install corruption. CLAUDE_PLUGIN_DATA isolated to a fresh dir per case
-# (hook::notice_once persists a marker there; an unisolated real machine path
-# would make this pass only on the first-ever run).
 noverif_root="$TEST_TMPDIR/no-verifier-root"
 mkdir -p "$noverif_root/hooks"
 cp "$HOOK" "$noverif_root/hooks/cli-flag-verify.sh"
@@ -391,7 +317,6 @@ assert_eq "bundled verifier missing → nothing on the model's channel" "" \
   "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$OUT" 2>/dev/null)"
 assert_absent "bundled verifier missing → no session-long claim" "$OUT" "for this session"
 
-# ============================ TELEMETRY ====================================
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 tel_dir="$TEST_TMPDIR/fake-tel"
@@ -409,29 +334,16 @@ else
   bad "telemetry: no envelope written"
 fi
 
-# ================= BIN-NAME PRE-GATE (spawn cost) ==========================
-# Ordinary prose is full of hyphens, so the `-` gate alone let every markdown
-# paragraph reach the fragment pipeline. Content that names no scanned bin
-# cannot yield a candidate and must spawn nothing. Repro-first: the pre-gate
-# hook spawned sed on this content.
 run_gated Write 'faketool --toplevel' 'A well-known, re-usable prose line with no command at all.'
 assert_exit "bin-name gate: hyphenated prose, no bin -> exit 0" 0 "$RC"
 assert_silent "bin-name gate: hyphenated prose, no bin stays quiet" "$OUT"
 assert_eq "bin-name gate: hyphenated prose, no bin spawns no sed" 0 "$SED_COUNT"
-# The gate is a substring test, so a bin name inside a longer word still passes
-# it and the real extraction decides; a genuine command still fires.
 run_gated Write 'faketool --bogus' 'faketool --bogus'
 ctx_contains "bin-name gate: a real command still reaches the scan" "$OUT" "  faketool --bogus"
 
-# ================= CACHE HITS ANSWERED IN-PROCESS ==========================
-# On a warm cache the verifier's whole job is to read one file and match one
-# pattern, so the hook does that itself and spawns the verifier only on a miss.
-# Counted through a wrapper at the plugin-root path the hook resolves: it logs
-# one line per spawn and delegates to the real verifier.
 REAL_VERIFIER="$HOOK_DIR/../lib/verification/verify-cli-flag.sh"
 WRAP_ROOT="$TEST_TMPDIR/wrap-root"
 mkdir -p "$WRAP_ROOT/lib/verification"
-# The hook sources the shared cache definitions from the same plugin root.
 cp "$HOOK_DIR/../lib/verification/cli-flag-cache.sh" "$WRAP_ROOT/lib/verification/"
 VLOG="$TEST_TMPDIR/verifier-spawns"
 {
@@ -455,11 +367,6 @@ run_hit() {
 }
 run_hit
 COLD_OUT="$OUT"
-# Three candidates over two (bin, chain) keys: `faketool sub` and `faketool`.
-# The first miss on each key spawns the verifier, which writes that key's cache
-# file; the second `faketool` candidate is then answered in-process from the
-# file the first one just wrote. Two spawns, not three (the un-indexed shape
-# spawned once per candidate).
 assert_eq "cache miss: one verifier spawn per (bin, chain) key, not per candidate" 2 "$VSPAWNS"
 ctx_contains "cache miss: unknown flags reported" "$COLD_OUT" "  faketool sub --fake"
 ctx_contains "cache miss: unknown top-level flag reported" "$COLD_OUT" "  faketool --bogus"
@@ -467,8 +374,6 @@ run_hit
 assert_eq "cache hit: no verifier spawn at all" 0 "$VSPAWNS"
 assert_eq "cache hit: findings identical to the miss run" "$COLD_OUT" "$OUT"
 
-# The in-process match keeps the verifier's prefix discipline: `--save-dev` in
-# the help text must not satisfy `--save-developer`, on a hit as on a miss.
 cat >"$FAKE_BIN_DIR/fakesave" <<'FAKE'
 #!/usr/bin/env bash
 echo "Usage: fakesave [options]"
@@ -480,9 +385,6 @@ chmod +x "$FAKE_BIN_DIR/fakesave"
 save_dir="$TEST_TMPDIR/cache-prefix"
 mkdir -p "$save_dir/cache"
 save_target="$save_dir/target.sh"
-# `--color` is documented in the optional-part notation `--color[=WHEN]`; the
-# `[` terminator must be accepted on the warm path exactly as on the cold one
-# (the first hand-copied hook pattern dropped it and flagged --color warm only).
 SAVE_CONTENT=$'fakesave --save-developer\nfakesave --save-dev\nfakesave --color'
 printf '%s\n' "$SAVE_CONTENT" >"$save_target"
 run_save() {
@@ -500,18 +402,11 @@ ctx_contains "prefix trap (hit): --save-developer is still unknown" "$OUT" "  fa
 assert_absent "prefix trap (hit): --save-dev is still known" "$OUT" "  fakesave --save-dev ("
 assert_absent "optional-part notation (hit): --color[=WHEN] is still known" "$OUT" "  fakesave --color"
 
-# The shared definitions are one file for both paths: the hook's cache-hit
-# match and the verifier's must read the pattern from cli-flag-cache.sh, never
-# from a private copy.
 assert_eq "one flag pattern: the hook carries no private FLAG_PATTERN" 0 \
   "$(grep -c '\[\]\[:space:\]=,|)' "$HOOK")"
 assert_eq "one flag pattern: the verifier carries no private FLAG_PATTERN" 0 \
   "$(grep -c '\[\]\[:space:\]=,|)' "$REAL_VERIFIER")"
 
-# ================= VERIFIER OPTION PARSING (positional guard) ===============
-# Verifier options are recognized only before <bin>; a TARGET flag spelled
-# --quiet/--verbose must be verified as a positional, not consumed (the old
-# whole-argv scan returned rc 3 and the hook silently skipped those flags).
 VERIFIER="$HOOK_DIR/../lib/verification/verify-cli-flag.sh"
 opt_dir="$TEST_TMPDIR/verifier-opts"
 mkdir -p "$opt_dir/cache"
@@ -526,8 +421,6 @@ assert_exit "verifier: target --verbose verified, not consumed (absent -> 1)" 1 
 run_verifier --quiet faketool --quiet
 assert_exit "verifier: target --quiet verified, not consumed (absent -> 1)" 1 $?
 
-# The verifier's own match is in-process now (`=~` over the cached --help text);
-# it must keep the flag-boundary discipline the grep pattern had, cold and warm.
 run_verifier --quiet fakesave --save-dev
 assert_exit "verifier: exact flag present (cold) -> 0" 0 $?
 run_verifier --quiet fakesave --save-developer
@@ -539,10 +432,6 @@ assert_exit "verifier: exact flag present (warm) -> 0" 0 $?
 assert_eq "verifier: the 24 h reference file sits beside the cache" 1 \
   "$(find "$opt_dir/cache/guardrails/cli-flag-cache" -maxdepth 1 -name '.fresh-24h' | wc -l | tr -d ' ')"
 
-# The cache is published by rename, never rewritten in place: a concurrent
-# reader that passes the -s and mtime gates must see a whole --help text, so
-# the write lands in a sibling temp file that `mv` replaces the entry with,
-# and no temp file survives a run.
 assert_eq "verifier: the cache entry is whole after a cold run" 1 \
   "$(grep -c -- '--save-dev' "$opt_dir/cache/guardrails/cli-flag-cache/fakesave.help")"
 assert_eq "verifier: no temp file left beside the cache" 0 \
@@ -550,11 +439,6 @@ assert_eq "verifier: no temp file left beside the cache" 0 \
 assert_eq "verifier: no in-place redirect into the cache file" 0 \
   "$(grep -c '>"\$CACHE_FILE"' "$REAL_VERIFIER")"
 
-# The source check above is a spelling tripwire; this one exercises the property.
-# A help text large enough to span many write(2) calls, written by several
-# verifiers at once while a reader samples the entry: an in-place redirect
-# truncates and refills, so a reader catches a prefix. A rename cannot be caught
-# mid-write, so every non-empty sample carries the final line.
 cat >"$FAKE_BIN_DIR/fakebig" <<'FAKE'
 #!/usr/bin/env bash
 echo "Usage: fakebig [options]"
@@ -596,18 +480,13 @@ mkdir -p "$npm_dir/cache"
 npm_target="$npm_dir/target.sh"
 NPM_LINE='npm ci --prefix ./vendor'
 printf '%s\n' "$NPM_LINE" >"$npm_target"
-# Deliberately NO CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS override: the
-# DEFAULT set is what is under test here.
 OUT=$(LOCALAPPDATA="$npm_dir/cache" XDG_CACHE_HOME="$npm_dir/cache" \
   bash "$HOOK" <<<"$(write_json "$npm_target" "$NPM_LINE")" 2>&1)
 RC=$?
 assert_exit "npm ci --prefix (default bins) -> exit 0" 0 "$RC"
 assert_absent "npm ci --prefix -> no unknown flag" "$OUT" "unknown flag(s)"
-# The behavioral case above is silent on a host with no npm installed, so pin
-# the exclusion at its source too — that assertion fails on any host.
 DEFAULT_BINS_LINE=$(grep -m1 '^DEFAULT_BINS=' "$HOOK")
 assert_absent "npm removed from DEFAULT_BINS" "$DEFAULT_BINS_LINE" "npm"
-# …and the removal must not have emptied or reshuffled the rest of the set.
 assert_contains "DEFAULT_BINS still carries the retained bins" \
   "$DEFAULT_BINS_LINE" 'claude gh dotnet docker kubectl terraform az aws'
 

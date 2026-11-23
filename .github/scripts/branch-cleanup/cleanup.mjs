@@ -159,7 +159,6 @@ export async function plan(env, { call, loadConfig, log = console.log }) {
   const dryRun = isDryRun(env);
   const owner = repo.split("/")[0];
   const cap = resolveBranchCleanup(loadConfig())["max-deletes-per-run"];
-  // Evaluation gets what the delete stage's share leaves of the budget.
   const evalLimit = (call.remaining?.() ?? Number.POSITIVE_INFINITY) - deleteBudget(cap);
   if (evalLimit <= 0) throw new Error(`the call budget does not cover ${cap} deletes and any reads`);
   let evalUsed = 0;

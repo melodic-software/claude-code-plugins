@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for read-pre-ready.sh. Expected outputs follow the pre_ready contract in
-# reference/ready-for-review.md: an absent key runs every step, a listed
-# `enabled: false` turns that one step off, and anything the reader cannot
-# trust (an unknown step, a bad value, a file it cannot parse) runs every step.
 
 set -uo pipefail
 
@@ -36,7 +32,6 @@ out=$(read_doc $'pre_ready:\n  - step: evidence\n    enabled: false\n')
 assert_eq "the evidence step can be disabled" \
   $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tenabled\nevidence\tdisabled' "$out"
 
-# Each untrusted shape: the source line fails closed with a reason, and every step is on.
 check_fail_closed() {
   local label="$1" doc="$2" reason="$3" got
   got=$(read_doc "$doc")
@@ -114,7 +109,6 @@ assert_eq "an inherited item_0_step does not fill a missing step" \
 check_fail_closed "a repeated key inside an item" \
   $'pre_ready:\n  - step: verify\n    enabled: false\n    step: code-review\n' "docs/conventions/source-control.yaml does not parse: line 4: duplicate key \`pre_ready.0.step\` (first at line 2)"
 
-# --http-response reads a `gh api -i` response: the status line decides.
 read_response() { printf '%s' "$1" | bash "$SCRIPT" "${ON_DEFAULT[@]}" --http-response 2>/dev/null; }
 
 out=$(read_response $'HTTP/2.0 200 OK\r\nContent-Type: application/vnd.github.raw\r\n\r\npre_ready:\n  - step: verify\n    enabled: false\n')

@@ -1035,7 +1035,6 @@ function publishedEvents(outDir) {
   }
 }
 
-// The previous sidecar's generated_at, or null when there is none to read.
 function publishedGeneratedAt(outDir) {
   try {
     const at = JSON.parse(readIfPresent(join(outDir, "evidence.meta.json")) ?? "null")?.generated_at;

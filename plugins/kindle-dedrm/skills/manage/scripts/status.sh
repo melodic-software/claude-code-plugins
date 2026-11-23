@@ -8,7 +8,6 @@
 
 set -uo pipefail
 
-# Resolve paths via Windows env vars (Git Bash translates these).
 KINDLE_APP_DIR="${LOCALAPPDATA}/Amazon/Kindle/application"
 KINDLE_UPDATES_DIR="${LOCALAPPDATA}/Amazon/Kindle/updates"
 KINDLE_CONTENT_DIR="${USERPROFILE}/Documents/My Kindle Content"
@@ -18,7 +17,6 @@ KEY_FINDER_DIR="${HOME}/Tools/Kindle_Key_Finder"
 DOWNLOADS_DIR="${HOME}/Downloads"
 FIREWALL_RULE_NAME="Block Kindle for PC (lock 2.8.0)"
 
-# --- Probes ---
 
 probe_kindle_version() {
   if [[ -f "${KINDLE_APP_DIR}/Kindle.exe" ]]; then
@@ -102,7 +100,6 @@ probe_book_count() {
   echo "synced=${synced},converted=${converted}"
 }
 
-# --- Compose JSON ---
 
 cat <<EOF
 {

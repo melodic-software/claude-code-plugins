@@ -1,51 +1,7 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block turning off auto-merge on a pull request the lanes App
-# opened, and point to the do-not-merge label instead.
-#
-# WHY. The pr-merge lane leaves an unarmed lanes App PR alone when the newest
-# of its auto-merge events is a disable by a User
-# (.github/scripts/pr-merge/enable-auto-merge.mjs, the AutoMergeDisabledEvent
-# check). An agent session runs under the owner's login, so its
-# `gh pr merge <n> --disable-auto` reads as the owner's veto, and the lane never
-# arms that PR again until a person enables auto-merge or queues it. The
-# do-not-merge label is the hold to use: the lane disarms the PR while the
-# label is on and re-arms it by itself when the label comes off.
-#
-# MATCHED, on the Bash tool, at a command position (leading NAME=value words
-# and the `command`, `time`, `exec` and `nohup` prefixes are stepped over):
-#   gh CLI   `gh pr merge` with `--disable-auto` (or `--disable-auto=<v>`, `v`
-#            not false or 0), `-R` before or after `merge`.
-#   GraphQL  `gh api ... graphql` whose arguments name the
-#            `disablePullRequestAutoMerge` mutation. The PR is the one
-#            `PR_...` node id in the arguments.
-# Each target's author is read with one call: `gh pr view <n> -R <repo> --json
-# author` for the CLI form, a GraphQL `node` query for the mutation. The
-# command is blocked when the author is the lanes App (LANE_APP below); gh
-# reports an App author as `app/<slug>` and GraphQL as `<slug>`, and both are
-# read as `<slug>[bot]`.
-#
-# FAILS CLOSED on a target it cannot read: a PR number, repo or node id that
-# comes from a shell variable, `$(...)` or backticks; a backtick anywhere in a
-# command that names the disable; a `gh pr merge --disable-auto` with no PR
-# number or URL; one with no -R in a command that changes directory or names
-# GH_REPO or GH_HOST; a mutation with no literal `PR_...` id or more than one;
-# and an author read that fails. Each block names the literal form to use.
-#
-# NOT MATCHED: `gh pr merge` without `--disable-auto`; a PR by any other
-# author; the PowerShell tool; a mutation read from a file (`-F query=@file`,
-# `--input`); a command word from an expansion (`$GH pr merge`); a disable from
-# a script, a child shell (`bash -c`), `eval`, a wrapper such as `sudo` or
-# `env`, or the web UI. With gh not on the hook's PATH, a target the guard
-# can read passes unchecked; an unreadable one is still blocked.
-#
-# Kill switch: block_lane_pr_disable_auto_enabled userConfig option.
-#
-# BLOCKING: exits 2 with the hold-label fix.
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source. scripts/check-killswitch-hoist.sh
-# pins this line.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_ENABLED:-true}" == "true" ]] || exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
@@ -58,8 +14,6 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq-free pre-filter, on a copy with quotes and backslashes dropped so
-# `--disable-au"to"` still matches.
 LPD_LC="${INPUT,,}"
 LPD_BARE="${LPD_LC//[\"\'\\]/}"
 [[ "$LPD_BARE" == *disable-auto* || "$LPD_BARE" == *disablepullrequestautomerge* ]] || exit 0
@@ -80,10 +34,10 @@ LANE_APP="${LANE_APP#app/}"
 LANE_APP="${LANE_APP%\[bot\]}"
 [[ -n "$LANE_APP" ]] && LANE_APP="${LANE_APP}[bot]"
 
-LPD_TARGETS=()     # one per disable: "cli <selector> <repo>" or "node <id>"
-LPD_UNRESOLVED=""  # set: why a target cannot be read, and the command is refused
-LPD_CD=0           # 1: a segment changes directory
-LPD_FOUND=0        # 1: the command holds a disable
+LPD_TARGETS=()
+LPD_UNRESOLVED=""
+LPD_CD=0
+LPD_FOUND=0
 
 # lpd::literal <word>: true when the word holds no `$` or backtick.
 # shellcheck disable=SC2329  # reached from the parse callback
@@ -139,8 +93,6 @@ lpd::graphql_args() {
   ((hit)) || return 0
   LPD_FOUND=1
   for a in "$@"; do
-    # A value from a shell expansion may be the node id. The query may hold
-    # GraphQL `$name` variables, so there only `$(`, `${` and a backtick count.
     if [[ "$a" == query=* ]]; then
       # shellcheck disable=SC2016  # literal shell syntax, matched as text
       [[ "$a" != *'$('* && "$a" != *'${'* && "$a" != *'`'* ]]
@@ -191,7 +143,6 @@ lpd::segment() {
   esac
   if [[ "${1-}" == api ]]; then
     shift
-    # The endpoint is the first word that is not a flag or a flag's value.
     local -a all=("$@")
     local endpoint=""
     while (($#)); do
@@ -225,7 +176,6 @@ lpd::segment() {
     esac
   done
   if ! lpd::literal "${1-}"; then
-    # `gh pr $VERB 5 --disable-auto`: the subcommand may be merge.
     local w
     for w in "$@"; do [[ "$w" == --disable-auto ]] && LPD_FOUND=1 && LPD_UNRESOLVED="the gh pr subcommand $1 is not literal"; done
     return 0
@@ -240,15 +190,12 @@ hook::bash_parse_segments "$LPD_COMMAND" lpd::segment
 
 LPD_CMD_BARE="${LPD_COMMAND,,}"
 LPD_CMD_BARE="${LPD_CMD_BARE//[\"\'\\]/}"
-# A backtick substitution can change or hide the target the parse reads, so
-# disable-shaped text with a backtick anywhere in the command is refused.
 LPD_BT=0
 LPD_SHAPE_RE='pr.*merge.*disable-auto|disablepullrequestautomerge'
 [[ "$LPD_COMMAND" == *'`'* ]] &&
   { ((LPD_FOUND)) || [[ "$LPD_CMD_BARE" =~ $LPD_SHAPE_RE ]]; } && LPD_BT=1
 ((LPD_FOUND || LPD_BT)) || exit 0
 
-# lpd::block <line>...: print the lines and the turn-off note, and exit 2.
 lpd::block() {
   printf '%s\n' "$@" 'Only the user can turn this guard off (block_lane_pr_disable_auto_enabled).' >&2
   exit 2
@@ -269,8 +216,6 @@ fi
 
 LPD_OUT=""
 LPD_ERR=""
-# lpd::gh <arg>...: one gh call from the payload's cwd, capped at 15 s where
-# `timeout` exists. Sets LPD_OUT and LPD_ERR (the first line of stderr).
 lpd::gh() {
   local errf rc=0
   local -a cap=()
@@ -294,8 +239,6 @@ lpd::gh() {
 LPD_GHREPO=0
 [[ "$LPD_CMD_BARE" == *gh_repo* || "$LPD_CMD_BARE" == *gh_host* ]] && LPD_GHREPO=1
 
-# lpd::check <target>: read one target's author and block when it is the
-# lanes App.
 lpd::check() {
   local kind sel repo what login kindof="" hold
   read -r kind sel repo <<<"$1"

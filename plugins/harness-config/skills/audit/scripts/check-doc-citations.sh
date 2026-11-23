@@ -84,12 +84,8 @@ FIXTURE_DIR="${SETTINGS_AUDIT_DOCS_FIXTURE_DIR:-}"
 FETCH_DIR="$(mktemp -d)"
 trap 'rm -rf "$FETCH_DIR"' EXIT
 
-# PAGE_FILE[slug] is the verbatim markdown of a page the fetcher read;
-# PAGE_REASON[slug] is why it did not.
 declare -A PAGE_FILE=() PAGE_REASON=()
 
-# page_file <slug>: echo the path of the page's verbatim markdown, or nothing
-# when it cannot be read this run.
 page_file() {
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$1.md" ]]; then
     printf '%s' "$DOCS_DIR/$1.md"
@@ -98,9 +94,6 @@ page_file() {
   fi
 }
 
-# fetch_pages <slug>...: one fetcher call for every page not already on disk.
-# The fetcher resolves each slug through the docs index, so a page the index
-# does not list comes back unread without a request for it.
 fetch_pages() {
   local slug state reason
   [[ -f "$FETCH_DOCS" ]] || {

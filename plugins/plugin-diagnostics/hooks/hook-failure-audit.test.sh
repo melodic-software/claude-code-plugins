@@ -20,7 +20,6 @@ unset CLAUDE_PROJECT_DIR
 
 WSL_STDERR='Failed with non-blocking status code: <3>WSL (10 - Relay) ERROR: CreateProcessCommon:818: execvpe(/bin/bash) failed: No such file or directory'
 
-# One transcript line per record, matching the real attachment envelope shape.
 failure_record() { # <hookName> <command>
   printf '{"parentUuid":"p","isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"%s","toolUseID":"toolu_x","hookEvent":"PreToolUse","stderr":"%s","stdout":"","exitCode":1,"command":"%s","durationMs":2080},"type":"attachment","uuid":"u","timestamp":"2026-08-13T13:56:38.155Z","session_id":"s","sessionId":"s","version":"2.1.228"}\n' \
     "$1" "${WSL_STDERR//\"/\\\"}" "$2"
@@ -29,12 +28,9 @@ failure_record() { # <hookName> <command>
 make_transcript() { # <path> — base fixture: 1 real failure + both false-positive shapes
   local t="$1"
   {
-    # Truncated first line, as a bounded tail read would produce.
     printf 'garbage-not-json {"half": \n'
     failure_record "PreToolUse:Bash" "bash \${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh"
-    # FALSE POSITIVE 1: a hook_success whose stdout QUOTES the failure text.
     printf '{"attachment":{"type":"hook_success","hookName":"PostToolUse:Edit","stdout":"saw hook_non_blocking_error and %s in a log","stderr":"","exitCode":0},"type":"attachment","uuid":"u2","session_id":"s"}\n' "${WSL_STDERR//\"/\\\"}"
-    # FALSE POSITIVE 2: an assistant message quoting a failure record as a STRING.
     printf '{"type":"assistant","message":{"content":[{"type":"text","text":"sample: {\\"type\\": \\"hook_non_blocking_error\\", \\"hookName\\": \\"PreToolUse:QuotedOnly\\"}"}]},"uuid":"u3","session_id":"s"}\n'
   } >"$t"
 }
@@ -49,7 +45,6 @@ run_hook() { # <transcript> <data_dir> [extra env pairs...]
   env CLAUDE_PLUGIN_DATA="$data_dir" "$@" "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$transcript\",\"hook_event_name\":\"Stop\"}" 2>&1
 }
 
-# --- Red-first core: a real launch-failure record is surfaced ---------------
 T1="$TEST_TMPDIR/t1.jsonl"
 make_transcript "$T1"
 DATA1="$TEST_TMPDIR/data1"
@@ -63,7 +58,6 @@ assert_contains "stale-session guidance" "$OUT" "restart"
 assert_contains "stale-session guidance names /reload-plugins before restart" "$OUT" \
   "Run /reload-plugins to load the current config, or restart the session."
 
-# --- No jq: the user is told, the model is not (Stop context continues the turn)
 NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
 mkdir -p "$NOJQ_BIN" "$TEST_TMPDIR/data-nojq/skip-notices"
 for t in bash cat env mkdir find tr grep sed uname date; do
@@ -73,34 +67,25 @@ OUT_NOJQ=$(PATH="$NOJQ_BIN" run_hook "$T1" "$TEST_TMPDIR/data-nojq")
 assert_contains "no jq -> user notice" "$OUT_NOJQ" "systemMessage"
 assert_absent "no jq -> nothing for the model on Stop" "$OUT_NOJQ" "additionalContext"
 
-# --- Structural matching: neither false-positive shape fires ----------------
 assert_absent "hook_success quoting an error does not fire" "$OUT" "PostToolUse:Edit"
 assert_absent "string-quoted record does not fire" "$OUT" "PreToolUse:QuotedOnly"
 
-# --- Once per session per hook: second run is silent ------------------------
 OUT2=$(run_hook "$T1" "$DATA1")
 RC2=$?
 assert_exit "dedup run -> exit 0" 0 "$RC2"
 assert_silent "same failures already warned -> silent" "$OUT2"
 
-# --- A NEW failing hook re-warns, already-warned hooks stay muted -----------
 failure_record "SessionStart" "node missing-lifecycle-hook.mjs" >>"$T1"
 OUT3=$(run_hook "$T1" "$DATA1")
 assert_contains "new failing hook warned" "$OUT3" "SessionStart"
 assert_absent "already-warned hook muted" "$OUT3" "PreToolUse:Bash"
 
-# --- Distinct registrations sharing a hookName are distinct failures --------
-# Multiple plugins register on the same event+matcher (e.g. several
-# PreToolUse:Bash guards); the attachment's command is what tells them apart.
-# A second registration failing later in the session must re-warn even though
-# the first already wrote this hookName to the marker.
 failure_record "PreToolUse:Bash" "other-plugin-guard.sh --different-registration" >>"$T1"
 OUT3B=$(run_hook "$T1" "$DATA1")
 assert_contains "same hookName, new registration -> re-warns" "$OUT3B" "other-plugin-guard.sh"
 OUT3C=$(run_hook "$T1" "$DATA1")
 assert_silent "both registrations warned -> silent" "$OUT3C"
 
-# --- No CLAUDE_PLUGIN_DATA: degrade toward re-warning, never silence --------
 T2="$TEST_TMPDIR/t2.jsonl"
 make_transcript "$T2"
 OUT4=$(env -u CLAUDE_PLUGIN_DATA bash "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$T2\",\"hook_event_name\":\"Stop\"}" 2>&1)
@@ -137,10 +122,6 @@ assert_absent "no reload remedy for a hook that ran" "$OUT_DONE" "/reload-plugin
 assert_absent "harness placeholder not attributed to the hook" "$OUT_DONE" "$HARNESS_NO_STDERR"
 assert_contains "no-stderr rendered as an explicit marker" "$OUT_DONE" "last stderr: (none — hook produced no stderr)"
 
-# A real hook stderr must survive untouched — the placeholder rewrite is keyed
-# on the harness's exact sentence, not on "looks like there was no output".
-# Quote-free so the assertion compares the message text itself rather than the
-# emitting envelope's JSON escaping of it.
 REAL_STDERR='TypeError: Cannot read properties of undefined (reading cwd) at hooks/broken-stop.mjs:42:11'
 T_REAL="$TEST_TMPDIR/real-stderr.jsonl"
 custom_record "Stop:threw" "node broken-stop.mjs" "$REAL_STDERR" 1 640 >"$T_REAL"
@@ -149,10 +130,6 @@ assert_contains "real stderr passed through unchanged" "$OUT_REAL" "$REAL_STDERR
 assert_absent "real stderr not replaced by the no-output marker" "$OUT_REAL" "hook produced no stderr"
 assert_absent "a hook that ran and threw is not a launch failure" "$OUT_REAL" "fails to launch"
 
-# SIGNATURE EVIDENCE decides the launch-failure label, regardless of exit code.
-# The observed corpus makes the code and the signature close to independent: 163
-# records carry an `execvpe` signature at exitCode 1, and the single exitCode 127
-# record carries no stderr signature at all.
 T_EXECVPE="$TEST_TMPDIR/execvpe.jsonl"
 custom_record "PreToolUse:Bash" "bash relay-guard.sh" "$WSL_STDERR" 1 8 >"$T_EXECVPE"
 OUT_EXECVPE=$(run_hook "$T_EXECVPE" "$TEST_TMPDIR/data-execvpe")
@@ -173,8 +150,6 @@ assert_contains "missing executable uses the fails-to-launch wording" "$OUT_NOTF
 assert_absent "missing executable is not a completed non-zero exit" "$OUT_NOTFOUND" "completed non-zero exit"
 assert_absent "missing executable is not called ambiguous" "$OUT_NOTFOUND" "ambiguous"
 
-# A launched hook that relays the phrase from a child of its own carries no launcher
-# prefix, so it stays a completed non-zero exit.
 T_RELAY="$TEST_TMPDIR/relay.jsonl"
 # shellcheck disable=SC2016 # literal $PATH must not expand
 custom_record "PreToolUse:Bash" 'bash ${CLAUDE_PROJECT_DIR}/wrapper.sh' \
@@ -182,8 +157,6 @@ custom_record "PreToolUse:Bash" 'bash ${CLAUDE_PROJECT_DIR}/wrapper.sh' \
 OUT_RELAY=$(run_hook "$T_RELAY" "$TEST_TMPDIR/data-relay")
 assert_absent "a relayed phrase without the launcher prefix is not a launch failure" "$OUT_RELAY" "launch failure"
 
-# A signature AT 126/127 is a launch failure outright — the signature decides,
-# so the ambiguity below is only ever about a code with no signature behind it.
 T_SIG127="$TEST_TMPDIR/sig127.jsonl"
 custom_record "PreToolUse:Bash" "bash relay-guard.sh" "$WSL_STDERR" 127 8 >"$T_SIG127"
 OUT_SIG127=$(run_hook "$T_SIG127" "$TEST_TMPDIR/data-sig127")
@@ -267,8 +240,6 @@ OUT_S=$(stale_case expanded-root 'node C:\\code\\plugins\\context-usage\\hooks\\
   "${PFX}/usr/bin/bash: /c/code/plugins/context-usage/hooks/zone-gate.sh: No such file or directory")
 assert_stale "command with CLAUDE_PLUGIN_ROOT expanded" "$OUT_S"
 
-# STAY QUIET: shapes that must keep today's classification.
-# bash reporting a missing file from INSIDE a script that ran carries `line N:`.
 OUT_S=$(stale_case in-script "$STATUS_MSG" \
   "${PFX}/c/code/plugins/x/hooks/my-hook.sh: line 12: /c/code/plugins/x/hooks/child.sh: No such file or directory")
 assert_contains "missing child inside a running hook stays ambiguous" "$OUT_S" \
@@ -283,7 +254,6 @@ OUT_S=$(stale_case other-basename 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/wrapper.sh' 
 assert_contains "missing path not in the registered command stays ambiguous" "$OUT_S" \
   "ambiguous: exit 126/127 with no exec-failure signature"
 assert_absent "missing path not in the registered command is not stale config" "$OUT_S" "$STALE_LABEL"
-# The same line at exit 1 is not bash failing to open its script operand.
 T_S1="$TEST_TMPDIR/stale-exit1.jsonl"
 custom_record "PreToolUse:Edit" "$STATUS_MSG" \
   "${PFX}bash: C:/code/plugins/x/hooks/zone-gate.sh: No such file or directory" 1 40 >"$T_S1"
@@ -304,9 +274,6 @@ assert_contains "missing subcommand is a completed non-zero exit" "$OUT_SUBCMD" 
 assert_absent "missing subcommand is not a launch failure" "$OUT_SUBCMD" "fails to launch"
 assert_absent "missing subcommand gets no restart remedy" "$OUT_SUBCMD" "restart"
 
-# A record whose exitCode is absent must not be told it launched: the hook has
-# no evidence either way, so the completed-branch wording asserts only the
-# absence of exec-failure evidence, never a positive launch.
 T_NOEC="$TEST_TMPDIR/no-exitcode.jsonl"
 printf '{"attachment":{"type":"hook_non_blocking_error","hookName":"Stop:noexit","stderr":"something went wrong","stdout":"","command":"bash mystery.sh","durationMs":50},"type":"attachment","uuid":"u","session_id":"s"}\n' >"$T_NOEC"
 OUT_NOEC=$(run_hook "$T_NOEC" "$TEST_TMPDIR/data-noec")
@@ -314,11 +281,6 @@ assert_contains "absent exitCode still surfaced" "$OUT_NOEC" "Stop:noexit"
 assert_contains "absent exitCode renders as unknown" "$OUT_NOEC" "exit ?"
 assert_absent "absent exitCode is not asserted to have launched" "$OUT_NOEC" "it did launch"
 
-# ONE registration failing BOTH ways in the same unwarned batch. group_by
-# collapses these two records into a single detail line, so a class read off the
-# LAST record alone would relabel the whole 2x group by whichever record came
-# last and would drop the other class's sentence from the message entirely. Both
-# orderings are asserted: the bug is directional, and either order hides it.
 for ORDER in launch-first completed-first; do
   T_MIX="$TEST_TMPDIR/mixed-$ORDER.jsonl"
   if [[ "$ORDER" == "launch-first" ]]; then
@@ -341,10 +303,6 @@ for ORDER in launch-first completed-first; do
   assert_contains "$ORDER: completed diagnosis kept" "$OUT_MIX" "no exec-failure evidence"
 done
 
-# The same collapse, now across all THREE classes. The ambiguous record is placed
-# FIRST in one ordering and LAST in the other, so a class read off `last` — or a
-# message flag derived from a collapsed value rather than from the per-record
-# counts — loses a different class in each direction.
 for ORDER in ambiguous-first ambiguous-last; do
   T_MIX3="$TEST_TMPDIR/mixed3-$ORDER.jsonl"
   if [[ "$ORDER" == "ambiguous-first" ]]; then
@@ -375,12 +333,10 @@ done
 assert_absent "no maintainer-facing implementation prose" "$OUT_EXECVPE" "empty-stderr placeholder"
 assert_absent "no maintainer-facing implementation prose (completed)" "$OUT_DONE" "empty-stderr placeholder"
 
-# --- Bounded tail: a failure pushed past the window is not read -------------
 T3="$TEST_TMPDIR/t3.jsonl"
 DATA3="$TEST_TMPDIR/data3"
 {
   failure_record "PreToolUse:OutOfWindow" "cmd-a"
-  # Pad well past the small test cap so the record above falls outside it.
   for _ in {1..200}; do
     printf '{"type":"assistant","message":{"content":[{"type":"text","text":"%s"}]},"uuid":"pad","session_id":"s"}\n' \
       "pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad"
@@ -391,15 +347,6 @@ OUT6=$(run_hook "$T3" "$DATA3" HOOK_FAILURE_AUDIT_TAIL_BYTES=8000)
 assert_contains "in-window failure reported" "$OUT6" "PreToolUse:InWindow"
 assert_absent "out-of-window failure not read" "$OUT6" "PreToolUse:OutOfWindow"
 
-# --- Incremental scan: the cursor --------------------------------------------
-# The cursor records the byte offset a session has already audited, so a later
-# Stop reads only what was appended. The properties asserted: a turn with no
-# candidate spawns nothing but the one `tail` that reads the appended bytes, a
-# failure appended past the cursor produces EXACTLY the message a full rescan
-# produces, a record before the cursor is not read again, a partial final line
-# is read again next Stop, and a shorter, replaced, or differently-pathed
-# transcript, or a line-count cursor, resets the cursor rather than skipping
-# lines that were never audited.
 
 # A PATH shim that fails loudly instead of doing the work. `command -v jq` still
 # succeeds — that is what lets the library's builtin field parser proceed — so
@@ -430,15 +377,10 @@ assert_eq "cursor: file records the audited byte offset" "b$(size_of "$T_CUR")" 
 assert_eq "cursor: file records the transcript path" "$T_CUR" \
   "$(sed -n 2p "$DATA_CUR/hook-failure-audit/test-session.cursor")"
 
-# Nothing appended: the second Stop must reach its exit with no process but tail.
 OUT_C2=$(run_hook "$T_CUR" "$DATA_CUR" PATH="$SHIM:$PATH")
 assert_silent "cursor: unchanged transcript -> silent, only tail spawned" "$OUT_C2"
 assert_eq "cursor: unchanged transcript keeps the offset" "b$(size_of "$T_CUR")" "$(cursor_of "$DATA_CUR")"
 
-# Benign lines only: still nothing to hand to jq, still only tail. Every line
-# but the final one is counted; the final one is read again next Stop. The run
-# uses a UTF-8 locale and benign_line carries a multibyte character, so an
-# offset counted in characters instead of bytes lands short here.
 for _ in {1..20}; do
   benign_line >>"$T_CUR"
 done
@@ -447,10 +389,6 @@ assert_silent "cursor: appended benign lines -> silent, only tail spawned" "$OUT
 assert_eq "cursor: advances to the start of the final line" \
   "b$(($(size_of "$T_CUR") - $(benign_line | wc -c)))" "$(cursor_of "$DATA_CUR")"
 
-# A failure appended past the cursor: byte-identical to what a full rescan of
-# the same transcript, against the same marker state, produces. DATA_FULL is a
-# copy of the incremental state with only the cursor removed, so the two runs
-# differ in nothing but how much of the transcript they read.
 failure_record "SessionStart" "second-registration.mjs" >>"$T_CUR"
 DATA_FULL="$TEST_TMPDIR/data-cursor-full"
 rm -rf "$DATA_FULL"
@@ -462,8 +400,6 @@ assert_contains "cursor: appended failure is reported" "$OUT_INC" "second-regist
 assert_eq "cursor: incremental output equals a full rescan's" "$OUT_FULL" "$OUT_INC"
 assert_absent "cursor: the already-warned registration stays muted" "$OUT_INC" "first-registration.sh"
 
-# Only bytes past the cursor are read. The record BEFORE the cursor was never
-# warned (no marker), so a read that reached it would name it.
 T_SKIP="$TEST_TMPDIR/cursor-skip.jsonl"
 DATA_SKIP="$TEST_TMPDIR/data-cursor-skip"
 {
@@ -480,7 +416,6 @@ assert_absent "cursor: a record before the cursor is not read" "$OUT_SKIP" "befo
 OUT_SKIP2=$(run_hook "$T_SKIP" "$DATA_SKIP")
 assert_silent "cursor: the next Stop does not report it again" "$OUT_SKIP2"
 
-# A partial final line is read again once the harness finishes writing it.
 T_PART="$TEST_TMPDIR/cursor-partial.jsonl"
 DATA_PART="$TEST_TMPDIR/data-cursor-partial"
 benign_line >"$T_PART"
@@ -495,16 +430,11 @@ printf '%s\n' "${PART_RECORD:100}" >>"$T_PART"
 OUT_P2=$(run_hook "$T_PART" "$DATA_PART")
 assert_contains "cursor: the completed line is read again and reported" "$OUT_P2" "partial-line.sh"
 
-# A SHORTER transcript resets the cursor. Without the reset the read starts past
-# the end of the file and the new record is never seen.
 T_SHORT="$TEST_TMPDIR/cursor.jsonl"
 failure_record "PreToolUse:Shrunk" "after-truncation.sh" >"$T_SHORT"
 OUT_C4=$(run_hook "$T_SHORT" "$DATA_CUR")
 assert_contains "cursor: a shorter transcript rescans from the start" "$OUT_C4" "after-truncation.sh"
 
-# A DIFFERENT transcript_path resets it too. This file is LONGER than the stored
-# cursor and carries its failure record BEFORE it, so only the path check can
-# save the record: a stale line count would skip straight past it.
 T_OTHER="$TEST_TMPDIR/cursor-other.jsonl"
 DATA_OTHER="$TEST_TMPDIR/data-cursor-other"
 {
@@ -512,7 +442,7 @@ DATA_OTHER="$TEST_TMPDIR/data-cursor-other"
     printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine"}]},"uuid":"c","session_id":"s"}\n'
   done
 } >"$T_OTHER"
-run_hook "$T_OTHER" "$DATA_OTHER" >/dev/null # cursor: 30 lines of this path
+run_hook "$T_OTHER" "$DATA_OTHER" >/dev/null
 printf '%s\n' "$(failure_record 'PreToolUse:Moved' 'other-transcript.sh')" \
   >"$TEST_TMPDIR/cursor-other-2.jsonl"
 for _ in {1..40}; do
@@ -522,9 +452,6 @@ OUT_C5=$(run_hook "$TEST_TMPDIR/cursor-other-2.jsonl" "$DATA_OTHER")
 assert_contains "cursor: a different transcript_path rescans from the start" \
   "$OUT_C5" "other-transcript.sh"
 
-# A file REPLACED at the same path by a longer one: enough bytes, but no line
-# boundary where the cursor points, so the anchor check resets the cursor and
-# the record before the old offset is still found.
 T_REPL="$TEST_TMPDIR/cursor-replaced.jsonl"
 DATA_REPL="$TEST_TMPDIR/data-cursor-replaced"
 for _ in {1..10}; do benign_line; done >"$T_REPL"
@@ -536,9 +463,6 @@ run_hook "$T_REPL" "$DATA_REPL" >/dev/null
 OUT_REPL=$(run_hook "$T_REPL" "$DATA_REPL")
 assert_contains "cursor: a replaced transcript rescans from the start" "$OUT_REPL" "replaced-transcript.sh"
 
-# A line-count cursor from before the byte offset: no `b` prefix, so it reads as
-# malformed and takes the cold path. The registration it already warned about
-# stays muted by its marker; the one appended since is reported once.
 T_LEGACY="$TEST_TMPDIR/cursor-legacy.jsonl"
 DATA_LEGACY="$TEST_TMPDIR/data-cursor-legacy"
 {
@@ -557,13 +481,6 @@ assert_eq "cursor: a line-count cursor is rewritten as a byte offset" \
 OUT_L2=$(run_hook "$T_LEGACY" "$DATA_LEGACY")
 assert_silent "cursor: the migrated cursor does not report again" "$OUT_L2"
 
-# A non-canonical decimal cursor (a leading zero, or a digit string long enough
-# to wrap) must fall through to CURSOR=0 exactly like any other malformed
-# cursor: no shell diagnostic, a cold scan of the whole transcript, and a
-# canonical value written back afterward. `08`/`09` pass a bare `^[0-9]+$`
-# test and then fail bash's octal-reading `((...))` with a "value too great
-# for base" diagnostic on stderr; a long-enough digit string wraps silently in
-# arithmetic instead of erroring, which is the more dangerous case.
 T_LEADING_ZERO="$TEST_TMPDIR/cursor-leading-zero.jsonl"
 DATA_LEADING_ZERO="$TEST_TMPDIR/data-cursor-leading-zero"
 failure_record "PreToolUse:LeadingZero" "leading-zero.sh" >"$T_LEADING_ZERO"
@@ -594,13 +511,11 @@ assert_contains "cursor: 20-digit cursor falls back to a cold scan" "$OUT_C7" "o
 assert_eq "cursor: 20-digit cursor is rewritten to a canonical value" "b$(size_of "$T_OVERSIZED")" \
   "$(cursor_of "$DATA_OVERSIZED")"
 
-# --- Kill switch -------------------------------------------------------------
 OUT7=$(run_hook "$T2" "$TEST_TMPDIR/data-kill" CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED=false)
 RC7=$?
 assert_exit "kill switch -> exit 0" 0 "$RC7"
 assert_silent "kill switch -> silent" "$OUT7"
 
-# --- Missing / absent transcript: silent allow -------------------------------
 OUT8=$(env CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-miss" bash "$HOOK" <<<'{"session_id":"s","hook_event_name":"Stop"}' 2>&1)
 RC8=$?
 assert_exit "no transcript_path -> exit 0" 0 "$RC8"
@@ -610,7 +525,6 @@ RC9=$?
 assert_exit "nonexistent transcript -> exit 0" 0 "$RC9"
 assert_silent "nonexistent transcript -> silent" "$OUT9"
 
-# --- Clean transcript: silent ------------------------------------------------
 T4="$TEST_TMPDIR/t4.jsonl"
 printf '{"type":"assistant","message":{"content":[{"type":"text","text":"all fine"}]},"uuid":"c","session_id":"s"}\n' >"$T4"
 OUT10=$(run_hook "$T4" "$TEST_TMPDIR/data-clean")
@@ -618,7 +532,6 @@ RC10=$?
 assert_exit "clean transcript -> exit 0" 0 "$RC10"
 assert_silent "clean transcript -> silent" "$OUT10"
 
-# --- Telemetry envelope when a sink is wired ---------------------------------
 T5="$TEST_TMPDIR/t5.jsonl"
 make_transcript "$T5"
 TEL="$TEST_TMPDIR/tel.json"
@@ -689,7 +602,6 @@ else
     TRACE_ALL="$prefix.all"
     cat "$prefix".* >"$TRACE_ALL" 2>/dev/null
   }
-  # Every process creation the kernel saw, subshell forks included.
   creations() { grep -cE '^(clone|clone3|fork|vfork)\(' "$TRACE_ALL"; }
   # Successful execs only: a PATH search emits failing execve calls that spawn
   # nothing. The `bash <hook>` exec at the top is strace's own, not a cost of
@@ -719,7 +631,6 @@ else
   assert_eq "budget: no jq for the payload fields" 0 "$(prog_count jq)"
   assert_eq "budget: one wc for the cap decision and the cursor" 1 "$(prog_count wc)"
 
-  # The same Stop again, now with a cursor: one read of the bytes past it.
   trace_hook budget-warm
   ceiling "warm path creations" "$(creations)" 1
   ceiling "warm path execs" "$(execs)" 1

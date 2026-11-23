@@ -18,7 +18,6 @@
 
 /** @import { HarvestedLink } from '../harvesting/models.js' */
 
-/** Words never treated as proper-noun evidence on their own. */
 const STOPWORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "has",
   "have", "he", "her", "his", "i", "if", "in", "is", "it", "its", "of", "on",
@@ -27,7 +26,6 @@ const STOPWORDS = new Set([
   "will", "with", "you", "your",
 ]);
 
-/** Link path segments that carry no vocabulary. */
 const LINK_SEGMENT_NOISE = new Set(["www", "index", "html", "status", "watch"]);
 
 const TERM_MAX_LENGTH = 60;

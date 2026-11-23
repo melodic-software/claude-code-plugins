@@ -15,7 +15,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   mentions the skill is not affected (Q30).
 - **Cut**: any removal or rewording of instruction text in a skill's `SKILL.md`, its reference or
   action files, or an agent body, including a verbatim move into a file that loads on demand.
-  Added text is not a cut; script changes are covered by tests (Q5, Q48).
+  Added text is not a cut, except a word that flips an existing instruction (`not`, `never`, `no`,
+  `only`, `except`, `unless` and their contractions) inserted into it; script changes are covered
+  by tests (Q5, Q48).
 - **Suite run** (`mode: suite`), **label run** (the `eval: run` label, advisory, posts no record),
   **compare run** (`mode: compare`, posts the eval-pair record on a PASS): the three modes of
   [`pr-run-plugin-evals.yml`](../../.github/workflows/pr-run-plugin-evals.yml) (Q62).

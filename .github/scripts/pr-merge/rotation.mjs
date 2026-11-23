@@ -31,7 +31,7 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { PR_MERGE_TITLE } from "../lib/run-title.mjs";
 
 export const CURSOR_ARTIFACT = "pr-merge-gate-cursor";

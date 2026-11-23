@@ -240,8 +240,6 @@ else
   fail "ENV SHEBANG findings are sorted and identical across runs: $first"
 fi
 
-# --- fail closed -------------------------------------------------------------
-
 new_fixture f
 mkdir -p "$f/plugins/demo/hooks"
 printf '{not json\n' >"$f/plugins/demo/hooks/hooks.json"

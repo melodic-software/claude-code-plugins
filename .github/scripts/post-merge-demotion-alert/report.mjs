@@ -31,13 +31,12 @@ import {
   resolveRedMain,
 } from "./red-main.mjs";
 import { budgetedClient, pages } from "../lib/github-rest.mjs";
+import { ACTIONS_BOT_ID as BOT_ID } from "../lib/lane-vocabulary.mjs";
 import { KINDS, parseRecordMarker, recordPrefix } from "./demotion-record.mjs";
 
 const DAY_MS = 86_400_000;
 const FULL_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const BOT = "github-actions[bot]";
-// github-actions[bot]'s numeric user id, which the file-demotion-issue job also trusts.
-const BOT_ID = 41898282;
 
 export const client = (env, { pace = () => delay(300) } = {}) => budgetedClient(env, { budget: Number(env.CALL_BUDGET ?? 200), pace });
 

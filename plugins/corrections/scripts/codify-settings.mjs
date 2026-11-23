@@ -71,7 +71,6 @@ const defaults = {
   ratchet_offer: schema.properties.ratchet_offer.default,
   review_mining_prs: schema.properties.review_mining_prs.default,
 };
-// An option left alone renders its default, so a value equal to the default reads as unset.
 const option = (given, key) => (given === String(defaults[key]) ? undefined : given);
 const userConfig = {
   ratchet_offer: option(opts["user-ratchet-offer"], "ratchet_offer"),
@@ -79,8 +78,6 @@ const userConfig = {
 };
 
 const { home, why } = conventionHome(project);
-// The scratch directory stands in for the user home (only legacy files are looked up there) and,
-// with no usable convention home, for the home itself, so neither repository layer is read.
 const scratch = mkdtempSync(join(tmpdir(), "codify-settings-"));
 let out;
 try {

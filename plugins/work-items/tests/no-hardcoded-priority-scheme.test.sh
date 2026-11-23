@@ -23,7 +23,6 @@ fail() {
 # The leading alternation is a POSIX-ERE word boundary (no GNU `\b`): `up2-medium` does not match.
 PATTERN='(^|[^a-z0-9])p[0-3]-[a-z]+'
 
-# --- (1) self-test: the detector catches a synthetic hit -------------------
 fixture_dir="$(mktemp -d)"
 trap 'rm -rf "$fixture_dir"' EXIT
 
@@ -61,7 +60,6 @@ assert_clean 'live-resolution prose' \
 assert_clean 'a longer word ending in the pN- shape' \
   'The up2-medium and step2-milestone tokens are unrelated identifiers.'
 
-# --- (2) real scan: the shipped plugin corpus is clean ----------------------
 mapfile -t hits < <(
   grep -rlE "$PATTERN" --include='*.md' "$PLUGIN_ROOT" 2>/dev/null |
     grep -vE '/CHANGELOG\.md$|/evals/' |

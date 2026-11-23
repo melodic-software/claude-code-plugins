@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for packet-seal.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-#
-# The cases that matter are the silent ones: an in-place rewrite of a sealed
-# file must report CHANGED rather than pass, a file added after the seal must
-# report UNSEALED rather than be trusted, an unsealed packet must fail closed
-# instead of reading as intact, and "altered" must never share an exit code with
-# "merely not sealed yet" — a packet routinely gains files after its last seal.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +11,6 @@ trap 'rm -rf "$WORK"' EXIT
 source "$SCRIPT_DIR/test-helpers.sh"
 test_helpers::contract_lane
 
-# lacks <phrase> <label> - the last run's combined output does NOT carry <phrase>.
 lacks() {
   if [[ "$last_out" != *"$1"* ]]; then
     pass "$2"
@@ -44,8 +34,6 @@ fresh_packet() {
   printf '%s' "$p"
 }
 
-# --- record then verify an untouched packet ---------------------------------
-
 packet="$(fresh_packet)"
 run 0 "record seals the packet" record "$packet"
 has "sealed=2" "both packet files are sealed"
@@ -62,39 +50,24 @@ lacks "ACKNOWLEDGED" "no acknowledgment line appears without a generation"
 has "BEFORE the first seal" "the intact verdict states what it cannot detect"
 has "MATCH audit-notes.md" "each sealed file is reported"
 
-# The manifest must not seal itself — re-recording would otherwise chase its
-# own digest and never converge.
 if ! grep -qF 'packet.sha256' "$packet/packet.sha256"; then
   pass "the manifest excludes itself"
 else
   fail "the manifest seals its own name"
 fi
 
-# --- an in-place rewrite is the whole point ---------------------------------
-
 packet="$(fresh_packet)"
 run 0 "record for the rewrite case" record "$packet"
-# Exactly the observed damage: a formatter "corrects" a deliberate misspelling
-# inside a verbatim quotation.
 printf 'upstream dictionary entry: "zzqy" maps to "zzqy"\n' >"$packet/audit-notes.md"
 run 1 "verify fails after an in-place rewrite" verify "$packet"
 has "CHANGED audit-notes.md" "the rewritten file is named"
 has "NOT INTACT" "the verdict is unambiguous"
-
-# --- a file added after the seal is never silently trusted -------------------
 
 packet="$(fresh_packet)"
 run 0 "record for the added-file case" record "$packet"
 printf 'later\n' >"$packet/audit-notes-2.md"
 run 3 "verify reports an unsealed file as incomplete, not altered" verify "$packet"
 has "UNSEALED audit-notes-2.md" "the unsealed file is named"
-
-# --- a filename is compared as a string, never as a pattern -----------------
-#
-# The unsealed check must not match a manifest name by regex. `audit-notes.md`
-# read as a pattern also matches the sealed name `audit-notesXmd`, so an
-# unsealed file would report as covered — a false negative in the one direction
-# this check exists to prevent.
 
 packet="$WORK/regex-packet"
 rm -rf "$packet"
@@ -105,19 +78,11 @@ printf 'never sealed\n' >"$packet/audit-notes.md"
 run 3 "verify reports an unsealed name that a regex would have matched" verify "$packet"
 has "UNSEALED audit-notes.md" "the unsealed file is not swallowed by a pattern match"
 
-# --- a deleted file --------------------------------------------------------
-
 packet="$(fresh_packet)"
 run 0 "record for the deletion case" record "$packet"
 rm -f "$packet/evidence.md"
 run 1 "verify fails on a missing sealed file" verify "$packet"
 has "MISSING evidence.md" "the missing file is named"
-
-# --- coverage is recursive --------------------------------------------------
-#
-# A packet holds raw artifacts as well as markdown. Content in a subdirectory
-# that the manifest never mentioned is content a reader trusts on the strength
-# of a manifest that says nothing about it.
 
 packet="$(fresh_packet)"
 mkdir -p "$packet/raw"
@@ -153,12 +118,9 @@ else
   fail "an unsealed file was reported as altered evidence"
 fi
 
-# A CHANGED file still outranks an unsealed one.
 printf 'rewritten\n' >"$packet/evidence.md"
 run 1 "a changed file still exits 1 even alongside an unsealed one" verify "$packet"
 has "CHANGED evidence.md" "the changed file is named"
-
-# --- resealing must not launder a rewrite -----------------------------------
 
 packet="$(fresh_packet)"
 run 0 "record before the laundering attempt" record "$packet"
@@ -169,8 +131,6 @@ has "later notes are sealed into that generation" "the refusal says later notes 
 has "verify reads the latest one" "the refusal says which generation verify reads"
 run 1 "verify still reports the divergence after the refused reseal" verify "$packet"
 has "CHANGED audit-notes.md" "the rewrite was not laundered into a fresh digest"
-
-# --- acknowledge writes a generation and keeps the original manifest ---------
 
 packet="$(fresh_packet)"
 run 0 "record before acknowledging" record "$packet"
@@ -222,8 +182,6 @@ has "needs an existing packet.sha256" "acknowledge requires the original seal"
 # into it must not stay UNSEALED forever. It is graded on top of packet.sha256,
 # never in place of it.
 
-# make_acked_packet - sets $packet: audit-notes.md rewritten after the seal, a
-# later note beside it, both acknowledged into generation 2.
 make_acked_packet() {
   packet="$(fresh_packet)"
   run 0 "record before the divergence" record "$packet"
@@ -248,14 +206,12 @@ run 1 "verify exits 1 with a note added after the generation" verify "$packet"
 has "UNSEALED audit-notes-3.md" "a note added after the generation is unsealed"
 lacks "UNSEALED audit-notes-2.md" "the generation-sealed note stays sealed"
 
-# A second edit of a file that already diverged, after the acknowledgment.
 make_acked_packet
 printf 'rewritten a second time\n' >"$packet/audit-notes.md"
 run 1 "verify exits 1 on a second edit of an acknowledged file" verify "$packet"
 has "GEN-CHANGED audit-notes.md" "the second edit is named against the generation"
 has "gen-changed=1" "the generation tally counts it"
 
-# Restore the altered file, then add notes: the generation must still take them.
 make_acked_packet
 original="$(cat "$packet/packet.sha256")"
 cp "$WORK/audit-notes.orig" "$packet/audit-notes.md"
@@ -299,8 +255,6 @@ rm -f "$packet/audit-notes-3.md"
 run 1 "deleting a generation-only file exits 1" verify "$packet"
 has "GEN-MISSING audit-notes-3.md" "the deletion is named against the generation"
 
-# Generation numbers compare numerically: 10 is later than 9. A lexical sort
-# would read 9 and grade the packet against a stale manifest.
 make_acked_packet
 mv "$packet/packet.sha256.2" "$packet/packet.sha256.10"
 printf '%064d  audit-notes.md\n' 0 >"$packet/packet.sha256.9"
@@ -311,8 +265,6 @@ lacks "GEN-CHANGED" "generation 9 is not consulted"
 run 0 "acknowledge numbers the next generation after the latest" record --acknowledge-divergence "$packet"
 has "generation=11" "the next generation is 11"
 
-# A name that only resembles a generation is a stray file, not a manifest: it is
-# unsealed content until a generation seals it.
 packet="$(fresh_packet)"
 run 0 "record before the look-alike case" record "$packet"
 printf 'stray\n' >"$packet/packet.sha256.2x"
@@ -325,8 +277,6 @@ run 1 "verify grades the look-alike against the generation" verify "$packet"
 has "GEN-MATCH packet.sha256.2x" "the look-alike is sealed into the generation"
 lacks "UNSEALED packet.sha256.2x" "a sealed look-alike is no longer unsealed"
 
-# The next generation stops listing a file that is gone, so the acknowledging
-# run is the last one to name it.
 make_acked_packet
 cp "$WORK/audit-notes.orig" "$packet/audit-notes.md"
 rm -f "$packet/audit-notes-2.md"
@@ -349,7 +299,6 @@ fi
 
 iso_header='^# sealed-at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 
-# has_line <exact-line> <label> - the last run's output carries <exact-line> on a line of its own.
 has_line() {
   if grep -qxF -- "$1" <<<"$last_out"; then
     pass "$2"
@@ -358,8 +307,6 @@ has_line() {
   fi
 }
 
-# fake_clock <stamp> - every later `date` in this suite prints <stamp>, so two
-# seals of one packet differ without a sleep. real_clock removes the stand-in.
 fake_clock() {
   mkdir -p "$WORK/fakebin"
   printf '#!/bin/sh\necho %s\n' "$1" >"$WORK/fakebin/date"
@@ -371,10 +318,8 @@ fake_clock() {
 }
 real_clock() { rm -f "$WORK/fakebin/date"; }
 
-# header_of <manifest> - the manifest's first line.
 header_of() { head -n 1 "$1"; }
 
-# Real `date`: the value has the documented shape.
 packet="$(fresh_packet)"
 run 0 "record stamps the seal moment" record "$packet"
 first="$(header_of "$packet/packet.sha256")"
@@ -419,7 +364,6 @@ else
   fail "the reseal did not write the header: $first"
 fi
 
-# A record after a new note updates the value and keeps the entries.
 packet="$(fresh_packet)"
 fake_clock 2026-01-01T00:00:00Z
 run 0 "record at the first moment" record "$packet"
@@ -442,7 +386,6 @@ run 0 "verify after the reseal" verify "$packet"
 has_line "sealed-at=2026-02-02T03:04:05Z" "verify prints the updated seal moment"
 lacks "2026-01-01" "the superseded seal moment is gone"
 
-# An acknowledged generation carries its own header, and verify prints both.
 packet="$(fresh_packet)"
 fake_clock 2026-01-01T00:00:00Z
 run 0 "record before acknowledging" record "$packet"
@@ -508,8 +451,6 @@ else
   echo "SKIP - symlink visibility case (cannot create symlinks here; set MSYS=winsymlinks:nativestrict on Git Bash)"
 fi
 
-# --- a generation manifest that cannot be trusted fails closed --------------
-
 genpkt="$WORK/untrusted-generation"
 rm -rf "$genpkt"
 mkdir -p "$genpkt"
@@ -531,8 +472,6 @@ has "too large to read" "the refusal names the reason"
 run 2 "record refuses a generation number that overflows Bash arithmetic" record --acknowledge-divergence "$genpkt"
 rm -f "$genpkt/$big"
 
-# --- fail closed ------------------------------------------------------------
-
 packet="$(fresh_packet)"
 run 2 "verify on an unsealed packet fails closed" verify "$packet"
 run 2 "verify on a missing directory is a usage error" verify "$WORK/no-such-packet"
@@ -541,8 +480,6 @@ run 2 "an unknown action is refused" seal "$packet"
 run 2 "record without a packet is a usage error" record
 run 2 "an extra argument is refused" record "$packet" extra
 run 0 "--help exits clean" --help
-
-# --- an empty packet seals to zero and verifies ------------------------------
 
 empty="$WORK/empty-packet"
 rm -rf "$empty"

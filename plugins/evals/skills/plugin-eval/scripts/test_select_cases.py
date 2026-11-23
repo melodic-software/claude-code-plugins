@@ -594,7 +594,7 @@ class SelectCasesTest(unittest.TestCase):
         self.assertEqual(0, res.returncode, res.stderr)
         self.assertEqual("no affected cases", res.stdout.strip())
 
-    def test_pure_word_insertion_follows_the_word_diff_rule(self):
+    def test_inserted_word_is_a_cut_only_when_it_flips_meaning(self):
         _write(
             self.repo,
             "plugins/alpha/skills/check/SKILL.md",
@@ -629,21 +629,37 @@ class SelectCasesTest(unittest.TestCase):
         _git(self.repo, "branch", "-f", "base")
 
         path = self.repo / "plugins/alpha/skills/check/SKILL.md"
-        path.write_text(
-            path.read_text(encoding="utf-8").replace(
-                "Do continue on failure.",
-                "Do not continue on failure.",
-            ),
-            encoding="utf-8",
+        original = path.read_text(encoding="utf-8")
+        flips = ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't",
+                 "shouldn't", "mustn't", "don\u2019t"]
+        for word, expected in [(w, "cases") for w in flips] + [("quietly", "affected-no-run")]:
+            with self.subTest(word=word):
+                path.write_text(
+                    original.replace("Do continue on failure.", "Do %s continue on failure." % word),
+                    encoding="utf-8",
+                )
+                _commit_all(self.repo, "insert %s" % word)
+
+                res = _run_select(self.repo)
+                self.assertEqual(0, res.returncode, res.stderr)
+                blocks = _parse_blocks(res.stdout)
+                self.assertEqual("check", blocks["plugins/alpha"].get(expected))
+                _git(self.repo, "reset", "-q", "--hard", "base")
+
+
+    def test_flip_word_on_a_wholly_new_line_stays_additive(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(
+            "Follow these steps carefully.",
+            "Follow these steps very carefully.\nNever write to the source file.",
         )
-        _commit_all(self.repo, "insert negating word")
+        path.write_text(text, encoding="utf-8")
+        _commit_all(self.repo, "edit a line and add a new one beside it")
 
         res = _run_select(self.repo)
         self.assertEqual(0, res.returncode, res.stderr)
         blocks = _parse_blocks(res.stdout)
-        self.assertEqual("check", blocks["plugins/alpha"]["affected-no-run"])
         self.assertNotIn("cases", blocks["plugins/alpha"])
-
 
 if __name__ == "__main__":
     unittest.main()

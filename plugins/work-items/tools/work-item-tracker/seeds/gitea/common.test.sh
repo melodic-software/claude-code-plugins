@@ -38,8 +38,6 @@ source "$SCRIPT_DIR/common.sh"
 FIX="$(mktemp -d)"
 trap 'rm -rf "$FIX"' EXIT
 
-# --- the public surface exists ---
-
 for fn in wit_require_gitea_id wit_need_gitea_config \
   wit_gitea_scope_in_scope wit_gitea_token \
   wit_gitea_auth_header wit_gitea_http \
@@ -66,8 +64,6 @@ assert_succeeds "declared scope accepted" "in" "out" \
   wit_gitea_scope_in_scope "acme/webapp"
 assert_fails "undeclared scope refused" "out" "in" \
   wit_gitea_scope_in_scope "undeclared/elsewhere"
-
-# --- HTTP status → contract exit code ---
 
 check_map() {
   local label="$1" status="$2" want="$3"
@@ -132,7 +128,6 @@ GOOD='{"host":"git.example.com","auth_env":"WIT_GITEA_TOKEN","scopes":["acme/web
 
 assert_eq "a well-formed binding is accepted" "0" "$(config_rc "$GOOD")"
 
-# Required keys.
 assert_eq "missing host → exit 3" "3" \
   "$(config_rc "$(jq -c 'del(.host)' <<<"$GOOD")")"
 assert_eq "missing auth_env → exit 3" "3" \
@@ -195,8 +190,6 @@ for bad_scope in '""' '"a b"' '"../../etc/passwd"' '"x;id"' '123' 'null'; do
   assert_eq "scope element $bad_scope refused → exit 3" "3" \
     "$(config_rc "$(jq -c --argjson s "[$bad_scope]" '.scopes = $s' <<<"$GOOD")")"
 done
-
-# --- the credential itself ---
 
 # Unset env var → exit 4 (auth), never a request with an empty credential.
 write_binding "$GOOD"

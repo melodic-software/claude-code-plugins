@@ -16,7 +16,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-MODE="confirm" # confirm | soft | full
+MODE="confirm"
 DRY_RUN=0
 for arg in "$@"; do
   case "${arg}" in
@@ -62,9 +62,6 @@ run_or_show() {
   fi
 }
 
-# rm_or_show <rm-flags> <path>...: the array-argument counterpart of
-# run_or_show, for paths that arrive as real array elements rather than as an
-# eval-able string.
 rm_or_show() {
   local flags="$1"
   shift
@@ -82,14 +79,12 @@ echo "The user's Calibre Library (decrypted EPUBs) is never offered for deletion
 echo
 
 if [[ "${MODE}" != "soft" ]]; then
-  # --- 1. Firewall rule ---
   if ask_yn "Remove firewall rule 'Block Kindle for PC (lock 2.8.0)'?"; then
     run_or_show "pwsh -NoProfile -File '${SCRIPT_DIR}/firewall.ps1' -Action remove"
   else
     echo "  skipped — firewall rule retained"
   fi
 
-  # --- 2. ICACLS deny on updates dir ---
   if ask_yn "Remove ICACLS deny on ${KINDLE_UPDATES_DIR}?"; then
     run_or_show "bash '${SCRIPT_DIR}/lock-updates.sh' remove"
   else
@@ -97,7 +92,6 @@ if [[ "${MODE}" != "soft" ]]; then
   fi
 fi
 
-# --- 3. Cached installer in updates dir ---
 if [[ -f "${CACHED_INSTALLER}" ]]; then
   if ask_yn "Delete cached installer at ${CACHED_INSTALLER}?"; then
     run_or_show "rm -f '${CACHED_INSTALLER}'"
@@ -106,7 +100,6 @@ if [[ -f "${CACHED_INSTALLER}" ]]; then
   fi
 fi
 
-# --- 4. ~/Tools/Kindle_Key_Finder ---
 if [[ -d "${KEY_FINDER_DIR}" ]]; then
   if ask_yn "Delete ${KEY_FINDER_DIR}/ (key finder + saved config + extracted keys)?"; then
     run_or_show "rm -rf '${KEY_FINDER_DIR}'"
@@ -115,7 +108,6 @@ if [[ -d "${KEY_FINDER_DIR}" ]]; then
   fi
 fi
 
-# --- 5. Downloaded artifacts ---
 if [[ -f "${KFC_DOWNLOAD}" ]]; then
   if ask_yn "Delete ${KFC_DOWNLOAD}?"; then
     run_or_show "rm -f '${KFC_DOWNLOAD}'"
@@ -147,7 +139,6 @@ if [[ -e "${KKF_ZIPS[0]}" ]]; then
 fi
 
 if [[ "${MODE}" == "full" ]]; then
-  # --- 6. Kindle for PC uninstall ---
   if [[ -f "${KINDLE_APP_DIR}/uninstall.exe" ]]; then
     cat <<'EOF'
 
@@ -168,7 +159,6 @@ EOF
     fi
   fi
 
-  # --- 7. Calibre plugin reminder ---
   cat <<EOF
 
   Calibre plugin removal is GUI-only. To complete cleanup:

@@ -101,12 +101,8 @@ describe("initWatchChecklist", () => {
     const outPath = initWatchChecklist(sliceDir, { force: true });
     const body = fs.readFileSync(outPath, "utf8");
 
-    // Post-bootstrap, vision-plan.md does not exist yet: do not leak the literal
-    // "TBD — set in vision-plan.md" placeholder into the content-class span, and do
-    // not emit fabricated numeric floors. Defer with a clear pending note instead.
     expect(body).not.toContain("TBD — set in vision-plan.md");
     expect(body).toContain("pending `key-frames/vision-plan.md`");
-    // Per-sheet rows + signals still materialize (they come from watch.json, not vision-plan).
     expect(body).toContain("sheet_001");
     expect(body).toContain("highVolume=true");
   });
@@ -156,7 +152,6 @@ describe("initWatchChecklist", () => {
       );
     fs.writeFileSync(outPath, ticked);
 
-    // The vision plan lands and a fourth sheet appears; the operator re-runs with --force.
     fs.writeFileSync(
       path.join(sliceDir, "key-frames", "vision-plan.md"),
       "# Plan\n\nClass: `conference-multi-session`\n".padEnd(120, "x"),
@@ -216,8 +211,6 @@ describe("initWatchChecklist", () => {
       .split("\n")
       .flatMap((line) => {
         if (line.startsWith("- [ ] **0.1**")) {
-          // The tick was saved against other criteria wording (a different stored hash),
-          // as when a template change rewords the row before the next --force.
           return [
             line
               .replace("video-extraction deps installed", "a different criterion")
@@ -480,7 +473,6 @@ describe("initWatchChecklist", () => {
       expect(row(readLines(sliceDir), "1.3").next).toContain("2 frames, 3 contact sheets");
       addAgentEvidence(sliceDir, "1.3", "  - evidence: frame list spot-checked by hand");
 
-      // A re-run produced four frames; watch.json and selection.json agree on the new count.
       const watchPath = path.join(sliceDir, "run-state", "watch.json");
       const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
       watch.phases.watching.metrics.frameCount = 4;
@@ -526,7 +518,6 @@ describe("initWatchChecklist", () => {
       expect(lines.join("\n")).not.toContain("`tempSession` exist on disk");
     });
 
-    // The 3:28 demo video: 4 sheets, 1 window, highVolume set only because 49 candidates > 3 x 7.
     it("ticks 1.5 when highVolume rests on candidates over three times targetMinFrames", () => {
       const shortDemo = {
         durationSec: 207.901,

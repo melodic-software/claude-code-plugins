@@ -36,14 +36,12 @@ from() {
   "$@"
 }
 
-# probe <cwd> [args...]: run the probe from a directory, as the sweeper does.
 probe() {
   local dir="$1"
   shift
   capture from "$dir" bash "$PROBE" "$@"
 }
 
-# left_in <dir>: probe scratch dirs still under a root.
 left_in() { find "$1" -maxdepth 1 -name 'untracked-cache-probe.*' | wc -l | tr -d ' '; }
 
 line() { sed -n "s/^$1=//p" <<<"$RUN_OUT"; }
@@ -65,7 +63,6 @@ chmod +x "$SHIM/df"
 
 index_hash() { sha256sum "$(git -C "$1" rev-parse --path-format=absolute --git-path index)" | cut -d' ' -f1; }
 
-# --- 1. a run on the repository's own volume measures, in a scratch repo it removes ---
 status_before="$(git -C "$REPO" status --porcelain --untracked-files=all)"
 index_before="$(index_hash "$REPO")"
 assert_eq "the repository has an index to compare" "64" "${#index_before}"
@@ -82,7 +79,6 @@ assert_eq "the scratch dir is removed after a measurement" "0" "$(left_in "$ROOT
 assert_eq "the repository's status is unchanged" "$status_before" "$(git -C "$REPO" status --porcelain --untracked-files=all)"
 assert_eq "the repository's index is unchanged" "$index_before" "$(index_hash "$REPO")"
 
-# --- 2. an inherited GIT_DIR never redirects the scratch commands at a real repository ---
 OTHER="$WORK/other"
 mkdir -p "$OTHER"
 git -C "$OTHER" init -q
@@ -98,7 +94,6 @@ assert_eq "the inherited repository's index is unchanged" "$other_index" "$(inde
 assert_eq "no file is added to the inherited repository" "$other_files" "$(find "$OTHER/.git" -type f | sort)"
 assert_eq "the scratch dir is removed with an inherited GIT_DIR" "0" "$(left_in "$ROOT")"
 
-# --- 3. a scratch root on another volume is refused before anything is created ---
 capture from "$REPO" env PATH="$SHIM:$PATH" FAKE_ROOT_VOLUME=VOLB bash "$PROBE" --scratch-root "$ROOT"
 assert_eq "another volume is not checked" "2" "$RUN_RC"
 assert_eq "the result says not-checked" "not-checked" "$(line result)"
@@ -109,19 +104,16 @@ assert_contains "the reason names both volumes" "scratch root is on VOLB, the re
 assert_eq "nothing is created on another volume" "0" "$(left_in "$ROOT")"
 assert_not_contains "git never ran" "detail=" "$RUN_OUT"
 
-# --- 4. an unreadable volume is not guessed ---
 capture from "$REPO" env PATH="$SHIM:$PATH" FAKE_DF_FAIL=1 bash "$PROBE" --scratch-root "$ROOT"
 assert_eq "an unreadable volume is not checked" "2|no-data" "$RUN_RC|$(line reason_code)"
 assert_eq "the unknown volume is shown as unknown" "unknown" "$(line volume)"
 
-# --- 5. outside a repository there is nothing to test ---
 mkdir -p "$WORK/plain"
 probe "$WORK/plain" --scratch-root "$ROOT"
 assert_eq "outside a repository is not checked" "2|no-data" "$RUN_RC|$(line reason_code)"
 assert_contains "the reason says why" "not inside a git working tree" "$(line reason)"
 assert_eq "nothing is created outside a repository" "0" "$(left_in "$ROOT")"
 
-# --- 6. a root that is /, a drive root or not a directory is refused ---
 probe "$REPO" --scratch-root /
 assert_eq "/ is refused as a scratch root" "2|no-data" "$RUN_RC|$(line reason_code)"
 probe "$REPO" --scratch-root C:/
@@ -132,17 +124,14 @@ probe "$REPO" --scratch-root "$WORK/missing"
 assert_eq "a missing root is refused" "2|no-data" "$RUN_RC|$(line reason_code)"
 assert_eq "a missing root is not created" "absent" "$([[ -e "$WORK/missing" ]] && echo present || echo absent)"
 
-# --- 7. TMPDIR is the default root ---
 capture from "$REPO" env TMPDIR="$ROOT" bash "$PROBE"
 assert_contains "the default root is TMPDIR" "$(basename "$ROOT")/untracked-cache-probe." "$(line detail)"
 assert_eq "the scratch dir under TMPDIR is removed" "0" "$(left_in "$ROOT")"
 
-# --- 8. an unknown argument is a usage error ---
 probe "$REPO" --nope
 assert_eq "an unknown argument exits 2" "2" "$RUN_RC"
 assert_contains "the usage is printed" "--scratch-root <dir>" "$RUN_OUT"
 
-# --- 9. a scratch dir that cannot be created is refused, and the reason names the user's step ---
 MKSHIM="$WORK/shim-mktemp"
 mkdir -p "$MKSHIM"
 cat >"$MKSHIM/mktemp" <<'MK'
@@ -157,7 +146,6 @@ assert_contains "the reason says what failed" "could not create a scratch dir un
 assert_contains "the reason names git's own test as a separate tool" "git update-index --test-untracked-cache" "$(line reason)"
 assert_eq "git never ran when the scratch dir could not be created" "0" "$(grep -c '^detail=' <<<"$RUN_OUT")"
 
-# --- 10. a scratch root inside the repository is refused before anything is created ---
 mkdir -p "$REPO/sub"
 status_before="$(git -C "$REPO" status --porcelain --untracked-files=all)"
 index_before="$(index_hash "$REPO")"
@@ -169,7 +157,6 @@ assert_eq "git never ran inside the repository" "0" "$(grep -c '^detail=' <<<"$R
 assert_eq "the repository's status is unchanged by an inside root" "$status_before" "$(git -C "$REPO" status --porcelain --untracked-files=all)"
 assert_eq "the repository's index is unchanged by an inside root" "$index_before" "$(index_hash "$REPO")"
 
-# --- 11. a scratch root that is the repository itself is refused the same way ---
 status_before="$(git -C "$REPO" status --porcelain --untracked-files=all)"
 index_before="$(index_hash "$REPO")"
 probe "$REPO" --scratch-root "$REPO"

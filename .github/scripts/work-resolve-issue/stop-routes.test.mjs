@@ -2,7 +2,7 @@
 // 2026-10-29: a person only for an intent, design, security or cost reason;
 // every retry has a hard end.
 import assert from "node:assert/strict";
-import { copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -491,14 +491,18 @@ test("a reason that opens with another code keeps it, and one naming no owner re
 // beside its own copy of the real table.
 const NO_NAMES_FILE = Symbol("no known-names.json");
 async function loadsWith(table, names = KNOWN_NAMES) {
-  const dir = tempDir("stop-routes-");
+  const root = tempDir("stop-routes-");
+  const dir = join(root, "work-resolve-issue");
   try {
-    copyFileSync(new URL("./stop-routes.mjs", import.meta.url), join(dir, "stop-routes.mjs"));
+    for (const [folder, file] of [["work-resolve-issue", "./stop-routes.mjs"], ["lib", "../lib/lane-vocabulary.mjs"], ["pr-merge", "../pr-merge/merge-holds.mjs"]]) {
+      mkdirSync(join(root, folder), { recursive: true });
+      copyFileSync(new URL(file, import.meta.url), join(root, folder, file.split("/").pop()));
+    }
     writeFileSync(join(dir, "stop-routes.json"), JSON.stringify(table));
     if (names !== NO_NAMES_FILE) writeFileSync(join(dir, "known-names.json"), JSON.stringify(names));
     return await import(pathToFileURL(join(dir, "stop-routes.mjs")).href);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
   }
 }
 

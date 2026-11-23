@@ -30,7 +30,6 @@ import {
   writeContinuationPrompt,
 } from "./watch-state.js";
 
-/** Temp-session dirs vision reads its frames and contact sheets from. */
 const VISION_TEMP_KEYS = /** @type {const} */ (["framesDir", "contactSheetsDir"]);
 
 /**

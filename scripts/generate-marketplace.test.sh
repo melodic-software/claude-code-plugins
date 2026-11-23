@@ -62,7 +62,6 @@ assert_fails() {
   rm -rf "$dir"
 }
 
-# --- stale entries: --check fails before any generate --------------------------
 mk_tree tree
 run_gen "$tree" --check
 if [[ "$CODE" -ne 0 && "$OUT" == *"Marketplace drift"* && "$OUT" == *"First difference at generated line "* ]]; then
@@ -71,7 +70,6 @@ else
   fail "stale entries not detected (exit=$CODE: $OUT)"
 fi
 
-# --- green path: generate, idempotent --check, entry content -------------------
 run_gen "$tree"
 if [[ "$CODE" -eq 0 ]]; then ok "generate exits 0"; else fail "generate (exit=$CODE: $OUT)"; fi
 run_gen "$tree" --check
@@ -84,7 +82,6 @@ else
   fail "entries: expected $expected, got $actual"
 fi
 
-# --- drift: a keyword edit in plugin.json makes --check fail -------------------
 write_manifest "$tree" alpha '{ "name": "alpha", "keywords": ["a1", "a3"], "metadata": { "category": "testing" } }'
 run_gen "$tree" --check
 if [[ "$CODE" -ne 0 && "$OUT" == *"generate-marketplace.mjs"* ]]; then
@@ -94,7 +91,6 @@ else
 fi
 rm -rf "$tree"
 
-# --- failure modes ----------------------------------------------------------------
 mk_tree tree
 write_manifest "$tree" alpha '{ "name": "alpha", "keywords": ["a1"] }'
 assert_fails "missing metadata.category names the plugin" "$tree" "alpha: plugin.json has no metadata.category"

@@ -55,7 +55,6 @@ printf '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" co
 printf 'asset' >"$WORK/logo.png"
 printf 'connect-src http://127.0.0.1:1' >"$WORK/notes.txt"
 
-# run <json tool_input> [tool_name] [env KEY=VALUE] - prints hook stdout
 run() {
   local payload
   payload=$(printf '{"tool_name":"%s","cwd":"%s","tool_input":%s}' "${2:-Artifact}" "$WORK" "$1")
@@ -89,7 +88,6 @@ assert_silent "$(run "{\"file_path\":\"$CONNECTED\"}" Write)" \
 assert_silent "$(printf 'not json' | node "$HOOK")" \
   "a malformed payload is allowed with no output"
 
-# Hand-written policies: other loopback spellings deny, remote origins pass.
 csp() { printf '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src '"'none'"'; connect-src %s"></head></html>' "$1" >"$WORK/$2.html"; }
 for src in "'self' http://localhost:3000" "localhost:3000" "127.0.0.1:8765" "ws://[::1]:9" "HTTP://LOCALHOST" "https://example.com http://127.0.0.1:1"; do
   csp "$src" loop
@@ -100,7 +98,6 @@ for src in "'self' https://example.com" "'none'" "https://localhost.example.com"
   assert_silent "$(run "{\"file_path\":\"$WORK/remote.html\"}")" "connect-src $src is allowed"
 done
 
-# A relative path resolves against the payload cwd.
 cp "$CONNECTED" "$WORK/rel.html"
 assert_denies "$(run '{"file_path":"rel.html"}')" \
   "a relative path resolves against cwd"

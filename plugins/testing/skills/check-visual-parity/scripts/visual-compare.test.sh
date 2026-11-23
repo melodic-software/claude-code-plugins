@@ -138,8 +138,6 @@ mkdir -p "$T/empty"
 run manifest --dir "$T/empty" --browser "chromium 140" --viewport 1280x720 --scale 1
 assert_eq "manifest over a directory with no PNG exits 2" 2 "$rc"
 
-# --- config: the pixel_tolerance layers ---------------------------------------
-
 # layer <file> <pixels> [reason]: a testing.yaml holding the map.
 layer() {
   mkdir -p "$(dirname "$1")"

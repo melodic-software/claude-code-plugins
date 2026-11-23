@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- cursorbench: unread (fixture-missing)",
+      "why": "names cursorbench unread"
+    },
+    {
+      "answer": "Unread source: cursorbench (page missing).",
+      "why": "reverse order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- terminal-bench: live (2026-11-18)",
+      "why": "dropped cursorbench silently"
+    },
+    {
+      "answer": "- cursorbench: live (2026-11-18)",
+      "why": "claims cursorbench was read"
+    }
+  ]
+}

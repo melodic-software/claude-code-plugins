@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { appCloseKind, commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError } from "../../scripts/lib/github-client.mjs";
+import { appCloseKind, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
 import { main as recordMain } from "./reconciler-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -22,7 +23,6 @@ const BASE_SHA = "2222222222222222222222222222222222222222";
 const STRANGER = { login: "stranger", id: 9999001, type: "User" };
 const OWN_RUN_ID = "39000000001";
 const OWN_ROUTE = `GET /repos/${REPOSITORY}/actions/runs/${OWN_RUN_ID}`;
-// The account each triggering-actor login in these tests stands for.
 const USERS = {
   "kyle-sexton": { login: "kyle-sexton", id: 153232337, type: "User" },
   stranger: STRANGER,
@@ -201,8 +201,6 @@ const PROCEED = {
   "pr-base-sha": BASE_SHA,
 };
 
-// pull_request
-
 test("pull_request: same-repo PR from a listed author and actor proceeds", async () => {
   assert.deepEqual(
     await gate({ eventName: "pull_request", event: fixture("event-pull-request.json") }),
@@ -253,8 +251,6 @@ test("pull_request: a renamed login keeps trust through its listed id", async ()
   event.pull_request.user.login = "kyle-renamed";
   assert.deepEqual(await gate({ eventName: "pull_request", event }), PROCEED);
 });
-
-// workflow_dispatch
 
 test("workflow_dispatch: resolves the head ref of a same-repo PR by fetching it", async () => {
   const github = fakeGitHub({
@@ -347,8 +343,6 @@ test("workflow_dispatch: an unlisted dispatcher stops with untrusted-actor", asy
     STOPPED("untrusted-actor"),
   );
 });
-
-// workflow_run
 
 const commitPulls = `GET /repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls`;
 
@@ -977,8 +971,6 @@ test("dispatcher: the run id is ignored on a pull_request event", async () => {
   assert.deepEqual(github.calls, [selfRoute]);
 });
 
-// The dispatcher run's record of the runs it dispatched
-
 const artifactReads = (github) => github.calls.filter((call) => call === artifactsRoute).length;
 
 test("dispatcher: recorded proceeds with no wait", async () => {
@@ -1480,8 +1472,6 @@ test("reconciler re-run: a failed attempt read refuses", async () => {
   assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
 });
 
-// actor-only mode (require-pr: false)
-
 const ACTORS_OK = { ...STOPPED("ok"), proceed: "true" };
 
 function actorOnly({ eventName = "workflow_dispatch", event, ...rest }) {
@@ -1824,16 +1814,12 @@ test("require-pr: true keeps today's PR rules", async () => {
   );
 });
 
-// other events
-
 test("an event the gate does not handle stops with no-pr", async () => {
   assert.deepEqual(
     await gate({ eventName: "pull_request_target", event: fixture("event-pull-request.json") }),
     STOPPED("no-pr"),
   );
 });
-
-// trusted-actor list
 
 test("a missing list stops with list-unreadable", async () => {
   assert.deepEqual(
@@ -1888,8 +1874,6 @@ test("loadTrustedActors returns the listed ids", () => {
     [49699333, 153232337, 209825114, 337595936],
   );
 });
-
-// denied actor ids (bot-actor) and the re-runner (triggering-actor)
 
 const LANES_BOT = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const DENY_BOT = "337595936";
@@ -2012,8 +1996,6 @@ test("untrusted-rerunner: an empty re-runner login does not skip the check of th
   }
 });
 
-// failure handling
-
 test("an unreadable event payload stops the gate instead of throwing", async () => {
   const outputPath = writeJson("output", "");
   await main({
@@ -2054,8 +2036,6 @@ test("the CLI exits 0 with proceed=false when its inputs are missing", () => {
   assert.equal(result.status, 0);
   assert.equal(readOutputs(readFileSync(outputPath, "utf8")).proceed, "false");
 });
-
-// GitHub client
 
 test("createGitHub sends the token and raises GitHubError with the status on failure", async () => {
   const seen = [];
@@ -2471,7 +2451,7 @@ test("a read answered retry-after 0 mid-second waits out the 60 s fallback, as o
 // with main's code, with no error annotation.
 test("a read that rides out a short rate limit leaves the process green", () => {
   const script = `
-    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    import { createGitHub } from "./.github/scripts/lib/github-client.mjs";
     const answers = [
       new Response('{"message":"You have exceeded a secondary rate limit."}', { status: 403, headers: { "retry-after": "1" } }),
       new Response('[{"number":7}]', { status: 200 }),
@@ -2512,7 +2492,6 @@ test("createGitHub counts the time a failed attempt took against the 60 s budget
   const github = createGitHub({
     token: "t",
     apiUrl: "https://api.example",
-    // Each attempt takes 28 s of the clock, then times out.
     fetchImpl: async (url) => {
       sent.push(url);
       clock += 28_000;
@@ -3986,7 +3965,6 @@ test("fault-reason: every refusal on an answer GitHub gave keeps its reason", as
   const noTip = dispatcherRoutes();
   delete noTip[tipRoute];
   assert.deepEqual(await dispatched({ github: fakeGitHub(noTip), ...on }), STOPPED("untrusted-actor"));
-  // A trusted trigger still proceeds with the input on.
   assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ...on }), PROCEED);
   assert.deepEqual(await dispatched({ github: fakeGitHub(dispatcherRoutes()), ...on }), PROCEED);
 });

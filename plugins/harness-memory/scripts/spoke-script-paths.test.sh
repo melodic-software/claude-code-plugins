@@ -12,7 +12,6 @@ SKILLS="$SCRIPT_DIR/../skills"
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-# check_skills <skills-root>: print one line per violation; exit 1 when any.
 check_skills() {
   local root="$1" bad=0 spoke skill ref
   for spoke in "$root"/*/context/* "$root"/*/reference/*; do
@@ -43,8 +42,6 @@ OUT=$(check_skills "$SKILLS") || rc=$?
 assert_exit "shipped skills satisfy the spoke-script convention" 0 "$rc"
 assert_eq "no violations reported" "" "$OUT"
 
-# The gate must be able to fail: inject each defect into a copy of the shipped tree.
-# inject <label> <expected-substring> <file under the copy> <sed expression>
 inject() {
   local copy="$TEST_TMPDIR/$1"
   mkdir -p "$copy"

@@ -44,7 +44,6 @@ run_check() (
   cd "$1" && bash scripts/check-silent-skips.sh
 )
 
-# --- same-line silent skip fails -------------------------------------------
 new_fixture f
 hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
@@ -58,7 +57,6 @@ else
 fi
 rm -rf "$f"
 
-# --- same-line skip via skip-named helper fails ----------------------------
 new_fixture f
 hook_file "$f" alpha check.sh 'command -v pwsh >/dev/null 2>&1 || emit_skipped'
 if run_check "$f" >/dev/null 2>&1; then
@@ -230,7 +228,6 @@ else
 fi
 rm -rf "$f"
 
-# --- silent block skip fails -----------------------------------------------
 new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   exit 0
@@ -265,7 +262,6 @@ else
 fi
 rm -rf "$f"
 
-# --- block skip with a sanctioned notice call passes -----------------------
 new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v actionlint >/dev/null 2>&1; then
   hook::emit_skip_notice PostToolUse "alpha: actionlint not found — lint skipped"
@@ -290,7 +286,6 @@ else
 fi
 rm -rf "$f"
 
-# --- nested if inside the guard block is tracked to the right fi -----------
 new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   if [[ -n "${VERBOSE:-}" ]]; then
@@ -305,7 +300,6 @@ else
 fi
 rm -rf "$f"
 
-# --- non-skip guards are never flagged -------------------------------------
 new_fixture f
 hook_file "$f" alpha check.sh 'command -v cygpath >/dev/null 2>&1 || return 1
 command -v "$bin" >/dev/null 2>&1 || continue
@@ -319,7 +313,6 @@ else
 fi
 rm -rf "$f"
 
-# --- hook-utils.sh copies and test files are excluded ----------------------
 new_fixture f
 hook_file "$f" alpha hook-utils.sh 'command -v jq >/dev/null 2>&1 || return 0'
 hook_file "$f" alpha check.test.sh 'command -v jq >/dev/null 2>&1 || exit 0'
@@ -419,7 +412,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an empty plugins tree passes ------------------------------------------
 new_fixture f
 if run_check "$f" >/dev/null 2>&1; then
   ok "empty tree passes"

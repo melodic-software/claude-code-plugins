@@ -1464,7 +1464,8 @@ the rules that only tighten in
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
     which scope each lane token, `docs/conventions/pr-pipeline.yaml`, whose activity `effect:`
-    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
+    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**` with the
+    GitHub client it loads (`.github/scripts/lib/github-client.mjs`),
     `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`,
     `**/.gitmodules`, and the code that computes the author lift and the hold tables:
     `babysit_merge.py`, `babysit_merge_policy.py`, `diff_risk.py` and
@@ -1564,7 +1565,7 @@ the rules that only tighten in
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole, except that a file over 300000 bytes is cut at its hunks into
-  pieces, each under the file's header and no two in one chunk (`split-diff.py`); each chunk is
+  pieces, each under the file's header and no two in one chunk (`diff_chunking.py`); each chunk is
   reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
@@ -1587,7 +1588,7 @@ the rules that only tighten in
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
   (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
   leg, which reviews every chunk again. Read may cut a long line short, so a diff line over 1800
-  bytes (`diff_risk.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
+  bytes (`diff_chunking.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
   inside a UTF-8 character, as pr-verify's `chunk-diff.sh` folds; the prompt says each such line
   is the rest of the line before it and adds no line to the file's numbering. Every byte reaches a
   whole Read, and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
@@ -2802,7 +2803,7 @@ label or body-edit re-run skips `select-tests` and every suite, so its list is n
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
 whole but one over 300000 bytes, cut at its hunks into pieces the manifest lists as
-`piece <i> of <n>` (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`),
+`piece <i> of <n>` (`chunk-diff.sh`, `diff_chunking.py`; the same chunk budget as `pr-review-main`),
 and a file with one hunk over a chunk gets no verdict; each chunk
 gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
@@ -3813,7 +3814,7 @@ those keys, and `small` must run. An option no entry maps fails the resolve with
 `unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
 its Size is `split`, except a sub-issue intake's size split filed whose body counts as its parent's
-text (`admit.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
+text (`size-split.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
 sub-issue whatever its Size, so when `split-child-size` names a size that runs, a split size reads
 as that size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
@@ -3884,7 +3885,7 @@ and `attended` labels, and a retry adds them to a part it reuses.
 
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
-(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+(`size-split.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
 for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
 up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
 number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window

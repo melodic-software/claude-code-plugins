@@ -20,8 +20,6 @@ TEST_TMPDIR="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
 
-# wt_stanza <repo> <path-fragment> -> the `worktree list --porcelain` record of
-# the linked tree whose path carries <path-fragment>, on stdout.
 wt_stanza() {
   git -C "$1" worktree list --porcelain | awk -v RS= -v p="$2" 'index($0, p)'
 }
@@ -47,8 +45,6 @@ run() {
   RC=$?
 }
 
-# --- Scope: commands the hook must never touch --------------------------------
-
 run "$REPO" "git status" "s-status"
 assert_exit "a git command that is not worktree add is a no-op" 0 "$RC"
 assert_silent "non-add produces no additionalContext" "$OUT"
@@ -60,8 +56,6 @@ assert_exit "echo naming git worktree add is not a git call" 0 "$RC"
 decoy=$(wt_stanza "$REPO" wt-decoy)
 assert_not_contains "echo does not lock an existing unclaimed tree" "$decoy" "locked"
 assert_silent "echo produces no additionalContext" "$OUT"
-
-# --- After a plain add, the new tree is claimed with the session id -----------
 
 git -C "$REPO" worktree add -q "$EXT/wt-hook" -b feat/hook
 run "$REPO" "git worktree add $EXT/wt-hook -b feat/hook" "sess-hook-one"
@@ -79,8 +73,6 @@ stanza2=$(wt_stanza "$REPO" wt-hook)
 assert_contains "original session reason survived the second pass" "$stanza2" "sess-hook-one"
 assert_not_contains "a later session did not overwrite the reason" "$stanza2" "sess-hook-two"
 
-# --- Helper-created reason is left untouched ----------------------------------
-
 git -C "$REPO" worktree add -q "$EXT/wt-helped" -b feat/helped
 git -C "$REPO" worktree lock --reason "$HELPER_REASON" "$EXT/wt-helped"
 run "$REPO" "git worktree add $EXT/wt-helped -b feat/helped" "sess-other"
@@ -89,16 +81,12 @@ helped=$(wt_stanza "$REPO" wt-helped)
 assert_contains "helper reason is still the helper string" "$helped" "$HELPER_REASON"
 assert_not_contains "helper reason was not rewritten by the hook" "$helped" "worktree-claim.sh"
 
-# --- Kill switch --------------------------------------------------------------
-
 git -C "$REPO" worktree add -q "$EXT/wt-off" -b feat/off
 run "$REPO" "git worktree add $EXT/wt-off -b feat/off" "sess-off" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED=false
 assert_exit "disabled hook exits 0" 0 "$RC"
 off=$(wt_stanza "$REPO" wt-off)
 assert_not_contains "disabled hook does not lock" "$off" "locked"
-
-# --- Two hook sessions produce different reasons ------------------------------
 
 REPO2="$(mkrepo)"
 git -C "$REPO2" worktree add -q "$EXT/wt-a" -b feat/a

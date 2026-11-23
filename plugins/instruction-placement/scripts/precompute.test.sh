@@ -21,8 +21,6 @@ SCRIPT="$SCRIPT_DIR/precompute.sh"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
 
-# No case calls the live `claude`: every run reads a fixture binary that prints
-# a fixed --version line, and a fixture mechanics record.
 fake_claude() {
   local path="$SCRATCH/claude-$1"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s (Claude Code)"\n' "$1" >"$path"
@@ -43,8 +41,6 @@ export IP_CLAUDE_BIN
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# A repository whose rules live in three places the root-only `find` cannot see
-# as one set: the root tree, a nested package tree, and a symlinked shared set.
 build_fixture() {
   local dir
   dir="$(mktemp -d "$SCRATCH/fx.XXXXXX")"
@@ -64,9 +60,6 @@ run_in() {
   (cd "$dir" && bash "$SCRIPT" "$@" 2>/dev/null)
 }
 
-# --------------------------------------------------------------------------
-# Usage
-# --------------------------------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_eq "a missing mode is a usage error" "2" "$?"
 
@@ -76,13 +69,6 @@ assert_eq "an unknown mode is a usage error" "2" "$?"
 usage="$(bash "$SCRIPT" nope 2>&1)"
 assert_contains "the usage line names every mode" "$usage" "audit|check|realign"
 
-# --------------------------------------------------------------------------
-# The counts agree with the discovery layer
-#
-# This is the regression. Before the consolidation these lines ran a bare
-# `find .claude/rules`, which reports 1 on the fixture below while the check
-# gate walks 3 -- the header understating the repository by two thirds.
-# --------------------------------------------------------------------------
 repo="$(build_fixture)"
 
 # shellcheck source=lib/discover.sh
@@ -104,9 +90,6 @@ assert_eq "the two modes report the same count" \
   "$(printf '%s' "$audit_out" | grep 'Rules files:')" \
   "$(printf '%s' "$check_out" | grep 'Rules files:')"
 
-# --------------------------------------------------------------------------
-# Presence probes
-# --------------------------------------------------------------------------
 assert_contains "check reports a present CLAUDE.md" "$check_out" '- Root CLAUDE.md: present'
 assert_contains "check reports an absent AGENTS.md" "$check_out" '- Root AGENTS.md: absent'
 
@@ -116,13 +99,6 @@ assert_contains "an empty AGENTS.md is present, not absent" \
 assert_contains "and its line count is 0 rather than absent" \
   "$(run_in "$repo" audit)" "- Root AGENTS.md lines: 0"
 
-# --------------------------------------------------------------------------
-# Nested instruction counts follow the corpus rules, not a bare walk
-#
-# ip_discover_nested_instructions is tracked-only inside a repository and
-# excludes vendored trees. A bare `find` counts both, which would tell the
-# operator there is on-demand instruction content where none actually loads.
-# --------------------------------------------------------------------------
 mkdir -p "$repo/node_modules/pkg" "$repo/vendor/upstream" "$repo/docs"
 : >"$repo/node_modules/pkg/CLAUDE.md"
 : >"$repo/vendor/upstream/AGENTS.md"
@@ -131,19 +107,12 @@ mkdir -p "$repo/node_modules/pkg" "$repo/vendor/upstream" "$repo/docs"
 assert_contains "vendored and node_modules instruction files are not counted" \
   "$(run_in "$repo" audit)" "- Nested instruction files: 1"
 
-# Inside a repository the count is tracked-only, so an uncommitted file drops.
 git -C "$repo" init -q .
 git -C "$repo" -c user.email=t@t -c user.name=t add CLAUDE.md AGENTS.md >/dev/null 2>&1
 git -C "$repo" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
 assert_contains "an untracked nested file is not counted inside a repository" \
   "$(run_in "$repo" audit)" "- Nested instruction files: 0"
 
-# --------------------------------------------------------------------------
-# Degradation
-#
-# This output lands in a skill header, so every mode must exit 0 and print a
-# usable value even where the probes have nothing to read.
-# --------------------------------------------------------------------------
 empty="$(mktemp -d "$SCRATCH/fx.XXXXXX")"
 for mode in audit check realign; do
   out="$(run_in "$empty" "$mode")"
@@ -160,15 +129,6 @@ assert_contains "an absent CLAUDE.md reads as absent, not 0" \
 assert_contains "an empty directory reports zero rules" \
   "$(run_in "$empty" check)" "- Rules files: 0"
 
-# --------------------------------------------------------------------------
-# The mechanics-record line
-#
-# The record's measured cells were taken on named CLI versions, and its recheck
-# trigger once went twenty versions past without notice. audit and realign
-# must say STALE exactly when the installed CLI is newer than the newest
-# measurement (2.1.278 in the fixture; the changelog-only 2.1.288 must not
-# count), and check, which prices nothing, must not carry the line.
-# --------------------------------------------------------------------------
 for mode in audit realign; do
   out="$(IP_CLAUDE_BIN="$(fake_claude 2.1.250)" run_in "$empty" "$mode")"
   assert_contains "$mode: an older CLI is not stale" \
@@ -201,9 +161,6 @@ else
   pass "check carries no mechanics line"
 fi
 
-# --------------------------------------------------------------------------
-# The probe must never modify the repository it describes
-# --------------------------------------------------------------------------
 before="$(git -C "$repo" status --porcelain)"
 run_in "$repo" audit >/dev/null
 run_in "$repo" check >/dev/null

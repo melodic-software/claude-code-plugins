@@ -9,7 +9,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { FIELD_API, postOptionNames, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
 import {
@@ -141,7 +141,6 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
         all ??= "unit-unreadable";
         continue;
       }
-      // A unit the collector read only part of its workflow's window for.
       if (unit.window_complete === false) {
         complete = false;
         if (unit.workflow) partial.add(unit.workflow);

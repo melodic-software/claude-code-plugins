@@ -76,41 +76,35 @@ run() {
   code=$?
 }
 
-# 1. CLI current, both baselines match upstream.
 write_baselines
 stub ctx7 "$CTX7_STUB"
 run
 assert_eq "in sync: exit 0" 0 "$code"
 assert_contains "in sync: reports no drift" "$out" "No drift detected"
 
-# 2. ctx7 not installed, upstream unchanged: reported, not drift.
 rm "$BIN/ctx7"
 run
 assert_eq "ctx7 not installed: exit 0" 0 "$code"
 assert_contains "ctx7 not installed: reported" "$out" "ctx7 is not installed"
 stub ctx7 "$CTX7_STUB"
 
-# 3. Installed CLI behind latest.
 FAKE_INSTALLED=1.1.0
 run
 assert_eq "CLI behind latest: exit 1" 1 "$code"
 assert_contains "CLI behind latest: summary names it" "$out" "CLI version behind"
 FAKE_INSTALLED=1.2.0
 
-# 4. Upstream skill content changed.
 printf 'new find-docs rule\n' >>"$UPSTREAM/find-docs.md"
 run
 assert_eq "upstream content changed: exit 1" 1 "$code"
 assert_contains "upstream content changed: names the skill" "$out" "find-docs SKILL.md changed upstream"
 write_baselines
 
-# 5. A baseline is missing in report mode.
 rm "$SKILL/vendor/cli/SKILL.md"
 run
 assert_eq "baseline missing: exit 1" 1 "$code"
 write_baselines
 
-# 6. Upstream unreachable.
 FAKE_CURL_FAIL=1
 run
 assert_eq "upstream fetch fails: exit 2" 2 "$code"
@@ -126,7 +120,6 @@ run
 assert_eq "npm registry unreachable with ctx7 installed: exit 2" 2 "$code"
 FAKE_LATEST=1.2.0
 
-# 7. Drift outranks unverifiable.
 FAKE_INSTALLED=1.1.0
 FAKE_CURL_FAIL=1
 run
@@ -134,14 +127,12 @@ assert_eq "CLI behind and upstream unreachable: exit 1" 1 "$code"
 FAKE_INSTALLED=1.2.0
 FAKE_CURL_FAIL=""
 
-# 8. A prerequisite is missing.
 rm "$BIN/git"
 run
 assert_eq "git missing: exit 2" 2 "$code"
 assert_contains "git missing: names it" "$out" "Required command not found: git"
 stub git "$GIT_STUB"
 
-# 9. Usage and the requested-action failures.
 run --bogus
 assert_eq "unknown mode: exit 2" 2 "$code"
 
@@ -150,7 +141,6 @@ run --fix
 assert_eq "--fix with a failing npm install: exit 2" 2 "$code"
 FAKE_INSTALLED=1.2.0
 
-# 10. --refresh-baseline over drift rewrites the baselines, stamps the commit, exits 0.
 printf 'new cli rule\n' >>"$UPSTREAM/context7-cli.md"
 run --refresh-baseline
 assert_eq "--refresh-baseline over drift: exit 0" 0 "$code"

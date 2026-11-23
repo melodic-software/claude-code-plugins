@@ -22,8 +22,6 @@ BeforeAll {
         }
     }
 
-    # Pre-create the file, then write a document whose ran_at sits -OffsetSeconds from
-    # the creation time the import reads back.
     function Write-ElevatedResultFixture {
         param(
             [object[]] $Results = @(),
@@ -101,7 +99,6 @@ Describe 'Import-ElevatedResult' -Tag 'lib' {
     }
 
     It 'drops a result for a check with no elevation-matrix row and counts it in one INFO note' {
-        # services has no Get-ElevationMatrix row.
         $elevatedServices = Get-CheckResultFixture -Id 'services' -Category 'services' -Severity 'CRIT' -Summary 'from the file'
         $path = Write-ElevatedResultFixture -Results @($script:elevatedDisk, $elevatedServices)
 

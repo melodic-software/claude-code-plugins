@@ -43,7 +43,6 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# No repo guard here: the sibling resolver handles the non-repo case itself.
 memory_dir=$(bash "$SCRIPT_DIR/resolve-memory-dir.sh" 2>/dev/null)
 
 # An empty resolution would make the glob below expand against the filesystem root.
@@ -53,7 +52,6 @@ if [[ -z "$memory_dir" ]]; then
 fi
 
 if [[ "$mode" == "--md-count" ]]; then
-  # nullglob, not `ls | wc -l`, which fails the pipeline under pipefail on an empty dir.
   shopt -s nullglob
   files=("$memory_dir"/*.md)
   shopt -u nullglob
