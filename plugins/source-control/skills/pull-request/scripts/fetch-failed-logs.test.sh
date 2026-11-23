@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for fetch-failed-logs.sh.
-#
-# Black-box: invokes the script as a subprocess with a stubbed `gh` on PATH
-# that emits fixture data instead of calling the real GitHub API.
 
 set -uo pipefail
 
@@ -16,9 +12,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Skip suite if `unzip` (production dep) or `zip` (test fixture builder) is
-# missing. CI runners have them preinstalled. Windows Git Bash users install
-# via `winget install gnuwin32.zip`.
 command -v unzip >/dev/null 2>&1 || skip_suite "unzip not installed"
 command -v zip >/dev/null 2>&1 || skip_suite "zip not installed"
 
@@ -35,7 +28,6 @@ command -v zip >/dev/null 2>&1 || skip_suite "zip not installed"
 
 FIXTURE_BUILD="$TEST_TMPDIR/fixture-build"
 mkdir -p "$FIXTURE_BUILD/build/" "$FIXTURE_BUILD/shell _ Bash (tests)/"
-# Top-level consolidated step logs (where ##[error] markers actually live)
 {
   printf '2026-05-08T10:00:00Z setup\n'
   printf '##[error]CS0246: type or namespace not found\n'
@@ -46,14 +38,11 @@ mkdir -p "$FIXTURE_BUILD/build/" "$FIXTURE_BUILD/shell _ Bash (tests)/"
   printf '##[error]Assert.Equal failure in MyTest\n'
   printf '##[error]Process completed with exit code 1.\n'
 } >"$FIXTURE_BUILD/4_shell _ Bash (tests).txt"
-# Per-job system.txt — metadata only, no error markers
 printf 'Hosted Compute Agent\nVersion: 20260507.1.0\n' >"$FIXTURE_BUILD/build/system.txt"
 printf 'Hosted Compute Agent\nVersion: 20260507.1.0\n' >"$FIXTURE_BUILD/shell _ Bash (tests)/system.txt"
 
 FIXTURE_ZIP="$TEST_TMPDIR/run-logs.zip"
 (cd "$FIXTURE_BUILD" && zip -qr "$FIXTURE_ZIP" .)
-
-# ---- Build fixture per-job text ---------------------------------------------
 
 FIXTURE_JOB_TXT="$TEST_TMPDIR/job-logs.txt"
 {
@@ -62,16 +51,6 @@ FIXTURE_JOB_TXT="$TEST_TMPDIR/job-logs.txt"
   printf '##[warning]NETSDK1206: deprecated framework\n'
   printf 'job done\n'
 } >"$FIXTURE_JOB_TXT"
-
-# ---- Stub `gh` --------------------------------------------------------------
-#
-# The stub reads its first arg ('api' or 'repo'), then dispatches:
-#   api repos/<owner>/<repo>/actions/runs/<id>/logs       → cat fixture ZIP
-#   api repos/<owner>/<repo>/actions/jobs/<id>/logs       → cat fixture text
-#   api repos/<owner>/<repo>/actions/runs/FAIL/logs       → exit 1 (failure)
-#   api repos/<owner>/<repo>/actions/runs/TINY/logs       → emit 5 bytes (not a ZIP)
-#   api repos/<owner>/<repo>/actions/jobs/FAIL/logs       → exit 1 (failure)
-#   repo view --json nameWithOwner ...                    → echo example-org/example-repo
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
@@ -100,8 +79,6 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
-# Runs the script against the stub `gh` with a caller-chosen scratch dir (case
-# isolation for the size-cap / failure paths) and captures combined output.
 run_script_with_scratch() {
   local scratch="$1"
   shift
@@ -111,19 +88,14 @@ run_script_with_scratch() {
     bash "$SCRIPT" "$@" 2>&1
 }
 
-# Default variant: the shared scratch dir most cases use.
 run_script() {
   run_script_with_scratch "$TEST_TMPDIR/scratch" "$@"
 }
 
-# Variant that discards output; the exit code comes back via $?.
 run_script_with_scratch_silent() {
   run_script_with_scratch "$@" >/dev/null 2>&1
 }
 
-# ---- Cases ------------------------------------------------------------------
-
-# Case 1: Full-run ZIP — extracts ##[error] from real-shape top-level files
 out=$(run_script 12345)
 if [[ "$out" == *"0_build.txt"* && "$out" == *"##[error]CS0246"* &&
   "$out" == *"4_shell _ Bash (tests).txt"* && "$out" == *"##[error]Assert.Equal"* ]]; then
@@ -132,7 +104,6 @@ else
   fail "full-run ZIP emits error markers from real-shape top-level files" "filename headers + error markers" "$out"
 fi
 
-# Case 2: Per-job mode — emits ##[error] from plain text
 out=$(run_script --job 99999)
 if [[ "$out" == *"##[error]ENOENT"* && "$out" != *"job done"* ]]; then
   pass "per-job mode greps error/warning markers only"
@@ -140,7 +111,6 @@ else
   fail "per-job mode greps error/warning markers only" "ENOENT marker but no plain content" "$out"
 fi
 
-# Case 3: --raw mode dumps everything (no grep filter, includes system.txt)
 out=$(run_script 12345 --raw)
 if [[ "$out" == *"Hosted Compute Agent"* && "$out" == *"##[error]CS0246"* ]]; then
   pass "--raw dumps full content unfiltered (incl. per-job system.txt)"
@@ -148,19 +118,15 @@ else
   fail "--raw dumps full content unfiltered (incl. per-job system.txt)" "all txt files dumped" "$out"
 fi
 
-# Case 4: --keep-zip leaves ZIP under scratch
 out=$(run_script 22222 --keep-zip)
 assert_file_exists "--keep-zip preserves ZIP under scratch/" "$TEST_TMPDIR/scratch/run-22222-logs.zip"
 
-# Case 5: Size cap aborts with exit 3
 run_script_with_scratch_silent "$TEST_TMPDIR/scratch5" 33333 --max-bytes 10
 assert_exit "size cap returns exit 3" 3 "$?"
 
-# Case 6: gh api failure — exits 2
 run_script_with_scratch_silent "$TEST_TMPDIR/scratch6" FAIL
 assert_exit "gh api failure returns exit 2" 2 "$?"
 
-# Case 7: Tiny non-ZIP response (5 bytes) — exits 2 with diagnostic
 out=$(run_script_with_scratch "$TEST_TMPDIR/scratch7" TINY)
 ec=$?
 if [[ $ec -eq 2 && "$out" == *"likely an API error"* ]]; then
@@ -169,15 +135,10 @@ else
   fail "tiny non-ZIP response exits 2 with diagnostic" "exit 2 + diagnostic" "exit $ec, out: $out"
 fi
 
-# Case 8: Missing arguments — exits 1
 ec=0
 run_script_with_scratch_silent "$TEST_TMPDIR/scratch8" || ec=$?
 assert_exit "missing run-id and --job exits 1" 1 "$ec"
 
-# ---- Audit flag fixture extension ----
-# Append to the existing step file: a ##[group]/##[endgroup] pair with
-# timestamps, a ##[notice] marker, and a "0 tests" suspicious-pattern line.
-# Reusing the fixture path keeps the earlier assertions working.
 {
   printf '2026-05-08T10:02:00.000Z ##[group]Restore packages\n'
   printf '2026-05-08T10:02:01.500Z restoring...\n'
@@ -188,7 +149,6 @@ assert_exit "missing run-id and --job exits 1" 1 "$ec"
 } >>"$FIXTURE_BUILD/0_build.txt"
 (cd "$FIXTURE_BUILD" && zip -qr "$FIXTURE_ZIP" .)
 
-# Case 9: --errors-only suppresses warnings
 out=$(run_script 12345 --errors-only)
 if [[ "$out" == *"##[error]CS0246"* && "$out" != *"##[warning]NU1701"* ]]; then
   pass "--errors-only excludes warning markers"
@@ -196,11 +156,9 @@ else
   fail "--errors-only excludes warning markers" "errors yes warnings no" "$out"
 fi
 
-# Case 10: --notices includes ##[notice]
 out=$(run_script 12345 --notices)
 assert_contains "--notices surfaces notice markers" "$out" "##[notice]informational"
 
-# Case 11: --groups shows step structure
 out=$(run_script 12345 --groups)
 if [[ "$out" == *"##[group]Restore packages"* && "$out" == *"##[endgroup]"* ]]; then
   pass "--groups extracts group/endgroup structure"
@@ -208,16 +166,13 @@ else
   fail "--groups extracts group/endgroup structure" "group markers" "$out"
 fi
 
-# Case 12: --timing computes per-group duration
 out=$(run_script 12345 --timing)
-# Restore packages spans 10:02:00.000 → 10:02:03.250 = 3250 ms
 if [[ "$out" == *"timing"* && "$out" =~ [[:space:]]+3250[[:space:]]+ms[[:space:]]+Restore\ packages ]]; then
   pass "--timing computes 3250 ms duration for Restore packages group"
 else
   fail "--timing computes 3250 ms duration for Restore packages group" "3250 ms Restore packages" "$out"
 fi
 
-# Case 13: --suspicious surfaces retry/0-tests patterns
 out=$(run_script 12345 --suspicious)
 if [[ "$out" == *"0 tests"* && "$out" == *"Retrying"* ]]; then
   pass "--suspicious greps retry + 0-tests patterns"
@@ -225,7 +180,6 @@ else
   fail "--suspicious greps retry + 0-tests patterns" "0 tests + Retrying" "$out"
 fi
 
-# Case 14: --audit macro fires groups + timing + suspicious sections
 out=$(run_script 12345 --audit)
 if [[ "$out" == *"groups (step structure)"* && "$out" == *"timing (per group"* && "$out" == *"suspicious patterns"* ]]; then
   pass "--audit macro emits groups + timing + suspicious sections"
@@ -281,9 +235,6 @@ else
   fail "an inherited value naming source-control holds the scratch directory" "$OWN/scratch" "absent"
 fi
 
-# Case: a mktemp scratch is removed on exit, unless a message names a file in it.
-# run_mktemp_scratch <root> <args...>: runs with no scratch setting, so the
-# script falls back to mktemp -d under <root>.
 run_mktemp_scratch() {
   local root="$1"
   shift
