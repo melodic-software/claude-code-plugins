@@ -6,7 +6,7 @@ disable-model-invocation: false
 metadata:
   workflow-stage: session
   summary: Resolve model and effort per agent role for a multi-agent run
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-boards:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-decide:*)", "Bash(external-agents models:*)", "Bash(command -v external-agents)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-boards:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-decide:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-state:*)", "Bash(external-agents models:*)", "Bash(command -v external-agents)"]
 shell: bash
 ---
 
@@ -55,7 +55,15 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    `vendors.<product>.in_use` is `false`. Each prints one JSON document; a `status` other than
    `ok` makes that vendor unavailable, with its `reason`. Write a temporary `<tmp-dir>/models.json`
    mapping each candidate vendor (`claude`, `codex`, `gemini`) to its current model ids, efforts,
-   defaults and `status`/`reason`.
+   defaults and `status`/`reason`. For each vendor with listed model ids (including the session's
+   Claude model id when known), run:
+
+   ```bash
+   ${CLAUDE_SKILL_DIR}/scripts/vendor-state seen --vendor <vendor> --ids <comma-separated-ids>
+   ```
+
+   When any call reports new ids, relay one `registry recheck due` line in the reply. If
+   `vendor-state seen` exits 2 because no plugin data folder is resolved, note it and continue.
 4. Fetch enabled benchmark pages for `<work_type>` in one call into a temporary directory
    (appending `<repo>/docs/conventions/multi-agent/benchmarks.json` when present, and honoring
    `vendors.sources.<id>.enabled`):
@@ -99,6 +107,17 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    no tiebreak is set). Relay every entry of `Decision.notes`.
 9. **MCP vs CLI choice**: when the task involves choosing between a tool's MCP server and its CLI,
    name that tool's own skill to make the choice rather than ranking tools here.
+10. **After reviewing a routed result**: Claude reviews every delegated result. For a `trial`
+    decision, record the review verdict with `Decision.pair_key`:
+
+    ```bash
+    ${CLAUDE_SKILL_DIR}/scripts/vendor-state record --key <vendor>:<model>:<version>:<effort>:<work_type> --verdict <accepted|rejected> --settings <tmp-dir>/settings.json
+    ```
+
+    Pass `--tokens <n>` when the run's token count is known. With trials off or either count
+    unset, `vendor-state record` writes nothing. For a `proven` pair, do not call `record`
+    (outcomes stand until the user sends the pair back with `vendor-state send-back --key <pair_key>`);
+    if the review rejects a proven pair's routed result, report that rejection in that reply.
 
 Never name a model or effort that `route.sh` or `external-agents models` did not list.
 

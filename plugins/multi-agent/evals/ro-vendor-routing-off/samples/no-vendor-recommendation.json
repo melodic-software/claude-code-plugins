@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Vendor routing is off (`vendors.routing: false`). No vendor recommendation made; trials are paused and trial data is kept.",
+      "why": "recommends no vendor"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Routing is off, but here is a suggestion:\nclaude: model kestrel-1 @ effort medium (basis: default)",
+      "why": "still emits a vendor recommendation line"
+    },
+    {
+      "answer": "codex: model sparrow-1 @ effort high (basis: consensus)",
+      "why": "recommends codex when routing is off"
+    }
+  ]
+}

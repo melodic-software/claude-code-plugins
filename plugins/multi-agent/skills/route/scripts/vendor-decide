@@ -5,6 +5,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
+const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..')
+
 const WORK_TYPES = new Set(['coding', 'web-ui', 'knowledge', 'image'])
 const VERDICTS = new Set(['lead', 'tie', 'behind', 'abstain'])
 const READ_STATES = new Set(['live', 'cached-stale', 'unread'])
@@ -83,8 +85,8 @@ function usage() {
       'Usage: vendor-decide --task-type <coding|web-ui|knowledge|image> [--settings <file>]',
       '                     --manifest <file> --records <[source_id=]file> [--records ...]',
       '                     --models <file> [--registry <file>] [--defaults <file>]',
-      '                     [--task-class <everyday|heavy>] [--tiebreak <steps>]',
-      '                     [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
+      '                     [--state-dir <dir>] [--task-class <everyday|heavy>]',
+      '                     [--tiebreak <steps>] [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
       '',
     ].join('\n'),
   )
@@ -98,6 +100,7 @@ function parseArgs(argv) {
     records: [],
     models: null,
     settings: null,
+    stateDir: null,
     registry: path.join(__dirname, '..', '..', '..', 'reference', 'benchmarks.json'),
     defaults: path.join(__dirname, '..', '..', '..', 'reference', 'defaults.yaml'),
     tiebreak: [],
@@ -135,6 +138,9 @@ function parseArgs(argv) {
         break
       case '--settings':
         opts.settings = needVal()
+        break
+      case '--state-dir':
+        opts.stateDir = needVal()
         break
       case '--registry':
         opts.registry = needVal()
@@ -479,6 +485,7 @@ function normalizeModels(doc) {
         idSet: new Set(ids.map((s) => s.toLowerCase())),
         idCanonical: new Map(ids.map((s) => [s.toLowerCase(), s])),
         effortsByModel: new Map(),
+        versionByModel: new Map(),
         topEfforts: null,
         defaultModel: null,
         defaultEffort: null,
@@ -491,12 +498,16 @@ function normalizeModels(doc) {
     const modelsArr = Array.isArray(entry.models) ? entry.models : []
     const ids = []
     const effortsByModel = new Map()
+    const versionByModel = new Map()
     for (const m of modelsArr) {
       const id = typeof m === 'string' ? m : m && typeof m.id === 'string' ? m.id : null
       if (!id) continue
       ids.push(id)
       if (m && typeof m === 'object' && Array.isArray(m.efforts)) {
         effortsByModel.set(id.toLowerCase(), m.efforts)
+      }
+      if (m && typeof m === 'object' && typeof m.version === 'string' && m.version.trim()) {
+        versionByModel.set(id.toLowerCase(), m.version.trim())
       }
     }
     byVendor.set(vendor, {
@@ -506,6 +517,7 @@ function normalizeModels(doc) {
       idSet: new Set(ids.map((s) => s.toLowerCase())),
       idCanonical: new Map(ids.map((s) => [s.toLowerCase(), s])),
       effortsByModel,
+      versionByModel,
       topEfforts: Array.isArray(entry.efforts) ? entry.efforts : null,
       defaultModel: typeof entry.default_model === 'string' ? entry.default_model : null,
       defaultEffort: typeof entry.default_effort === 'string' ? entry.default_effort : null,
@@ -614,6 +626,120 @@ function clusterSources(leadingSources, notes) {
   return [...groups.values()]
 }
 
+function installedDataDir(root) {
+  const resolved = path.resolve(root)
+  const parts = resolved.split(path.sep)
+  const cache = parts.lastIndexOf('cache')
+  if (cache < 1 || parts[cache - 1] !== 'plugins' || parts.length !== cache + 4) return null
+  const [marketplace, plugin] = parts.slice(cache + 1)
+  if (plugin !== 'multi-agent') return null
+  return path.join(
+    parts.slice(0, cache).join(path.sep),
+    'data',
+    `${plugin}@${marketplace}`.replace(/[^A-Za-z0-9_-]/g, '-'),
+  )
+}
+
+function resolveOutcomesDir(explicitStateDir, env = process.env, root = PLUGIN_ROOT) {
+  if (explicitStateDir) {
+    const resolved = path.resolve(explicitStateDir)
+    const direct = path.join(resolved, 'outcomes')
+    if (fs.existsSync(direct)) return direct
+    const nested = path.join(resolved, 'vendor-state', 'outcomes')
+    if (fs.existsSync(nested)) return nested
+    return null
+  }
+  const installed = installedDataDir(root)
+  let dataDir = installed
+  if (!dataDir) {
+    const given = env.CLAUDE_PLUGIN_DATA
+    if (given && /^multi-agent-/.test(path.win32.basename(given))) {
+      dataDir = path.resolve(given)
+    }
+  }
+  if (!dataDir) return null
+  const outcomes = path.join(dataDir, 'vendor-state', 'outcomes')
+  return fs.existsSync(outcomes) ? outcomes : null
+}
+
+function loadOutcomesForWorkType(outcomesDir, workType) {
+  const proven = []
+  const failed = []
+  if (!outcomesDir) return { proven, failed }
+  let entries
+  try {
+    entries = fs.readdirSync(outcomesDir).filter((f) => f.endsWith('.json'))
+  } catch {
+    return { proven, failed }
+  }
+  for (const name of entries) {
+    try {
+      const doc = JSON.parse(fs.readFileSync(path.join(outcomesDir, name), 'utf8'))
+      if (!doc || typeof doc !== 'object' || !doc.key || typeof doc.key !== 'object') continue
+      if (doc.key.work_type !== workType) continue
+      if (doc.result === 'proven') proven.push(doc)
+      else if (doc.result === 'failed') failed.push(doc)
+    } catch {
+    }
+  }
+  return { proven, failed }
+}
+
+function versionMatches(outcomeVersion, candidateVersion) {
+  if (!candidateVersion) return true
+  return outcomeVersion === candidateVersion
+}
+
+function isPairFailed(failedOutcomes, cand) {
+  if (!cand || !cand.vendor || !cand.model) return false
+  const v = cand.vendor.toLowerCase()
+  const m = cand.model.toLowerCase()
+  const e = (cand.effort || 'default').toLowerCase()
+  return failedOutcomes.some(
+    (o) =>
+      o.key.vendor === v &&
+      o.key.model.toLowerCase() === m &&
+      o.key.effort === e &&
+      versionMatches(o.key.version, cand.version || null),
+  )
+}
+
+function isProvenEligible(outcome, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType) {
+  const { vendor, model, version, effort } = outcome.key
+  if (skippedSilentVendors.has(vendor) || unavailableInUseVendors.has(vendor)) return false
+  const vInfo = modelsByVendor.get(vendor)
+  if (!vInfo || vInfo.status !== 'ok' || vInfo.ids.length === 0) return false
+  if (!vInfo.idSet.has(model.toLowerCase())) return false
+  const currentVersion = vInfo.versionByModel.get(model.toLowerCase()) || null
+  if (!versionMatches(version, currentVersion)) return false
+  if (taskType === 'image' && vInfo.image === false) return false
+  if (effort && effort !== 'default') {
+    const allowed = vInfo.effortsByModel.get(model.toLowerCase()) || vInfo.topEfforts
+    if (allowed && allowed.length > 0 && !allowed.includes(effort)) return false
+  }
+  return true
+}
+
+function computeEffectiveVendorOrder(opts, settings) {
+  if (opts.vendorOrderSet) return opts.vendorOrder
+  const baseOrder = ['claude', 'codex', 'gemini']
+  const ranked = baseOrder.map((v, idx) => ({
+    v,
+    rank: settings.vendors[v] ? settings.vendors[v].rank : null,
+    idx,
+  }))
+  if (ranked.some((x) => x.rank !== null)) {
+    ranked.sort((a, b) => {
+      if (a.rank !== null && b.rank !== null) return a.rank - b.rank || a.idx - b.idx
+      if (a.rank !== null) return -1
+      if (b.rank !== null) return 1
+      return a.idx - b.idx
+    })
+    return ranked.map((x) => x.v)
+  }
+  return opts.vendorOrder
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2))
   const nowDate = opts.now
@@ -629,6 +755,7 @@ function main() {
       model: null,
       effort: null,
       basis: 'routing-off',
+      pair_key: null,
       sources: [],
       ties: [],
       notes: ['routing is off; no recommendation made (trials paused, trial data kept)'],
@@ -918,25 +1045,75 @@ function main() {
     }
   }
 
+  const outcomesDir = resolveOutcomesDir(opts.stateDir)
+  const { proven: provenOutcomes, failed: failedOutcomes } = loadOutcomesForWorkType(
+    outcomesDir,
+    opts.taskType,
+  )
+  const effectiveVendorOrder = computeEffectiveVendorOrder(opts, settings)
+  const trialsActive =
+    settings.trials && settings.trials_prove !== null && settings.trials_fail !== null
+
   let vendor = 'claude'
   let model = claudeDefaultModel
+  let version =
+    (claudeModels && claudeModels.versionByModel.get(claudeDefaultModel.toLowerCase())) || '1'
   let effort = claudeEffort
   let basis = 'default'
   let tiesOut = []
 
-  if (opts.taskType === 'image' && claudeModels && claudeModels.image === false) {
-    const capable = [...modelsByVendor.entries()].find(
-      ([v, info]) =>
-        v !== 'claude' &&
-        !skippedSilentVendors.has(v) &&
-        info.status === 'ok' &&
-        info.image === true,
-    )
-    if (capable) {
-      vendor = capable[0]
-      model = capable[1].defaultModel || capable[1].ids[0] || 'default'
-      effort = capable[1].defaultEffort || 'default'
+  const eligibleProven = provenOutcomes.filter((o) =>
+    isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, opts.taskType),
+  )
+  if (eligibleProven.length > 0) {
+    const orderIdx = (v) => {
+      const i = effectiveVendorOrder.indexOf(v)
+      return i >= 0 ? i : effectiveVendorOrder.length
+    }
+    eligibleProven.sort((a, b) => {
+      const nonClaudeDiff = (a.key.vendor === 'claude' ? 1 : 0) - (b.key.vendor === 'claude' ? 1 : 0)
+      if (nonClaudeDiff !== 0) return nonClaudeDiff
+      const ord = orderIdx(a.key.vendor) - orderIdx(b.key.vendor)
+      if (ord !== 0) return ord
+      return String(b.at || '').localeCompare(String(a.at || ''))
+    })
+    const best = eligibleProven[0]
+    const vInfo = modelsByVendor.get(best.key.vendor)
+    vendor = best.key.vendor
+    model =
+      (vInfo && vInfo.idCanonical.get(best.key.model.toLowerCase())) || best.key.model
+    version = best.key.version
+    effort = best.key.effort
+    basis = 'proven'
+    notes.push(`proven on this machine for ${opts.taskType}: ${vendor} ${model} @ ${effort}`)
+  }
+
+  if (basis === 'default' && opts.taskType === 'image' && claudeModels && claudeModels.image === false) {
+    let anyFailedImage = false
+    let chosen = null
+    for (const [v, info] of modelsByVendor.entries()) {
+      if (v === 'claude' || skippedSilentVendors.has(v) || info.status !== 'ok' || info.image !== true) {
+        continue
+      }
+      const candModel = info.defaultModel || info.ids[0] || 'default'
+      const candVersion = info.versionByModel.get(candModel.toLowerCase()) || null
+      const candEffort = info.defaultEffort || 'default'
+      if (isPairFailed(failedOutcomes, { vendor: v, model: candModel, version: candVersion, effort: candEffort })) {
+        anyFailedImage = true
+        notes.push(`${v} ${candModel} @ ${candEffort} excluded: failed trial for ${opts.taskType}`)
+        continue
+      }
+      chosen = { v, candModel, candVersion: candVersion || '1', candEffort }
+      break
+    }
+    if (chosen) {
+      vendor = chosen.v
+      model = chosen.candModel
+      version = chosen.candVersion
+      effort = chosen.candEffort
       basis = 'claude-cannot'
+    } else if (anyFailedImage) {
+      notes.push(`every image-capable vendor failed trial for ${opts.taskType}; user chooses`)
     }
   }
 
@@ -975,11 +1152,30 @@ function main() {
             rawModel && vInfo && vInfo.idCanonical.get(rawModel.toLowerCase())
               ? vInfo.idCanonical.get(rawModel.toLowerCase())
               : rawModel || 'default'
+          const rawVersion =
+            pickMode(winnerRecs.map((r) => r.version)) ||
+            (vInfo && vInfo.versionByModel.get(canonicalModel.toLowerCase())) ||
+            null
           const rawEffort = pickMode(winnerRecs.map((r) => r.effort))
-          vendor = winner
-          model = canonicalModel
-          effort = resolveEffort(vInfo, canonicalModel, rawEffort)
-          basis = 'consensus'
+          const resolvedEffort = resolveEffort(vInfo, canonicalModel, rawEffort)
+          if (
+            isPairFailed(failedOutcomes, {
+              vendor: winner,
+              model: canonicalModel,
+              version: rawVersion,
+              effort: resolvedEffort,
+            })
+          ) {
+            notes.push(
+              `${winner} ${canonicalModel} @ ${resolvedEffort} excluded: failed trial for ${opts.taskType}`,
+            )
+          } else {
+            vendor = winner
+            model = canonicalModel
+            version = rawVersion || '1'
+            effort = resolvedEffort
+            basis = 'consensus'
+          }
         }
       } else {
         notes.push(
@@ -993,7 +1189,7 @@ function main() {
       }
       const tiedVendors = [...common].sort()
       if (tiedVendors.length >= 2) {
-        tiesOut = tiedVendors.map((v) => {
+        const rawTies = tiedVendors.map((v) => {
           const vRecs = leadingEvaluations
             .flatMap((e) => e.outcome.records)
             .filter((r) => r.vendor === v && r.verdict === 'tie')
@@ -1003,6 +1199,10 @@ function main() {
             rawModel && vInfo && vInfo.idCanonical.get(rawModel.toLowerCase())
               ? vInfo.idCanonical.get(rawModel.toLowerCase())
               : rawModel || (v === 'claude' ? claudeDefaultModel : 'default')
+          const rawVersion =
+            pickMode(vRecs.map((r) => r.version)) ||
+            (vInfo && vInfo.versionByModel.get(canonicalModel.toLowerCase())) ||
+            null
           const rawEffort = pickMode(vRecs.map((r) => r.effort))
           const tokens = vRecs
             .filter((r) => r.tokens)
@@ -1010,66 +1210,70 @@ function main() {
           return {
             vendor: v,
             model: canonicalModel,
+            version: rawVersion,
             effort: v === 'claude' ? claudeEffort : resolveEffort(vInfo, canonicalModel, rawEffort),
             tokens,
           }
         })
 
-        const effectiveTiebreak = opts.tiebreakSet ? opts.tiebreak : settings.tiebreak
-        let effectiveVendorOrder = opts.vendorOrder
-        if (!opts.vendorOrderSet) {
-          const baseOrder = ['claude', 'codex', 'gemini']
-          const ranked = baseOrder.map((v, idx) => ({
-            v,
-            rank: settings.vendors[v] ? settings.vendors[v].rank : null,
-            idx,
-          }))
-          if (ranked.some((x) => x.rank !== null)) {
-            ranked.sort((a, b) => {
-              if (a.rank !== null && b.rank !== null) return a.rank - b.rank || a.idx - b.idx
-              if (a.rank !== null) return -1
-              if (b.rank !== null) return 1
-              return a.idx - b.idx
-            })
-            effectiveVendorOrder = ranked.map((x) => x.v)
+        const eligibleTies = []
+        for (const t of rawTies) {
+          if (t.vendor !== 'claude' && isPairFailed(failedOutcomes, t)) {
+            notes.push(`${t.vendor} ${t.model} @ ${t.effort} excluded: failed trial for ${opts.taskType}`)
+            continue
           }
+          eligibleTies.push(t)
         }
+        tiesOut = eligibleTies.map(({ vendor: tv, model: tm, effort: te, tokens: tt }) => ({
+          vendor: tv,
+          model: tm,
+          effort: te,
+          tokens: tt,
+        }))
+
+        const effectiveTiebreak = opts.tiebreakSet ? opts.tiebreak : settings.tiebreak
 
         let picked = null
-        for (const step of effectiveTiebreak) {
-          if (step === 'fewest-tokens') {
-            const units = new Set(tiesOut.flatMap((t) => t.tokens.map((x) => x.unit)))
-            const allHaveTokens = tiesOut.every((t) => t.tokens.length > 0)
-            if (allHaveTokens && units.size === 1) {
-              const scored = tiesOut
-                .map((t) => ({
-                  entry: t,
-                  avg: t.tokens.reduce((s, x) => s + x.value, 0) / t.tokens.length,
-                }))
-                .sort((a, b) => a.avg - b.avg)
-              if (scored[0].avg < scored[1].avg) {
-                picked = scored[0].entry
-                notes.push(`tiebreak fewest-tokens selected ${picked.vendor} (${scored[0].avg} ${[...units][0]})`)
+        if (eligibleTies.length >= 2) {
+          const eligibleVendors = eligibleTies.map((t) => t.vendor)
+          for (const step of effectiveTiebreak) {
+            if (step === 'fewest-tokens') {
+              const units = new Set(eligibleTies.flatMap((t) => t.tokens.map((x) => x.unit)))
+              const allHaveTokens = eligibleTies.every((t) => t.tokens.length > 0)
+              if (allHaveTokens && units.size === 1) {
+                const scored = eligibleTies
+                  .map((t) => ({
+                    entry: t,
+                    avg: t.tokens.reduce((s, x) => s + x.value, 0) / t.tokens.length,
+                  }))
+                  .sort((a, b) => a.avg - b.avg)
+                if (scored[0].avg < scored[1].avg) {
+                  picked = scored[0].entry
+                  notes.push(`tiebreak fewest-tokens selected ${picked.vendor} (${scored[0].avg} ${[...units][0]})`)
+                  break
+                }
+              } else {
+                notes.push('tiebreak fewest-tokens skipped: tied vendors lack comparable token counts')
+              }
+            } else if (step === 'most-usage-left') {
+              notes.push('tiebreak most-usage-left unavailable: falling back to next tiebreak step')
+            } else if (step === 'vendor-order') {
+              const ordered = effectiveVendorOrder.find((v) => eligibleVendors.includes(v))
+              if (ordered) {
+                picked = eligibleTies.find((t) => t.vendor === ordered)
+                notes.push(`tiebreak vendor-order selected ${picked.vendor}`)
                 break
               }
-            } else {
-              notes.push('tiebreak fewest-tokens skipped: tied vendors lack comparable token counts')
-            }
-          } else if (step === 'most-usage-left') {
-            notes.push('tiebreak most-usage-left unavailable: falling back to next tiebreak step')
-          } else if (step === 'vendor-order') {
-            const ordered = effectiveVendorOrder.find((v) => tiedVendors.includes(v))
-            if (ordered) {
-              picked = tiesOut.find((t) => t.vendor === ordered)
-              notes.push(`tiebreak vendor-order selected ${picked.vendor}`)
-              break
             }
           }
+        } else if (eligibleTies.length === 1 && eligibleTies[0].vendor !== 'claude') {
+          picked = eligibleTies[0]
         }
 
         if (picked) {
           vendor = picked.vendor
           model = picked.vendor === 'claude' ? claudeDefaultModel : picked.model
+          version = picked.version || '1'
           effort = picked.effort
           basis = 'consensus'
         } else {
@@ -1081,7 +1285,71 @@ function main() {
     } else {
       notes.push('independent sources disagree (mixed lead/tie/split); keeping default claude')
     }
-  } else if (basis === 'default') {
+  }
+
+  if (basis === 'default' && trialsActive) {
+    const trialCandidates = []
+    const seenCand = new Set()
+    const pushCandidate = (vName, candModel, candVersion, candEffort) => {
+      if (vName === 'claude' || skippedSilentVendors.has(vName) || unavailableInUseVendors.has(vName)) return
+      const vInfo = modelsByVendor.get(vName)
+      if (!vInfo || vInfo.status !== 'ok' || vInfo.ids.length === 0) return
+      if (opts.taskType === 'image' && vInfo.image === false) return
+      const chosenModel =
+        candModel && vInfo.idCanonical.get(candModel.toLowerCase())
+          ? vInfo.idCanonical.get(candModel.toLowerCase())
+          : vInfo.defaultModel || vInfo.ids[0]
+      if (!chosenModel || !vInfo.idSet.has(chosenModel.toLowerCase())) return
+      const chosenVersion =
+        candVersion || vInfo.versionByModel.get(chosenModel.toLowerCase()) || '1'
+      const chosenEffort = resolveEffort(
+        vInfo,
+        chosenModel,
+        candEffort || vInfo.defaultEffort || (opts.taskClass === 'heavy' ? 'high' : 'default'),
+      )
+      const sig = `${vName}:${chosenModel.toLowerCase()}:${chosenVersion}:${chosenEffort}`
+      if (seenCand.has(sig)) return
+      seenCand.add(sig)
+      trialCandidates.push({
+        vendor: vName,
+        model: chosenModel,
+        version: chosenVersion,
+        effort: chosenEffort,
+      })
+    }
+
+    for (const recs of recordsBySource.values()) {
+      for (const r of recs) {
+        if (r.verdict === 'lead' || r.verdict === 'tie') {
+          pushCandidate(r.vendor, r.model, r.version, r.effort)
+        }
+      }
+    }
+    for (const vName of effectiveVendorOrder) {
+      pushCandidate(vName, null, null, null)
+    }
+    for (const vName of modelsByVendor.keys()) {
+      pushCandidate(vName, null, null, null)
+    }
+
+    let skippedFailedTrial = 0
+    for (const cand of trialCandidates) {
+      if (isPairFailed(failedOutcomes, cand)) {
+        skippedFailedTrial++
+        continue
+      }
+      vendor = cand.vendor
+      model = cand.model
+      version = cand.version
+      effort = cand.effort
+      basis = 'trial'
+      notes.push(`active trial selected ${vendor} ${model} @ ${effort} for ${opts.taskType}`)
+      break
+    }
+    if (basis === 'default' && skippedFailedTrial > 0) {
+      notes.push(`all candidate pairs failed trial for ${opts.taskType}; keeping default claude`)
+    }
+  } else if (basis === 'default' && clusters.length < 2) {
     notes.push(
       `fewer than 2 independent leading sources (${clusters.length}); keeping default claude`,
     )
@@ -1093,6 +1361,7 @@ function main() {
     model,
     effort,
     basis,
+    pair_key: `${vendor}:${model}:${version}:${effort}:${opts.taskType}`,
     sources: sourcesOut,
     ties: tiesOut,
     notes,

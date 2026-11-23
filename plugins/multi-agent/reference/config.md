@@ -195,6 +195,21 @@ uses the same closed schema as [`benchmarks.json`](benchmarks.json)
 Team rows are appended after the shipped rows; any team row whose `id` matches a
 shipped row id is refused with a note.
 
+## Trial state
+
+Trial notes, per-pair outcomes (`proven` or `failed`), and seen model ids live per machine under
+`<data>/vendor-state/` (`trials/`, `outcomes/`, `seen/`), where `<data>` resolves from the
+installed plugin path first (`<...>/plugins/data/multi-agent-<marketplace>` derived from
+`<...>/plugins/cache/<marketplace>/multi-agent/<version>/`), then `CLAUDE_PLUGIN_DATA` only when
+its basename starts with `multi-agent-`. Outcome files are machine-neutral, one file per
+`vendor:model:version:effort:work_type` key. Routine routing writes nothing.
+
+A proven pair stays proven until the user sends it back to trial:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/route/scripts/vendor-state send-back --key <vendor>:<model>:<version>:<effort>:<work_type>
+```
+
 ## Example team file
 
 This `docs/conventions/multi-agent.yaml` raises the worker's effort and
