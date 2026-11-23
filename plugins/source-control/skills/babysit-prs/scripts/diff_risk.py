@@ -490,8 +490,10 @@ LANES: dict[str, tuple[str, Risk]] = {
 _HOLDING_LANE = "claude-security-review"
 RERUN_NOT_ALLOWED = "rerun-not-allowed"
 RERUN_NOT_ALLOWED_FIX = (
-    "start a fresh App-triggered head with `gh pr update-branch <n>`, never a hand"
-    " `gh run rerun` of an App-started lane run, which puts attempt 2 on the owner login"
+    "the merge gate's whole-review request clears this with a new run at the same"
+    " head, and when that request skips, for example on running-jobs, give the pull"
+    " request a fresh head with `gh pr update-branch <n>`, never a hand re-run of"
+    " the lane run"
 )
 # The security lane's open findings below the holding tier: reported only.
 REPORTED_SECURITY_CODE = "findings:claude-security-review"

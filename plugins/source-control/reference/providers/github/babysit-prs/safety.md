@@ -57,15 +57,15 @@ The spoke's queue read-back after a successful CLI merge reads these GraphQL fie
 
 ## Rerun a lane run
 
-- A review lane run (PR Review, PR Review Security) the App started binds its second attempt only
-  when attempt 1 left no verdict: a kill switch or the upstream-status gate stopped it, it held or
-  failed on a rate limit, it failed on a rejected credential or a failed install, or an outage lost
-  it before the lane posted (`rerun_binds` in `babysit_review_evidence.py`). A third attempt never
-  binds.
-- Otherwise start a fresh App-triggered head with `gh pr update-branch <n>`. Never `gh run rerun`
-  an App-started lane run (PR Review, PR Review Security, pr-verify) whose attempt 1 reviewed the
-  head: attempt 2 runs on the owner login, and the gate refuses it as `evidence-unbound:<lane>`
-  with the reason `rerun-not-allowed`.
+- A review lane run (PR Review, PR Review Security) binds a re-run attempt only when attempt 1
+  left no verdict: a kill switch or the upstream-status gate stopped it, it held or failed on a
+  rate limit, it failed on a rejected credential or a failed install, an outage lost it before the
+  lane posted, or its lane job ended with `NO_OUTCOME`, left no record, and the lane had not
+  posted (`rerun_binds` in `babysit_review_evidence.py`). A third attempt never binds.
+- Never hand-rerun a lane run whose attempt 1 reviewed the head: the gate refuses the re-run
+  attempt as `evidence-unbound:<lane>` with the reason `rerun-not-allowed`. The merge gate's
+  whole-review request clears that hold with a new run at the same head; when the request skips
+  (for example `running-jobs`), give the pull request a fresh head with `gh pr update-branch <n>`.
 - A rate-limited review reruns the whole workflow run (`gh run rerun <run-id>`), never
   `gh run rerun --failed`: a status job that reads another job's output would re-read the cached
   failed result.
