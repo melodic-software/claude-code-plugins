@@ -3,6 +3,30 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.2] - 2026-11-22
+
+### Changed
+
+- The ecosystem-specialist agent reads records from `docs/conventions/ecosystems/`, else the legacy `.claude/ecosystems/`. The shared copies (`reference/ecosystem-resolution.md`, and the git-hook library where this plugin carries it) name `docs/conventions/ecosystems/<ecosystem>.yaml` as the home of a repository's ecosystem records, with the legacy `.claude/ecosystems/` still read for a record absent there.
+
+## [10.8.1] - 2026-11-22
+
+### Changed
+
+- The security-review skill names source-control's diff risk scorer by its new module, `diff_risk.py`.
+
+## [10.8.0] - 2026-11-22
+
+### Added
+
+- The CI code-review lane reads a root `CODING_STANDARDS.md` and `CONTRIBUTING.md` when present,
+  as review criteria with the same standing and untrusted-content framing as `REVIEW.md`.
+
+### Changed
+
+- The enforcement-ladder copy is at 3.4.0: the `automated-review` rung writes to the repository's
+  review-criteria index, else `CODING_STANDARDS.md`, else a `REVIEW.md` no sync bot owns.
+
 ## [10.7.0] - 2026-11-22
 
 ### Added

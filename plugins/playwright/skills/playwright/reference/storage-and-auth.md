@@ -162,4 +162,4 @@ What the file means:
 - Prefer env-var-driven test credentials over hard-coded values in skill examples
 - When a flow's URLs carry tokens, list those parameter names under `redactUrlParams` in `.playwright/cli.config.json`, so command responses do not put the values into context
 
-- **Pointer**: the `redactUrlParams` setting, the [v0.1.23 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.23). Probe: under 0.1.23 a listed parameter printed as `<redacted>` and an unlisted one printed unchanged. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: the `redactUrlParams` setting, the [v0.1.23 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.23). Probe: under 0.1.25 a listed parameter printed as `<redacted>` and an unlisted one printed unchanged. **As of**: 2026-11-22. **Recheck trigger**: the frontmatter `upstream-version` moves.

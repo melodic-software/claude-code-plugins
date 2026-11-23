@@ -1,5 +1,54 @@
 # Changelog for the PR pipeline convention
 
+## [12.3.0] - 2026-11-23
+
+### Added
+
+- pr-verify's Check Intent defers a first attempt while the GITHUB_TOKEN window is projected to run short before the judgment ends (a second `check-kill-switch` gate with `defer: "true"`, `defer-job: check-intent`, after the resolver and the trigger gate, so a run that would skip never defers). Its `Note the deferral` step prints `cause=defer reset=<epoch>`. The lost-run reconciler reads that step as a hold, waits until a minute past the reset, and re-runs the run once, recorded, in the same band of at most 12 re-runs a pass as the deferred hosted reviews ([#17460](https://github.com/melodic-software/claude-code-plugins/issues/17460)).
+
+### Changed
+
+- The lost-run reconciler ticks every 15 minutes (`4,19,34,49`) and runs one pass per GITHUB_TOKEN window: the first tick at least 90 seconds and at most 30 minutes after the window's reset, read from GET /rate_limit, so deferred work is re-run at the start of the next window wherever the reset has drifted. Other ticks read nothing else and stop. That pass is not paced: it spends the fresh window. A tick whose reset read fails runs the pass unless one finished in the last hour.
+
+## [12.2.0] - 2026-11-22
+
+### Added
+
+- `intake-reenter` replies once per issue to a listed human's `**Decision recorded.**` comment on an issue `needs-human` holds, on its label or its Work status field, saying the hold stays until a listed human releases it and how. It still releases nothing ([#18251](https://github.com/melodic-software/claude-code-plugins/issues/18251)).
+- `intake-reenter` replies once per issue to a listed human's comment whose first line opens with "decision recorded" in another case or punctuation, naming the exact first line `**Decision recorded.**`. Its job now starts on any open issue for a comment that says "decision recorded" in any case.
+- The lane sweep's triage-sweep job, on the daily run, lists the open issues a merged `Refs:` pull request parked at Work status confirmed for a done-check in one `github-actions[bot]` digest issue (`done-check.mjs`), which it closes when the list is empty.
+
+## [12.1.1] - 2026-11-22
+
+### Fixed
+
+- The leak scan sends a failed gate read (`getBranch`, `getContent`) again, up to three sends, waiting for the reset or `retry-after` the answer names, or one minute, within `rate-limit-wait-seconds`. When the sends are spent, the run holds as `scan-refused-output`. A scan that never finished now always holds, with a patch or without one. Only a judged text-only patch that does not apply to the head still retries as `scan-refused-fault`.
+
+## [12.1.0] - 2026-11-22
+
+### Changed
+
+- The `address-feedback` select job offers for a body refresh the sections the base's `pr_body_required_sections` lists, else the `##` headings of the base's pull request template, else those of the owner's `.github` repository template, and offers none when that template cannot be read.
+- The merge-risk workflow's header no longer claims that nothing holds on the rating.
+
+## [12.0.0] - 2026-11-22
+
+### Changed
+
+- The contract names the diff risk scorer by its new module, `diff_risk.py`, in place of `babysit_risk.py`.
+
+### Removed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `limits.api.<pool>.limit-cap`, so a `pr-pipeline.yaml` that sets it fails validation; delete it. Every pool's read floor is a share of its live `x-ratelimit-limit` header, so GITHUB_TOKEN no longer plans to a 1,000-request budget, and ci-status's `API_BUDGET_LIMIT_CAP` and `BABYSIT_READ_FLOOR_HEADER_LIMIT` are gone ([#18194](https://github.com/melodic-software/claude-code-plugins/issues/18194)).
+
+## [11.9.1] - 2026-11-22
+
+### Fixed
+
+- Every `Resolve main's tip` step now reads main's tip with the job's own token instead of an anonymous `git ls-remote`, which GitHub refused with HTTP 403 from shared runner addresses. 94 steps use the ci-workflows `resolve-branch-tip` action; the 3 in the two release workflows that hold the release App key carry the same read inline, so those workflows run no ci-workflows action. A timeout or a 5xx is retried within 3 tries, and a 401 or 403 fails at once. pr-merge's carry readers take the action's `unambiguous-sha`, set only while no tag is named main. `download-full-history` sends the job token for its unshallow and base-ref fetches too.
+
+- pr-verify and pr-review-main judge a pull request whose single file diff is over one chunk (300000 bytes) instead of giving no verdict. `split-diff.py` cuts such a file at its hunks into pieces of at most one chunk, each under the file's header and no two in one chunk, and the manifest lists each piece as `piece <i> of <n>`; the chunk prompts and the final judge say so. A file with one hunk over a chunk with its header, and a diff over `MAX_CHUNKS` chunks, still get no verdict.
+
 ## [11.9.0] - 2026-11-22
 
 ### Changed

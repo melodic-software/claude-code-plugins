@@ -102,18 +102,43 @@ else
   echo untracked >"$t/data/untracked.txt"
   cat >"$TMP_ROOT/stub-selector.sh" <<'EOF'
 #!/usr/bin/env bash
-# Stub of affected-tests.sh: one file after `--`, a fixed answer per file.
-f="${!#}"
-case "$f" in
-data/named.txt) echo suites/reader.test.sh ;;
-data/unmapped.txt) echo "UNMAPPED: 1 changed file(s) map to no test suite:" >&2 ;;
-data/broken.txt) exit 3 ;;
-data/recorded.txt) echo "no-suite: $f (recorded in the stub)" >&2 ;;
-esac
+# Stub of affected-tests.sh: a fixed answer per file, for one file after `--`
+# or each <key>:<file> line of --each-from into --each-out, where it leaves
+# data/broken.txt unanswered, so that one file falls back to its own run.
+answer() {
+  case "$1" in
+  data/named.txt) echo suites/reader.test.sh ;;
+  data/unmapped.txt) echo "UNMAPPED: 1 changed file(s) map to no test suite:" >&2 ;;
+  data/broken.txt) exit 3 ;;
+  data/recorded.txt) echo "no-suite: $1 (recorded in the stub)" >&2 ;;
+  esac
+}
+f="${!#}" from="" into=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --each-from) from="$2" && shift ;;
+  --each-out) into="$2" && shift ;;
+  esac
+  shift
+done
+if [[ -n "$from" ]]; then
+  while IFS= read -r line; do
+    [[ "${line#*:}" != data/broken.txt ]] || continue
+    answer "${line#*:}" >"$into/${line%%:*}.out" 2>"$into/${line%%:*}.err"
+    echo "${line#*:}" >>"${STUB_EACH_LOG:-/dev/null}"
+  done <"$from"
+  exit 0
+fi
+answer "$f"
 EOF
   rc=0
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" GITHUB_STEP_SUMMARY="$TMP_ROOT/summary.md" \
-    bash "$AUDIT" trace --jobs 2 --out "$TMP_ROOT/out") >"$TMP_ROOT/trace.log" 2>&1 || rc=$?
+    STUB_EACH_LOG="$TMP_ROOT/each.log" bash "$AUDIT" trace --jobs 2 --out "$TMP_ROOT/out") >"$TMP_ROOT/trace.log" 2>&1 || rc=$?
+  if grep -qx data/named.txt "$TMP_ROOT/each.log" 2>/dev/null && ! grep -qx data/broken.txt "$TMP_ROOT/each.log"; then
+    ok "trace: files are answered by one --each-from run, and a file it leaves unanswered by its own run"
+  else
+    fail "trace: --each-from answered [$(cat "$TMP_ROOT/each.log" 2>/dev/null)]"
+  fi
   gaps="$(cat "$TMP_ROOT/out/gaps.tsv" 2>/dev/null)"
   want=$'suites/reader.test.sh\tdata/hidden.txt\tselects no suite\nsuites/zz-outside.test.sh\tdata/unmapped.txt\tunmapped: the fallback corpus does not run this suite'
   if [[ "$rc" -eq 1 ]]; then

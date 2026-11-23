@@ -3,9 +3,17 @@
 ## Run
 
 ```bash
-external-agents run codex --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--model <model>] [--effort <level>] [--resume <thread-id>|--last]
+external-agents run codex --use <task|investigate> --prompt-file <file> [--mode read-only|write] [--add-dir <absolute dir>]... [--model <model>] [--effort <level>] [--resume <thread-id>|--last]
 ```
 
+- **Decide the extra directories before the run.** A write run is fenced to the worktree by
+  Codex's `workspace-write` sandbox. List every directory outside the worktree the task will
+  write, and pass each one with its own `--add-dir <absolute path>`; pass none when the worktree is
+  enough. Pass exactly those, never a parent folder to be safe. Name the same directories in the
+  prompt, and tell Codex to write nowhere else.
+- `--add-dir` takes a new write run: on a read-only run, a review, a resumed thread, a relative
+  path or a directory that does not exist, the command refuses with exit `2` and starts nothing.
+  `external-agents status <job>` prints the run's `fence:` and `add_dirs:`.
 - **Pick the use from the request.** `task` when Codex should change files; `investigate` when it
   should only read and answer. The use's configured mode (`codex.uses.<use>.mode`, bundled values
   in the plugin's `defaults.json`) is both the default and the ceiling. Pass `--mode read-only` to

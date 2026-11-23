@@ -228,6 +228,12 @@ if grep -q "lanes.Zig" <<<"$out"; then
 else
   pass "an invalid lane id gets no lanes entry advice"
 fi
+rm "$eco_repo/.claude/ecosystems/Zig.yaml"
+mkdir -p "$eco_repo/docs/conventions/ecosystems"
+printf 'globs:\n  - "**/*.rs"\n' >"$eco_repo/docs/conventions/ecosystems/rust.yaml"
+out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
+assert_row "a record at the convention home is honored" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for lane detection"
+assert_row "a legacy record the convention home shadows asks for its removal" "$out" "WARN  ecosystem .claude/ecosystems/rust.yaml +is not read: docs/conventions/ecosystems/rust.yaml takes its place; delete it"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

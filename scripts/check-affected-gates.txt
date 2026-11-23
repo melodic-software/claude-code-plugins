@@ -26,6 +26,8 @@ plugin-options-docs run plugin-options-docs
 spoke-plugin-root run spoke-plugin-root
 as-of-recheck run as-of-recheck
 cost-figures run cost-figures
+reference-verify run reference-verify
+lint-full run lint-full
 changed-skills run changed-skills
 comment-hygiene run comment-hygiene
 comment-lint run comment-lint
@@ -102,3 +104,4 @@ summary-reader-parity ci-only whole-repo scanner, bash scripts/check-summary-rea
 test-plan-corpus ci-only whole-repo scanner, the inline plan check in its workflow step
 test-tmp-cleanup ci-only whole-repo scanner, scripts/check-test-tmp-cleanup.sh --check
 userconfig-argv ci-only whole-repo scanner, scripts/check-hook-userconfig-argv.sh
+workflow-template-size ci-only whole-repo scanner, scripts/check-workflow-template-size.sh --check

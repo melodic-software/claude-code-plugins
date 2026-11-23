@@ -103,12 +103,12 @@ test("a pull request run redacts its summary and uploads no results", () => {
   assert.ok(text.indexOf("- name: Scan the upload for credentials") < text.indexOf("- name: Upload the eval results"));
 });
 
-test("every eval leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 12", () => {
-  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 3);
+test("the eval leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 12", () => {
+  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 1);
   assert.doesNotMatch(text, /--max-cost-usd \d/);
-  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 3);
+  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 1);
   const guards = text.match(/if ! \[\[ \$MAX_COST .*?\n\s+fi\n/gs);
-  assert.equal(guards.length, 3);
+  assert.equal(guards.length, 1);
   const passes = (value) => spawnSync("bash", ["-c", guards[0]], { env: { MAX_COST: value } }).status === 0;
   for (const value of ["1", "5", "12"]) {
     assert.ok(passes(value), value);
@@ -145,6 +145,7 @@ test("compare mode runs both arms on the API key alone and stops without a cost 
     const arm = job(name);
     assert.match(arm, /\n {4}secrets:\n {6}MAINTENANCE_CLAUDE_API_KEY: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n*$/, name);
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
+    assert.match(arm, /\n {6}ablation: none\n/, name);
   }
   assert.doesNotMatch(compare, /OAUTH_TOKEN|secrets: inherit/);
   assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
@@ -177,8 +178,8 @@ test("the record job's name is the one the release requires to have succeeded", 
 });
 
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
-  assert.match(text, /name: Check Key Credit\n {4}if: >-\n {6}\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
-  assert.match(job("compare-prepare"), /if: >-\n {6}github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
+  assert.match(text, /name: Check Key Credit\n(?: {4}#[^\n]*\n)* {4}if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false' && \(\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
+  assert.match(job("compare-prepare"), /if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false'\n {6}&& github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
   assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\}', inputs\.pr, inputs\.head-sha\)/);
   const { runVouches } = await import("../pr-merge/release-eval-hold.mjs");
   const head = "d".repeat(40);

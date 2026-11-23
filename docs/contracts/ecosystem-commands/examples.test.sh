@@ -68,14 +68,22 @@ write_requires check-cmd '      hint: "npm ci in tools/"\n' requires-no-probe
 write_requires lint-cmd '      probe: "test -d tools/node_modules/ajv"\n' requires-bad-key
 write_requires check-cmd '      probe: "test -d tools/node_modules/ajv"\n      run-from: elsewhere\n' requires-bad-run-from
 printf 'globs: ["*.yml"]\ngates:\n  - name: policy\n    cmd: "node tools/policy.mjs"\n    requires:\n      - name: ajv\n        probe: "test -d tools/node_modules/ajv"\n        run-from: ecosystem\n' >"$tmp/requires-gate-ok.yaml"
-for good_case in requires-ok requires-gate-ok; do
+probe='      probe: "test -d tools/node_modules/ajv"\n'
+write_requires check-cmd "$probe"'      install:\n        manager: npm\n        lockfile: tools/package-lock.json\n' install-ok
+write_requires check-cmd "$probe"'      install:\n        manager: npm\n        lockfile: tools/package-lock.json\n        command: "npm install"\n' install-extra-key
+write_requires check-cmd "$probe"'      install:\n        manager: uv\n        lockfile: uv.lock\n' install-bad-manager
+write_requires check-cmd "$probe"'      install:\n        manager: npm\n' install-no-lockfile
+write_requires check-cmd "$probe"'      install:\n        manager: npm\n        lockfile: ../package-lock.json\n' install-escapes
+write_requires check-cmd "$probe"'      install:\n        manager: npm\n        lockfile: /package-lock.json\n' install-absolute
+for good_case in requires-ok requires-gate-ok install-ok; do
   if out="$("$validator" --schemafile "$SCHEMA" "$tmp/$good_case.yaml" 2>&1)"; then
     ok "$good_case validates"
   else
     bad "$good_case does not validate: $out"
   fi
 done
-for bad_case in requires-no-probe requires-bad-key requires-bad-run-from; do
+for bad_case in requires-no-probe requires-bad-key requires-bad-run-from install-extra-key install-bad-manager \
+  install-no-lockfile install-escapes install-absolute; do
   if "$validator" --schemafile "$SCHEMA" "$tmp/$bad_case.yaml" >/dev/null 2>&1; then
     bad "$bad_case validates"
   else

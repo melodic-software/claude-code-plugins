@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [20.3.0] - 2026-11-22
+
+Minor. One posting-lanes row gains an effect; no topology, escalation-contract mechanism,
+capability-tier or §4 invariant changed.
+
+- **intake-reenter.** The posting-lanes row adds its replies: one marked comment per issue on a
+  listed human's decision `needs-human` holds, and on one whose first line is not exactly
+  `**Decision recorded.**`. Neither releases a hold
+  ([#18251](https://github.com/melodic-software/claude-code-plugins/issues/18251)).
+
 ## [20.2.0] - 2026-11-21
 
 Minor. Additive operator guidance; no topology, escalation-contract mechanism, capability-tier or

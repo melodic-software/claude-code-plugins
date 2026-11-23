@@ -50,7 +50,7 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Shell formatting and linting are two concerns. The hooks run only the
 plugin's shipped adapter for each, where that tool's own config governs the file, and otherwise
-nothing; they never run a command from the repository's bash record (`.claude/ecosystems/bash.yaml`),
+nothing; they never run a command from the repository's bash record (`docs/conventions/ecosystems/bash.yaml`),
 which `/toolchain:lint` and `/toolchain:check` run on request. The only consumer-project files this
 plugin writes are its git-hook entry copies (`apply install-git-hooks`); the record is written by
 `/toolchain:setup apply bash`, never here. The tunables are the native `userConfig` options (the
@@ -148,7 +148,7 @@ Code and read no toggle.
    (`hook::gitignored_out_of_scope` in `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`). Report the item 6
    value beside this.
 10. **Git pre-commit entries.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
-    from the repository. It lists `format`, `lint` and `lint-full`. Each line is `<state>\t<entry>[\t<detail>]`:
+    from the repository. It lists `format` and `lint`. Each line is `<state>\t<entry>[\t<detail>]`:
     `ok` is PASS, `declined` is INFO (this clone said no; silent at session start), and `missing`,
     `stale`, `modified` or `superseded` is a FAIL whose remediation is `apply install-git-hooks`; a
     `superseded` detail lists what an install under an earlier plugin or entry name left (the single
@@ -215,8 +215,9 @@ with your own edit tools.
 The `format` entry rewrites: at commit it formats the staged shell scripts the shfmt adapter
 governs and stages the result, so tell the user that a commit can change the files it contains,
 and that a partly staged governed script is refused untouched. The `lint` entry only reports
-findings on the lines the commit adds, and `lint-full` only on the lines a push adds to a script over
-2,000 lines. A decline of the earlier single entry carries to both.
+findings on the lines the commit adds. A decline of the earlier single entry carries to both.
+`verify` no longer lists a copy of the retired `lint-full` entry; the README's "Git hook
+entries" names the files to remove, which you remove with your edit tools on the user's yes.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
 `bash-format-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints

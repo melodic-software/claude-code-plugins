@@ -30,7 +30,7 @@ lane, with cause `budget` and the window's reset, while the pacer's projection
 of the header's limit: a run started now would end in a window with less than that share left.
 Both values are read from `rate-limits.json` alone (`start-project` 0.3, `start-run-minutes` 21,
 the p90 of 25 successful issue runs' check-broker start to run end, rounded up). `start-project`
-is a share of the header's limit, like `pace`, not of the planned budget `plan` measures. The `start-gate` share is checked first and
+is a share of the header's limit, like `pace`. The `start-gate` share is checked first and
 still stops on its own. A reading that cannot project, or a value that cannot be read, proceeds
 with a warning. The notice names the projected share, the horizon and the threshold. work-unblock's
 sweep re-fires a budget stop after the reset it names, as for a low budget.
@@ -89,9 +89,12 @@ which a person or a pull request starts, keep it too.
 
 Set `defer: "true"` instead on a gate that finishes existing work only where a later run that never
 defers recovers it: pr-merge's PR-scoped arm run (`inputs.pr`), whose work the 30-minute sweep does,
-and the two hosted review callers' gates, whose stop notice prints `cause=defer reset=<epoch>`, so
-the lost-run reconciler re-runs the run once that reset is past (reconcile.mjs `DEFER_NOTE`, in its
-own `DEFER_MAX` band).
+the two hosted review callers' gates, whose stop notice prints `cause=defer reset=<epoch>`, and
+pr-verify's Check Intent, whose second gate runs after the resolver and the trigger gate (so a run
+that would skip never defers), with the switches already read, and whose `Note the deferral` step
+prints the same pair. The lost-run reconciler re-runs each such run once that reset is past
+(reconcile.mjs `DEFER_NOTE`, in its own `DEFER_MAX` band). Check Intent has no
+`defer-run-minutes-check-intent` key, so its horizon is `defer-run-minutes`.
 There a low budget delays the work rather than throwing it away, which is the reason the paragraph
 above keeps the budget off. CI Status and pr-dispatch-feedback never defer. A budget or defer stop
 ends the run neutral: a notice, no failed step. A job that sets `budget: "true"` or `defer: "true"`

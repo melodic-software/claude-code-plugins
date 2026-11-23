@@ -1351,6 +1351,14 @@ jobs:
           CALL_BUDGET: "120"
         run: node .base/.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs
 
+      - name: List the issues parked for a done-check, on the daily run only
+        if: ${{ !cancelled() && steps.kill.outputs.proceed == 'true' && github.event.schedule != '17 * * * *' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: node .base/.github/scripts/maintenance-audit-lane-runs/done-check.mjs
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true

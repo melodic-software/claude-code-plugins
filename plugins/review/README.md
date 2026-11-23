@@ -218,8 +218,8 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
   project's own review criteria, severity vocabulary, and conventions first (`CLAUDE.md`,
   project rules, `REVIEW.md`/review docs); the plugin's bundled baseline
   (`context/severity.md`) applies only where the project defines nothing.
-- **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
-  ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
+- **Command truth from `docs/conventions/ecosystems/`.** `ecosystem-specialist` resolves each
+  ecosystem's build/test/lint command from the consumer's `docs/conventions/ecosystems/<ecosystem>.yaml`
   files when present (the marketplace-wide ecosystem-commands contract,
   `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions.
   A command neither source names is reported unresolved; the agent ships no default command.

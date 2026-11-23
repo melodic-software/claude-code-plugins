@@ -3,6 +3,24 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8] - 2026-11-23
+
+### Fixed
+
+- Two applies to one folder at the same time no longer lose a record: an apply saves its record only while the record file still holds what it read, so an apply that another apply finished first re-plans over that apply's record instead of overwriting it, and `clear` can still put the file back.
+
+## [0.9.7] - 2026-11-22
+
+### Fixed
+
+- An apply whose settings write fails now undoes its record only while the record file still holds the one it wrote, so a second apply that saved its record in between keeps it, and `clear` and `reset` can still undo that apply.
+
+## [0.9.6] - 2026-11-22
+
+### Fixed
+
+- On Windows, `launch` prints a PowerShell line (`Remove-Item Env:...; claude --settings ...`) in place of the `env -u` line Windows cannot run; `argv` keeps its shape for scripts that build their own start. Inline `--with` JSON with no profile now passes as a session file, since Windows PowerShell 5.1 strips the quotes inside it.
+
 ## [0.9.5] - 2026-11-22
 
 ### Fixed

@@ -75,7 +75,7 @@ from babysit_gh import (
     record_pull_request_total,
     single_attempt,
 )
-from babysit_risk import (
+from diff_risk import (
     FLOOR_ROW_CLASSES,
     MEDIA_SUFFIXES,
     ChangedFile,
@@ -917,7 +917,7 @@ class PipelineConfig:
     queue_ejection_infra_causes: tuple[str, ...] = QUEUE_EJECTION_INFRA_CAUSES
     # `merge.risk-escalation-minutes`: how long a reasons comment must have
     # stood unchanged at the head before the gate adds the human-gated label
-    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # for a reason only a person clears (`diff_risk.person_reasons`); 0 is
     # no minimum. Absent, or anything but a whole number, is
     # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
@@ -4351,6 +4351,8 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/formal-verification/schemas/**",
     "plugins/code-metrics/scripts/**",
     _skill_scripts("code-metrics:audit"),
+    "plugins/guardrails/git-hooks/reference-verify.sh",
+    "plugins/bash-format/git-hooks/lint-full.sh",
 )
 
 
@@ -6768,7 +6770,7 @@ def merged_since_floor(
 
 
 def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
-    """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
+    """`diff_risk.RiskInput.pulumi_dirs`: each directory holding a
     Pulumi project file (`Pulumi.yaml`, `Pulumi.yml` or `Pulumi.json`) at
     the base ("" for the root); None when the base tree cannot be listed
     whole."""

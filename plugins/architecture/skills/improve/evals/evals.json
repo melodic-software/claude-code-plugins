@@ -24,7 +24,7 @@
       "files": [],
       "expectations": [
         "Identifies the wrapper chain as shallow — interface nearly as complex as the implementation",
-        "Deletion-test verdict is 'concentrates complexity' (earning-its-keep / candidate signal), not 'just moves it'",
+        "Deletion-test verdict is 'concentrates complexity' (pass-through / candidate signal), not 'just moves it'",
         "Assigns the recommendation badge Strong for an unambiguous shallow pass-through cluster",
         "Assigns a dependency category (in-process or local-substitutable) and ties the testing strategy to that category per dependencies.md",
         "Uses ONLY deepening vocabulary (module, interface, seam, adapter, leverage, locality) — never component, service, or boundary",

@@ -131,6 +131,7 @@ REGISTRY=(
   "check-test-tmp-cleanup.sh|git|-|-"
   "check-upstream-drift.sh|gh|-|upstream_drift"
   "check-vendor-version-bump.sh|-|-|-"
+  "check-workflow-template-size.sh|node|-|-"
 )
 
 # --- running a member --------------------------------------------------------

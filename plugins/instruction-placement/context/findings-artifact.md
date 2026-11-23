@@ -107,21 +107,21 @@ One section per candidate, in ranked order. Fields are fixed; a field with nothi
 as `—` rather than omitted, so a diff between runs stays aligned.
 
 ```markdown
-### IP-007 — `**/*.cs` naming conventions
+### IP-007 — `**/*.test.*` test file conventions
 
 - **Status:** pending
 - **Lane:** demote
-- **Source:** `CLAUDE.md` lines 88–121, heading path `["C# naming"]`
+- **Source:** `CLAUDE.md` lines 88–121, heading path `["Test conventions"]`
 - **Suppression key:** `check` `instruction-placement/audit/demote`; `claim`
-  `narrower-scope:path-scoped-rule`; `anchor/v1` `4b322d9c`; `finding_id` `6e9976d9d2e2c5a4`
-- **Destination:** path-scoped rule `.claude/rules/csharp-naming.md`
-- **Proposed `paths:`** `["**/*.cs"]`
+  `narrower-scope:path-scoped-rule`; `anchor/v1` `958d10fb`; `finding_id` `866c7f4e04652643`
+- **Destination:** path-scoped rule `.claude/rules/test-conventions.md`
+- **Proposed `paths:`** `["**/*.test.*"]`
 - **Glob validation:** 412 tracked files matched; 3.1% of tracked files; budget ok; brackets ok
 - **Ladder rung:** 4 — scope narrower than the repo, keyed to a file kind
 - **Denied classes:** none
 - **Cost:** ~34 always-loaded lines released; not inherited by a subagent and announced nowhere, so
-  it arrives only on a `.cs` read or through the index; returns after compaction only when a `.cs`
-  file is read again
+  it arrives only on a test file read or through the index; returns after compaction only when a
+  test file is read again
 - **Mechanics:** MS-5 verified: "A path-scoped rule loads when Claude uses the Read, Write, or Edit
   tool on a matching file."; MS-7 verified: "Nested CLAUDE.md files in subdirectories and rules
   with `paths:` frontmatter load again on demand."; MS-9 unverified as of 2026-10-27: "Path-scoped

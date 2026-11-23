@@ -147,7 +147,7 @@ export async function filterLaneHolds() {
   }
   // The shared rate guard's default log is console.log (rate-guard.mjs
   // createRateLimitLatch), so a low pool prints a workflow command first.
-  if (STUB_FILTER === "log") console.log("::warning::GitHub's core API has under its read floor left (12 of the planned 1000; header remaining 4012 of 5000); reads continue");
+  if (STUB_FILTER === "log") console.log("::warning::GitHub's core API has under its read floor left (12 of 5000); reads continue");
   const out = STUB_FILTER === "unfoot"
     ? all.map((c) => (c.user.login === "github-actions[bot]" ? { ...c, body: c.body.replace(/\s*claude-lane: [a-z-]+$/, "") } : c)) // portability-ok: a JavaScript regex in the node stub, not grep or sed
     : all;
@@ -213,7 +213,7 @@ STUB_FILTER=log STUB_EVENTS="[$BOT_LIFT]" \
   expect "a logged workflow command does not hide an untrusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 STUB_FILTER=log STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]" \
   expect "the workflow command the base module logs still reaches the step's log" 0 \
-  "::warning::GitHub's core API has under its read floor left (12 of the planned 1000"
+  "::warning::GitHub's core API has under its read floor left (12 of 5000)"
 STUB_FILTER=silent STUB_EVENTS="[$BOT_LIFT]" \
   expect "a base module that prints no comments fails closed" 1 "::error::could not read the comments of #6419"
 STUB_FILTER=subset STUB_EVENTS="[$BOT_LIFT]" \

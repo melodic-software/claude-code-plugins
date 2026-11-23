@@ -54,8 +54,11 @@
 //   that reads; one where any job's verdict write started is held for a
 //   person, a run whose held job names a rate-limit reset (heldReset) waits
 //   until RATE_RESET_GRACE_MS past it, as a floor does, and a pr-review-main
-//   run waits out the upstream gate, as a lost lane run does. Held runs
-//   matched to an open head go ahead of its other lane runs (laneOrder).
+//   run waits out the upstream gate, as a lost lane run does. A pr-verify
+//   run its budget gate deferred (DEFER_STEP, with DEFER_NOTE's reset) is
+//   held the same way: it waits until RATE_RESET_GRACE_MS past that reset,
+//   and its re-run takes the DEFER_MAX band beside the hosted reviews'.
+//   Held runs matched to an open head go ahead of its other lane runs (laneOrder).
 //   Their succeeded runs are listed
 //   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
 //   earlier: the last pass that read, or the oldest first attempt that pass
@@ -153,8 +156,8 @@
 //   name; the merge gate binds that attempt 2 (babysit_review_evidence
 //   `_rate_held`). A first attempt the defer gate stopped (its gate job's
 //   DEFER_NOTE, cause=defer with the window's reset) waits until
-//   RATE_RESET_GRACE_MS past that reset, so the first pass after it, a few
-//   minutes past the reset when the hourly tick follows it, re-runs it. Those
+//   RATE_RESET_GRACE_MS past that reset, so the first pass after it, the
+//   tick that follows the reset (reset-tick.mjs), re-runs it. Those
 //   re-runs take the DEFER_MAX band, not the places below; their attempt 2
 //   never defers.
 // Other lost lane runs (a review lane run lost any other way, refine) are listed
@@ -426,8 +429,8 @@ export const FAULT_HELD_HOURS = 6;
 // for the next pass, so a pass after a long outage adds a bounded load.
 export const FAULT_HELD_READS = 100;
 export const MAX_IN_FLIGHT = 3;
-// Re-runs of reviews the defer gate stopped, per pass, beside MAX_IN_FLIGHT:
-// the 24 h to 2026-11-21T20:49Z would have deferred at most 9 review runs in
+// Re-runs of reviews and pr-verify runs a defer gate stopped, per pass, beside
+// MAX_IN_FLIGHT; what does not fit waits for the next pass. The 24 h to 2026-11-21T20:49Z would have deferred at most 9 review runs in
 // one token window, so 12 leaves room for one more head, both lanes
 // (https://github.com/melodic-software/claude-code-plugins/issues/17460).
 export const DEFER_MAX = 12;
@@ -476,6 +479,7 @@ const carriedJobsEntry = (e) =>
   Array.isArray(e.jobs) &&
   e.jobs.every(isObject) &&
   (e.held === undefined || e.held === true) &&
+  (e.deferred === undefined || (e.deferred === true && e.held === true && e.reset !== undefined)) &&
   (e.reset === undefined || (Number.isSafeInteger(e.reset) && e.reset > 0));
 
 const isTime = (value) => typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -1065,6 +1069,7 @@ export const RATE_RESET_GRACE_MS = 60_000;
 // The hosted callers' stop notice when the gate deferred the review, with the
 // window's reset in epoch seconds (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
 export const DEFER_NOTE = /\bcause=defer reset=([0-9]{9,12})\b/;
+export const DEFER_STEP = "Note the deferral";
 const DEFERRED = "success (deferred)";
 export const deferReset = async (jobs, notesOf) => {
   const gate = jobs.find((job) => GATE_JOBS.has(job?.name) && Number.isSafeInteger(job.id) && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
@@ -1142,7 +1147,7 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   const carried = carry.get(key);
   if (carried?.held === true && carried.head === run.head_sha && carried.updated_at === run.updated_at) {
     keep.set(key, carried);
-    return { held: true, final: false, reset: carried.reset };
+    return { held: true, final: false, reset: carried.reset, deferred: carried.deferred === true };
   }
   const listing = await firstAttemptJobs(call, repo, run.id);
   if (run.path === RATER) {
@@ -1159,18 +1164,33 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
     }
     return { held: stopped && whole, final: whole && !stopped };
   }
-  const marked = listing.jobs.filter(
-    (job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === HELD_STEP && step.conclusion === "success"),
-  );
+  const ran = (name) => listing.jobs.filter((job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === name && step.conclusion === "success"));
+  const marked = ran(HELD_STEP);
+  const deferring = ran(DEFER_STEP);
   const steps = listing.jobs.flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []));
-  if (marked.length > 0 && steps.some((step) => step?.name === WRITE_STEP && step.conclusion != null && step.conclusion !== "skipped")) {
+  if (marked.length + deferring.length > 0 && steps.some((step) => step?.name === WRITE_STEP && step.conclusion != null && step.conclusion !== "skipped")) {
     return { held: false, final: true, written: true };
+  }
+  const whole = typeof run.updated_at === "string" && wholeListing(listing) && listing.jobs.every((j) => stepsKnown(j));
+  for (const job of deferring) {
+    const annotations = await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
+    const resets = (Array.isArray(annotations) ? annotations : []).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map((s) => Number(s) * 1000);
+    if (resets.length > 0) {
+      const reset = Math.max(...resets);
+      if (whole) {
+        keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true, deferred: true, reset });
+      }
+      return { held: true, final: false, reset, deferred: true };
+    }
+  }
+  if (deferring.length > 0) {
+    return { held: false, final: false };
   }
   for (const job of marked) {
     const annotations = await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
     if (heldNoted(annotations)) {
       const reset = heldReset(annotations) || undefined;
-      if (typeof run.updated_at === "string" && wholeListing(listing) && listing.jobs.every((j) => stepsKnown(j))) {
+      if (whole) {
         keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob), held: true, ...(reset === undefined ? {} : { reset }) });
       }
       return { held: true, final: false, reset };
@@ -1863,7 +1883,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         break;
       }
       try {
-        const { held, final, written, reset } = await faultHeld(call, repo, r, carriedJobs, keepJobs);
+        const { held, final, written, reset, deferred } = await faultHeld(call, repo, r, carriedJobs, keepJobs);
         if (written) {
           settle.push({ id: r.id, reason: WRITTEN });
           sayHeld(r, WRITTEN);
@@ -1874,11 +1894,12 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           // spend its one re-run on a run the upstream gate stops again.
           const hold = beforeReset(reset, now) || !GATED_LANES.has(r.path) ? "" : await gateHold();
           if (beforeReset(reset, now)) {
-            waitReset(`lane run ${r.id} (${r.path})`, reset, "held on a GitHub rate limit");
+            waitReset(`lane run ${r.id} (${r.path})`, reset, deferred ? "was deferred on the GITHUB_TOKEN budget" : "held on a GitHub rate limit");
           } else if (hold) {
             say(`lane run ${r.id} (${r.path}) held on a GitHub fault; waiting, ${hold}`);
           } else {
-            lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.path === RATER ? "success (kill switch stop)" : r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });
+            const conclusion = deferred ? DEFERRED : r.path === RATER ? "success (kill switch stop)" : r.conclusion;
+            lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });
           }
         } else if (final) {
           settle.push({ id: r.id, reason: "" });
@@ -1994,19 +2015,20 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           ? `only ${room} of ${MAX_IN_FLIGHT} re-run places left`
           : "";
   let deferRoom = DEFER_MAX;
+  const banded = (item) => isReview(item) || (item.kind === "fault-held" && item.conclusion === DEFERRED);
   const takeDeferred = (what, set) => {
-    const reviews = set.filter(isReview);
-    if (reviews.length === 0 || !reviews.every((item) => item.conclusion === DEFERRED)) {
+    const band = set.filter(banded);
+    if (band.length === 0 || !band.every((item) => item.conclusion === DEFERRED)) {
       return set;
     }
-    if (reviews.length > deferRoom) {
+    if (band.length > deferRoom) {
       deferred += 1;
-      say(`${what}: its deferred reviews wait, only ${deferRoom} of ${DEFER_MAX} recovery places left this pass`);
+      say(`${what}: its deferred ${band.some(isReview) ? "reviews wait" : "run waits"}, only ${deferRoom} of ${DEFER_MAX} recovery places left this pass`);
     } else {
-      items.push(...reviews);
-      deferRoom -= reviews.length;
+      items.push(...band);
+      deferRoom -= band.length;
     }
-    return set.filter((item) => !isReview(item));
+    return set.filter((item) => !banded(item));
   };
   const place = (what, whole) => {
     const set = takeDeferred(what, whole);
@@ -2110,7 +2132,7 @@ async function act({ repo, call, say, since, sleep, items }) {
             : item.kind === "review"
             ? `${where}: re-ran review run ${item.id} (${item.path}), which ${item.conclusion === "success (rate-limit hold)" ? "held on a GitHub API rate limit" : item.conclusion === DEFERRED ? "the defer gate stopped until the GITHUB_TOKEN window reset" : "a kill switch stopped"}; its completion re-runs ci-status`
             : item.kind === "fault-held"
-            ? `${where}: re-ran run ${item.id} (${item.path}), which ${item.path === RATER ? "the lanes kill switch stopped before it rated" : "held on a GitHub fault"}`
+            ? `${where}: re-ran run ${item.id} (${item.path}), which ${item.path === RATER ? "the lanes kill switch stopped before it rated" : item.conclusion === DEFERRED ? "the defer gate stopped until the GITHUB_TOKEN window reset" : "held on a GitHub fault"}`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
     } catch (error) {

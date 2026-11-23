@@ -35,7 +35,7 @@ plugins/skill-quality/scripts/check-skill.test.sh	builds scratch plugins/p1/skil
 plugins/skill-quality/scripts/measure-invocation.test.sh	builds a scratch plugins/fixture/skills/rival tree to exercise measure-invocation's competitor skill resolution
 plugins/source-control/evals/babysit-loop-forged-checkout-settings-not-trusted/samples/forged-surfaces-never-used.json	graded sample tool calls name the promotion helper and binding checker paths to exercise the forged-settings grader
 plugins/source-control/evals/babysit-loop-missing-bootstrap-names-option/samples/no-resolver-run.json	graded sample tool calls name the promotion helper and binding checker paths to exercise the no-resolver-run grader
-plugins/source-control/skills/babysit-prs/scripts/tests/	feed plugin skill paths as changed files, CODEOWNERS rows and job logs to exercise the babysit risk, merge, review-evidence and post-merge engines
+plugins/source-control/skills/babysit-prs/scripts/tests/	feed plugin skill paths as changed files, CODEOWNERS rows and job logs to exercise the diff risk score, merge, review-evidence and post-merge engines
 plugins/source-control/skills/pull-request/scripts/feedback-thread.test.sh	feeds plugin skill paths to exercise feedback-thread.sh's path classification
 plugins/source-control/skills/pull-request/scripts/prep-warnings.test.sh	builds scratch plugins/p/skills/s trees to exercise prep-warnings.sh's skill-cut path classification
 plugins/testing/skills/audit/evals/judge-calibration/cases/	calibration cases are copies of repository tests, with the skill paths they cite, to exercise the test-audit judge

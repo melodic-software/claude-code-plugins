@@ -18,6 +18,7 @@ const SECRET = /^(?:(?:([A-Z][A-Z0-9_]{0,75})_)?CLAUDE_CODE_OAUTH_TOKEN|([A-Z][A
 const MODEL = /^claude-[a-z0-9.-]{1,56}(?:\[1m\])?$/;
 const HEX32 = /^[0-9a-f]{32}$/;
 const HEX16 = /^[0-9a-f]{16}$/;
+const JOB_KEY = /^[A-Za-z_][A-Za-z0-9_-]{0,99}$/;
 const OUTCOMES = new Set(["success", "failure", "timeout", "skip", "cancellation", "error"]);
 // `class` is any token in the enum's kebab shape: the known classes are
 // docs/lane-outcome.md's Failure classes, and a reader ignores a class value it
@@ -93,6 +94,7 @@ const RECORD = shape(
     runAttempt: count(9999, 1),
     traceId: matches(HEX32),
     spanId: matches(HEX16),
+    jobId: matches(JOB_KEY),
     githubCalls: shape({ githubToken: calls, lanesApp: calls }),
     costUsd: (value) => typeof value === "number" && Number.isFinite(value) && value >= 0,
     usage: shape({ input: count(), output: count(), cacheRead: count(), cacheCreation: count() }),
@@ -102,12 +104,15 @@ const RECORD = shape(
   ["v", "lane", "outcome", "credential"],
 );
 
+const withoutBadJobId = (value) =>
+  isObject(value) && Object.hasOwn(value, "jobId") && !matches(JOB_KEY)(value.jobId) ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== "jobId")) : value;
+
 // The v1 record in `value` with only its known, validated fields, or null
 // when a known field is out of shape, `v` is not 1, a failure names no
 // class, or the kept record (the `activity` key aside) passes 1,024
 // characters.
 export function validRecord(value) {
-  const kept = RECORD(value);
+  const kept = RECORD(withoutBadJobId(value));
   if (!kept || (kept.outcome !== "success" && !Object.hasOwn(kept, "class"))) {
     return null;
   }

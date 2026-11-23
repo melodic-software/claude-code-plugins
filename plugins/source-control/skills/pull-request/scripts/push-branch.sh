@@ -420,7 +420,7 @@ setting_at() {
 # the setting unset everywhere this clone has fetched, it makes no network call.
 sync_stale_base() {
   local wd="$1" on="$SYNC" base="${PR_BASE_REF:-}" base_repo="${PR_BASE_REPO:-}" remote="$FETCH_REMOTE"
-  local out ref r sign=() flags=(--paths-only)
+  local out err ref r sign=() flags=(--paths-only)
   [[ "$on" != false ]] || return 0
   [[ -z "$base_repo" ]] || remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
   if [[ -z "$on" && -z "$PR" ]]; then
@@ -436,13 +436,15 @@ sync_stale_base() {
   fi
   [[ -n "$wd" ]] || { sync_skip "'$BRANCH' is checked out in no worktree"; return 0; }
   if [[ -z "$PR" ]]; then
-    if out=$(gh pr view "$BRANCH" --json baseRefName,url -q '.baseRefName + " " + (.url | split("/")[3:5] | join("/"))' 2>&1); then
+    err=$(mktemp) || return 0
+    if out=$(gh pr view "$BRANCH" --json baseRefName,url -q '.baseRefName + " " + (.url | split("/")[3:5] | join("/"))' 2>"$err"); then
       read -r base base_repo <<<"${out//$'\r'/}"
       remote=$(cd "$wd" && remote_of_repo "$base_repo")
-    elif [[ "$out" == *"no pull requests found"* ]]; then
+    elif grep -q "no pull requests found" "$err"; then
       base=$(cd "$wd" && local_default "$FETCH_REMOTE")
       [[ -n "$base" ]] || base=$(cd "$wd" && remote_default "$FETCH_REMOTE")
     fi
+    rm -f "$err"
     # With no remote for the base repository, the skip below says so.
     if [[ "$on" == pending && -n "$remote" ]]; then
       [[ "$(cd "$wd" && setting_at "$remote")" == true ]] || return 0
