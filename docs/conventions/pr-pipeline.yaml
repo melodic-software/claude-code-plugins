@@ -1662,8 +1662,18 @@ merge:
     # organization's code, not third-party code (owner decision 2026-11-15,
     # the Dependabot policy's `fastTrack`).
     trusted-action-owners:
+      - actions
       - anthropics
+      - aws-actions
+      - azure
+      - docker
+      - github
+      - google
+      - google-github-actions
+      - hashicorp
       - melodic-software
+      - microsoft
+      - openai
   diff-check:
     denied-paths: []
     high-path-floor: false
@@ -1672,6 +1682,8 @@ merge:
       - glob: ".github/actions/check-trusted-trigger/**"
         class: trust
       - glob: ".github/scripts/lib/github-client.mjs"
+        class: trust
+      - glob: ".github/scripts/lib/trusted-actors.mjs"
         class: trust
       - glob: ".github/actions/resolve-config/**"
         class: trust
@@ -1747,6 +1759,8 @@ merge:
         class: gate
       - glob: ".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh"
         class: gate
+      - glob: ".github/scripts/post-merge-demotion-alert/file-demotion-issue.sh"
+        class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust
       - glob: ".github/scripts/pr-unblock/address-feedback.mjs"
@@ -1778,6 +1792,8 @@ merge:
       - glob: ".github/scripts/pr-unblock/request-budget.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-verify/resolve-pr.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-verify/spec-source.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-verify/write-verdict.mjs"
         class: enforcement

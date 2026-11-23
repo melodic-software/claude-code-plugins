@@ -27,7 +27,6 @@ export function innerRadius({ outerPx, borderPx, paddingPx, maxGapPx }) {
   return { inner_px: Math.max(0, outerPx - gap), gap_px: gap, max_gap_px: maxGapPx, past_max_gap: gap > maxGapPx };
 }
 
-/** css.concentric_radius.max_gap_px from the plugin's bundled defaults. */
 function bundledMaxGap() {
   const defaults = parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../reference/defaults.yaml"), "utf8"));
   const value = defaults?.css?.concentric_radius?.max_gap_px;
@@ -35,7 +34,6 @@ function bundledMaxGap() {
   return value;
 }
 
-/** A flag's text as a number, or NaN when it is not one. */
 const number = (text) => (text === undefined || text.trim() === "" ? Number.NaN : Number(text));
 
 function main() {

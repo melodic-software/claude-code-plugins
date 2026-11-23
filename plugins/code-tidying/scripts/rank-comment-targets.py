@@ -338,7 +338,6 @@ def main(argv: list[str] | None = None) -> int:
             continue
         candidates.append(p)
 
-    # Collapse byte-identical files to one canonical row with an instance count.
     by_hash: dict[str, list[str]] = defaultdict(list)
     for p in candidates:
         by_hash[records[p]["sha256"]].append(p)

@@ -81,7 +81,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch
@@ -100,7 +100,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -191,7 +191,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           branch: main
       - name: Check out the default branch
@@ -206,13 +206,14 @@ jobs:
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
             /.github/scripts/lib/github-client.mjs
+            /.github/scripts/lib/trusted-actors.mjs
             /.github/scripts/pr-review/
             /.github/scripts/pr-unblock/request-budget.mjs
             /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@c77590135e3a9b059f01f5fa744088bd6af7fcfe # v0.82.1
         with:
           node-version-file: .base/.node-version
 
@@ -335,6 +336,7 @@ jobs:
         REVIEW.md
         .github/actions/check-trusted-trigger/**
         .github/scripts/lib/github-client.mjs
+        .github/scripts/lib/trusted-actors.mjs
         .github/actions/resolve-config/**
         .github/actions/check-kill-switch/**
         .github/actions/request-lane-token/**
@@ -371,6 +373,7 @@ jobs:
         .github/scripts/pr-merge-risk/write-rating.mjs
         .github/actions/report-check-run/posting-run.mjs
         .github/scripts/pr-dispatch-feedback/rerun-ci-status.sh
+        .github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
         scripts/sync-hold-floor.py
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
@@ -387,6 +390,7 @@ jobs:
         .github/scripts/pr-unblock/resolve-threads.mjs
         .github/scripts/pr-unblock/request-budget.mjs
         .github/scripts/pr-verify/resolve-pr.mjs
+        .github/scripts/pr-verify/spec-source.mjs
         .github/scripts/pr-verify/write-verdict.mjs
         .github/scripts/intake-triage/admit.mjs
         .github/scripts/intake-triage/size-split.mjs

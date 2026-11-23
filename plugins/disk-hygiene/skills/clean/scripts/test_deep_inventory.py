@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the read-only deep-inventory categories and KEEP-reason validator."""
 
 from __future__ import annotations
 
@@ -478,7 +477,6 @@ class TmpEntriesTest(TempTree):
     def test_a_running_process_inside_an_old_entry_keeps_it(self) -> None:
         cwd = str(self.tmp / "pytest-of-kyle" / "run-1")
         self.assertEqual(self.rows({cwd})["pytest-of-kyle"]["disposition"], "KEEP")
-        # a sibling whose name only shares the prefix is not the same entry
         self.assertEqual(
             self.rows({str(self.tmp / "pytest-of-kyle-2")})["pytest-of-kyle"][
                 "disposition"
@@ -490,7 +488,6 @@ class TmpEntriesTest(TempTree):
         rows = by_name(di.tmp_entries(self.tmp, NOW, None))
         self.assertEqual(rows["pytest-of-kyle"]["disposition"], "UNKNOWN")
         self.assertIn("process table was not read", rows["pytest-of-kyle"]["reason"])
-        # an entry kept for other reasons stays kept
         self.assertEqual(rows["pytest-of-old"]["disposition"], "KEEP")
         self.assertEqual(rows["systemd-private-abc-svc"]["disposition"], "KEEP")
 

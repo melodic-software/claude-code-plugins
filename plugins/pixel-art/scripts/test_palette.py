@@ -85,7 +85,6 @@ class PaletteTest(unittest.TestCase):
             ]
             self.assertEqual(dithered, expect)
 
-            # alpha below 128 stays transparent even where the dither offset is nonzero
             render.write_png(out / "fade.png", 1, 1, [[(128, 128, 128, 127)]])
             render.snap_image(out / "fade.png", json.dumps(black_white), out / "fade-out.png", dither=True)
             self.assertEqual(read_png(out / "fade-out.png")[0][0], (0, 0, 0, 0))

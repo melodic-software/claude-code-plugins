@@ -1,5 +1,3 @@
-"""Review-order signals: what each reads, legible reasons, and no authority."""
-
 from __future__ import annotations
 
 import copy
@@ -311,7 +309,6 @@ class ScanRankingTests(unittest.TestCase):
             for entry in snapshot["entries"]
             if entry["path"].startswith("site-build/")
         )
-        # Members of one group are presented together.
         self.assertEqual(list(range(positions[0], positions[0] + 12)), positions)
 
     def test_sizes_only_scan_carries_no_ranking(self) -> None:

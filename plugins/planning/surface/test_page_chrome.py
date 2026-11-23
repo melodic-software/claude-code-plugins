@@ -1,5 +1,4 @@
 # test-scope: plugins/planning/surface/index.html plugins/planning/reference/html-chrome.html
-"""The interview page carries the canonical chrome's theme toggle, comment box and rules."""
 
 from __future__ import annotations
 

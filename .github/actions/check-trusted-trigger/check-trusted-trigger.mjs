@@ -11,9 +11,10 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault, paginate } from "../../scripts/lib/github-client.mjs";
+import { loadTrustedList } from "../../scripts/lib/trusted-actors.mjs";
 
-const ACTOR_KEYS = ["id", "kind", "login"];
-const KINDS = new Set(["human", "bot"]);
+export { loadTrustedList };
+
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 // Branch names reach later steps; anything beyond these characters stops the
 // lane rather than travel on.
@@ -181,42 +182,6 @@ export async function appCloseKind(github, repo, number, isApp) {
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-// Validates the trusted-actors shape (version 1, no extra keys) and returns
-// the listed ids and each lowercased login's id. Throws on any read, parse or
-// shape failure.
-export function loadTrustedList(listPath) {
-  const list = JSON.parse(readFileSync(listPath, "utf8"));
-  if (
-    !isPlainObject(list) ||
-    Object.keys(list).sort().join() !== "actors,version" ||
-    list.version !== 1 ||
-    !Array.isArray(list.actors)
-  ) {
-    throw new Error("trusted-actor list does not match its schema");
-  }
-  const ids = new Set();
-  const humans = new Set();
-  const logins = new Map();
-  for (const actor of list.actors) {
-    if (
-      !isPlainObject(actor) ||
-      Object.keys(actor).sort().join() !== ACTOR_KEYS.join() ||
-      !Number.isInteger(actor.id) ||
-      actor.id < 1 ||
-      typeof actor.login !== "string" ||
-      !KINDS.has(actor.kind)
-    ) {
-      throw new Error("trusted-actor entry does not match its schema");
-    }
-    ids.add(actor.id);
-    if (actor.kind === "human") {
-      humans.add(actor.id);
-    }
-    logins.set(actor.login.toLowerCase(), actor.id);
-  }
-  return { ids, humans, logins };
 }
 
 export const loadTrustedActors = (listPath) => loadTrustedList(listPath).ids;

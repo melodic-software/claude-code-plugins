@@ -68,6 +68,9 @@ export function evaluateSources({
   claudeModels,
   skippedSilentVendors,
   unavailableInUseVendors,
+  gatedVendors = new Set(),
+  claudeGated = false,
+  taskType = null,
   nowDate,
   notes,
 }) {
@@ -122,7 +125,11 @@ export function evaluateSources({
 
     for (const r of rawRecords) {
       if (r.verdict === 'abstain') continue
-      if (skippedSilentVendors.has(r.vendor) || unavailableInUseVendors.has(r.vendor)) {
+      if (
+        skippedSilentVendors.has(r.vendor) ||
+        unavailableInUseVendors.has(r.vendor) ||
+        gatedVendors.has(r.vendor)
+      ) {
         r.verdict = 'abstain'
         continue
       }
@@ -136,6 +143,14 @@ export function evaluateSources({
         r.verdict = 'abstain'
         continue
       }
+      if (taskType === 'image' && vInfo.image !== true) {
+        r.verdict = 'abstain'
+        continue
+      }
+      if (r.model && vInfo.skippedModels && vInfo.skippedModels.has(r.model.toLowerCase())) {
+        r.verdict = 'abstain'
+        continue
+      }
       if (!r.model || !vInfo.idSet.has(r.model.toLowerCase())) {
         notes.push(
           `${row.id}: abstains for ${r.vendor} (model '${r.model ?? 'none'}' is not in current models)`,
@@ -145,6 +160,8 @@ export function evaluateSources({
     }
 
     const claudeTested =
+      taskType === 'image' ||
+      claudeGated ||
       !claudeModels ||
       claudeModels.ids.length === 0 ||
       rawRecords.some((r) => r.vendor === 'claude' && r.verdict !== 'abstain')
@@ -229,6 +246,7 @@ export function resolveConsensus({
   clusters,
   leadingEvaluations,
   modelsByVendor,
+  usageByVendor = new Map(),
   failedOutcomes,
   claudeDefaultModel,
   claudeVersion,
@@ -400,7 +418,41 @@ export function resolveConsensus({
               notes.push('tiebreak fewest-tokens skipped: tied vendors lack comparable token counts')
             }
           } else if (step === 'most-usage-left') {
-            notes.push('tiebreak most-usage-left unavailable: falling back to next tiebreak step')
+            const unavailableReasons = []
+            const scored = []
+            for (const t of eligibleTies) {
+              const reading = usageByVendor ? usageByVendor.get(t.vendor) : null
+              if (!reading || reading.status !== 'ok' || typeof reading.remaining !== 'number') {
+                const why = reading && reading.reason ? reading.reason : 'missing'
+                unavailableReasons.push(`${t.vendor}: ${why}`)
+              } else {
+                scored.push({ entry: t, remaining: reading.remaining })
+              }
+            }
+            if (unavailableReasons.length > 0) {
+              const ordered = effectiveVendorOrder.find((v) => eligibleVendors.includes(v))
+              if (ordered) {
+                picked = eligibleTies.find((t) => t.vendor === ordered)
+                notes.push(
+                  `tiebreak most-usage-left unavailable (${unavailableReasons.join('; ')}); falling back to vendor-order: vendor-order selected ${picked.vendor}`,
+                )
+                break
+              }
+              notes.push(
+                `tiebreak most-usage-left unavailable (${unavailableReasons.join('; ')}); falling back to next tiebreak step`,
+              )
+            } else {
+              scored.sort((a, b) => b.remaining - a.remaining)
+              const pct = Math.round(scored[0].remaining * 10000) / 100
+              if (scored[0].remaining > scored[1].remaining) {
+                picked = scored[0].entry
+                notes.push(`tiebreak most-usage-left selected ${picked.vendor} (${pct}% remaining)`)
+                break
+              }
+              notes.push(
+                `tiebreak most-usage-left tied (${pct}% remaining); continuing to next tiebreak step`,
+              )
+            }
           } else if (step === 'vendor-order') {
             const ordered = effectiveVendorOrder.find((v) => eligibleVendors.includes(v))
             if (ordered) {

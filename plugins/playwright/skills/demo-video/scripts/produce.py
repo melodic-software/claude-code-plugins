@@ -29,7 +29,7 @@ from ripple_geometry import HALO, ring
 ACCENT = (45, 140, 255)
 OK_GREEN = (36, 163, 92)
 INK = (17, 20, 28)
-RIPPLE = 0.3   # seconds
+RIPPLE = 0.3
 
 
 def ease_cubic(u):   # the curve record.mjs moves the real mouse with

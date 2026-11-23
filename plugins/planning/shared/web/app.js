@@ -23,7 +23,6 @@
       propFilter: "new", reqSeen: new Set(), reqEditing: new Set(),
       resClosed: new Set(), askOpen: false, askKind: "ask", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
       bumped: false, heard: {}, renaming: false, renameFor: null, tie: null,
-      // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
       more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: store.get("vf-ixtab", "needs"), ixOff: store.get("vf-ix-off", {}),
@@ -190,9 +189,7 @@
     const offs = []; let dead = false;
     const on = (t, ev, fn, opt) => { t.addEventListener(ev, fn, opt); offs.push(() => t.removeEventListener(ev, fn, opt)); };
     const btn = (cls, text) => { const b = E("button", cls, text); b.type = "button"; return b; };
-    /** Icon-only button with an accessible name. */
     const ibtn = (cls, name, label) => { const b = btn(cls); b.append(icon(name)); b.setAttribute("aria-label", label); b.title = label; return b; };
-    /** Icon and label button. */
     const lbtn = (cls, name, text) => { const b = btn(cls); b.append(icon(name), E("span", null, text)); return b; };
     // ---------- where an answer was made: sent with answers, picks, votes and suggestions; only the host sees it ----------
     // The device and browser come from Core (deviceKind, browserKind), the one source; the page adds only where it is.
@@ -857,7 +854,6 @@
       flash(`Not saved: ${Core.errorText(e)}`, { label: "Report this", run: () => openReport() });
     };
 
-    // ---------- top bar ----------
     const top = E("header", "vf-top");
     const brand = E("div", "vf-brand");
     const titleTxt = E("span", "vf-title");
@@ -898,7 +894,6 @@
     bellBtn.append(icon("host"), E("span", "vf-inbox-l", "Inbox"), bellBadge);
     top.append(brand, E("div", "vf-spacer"), people, hereCount, askTop, shareBtn, follow, keysBtn, themeBtn, bellBtn, gear);
 
-    // ---------- rail ----------
     const body = E("main", "vf-body");
     const rail = E("aside", "vf-rail");
     const railHead = E("div", "vf-head");
@@ -1044,7 +1039,6 @@
     const tieList = E("ul", "vf-tielist"); tieList.setAttribute("role", "list");
     tiePop.append(E("h2", "vf-pop-title", "Tied on votes"), E("p", "vf-pop-note", "Pick the one to lock. Claude's recommendation is listed first."), tieList);
 
-    // ---------- center ----------
     const center = E("section", "vf-center");
     // Session-wide notice: moved, ended, removed, or (owner) a new guest link to share.
     const banner = E("div", "vf-banner"); banner.setAttribute("role", "status"); banner.hidden = true;
@@ -1120,7 +1114,6 @@
     };
     bar.append(seg, viewOpts, barInfo, pick, barNav);
 
-    // Focus view
     const focusV = E("div", "vf-focus");
     const scroll = E("div", "vf-scroll");
     const qMeta = E("div", "vf-qmeta");
@@ -1196,7 +1189,6 @@
     const introOpen = () => !!ui.introOpen;
     const INTRO_SEEN = () => "vf-intro-seen:" + (Core.me.cid || "anon");
 
-    // Research and ask requests
     const tools = E("div", "vf-qtools");
     // "Ask Claude" toggles the ask form below it, the same words everywhere.
     const askBtn = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-askbtn", "sparkle", "Ask Claude");
@@ -1242,7 +1234,6 @@
     const thList = E("ul", "vf-thlist"); thList.setAttribute("role", "list"); thList.setAttribute("aria-label", "Claude thread");
     const thEmpty = E("p", "vf-empty vf-empty-sm", "Nothing asked yet. Ask Claude about this question, or have it research something.");
 
-    // Locked block
     const lockBox = E("section", "vf-lock"); lockBox.setAttribute("aria-label", "Locked answer");
     const lockTop = E("div", "vf-lock-top");
     const lockBadge = E("span", "vf-lock-badge"); lockBadge.append(icon("lock"), E("span", null, "Locked"));
@@ -1516,7 +1507,6 @@
     scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, qOpen, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
-    // Compare view
     const cmp = E("div", "vf-cmp");
     const board = E("div", "vf-board"); board.setAttribute("aria-label", "All questions side by side");
     const fadeL = E("div", "vf-fade vf-fade-l"), fadeR = E("div", "vf-fade vf-fade-r");
@@ -1526,7 +1516,6 @@
     arrR.append(arrRTxt, icon("chevR"));
     cmp.append(board, fadeL, fadeR, arrL, arrR);
 
-    // Tree view
     const treeV = E("div", "vf-treev");
     const tree = E("div", "vf-tree"); tree.setAttribute("aria-label", "Decision tree");
     treeV.append(tree);
@@ -1537,7 +1526,6 @@
     const hsec = (title, cls) => { const s = E("section", "vf-hsec " + (cls || "")); const h = E("div", "vf-hsec-head"); const t = E("h2", "vf-hsec-title", title); const m = E("span", "vf-meta"); h.append(t, m); s.append(h); s._h = h; s._t = t; s._m = m; return s; };
     const hRound = hsec("Round", "vf-hs-round"), hQueue = hsec("Queue", "vf-hs-queue"), hPeople = hsec("People", "vf-hs-people");
     const hLinks = hsec("Links and settings", "vf-hs-links"), hLater = hsec("Later", "vf-hs-later");
-    // round
     const hRoundName = E("p", "vf-hround-name"), hSteps = makeStepper(), hRoundNote = E("p", "vf-pop-note vf-hround-note");
     const hRoundRow = E("div", "vf-crow vf-hround-row");
     const hSend = btn("vf-btn vf-btn-primary vf-btn-sm", "Send round to Claude"), hCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel sending");
@@ -1562,7 +1550,6 @@
       }
       return by;
     }
-    // queue
     const qFilters = E("div", "vf-chips vf-qfilters"); qFilters.setAttribute("role", "group"); qFilters.setAttribute("aria-label", "Show in the queue");
     const qfBtns = countChips(qFilters, [["all", "All"], ["request", "Requests"], ["proposal", "Proposals"], ["suggestion", "Suggestions"], ["merge", "Merges"], ["upload", "Uploads"], ["report", "Problems"], ["ready", "Ready"]], "hostFilter");
     const queueList = E("ul", "vf-queue"); queueList.setAttribute("role", "list");
@@ -1578,7 +1565,6 @@
     const peopleList = E("ul", "vf-hpeople"); peopleList.setAttribute("role", "list");
     const peopleEmpty = E("p", "vf-empty vf-empty-sm"), peopleMore = showMore("people", 25);
     hPeople.append(pFilters, pFind, peopleList, peopleMore.foot, peopleEmpty);
-    // links and settings
     const hShare = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "link", "Share the guest link");
     const hNewGuest = btn("vf-btn vf-btn-ghost vf-btn-sm", "New guest link"), hNewOwner = btn("vf-btn vf-btn-ghost vf-btn-sm", "New owner link");
     const hSettings = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "gear", "Session settings");
@@ -1586,7 +1572,6 @@
     const hEnd = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-danger");
     const hEndNote = E("p", "vf-pop-note");
     hLinks.append(hLinkRow, hEndNote, hEnd);
-    // later
     const laterNote = E("p", "vf-pop-note");
     const laterList = E("ul", "vf-plist vf-laterlist"); laterList.setAttribute("role", "list");
     const laterEmpty = E("p", "vf-empty vf-empty-sm", "Nothing parked for later. Proposals that are off the goal land here.");
@@ -1627,7 +1612,6 @@
     const skip = E("a", "vf-skip", "Skip to your answer"); skip.href = "#vf-answer";
     body.append(skip, rail, center);
 
-    // Phone tabs
     const tabs = E("nav", "vf-tabs"); tabs.setAttribute("aria-label", "Sections");
     const tabBtns = {};
     // Q86: Questions, Answer, Compare, Tree, More; More opens a sheet with everything else. No hamburger.
@@ -1641,7 +1625,6 @@
     }
     tabBtns.more.setAttribute("aria-haspopup", "dialog"); tabBtns.more.setAttribute("aria-expanded", "false");
 
-    // Chat
     const fab = btn("vf-fab"); fab.setAttribute("aria-label", "Open chat"); fab.setAttribute("aria-expanded", "false");
     const fabBadge = E("span", "vf-fab-badge");
     const chatIco = icon("chat", "vf-ico vf-ico-chat"); chatIco.lastChild.setAttribute("class", "vf-ico-dots");
@@ -2118,7 +2101,6 @@
     const needIx = E("ul", "vf-ixlist"), needIxBox = ixGroup("vf-ibneedix", needIx);
     const needEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixNeeds = E("div", "vf-ibtab vf-ibneeds"); ixNeeds.append(revBox, needQBox, needIxBox, needEmpty);
-    // My requests
     const ixMineList = E("ul", "vf-ixlist"); ixMineList.setAttribute("role", "list"); ixMineList.setAttribute("aria-label", "My requests");
     const ixMineEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
     const ixMine = E("div", "vf-ibtab vf-ixmine"); ixMine.append(ixMineList, ixMineEmpty);
@@ -2369,7 +2351,6 @@
     // One close behavior for every x: close, and focus goes back to what opened the surface.
     on(root, "click", e => { if (e.target.closest?.(".vf-popx") && ui.pop?.contains(e.target)) closeSurface(); });
 
-    // ---------- actions ----------
     function applyTheme() {
       const mode = myMode();
       root.dataset.theme = mode === "system" ? (lightOS.matches ? "light" : "dark") : mode;
@@ -2832,7 +2813,6 @@
       render();
     }
 
-    // ---------- goal ----------
     function startGoalEdit() {
       goalInput.value = Core.state.goal || "";
       ui.goalEditing = true; render();
@@ -2846,7 +2826,6 @@
       render();
     }
 
-    // ---------- Ask Claude panel ----------
     function openAskPanel(mode, qid, text) {
       if (mode) ui.askMode = mode;
       ui.askQ = qid || ui.cur;
@@ -3005,7 +2984,6 @@
       }));
     }
 
-    // ---------- chat message menu ----------
     /** The menu for chat message `m`, or with `cmt` ({ qid, li }) for a Discussion comment; each entry shows where it fits. */
     function openMsgMenu(m, anchor, cmt) {
       if (!m) return;
@@ -3264,7 +3242,6 @@
       k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
     }
 
-    // ---------- what each tab lists ----------
     /** A guest's request Claude failed waits on the host until the host opens it (its fail: item is read). */
     const failWaits = r => inbox().some(i => i.key === "fail:" + r.id && i.unread);
     /** The host's requests to Claude that need the host now: to run, to share, or failed and not yet opened. */
@@ -3432,7 +3409,6 @@
       }
     }
 
-    // ---------- the host's requests to Claude ----------
     /** Every request to the host's Claude and every answer, newest first, each with the status the chips filter on. */
     function revRows(S) {
       const res = [];
@@ -4489,7 +4465,6 @@
     propRowB.prepend(propSlot.btn); proposePop.insertBefore(propSlot.chips, propRowB);
     const sameAtt = qid => attKey(ui.attDraft[qid] ?? (myRec(qid)?.att || [])) === attKey(myRec(qid)?.att || []);
 
-    // ---------- notices for changes that concern me ----------
     function notices(S) {
       if (!Core.live || !Core.me.cid) return; // prime on real state, not the empty one before the first poll
       const seen = ui.notified, first = !seen._primed, owner = Core.me.isOwner, muted = new Set(pref("mute", []));
@@ -4568,7 +4543,6 @@
       else if (fresh.length && !queued && !ui.alertOpen) flash(alertToast, null, "alert");
     }
 
-    // ---------- empty session ----------
     evGoal.onsubmit = e => {
       e.preventDefault();
       const v = evGoalIn.value.trim(); if (!v) return evGoalIn.focus();
@@ -4611,7 +4585,6 @@
 
     /** Sweep S22: the name the server gave when the one typed was taken (by someone here or offline), said once. */
     const renamedLine = () => (Core.renamedFrom && Core.me.name ? `You joined as ${Core.me.name}: the name ${Core.renamedFrom} was taken. ` : "");
-    // ---------- events ----------
     qPrev.onclick = () => step(-1);
     qNext.onclick = () => step(1);
     goalEdit.onclick = startGoalEdit; goalAdd.onclick = startGoalEdit; hGoalEdit.onclick = () => { if (!titles.offsetParent) return; startGoalEdit(); };
@@ -4819,7 +4792,6 @@
       Core.idea(text, ex).then(() => { propTa.value = ""; propSlot.sent(ex); propBack(); flash("Proposed. You can see it under Your proposals."); })
         .catch(fail).finally(() => { propSend.disabled = false; });
     };
-    // ---------- Report a problem ----------
     const REP = { ctx: null };
     function paintSent() {
       const c = REP.ctx;
@@ -5047,7 +5019,6 @@
     const sysTheme = () => applyTheme();
     lightOS.addEventListener("change", sysTheme); offs.push(() => lightOS.removeEventListener("change", sysTheme));
 
-    // person cards
     let hoverT = 0, hideT = 0;
     const pidEl = t => t?.closest?.("[data-pid]");
     function showCard(el, pinned) {
@@ -5405,7 +5376,6 @@
     const onDock = () => { syncModal(); if (activeSheet() === chat && !chat.contains(document.activeElement)) (coarse.matches ? chatClose : mInput).focus({ preventScroll: true }); };
     docked.addEventListener("change", onDock); offs.push(() => docked.removeEventListener("change", onDock));
 
-    // ---------- requests ----------
     async function saveOpenEdit(li) {
       const r = li._r, val = li._ta.value.trim();
       if (ui.reqEditing.has(r.id) && val && val !== r.text) await Core.requestAct(r.id, "edit", val);
@@ -5547,7 +5517,6 @@
       if (editing) k.move.hidden = true; // the row is its text box, Save and Cancel until the edit ends
     }
 
-    // ---------- answer card ----------
     function buildCard(compact) {
       const li = E("li", compact ? "vf-mini" : "vf-card");
       li.tabIndex = -1;
@@ -5763,7 +5732,6 @@
       }
     }
 
-    // ---------- render ----------
     function renderComposer() {
       const qid = ui.cur, q = qById(qid), mine = Core.myAnswer(qid), S = Core.state;
       const rec = myRec(qid), picked = !!savedPick(q, rec);
@@ -6877,7 +6845,6 @@
       holder.append(ul);
     }
 
-    // ---------- Ask Claude panel ----------
     function renderAskPanel(S) {
       const mode = guestKind(ui.askMode, ui.apWeb);
       for (const [k, b] of Object.entries(apModeBtns)) { b.setAttribute("aria-selected", String(k === mode)); b.setAttribute("aria-pressed", String(k === mode)); }
@@ -7113,7 +7080,6 @@
     }
     function renderHost(S) {
       const R = curRound(), owner = Core.me.isOwner, mod = Core.canModerate();
-      // round
       const n = R.current, rq = S.questions.filter(q => roundOf(q) === n), decided = rq.filter(q => Core.lockOf(q.id)).length;
       const sent = isSentStatus(R.status);
       hRoundName.textContent = `Round ${n}: ${sent ? (R.status === "working" ? `Claude is working on it${workingFor(R) ? ` · ${workingFor(R)}` : ""}` : "waiting for Claude") : `${decided} of ${rq.length} decided`}`;
@@ -7135,7 +7101,6 @@
       hIntroShown.textContent = S.intro || "No introduction yet.";
       if (owner && document.activeElement !== hIntroIn && !ui.introDirty && hIntroIn.value !== S.intro) hIntroIn.value = S.intro;
       hIntroSave.disabled = !ui.introDirty;
-      // queue
       const items = queueItems(S), counts = {};
       for (const it of items) counts[it.t] = (counts[it.t] || 0) + 1;
       for (const [k, b] of Object.entries(qfBtns)) {
@@ -7149,7 +7114,6 @@
       queueEmpty.hidden = shown.length > 0;
       queueEmpty.textContent = ui.hostFilter === "all" ? "All clear. New requests, proposals, suggestions, merges and files show up here." : `No ${QT[ui.hostFilter]?.toLowerCase() || "items"} waiting.`;
       hQueue._m.textContent = `${items.length} waiting`;
-      // people
       const here = new Map(S.presence.map(p => [p.cid, p])), gone = new Set(S.removed || []);
       // You first, then Active, Away, Offline (the most recently seen first), the owner first within each, then by name.
       const rank = p => ["active", "away", "offline"].indexOf(presState(here.get(p.pid)));
@@ -7243,7 +7207,6 @@
       if (ui.pop === personPop) fillPersonView();
       const nAway = S.presence.filter(p => p.away).length;
       hPeople._m.textContent = `${S.presence.length} here${nAway ? ` (${nAway} away)` : ""}, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
-      // links and settings
       hNewGuest.hidden = hNewOwner.hidden = hSettings.hidden = hEnd.hidden = !owner;
       hNewOwner.hidden ||= Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
       const later = laterItems().sort((a, b) => a.ts - b.ts), nl = later.length;
@@ -7251,7 +7214,6 @@
       hEndNote.textContent = owner && !S.ended ? (nl ? `Ending makes the page read-only for guests. ${laterLine(nl)}.` : "Ending makes the page read-only for guests, with the final tree.") : "";
       hEndNote.hidden = !hEndNote.textContent;
       hLinks._t.textContent = owner ? "Links and settings" : "Links";
-      // later
       hLater._m.textContent = later.length ? String(later.length) : "";
       laterNote.textContent = later.length ? `${laterLine(later.length)} when the session ends.` : "";
       laterNote.hidden = !later.length;
@@ -7327,7 +7289,6 @@
       if (ui.heard.q === heardQ && others0 > ui.heard.n) announce(`${others0 - ui.heard.n} new answer${others0 - ui.heard.n > 1 ? "s" : ""} on ${heardQ}`);
       ui.heard = { q: heardQ, n: others0 };
 
-      // top bar
       const title = S.title || "Interview";
       if (titleTxt.textContent !== title) titleTxt.textContent = title;
       titleEdit.hidden = !me.isOwner || !titleInput.hidden;
@@ -7372,7 +7333,6 @@
       if (!me.isOwner && ui.pop === settingsPop) closePop();
       if (ui.pcard) fillPcard();
 
-      // popovers
       for (const [k, b] of Object.entries(switches)) b.setAttribute("aria-checked", String(k === "hideClaude" ? s[k] !== false : !!s[k]));
       for (const [k, b] of Object.entries(tierRows)) b.setAttribute("aria-checked", String(s.prototypeTiers.includes(k)));
       switches.signoff.disabled = !s.voting;
@@ -7427,7 +7387,6 @@
       if (S.ended && !me.isOwner && !ui.endedShown) { ui.endedShown = true; setMode("tree"); if (phone.matches) setTab("tree"); return; }
       if (!S.ended) ui.endedShown = false;
 
-      // rail
       const answered = S.questions.filter(q => myState(q.id) !== "open" || Core.lockOf(q.id)).length;
       // per person, the complement of catchUp's count: what I answered or took part in, or what is decided; someone else's
       // answer does not make it mine
@@ -7513,7 +7472,6 @@
         : `Sent ${sentAgo}.${me.isOwner ? " Claude may already be reading it; you can still cancel." : ""}`;
       cancelSend.hidden = !((R.status === "sent" || R.status === "preparing") && me.isOwner);
 
-      // proposed
       const props = S.ideas.filter(i => i.status === "new").sort((a, b) => b.ts - a.ts);
       const notPlaced = S.ideas.filter(i => i.status === "notplaced").sort((a, b) => b.ts - a.ts);
       const parked = S.ideas.filter(i => i.status === "parked").sort((a, b) => b.ts - a.ts);
@@ -7614,7 +7572,6 @@
         b.setAttribute("aria-label", `Question ${q.id.slice(1)}: ${qt}${qEnd} ${lk ? "Locked." : { answered: "You answered.", took: "You took part.", soft: "Optional: someone answered." }[mine] || "Not answered."}${rv ? " " + rv + "." : ""}${fresh ? " New answers." : ""}${others.length ? " " + names(others) + " here." : ""}${typing ? " Someone is typing." : ""}`);
       }
 
-      // center bar
       const cmpQs = shownQs;
       if (!mod && ui.mode === "host") setMode("focus");
       segBtns.host.hidden = !mod;
@@ -7623,7 +7580,6 @@
       barNav.hidden = ui.mode !== "focus";
       center.classList.toggle("vf-multi", roundNums.length > 1);
       pick.hidden = true;
-      // toolbar
       const T = tb();
       const simple = simpleView();
       seg.hidden = simple;
@@ -7647,13 +7603,11 @@
       expandBtn.textContent = allOpen ? "Collapse all rounds" : "Expand all rounds";
       expandBtn.hidden = roundNums.length < 2 || ui.mode === "compare";
 
-      // focus view
       const q = S.questions.find(x => x.id === ui.cur);
       const lk = q && Core.lockOf(q.id);
       center.classList.toggle("vf-noq", !q);
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
-      // the welcome seen, or something answered
       const beenHere = () => !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
       // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
       orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || (!ui.welcomeAgain && beenHere());
@@ -7764,7 +7718,6 @@
         qOnIt.setAttribute("aria-label", onItTxt.textContent);
         if (others.length) qOnIt.removeAttribute("aria-hidden"); else qOnIt.setAttribute("aria-hidden", "true");
 
-        // format, Claude thread, citations
         renderFormat(S, q);
         if (!lb.hidden) paintLb();
         askBtn.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
@@ -7785,7 +7738,6 @@
         paintSlot(askSlot, readOnly(q) || askOwn());
         paintSlot(sugSlot);
 
-        // lock block
         lockBox.hidden = !lk;
         if (lk) {
           lockBy.textContent = `by ${disp(lk.by)}, ${since(lk.ts)}${lk.edited ? ", edited" : ""}`;
@@ -7851,7 +7803,6 @@
           sugHead.hidden = mod && sugs.length === 0;
         }
 
-        // answers
         const lead = leadOf(q.id), all = ordered(q.id);
         // C26: Claude's cards wait behind a bar until I answered or voted; a chosen one (voted, leading, locked) shows.
         const hideOn = claudeHidden(q.id), pw = resultsWait(q);
@@ -7914,7 +7865,6 @@
       if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); Kit.grow(ta); }
       renderComposer();
 
-      // compare view
       if (ui.mode === "compare") sync(board, cmpQs, x => x.id, x => {
         const col = E("section", "vf-col");
         const head = E("header", "vf-col-head");
@@ -7973,7 +7923,6 @@
       if (ui.pop === askPanel) renderAskPanel(S);
       if (ui.pop === citePop && !citeList.children.length) closePop();
 
-      // chat
       chat.classList.toggle("vf-off", !s.chat);
       fab.hidden = !s.chat;
       if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; fab.setAttribute("aria-expanded", "false"); syncModal(); } // the page it covered goes live again

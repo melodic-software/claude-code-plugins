@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "external-agents models codex"
+          }
+        }
+      ],
+      "why": "queries models without running a delegation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "external-agents run codex --use task --mode write --prompt-file /tmp/p.txt"
+          }
+        }
+      ],
+      "why": "ran external-agents run even though auto_delegation is false"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "${CLAUDE_SKILL_DIR}/scripts/delegate codex <<'PROMPT'\ndraw a cat\nPROMPT"
+          }
+        }
+      ],
+      "why": "ran the delegate script even though auto_delegation is false"
+    }
+  ]
+}

@@ -95,7 +95,7 @@ class RenderTest(unittest.TestCase):
             self.assertEqual(sheet[3], [(0, 0, 0, 0), (0, 0, 0, 255)])
             self.assertEqual(len(read_png(out / "preview.png")), 8)
             frames = read_gif_frames(out / "blink.gif")
-            self.assertEqual(frames[0][:4], [1, 1, 0, 0])  # 'k' 'k' '.' '.' at scale 2
+            self.assertEqual(frames[0][:4], [1, 1, 0, 0])
             self.assertEqual(len(frames), 2)
             meta = json.loads((out / "sheet.json").read_text())
             self.assertEqual(meta["frames"]["b"]["frame"], {"x": 0, "y": 2, "w": 2, "h": 2})

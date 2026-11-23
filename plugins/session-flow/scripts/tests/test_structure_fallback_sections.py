@@ -1,5 +1,4 @@
 # test-scope: plugins/session-flow/reference/structure.md
-"""The Python-absent fallback's hand-written section list matches the shape-4 ShapeSpec."""
 
 from __future__ import annotations
 

@@ -31,7 +31,7 @@ ci-workflows `resolve-branch-tip` action, or in the two release workflows that h
 key the same read inline: an authenticated `git ls-remote`, tried up to 3 times after waits of up
 to 2 and 4 s with full jitter on a timeout or a 5xx only, failing red at once on a 401 or 403 and
 when no try yields a SHA
-([`resolve.sh`](https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/resolve-branch-tip/resolve.sh)).
+([`resolve.sh`](https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/resolve-branch-tip/resolve.sh)).
 
 ## work-resolve-issue
 

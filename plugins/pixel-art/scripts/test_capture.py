@@ -353,7 +353,6 @@ class CaptureTest(unittest.TestCase):
                     "--scale", "2",
                     "--out", str(out),
                 ])
-            # capture.py's own error first: the browser log under it is mostly headless D-Bus noise.
             log = out / "browser.log"
             self.assertEqual(code, 0, err.getvalue() + (log.read_text() if log.is_file() else ""))
             early = count_tunic(png_rgba(out / "shot-0.png")[2])
