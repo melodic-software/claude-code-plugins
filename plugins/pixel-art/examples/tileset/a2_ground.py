@@ -12,14 +12,12 @@ import pathlib
 W, H = 96, 144
 TILE, LIP = 48, 6
 COLUMNS = 8
-COUNT = 32  # 8 * (576 / 144)
+COUNT = 32
 
 
 def is_lip(x, y):
     if y < TILE:
-        # inner-corner tile: a lip square centered where its quarters meet
         return x >= TILE and abs(x - (TILE + TILE // 2) + 0.5) < LIP and abs(y - TILE // 2 + 0.5) < LIP
-    # edge region: a lip band along its outer border
     return x < LIP or x >= W - LIP or y < TILE + LIP or y >= H - LIP
 
 
