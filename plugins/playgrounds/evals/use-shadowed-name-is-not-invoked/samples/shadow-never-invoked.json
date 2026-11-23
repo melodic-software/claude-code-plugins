@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no skill call: the install and guidance path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playground:playground",
+            "args": "make a playground for my color palette"
+          }
+        }
+      ],
+      "why": "namespaced upstream form, not the shadowing bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playground",
+            "args": "make a playground for my color palette"
+          }
+        }
+      ],
+      "why": "bare name reaches the local SQL-formatting shadow"
+    }
+  ]
+}
