@@ -1,5 +1,5 @@
 {
-  "description": "Inside a multi-agent:drift-checker subagent, denies any WebFetch that is not an https URL on a first-party docs host with no query string. Inside a multi-agent:docs-fetcher subagent, denies any Bash command but the plugin's docs-raw.sh on such a URL. Every other agent and the main thread pass through.",
+  "description": "Inside a multi-agent:drift-checker subagent, denies any WebFetch that is not an https URL on a first-party docs host with no query string. Inside a multi-agent:docs-fetcher subagent, denies any Bash command but the plugin's docs-raw.sh on such a URL. Inside a multi-agent:registry-fetcher subagent, denies any Bash command but the plugin's docs-raw.sh on an https URL whose host appears in reference/benchmarks.json with no query string. Every other agent and the main thread pass through.",
   "hooks": {
     "PreToolUse": [
       {
@@ -29,6 +29,24 @@
               "docs.claude.com",
               "docs.anthropic.com",
               "www.anthropic.com"
+            ],
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs",
+              "multi-agent:registry-fetcher",
+              "arena.ai",
+              "cursor.com",
+              "www.tbench.ai"
             ],
             "timeout": 10,
             "onFailure": "block"
