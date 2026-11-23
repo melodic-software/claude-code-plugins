@@ -1487,7 +1487,9 @@ class CheckCodeUnchanged(unittest.TestCase):
         self.assertFalse(self.unchanged(self.commits["parser"], "wrapper"))
 
     def commit_config(self, text: str) -> str:
-        (self.root / "docs/conventions/pr-pipeline.yaml").write_text(text)
+        (self.root / "docs/conventions/pr-pipeline.yaml").write_bytes(
+            text.encode("utf-8")
+        )
         self.git("commit", "-q", "--allow-empty", "-am", "edit")
         return self.git("rev-parse", "HEAD").strip()
 

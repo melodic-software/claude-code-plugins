@@ -706,6 +706,18 @@ def stop_server_status(pool: str, *, now: float | None = None) -> int | None:
     return status
 
 
+def _under_a_file(path: str | None) -> bool:
+    """Whether the nearest existing ancestor of `path` is a file, not a
+    directory: the ENOTDIR case, which Windows reports as not found."""
+    if path is None:
+        return False
+    parent = Path(path).parent
+    for ancestor in (parent, *parent.parents):
+        if ancestor.exists():
+            return not ancestor.is_dir()
+    return False
+
+
 def _read_job_stops() -> dict[str, int]:
     """Each pool's latest reset in the job's stop file. A missing file holds no
     stop and a malformed line is skipped, as rate-guard.mjs `readStops` reads
@@ -716,9 +728,9 @@ def _read_job_stops() -> dict[str, int]:
     try:
         # Bytes, not read_text: universal newlines would turn \r into \n.
         text = Path(path).read_bytes().decode("utf-8", "replace") if path else ""
-    except FileNotFoundError:
-        text = ""
     except OSError as exc:
+        if isinstance(exc, FileNotFoundError) and not _under_a_file(path):
+            return {}
         _job_stops_error = (
             f"the job's stop file {path} cannot be read ({exc.strerror or exc})"
         )
@@ -764,12 +776,15 @@ def _record_stop(pool: str, reset: float, server_status: int | None = None) -> N
     cause = "limit" if server_status is None else f"server-{server_status}"
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a", encoding="utf-8") as handle:
+        with open(path, "a", encoding="utf-8", newline="\n") as handle:
             handle.write(f"{pool} {int(reset)}\n")
         with (
             contextlib.suppress(OSError),
             open(
-                os.path.join(os.path.dirname(path), "cause"), "a", encoding="utf-8"
+                os.path.join(os.path.dirname(path), "cause"),
+                "a",
+                encoding="utf-8",
+                newline="\n",
             ) as handle,
         ):
             handle.write(f"{pool} {int(reset)} {cause}\n")

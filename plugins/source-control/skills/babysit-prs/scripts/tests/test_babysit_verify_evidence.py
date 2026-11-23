@@ -4239,6 +4239,7 @@ CARRY = (
     pathlib.Path(__file__).resolve().parents[6]
     / ".github/scripts/pr-merge/carry-run-cache.mjs"
 )
+NODE_ENV = {k: os.environ[k] for k in ("PATH", "SYSTEMROOT") if k in os.environ}
 
 
 def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
@@ -4257,7 +4258,7 @@ def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
     subprocess.run(
         ["node", str(CARRY)],
         env={
-            "PATH": os.environ["PATH"],
+            **NODE_ENV,
             "CARRY_FROM": str(restored),
             "CARRY_TO": str(directory / "run.json"),
             "GITHUB_REPOSITORY": REPO,
@@ -6558,8 +6559,9 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
         ]
         self.assertEqual([len(found) for found in lines], [1, 1], lines)
         script = f"total={total} fails={fails}\n{lines[0][0]}\n{lines[1][0]}\n"
+        bash = policy.resolve_bash(os.environ, sys.platform, os.path.isfile) or "bash"
         out = subprocess.run(
-            ["bash", "-c", script + 'echo "$cold_cost"'],
+            [bash, "-c", script + 'echo "$cold_cost"'],
             capture_output=True,
             text=True,
             check=True,
@@ -7725,7 +7727,7 @@ def keep_head_refs(directory: pathlib.Path, previous: str | None) -> dict[str, A
     return the map it wrote."""
     out = directory / "out.json"
     env = {
-        "PATH": os.environ["PATH"],
+        **NODE_ENV,
         "GITHUB_REPOSITORY": REPO,
         "BABYSIT_RUN_CACHE": os.environ["BABYSIT_RUN_CACHE"],
         "BABYSIT_VERIFY_LISTING": os.environ["BABYSIT_VERIFY_LISTING"],
