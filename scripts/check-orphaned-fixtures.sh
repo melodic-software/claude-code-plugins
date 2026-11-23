@@ -241,7 +241,6 @@ if [[ "$mode" == "discover" ]]; then
   exit 0
 fi
 
-# --check mode
 for f in "${fixtures[@]}"; do
   if consumed "$f"; then
     continue
