@@ -64,9 +64,9 @@ import {
   GitHubError,
   graphQLReader,
   isFault,
-  loadTrustedList,
   responseDetail,
-} from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+} from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";

@@ -1670,6 +1670,8 @@ merge:
     floor-paths:
       - glob: ".github/actions/check-trusted-trigger/**"
         class: trust
+      - glob: ".github/scripts/lib/github-client.mjs"
+        class: trust
       - glob: ".github/actions/resolve-config/**"
         class: trust
       - glob: ".github/actions/check-kill-switch/**"

@@ -446,12 +446,13 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 89)
+        self.assertEqual(len(FLOOR.high), 90)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
         self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
         self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
+        self.assertIn(".github/scripts/lib/github-client.mjs", files)
         # The rate-limit defaults rate-guard.mjs reads decide when the lanes
         # stop short of GitHub's limits, so they are held like the module.
         self.assertIn(".github/actions/log-api-budget/rate-limits.json", files)

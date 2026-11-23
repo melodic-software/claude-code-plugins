@@ -665,7 +665,7 @@ test("the built-in defaults are the values rate-limits.json ships", () => {
 // and the process exits 1 although main set exitCode 0, unless the step holds.
 test("one limit stops every helper in the process, and the process exits red unless the step holds", () => {
   const script = `
-    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    import { createGitHub } from "./.github/scripts/lib/github-client.mjs";
     import { budgetedFetch } from "./.github/scripts/pr-unblock/request-budget.mjs";
     let sent = 0;
     const fetchImpl = async () => {

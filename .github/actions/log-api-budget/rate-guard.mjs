@@ -1,8 +1,3 @@
-// The one GitHub API rate guard. createGitHub and retryServerErrors
-// (check-trusted-trigger.mjs) send every attempt through a latch, so
-// budgetedFetch (request-budget.mjs) and every createGitHub caller share it;
-// api-budget.bash's gh wrapper is its shell twin.
-//
 // GitHub: "Continuing to make requests while you are rate limited may result
 // in the banning of your integration"
 // (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit).

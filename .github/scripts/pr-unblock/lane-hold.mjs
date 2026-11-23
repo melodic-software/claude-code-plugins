@@ -22,7 +22,7 @@
 import { appendFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { isFault } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { isFault } from "../lib/github-client.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi, humanGatedLabelFrom, laneReader, need, positive, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";

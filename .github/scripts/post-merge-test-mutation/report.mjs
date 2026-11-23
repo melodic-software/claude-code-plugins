@@ -20,7 +20,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { commitPulls, createGitHub, graphQLReader } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { commitPulls, createGitHub, graphQLReader } from "../lib/github-client.mjs";
 
 // The first line of the lane's comment on a merged pull request.
 export const MARKER = "<!-- post-merge-test-mutation -->";

@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { main } from "./superseded.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 

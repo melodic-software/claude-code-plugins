@@ -16,7 +16,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { FILING, fenced, incidentRules, partlyReadSignals, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";

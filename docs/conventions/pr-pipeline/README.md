@@ -1464,7 +1464,8 @@ the rules that only tighten in
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
     which scope each lane token, `docs/conventions/pr-pipeline.yaml`, whose activity `effect:`
-    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
+    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**` with the
+    GitHub client it loads (`.github/scripts/lib/github-client.mjs`),
     `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`,
     `**/.gitmodules`, and the code that computes the author lift and the hold tables:
     `babysit_merge.py`, `babysit_merge_policy.py`, `diff_risk.py` and

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
-import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../../scripts/lib/github-client.mjs";
 import { main, SIGNED_COMMITS_HOLD } from "./check-signed-commits.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
