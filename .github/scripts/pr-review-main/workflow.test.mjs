@@ -664,7 +664,7 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
   }
   for (const [, remote] of text.matchAll(/^\s+uses: ([^.\s]\S*)/gm)) {
-    assert.match(remote, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|\S+@[0-9a-f]{40})$/, remote);
+    assert.match(remote, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|(?!(?:melodic-software|actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/)\S+@[0-9a-f]{40})$/, remote);
   }
 });
 

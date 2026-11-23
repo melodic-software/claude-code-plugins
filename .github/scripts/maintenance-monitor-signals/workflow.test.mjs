@@ -50,6 +50,6 @@ test("the kill switch is checked before the script reads anything", () => {
 test("every action ref follows the pin rule", () => {
   for (const [, ref] of text.matchAll(/uses: ([^\s]+)/g)) {
     if (ref.startsWith("./")) continue;
-    assert.match(ref, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|\S+@[0-9a-f]{40})$/, ref);
+    assert.match(ref, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|(?!(?:melodic-software|actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/)\S+@[0-9a-f]{40})$/, ref);
   }
 });

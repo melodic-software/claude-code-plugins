@@ -96,7 +96,7 @@ test("main's tip is checked out without credentials, and every action ref follow
   assert.match(job, /persist-credentials: false\n/);
   for (const [, ref] of job.matchAll(/uses: ([^\s]+)/g)) {
     if (ref.startsWith("./")) continue;
-    assert.match(ref, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|\S+@[0-9a-f]{40})$/, ref);
+    assert.match(ref, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|(?!(?:melodic-software|actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/)\S+@[0-9a-f]{40})$/, ref);
   }
 });
 
