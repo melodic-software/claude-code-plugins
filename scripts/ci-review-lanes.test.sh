@@ -48,6 +48,11 @@ if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number 
 else
   fail "step env does not set PR_NUMBER from github.event.pull_request.number"
 fi
+if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}"* ]]; then
+  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 480 s"
+else
+  fail "REVIEW_WAIT_SECONDS lost its contract-only zero or gives a ready draft re-run no wait"
+fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
 else
