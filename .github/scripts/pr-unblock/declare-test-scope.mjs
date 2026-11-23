@@ -64,9 +64,17 @@ function table(dir, name, width) {
   });
 }
 
+export const SUITE_COLUMNS = 4;
+const SUITE_ROW = /^([0-9]+|not-traced)\t[0-9]+\t[0-9]+$/;
+
 export function readTrace(dir) {
   try {
-    return { gaps: table(dir, "gaps.tsv", 3), suites: table(dir, "suites.tsv", 2), verdicts: table(dir, "verdicts.tsv", 2) };
+    const suites = table(dir, "suites.tsv", SUITE_COLUMNS);
+    const bad = suites.findIndex((fields) => !SUITE_ROW.test(fields.slice(1).join("\t")));
+    if (bad !== -1) {
+      throw new TraceError(`suites.tsv line ${bad + 1} is not suite, exit code or not-traced, seconds, read count`);
+    }
+    return { gaps: table(dir, "gaps.tsv", 3), suites, verdicts: table(dir, "verdicts.tsv", 2) };
   } catch (error) {
     if (error instanceof TraceError) {
       return refuse(REASONS.invalid, error.message);
@@ -78,9 +86,6 @@ export function readTrace(dir) {
 export function traceGaps({ gaps, suites, verdicts }) {
   if (suites.some(([, status]) => status === "not-traced")) {
     return refuse(REASONS.notAllGaps, "a suite was not traced inside the budget");
-  }
-  if (suites.some(([, status]) => !/^[0-9]+$/.test(status))) {
-    return refuse(REASONS.invalid, "suites.tsv holds a status that is no exit code");
   }
   if (verdicts.some(([, verdict]) => verdict.startsWith("not checked"))) {
     return refuse(REASONS.notAllGaps, "a file the suites read was not checked against the selector");

@@ -1,12 +1,14 @@
+// test-scope: scripts/selection-audit.sh
+// test-scope: scripts/lib/pytest-python.sh
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
-import { main, planDeclarations, readTrace, traceGaps, traceOnlyFailure } from "./declare-test-scope.mjs";
+import { SUITE_COLUMNS, main, planDeclarations, readTrace, traceGaps, traceOnlyFailure } from "./declare-test-scope.mjs";
 import { declarationRefusal } from "./test-scope.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -54,17 +56,92 @@ test("traceOnlyFailure takes a run whose one failed job is Test Selection, faile
 });
 
 test("readTrace refuses a carriage return, a short row and a symbolic link as test-scope-invalid", (t) => {
-  assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\tselects no suite\r\n", suites: "a.test.sh\t0\n" })).reason, "test-scope-invalid");
-  assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\n", suites: "a.test.sh\t0\n" })).reason, "test-scope-invalid");
+  assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\tselects no suite\r\n", suites: "a.test.sh\t0\t3\t1\n" })).reason, "test-scope-invalid");
+  assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\n", suites: "a.test.sh\t0\t3\t1\n" })).reason, "test-scope-invalid");
   const linked = traceDir(t, { gaps: "", suites: "" });
   rmSync(join(linked, "gaps.tsv"));
   symlinkSync("/etc/hostname", join(linked, "gaps.tsv"));
   assert.equal(readTrace(linked).reason, "test-scope-invalid");
-  assert.deepEqual(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\tselects no suite\n", suites: "a.test.sh\t1\n" })).gaps, [["a.test.sh", "x.sh", "selects no suite"]]);
+  assert.deepEqual(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\tselects no suite\n", suites: "a.test.sh\t1\t3\t1\n" })).gaps, [["a.test.sh", "x.sh", "selects no suite"]]);
+});
+
+test("readTrace takes a suites.tsv row as suite, exit code or not-traced, seconds and read count, and refuses any other row", (t) => {
+  const gaps = "a.test.sh\tx.sh\tselects no suite\n";
+  const suites = (row) => readTrace(traceDir(t, { gaps, suites: `${row}\n` }));
+  assert.deepEqual(suites("a.test.sh\t0\t29\t12").suites, [["a.test.sh", "0", "29", "12"]]);
+  assert.deepEqual(suites("a.test.sh\tnot-traced\t0\t0").suites, [["a.test.sh", "not-traced", "0", "0"]]);
+  for (const row of ["a.test.sh\t0", "a.test.sh\t0\t29\t12\t1", "a.test.sh\tpassed\t29\t12", "a.test.sh\t-1\t29\t12", "a.test.sh\t0\t2.5\t12", "a.test.sh\t0\t29\tmany"]) {
+    assert.equal(suites(row).reason, "test-scope-invalid", JSON.stringify(row));
+  }
+});
+
+const AUDIT = join(import.meta.dirname, "../../../scripts/selection-audit.sh");
+
+function auditRepo(t) {
+  const dir = scratch(t, "declare-test-scope-audit-");
+  const stubs = scratch(t, "declare-test-scope-stubs-");
+  const files = {
+    ".github/workflows/pr-require-checks.yml": "run: scripts/plan-test-lanes.sh\n",
+    "data/x.txt": "x\n",
+    "suites/a.test.sh": "cat data/x.txt\nexit 1\n",
+  };
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(join(dir, dirname(path)), { recursive: true });
+    writeFileSync(join(dir, path), text);
+  }
+  git(dir, ["init", "-q", "-b", "main"]);
+  git(dir, ["add", "-A"]);
+  git(dir, ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c"]);
+  writeFileSync(join(stubs, "selector.sh"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  writeFileSync(
+    join(stubs, "strace"),
+    [
+      "#!/usr/bin/env bash",
+      'while [[ "$1" == -* ]]; do case "$1" in -o | -e) [[ "$1" == -e ]] || log="$2"; shift 2 ;; *) shift ;; esac; done',
+      'printf \'100 openat(AT_FDCWD, "data/x.txt", O_RDONLY) = 3<%s/data/x.txt>\\n\' "$(pwd -P)" >"$log"',
+      'exec "$@"',
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+  return { dir, stubs };
+}
+
+function runAudit(t, { dir, stubs }, args) {
+  const out = scratch(t, "declare-test-scope-trace-");
+  const env = { ...process.env, PATH: `${stubs}:${process.env.PATH}`, SELECTION_AUDIT_SELECTOR: join(stubs, "selector.sh") };
+  delete env.RUNNER_TEMP;
+  delete env.GITHUB_STEP_SUMMARY;
+  const run = spawnSync("bash", [AUDIT, "trace", "--strict", ...args, "--out", out, "suites/a.test.sh"], { cwd: dir, env, encoding: "utf8" });
+  assert.equal(run.status, 1, `selection-audit.sh trace exits 1 on a gap or an untraced suite: ${run.stderr}`);
+  return out;
+}
+
+test("readTrace and traceGaps take the trace scripts/selection-audit.sh writes, with only strace and the selector stubbed", (t) => {
+  const repoDir = auditRepo(t);
+  const traced = readTrace(runAudit(t, repoDir, []));
+  assert.equal(traced.reason, undefined, traced.why);
+  assert.deepEqual(traced.suites.map(([suite, status, , reads]) => [suite, status, reads]), [["suites/a.test.sh", "1", "1"]]);
+  assert.deepEqual(traced.verdicts, [["data/x.txt", "selects no suite"]]);
+  assert.deepEqual(traceGaps(traced), { gaps: [{ suite: "suites/a.test.sh", file: "data/x.txt" }] });
+  const untraced = readTrace(runAudit(t, repoDir, ["--budget", "1"]));
+  assert.deepEqual(untraced.suites, [["suites/a.test.sh", "not-traced", "0", "0"]]);
+  assert.equal(traceGaps(untraced).reason, "test-scope-not-all-gaps");
+});
+
+test("every suites.tsv row scripts/selection-audit.sh prints has the width readTrace reads", () => {
+  const writers = readFileSync(AUDIT, "utf8")
+    .split("\n")
+    .filter((line) => line.includes('"$out/suites/$key"'));
+  assert.equal(writers.length, 2, "the traced and the not-traced row");
+  for (const line of writers) {
+    const format = /printf '([^']*)'/.exec(line)?.[1];
+    assert.equal(format?.replace(/\\n$/, "").split("\\t").length, SUITE_COLUMNS, line);
+  }
 });
 
 test("traceGaps accepts only selects and unmapped verdicts, and refuses a trace with an untraced suite or unchecked file", () => {
-  const suites = [["a.test.sh", "1"]];
+  const suites = [["a.test.sh", "1", "3", "1"]];
   const gap = (verdict) => traceGaps({ gaps: [["a.test.sh", "x.sh", verdict]], suites, verdicts: [] });
   assert.deepEqual(gap("selects 2 other suite(s)").gaps, [{ suite: "a.test.sh", file: "x.sh" }]);
   assert.deepEqual(gap("selects no suite").gaps, [{ suite: "a.test.sh", file: "x.sh" }]);
@@ -72,7 +149,7 @@ test("traceGaps accepts only selects and unmapped verdicts, and refuses a trace 
   assert.equal(gap("deleted: x.sh").reason, "test-scope-not-all-gaps");
   assert.equal(gap("not selected").reason, "test-scope-not-all-gaps");
   const gaps = [["a.test.sh", "x.sh", "selects no suite"]];
-  assert.equal(traceGaps({ gaps, suites: [...suites, ["b.test.sh", "not-traced"]], verdicts: [] }).reason, "test-scope-not-all-gaps");
+  assert.equal(traceGaps({ gaps, suites: [...suites, ["b.test.sh", "not-traced", "0", "0"]], verdicts: [] }).reason, "test-scope-not-all-gaps");
   assert.equal(traceGaps({ gaps, suites, verdicts: [["y.sh", "not checked: budget spent"]] }).reason, "test-scope-not-all-gaps");
   assert.equal(traceGaps({ gaps: [["c.test.sh", "x.sh", "selects no suite"]], suites, verdicts: [] }).reason, "test-scope-invalid");
   assert.equal(traceGaps({ gaps: [], suites, verdicts: [] }).reason, "test-scope-not-all-gaps");
@@ -105,7 +182,7 @@ test("build writes a patch that applies to the head and that apply-patch's conte
   const base = repo(t, { "lib/x.sh": "x\n", "lib/y.ps1": "y\n" });
   const trace = traceDir(t, {
     gaps: "t/B.Tests.ps1\tlib/y.ps1\tselects no suite\nt/a.test.sh\tlib/x.sh\tunmapped: the fallback corpus does not run this suite\n",
-    suites: "t/B.Tests.ps1\t1\nt/a.test.sh\t1\n",
+    suites: "t/B.Tests.ps1\t1\t4\t1\nt/a.test.sh\t1\t2\t1\n",
     verdicts: "lib/x.sh\tunmapped: CI runs its fallback corpus\nlib/y.ps1\tselects no suite\n",
   });
   const out = scratch(t);
@@ -127,7 +204,7 @@ test("build writes a patch that applies to the head and that apply-patch's conte
 
 test("build refuses a deleted verdict and writes no patch: a stop with test-scope.apply on, a lane-stopped skip while dark", async (t) => {
   const head = repo(t, { "t/a.test.sh": "# A.\n", "lib/x.sh": "x\n" });
-  const trace = traceDir(t, { gaps: "t/a.test.sh\tlib/x.sh\tdeleted\n", suites: "t/a.test.sh\t1\n" });
+  const trace = traceDir(t, { gaps: "t/a.test.sh\tlib/x.sh\tdeleted\n", suites: "t/a.test.sh\t1\t2\t1\n" });
   for (const [apply, expected] of [[true, "escalation-reason=test-scope-not-all-gaps\n"], [false, "skip-reason=lane-stopped\n"], [undefined, "skip-reason=lane-stopped\n"]]) {
     const out = scratch(t);
     const env = { GITHUB_OUTPUT: join(out, "output"), GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: head.head, TRACE_DIR: trace, HEAD_DIR: head.dir, BASE_DIR: head.dir, PATCH_OUT: join(out, "patch.diff") };
