@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for render.sh: checklist output against a hand-written golden file, page data
-# injection into a tiny fixture template, and input validation.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

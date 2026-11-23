@@ -57,7 +57,6 @@ check_prereqs() {
   [[ $missing -eq 0 ]] || exit 2
 }
 
-# Cross-platform SHA-256 (emits `<hash>  <path>` to stdout).
 sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$@"
@@ -66,7 +65,6 @@ sha256() {
   fi
 }
 
-# Read nested metadata.<field> from the SKILL.md frontmatter.
 local_metadata_field() {
   local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
@@ -244,7 +242,6 @@ Sources:
 EOF
 }
 
-# Source-guard: only run main when executed directly, not when sourced (tests).
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi
