@@ -83,7 +83,7 @@ verdict (`source_id`, `reachable`, `page_date`, `covers_work_types`,
 `tests_current_models`, `notes` without quoting page text). Page text never enters the
 skill session. The workflow proposes a diff to `reference/benchmarks.json` for shipped
 rows only; an explicit apply step writes it in a worktree and opens a PR through
-`/source-control:pull-request create`, only in the repository that ships this plugin.
+`/source-control:pull-request create`, only in [the marketplace repository](https://github.com/melodic-software/claude-code-plugins/tree/main).
 
 A `PreToolUse` hook on `WebFetch` (`hooks/drift-checker-fetch-gate.mjs`) makes
 the host rule a gate: inside a `drift-checker` subagent it denies any fetch

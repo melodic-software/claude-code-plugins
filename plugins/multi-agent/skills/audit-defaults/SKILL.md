@@ -1,5 +1,5 @@
 ---
-description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a file in its default modes (an explicit apply request in registry mode opens a PR in the repository that ships this plugin only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
+description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a file in its default modes (an explicit apply request in registry mode opens a PR in the marketplace repository only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
 argument-hint: "[<role>|fanout|repo|registry]"
 user-invocable: true
 disable-model-invocation: false
@@ -190,12 +190,13 @@ Run this step only when the user explicitly asks to apply a proposed `registry`
 diff. A normal `/multi-agent:audit-defaults registry` run proposes only and
 edits nothing.
 
-1. Check that the current repository ships this plugin: its tracked tree holds
-   `plugins/multi-agent/reference/benchmarks.json` and
-   `plugins/multi-agent/.claude-plugin/plugin.json`. Only that repository may
-   apply changes to the shipped registry and open a pull request. In any other
-   repository, report the proposed changes only and edit and open nothing.
-2. In that repository, create and enter a git worktree
+1. Check the current repository's origin/name. Only
+   [the marketplace repository](https://github.com/melodic-software/claude-code-plugins/tree/main)
+   may apply changes to the shipped
+   `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` and open a pull request. In
+   any other repository, report the proposed changes only and edit and open
+   nothing.
+2. In the marketplace repository, create and enter a git worktree
    using `/source-control:worktree` (if enabled); otherwise create one with
    `git worktree add`.
 3. Write only the approved changes to `plugins/multi-agent/reference/benchmarks.json`
@@ -216,7 +217,7 @@ edits nothing.
 - Edit `defaults.yaml`, `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`, a consumer layer, any
   script, or any file a `repo` finding names during its read-only modes
   (`defaults`, `repo`, `registry`). The `registry` apply step runs only when
-  explicitly asked, and only in the repository that ships this plugin.
+  explicitly asked, and only in [the marketplace repository](https://github.com/melodic-software/claude-code-plugins/tree/main).
 - Judge a consumer's own overrides or propose edits to a consumer's team
   `benchmarks.json`. Their layer is their decision.
 
