@@ -91,7 +91,6 @@ class OneLineParser(argparse.ArgumentParser):
 
 
 def open_heap(path):
-    """A read-only connection to a converted heap snapshot."""
     if not path.is_file():
         raise Refused(f"database not found: {path}")
     try:

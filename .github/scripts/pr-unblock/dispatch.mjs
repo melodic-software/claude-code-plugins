@@ -47,7 +47,7 @@ import { appendFileSync } from "node:fs";
 import { DISPATCH_HOLDS, SHARED_COPY_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
-import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { loadTrustedList, trustedActorsPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
@@ -142,8 +142,6 @@ function lagRefire(log, node, checkName, existing, handled) {
     log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
   }
 }
-
-export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
 // A merge commit on a Dependabot head stops Dependabot's own rebases, which
 // resolve its conflicts, and breaks the pr-merge Dependabot tier.
@@ -952,7 +950,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   let ownersHeld = "";
   if (adoption["idle-hours"] !== undefined) {
     try {
-      ownerIds = adoptableOwnerIds(loadTrustedList(`${basePath(env)}/${TRUSTED_ACTORS_PATH}`).ids);
+      ownerIds = adoptableOwnerIds(loadTrustedList(trustedActorsPath(basePath(env))).ids);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
       log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);

@@ -106,8 +106,6 @@ HOT_SLOTS = (
     "next",
 )
 
-# --- deterministic choice ----------------------------------------------------------
-
 
 def _n(key: str) -> int:
     return int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:8], "big")
@@ -143,8 +141,6 @@ def reserved_numbers(case_spec: dict) -> frozenset[int]:
 def _sha(key: str) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:7]
 
-
-# --- lane-like content -------------------------------------------------------------
 
 WORKFLOWS = (
     "ci-status.yml",
@@ -278,9 +274,6 @@ def _entry(slot: str, key: str, lane: str, width: int) -> str:
         text += " " + _render(f"{key}/d{extra}", DETAILS, lane)
         extra += 1
     return text
-
-
-# --- the chain ------------------------------------------------------------------
 
 
 def _when(pred: dict, hop: int) -> str:

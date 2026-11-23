@@ -59,9 +59,6 @@ from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundl
 
 MIN_PYTHON = (3, 11)
 
-# --------------------------------------------------------------------------
-# Evidence vocabulary
-# --------------------------------------------------------------------------
 
 MEASURED = "measured"  # read off the filesystem or a config file in this run
 DOCUMENTED_DEFAULT = (
@@ -581,11 +578,6 @@ class Sampled:
                 "Re-run with --samples 3 or more, spaced across the churn interval."
             )
         return out
-
-
-# --------------------------------------------------------------------------
-# Scan
-# --------------------------------------------------------------------------
 
 
 @dataclasses.dataclass
@@ -1482,11 +1474,6 @@ def environment_state(
         },
         "tree_signals": signals,
     }
-
-
-# --------------------------------------------------------------------------
-# Size attribution: the JSON answers "why is my install so big" itself
-# --------------------------------------------------------------------------
 
 
 def largest_subtrees(

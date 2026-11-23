@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/disk-hygiene/skills/clean/SKILL.md plugins/disk-hygiene/hooks/hooks.json
-"""Behavioral tests for the disk-hygiene safety engine and scoped guard."""
 
 from __future__ import annotations
 
@@ -11383,7 +11382,6 @@ class GuardTests(unittest.TestCase):
         for reason in (belt_reason, gated_reason):
             self.assertIn(f'through "{guard._display_python()}"', reason)
 
-    # --- #6377: the belt holds only while a clean run is open ----------------
 
     def _belt(self, command: str, tool_name: str = "Bash") -> object:
         """The belt's verdict on one call in session ``s``; None is no decision."""
@@ -15306,7 +15304,6 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(stderr.strip())
         self.assertEqual("", stdout)
 
-    # -- #1423: internal watchdog -------------------------------------------
 
     def test_watchdog_seconds_resolves_default_and_validates_override(self) -> None:
         self.assertEqual(guard._WATCHDOG_DEFAULT_SECONDS, guard._watchdog_seconds())
@@ -15978,7 +15975,6 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(2, completed.returncode)
         self.assertIn("internal deadline", completed.stderr)
 
-    # --- the two ways the expiry downgrade could itself fail open -----------
 
     def test_watchdog_expiry_denies_in_belt_mode_even_without_a_marker(self) -> None:
         """Belt mode is deny-by-default, so a marker-free command is NOT a defer.
@@ -16852,7 +16848,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
     def assert_fails_closed(self) -> None:
         self.assertIsNone(self.resolve())
 
-    # --- AC1, AC2, AC11: the directory channel resolves and is honored ------
 
     def test_directory_install_derives_canonical_data_root(self) -> None:
         self.assertEqual(os.fspath(self.expected), self.resolve())
@@ -16937,7 +16932,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             self.assertIn(name, guard._READONLY_ENGINE_SUBCOMMANDS)
             self.assertIn(name, reason)
 
-    # --- AC3, AC13: every unproven shape fails closed -----------------------
 
     def test_fails_closed_without_known_marketplaces_file(self) -> None:
         (self.config / "plugins" / "known_marketplaces.json").unlink()
@@ -17089,7 +17083,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.write_entries({"name": "disk-hygiene", "source": "disk-hygiene"})
         self.assert_fails_closed()
 
-    # --- AC4, AC5, AC6: provenance and precedence ---------------------------
 
     def test_environment_cannot_redirect_the_trusted_config_dir(self) -> None:
         attacker = self.base / "attacker"
@@ -17148,7 +17141,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertEqual(self.config / "plugins" / "data", Path(derived).parent)
         self.assertEqual("disk-hygiene-------evil", Path(derived).name)
 
-    # --- a conflicting env value never outranks a proof ----------------------
 
     def set_env_data_root(self) -> Path:
         env_root = self.base / "from-env"
@@ -17209,7 +17201,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 self.set_env_data_root()
                 self.assertIsNone(self.resolve())
 
-    # --- an exact engine call must carry the authorized --data-root ----------
 
     def engine_gate_argv(self) -> list[str]:
         return [
@@ -17264,7 +17255,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         os.environ["CLAUDE_PLUGIN_DATA"] = "${CLAUDE_PLUGIN_DATA}"
         self.assertIsNone(self.resolve())
 
-    # --- AC7: the no-authority denial names a recovery ----------------------
 
     def test_no_authority_denial_names_the_marketplace_recovery(self) -> None:
         belt = guard._bash_denial_guidance(None, mode=guard._MODE_BELT)
@@ -17286,7 +17276,6 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 self.assertIn("No authorized data root resolved", text)
                 self.assertIn("claude plugin marketplace add", text)
 
-    # --- AC15: memoized per process -----------------------------------------
 
     def test_directory_lookup_is_memoized_per_plugin_root(self) -> None:
         calls: list[int] = []

@@ -10202,7 +10202,7 @@ test("the release-key workflows run no ci-workflows action, and their tip steps 
   }
 });
 
-// The guards of https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/resolve-branch-tip/resolve.sh
+// The guards of https://github.com/melodic-software/ci-workflows/blob/c77590135e3a9b059f01f5fa744088bd6af7fcfe/.github/actions/resolve-branch-tip/resolve.sh
 test("the inline tip read authenticates, takes the exact ref, retries only timeouts and 5xx, and fails fast on 401/403", (t) => {
   const tipRun = inlineTipSteps()[0].step.run;
   const root = tempDir("inline-tip-");

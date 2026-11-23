@@ -198,6 +198,30 @@ test("select keeps a superseded-looking ci-status red unless only the marker for
   }
 });
 
+const gateHold = (pr) => ({
+  annotation_level: "failure",
+  message: `#${pr} is by an author no review lane reviews and changes trust-gate paths: .github/workflows/maintenance-repin-ci-workflows.yml .github/workflows/release-publish-plugins.yml. A person merges it; a person on the trusted-actor list approving this head clears it.`,
+});
+const majorBump = (annotations) =>
+  select({ api: fakeApi({ gateRuns: [supersededRun], annotations }), pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] });
+
+test("select skips a pull request whose only CI Status failure is the trust-gate hold, with no model turn, escalation or label", async () => {
+  const result = await majorBump({ 9: [NOTICE, EXIT, gateHold(7), NOTICE] });
+  assert.equal(result.decision, "skip");
+  assert.equal(result.skipReason, "gate-hold");
+  assert.equal(result.escalationReason, undefined, "no escalation, so no needs-human label and no security reason");
+  assert.equal(result.file, undefined, "no context file, so no model turn");
+});
+
+test("select hands the model a trust-gate hold for another pull request, or one beside another failure", async () => {
+  const contract = { annotation_level: "failure", message: "check-contract: the title is not a Conventional Commit" };
+  for (const annotations of [{ 9: [EXIT, gateHold(8)] }, { 9: [EXIT, gateHold(7), contract] }, { 9: [EXIT] }, {}]) {
+    const result = await majorBump(annotations);
+    assert.equal(result.decision, "proceed", JSON.stringify(annotations));
+    assert.deepEqual(result.file.classification.reasons, ["major:x", "ci-status-red"]);
+  }
+});
+
 const POLICY = {
   autoMerge: {
     reviewOnly: [
@@ -499,6 +523,12 @@ test("main writes no context or run file when the select skips", async () => {
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "proceed=false\nskip-reason=superseded-sha\nescalation-reason=\n");
   assert.equal(existsSync(env.DEPENDENCY_FILE), false);
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
+  const lines = [];
+  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: fakeApi({ gateRuns: [supersededRun], annotations: { 9: [EXIT, gateHold(7)] } }), log: (line) => lines.push(line) });
+  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=gate-hold\nescalation-reason=\n");
+  assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
+  assert.ok(lines.some((line) => line.includes("trust-gate hold") && line.includes("content was not judged")), "the step summary says why no review ran");
+  assert.ok(!lines.some((line) => /security/i.test(line)), "a gate hold names no security risk");
 });
 
 // main over a readable base config and policy, with the registry stubbed.

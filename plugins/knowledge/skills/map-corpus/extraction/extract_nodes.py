@@ -64,8 +64,8 @@ class Line:
     __slots__ = ("start", "end", "text")
 
     def __init__(self, start: int, end: int, raw: bytes):
-        self.start = start  # byte offset of line start
-        self.end = end  # byte offset just past the newline (or EOF)
+        self.start = start
+        self.end = end
         self.text = raw.rstrip(b"\r\n")
 
 
@@ -123,10 +123,10 @@ def markdown_boundaries(data: bytes):
                 idx = j + 1
                 break
 
-    boundaries = []  # (byte offset, level, title)
+    boundaries = []
     in_fence = False
     fence_run = b""
-    consumed = set()  # line indexes already used as heading/underline/fence
+    consumed = set()
 
     for i in range(idx, len(lines)):
         line = lines[i]
@@ -215,7 +215,7 @@ def html_boundaries(data: bytes):
 def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
     """Assemble the non-overlapping node partition covering [0, len(data))."""
     n = len(data)
-    spans = []  # (start, end, kind, level, title)
+    spans = []
 
     if not boundaries and frontmatter_end == 0:
         spans.append((0, n, whole_kind, 0, ""))
@@ -232,7 +232,7 @@ def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
             spans.append((off, end, "section", level, title))
 
     nodes = []
-    parent_stack = []  # (level, id) of open section ancestors
+    parent_stack = []
     for index, (start, end, kind, level, title) in enumerate(spans):
         content = data[start:end]
         digest = sha256_hex(content)
