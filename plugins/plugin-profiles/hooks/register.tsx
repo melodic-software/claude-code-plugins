@@ -3,15 +3,12 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { PickerEntry, Switch } from '../types'
 
-// The command-line tool decides every rule (which profiles exist, what an apply writes, when a
-// switch is refused); this module only asks the person and runs it.
 const CLI = 'scripts/profiles.mjs'
 const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
 const CLEAR = 'No profile'
 const RESET = 'Reset'
-/** The tool's exit status for a reset that wrote what it could and named each file it skipped. */
 const PARTLY_DONE = 3
 const PICKER = 'plugin-profile-picker'
 const ROW = 'profile:'
@@ -34,9 +31,7 @@ type Preview = {
   lines: string[]
 }
 type ClearPreview = { recorded: boolean; sessionProfile: string | null; lines: string[] }
-/** One answer to a file's own question: the button's label and the flag that passes it to reset. */
 type Answer = { label: string; flag: string }
-/** The answer the tool advises for one question and its one-sentence reason. */
 type Recommend = { answer: 'yes' | 'no'; reason: string }
 type ResetPreview = {
   sessionProfile: string | null
@@ -114,20 +109,13 @@ async function pickByPages($: EngineInterface, entries: readonly PickerEntry[]):
   }
 }
 
-/**
- * Every question this module asks: the answer that changes nothing is listed first, so it is the pre-selected one, and
- * Esc or a failed prompt is that answer. The tool's recommendation, when it gives one, shows as a line just before the
- * question. True only when the person picks the answer that writes.
- */
 async function chose($: EngineInterface, question: string, safe: string, writes: string, header = 'Profile', recommend?: Recommend) {
   if (recommend) $.ui.log(`Recommended: ${recommend.answer === 'yes' ? writes : safe}. ${recommend.reason}`)
   return (await $.ui.ask(question, { options: [safe, writes], header }).catch(() => safe)) === writes
 }
 
-/** Asks Cancel or Apply; true only on the person's Apply. */
 const confirmed = ($: EngineInterface, question: string) => chose($, question, CANCEL, APPLY)
 
-/** Shows the preview and asks; true only on the person's Apply. */
 async function confirm($: EngineInterface, name: string, preview: Preview): Promise<boolean> {
   show($, preview.lines)
   const reread = preview.mcpOrLspOn.length
@@ -163,7 +151,6 @@ async function clearProfile($: EngineInterface): Promise<string> {
   return `Cleared this folder's profile. ${NEXT_STEP}`
 }
 
-/** Previews the machine-wide reset, asks once for the recorded files and once per file the tool asks about on its own, then resets. */
 async function resetAll($: EngineInterface): Promise<string> {
   const dry = await cli($, ['reset', '--dry-run', '--json'])
   if (dry.exitCode !== 0) return failure(dry)
@@ -195,7 +182,6 @@ async function resetAll($: EngineInterface): Promise<string> {
     : `Reset did not finish every file; the lines above name each one skipped and why. Run /${COMMAND} and pick Reset again for those. ${NEXT_STEP}`
 }
 
-/** The line refusing a new switch while an earlier one waits for its reload, or undefined. */
 const waitingLine = async ($: EngineInterface) =>
   (await read($, pending)) ? `A change to this folder's profile is still waiting for its reload: ${NEXT_STEP} Then run /${COMMAND} again.` : undefined
 
@@ -234,7 +220,6 @@ async function switchTo($: EngineInterface, name: string): Promise<string> {
   return `Switched this folder to profile ${name}. ${NEXT_STEP}${preview.pending.length ? ` ${stayLoaded(preview.pending)}` : ''}`
 }
 
-/** Writes the off entries once the reload has run, only while the folder's record is still this switch's off-pending one. */
 async function finish($: EngineInterface): Promise<void> {
   const s = await read($, pending)
   if (s?.phase !== 'reloading') return
@@ -360,7 +345,6 @@ export const register: Register = on => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // The person's own /reload-plugins before the turn ends stands in for the queued one.
   on('command.run', { command: RELOAD }, async ($, e, next) => {
     await markReloading($)
     const result = await next(e)

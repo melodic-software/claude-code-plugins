@@ -31,11 +31,6 @@ trap 'rm -rf "$TEST_TMPDIR" "$RDT_AB"' EXIT
 # shellcheck source=block-root-delete-target-fixtures.sh
 source "$HOOK_DIR/block-root-delete-target-fixtures.sh"
 
-# --- 2c. The allow corpus again, with a payload cwd ---------------------------
-# A subset of section 2 re-run from the checkout toplevel. The expected flips
-# are the targets outside the tree and temp: HOME, a drive, a root-level glob,
-# a UNC path, and a `~name` prefix. Everything under the tree, under temp, or
-# unplaceable keeps its allow.
 while IFS='|' read -r rdt_want rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "with cwd: $rdt_cmd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -75,12 +70,6 @@ EOF
 # portability-ok: a literal backslash pair in a command string fed to the guard, not a grep -E escape
 expect_both 'with cwd: rm -rf \\server\share' 2 "${RDT_CWD[@]}" --command 'rm -rf \\server\share'
 
-# --- 2d. block_root_delete_target_allowed_roots -------------------------------
-# A user-owned userConfig key adds roots on the temp-root rule. The fixture sits
-# under the checkout's gitignored .work, outside every temp root, and every case
-# runs from cwd `/`, outside any tree, so only the key can let a delete through:
-# each allow is paired with the same command blocking while the key is unset.
-# HOME is a fake directory beside the roots.
 rdt_allowed_roots_fixture
 
 rdt_ar 'unset key: a path under the root blocks' 2 "rm -rf '$RDT_AR/child'"
@@ -103,8 +92,6 @@ else
   rdt_skip "ln -s makes no real symlink on this host (3 cases)"
 fi
 
-# Refused whatever is listed: the root, its glob, siblings, and every earlier
-# refusal in the guard.
 rdt_ar 'the root itself blocks' 2 "rm -rf '$RDT_AR'" "$RDT_AR"
 rdt_ar 'the root with a trailing slash blocks' 2 "rm -rf '$RDT_AR/'" "$RDT_AR"
 rdt_ar 'the root dot blocks' 2 "rm -rf '$RDT_AR/.'" "$RDT_AR"
@@ -132,13 +119,11 @@ rdt_ar 'a child shell outside the root blocks' 2 "bash -c 'rm -rf $RDT_AO/x'" "$
 rdt_ar 'a child shell under the root allowed' 0 "bash -c 'rm -rf $RDT_AR/child'" "$RDT_AR"
 rdt_ar 'a cd out of the root then a relative delete blocks' 2 "cd '$RDT_AO' && rm -rf x" "$RDT_AR"
 
-# HOME inside or above a listed root is never deletable through it.
 rdt_ar 'HOME under the root blocks' 2 "rm -rf '$RDT_AR/h'" "$RDT_AR" "$RDT_AR/h"
 rdt_ar 'a directory holding HOME blocks' 2 "rm -rf '$RDT_AR/h'" "$RDT_AR" "$RDT_AR/h/deep"
 rdt_ar 'the root as HOME grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AR" "$RDT_AR"
 rdt_ar 'a sibling of HOME under a listed root allowed' 0 "rm -rf '$RDT_AR/child'" "$RDT_AR" "$RDT_AR/h"
 
-# A symlink inside a root that points outside is judged by where it points.
 if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_AL/link" 2>/dev/null && [[ -L "$RDT_AL/link" ]]; then
   rdt_ar 'a real directory beside the link allowed' 0 "rm -rf '$RDT_AL/child'" "$RDT_AL"
   rdt_ar 'the link itself is unlinked, allowed' 0 "rm -rf '$RDT_AL/link'" "$RDT_AL"
@@ -152,14 +137,10 @@ else
   rdt_skip "ln -s makes no real symlink on this host (8 cases)"
 fi
 
-# An entry that grants nothing is ignored; the rest of the list still works.
-# The relative entry drops a drive prefix (Windows toplevel is `D:/...`) or a
-# leading slash, so it is relative on every host.
 rdt_rel="$RDT_AR"
 if [[ "$rdt_rel" =~ ^[A-Za-z]:/ ]]; then rdt_rel="${rdt_rel:3}"; else rdt_rel="${rdt_rel#/}"; fi
 rdt_ar 'a relative root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$rdt_rel"
 rdt_ar "the root '/' grants nothing" 2 "rm -rf '$RDT_AR/child'" /
-# The guard drops `/` even where it maps to the Git install directory, which /opt lies under.
 rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
 rdt_ar 'an empty entry grants nothing' 2 "rm -rf '$RDT_AR/child'" ","
 rdt_ar 'a root equal to HOME grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH"
@@ -181,10 +162,6 @@ rdt_ar 'a .. entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$R
 rdt_ar 'a * entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AB/*,$RDT_AR2"
 rdt_ar 'a root entry does not allow its sibling by prefix' 2 "rm -rf '$RDT_AB/root2/child'" "$RDT_AB/roo"
 
-# A name-prefix entry (one trailing `*` after a literal name) allows a direct
-# child of its directory whose name extends the prefix, and nothing else: the
-# directory, the bare prefix, a sibling, a deeper path, a glob, a `..` and a
-# symlink named like a child all stay refused (#6542).
 RDT_PP="$RDT_AB/wt"
 RDT_PX="$RDT_PP/.tmp-*"
 mkdir -p "$RDT_PP/.tmp-6527/sub" "$RDT_PP/other-worktree" "$RDT_PP/.tmp-"
@@ -234,7 +211,6 @@ if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_PP/.tmp-link" 2>/dev/null && [[ -L
 else
   rdt_skip "ln -s makes no real symlink on this host (4 cases)"
 fi
-# The user's own spelling on Windows: a drive-form entry, an MSYS-form operand.
 if command -v cygpath >/dev/null 2>&1; then
   rdt_ar 'prefix: a drive-form entry allows an MSYS-form child' 0 "rm -rf '$RDT_PP/.tmp-6527'" "$(cygpath -m "$RDT_PP")/.tmp-*"
   rdt_ar 'prefix: a drive-form entry still blocks its directory' 2 "rm -rf '$RDT_PP'" "$(cygpath -m "$RDT_PP")/.tmp-*"
@@ -242,10 +218,6 @@ else
   rdt_skip "no cygpath on this host (2 cases)"
 fi
 
-# A segment entry (`<dir>/*/<name>`) allows a path strictly under <name> one
-# directory level below <dir>, and nothing else: <name> itself, a sibling of
-# it, a deeper level and a symlink stay refused, and a `*` that is not one
-# whole segment, or a second `*`, grants nothing.
 RDT_SR="$RDT_AB/wtroot"
 RDT_SX="$RDT_SR/*/.work"
 mkdir -p "$RDT_SR/wt-a/.work/tmp/sub" "$RDT_SR/wt-a/src" "$RDT_SR/wt-a/b/.work/tmp" "$RDT_SR/.work/tmp"
@@ -277,9 +249,6 @@ rdt_ar 'segment: a * before a two-part tail grants nothing' 2 "rm -rf '$RDT_SR/w
 rdt_ar 'segment: a .. in the directory grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/../wtroot/*/.work"
 rdt_ar 'segment: HOME as the directory grants nothing' 2 "rm -rf '$RDT_AH/x/.work/y'" "$RDT_AH/*/.work"
 rdt_ar 'segment: a root-level directory grants nothing' 2 'rm -rf /rdt-x/.work/y' '/*/.work'
-# A glob before the last component that matches nothing is judged by the
-# literal directory in front of it, with what it deletes two levels below:
-# .work itself is then enough, and the one-level directory still is not.
 rdt_ar 'segment: an unmatched */x below .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work'/*/x" "$RDT_SX"
 rdt_ar 'segment: an unmatched */x below the one-level directory blocks' 2 "rm -rf '$RDT_SR/wt-a'/*/x" "$RDT_SX"
 if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_SR/wt-a/.work/link" 2>/dev/null && [[ -L "$RDT_SR/wt-a/.work/link" ]]; then
@@ -289,9 +258,6 @@ else
   rdt_skip "ln -s makes no real symlink on this host (2 cases)"
 fi
 
-# A per-machine pair under one fake HOME: a worktree-root name prefix and a
-# home .work directory. The intended targets pass; the worktree root, a sibling
-# worktree, .work itself and HOME stay refused.
 RDT_WH="$RDT_AB/wthome"
 RDT_WK="$RDT_WH/worktrees/.tmp-*,$RDT_WH/.work"
 mkdir -p "$RDT_WH/worktrees/.tmp-x" "$RDT_WH/worktrees/other" "$RDT_WH/.work/x"
@@ -302,22 +268,18 @@ rdt_ar 'pair: a sibling worktree blocks' 2 "rm -rf '$RDT_WH/worktrees/other'" "$
 rdt_ar 'pair: .work itself blocks' 2 "rm -rf '$RDT_WH/.work'" "$RDT_WK" "$RDT_WH"
 rdt_ar 'pair: HOME blocks' 2 "rm -rf '$RDT_WH'" "$RDT_WK" "$RDT_WH"
 
-# The key is read from the hook's own environment only. Naming it in the
-# command text, as a prefix, an env launcher or an export, grants nothing.
 rdt_ar 'a VAR= prefix in the command grants nothing' 2 "$RDT_KEY='$RDT_AR' rm -rf '$RDT_AR/child'"
 rdt_ar 'an env launcher in the command grants nothing' 2 "env $RDT_KEY='$RDT_AR' rm -rf '$RDT_AR/child'"
 rdt_ar 'an export in the command grants nothing' 2 "export $RDT_KEY='$RDT_AR'; rm -rf '$RDT_AR/child'"
 rdt_ar 'a VAR= segment in the command grants nothing' 2 "$RDT_KEY='$RDT_AR'; rm -rf '$RDT_AR/child'"
 rdt_ar 'a prefix cannot widen the listed roots' 2 "$RDT_KEY='$RDT_AR,$RDT_AO' rm -rf '$RDT_AO/x'" "$RDT_AR"
 
-# The block message names the key and says the agent cannot set it.
 guard_invoke --cwd / --command "rm -rf '$RDT_AO/x'" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR"
 assert_exit 'allowed roots: a delete outside every root blocks' 2 "$GUARD_RC"
 assert_contains 'allowed roots: the message names the key' "$GUARD_ERR" 'block_root_delete_target_allowed_roots'
 assert_contains 'allowed roots: the message says only the user can set it' "$GUARD_ERR" 'only the user can'
 assert_contains 'allowed roots: the message forbids a retry with another tool' "$GUARD_ERR" 'do not retry the delete with another tool (find -delete, rmtree, git clean)'
 
-# PowerShell judges the same targets through the same arm.
 rdt_arp 'unset key: Remove-Item under the root blocks' 2 "Remove-Item -Recurse -Force '$RDT_AR/child'"
 rdt_arp 'Remove-Item under the root allowed' 0 "Remove-Item -Recurse -Force '$RDT_AR/child'" "$RDT_AR"
 rdt_arp 'Remove-Item -LiteralPath under the root allowed' 0 "Remove-Item -LiteralPath '$RDT_AR/child' -Recurse" "$RDT_AR"
@@ -329,11 +291,6 @@ rdt_arp 'Remove-Item on a drive root blocks' 2 'Remove-Item -Recurse -Force C:\'
 rdt_arp 'Remove-Item on $env:USERPROFILE blocks' 2 'Remove-Item -Recurse -Force $env:USERPROFILE' "$RDT_AR"
 rdt_arp 'a $env: assignment in the command grants nothing' 2 "\$env:$RDT_KEY = '$RDT_AR'; Remove-Item -Recurse '$RDT_AR/child'"
 
-# --- 2e. Protected trees (#9751) ----------------------------------------------
-# Judged ahead of every root the outside-tree arm allows: the working tree, a
-# temp root, the scratchpad and a listed root alike. Every fixture outside the
-# checkout sits under the suite's temp directory, where the same delete passes
-# without the arm, and each refusal is paired with an allow beside it.
 expect_both 'protected: rm -rf .git blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .git'
 expect_both 'protected: rm -rf ./.git/ blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ./.git/'
 expect_both 'protected: the glob straight inside .git blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .git/*'
@@ -380,8 +337,6 @@ msys* | cygwin* | win32)
 *) rdt_skip "a trailing-dot name is trimmed only on Windows (1 case)" ;;
 esac
 
-# A directory holding a .git is refused under temp too; a path inside it is
-# not, and a symlink to it is unlinked, not followed.
 mkdir -p "$TEST_TMPDIR/rdt-clone/.git" "$TEST_TMPDIR/rdt-clone/build"
 expect_both 'protected: a throwaway clone under temp blocks' 2 "${RDT_CWD[@]}" \
   --command "rm -rf '$TEST_TMPDIR/rdt-clone'"
@@ -397,11 +352,6 @@ else
   rdt_skip "ln -s makes no real symlink on this host (2 cases)"
 fi
 
-# Registered worktrees, from a registry built by hand the way git writes it,
-# with a stub git that answers the given worktree as the toplevel. The guard
-# reads <common dir>/worktrees/*/gitdir itself, so a root whose .git file is
-# gone, one recorded by a relative path, a dot-named one and a directory
-# holding one are refused, not only a root that holds its .git file.
 rdt_worktree_fixture
 rdt_wt 'a linked worktree root blocks' 2 "rm -rf '$RDT_WF/wt1'"
 rdt_wt 'a registered root with no .git file blocks' 2 "rm -rf '$RDT_WF/wt-nogit'"
@@ -416,9 +366,6 @@ rdt_wt 'from a linked worktree: the main root blocks' 2 "rm -rf '$RDT_WF/main'" 
 rdt_wt 'from a linked worktree: a root with no .git file blocks' 2 "rm -rf '$RDT_WF/wt-nogit'" "$RDT_WF/wt1"
 rdt_wt 'from a linked worktree: its own build allowed' 0 'rm -rf build' "$RDT_WF/wt1"
 
-# Claude Code's temp tree, <base>/<project>/<session>/scratchpad. The payload
-# scratchpad names the base: another session's scratchpad and every level that
-# holds one are refused, and this session's scratchpad keeps its rules.
 RDT_CB="$TEST_TMPDIR/claude-rdt"
 RDT_OWN="$RDT_CB/-proj/sess-a/scratchpad"
 RDT_OTH="$RDT_CB/-proj/sess-b/scratchpad"
@@ -438,8 +385,6 @@ rdt_sp "this session's scratchpad itself still blocks" 2 "rm -rf '$RDT_OWN'"
 rdt_sp "another session's directory that is not its scratchpad allowed" 0 "rm -rf '$RDT_CB/-proj/sess-b/tasks'"
 expect_both 'protected: scratchpads: with no payload scratchpad, that base is a plain temp path' 0 "${RDT_CWD[@]}" \
   --command "rm -rf '$RDT_OTH'"
-# TMPDIR pointed at the base: the caller's own temp files there pass, and
-# another session's scratchpad is still refused.
 expect_both 'protected: scratchpads: TMPDIR at the base, a temp file there allowed' 0 \
   --payload "$(rdt_pl "rm -rf '$RDT_CB/rdt-own-tmp'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
 expect_both "protected: scratchpads: TMPDIR at the base, another session's scratchpad blocks" 2 \
@@ -458,7 +403,6 @@ expect_both "protected: scratchpads: one under <temp root>/$rdt_cn blocks" 2 "${
 expect_both 'protected: scratchpads: a sibling under that temp root allowed' 0 "${RDT_CWD[@]}" \
   --command "rm -rf '$RDT_TR/other'" -- "TMPDIR=$RDT_TR"
 
-# ~/.claude, from HOME, here a fake one under temp.
 RDT_HF="$TEST_TMPDIR/rdt-home"
 mkdir -p "$RDT_HF/.claude/projects" "$RDT_HF/other"
 rdt_hc() { # <label> <want> <command>
@@ -471,7 +415,6 @@ rdt_hc 'a dot glob over HOME blocks' 2 "rm -rf '$RDT_HF/'.*"
 rdt_hc 'a sibling under HOME allowed' 0 "rm -rf '$RDT_HF/other'"
 rdt_hc 'a plain glob over HOME skips the dot name, allowed' 0 "rm -rf '$RDT_HF/'*"
 
-# block_root_delete_target_protected_trees, read from the hook's environment.
 RDT_PK=CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES
 RDT_KP="$TEST_TMPDIR/rdt-keep"
 mkdir -p "$RDT_KP/data/x" "$RDT_KP/scratch"
@@ -494,11 +437,9 @@ rdt_pt 'a glob entry protects nothing' 0 "rm -rf '$RDT_KP/data'" "$RDT_KP/da*"
 rdt_pt 'a bad entry beside a good one is skipped' 2 "rm -rf '$RDT_KP/data'" "rel/x,$RDT_KP/data"
 rdt_pt "the root '/' protects nothing" 0 'rm -rf build' /
 rdt_pt 'emptying the key in the command lifts nothing' 2 "$RDT_PK= rm -rf '$RDT_KP/data'" "$RDT_KP/data"
-# Under an allowed root too: the same delete passes in section 2d.
 expect_both 'protected: listed trees: a listed tree under an allowed root blocks' 2 --cwd / \
   --command "rm -rf '$RDT_AR/child'" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR" "$RDT_PK=$RDT_AR/child"
 
-# The refusal says what the tree is, carries a Fix line, and asks when attended.
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf .git'
 assert_exit 'protected: a .git delete exits 2' 2 "$GUARD_RC"
 assert_contains 'protected: the message names what it removes' "$GUARD_ERR" 'a .git.'
@@ -511,11 +452,6 @@ expect 'protected: attended, a .git delete asks' 0 "${RDT_CWD[@]}" --command 'rm
 assert_eq 'protected: attended, the decision is ask' ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
-# --- 2f. find deletes (#9752) -------------------------------------------------
-# A find whose expression deletes (-delete, or an -exec, -execdir, -ok or
-# -okdir whose command word is rm, rmdir or unlink) has each start point judged
-# as an operand of a recursive rm. Every form runs against a root, HOME, a path
-# outside the allowed roots and a path strictly inside the tree.
 RDT_FIND_FORMS=(
   'find TGT -delete'
   "find -L TGT -name '*.o' -type f -delete"
@@ -551,8 +487,6 @@ rdt_ar 'find: -exec rm under the root allowed' 0 "find '$RDT_AR/child' -name x -
 rdt_ar 'find: the root itself blocks' 2 "find '$RDT_AR' -name x -delete" "$RDT_AR"
 rdt_ar 'find: a start point outside the root blocks' 2 "find '$RDT_AO/x' -delete" "$RDT_AR"
 
-# find descends into .git, so a find delete started at the toplevel is refused
-# as a directory holding a .git whatever its filters; one started below passes.
 expect_both 'find: . from the toplevel blocks' 2 "${RDT_CWD[@]}" --command "find . -name '*.pyc' -delete"
 expect_both 'find: no start point from the toplevel is . and blocks' 2 "${RDT_CWD[@]}" \
   --command "find -name '*.pyc' -delete"
@@ -563,8 +497,6 @@ expect_both 'find: a .git start point blocks' 2 "${RDT_CWD[@]}" --command 'find 
 # though BSD reads it as -f and a start point.
 expect_both 'find: -fstype first still judges . from the toplevel' 2 "${RDT_CWD[@]}" \
   --command 'find -fstype ext4 -delete'
-# With -files0-from GNU reads the start points from a file (a declared gap),
-# so its reading adds no `.`; the BSD reading's names lie inside the tree.
 expect_both 'find: -files0-from judges no . from the toplevel' 0 "${RDT_CWD[@]}" \
   --command 'find -files0-from list -delete'
 # Under -H, -L or -follow find follows a start point that is a symlink, so it
@@ -579,7 +511,6 @@ if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$TEST_TMPDIR/rdt-find-link" 
     --command "find -L '$TEST_TMPDIR/rdt-find-link' -delete"
   expect_both 'find: -follow follows it, blocks' 2 "${RDT_CWD[@]}" \
     --command "find '$TEST_TMPDIR/rdt-find-link' -follow -delete"
-  # From a subdirectory, so the `.` the GNU reading adds is allowed.
   expect_both 'find: a BSD -xL cluster follows it, blocks' 2 --cwd "$RDT_TOP/plugins" \
     --command "find -xL '$TEST_TMPDIR/rdt-find-link' -delete"
   expect_both 'find: a BSD -x cluster does not follow it, allowed' 0 --cwd "$RDT_TOP/plugins" \
@@ -589,9 +520,6 @@ else
   rdt_skip "ln -s makes no real symlink on this host (6 cases)"
 fi
 
-# Leading options of either reading, a later start point, an action before
-# -delete, and a find reached through a launcher, a child shell or a
-# substitution.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "find: $rdt_cmd blocks" 2 --command "$rdt_cmd"
@@ -611,8 +539,6 @@ bash -c 'find / -exec rm -rf {} +'
 echo "$(find / -delete)"
 EOF
 
-# A find that does not delete, a deleter's name that is not an action's command
-# word, a -delete inside an action's command, and the mechanism as quoted prose.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "find: $rdt_cmd allowed" 0 --command "$rdt_cmd"
@@ -632,12 +558,6 @@ assert_contains 'find: the refusal names the start point' "$GUARD_ERR" "the oper
 guard_invoke "${RDT_CWD[@]}" --command "find . -name '*.pyc' -delete"
 assert_contains 'find: the toplevel refusal names the .git it holds' "$GUARD_ERR" 'a directory holding a .git'
 
-# --- 2g. pipeline-fed deletes (#9754) -----------------------------------------
-# xargs or parallel running a recursive delete takes its targets from the items
-# it reads. A confined listing (a find without -printf or -exec, git ls-files),
-# through line filters at most, has its targets judged as a recursive rm's; any
-# other source is refused. Every form runs against a root, HOME, a path outside
-# the allowed roots and a path strictly inside the tree.
 RDT_PIPE_FORMS=(
   'find TGT -type f | xargs rm -rf'
   'find TGT -print0 | xargs -0 rm -rf --'
@@ -671,26 +591,21 @@ rdt_ar 'pipe: a find of the root itself blocks' 2 "find '$RDT_AR' -name x | xarg
 expect_both 'pipe: a find from the toplevel blocks' 2 "${RDT_CWD[@]}" --command "find . -name '*.pyc' | xargs rm -rf"
 expect_both 'pipe: a find run from another directory is judged from there' 2 "${RDT_CWD[@]}" \
   --command 'find build -type f | env -C /opt xargs rm -rf'
-# git ls-files lists names strictly under the directory it runs from.
 expect_both 'pipe: git ls-files inside the tree allowed' 0 "${RDT_CWD[@]}" --command 'git ls-files -z | xargs -0 rm -rf'
 expect_both 'pipe: git ls-files from a subdirectory allowed' 0 --cwd "$RDT_TOP/plugins" \
   --command 'git ls-files --others --exclude-standard | grep -v keep | xargs rm -rf'
 expect_both 'pipe: git ls-files with no tree blocks' 2 --cwd / --command 'git ls-files | xargs rm -rf'
 expect_both 'pipe: git ls-files after a cd outside blocks' 2 "${RDT_CWD[@]}" \
   --command 'cd /opt && git ls-files | xargs rm -rf'
-# parallel's ::: items are its targets.
 expect_both 'pipe: parallel items inside the tree allowed' 0 "${RDT_CWD[@]}" \
   --command 'parallel rm -rf {} ::: plugins/rdt-nonexistent build/rdt-x'
 expect_both 'pipe: parallel items outside the tree block' 2 "${RDT_CWD[@]}" \
   --command 'parallel rm -rf {} ::: build/rdt-x /opt/nonexistent-rdt/x'
-# Items on the line replace stdin; a file source beside them does not.
 expect_both 'pipe: parallel items with an unread pipe allowed' 0 "${RDT_CWD[@]}" \
   --command 'cat list | parallel rm -rf {} ::: build/rdt-x'
 expect_both 'pipe: parallel items beside a file source block' 2 "${RDT_CWD[@]}" \
   --command 'parallel rm -rf {} ::: build/rdt-x :::: list'
 
-# A listing that is not confined, a file or a stdin no listing feeds, a filter
-# that can rewrite a line, and a listing the tokenizer splits out of order.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "pipe: $rdt_cmd blocks" 2 --command "$rdt_cmd"
@@ -739,7 +654,6 @@ parallel ::: 'rm -rf /'
 parallel -j 2 ::: 'rm -rf /'
 EOF
 
-# A command that does not delete recursively, and the mechanism as quoted prose.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "pipe: $rdt_cmd allowed" 0 --command "$rdt_cmd"
@@ -766,11 +680,6 @@ expect 'pipe: attended, an unconfined listing asks' 0 --command 'cat list | xarg
 assert_eq 'pipe: attended, the decision is ask' ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
-# --- 2h. rsync deletes (#9756) -------------------------------------------------
-# A --del, --delete or --delete-<mode> option deletes in the destination, the
-# last operand; --remove-source-files deletes from the sources before it. Each
-# is judged as a recursive rm operand. Every form runs against a root, HOME, a
-# path outside the allowed roots and a path strictly inside the tree.
 RDT_RSYNC_FORMS=(
   'rsync -a --delete src/ TGT'
   'rsync -a --del src/ TGT'
@@ -808,14 +717,11 @@ rdt_ar 'rsync: moved sources under the root allowed' 0 "rsync -a --remove-source
 expect_both 'rsync: a delete into the toplevel blocks' 2 "${RDT_CWD[@]}" --command 'rsync -a --delete src/ .'
 expect_both 'rsync: a cd outside before the delete blocks' 2 "${RDT_CWD[@]}" \
   --command 'cd /opt && rsync -a --delete src/ x'
-# The items xargs appends are the rsync's operands.
 expect_both 'rsync: xargs fed by a confined listing allowed' 0 "${RDT_CWD[@]}" \
   --command 'find build -type d | xargs rsync -a --delete src/'
 expect_both 'rsync: xargs fed by an unconfined listing blocks' 2 "${RDT_CWD[@]}" \
   --command 'cat list | xargs rsync -a --delete src/'
 
-# An rsync that deletes nothing, a remote target, an option's argument, and
-# the mechanism as quoted prose.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "rsync: $rdt_cmd allowed" 0 --command "$rdt_cmd"
@@ -831,8 +737,6 @@ git commit -m "rsync -a --delete src/ /"
 echo 'rsync --remove-source-files / build/rdt-out'
 EOF
 
-# A remote operand is left alone. Run from / (no tree), where the same word
-# read as a local relative path would be refused.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "rsync: remote, $rdt_cmd allowed" 0 --cwd / --command "$rdt_cmd"
@@ -843,8 +747,6 @@ rsync -a --delete src/ rsync://host/module/
 rsync -a --remove-source-files host:/ /tmp/rdt-out
 EOF
 
-# A brace, a glob or an expansion that can change which word is last or read
-# as a host.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "rsync: $rdt_cmd blocks" 2 --command "$rdt_cmd"
@@ -864,11 +766,6 @@ guard_invoke "${RDT_CWD[@]}" --command 'rsync -a --delete src/ /opt/nonexistent-
 assert_exit 'rsync: an outside destination exits 2' 2 "$GUARD_RC"
 assert_contains 'rsync: the refusal names the destination' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
-# --- 2i. robocopy deletes (#9758) ----------------------------------------------
-# /MIR or /PURGE deletes in the destination, the second operand; /MOVE or /MOV
-# deletes from the source, the first. Each is judged as a recursive rm operand,
-# from the Bash and the PowerShell tool. Every form runs against a root, HOME,
-# a path outside the allowed roots and a path strictly inside the tree.
 RDT_ROBOCOPY_FORMS=(
   'robocopy src TGT /MIR'
   'robocopy src TGT /mir /R:2 /W:5'
@@ -913,12 +810,9 @@ rdt_ar 'robocopy: a move from under the root allowed' 0 "robocopy '$RDT_AR/child
 expect_both 'robocopy: PS a mirror under an allowed root allowed' 0 --tool PowerShell --cwd / \
   --command "robocopy src '$RDT_AR/child' /MIR" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR"
 expect_both 'robocopy: a mirror into the toplevel blocks' 2 "${RDT_CWD[@]}" --command 'robocopy src . /MIR'
-# The items xargs appends are the robocopy's operands.
 expect_both 'robocopy: xargs fed by an unconfined listing blocks' 2 "${RDT_CWD[@]}" \
   --command 'cat list | xargs robocopy src /MIR'
 
-# A robocopy that deletes nothing, a side it does not delete from, a /XF list
-# entry, a fully quoted glob, and the mechanism as quoted prose.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -933,8 +827,6 @@ git commit -m "robocopy src / /MIR"
 echo 'robocopy / build/rdt-out /MOVE'
 EOF
 
-# From the Bash tool a brace or a glob can change which word is the source or
-# the destination, so every operand is judged; a substitution body is judged.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -962,10 +854,6 @@ EOF
 expect_both 'robocopy: PS robocopy src /e /MIR allowed' 0 --tool PowerShell "${RDT_CWD[@]}" \
   --command 'robocopy src /e /MIR'
 
-# A prefix that turns MSYS path conversion off for the robocopy makes `/e` the
-# /E option again, so the destination is the word after the source. A bare
-# assignment in its own segment is not exported, and an exclusion list that
-# does not cover the word leaves it converted.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -979,9 +867,6 @@ MSYS2_ARG_CONV_EXCL=--x robocopy src /e /MIR
 MSYS2_ARG_CONV_EXCL= robocopy src /e /MIR
 EOF
 
-# A suppressor value that expands at run time, or an env option that can drop
-# the suppressor before robocopy starts, leaves the conversion state unknown,
-# so every operand is judged, each single-slash one-letter word included.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -999,9 +884,6 @@ MSYS2_ARG_CONV_EXCL='*' robocopy src /e /MIR
 MSYS_NO_PATHCONV=1 robocopy /e empty build/rdt-out /MIR
 EOF
 
-# From the PowerShell tool an array, an unset variable or a grouping can
-# change which word is the destination, and `--%` is dropped before robocopy
-# sees its arguments.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: PS $rdt_cmd blocks" 2 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -1016,11 +898,6 @@ guard_invoke "${RDT_CWD[@]}" --command 'robocopy src /opt/nonexistent-rdt/x /MIR
 assert_exit 'robocopy: an outside destination exits 2' 2 "$GUARD_RC"
 assert_contains 'robocopy: the refusal names the destination' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
-# --- 2j. git worktree remove --force (#9760) ---------------------------------
-# -f or --force removes the worktree's directory even when it holds changes.
-# Its <worktree> operand is judged as a recursive rm operand, and so is every
-# registered worktree root whose path ends in it. Every form runs against a
-# root, HOME, a path outside the allowed roots and a path inside the tree.
 RDT_GWT_FORMS=(
   'git worktree remove --force TGT'
   'git worktree remove -f TGT'
@@ -1052,8 +929,6 @@ rdt_ar 'git worktree: unset key, under the root blocks' 2 "git worktree remove -
 rdt_ar 'git worktree: under the root allowed' 0 "git worktree remove --force '$RDT_AR/child'" "$RDT_AR"
 rdt_ar 'git worktree: the root itself blocks' 2 "git worktree remove --force '$RDT_AR'" "$RDT_AR"
 
-# Without a force flag git refuses an unclean worktree; other subcommands, and
-# the mechanism as quoted prose, delete nothing.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "git worktree: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -1067,8 +942,6 @@ git commit -m 'drop it' -m "git worktree remove --force ~"
 echo 'git worktree remove --force /'
 EOF
 
-# Launchers, child shells, substitutions, braces, and a relative name under
-# an option that selects another repository.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "git worktree: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -1086,10 +959,6 @@ cd /opt/nonexistent-rdt && git worktree remove --force wt
 cat list | xargs git worktree remove --force
 EOF
 
-# Registered worktrees, on the fixture of section 2e: under the suite's temp
-# directory a linked worktree is strictly under a temp root, so removing it
-# passes, by path or by its trailing name; the toplevel, a directory holding a
-# worktree, and the worktree the session runs in stay refused.
 rdt_wt 'git worktree remove of a linked worktree allowed' 0 "git worktree remove --force '$RDT_WF/wt1'"
 rdt_wt 'git worktree remove by trailing name allowed' 0 'git worktree remove --force wt1'
 rdt_wt 'git worktree remove of the toplevel blocks' 2 "git worktree remove --force '$RDT_WF/main'"
@@ -1099,9 +968,6 @@ rdt_wt 'from a linked worktree: git worktree remove of itself blocks' 2 \
 rdt_wt 'from a linked worktree: git worktree remove of itself by name blocks' 2 \
   'git worktree remove --force wt1' "$RDT_WF/wt1"
 
-# Outside every temp root (the checkout's .work), a registered worktree stays
-# protected, a trailing name included and one inside the toplevel too, until
-# an allowed root other than the toplevel holds it.
 RDT_GW="$RDT_AB/gwt"
 mkdir -p "$RDT_GW/main/.git/worktrees/n1" "$RDT_GW/main/.git/worktrees/n2" "$RDT_GW/n1" "$RDT_GW/main/n2"
 printf '%s\n' "$RDT_GW/n1/.git" >"$RDT_GW/main/.git/worktrees/n1/gitdir"

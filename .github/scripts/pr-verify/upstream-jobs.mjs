@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, detailSuffix } from "../lib/github-client.mjs";
 import { KEPT_JOBS, keptJobsPath, shapeJobs } from "./resolve-pr.mjs";
 
 export { KEPT_JOBS, keptJobsPath, shapeJobs };

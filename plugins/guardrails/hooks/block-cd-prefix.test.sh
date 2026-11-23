@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-cd-prefix.sh (guardrails plugin).
-#
-# Black-box: each case pipes a PreToolUse payload into the guard, alone and
-# under run-guards.sh, and asserts the same exit code both ways (2 = denied,
-# 0 = allowed).
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 # test-scope: plugins/guardrails/hooks/hooks.json plugins/guardrails/.claude-plugin/plugin.json
@@ -23,7 +18,6 @@ REASON='Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a m
 REASON_WRITE='Write to an absolute path, and run the command with its own directory option (for example `make -C <abs path>`) or an absolute path instead of `cd`'
 NL=$'\n'
 
-# deny_with <reason> <label> <command> [guard_invoke option ...]
 deny_with() {
   local reason="$1" label="$2" command="$3" via
   shift 3
@@ -34,20 +28,16 @@ deny_with() {
   done
 }
 
-# deny <label> <command> [guard_invoke option ...]: denied with the git reason.
 deny() { deny_with "$REASON" "$@"; }
 
-# deny_write <label> <command> [guard_invoke option ...]: denied with the write reason.
 deny_write() { deny_with "$REASON_WRITE" "$@"; }
 
-# allow <label> <command> [guard_invoke option ...]
 allow() {
   local label="$1" command="$2"
   shift 2
   expect_both "$label" 0 --command "$command" "$@"
 }
 
-# --- denied -------------------------------------------------------------------
 deny "cd X && git status" 'cd X && git status'
 deny "cd X; git commit -F f" 'cd X; git commit -F f'
 deny "cd then a newline then git" "cd /repo${NL}git status"
@@ -67,7 +57,6 @@ deny "append then git keeps the git reason" 'cd X; npm test >> out/test.log; git
 deny "git then a write keeps the git reason" 'cd X && git status && make > build.log'
 deny "cd to a cwd that differs" 'cd /srv/work/repo && git status' --cwd /srv/work/other
 
-# --- allowed ------------------------------------------------------------------
 allow "cd . && git status" 'cd . && git status'
 allow "cd ./ && git status" 'cd ./ && git status'
 allow "git -C X status" 'git -C X status'
@@ -89,11 +78,9 @@ allow "cdk is not cd" 'cdk deploy && git status'
 allow "plain git" 'git status'
 allow "PowerShell tool" 'cd X; git status' --tool PowerShell
 
-# --- kill switch --------------------------------------------------------------
 expect_both "kill switch off: allowed" 0 --command 'cd X && git status' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_CD_PREFIX_ENABLED=false
 
-# --- registration -------------------------------------------------------------
 row=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].args | map(tostring) | join(" ")' "$HOOK_DIR/hooks.json")
 assert_contains "hooks.json runs the guard on the Bash|PowerShell row" "$row" " block-cd-prefix.sh"
 assert_eq "plugin.json declares the kill switch, default on" "true" \

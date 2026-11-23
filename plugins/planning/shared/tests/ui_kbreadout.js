@@ -16,7 +16,6 @@ const FIELDS = ["sheet", "innerWidth", "innerHeight", "vvWidth", "vvHeight", "vv
   "dataKb", "sheetTop", "sheetBottom", "sheetHeight", "paddingBottom", "marginBottom", "bottom", "transform", "safeBottom", "screenHeight"];
 const TYPED = "secret words typed in the sheet";
 
-/** Before the page's scripts: a visualViewport the test moves, as a keyboard would. */
 function fakeViewport() {
   const t = new EventTarget();
   let kb = 0;

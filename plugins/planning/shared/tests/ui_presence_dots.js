@@ -1,23 +1,10 @@
 #!/usr/bin/env node
-// Presence dots in a real browser, against `share.sh ensure-running` with the fake cloudflared, on the owner's page:
-// the header row (its count says "Only you here" when no one else is), the empty view's row of who is here and the Host view's people list each show a dot at the
-// avatar's bottom-right (Active filled --ok, Away filled --away with a clock hand, Offline a hollow --faint ring)
-// in a ring of the surface it sits on; no name or avatar is dimmed; the people list runs you, Active, Away, then
-// Offline with the most recently seen first; the header shows present people only; avatar labels name the state;
-// and each dot measures at least 3:1 against its ring and its surface in dark and light, read from computed styles
-// through a canvas so the colors are the sRGB the browser paints (oklch may be gamut-mapped).
-//   node plugins/planning/shared/tests/ui_presence_dots.js   (about 2 minutes: two people go offline)
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from triage row 40 and research/presence-indicator/RESEARCH-recommendation.md (states,
-// order, 3:1 for a non-text indicator, WCAG 1.4.11) and session.py OFFLINE_AFTER (90 s), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
-const OFFLINE_AFTER = 90; // seconds: session.py OFFLINE_AFTER
+const OFFLINE_AFTER = 90;
 const text = (id, t) => ({ id, text: t, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 
-/** In the page: every presence dot under `scope`, measured in dark and light. Per dot: its state, the dot's color,
- *  ring and surface as sRGB, and the dot's contrast against each. */
 function measure(scope) {
   const cv = document.createElement("canvas"); cv.width = cv.height = 1;
   const cx = cv.getContext("2d", { willReadFrequently: true });
@@ -57,10 +44,8 @@ async function main() {
     const A = await s.start("dots");
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
-    // The header count with no one else here: a bare "1 here" read as a guest count to the owner (S10:5), so it says who.
     ok("alone on the page, the header count says only you are here", await until(owner, () => document.querySelector(".vf-here")?.textContent === "Only you here"),
       await owner.evaluate(() => document.querySelector(".vf-here")?.textContent));
-    // Fay leaves first and Eve a few seconds later, so Eve is the more recently seen of the two offline people.
     const fay = await rec.open(A.localUrl), fayPid = await joinAs(fay, "Fay");
     const eve = await rec.open(A.localUrl), evePid = await joinAs(eve, "Eve");
     const bo = await rec.open(A.localUrl), boPid = await joinAs(bo, "Bo");
@@ -71,7 +56,6 @@ async function main() {
     await owner.waitForTimeout(4000);
     await eve.context().close();
 
-    // ---------- the empty view: who is here, with their dots ----------
     ok("Cai shows Away and Bo Active on the owner's page", await until(owner, ([b, c]) => {
       const p = Object.fromEntries(window.Core.state.presence.map(x => [x.cid, x.away]));
       return p[b] === false && p[c] === true;
@@ -84,13 +68,11 @@ async function main() {
     }, [boPid, caiPid], 10000), JSON.stringify(await evRow()));
     good("  each empty-view dot is 3:1 against its ring and its surface, dark and light", Object.values(await owner.evaluate(measure, ".vf-ev-here")).flat());
 
-    // ---------- Fay and Eve go offline ----------
     ok(`Fay and Eve go offline about ${OFFLINE_AFTER} s after they left`, await until(owner, ps => ps.every(p => !window.Core.state.presence.some(x => x.cid === p)), [fayPid, evePid], (OFFLINE_AFTER + 20) * 1000));
     ok("  not before", (Date.now() - leftAt) / 1000 >= OFFLINE_AFTER - 5);
     s.apply(A.dir, [{ op: "open-round", questions: [text("Q1", "Where should the order summary sit?")] }]);
     await owner.locator(".vf-seg .vf-seg-btn", { hasText: "Host" }).click();
 
-    // ---------- the people list ----------
     const want = ["host", boPid, caiPid, evePid, fayPid];
     const states = { host: "active", [boPid]: "active", [caiPid]: "away", [evePid]: "offline", [fayPid]: "offline" };
     ok("the people list runs you, Active, Away, then Offline with the most recently seen first", await until(owner, w => {
@@ -113,7 +95,6 @@ async function main() {
       JSON.stringify(rows.map(r => r.meta)));
     good("each people-list dot is 3:1 against its ring and its surface, dark and light, offline a hollow ring", Object.values(await owner.evaluate(measure, ".vf-hpeople")).flat());
 
-    // ---------- the header row: present people only ----------
     const head = await owner.evaluate(() => [...document.querySelectorAll(".vf-people .vf-person")].map(b => ({ pid: b.dataset.pid, label: b.getAttribute("aria-label"), st: b.firstChild?.dataset.presence, dot: !!b.querySelector(".vf-pres"),
       dimmed: [b, b.firstChild].some(e => getComputedStyle(e).opacity !== "1" || getComputedStyle(e).filter !== "none") })));
     ok("the header shows present people only, Active before Away", head.map(h => h.pid).join() === ["host", boPid, caiPid].join(), JSON.stringify(head));

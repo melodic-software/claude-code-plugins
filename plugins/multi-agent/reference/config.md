@@ -39,9 +39,9 @@ of one of them, the block when there is one, into the new YAML and leaves the
 old file in place; `/multi-agent:setup apply --migrate` moves
 `.claude/multi-agent.yaml` into the YAML and deletes it. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
-around it still apply. The format is a YAML subset: nested mappings, scalars,
-comments. No lists. `/multi-agent:setup apply` writes a layer after a preview
-and an explicit yes.
+around it still apply. The format is a YAML subset: nested mappings, block or
+flow sequences, scalars, comments. `/multi-agent:setup apply` writes a layer
+after a preview and an explicit yes.
 
 ## Keys
 
@@ -54,6 +54,15 @@ and an explicit yes.
 | `frontier` | comma-separated aliases treated as frontier | `fable` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
+| `vendors.routing` | `true`, `false` | `true` |
+| `vendors.trials` | `true`, `false` | `false` |
+| `vendors.auto_delegation` | `true`, `false` | `false` |
+| `vendors.tiebreak` | ordered list (no duplicates) from `vendor-order`, `fewest-tokens`, `most-usage-left` | unset (caller keeps its vendor on a tie) |
+| `vendors.trials_prove` | integer >= 1 | unset |
+| `vendors.trials_fail` | integer >= 2 (`1` is rejected) | unset |
+| `vendors.<vendor>.in_use` | `true`, `false` (`<vendor>` is `claude`, `codex` or `antigravity`) | unset |
+| `vendors.<vendor>.rank` | integer (lower rank wins `vendor-order` tiebreak) | unset |
+| `vendors.sources.<id>.enabled` | `true`, `false` (`<id>` matches `^[a-z0-9][a-z0-9-]*$`) | unset (uses the row's `enabled`, default `true`) |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` |
 
 `verification` is not part of the role map. It sets whether `/multi-agent:audit-defaults` runs
@@ -155,6 +164,51 @@ checkout, the user file for every repository you work in.
 Before a fan-out wider than about four workers, run one worker as a pilot and
 confirm plan usage remains for the rest: a usage limit reached mid-fan-out
 stops every worker at once.
+
+## Vendor routing settings and team benchmark rows
+
+The `vendors` block resolves across the same layers (`bundled`, `user-config`,
+`team`, `personal-override`) under the same invalid-value rule: an invalid
+value (such as `trials_fail: 1` or an unknown `tiebreak` step) is rejected with
+a note, and the layer below keeps the key. `/multi-agent:setup apply` runs the
+same validation before writing; pass `vendors.tiebreak=step1,step2` to write a
+tiebreak list, or `vendors.tiebreak=` to clear it.
+
+- `vendors.routing: false`: `/multi-agent:route vendors` reports that routing is
+  off and recommends nothing (including work Claude cannot do), while trials
+  pause and keep their data.
+- `vendors.trials: true` with `trials_prove` or `trials_fail` unset: trials stay
+  inactive and routing emits one note saying so.
+- `vendors.<vendor>.in_use`: `false` skips the vendor silently; `true` when the
+  vendor is unavailable in `external-agents models` emits one note line.
+- `vendors.tiebreak`: a higher layer's valid list replaces the lower layer's
+  list whole. With no tiebreak set, a tie across trusted sources keeps the
+  caller's vendor.
+- `vendors.sources.<id>.enabled: false`: disables a shipped or team benchmark
+  row during fetch and decision.
+
+A repository may append team benchmark rows in
+`<repo>/docs/conventions/multi-agent/benchmarks.json` (resolved from
+`git rev-parse --show-toplevel`, skipped outside a git repository). The file
+uses the same closed schema as [`benchmarks.json`](benchmarks.json)
+([`schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)).
+Team rows are appended after the shipped rows; any team row whose `id` matches a
+shipped row id is refused with a note.
+
+## Trial state
+
+Trial notes, per-pair outcomes (`proven` or `failed`), and seen model ids live per machine under
+`<data>/vendor-state/` (`trials/`, `outcomes/`, `seen/`), where `<data>` resolves from the
+installed plugin path first (`<...>/plugins/data/multi-agent-<marketplace>` derived from
+`<...>/plugins/cache/<marketplace>/multi-agent/<version>/`), then `CLAUDE_PLUGIN_DATA` only when
+its basename starts with `multi-agent-`. Outcome files are machine-neutral, one file per
+`vendor:model:version:effort:work_type` key. Routine routing writes nothing.
+
+A proven pair stays proven until the user sends it back to trial:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/route/scripts/vendor-state send-back --key <vendor>:<model>:<version>:<effort>:<work_type>
+```
 
 ## Example team file
 

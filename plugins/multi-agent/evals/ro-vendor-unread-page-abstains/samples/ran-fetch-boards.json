@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/fetch-boards --out /tmp/b/pages --manifest /tmp/b/manifest.json --task-type coding"
+          }
+        }
+      ],
+      "why": "invokes fetch-boards"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

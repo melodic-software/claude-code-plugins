@@ -1,3 +1,4 @@
+// test-scope: docs/conventions/work-items.yaml
 // Every GitHub client factory a lane script builds counts each request it
 // sends in $RUNNER_TEMP/api-budget/<token>, one reading line per answer, for
 // the job-end api-calls notice (api-budget.bash api_budget_emit_calls).
@@ -7,7 +8,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../../scripts/lib/github-client.mjs";
 import { countRequests, createRateLimitLatch } from "./rate-guard.mjs";
 import { guardedFetch, createGitHubApi as addressFeedbackApi } from "../../scripts/pr-unblock/address-feedback.mjs";
 import { createGitHubApi as dispatchApi } from "../../scripts/pr-unblock/dispatch.mjs";
@@ -224,7 +225,7 @@ for (const [name, run] of [
 // on a second token, so its line reads github-token=3 lanes-app=1
 // not-modified=1 graphql=1, and the job-end lines over the same files agree.
 const STEP_CALLS = `
-import { createGitHub } from ${JSON.stringify(new URL("../check-trusted-trigger/check-trusted-trigger.mjs", import.meta.url).href)};
+import { createGitHub } from ${JSON.stringify(new URL("../../scripts/lib/github-client.mjs", import.meta.url).href)};
 const answer = (status, resource) => new Response(status === 304 ? null : "{}", { status, headers: { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": resource } });
 const fetchImpl = async (url, init) => (init.headers["If-None-Match"] ? answer(304, "core") : url.endsWith("/graphql") ? answer(200, "graphql") : answer(200, "core"));
 const own = createGitHub({ token: "own", fetchImpl, log: () => {} });

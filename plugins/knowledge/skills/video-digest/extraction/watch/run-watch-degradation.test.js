@@ -1,11 +1,3 @@
-/**
- * CLI-level architecture proof for the capability-absent ASR degradation: a
- * caption-less X acquisition on a machine WITHOUT the optional faster-whisper
- * capability still exits 0, and the reason travels in the named
- * `transcriptDegradation` provenance field (stdout JSON + watch.json) — the
- * digest degrades explicitly, it never fails and never degrades silently.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -39,8 +31,6 @@ vi.mock("./temp-space-check.js", () => ({
   checkTempSpace: vi.fn(async () => ({ state: "enough", message: "" })),
 }));
 
-// The machine-under-test has no faster-whisper: capability detection reports
-// absent, and the transcription rung must never be reached.
 vi.mock("../transcript/asr-transcribe.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -115,7 +105,6 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
       success: true,
       data: createAcquisitionEnvelope({
         entries: [
-          // Caption-less X media entry: no captions were published for the post.
           { mediaPath, captionPaths: [], metadataPath: path.join(fixtureDir, "info.json"), caption: null },
         ],
         metadata: {
@@ -135,8 +124,6 @@ describe("run-watch capability-absent ASR degradation (CLI-level)", () => {
     expect(output.transcriptDegradation).toContain("faster-whisper");
     expect(output.transcriptDegradation).toContain("without a transcript");
     expect(output.transcriptStrategy).toBeNull();
-    // The X slice key is the URL's status id, and the digest continues into
-    // the visual lane (media exists even though no transcript does).
     expect(output.videoSlug.endsWith(TWID)).toBe(true);
     expect(vi.mocked(orchestrateWatching)).toHaveBeenCalledOnce();
     expect(vi.mocked(runAsrTranscription)).not.toHaveBeenCalled();

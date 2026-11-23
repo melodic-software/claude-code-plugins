@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for fill-secret.sh against a stub playwright-cli that echoes the fill
-# text the way the real CLI does, so a leak shows up in the captured output.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -34,10 +34,18 @@ step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abor
 # step, so the hold is never hidden. A draft's ci-status passes by design
 # (`Note a draft`), so the step makes no read there; the ready_for_review run
 # judges the label.
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}"* ]]; then
-  ok "step runs on every pull_request run that is not cancelled or a draft"
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
+  ok "step runs on every pull_request run that is not cancelled or a draft, and on a draft run's re-run once the pull request is ready"
 else
   fail "step lost its pull_request condition or its draft skip"
+fi
+order="$(grep -nE "^      - name: (Read whether a re-run draft run's pull request is ready|$NAME)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
+read -r rerun_line gated_line <<<"$order"
+if [[ -n "${gated_line:-}" && "$rerun_line" -lt "$gated_line" ]] &&
+  grep -qxF "        id: draft_rerun" "$WORKFLOW"; then
+  ok "the draft_rerun step whose output this step reads sits before it"
+else
+  fail "the draft_rerun step is missing or not before this step (lines: $order)"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the hold"

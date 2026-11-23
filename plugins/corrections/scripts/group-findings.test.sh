@@ -31,14 +31,12 @@ cp -R "$REPO_ROOT/plugins/corrections" "$PLUGIN_COPY"
 GROUP="$PLUGIN_COPY/scripts/group-findings.mjs"
 ADAPTERS="$PLUGIN_COPY/tools/findings-buffer/adapters"
 
-# new_repo: sets R to a new empty git repository.
 new_repo() {
   N=$((N + 1))
   R="$TEST_TMPDIR/repo$N"
   mkdir -p "$R"
   git -C "$R" init -q
 }
-# fake_adapter <name>: a plugin adapter whose read.sh prints its rows.jsonl.
 fake_adapter() {
   local d="$ADAPTERS/$1"
   rm -rf "$d"
@@ -53,12 +51,10 @@ exit 0
 EOF
   chmod +x "$d/append.sh" "$d/read.sh"
 }
-# local_row <repo> <json>: appends a stored row to the repository's local-file buffer.
 local_row() {
   mkdir -p "$1/.work/buffer"
   printf '%s\n' "$2" >>"$1/.work/buffer/findings.jsonl"
 }
-# run <dir> <args...>: the reader from inside <dir>; stdout to $OUT, stderr to $ERR.
 run() {
   local dir="$1"
   shift
@@ -67,7 +63,6 @@ run() {
   OUT="$(cat "$TEST_TMPDIR/out")"
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
-# line_of <text>: the 1-based line number of the first output line equal to <text>, or 0.
 line_of() { awk -v want="$1" '$0 == want { print NR; found = 1; exit } END { if (!found) print 0 }' <<<"$OUT"; }
 
 # 1. Rows from two sources, a bound adapter and the local file, grouped by producer.
@@ -87,7 +82,6 @@ local_row "$R" '{"obs_id":"bbbbbbbbbbbbbbb4","ts":"2026-10-22T11:00:00Z","kind":
 for i in 1 2 3 4; do
   local_row "$R" "{\"obs_id\":\"eeeeeeeeeeeeeee$i\",\"ts\":\"2026-10-23T0$i:00:00Z\",\"producer\":\"scanner/dup\",\"source_id\":\"#30\"}"
 done
-# A row both sources hold is grouped once.
 local_row "$R" '{"obs_id":"aaaaaaaaaaaaaaa1","ts":"2026-10-21T09:00:00Z","producer":"scanner/lint","kind":"unused","source_id":"#20"}'
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
@@ -123,7 +117,6 @@ check "two keys: a missing field is (none)" grep -qx 'producer=(none) kind="unus
 DETAIL="out: $OUT"
 check "--rows: each member's row follows it" grep -q '^    {"obs_id":"bbbbbbbbbbbbbbb2".*"skipped the changelog"' <<<"$OUT"
 
-# 2. --since keeps exactly the rows at or after it, fraction included.
 new_repo
 local_row "$R" '{"obs_id":"ccccccccccccccc1","ts":"2026-10-21T09:30:00Z","producer":"p"}'
 local_row "$R" '{"obs_id":"ccccccccccccccc2","ts":"2026-10-21T09:30:00.5Z","producer":"p"}'
@@ -151,13 +144,11 @@ check "escaping: the escaped forms are printed" grep -qF 'producer="evil\u001b[2
 DETAIL="out: $OUT"
 check "escaping: a C1 control in source_id is printed escaped" grep -qF 'source_id="x\u''0085y"' <<<"$OUT"
 
-# 4. An empty buffer.
 new_repo
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "empty buffer: exits 0 and says no rows" test "$RC" -eq 0 -a "$(tail -n 1 <<<"$OUT")" == "no rows"
 
-# 5. Usage.
 for args in "--by a,b,c,d,e,f,g,h,i" "--by a.b" "--by a,a" "--by" "--since yesterday" "--bogus" "extra"; do
   # shellcheck disable=SC2086 # each case is a word list
   run "$R" $args

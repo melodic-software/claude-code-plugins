@@ -70,7 +70,6 @@ function Write-WorkflowError {
     Write-Output("::error title=${safeTitle}::${safeMessage}")
 }
 
-# Append a multi-line message to the step summary as an indented fenced block.
 function Add-FencedBlock {
     param(
         [Parameter(Mandatory)]

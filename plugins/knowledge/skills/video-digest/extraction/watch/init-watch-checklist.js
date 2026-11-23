@@ -375,15 +375,9 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
   const videoSlug = path.basename(absSlice);
   const durationHours = (durationSec / 3600).toFixed(1);
 
-  // Floors derive from the vision-plan content class. Post-bootstrap, vision-plan.md
-  // does not exist yet, so the class — and every floor computed from it — is unknown.
-  // Defer the whole floors sentence rather than substitute fabricated numbers: the
-  // checklist re-materializes (--force, which keeps ticks) once the plan lands.
   const floorsLine = visionPlanPresent
     ? buildFloorsLine(contentClass, durationHours, sessionCount, durationSec)
     : "**Floors for this slice:** deferred — pending `key-frames/vision-plan.md` (content class + floors set after the vision-plan lands; re-run with `--force`, which keeps ticks and Resume notes).";
-  // Item 4.9's percent comes from the same floors. Without a vision plan the
-  // class is unknown, so the item names the deferred floor rather than a number.
   const floorSheetTriageText = visionPlanPresent
     ? `${floorSheetTriagePct(contentClass, durationSec, sessionCount)}%`
     : "the deferred floor";

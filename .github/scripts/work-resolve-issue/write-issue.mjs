@@ -79,11 +79,13 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
 import { ACTIONS_BOT_ID, authorAdmitted, carriesSplit, closedByTrusted, driftIssue, driftShaped, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
 import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission-record.mjs";
+import { laneBranchPattern, WORK_RESOLVE_ISSUE } from "../lib/lane-branch.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -165,7 +167,7 @@ async function readAdmission(github, repository, number, { lanesAppId, humans, s
 const SHA = /^[0-9a-f]{40}$/;
 export const MAX_RESUME_COMMITS = 50;
 export const MAX_RESUME_FILES = 100;
-const laneShape = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-[1-9][0-9]*-[1-9][0-9]*$`);
+const laneShape = (issueNumber) => laneBranchPattern(WORK_RESOLVE_ISSUE, issueNumber);
 async function readResume(github, env) {
   const { RESUME_BRANCH: branch = "", RESUME_TIP: tip = "", RESUME_CAUSE: cause = "", BASE_SHA: base = "" } = env;
   if (!branch && !tip && !cause) {

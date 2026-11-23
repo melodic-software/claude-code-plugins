@@ -184,7 +184,6 @@ init_repo "$SH_REPO"
 cp "$FIXTURES/dead-and-dynamic.sh" "$SH_REPO/"
 stage_repo "$SH_REPO"
 
-# A package.json root with no TS file at all — the scanned-zero-files state.
 EMPTY_REPO="$TEST_TMPDIR/empty-repo"
 init_repo "$EMPTY_REPO"
 mkdir -p "$EMPTY_REPO/node_modules"
@@ -237,7 +236,6 @@ deg_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP
 assert_exit "degraded knip scan still exits 0" 0 "$deg_exit"
 assert_contains "ERROR: on stderr marks the lane degraded" "$deg_out" "state=degraded"
 assert_not_contains "degraded lane is not also ran" "$deg_out" "state=ran"
-# The ABSENCE of records, not merely the presence of the marker.
 assert_not_contains "degraded lane emits no unused-file record" "$deg_out" "Finding shape: ts-unused-file"
 assert_not_contains "degraded lane emits no unused-export record" "$deg_out" "Finding shape: ts-unused-export"
 assert_not_contains "degraded lane emits no finding at all" "$deg_out" "Finding tier:"
@@ -351,7 +349,6 @@ assert_contains "both roots ran" "$mo_out" "Lane: knip | root=packages/inner | s
 # THE ASSERTION: the outer root owns none of those paths, so it reports none of
 # them — not one record, even though its own run named all three.
 assert_contains "the outer root reports none of the nested root's files" "$mo_out" "Lane: knip | root=. | state=ran | files=2 | detail=0 candidate(s); 3 finding(s) this root does not own dropped"
-# Each nested-root path is reported ONCE, by the nested root, at its real location.
 assert_contains "the nested root reports its own orphan module" "$mo_out" "File: packages/inner/ts-orphan.ts"
 assert_contains "the nested root reports its own exports' file" "$mo_out" "File: packages/inner/dead-and-dynamic.ts"
 assert_not_contains "no nested path is re-reported at the outer root" "$mo_out" "File: ts-orphan.ts"
@@ -373,7 +370,6 @@ assert_not_contains "input parse error does NOT degrade the lane" "$parse_out" "
 assert_contains "unparsable input is reported as a Note" "$parse_out" "Note: vulture could not parse one input and skipped it (an input note, not a degraded run):"
 assert_contains "the note carries the captured stderr line" "$parse_out" "vulture-parse-error-input.toml:8: cannot assign to expression here."
 assert_contains "the unparsable input is counted in the lane detail" "$parse_out" "1 input file(s) skipped as unparsable"
-# The findings that coexist with the input note must still be emitted.
 assert_contains "real findings survive the input note" "$parse_out" "Finding excerpt: unused function 'format_legacy_row' (60% confidence)"
 assert_contains "all four captured findings emitted" "$parse_out" "Summary total: files-with-findings=2 T1=0 T2=4 T3=0"
 
@@ -575,8 +571,6 @@ assert_contains "drift survives a cap of 1" "$driftcap_out" "Finding shape: dete
 assert_contains "drift is exempt from the cap, ordinary candidates are not" "$driftcap_out" "Summary candidates: total=6 emitted=2 dropped-by-cap=4 cap=1"
 assert_contains "the capped run still counts its T3" "$driftcap_out" "Summary total: files-with-findings=2 T1=0 T2=1 T3=1"
 
-# --- 8. Usage contract -------------------------------------------------------------
-
 help_exit=0
 bash "$SCAN" --help >/dev/null 2>&1 || help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
@@ -619,7 +613,6 @@ assert_contains "clean lane names what it covered" "$clean_out" "no unused file,
 assert_contains "clean lane counts as a run" "$clean_out" "Summary lanes: ran=1 skipped=0 degraded=0 scanned-zero-files=0"
 assert_contains "clean closes with the lanes-that-ran note" "$clean_out" "Note: no candidates from the lanes that ran"
 assert_not_contains "clean is not scanned-zero-files" "$clean_out" "scanned-zero-files=1"
-# Both produce zero findings; only the surrounding state tells them apart.
 assert_contains "clean has zero findings" "$clean_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
 assert_contains "scanned-zero-files has zero findings too" "$zero_out" "Summary total: files-with-findings=0 T1=0 T2=0 T3=0"
 
@@ -641,12 +634,10 @@ vul_rc1="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$FIXTURES/vulture-report.txt" FAKE
 assert_equal "vulture exit 3 and exit 0 give the same report" "$vul_rc3" "$vul_rc0"
 assert_equal "vulture exit 1 alone does not degrade the lane" "$vul_rc1" "$vul_rc0"
 
-# A nonzero exit with EMPTY stdout is still a ran-and-clean lane, not a failure.
 knip_rc1_empty="$(cd "$TS_REPO" && FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
 assert_contains "nonzero exit with no output is still a ran lane" "$knip_rc1_empty" "Lane: knip | root=. | state=ran"
 assert_not_contains "nonzero exit alone never degrades a lane" "$knip_rc1_empty" "state=degraded"
 
-# And the scan's own exit is 0 on every scan path.
 scan_exit=0
 (cd "$TS_REPO" && FAKE_KNIP_ERR="$FIXTURES/knip-degraded.stderr.txt" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip) >/dev/null 2>&1 || scan_exit=$?
 assert_exit "a degraded lane never fails the caller" 0 "$scan_exit"
@@ -908,7 +899,6 @@ assert_contains "outside-mjs coverage is one and one" "$out_out" \
 assert_not_contains "outside-mjs is not a clean result" "$out_out" \
   "Note: no candidates from the lanes that ran"
 
-# A manifest root with a real file count, and no knip binary: tool not installed.
 KNIPLESS=""
 IFS=':' read -ra _kdirs <<<"$REAL_PATH"
 for _kd in "${_kdirs[@]}"; do
@@ -931,7 +921,6 @@ assert_contains "missing knip names the file" "$tool_out" \
 assert_contains "missing knip coverage is uncovered" "$tool_out" \
   "Summary coverage: covered=0 uncovered=1"
 
-# A .go file with no go.mod is the same shape as the mjs case.
 GO_BARE="$TEST_TMPDIR/go-bare"
 init_repo "$GO_BARE"
 printf '%s\n' 'package main' 'func main() {}' >"$GO_BARE/main.go"
@@ -942,7 +931,6 @@ assert_contains "gopls with no go.mod counts the go file" "$gobare_out" \
 assert_contains "the bare go file is uncovered" "$gobare_out" \
   "Note: uncovered main.go — no manifest root"
 
-# A language with no lane is listed, not dropped.
 NOLANE_REPO="$TEST_TMPDIR/nolane"
 init_repo "$NOLANE_REPO"
 mkdir -p "$NOLANE_REPO/src"
@@ -1085,8 +1073,6 @@ cs_knip_out="$(cd "$CSL_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
 assert_contains "a C# file is unselected, not language-less, without the grep lane" "$cs_knip_out" \
   "Note: uncovered cs-orders.cs — lane not selected"
 assert_not_contains "a C# file is never reported as having no lane" "$cs_knip_out" "no lane for the language"
-
-# --- Final report ------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

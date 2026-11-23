@@ -15,7 +15,7 @@
 // When any edge misses, the edges this run wrote are deleted again, so the
 // work-unblock lane, which reads only native edges, never sees a partial set;
 // an edge that was already there stays.
-import { GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError, paginate } from "../lib/github-client.mjs";
 
 export const BLOCKED_BY = "Blocked by";
 export const MAX_EDGES = 50;

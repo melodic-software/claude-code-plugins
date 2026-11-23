@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { switchHold } from "../pr-merge/merge-holds.mjs";
-import { collect, jobsCarryFile, JOBS_VERSION, KILL_SWITCH, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, QUEUE_HOLD_STEPS, restAnnotations, restJobs, VARIABLE_STEPS } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, KILL_SWITCH, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry, PUBLISH_LANE_LEVEL_JOB, QUEUE_HOLD_STEPS, VARIABLE_STEPS } from "./collect.mjs";
 import { partlyReadSignals, planIssues, SIGNALS, unreadSignals } from "./issues.mjs";
 import { ceilingFindings, detect, laneVariableFindings } from "./signals.mjs";
 
@@ -1956,71 +1956,6 @@ test("lane variable runs: a failed listing or one over the cap is a gap, so sign
   const many = Array.from({ length: LIMITS.laneVariableRuns + 1 }, (_, i) => unblockRun(900 + i));
   const over = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, { workflow_runs: many }], ...routes()])));
   assert.deepEqual(over.gaps, [`lane variable runs: over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`]);
-});
-
-// pr-merge run 43092202279 as both APIs answered it on 2026-11-11: GraphQL's
-// check runs (newest first, no steps), REST's jobs list (oldest first, steps
-// left out), and three of its enable-auto-merge job's 28 annotations.
-const RECORDED_RUN = { id: 43092202279, run_attempt: 1 };
-const recordedCheckRun = (id, databaseId, name, conclusion) => ({ id, databaseId, name, status: "COMPLETED", conclusion });
-const RECORDED_NODE = {
-  databaseId: 43092202279,
-  runAttempt: 1,
-  checkSuite: {
-    checkRuns: {
-      totalCount: 6,
-      nodes: [
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecsxang", 130775014046, "unarmed-status", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecp1zog", 130771940258, "post-merge-dispatch", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy5Dw", 130771892495, "dispatch-full-run", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy4dg", 130771892342, "gate-check", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpy3Fw", 130771891991, "merge", "SKIPPED"),
-        recordedCheckRun("CR_kwDOTCGFQM8AAAAecpyvPw", 130771889983, "enable-auto-merge", "SUCCESS"),
-      ],
-    },
-  },
-};
-const recordedJob = (id, node_id, name, conclusion) => ({ id, node_id, name, status: "completed", conclusion });
-const RECORDED_JOBS = [
-  recordedJob(130771889983, "CR_kwDOTCGFQM8AAAAecpyvPw", "enable-auto-merge", "success"),
-  recordedJob(130771891991, "CR_kwDOTCGFQM8AAAAecpy3Fw", "merge", "skipped"),
-  recordedJob(130771892342, "CR_kwDOTCGFQM8AAAAecpy4dg", "gate-check", "skipped"),
-  recordedJob(130771892495, "CR_kwDOTCGFQM8AAAAecpy5Dw", "dispatch-full-run", "skipped"),
-  recordedJob(130771940258, "CR_kwDOTCGFQM8AAAAecp1zog", "post-merge-dispatch", "skipped"),
-  recordedJob(130775014046, "CR_kwDOTCGFQM8AAAAecsxang", "unarmed-status", "skipped"),
-];
-// That job's 28 annotations as each API answered: REST's annotations read
-// (the fields the sources read) and GraphQL's CheckRun node.
-const RECORDED = JSON.parse(readFileSync(new URL("./recorded-annotations.json", import.meta.url), "utf8"));
-const RECORDED_ANNOTATIONS_NODE = RECORDED.graphql;
-
-test("the GraphQL check-run and annotation readers answer as the REST jobs and annotations reads of the same run", () => {
-  assert.deepEqual(restJobs(RECORDED_NODE, RECORDED_RUN), RECORDED_JOBS);
-  assert.equal(RECORDED.rest.length, 28);
-  assert.deepEqual(restAnnotations(RECORDED_ANNOTATIONS_NODE, { id: RECORDED.checkRun }), RECORDED.rest);
-});
-
-test("a GraphQL answer that is cut short, holds a null, is another run's or a re-run's is no answer", () => {
-  const checkRuns = RECORDED_NODE.checkSuite.checkRuns;
-  const variants = [
-    { ...RECORDED_NODE, runAttempt: 2 },
-    { ...RECORDED_NODE, databaseId: 1 },
-    { ...RECORDED_NODE, checkSuite: { checkRuns: { ...checkRuns, totalCount: 31 } } },
-    { ...RECORDED_NODE, checkSuite: { checkRuns: { ...checkRuns, nodes: [...checkRuns.nodes.slice(1), null] } } },
-    { ...RECORDED_NODE, checkSuite: { checkRuns: { totalCount: 0, nodes: [] } } },
-    { ...RECORDED_NODE, checkSuite: null },
-    null,
-  ];
-  for (const node of variants) assert.equal(restJobs(node, RECORDED_RUN), null, JSON.stringify(node)?.slice(0, 80));
-  const annotations = RECORDED_ANNOTATIONS_NODE.annotations;
-  for (const node of [
-    { ...RECORDED_ANNOTATIONS_NODE, annotations: { ...annotations, totalCount: 101 } },
-    { ...RECORDED_ANNOTATIONS_NODE, annotations: null },
-    { ...RECORDED_ANNOTATIONS_NODE, databaseId: 1 },
-    null,
-  ]) {
-    assert.equal(restAnnotations(node, { id: 130771889983 }), null, JSON.stringify(node)?.slice(0, 80));
-  }
 });
 
 // Every source that reads jobs or annotations: pr-merge budget (run 10),

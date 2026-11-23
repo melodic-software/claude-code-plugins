@@ -25,8 +25,6 @@ skip() {
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 
-# 1 when this host's /tmp is the user temp (stock Git for Windows usertemp).
-# The Bash command lane then allows POSIX /tmp; drive-root spellings stay blocked.
 HOST_POSIX_TMP_IS_USERTEMP=0
 if command -v cygpath >/dev/null 2>&1; then
   _dt_tmp_w=$(cygpath -w /tmp 2>/dev/null || true)
@@ -45,10 +43,6 @@ if command -v cygpath >/dev/null 2>&1; then
   fi
 fi
 
-# True when the command's only drive-root tmp spelling is POSIX /tmp.
-# /c/tmp and C:/tmp stay blocks on a usertemp host, and so does a backslash-led
-# `\tmp`. That one is judged on the raw command: folding backslashes first turns
-# it into POSIX /tmp and the helper would downgrade a block the guard keeps.
 posix_tmp_command_only() {
   local bs_tmp='(^|[^[:alnum:]._/\\:])\\tmp(\\|[^[:alnum:]_./-]|$)'
   [[ "${1,,}" =~ $bs_tmp ]] && return 1
@@ -56,7 +50,6 @@ posix_tmp_command_only() {
   c="${c,,}"
   [[ "$c" =~ (^|[^[:alnum:]])[a-z]:/tmp(/|[^[:alnum:]_./-]|$) ]] && return 1
   [[ "$c" =~ (^|[^[:alnum:]._/:])/[a-z]/tmp(/|[^[:alnum:]_./-]|$) ]] && return 1
-  # A glued short flag (`-o/tmp/x`) is POSIX /tmp too.
   [[ "$c" =~ (^|[^[:alnum:]._/]|[[:space:]]-[a-z])/tmp(/|[^[:alnum:]_./-]|$) ]]
 }
 
@@ -83,15 +76,10 @@ run_win_pwsh() {
   fi
 }
 
-# Non-Windows host: /tmp is legitimate POSIX temp — must never block.
 run_posix_host() {
   run_posix_host_payload "$1" "$(command_json "$2")"
 }
 
-# File-path lane (added in 0.30.0): Write / Edit / NotebookEdit carry
-# `file_path` (NotebookEdit `notebook_path`) instead of `command`, and before
-# 0.30.0 the empty-COMMAND early exit returned before any matcher ran.
-# <payload-json> is produced by the caller so one runner covers every tool.
 run_win_payload() {
   local label="$1" payload="$2" expected="$3"
   shift 3
@@ -131,37 +119,15 @@ msys_pwsh_command_json() {
   printf '%s' "$1" | MSYS_NO_PATHCONV=1 jq -Rs '{tool_name:"PowerShell",tool_input:{command:.}}'
 }
 
-# --- Host gate ---------------------------------------------------------------
 run_posix_host "Linux host: >/tmp/x allowed" 'echo x > /tmp/x'
 run_posix_host "Linux host: mkdir /tmp/x allowed" 'mkdir -p /tmp/x'
 run_posix_host_payload "Linux host: Write /tmp/x allowed" "$(write_json '/tmp/x' 'body')"
 run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' 'body')"
 
-# The host gate must be reached BEFORE hook::buffer_stdin and
-# hook::require_jq_blocking. Widening the matcher to the file-edit tools in
-# 0.30.0 made the old ordering a hard break: on a Linux or macOS host with
-# no jq on PATH, require_jq_blocking's fail-closed exit 2 fired on EVERY file
-# edit, on a platform where this guard can never find a violation.
-#
-# Removing jq from PATH is simulable only where jq lives in a directory that
-# does not ALSO host bash and coreutils — prune that one entry and the shell
-# survives without jq. That holds on some hosts (it was demonstrated on a Cygwin
-# host with a single jq location, where the parent commit exits 2 and this one
-# exits 0 on a real jq-less PATH) and not on others: where jq sits in /usr/bin
-# beside bash, pruning it takes the shell with it. That is the portability
-# constraint lib/hook-utils.test.sh and
-# secret-pattern-detection.test.sh both record, so the assertion below does not
-# depend on it. What IS portable, and what decides the bug either way, is
-# whether the call is REACHED: `command -v jq` can only deny a write on a
-# jq-less host if control flow gets to it. So assert the ordering from an
-# xtrace of the real run. Both names appear in this trace before the fix and
-# neither appears after it.
 trace=$(env OSTYPE=linux-gnu bash -x "$HOOK" <<<"$(write_json '/srv/app/notes.txt' 'body')" 2>&1 >/dev/null)
 assert_absent "Linux host: stdin is never buffered" "$trace" "buffer_stdin"
 assert_absent "Linux host: the blocking jq requirement is never reached" "$trace" "require_jq_blocking"
 
-# --- File-path lane: drive-root targets (blocked) ----------------------------
-# The 2026-08-30 incident payload: an empty C:\tmp\tmp.rSFIkHm5DO that no guard saw.
 run_win_payload "Write C:\\tmp\\tmp.rSFIkHm5DO (blocked)" \
   "$(write_json 'C:\tmp\tmp.rSFIkHm5DO' 'x')" 2
 run_win_payload "Write /tmp/x (blocked)" "$(write_json '/tmp/x' 'x')" 2
@@ -178,17 +144,6 @@ run_win_payload "NotebookEdit file_path fallback /tmp/n.ipynb (blocked)" \
 run_win_payload "NotebookEdit notebook_path C:\\tmp\\n.ipynb (blocked)" \
   "$(notebook_path_json 'C:\tmp\n.ipynb')" 2
 
-# --- File-path lane: legitimate targets (allowed) ----------------------------
-# Three repo-wide CI gates constrain the literals below, and all three are
-# satisfiable without weakening any fixture. The shell-portability scanner reads
-# `\s`, `\b` and `\<` as GNU-only regex constructs wherever they appear, so no
-# segment starts with those letters and no backslash precedes the placeholder;
-# the machine-specific-paths gate rejects a concrete Windows user directory, so
-# the user segment is the `<user>` placeholder it prescribes. Hence the forward
-# slashes here — a valid Windows spelling that the matcher slash-normalizes
-# anyway, and the backslash form stays covered by the `D:\repo\docs\tmp` and
-# `D:\a\tmp` cases below. None of it changes what is under test: the matcher
-# decides on the presence of a drive-root `tmp` component and this path has none.
 run_win_payload "Write under %TEMP% (allowed)" \
   "$(write_json 'C:/Users/<user>/AppData/Local/Temp/note.txt' 'x')" 0
 run_win_payload "Write under /var/tmp (allowed)" "$(write_json '/var/tmp/x' 'x')" 0
@@ -200,37 +155,22 @@ run_win_payload "Write C:/tmp2 sibling (allowed)" "$(write_json 'C:/tmp2/x' 'x')
 run_win_payload "Write UNC //host/tmp (allowed)" "$(write_json '\\host\tmp\x' 'x')" 0
 run_win_payload "Edit ordinary repo file (allowed)" \
   "$(edit_json 'D:\repo\plugins\guardrails\README.md' 'x')" 0
-# Body content is never scanned — only the target path decides.
 run_win_payload "Write body mentioning /tmp (allowed)" \
   "$(write_json 'D:\repo\notes.md' 'do not write to /tmp/x')" 0
-# A tool with no path field at all must stay a no-op.
 run_win_payload "Read tool, no path (allowed)" \
   "$(jq -n '{tool_name:"Read",tool_input:{}}')" 0
 
-# --- A `tmp` directory under a single-letter parent (allowed) ----------------
-# MUST-STAY-QUIET, added repro-first: before the left-boundary fix these all
-# blocked, because after slash-normalization the drive colon satisfied the MSYS
-# alternative's left boundary and `D:\a\tmp\x` read as `d:` + `/a/tmp`. The
-# identical MSYS spelling `/d/a/tmp/x` was allowed the whole time, so one sink
-# decided two ways. Both lanes are pinned: the file-path lane is where the
-# defect became reachable on every write, the Bash lane is where it already was.
 run_win_payload "Write D:\\a\\tmp\\x subdir tmp (allowed)" "$(write_json 'D:\a\tmp\x' 'x')" 0
 run_win_payload "Write C:\\q\\tmp\\out.log subdir tmp (allowed)" \
   "$(write_json 'C:\q\tmp\out.log' 'x')" 0
 run_win_payload "Write /d/a/tmp/x MSYS spelling (allowed)" "$(write_json '/d/a/tmp/x' 'x')" 0
 run_win "mkdir D:\\a\\tmp\\x subdir tmp (allowed)" 'mkdir -p D:\a\tmp\x' 0
-# MSYS spellings go through the local no-pathconv builders, or Git Bash rewrites
-# them to the drive-letter form and the assertion stops testing this matcher.
 run_win_payload "mkdir /d/a/tmp/x MSYS spelling (allowed)" \
   "$(msys_command_json 'mkdir -p /d/a/tmp/x')" 0
-# The genuine MSYS drive root must still block.
 run_win_payload "mkdir /c/tmp/x drive root (still blocked)" \
   "$(msys_command_json 'mkdir -p /c/tmp/x')" 2
 run_win_payload "Write /c/tmp/x drive root (still blocked)" "$(write_json '/c/tmp/x' 'x')" 2
 
-# A PowerShell parameter colon is NOT a drive colon. `-Path:/c/tmp/x` binds the
-# same value as `-Path /c/tmp/x`, so both must block; the boundary fix above
-# must not take this class out with the drive-colon false positive.
 run_win_payload "PS: Set-Content -Path:/c/tmp/x colon-bound (blocked)" \
   "$(msys_pwsh_command_json 'Set-Content -Path:/c/tmp/x -Value hi')" 2
 run_win_payload "PS: New-Item -Path:/c/tmp/x colon-bound (blocked)" \
@@ -243,18 +183,9 @@ run_win_payload "PS: Copy-Item -Destination:/c/tmp/a colon-bound (blocked)" \
   "$(msys_pwsh_command_json 'Copy-Item .\a -Destination:/c/tmp/a')" 2
 run_win_payload "PS: Move-Item -Destination:/c/tmp/a colon-bound (blocked)" \
   "$(msys_pwsh_command_json 'Move-Item .\a -Destination:/c/tmp/a')" 2
-# ... and the drive-colon reading of the same character still must not fire.
 run_win_payload "PS: Set-Content -Path:D:/a/tmp/x subdir tmp (allowed)" \
   "$(msys_pwsh_command_json 'Set-Content -Path:D:/a/tmp/x -Value hi')" 0
 
-# --- Registration liveness ---------------------------------------------------
-# The script half of this guard is inert without the matcher registration: a
-# Write payload only reaches the hook because hooks.json routes it here. Reverting
-# that registration alone would leave every assertion above green, so assert it.
-# Matchers are split on `|` into EXACT alternatives, not substring-searched: a
-# matcher with the pipes removed ("WriteEditNotebookEdit") routes nothing while
-# passing every containment check. Sorting also makes the assertions immune to a
-# harmless reordering of the alternatives.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   def rowtext: .command + " " + ((.args // []) | map(tostring) | join(" "));
@@ -264,9 +195,6 @@ reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   | sort | join(" ")' "$HOOKS_JSON" 2>/dev/null)
 assert_eq "hooks.json routes the guard to exactly the intended tools" \
   "Bash Edit NotebookEdit PowerShell Write" "$reg"
-# The registration must also NAME A FILE THAT EXISTS — a command path typo
-# registers cleanly and then fails to run on every tool call. Exec form keeps
-# that path in args, after ${CLAUDE_PLUGIN_ROOT}/.
 reg_cmd=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   def rowtext: .command + " " + ((.args // []) | map(tostring) | join(" "));
   [ .hooks.PreToolUse[].hooks[] | rowtext | select(contains($h))
@@ -277,32 +205,25 @@ reg_cmd=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   | first // ""' \
   "$HOOKS_JSON" 2>/dev/null)
 reg_rel="${reg_cmd##*\"/}"
-reg_rel="${reg_rel%% *}" # the dispatcher form carries the guard as an argument
+reg_rel="${reg_rel%% *}"
 assert_eq "the registered command resolves to a file on disk" "yes" \
   "$([[ -n "$reg_rel" && -f "$HOOK_DIR/../$reg_rel" ]] && echo yes || echo no)"
 
-# --- File-path lane: fail-closed on a NUL-bearing path -----------------------
-# jq emits the escape textually, so the payload survives command substitution
-# and the hook's own jq turns it back into a real NUL byte.
 nul_out=$(env OSTYPE=msys bash "$HOOK" \
   <<<"$(jq -n '{tool_name:"Write",tool_input:{file_path:"C:/safe/\u0000/x"}}')" 2>&1)
 assert_exit "Write with NUL in file_path fails closed" 2 "$?"
 assert_contains "NUL block message" "$nul_out" "NUL byte"
 
-# JSON whose fields jq cannot read gets past the stdin read and is refused by
-# the field read.
 guard_invoke --hook "$HOOK" --payload '{"tool_name":"Write","tool_input":"C:/safe/x"}' -- OSTYPE=msys
 assert_exit "a payload whose fields jq cannot read fails closed" 2 "$GUARD_RC"
 assert_eq "unreadable fields: the refusal says why" \
   "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
 assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
 
-# --- File-path lane: kill switch ---------------------------------------------
 run_win_payload "kill switch disables the file-path lane" \
   "$(write_json '/tmp/x' 'x')" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED=false
 
-# --- Redirects to drive-root tmp (blocked) -----------------------------------
 run_win "redirect >/tmp/x (blocked)" 'echo x > /tmp/x' 2
 run_win "redirect >>/tmp/x (blocked)" 'echo x >> /tmp/x' 2
 run_win "redirect glued >/tmp/x (blocked)" 'echo x>/tmp/x' 2
@@ -314,7 +235,6 @@ run_win "redirect >/c/tmp/x MSYS (blocked)" 'echo x > /c/tmp/x' 2
 run_win "redirect >\\tmp\\x drive-root (blocked)" 'echo x > \tmp\x' 2
 run_win "quoted redirect target >\"/tmp/x\" (blocked)" 'echo x > "/tmp/x"' 2
 
-# --- Write utilities with drive-root tmp (blocked) ---------------------------
 run_win "mkdir /tmp/x (blocked)" 'mkdir -p /tmp/x' 2
 run_win "mktemp /tmp/tmp.XXXXXX (blocked)" 'mktemp /tmp/tmp.XXXXXX' 2
 run_win "touch /tmp/x (blocked)" 'touch /tmp/x' 2
@@ -339,9 +259,6 @@ run_win "python open ( C:/tmp write (blocked)" "python3 -c \"open ('C:/tmp/x','w
 run_win "python getattr open C:/tmp write (blocked)" "python3 -c \"getattr(__builtins__,'open')('C:/tmp/x','w')\"" 2
 run_win "python open C:/tmp write (blocked)" "python3 -c \"open('C:/tmp/x','w').write('a')\"" 2
 run_win "python open C:/Temp write (allowed — tmp-only scope, twin of C:/tmp)" "python3 -c \"open('C:/Temp/x','w').write('a')\"" 0
-# A provable READ is relieved only when the WHOLE unsplit command proves it
-# (#3951): a heredoc body splits at each `;`, so a per-segment relief let a decoy
-# read clear its segment while the write in the next segment matched nothing.
 run_win "python heredoc json.load(open(/tmp)) read (allowed)" \
   $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
 run_win "python -c open(/tmp,'rb').read() (allowed)" "python3 -c \"print(open('/tmp/x', 'rb').read())\"" 0
@@ -355,7 +272,6 @@ run_win "python heredoc read then write open in the next segment (blocked)" \
 # shellcheck disable=SC2016
 run_win "python read with \$m spliced into the literal (blocked)" \
   'm="'"'"', '"'"'w"; python3 -c "open('"'"'/tmp/x$m'"'"').read()"' 2
-# A rebound receiver can create the file before .open fails.
 run_win "python rebound Path(/tmp).open().read() (blocked)" \
   "python3 -c \"from logging import FileHandler as Path; Path('/tmp/x').open().read()\"" 2
 run_win "python json rebound by from-import (blocked)" \
@@ -368,8 +284,6 @@ run_win_pwsh "PS: python wildcard import rebinds open (blocked)" \
   "python -c \"from dbm.dumb import *; open('C:/tmp/x').read()\"" 2
 run_win "python spaced method form d . open(/tmp) creates the file (blocked)" \
   "python3 -c \"import dbm.dumb as d; d . open('/tmp/x').read()\"" 2
-# Every `open(` anywhere in the command must be a provable read, and once those
-# read calls are cut out no drive-root tmp path may be left.
 run_win "python -c open(/tmp,'r') explicit read mode (allowed)" \
   "python3 -c \"print(open('/tmp/x','r').read())\"" 0
 run_win "python open(/tmp) read with dict subscript (allowed)" \
@@ -410,22 +324,17 @@ run_win_pwsh "PS: ruby open(%q[|echo hi > /c/tmp/x]) unquoted operand (blocked)"
   "ruby -e \"open(%q[|echo hi > /c/tmp/x]).read()\"" 2
 run_win_pwsh "PS: ruby open(%x[echo hi > /c/tmp/x]) command literal (blocked)" \
   "ruby -e \"open(%x[echo hi > /c/tmp/x]).read()\"" 2
-# The method form is not provable: its receiver can be rebound, so it stays blocked.
 run_win "python Path(/tmp).open() method read (blocked)" \
   "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open().read())\"" 2
 run_win "python Path(/tmp).open('rb') method read (blocked)" \
   "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open('rb').read())\"" 2
-# Fail closed: the path sits outside the read call, so nothing ties it to the read.
 run_win "python heredoc /tmp argv operand, path outside the call (blocked)" \
   $'python3 - /tmp/retro-685.json <<\'EOF\'\nimport json, sys\nprint(json.load(open(sys.argv[1])))\nEOF' 2
-# Fail closed: prose quoting open(...) beside a /tmp path outside the call. Without
-# the open( the same body is allowed (next case).
 run_win "gh body quoting open(...) beside /tmp (blocked)" \
   $'gh issue create --title x --body "$(cat <<\'EOF\'\na `python3 - <<\'EOF\'` heredoc whose only use of the path was\n`json.load(open(...))` on a `/tmp/retro-685.json` argument was blocked\nEOF\n)"' 2
 run_win "gh body mentioning /tmp without open( (allowed)" \
   'gh issue create --title x --body "a heredoc reading /tmp/retro-685.json was blocked"' 0
 
-# --- Inline python: every write spelling still blocks ------------------------
 run_win "python heredoc open(/tmp,'w') write (blocked)" \
   $'python3 - <<\'EOF\'\nwith open(\'/tmp/x\', \'w\') as f:\n    f.write(\'a\')\nEOF' 2
 run_win "python open(/tmp, mode='a') (blocked)" "python3 -c \"open('/tmp/x', mode='a').write('a')\"" 2
@@ -441,7 +350,6 @@ run_win "python os.makedirs(/tmp/x) (blocked)" "python3 -c \"import os; os.maked
 run_win "python os.open(/tmp, O_WRONLY|O_CREAT) (blocked)" \
   "python3 -c \"import os; os.open('/tmp/x', os.O_WRONLY | os.O_CREAT)\"" 2
 run_win "python open(C:\\tmp,'w') drive-letter (blocked)" "python3 -c \"open(r'C:\\tmp\\x','w')\"" 2
-# Anything not provably a read fails closed.
 run_win "python open(/tmp, m) variable mode (blocked)" "python3 -c \"open('/tmp/x', m).write('a')\"" 2
 run_win "python open(/tmp, mode=m) variable mode (blocked)" "python3 -c \"open('/tmp/x', mode=m)\"" 2
 run_win "python read then write open in one segment (blocked)" \
@@ -459,7 +367,6 @@ run_win "python ')' inside a comment, write mode (blocked)" \
 run_win "python triple-quoted path hiding ')' (blocked)" "python3 -c \"open('''/tmp/x')''', 'w')\"" 2
 run_win "python mixed-quote kwarg hiding mode='w' (blocked)" \
   $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', encoding="a\')", mode=\'w\')\nEOF' 2
-# An escaped quote ends the literal for a regex but not for python.
 run_win "python heredoc escaped-quote path, 'w' (blocked)" \
   $'python3 - <<\'EOF\'\nopen(\'/tmp/x\\\')\', \'w\').write(\'a\')\nEOF' 2
 run_win "python heredoc escaped double-quote path, 'w' (blocked)" \
@@ -470,15 +377,12 @@ run_win "python -c escaped-quote /c/tmp, 'a' (blocked)" "python3 -c \"open('/c/t
 run_win_pwsh "PS: python escaped-quote C:\\tmp, 'w' (blocked)" "python -c \"open('C:\\tmp\\x\\')', 'w').write('a')\"" 2
 run_win "python heredoc escaped-quote kwarg hiding mode='w' (blocked)" \
   $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', encoding=\'utf-8\\\')\', mode=\'w\')\nEOF' 2
-# Star unpacking smuggles the mode past an unquoted argument.
 run_win "python open(*a) with a /tmp,'w' tuple (blocked)" "python3 -c \"a=('/tmp/x','w'); open(*a).write('a')\"" 2
 run_win_pwsh "PS: python open(*a) with a C:/tmp,'w' tuple (blocked)" "python -c \"a=('C:/tmp/x','w'); open(*a).write('a')\"" 2
 run_win "python open(**k) dict literal (blocked)" "python3 -c \"k={'file':'/tmp/x','mode':'w'}; open(**k)\"" 2
 run_win "python open(**k) dict() C:/tmp (blocked)" "python3 -c \"k=dict(file='C:/tmp/x',mode='a'); open(**k)\"" 2
-# An f-string runs code inside its braces, so it never proves a read.
 run_win "python open(f-string running os.system to /tmp) (blocked)" \
   $'python3 - <<\'EOF\'\nopen(f\'/tmp/x{__import__("os").system("echo a > /tmp/y")}\')\nEOF' 2
-# Only a read call's CONTENT may leave it; its path (.name, a call argument) or exec keeps it blocked.
 run_win "python shutil.copy to open(/tmp).name (blocked)" \
   "python3 -c \"import shutil; shutil.copy('/etc/hosts', open('/tmp/x').name)\"" 2
 run_win "python os.system cp to open(/tmp).name (blocked)" \
@@ -491,7 +395,6 @@ run_win_pwsh "PS: python shutil.copy to open(C:/tmp).name (blocked)" \
   "python -c \"import shutil; shutil.copy('a', open('C:/tmp/x').name)\"" 2
 run_win "python exec(open(/tmp).read()) (blocked)" "python3 -c \"exec(open('/tmp/x').read())\"" 2
 run_win "python os.remove(open(/tmp).name) (blocked)" "python3 -c \"import os; os.remove(open('/tmp/x').name)\"" 2
-# A proven read must not whitelist a sibling write in the same segment.
 run_win "python read + os.system redirect to /tmp (blocked)" \
   "python3 -c \"open('/etc/hosts').read(); __import__('os').system('echo a > /tmp/y')\"" 2
 run_win "python read + shutil.copy to /tmp (blocked)" \
@@ -504,9 +407,6 @@ run_win "python read + subprocess cp to /tmp (blocked)" \
   "python3 -c \"import subprocess; open('/etc/hosts').read(); subprocess.run(['cp','/etc/hosts','/tmp/y'])\"" 2
 run_win "python read /tmp + os.mknod /tmp (blocked)" "python3 -c \"open('/tmp/x'); import os; os.mknod('/tmp/y')\"" 2
 
-# --- Heredoc decoy read, then a write in a later segment ----------------------
-# The decoy read is a proven read on its own. The write that follows a `;` or a
-# newline lands in another segment and must still block.
 run_win "python heredoc decoy read, newline, os.system to /tmp (blocked)" \
   $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read()\nimport os; os.system(\'echo pwned > /tmp/evil\')\nEOF' 2
 run_win "python heredoc decoy read; os.system to /tmp on one line (blocked)" \
@@ -525,8 +425,6 @@ run_win "python heredoc read .name fed to shutil.copy (blocked)" \
   $'python3 - <<\'EOF\'\nimport shutil\nn = open(\'/tmp/a\').name\nshutil.copy(\'x\', n)\nEOF' 2
 run_win "python heredoc open(/tmp).read() beside open(/tmp).name fed to a write (blocked)" \
   $'python3 - <<\'EOF\'\nd = open(\'/tmp/a\').read(); import shutil; shutil.copy(\'x\', open(\'/tmp/a\').name)\nEOF' 2
-# The same decoys on PowerShell: the hook reads the command text, so a here-string
-# fed to python and an inline -c run through the same rule.
 run_win_pwsh "PS: python heredoc decoy read; os.system to C:/tmp (blocked)" \
   $'python3 - <<\'EOF\'\nd = open(\'C:/tmp/a\').read(); import os; os.system(\'echo pwned > C:/tmp/evil\')\nEOF' 2
 run_win_pwsh "PS: python heredoc decoy read, newline, shutil.copy to C:/tmp (blocked)" \
@@ -539,8 +437,6 @@ run_win_pwsh "PS: python -c decoy read; shutil.copy to C:/tmp (blocked)" \
   "python -c \"import shutil; d = open('C:/tmp/a').read(); shutil.copy('a', 'C:/tmp/y')\"" 2
 run_win_pwsh "PS: python heredoc read .name fed to shutil.copy (blocked)" \
   $'python3 - <<\'EOF\'\nimport shutil\nn = open(\'C:/tmp/a\').name\nshutil.copy(\'x\', n)\nEOF' 2
-# The heredoc whose only reference to the path is a read is allowed; the same
-# heredoc rewritten to write that path is blocked.
 run_win "python heredoc json.load(open(/tmp)) then print (allowed)" \
   $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'/tmp/retro-685.json\'))\nprint(d)\nprint(len(d))\nEOF' 0
 run_win "python heredoc json.dump to the same /tmp path, write mode (blocked)" \
@@ -551,9 +447,6 @@ run_win_pwsh "PS: python heredoc json.load(open(C:/tmp)) read (allowed)" \
   $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'C:/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
 run_win_pwsh "PS: python heredoc json.dump to the same C:/tmp path, write mode (blocked)" \
   $'python3 - <<\'EOF\'\nimport json\nd = {}\njson.dump(d, open(\'C:/tmp/retro-685.json\', \'w\'))\nEOF' 2
-# The read relief needs python to be what consumes the read-call text. In any
-# other shape a pipeline lifts the literal out of the text and writes it, and a
-# second run in the same command writes elsewhere.
 run_win "echo open(/c/tmp).read() | xargs -d tee (blocked)" \
   "echo \"open('/c/tmp/x').read()\" | xargs -d \"'\" tee" 2
 run_win "echo open(/c/tmp).read() | xargs -d -n1 tee (blocked)" \
@@ -592,17 +485,11 @@ run_win_pwsh "PS: python read, then a second python run on a computed path (bloc
   "python3 -c \"print(open('/c/tmp/a').read())\"; python3 -c \"import sqlite3; sqlite3.connect('/c/t'+'mp/b')\"" 2
 run_win_pwsh "PS: python heredoc read with its output piped to xargs tee (blocked)" \
   $'python3 - <<\'EOF\' | xargs -n1 tee\nimport json; d = json.load(open(\'/c/tmp/a\'))\nprint(\'/c/t\' + \'mp/x\')\nEOF' 2
-# The one allowed shape is a single plain python run: its -c string, or a heredoc
-# on stdin with nothing after the terminator.
 run_win "python -B -u -c open(/tmp) read (allowed)" "python3 -B -u -c \"print(open('/tmp/x').read())\"" 0
 run_win "py launcher -3 -c open(/c/tmp) read (allowed)" "py -3 -c \"print(open('/c/tmp/x').read())\"" 0
 run_win "python heredoc read, no - operand, blank lines after the tag (allowed)" \
   $'python3 <<\'EOF\'\nprint(open(\'/c/tmp/a\').read())\nEOF\n\n' 0
 run_win_pwsh "PS: python -c open(C:/tmp) read (allowed)" "python -c \"print(open('C:/tmp/x').read())\"" 0
-# Inline-code text quoted as data to a command that only carries text is a
-# mention (#3951). The relief is an allowlist of whole commands (gh issue/pr
-# create|comment|edit, git commit|tag, echo, printf), so any command not on it,
-# including an interpreter this guard has never heard of, keeps the rule.
 run_win "gh body quoting a write-mode open(/tmp) (allowed)" \
   "gh issue create --title t --body \"open('/tmp/x','w').write(1) was refused\"" 0
 run_win "git commit -m quoting open(C:/tmp, 'w') (allowed)" \
@@ -619,8 +506,6 @@ run_win "gh body naming python3 beside open(/tmp, 'w') (allowed, prose)" \
 run_win "git tag -a -m quoting open(/c/tmp, 'w') (allowed)" \
   "git tag -a v1 -m \"open('/c/tmp/x','w')\"" 0
 run_win "printf quoting open(/tmp, 'w') (allowed)" "printf '%s' \"open('/tmp/x','w')\"" 0
-# An unlisted interpreter must not read as data: the relief is an allowlist, not
-# a list of known runners.
 run_win "R -e open(/c/tmp, 'w') (blocked)" \
   "R -e \"con<-file('/c/tmp/x');open(con,'w');writeLines('a',con)\"" 2
 run_win "octave fopen(/c/tmp, 'w') (blocked)" \
@@ -653,8 +538,6 @@ run_win "gh body mention with an unterminated quote (blocked)" \
   "gh issue create --body \"open('/c/tmp/x','w') --title 'a" 2
 run_win "gh api (not text-carrying) quoting open(/c/tmp) (blocked)" \
   "gh api repos/o/r/issues -f body=\"open('/c/tmp/x','w')\"" 2
-# A quoted command word must not vanish and leave a trailing listed word in its
-# place: bash runs python3 here with echo/printf/git as arguments.
 run_win "quoted \"python3\" \"-c\" open(/c/tmp) then echo (blocked)" \
   "\"python3\" \"-c\" \"open('/c/tmp/x','w').write('a')\" echo" 2
 run_win "quoted 'python3' '-c' open(/c/tmp) then printf (blocked)" \
@@ -679,8 +562,6 @@ run_win_pwsh "PS: quoted 'python3' '-c' open(C:/tmp) then printf (blocked)" \
   "'python3' '-c' \"open('C:/tmp/x','w').write('a')\" printf x" 2
 run_win_pwsh "PS: quoted \"python3\" \"-c\" open(C:/tmp) then git commit (blocked)" \
   "\"python3\" \"-c\" \"open('C:/tmp/x','w')\" git commit -m x" 2
-# A computed path beside a decoy read: the token tmp left outside the read call
-# keeps the block.
 run_win "python read then urlretrieve to a concatenated /c/'+'tmp path (blocked)" \
   "python3 -c \"import json; json.load(open('/c/tmp/a')); import urllib.request as u; u.urlretrieve('http://x', '/c/'+'tmp/b')\"" 2
 run_win "python read then sqlite3 on a concatenated path (blocked)" \
@@ -725,13 +606,11 @@ run_win "single-quoted mkdir.exe C:/tmp (blocked)" \
 run_win "/usr/bin/cp.exe to C:/tmp (blocked)" '/usr/bin/cp.exe ./a C:/tmp/a' 2
 run_win "echo /usr/bin/mkdir.exe mention (allowed)" 'echo /usr/bin/mkdir.exe C:/tmp/x' 0
 
-# --- PowerShell writers (blocked) --------------------------------------------
 run_win_pwsh "PS: Set-Content C:\\tmp\\x (blocked)" 'Set-Content -Path C:\tmp\x -Value hi' 2
 run_win_pwsh "PS: Out-File \\tmp\\x (blocked)" "'hi' | Out-File \tmp\x" 2
 run_win_pwsh "PS: redirect >/tmp/x (blocked)" "'hi' > /tmp/x" 2
 run_win_pwsh "PS: New-Item /c/tmp/x (blocked)" 'New-Item -Path /c/tmp/x -ItemType File' 2
 run_win_pwsh "PS: Add-Content C:/tmp/x (blocked)" 'Add-Content -Path C:/tmp/x -Value hi' 2
-# PowerShell runs .NET inline, so the inline-code rule keeps its tool-wide reach.
 run_win_pwsh "PS: [IO.File]::Open(C:/tmp/x, Create) (blocked)" "[IO.File]::Open('C:/tmp/x', 'Create')" 2
 
 # --- Legitimate platform temp / POSIX variants (allowed) ---------------------
@@ -752,22 +631,17 @@ run_win_pwsh "PS: Set-Content \$env:TEMP (allowed)" 'Set-Content -Path $env:TEMP
 # shellcheck disable=SC2016
 run_win_pwsh "PS: Out-File \$env:TMP (allowed)" 'Out-File -FilePath $env:TMP\x -InputObject hi' 0
 
-# --- Non-write mentions (allowed) --------------------------------------------
 run_win "echo mentions /tmp (allowed)" 'echo do not use /tmp' 0
 run_win "ls /tmp (read, allowed)" 'ls /tmp' 0
 run_win "cat /tmp/x (read, allowed)" 'cat /tmp/x' 0
 run_win "relative ./tmp (allowed)" 'echo x > ./tmp/x' 0
 run_win "path component foo/tmp (allowed)" 'echo x > foo/tmp/x' 0
 run_win "unrelated command (allowed)" 'git status' 0
-# Redirect operator inside a quoted message must not fail closed (#2594 review).
 run_win "quoted prose redirect (allowed)" 'git commit -m "Example: echo x > /tmp/x"' 0
 run_win "single-quoted prose redirect (allowed)" "printf '%s' 'echo > /tmp/x'" 0
-# Source-only /tmp with a writer elsewhere must stay allowed.
 run_win "cp from /tmp (allowed)" 'cp /tmp/source ./dest' 0
 run_win "compound mkdir then cat /tmp (allowed)" 'mkdir ./out && cat /tmp/source' 0
 
-# --- Downloaders: curl -o / wget -O destinations (#4251) ---------------------
-# These were allowed while mkdir/cp/redirect of the same path blocked.
 run_win "curl -o /tmp/x (blocked)" 'curl -sS -o /tmp/x https://example.com' 2
 run_win "curl --output /tmp/x (blocked)" 'curl --output /tmp/x https://example.com' 2
 run_win "curl --output=/tmp/x (blocked)" 'curl --output=/tmp/x https://example.com' 2
@@ -780,8 +654,6 @@ run_win "curl https://example.com (allowed — no dest flag)" 'curl -sS https://
 run_win "curl -o ./out.html (allowed)" 'curl -o ./out.html https://example.com' 0
 run_win "curl URL containing /tmp (allowed — URL is not dest)" \
   'curl -sS https://example.com/tmp/hooks.md' 0
-# A bundled short-flag cluster ending in the output flag takes the next token as
-# its destination, exactly as the same flag alone does.
 run_win "curl bundled -sSLo /c/tmp/x (blocked)" 'curl -sSLo /c/tmp/x https://example.com' 2
 run_win "curl bundled -fsSLo /c/tmp/x (blocked)" 'curl -fsSLo /c/tmp/x https://example.com' 2
 run_win "curl bundled -sSo /c/tmp/x (blocked)" 'curl -sSo /c/tmp/x https://example.com' 2
@@ -789,8 +661,6 @@ run_win "curl bundled -sSLo/c/tmp/x glued dest (blocked)" 'curl -sSLo/c/tmp/x ht
 run_win "wget bundled -qO /c/tmp/a (blocked)" 'wget -qO /c/tmp/a https://example.com' 2
 run_win "curl bundled -sSo ./out.html (allowed)" 'curl -sSo ./out.html https://example.com' 0
 run_win "curl -O remote-name, URL with /tmp (allowed)" 'curl -O https://example.com/tmp/f' 0
-# --output-dir names the directory an output or remote-name download lands in.
-# -O takes no operand, so --output-dir must not be swallowed as one.
 run_win "curl -O --output-dir /c/tmp (blocked)" 'curl -O --output-dir /c/tmp https://example.com' 2
 run_win "curl --output-dir /c/tmp -O (blocked, dir before the flag)" \
   'curl --output-dir /c/tmp -O https://example.com' 2
@@ -798,7 +668,6 @@ run_win "curl --output-dir=/c/tmp -O (blocked)" 'curl --output-dir=/c/tmp -O htt
 run_win "curl --output-dir /c/tmp then -o ./x (blocked, the last flag does not hide it)" \
   'curl --output-dir /c/tmp -o ./x https://example.com' 2
 run_win "curl -O --output-dir ./dl (allowed)" 'curl -O --output-dir ./dl https://example.com' 0
-# The same -O also must not swallow the flag that follows it.
 run_win "curl -O -o /c/tmp/x (blocked)" 'curl -O -o /c/tmp/x https://example.com' 2
 run_win "curl -O --output /c/tmp/x (blocked)" 'curl -O --output /c/tmp/x https://example.com' 2
 run_win "curl -O -sSLo /c/tmp/x (blocked)" 'curl -O -sSLo /c/tmp/x https://example.com' 2
@@ -806,10 +675,6 @@ run_win "curl -sSLO -o /c/tmp/x (blocked, a bundled -O then -o)" \
   'curl -sSLO -o /c/tmp/x https://example.com' 2
 run_win "curl -O -o ./x (allowed)" 'curl -O -o ./x https://example.com' 0
 
-# --- Git for Windows usertemp /tmp is the platform temp (#4251) --------------
-# Stub cygpath so POSIX /tmp compares equal to %TEMP%, the stock Git for
-# Windows mount. Linux CI's real /tmp is tmpfs without usertemp, so without
-# the stub the existing rows above still block.
 USERTEMP_STUB="$TEST_TMPDIR/cygpath-stub"
 mkdir -p "$USERTEMP_STUB"
 cat >"$USERTEMP_STUB/cygpath" <<'EOF'
@@ -840,11 +705,6 @@ run_win_payload "usertemp: Write /tmp/x still blocked" "$(write_json '/tmp/x' 'x
 run_win "usertemp: curl -sSLo /tmp/x (allowed)" 'curl -sSLo /tmp/x https://example.com' 0 \
   "${USERTEMP_ENV[@]}"
 
-# Drive-root `\tmp` is the volume root on this host too. Slash-folding reads it as
-# POSIX /tmp, which the usertemp mount makes a legitimate temp, so the guard has to
-# see the backslash before the fold. Only a QUOTED spelling reaches Windows as
-# `\tmp`; an unquoted `\tmp\x` unescapes to the relative file `tmpx`. The guard
-# cannot tell the two apart after folding and blocks both, as it does off usertemp.
 run_win "usertemp: redirect >\\tmp\\x drive-root (blocked)" 'echo x > \tmp\x' 2 "${USERTEMP_ENV[@]}"
 run_win "usertemp: mkdir \\tmp\\x drive-root (blocked)" 'mkdir -p \tmp\x' 2 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\"\\tmp\\x\" double-quoted (blocked)" 'echo x > "\tmp\x"' 2 \
@@ -861,18 +721,12 @@ run_win "usertemp: redirect >foo\\tmp\\x path component (allowed)" 'echo x > foo
 run_win "usertemp: redirect >\\tmpdir\\x sibling (allowed)" 'echo x > \tmpdir\x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\\TMP\\x upper case (blocked)" 'echo x > "\TMP\x"' 2 "${USERTEMP_ENV[@]}"
 
-# The usertemp probe forks cygpath, and a Windows Bash hook pays a process
-# creation per fork. A command with no `tmp` in it must not reach the probe.
 usertemp_trace() {
   env OSTYPE=msys "${USERTEMP_ENV[@]}" bash -x "$HOOK" <<<"$(msys_command_json "$1")" 2>&1 >/dev/null
 }
 assert_absent "usertemp: a benign command never probes cygpath" "$(usertemp_trace 'git status --short')" "cygpath"
 assert_contains "usertemp: a /tmp command does probe cygpath" "$(usertemp_trace 'mkdir -p /tmp/x')" "cygpath"
 
-# Mount-table fallback: with no usable cygpath the guard reads `mount`, and the
-# usertemp flag only counts on the /tmp mount's own line. The stub cygpath always
-# fails so the fallback decides on every host, and the rows go through
-# run_win_payload so no host-derived downgrade applies to them.
 MOUNT_STUB="$TEST_TMPDIR/mount-stub"
 mkdir -p "$MOUNT_STUB"
 cat >"$MOUNT_STUB/cygpath" <<'EOF'
@@ -901,16 +755,13 @@ run_win_payload "mount fallback: no usertemp anywhere (blocked)" \
   "$(msys_command_json 'echo x > /tmp/x')" 2 PATH="$MOUNT_STUB:$PATH" \
   STUB_MOUNT_LINES="$MOUNT_ROOT"$'\n'"$MOUNT_TMP_PLAIN"
 
-# --- PowerShell copy/move destinations (blocked) -----------------------------
 run_win_pwsh "PS: Copy-Item to C:\\tmp (blocked)" 'Copy-Item .\a C:\tmp\a' 2
 run_win_pwsh "PS: Move-Item to C:\\tmp (blocked)" 'Move-Item .\a C:\tmp\a' 2
 run_win_pwsh "PS: copy alias to /tmp (blocked)" 'copy .\a /tmp/a' 2
 
-# --- Kill switch -------------------------------------------------------------
 run_win "kill switch disables guard" 'echo x > /tmp/x' 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED=false
 
-# --- Telemetry (opt-in sink) -------------------------------------------------
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK=$(make_sink "cat > \"$TEL\"")
 out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" \
@@ -922,20 +773,10 @@ if [[ -s "$TEL" ]]; then
   assert_contains "telemetry blocked" "$(jq -r .status <<<"$tel_body")" 'blocked'
   assert_contains "telemetry form" "$(jq -r .data.form <<<"$tel_body")" 'redirect'
 else
-  # Telemetry is best-effort; an empty sink on a slow box is not a contract fail
-  # when the block itself already asserted. Record as an explicit skip-visible.
   ok "telemetry sink empty (best-effort; block path already covered)"
 fi
 assert_contains "blocked stderr still present with sink" "$out" "drive-root temp"
 
-# --- Telemetry on the file-path lane -----------------------------------------
-# The `file-path` form and the Write-shaped `tool` / `subject` are documented in
-# docs/contracts/hook-telemetry/data/block-windows-drive-tmp.schema.json, and
-# the case above exercises only the Bash lane — so without this the new envelope
-# is documented and never executed, and a fault in emit_tel's now-locally-scoped
-# SUBJECT would leave every assertion green. `subject` must be the bare tool
-# name: hook::extract_bash_subject does not tokenize a non-Bash tool, and the
-# target path must never reach the envelope.
 TEL_FP="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK_FP=$(make_sink "cat > \"$TEL_FP\"")
 out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK_FP" bash "$HOOK" \

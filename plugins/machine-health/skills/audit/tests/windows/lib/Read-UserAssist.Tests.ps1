@@ -4,8 +4,6 @@
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Read-UserAssist.ps1'
 
-    # 2026-03-04T05:06:07Z as a FILETIME, computed by hand:
-    # (1772600767 Unix seconds + 11644473600) * 10^7.
     $script:LaunchFileTime = [long]134170743670000000
     $script:LaunchedAt = [datetime]::new(2026, 3, 4, 5, 6, 7, [DateTimeKind]::Utc)
 
@@ -95,7 +93,6 @@ Describe 'Read-UserAssist' -Tag 'lib' {
     }
 
     It 'leaves Path empty for a known-folder GUID it does not map' {
-        # {00000000-...}\tool.exe, ROT13-encoded.
         Set-UserAssistMock @{ '{00000000-0000-0000-0000-000000000000}\gbby.rkr' = (New-LaunchRecord) }
         $entry = (Read-UserAssist).Entries[0]
         $entry.Name | Should -Be '{00000000-0000-0000-0000-000000000000}\tool.exe'

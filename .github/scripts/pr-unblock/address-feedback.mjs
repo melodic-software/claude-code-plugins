@@ -1218,7 +1218,8 @@ export async function linkedSpec(env, log) {
   }
   try {
     const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
-    const { createGitHub, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
+    const { createGitHub } = await import("../lib/github-client.mjs");
+    const { loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
     const { loadRules } = await import("../intake-triage/admit.mjs");
     const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
     const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });

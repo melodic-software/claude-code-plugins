@@ -106,12 +106,8 @@ ENTITY_ERE="[A-Z][a-z]+([A-Z][a-z]*)+|${BACKTICK}[A-Z][a-z]+${BACKTICK}"
 # instruction-scan.sh so the two scans classify a line's polarity the same way.
 PROHIBIT_ALT='never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t'
 PROHIBIT_ERE="[^a-z](${PROHIBIT_ALT})[^a-z]"
-# Mandate tokens. Checked only after prohibition, so "never use X" is a
-# prohibition rather than an ambiguous both-polarity line.
 MANDATE_ALT='must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask'
 MANDATE_ERE="[^a-z](${MANDATE_ALT})[^a-z]"
-# Exception clauses — flagged, not suppressed. Whether the exception reaches the
-# other surface is gate 4, which the lane decides.
 EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
 # Explicit user-config opt-in gates — SUPPRESSED. An opt-in is arbitration, so
 # the pair is already resolved. Generic by shape, not a per-plugin allowlist.
@@ -152,8 +148,6 @@ COORD_HEAD_ERE='[^a-z],? *and +'
 # window keeps the polarity token in the same clause as the entity it governs.
 WINDOW_CHARS="${CONFLICT_SCAN_WINDOW:-60}"
 
-# Pairing is bucketed by entity, so the cross product is taken only within one
-# entity's mandate and prohibit lists — never across the whole corpus.
 mapfile -t rows < <(
   for file in "$@"; do
     [[ -f "$file" ]] && printf '%s\n' "$file"

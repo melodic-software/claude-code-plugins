@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// The request Inbox (item 11) and host requests that skip Run and Share (item 9), against `share.sh ensure-running`
-// with the fake cloudflared: the Inbox button's badge counts what changed since each item was last opened, opening an
-// item marks it read and nothing else does; a guest's answer reads "Answered, waiting for the host to share" until
-// the host shares it, then a toast "Claude answered your request on Q1" with Open shows it in the question's Claude
-// section; the host's own request runs and shows with no Run or Share, and the host's Inbox lists what waits on them;
-// the host's pop-ups are a join, a request waiting for Run and a report alone, several close together as one count;
-// a guest never sees another person's request; on a 390-wide phone the Inbox is a page below the top bar, full width.
-//   node plugins/planning/shared/tests/ui_inbox.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the approved spec (.work spec-question-screen.md, followups items 9 and 11) and the texts
-// this suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -20,9 +9,7 @@ const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 
 const badge = page => page.evaluate(() => document.querySelector(".vf-bell-n").textContent);
-/** The Inbox page on one tab (needs, mine, notes, history), opened first when it is closed. */
 const showTab = async (page, k) => { await openInbox(page); await page.click(`.vf-ixtabs [data-k=${k}]`); return until(page, x => document.querySelector(`.vf-ixtabs [data-k=${x}]`)?.getAttribute("aria-pressed") === "true", k); };
-/** The rows of My requests (or History's own requests), with each one's chip, line under it, dot and label. */
 const items = async (page, k = "mine") => { await showTab(page, k); return page.evaluate(sel => [...document.querySelectorAll(sel)].map(li => ({
   key: li.dataset.key, stat: li.dataset.stat, chip: li.querySelector(".vf-ixchip").textContent, sub: li.querySelector(".vf-ixsub").hidden ? "" : li.querySelector(".vf-ixsub").textContent,
   unread: !li.querySelector(".vf-ndot").hidden, label: li.querySelector(".vf-ixitem").getAttribute("aria-label") })), k === "mine" ? ".vf-ixmine .vf-ixlist > li" : ".vf-ibhist .vf-ixlist > li"); };
@@ -45,7 +32,6 @@ async function main() {
     const desk = { context: { viewport: { width: 1440, height: 900 } } };
     const owner = await rec.open(A.ownerUrl, desk);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
-    // This suite follows a guest's answer through the host's Share: the session reviews answers first.
     await owner.evaluate(() => window.Core.saveSettings({ reviewAnswers: true }));
     const ann = await rec.open(A.localUrl, desk);
     await joinAs(ann, "Ann");
@@ -53,8 +39,6 @@ async function main() {
     await joinAs(bo, "Bo");
     const result = (rid, summary, qid = "Q1") => s.apply(A.dir, [{ op: "result", qid, request: rid, kind: "ask", summary, sources: [], report: "", used: [], why: "" }]).results[0];
 
-    // ---------- the Inbox is in the bell's place, and asking is not news ----------
-    // "Round 1 is here" is an unread notification the badge counts too: read it first, so each count below is the Inbox's.
     for (const p of [owner, ann]) { await until(p, () => window.Core.state.me?.notifications?.length > 0); await p.evaluate(() => window.Core.readNotifications("all")); }
     ok("the top bar's Inbox button reads Inbox", await until(ann, () => document.querySelector(".vf-bell .vf-inbox-l")?.textContent === "Inbox"));
     await ann.evaluate(t => window.Core.request("Q1", "ask", t), ASK);
@@ -72,7 +56,6 @@ async function main() {
       && [...document.querySelectorAll(".vf-threq")].some(li => li.textContent.includes("How do the big shops") && [...li.querySelectorAll("button")].some(b => b.offsetParent && b.textContent === "Run"))));
     ok("  and marks it read: the host's badge empties", await until(owner, () => document.querySelector(".vf-bell-n").textContent === ""), await badge(owner));
 
-    // ---------- a guest's request: Running, then answered but waiting for Share ----------
     await owner.evaluate(id => window.Core.requestAct(id, "run"), rid);
     ok("Run moves Ann's item to Running and her badge to 1", await until(ann, () => document.querySelector(".vf-bell-n").textContent === "1"), await badge(ann));
     let mine = await items(ann);
@@ -89,7 +72,6 @@ async function main() {
     await ann.locator(".vf-ixmine .vf-ixitem").first().click();
     await until(ann, () => document.querySelector(".vf-bell-n").textContent === "");
 
-    // ---------- the host shares: a toast with Open ----------
     await owner.evaluate(id => window.Core.requestAct(id, "publish"), res.id);
     ok("sharing shows Ann the toast \"Claude answered your request on Q1\" with Open", await until(ann, () => document.querySelector(".vf-toast.vf-on span")?.textContent === "Claude answered your request on Q1"
       && document.querySelector(".vf-toast-act:not([hidden])")?.textContent === "Open", null, 10000));
@@ -101,8 +83,6 @@ async function main() {
       JSON.stringify(await items(ann, "history")));
     await ann.keyboard.press("Escape");
 
-    // ---------- the host's own request skips Run and Share ----------
-    // every toast text the owner's page shows from here, as ui_inbox_page.js watches them
     await owner.evaluate(() => { window.__toasts = []; window.__obs = new MutationObserver(() => { const t = document.querySelector(".vf-toast span")?.textContent; if (t) window.__toasts.push(t); });
       window.__obs.observe(document.querySelector(".vf-toast"), { childList: true, characterData: true, subtree: true }); });
     await owner.evaluate(t => window.Core.request("Q1", "ask", t), HOST_ASK);
@@ -114,7 +94,7 @@ async function main() {
     result(hid, HOST_ANSWER);
     ok("its answer shows to Bo at once, with no Share", await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), HOST_ANSWER, 10000));
     await until(owner, t => window.Core.state.inbox.some(i => i.group === "mine" && i.status === "answered" && window.Core.state.myRequests.find(r => r.id === i.id)?.text === t), HOST_ASK, 10000);
-    await owner.waitForTimeout(2500); // a few polls: the answer is the host's news, in the Inbox only
+    await owner.waitForTimeout(2500);
     ok("  and the host gets no pop-up for it: only a join, a request to Run and a report pop up for the host", await owner.evaluate(() => !window.__toasts.some(t => /answered/.test(t))), JSON.stringify(await owner.evaluate(() => window.__toasts)));
     await owner.evaluate(() => window.__obs.disconnect());
     const hostMine = await items(owner);
@@ -123,7 +103,6 @@ async function main() {
     ok("  and Needs you holds only that unread answer, under For you: nothing else waits on the host", (await tabLabel(owner, "needs")) === "Needs you · 1"
       && await owner.evaluate(t => { const r = [...document.querySelectorAll(".vf-ibneeds li")]; return r.length === 1 && r[0].closest(".vf-ibneedix") && r[0].textContent.includes(t); }, HOST_ASK), await tabLabel(owner, "needs"));
 
-    // ---------- several waiting items and the badge count ----------
     await ann.evaluate(t => window.Core.request("Q2", "ask", t), ASK2);
     await bo.evaluate(t => window.Core.request("Q2", "ask", t), BO_ASK);
     ok("the host's badge counts one unread answer and two requests to run", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "3", null, 10000), await badge(owner));
@@ -132,7 +111,6 @@ async function main() {
       && [...document.querySelectorAll(".vf-ibneeds .vf-revlist .vf-revstat")].map(c => c.textContent).join() === "Waiting,Waiting"));
     ok("each tab shows only its own list", await owner.evaluate(() => !document.querySelector(".vf-ibneeds").hidden && document.querySelector(".vf-ixmine").hidden && document.querySelector(".vf-ixnotes").hidden && document.querySelector(".vf-ibhist").hidden));
 
-    // ---------- Mark all read sends every unread key, 100 a read (the server's cap) ----------
     const batches = await owner.evaluate(() => {
       const C = window.Core, real = C.readInbox, inbox = C.state.inbox, sent = [];
       C.readInbox = keys => { sent.push(keys.length); return Promise.resolve({}); };
@@ -143,13 +121,11 @@ async function main() {
     });
     ok("Mark all read with 250 unread items sends reads of 100, 100 and 50", batches.join() === "100,100,50", batches.join());
 
-    // ---------- a guest never sees another person's request ----------
     await until(bo, t => (window.Core.state.inbox || []).length === 1 && JSON.stringify(window.Core.snapshot()).includes(t), BO_ASK);
     const leak = await bo.evaluate(([a, b]) => ({ inbox: window.Core.state.inbox.map(i => i.key), text: JSON.stringify(window.Core.snapshot()), a, b }), [ASK2, BO_ASK]);
     ok("Bo's Inbox holds only his own request and nothing waiting", leak.inbox.length === 1 && !leak.text.includes(ASK2) && !leak.text.includes(ASK) && leak.text.includes(BO_ASK)
       && !(await bo.evaluate(() => window.Core.state.inbox.some(i => i.group === "waiting"))), JSON.stringify(leak.inbox));
 
-    // ---------- a proposal is news to a moderator, though it has no Inbox item ----------
     const lee = await rec.open(A.localUrl, desk), leePid = await joinAs(lee, "Lee");
     await owner.evaluate(p => window.Core.setLeader(p, true), leePid);
     await until(lee, () => window.Core.me.isLeader && window.Core.state.me?.notifications?.length > 0);
@@ -168,7 +144,6 @@ async function main() {
     ok("the owner, with requests waiting to run, gets the proposal's queue line, its only one", await until(owner, () => window.Core.state.me.notifications.filter(n => n.kind === "queue" && !n.read).length === 1, null, 10000));
     ok("  and the badge counts it: 3", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "3"), await badge(owner));
 
-    // ---------- what waits on the owner pops up once, for the owner alone ----------
     const RUN_T = "Ann asked Claude on Q2. Run it from the Inbox.", JOIN_T = "Jib asks to join.";
     const watchToasts = page => page.evaluate(() => {
       window.__toasts = [];
@@ -177,12 +152,11 @@ async function main() {
     });
     const toasts = (page, t) => page.evaluate(x => window.__toasts.filter(y => y === x).length, t);
     for (const p of [owner, lee]) await watchToasts(p);
-    // An earlier pop-up would take the next one in: an urgent one stays until closed (Q39), so close it.
     const quiet = async () => { if (await owner.locator(".vf-toast.vf-on .vf-toast-x:not([hidden])").isVisible()) await owner.click(".vf-toast-x"); return until(owner, () => !document.querySelector(".vf-toast.vf-on"), null, 15000); };
     await quiet();
     await ann.evaluate(() => window.Core.request("Q2", "ask", "Ann's third question, waiting on Run"));
     ok("a guest's request waiting on Run pops one toast for the owner", await until(owner, t => window.__toasts.includes(t), RUN_T, 10000), JSON.stringify(await owner.evaluate(() => window.__toasts)));
-    await owner.waitForTimeout(10000); // past the 9 s an ordinary toast with an action stays
+    await owner.waitForTimeout(10000);
     ok("  which stays while it waits, with Close (Q39)", await owner.evaluate(t => document.querySelector(".vf-toast.vf-on span")?.textContent === t && !document.querySelector(".vf-toast-x").hidden, RUN_T));
     await owner.evaluate(() => window.Core.runRequests([window.Core.state.requests.find(r => r.text === "Ann's third question, waiting on Run").id]));
     ok("  once it no longer waits, its pop-up goes", await until(owner, t => document.querySelector(".vf-toast span")?.textContent !== t || !document.querySelector(".vf-toast.vf-on"), RUN_T, 10000));
@@ -193,10 +167,9 @@ async function main() {
     await jib.fill("#core-n", "Jib");
     await jib.click("dialog.core-name button");
     ok("a guest asking to join pops one toast for the owner, with their name", await until(owner, t => window.__toasts.includes(t), JOIN_T, 20000), JSON.stringify(await owner.evaluate(() => window.__toasts)));
-    await owner.waitForTimeout(3000); // a few more polls: neither item pops again
+    await owner.waitForTimeout(3000);
     ok("  each exactly once", (await toasts(owner, RUN_T)) === 1 && (await toasts(owner, JOIN_T)) === 1, JSON.stringify(await owner.evaluate(() => window.__toasts)));
     ok("  and none for the leader", (await toasts(lee, RUN_T)) === 0 && (await toasts(lee, JOIN_T)) === 0, JSON.stringify(await lee.evaluate(() => window.__toasts)));
-    // Follow-ups 18 and 24: pop-ups close together are one, with a count, and Open Inbox.
     const MANY = "2 requests wait on you";
     await quiet();
     await Promise.all([ann.evaluate(() => window.Core.request("Q1", "ask", "Ann asks at the same moment")), bo.evaluate(() => window.Core.request("Q1", "ask", "Bo asks at the same moment"))]);
@@ -209,11 +182,10 @@ async function main() {
     await until(owner, () => window.Core.live && window.Core.state.inbox.some(i => i.kind === "join"));
     await watchToasts(owner);
     await owner.waitForTimeout(3000);
-    const showing = await owner.evaluate(() => document.querySelector(".vf-toast.vf-on span")?.textContent || ""); // one fired before the watch would still show (9 s)
+    const showing = await owner.evaluate(() => document.querySelector(".vf-toast.vf-on span")?.textContent || "");
     ok("after a reload, items already waiting pop no toast", (await toasts(owner, RUN_T)) === 0 && (await toasts(owner, JOIN_T)) === 0 && ![RUN_T, JOIN_T].includes(showing),
       JSON.stringify([showing, ...(await owner.evaluate(() => window.__toasts))]));
 
-    // ---------- the phone page ----------
     await bo.click(".vf-bell");
     ok("390: the Inbox opens as a page from the top bar's bottom edge to the screen's, full width", await until(bo, () => {
       const r = document.querySelector(".vf-inboxpage").getBoundingClientRect(), t = document.querySelector(".vf-top").getBoundingClientRect();

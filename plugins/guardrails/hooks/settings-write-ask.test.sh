@@ -18,7 +18,6 @@
 
 set -uo pipefail
 
-# The session running this test may export these; the hook reads them.
 unset CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR GIT_DIR GIT_WORK_TREE GIT_CONFIG \
   CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -36,7 +35,6 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-# assert_asks <hook-output> <message> — the payload must have been asked
 assert_asks() {
   if grep -q '"permissionDecision":"ask"' <<<"$1"; then
     ok "$2"
@@ -51,7 +49,6 @@ assert_denies() {
     fail "$2 — no deny in output: $1"
   fi
 }
-# assert_silent <hook-output> <message> — the payload must pass untouched
 assert_silent() {
   if [[ -z "$1" ]]; then
     ok "$2"
@@ -113,8 +110,6 @@ fi
 assert_asks "$(run Write "$WORK/cfg/settings.json" "$REPO" "CLAUDE_CONFIG_DIR=$WORK/cfg")" \
   "settings in CLAUDE_CONFIG_DIR asks"
 
-# Hook precision: a file named like a settings file that Claude Code never
-# reads must pass silently.
 assert_silent "$(run Write "$REPO/tests/fixtures/.claude/settings.json")" \
   "a fixture .claude/settings.json below the project root passes silently"
 
@@ -150,8 +145,6 @@ else
   fail "garbage input: rc=$rc out=$out"
 fi
 
-# Case variants resolve to the same file on macOS/Windows filesystems and
-# must still ask — a case-sensitive match would be a silent bypass there.
 assert_asks "$(run Write "$REPO/.claude/Settings.json")" \
   "case-variant settings path still asks (case-insensitive filesystems)"
 
@@ -181,8 +174,6 @@ assert_asks "$(run Write "$REPO/.claude/settings.json" "$REPO" "GUARDRAILS_SESSI
 assert_silent "$(run Write "$REPO/src/settings.json" "$REPO" "CLAUDE_CODE_SESSION_ATTENDED=0")" \
   "unattended, an unmatched path still passes silently"
 
-# The hook is inert unless hooks.json routes the tools to it, so the registered
-# matcher is part of the contract.
 matcher=$(node -e '
   const h = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
   const row = h.hooks.PreToolUse.find((r) =>

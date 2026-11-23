@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// Live prototypes on the prototype page, in real browsers, against server.py with a stand-in live starter
-// (fixtures/live_stub_server.py: Approve answers https://fake-live-<id>.trycloudflare.com, which no step opens, and starts nothing): the owner and a
-// guest on a desktop, in separate browser contexts. Covered: a guest never sees a pending entry's link, only "Live
-// version waiting for the host", and the owner sees Approve and Stop; Approve makes the entry run, and both then get
-// "Open live prototype" in a new tab with no opener and no referrer, at the entry's origin plus the variant's path; a
-// live-only variant says it opens in its own tab and is never framed; Stop ends it ("Live prototype ended", no link,
-// no url in anyone's state); a server on a port needs the owner's attestation before Approve, and offers the owner a
-// look on this machine first; turning live prototypes off ends every entry and takes the live view out of guests'
-// pages; no page error, no CSP violation and no 429.
-//   node plugins/planning/shared/tests/ui_proto_live.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the stand-in starter's origins, the variant paths written below, and the page's texts in
-// the Design (section 4: "Live version waiting for the host", "Open live prototype"), never from the page.
 "use strict";
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -22,7 +9,6 @@ const { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
 const ORIGIN = id => `https://fake-live-${id.toLowerCase()}.trycloudflare.com`;
 
-/** server.py through the stand-in starter, on a spare port: {dir, proc, localUrl, ownerUrl, guestKey}. */
 async function startStub(tmp) {
   const dir = path.join(tmp, "topic", "shared", "live");
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -63,8 +49,7 @@ async function main() {
     fs.writeFileSync(path.join(build, "index.html"), "<!doctype html><p>Checkout app</p>");
     const shot = s.asset(A.dir, "a.png", png(300, 200, [60, 90]));
     const own = JSON.parse(fs.readFileSync(path.join(A.dir, ".shared-ports.json"), "utf8"));
-    const devPort = [51731, 51732, 51733].find(p => p !== own.guest && p !== own.control); // add-live refuses the session's own ports
-    // L3 is one the stand-in starter never starts (fixtures/live_stub_server.py FAILS): each Approve answers the same 502.
+    const devPort = [51731, 51732, 51733].find(p => p !== own.guest && p !== own.control);
     const added = s.apply(A.dir, [{ op: "add-live", label: "Checkout app", folder: build }, { op: "add-live", label: "Dev server", port: devPort },
       { op: "add-live", label: "Broken build", folder: build }]).results;
     ok("add-live answers L1, L2 and L3, each pending", JSON.stringify(added) === JSON.stringify(["L1", "L2", "L3"].map(id => ({ id, status: "pending" }))), JSON.stringify(added));
@@ -77,10 +62,7 @@ async function main() {
         { id: "v-1", label: "Broken", live: { id: "L3", path: "/" } }, { id: "v-2", label: "Picture", asset: shot }] }),
     ] }]);
 
-    // ---------- pending: the guest waits and never holds a link; the owner gets Approve and Stop ----------
     const gctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-    // Each page change opens a tab of its own: a navigation's hidden-then-visible heartbeats land within a second, and
-    // the 429 the second gets is not this suite's concern. The guest's identity is the context's (localStorage).
     const joined = await rec.openIn(gctx, `${A.localUrl}#join=${A.guestKey}`);
     await joinAs(joined, "Ann");
     let guest = await rec.openIn(gctx, `${A.localUrl}proto/Q1`);
@@ -93,7 +75,6 @@ async function main() {
     ok("a guest sees Live version waiting for the host, and no link, Approve or Stop", pend.wait === "Live version waiting for the host" && !pend.open && !pend.approve && !pend.stop, JSON.stringify(pend));
     const gl = await leaked(guest);
     ok("a guest's page and state hold no link or url for a pending entry", !gl.links.length && !gl.state && !gl.urls, JSON.stringify(gl));
-    // The owner link's fragment works on any of the session's pages: the owner's prototype page opens with it.
     const ownerAt = page => { const u = new URL(A.ownerUrl); u.pathname = page; return u.href; };
     let oproto = await rec.open(ownerAt("/proto/Q1"));
     await until(oproto, () => window.Core.snapshot()?.me?.role === "owner");
@@ -101,7 +82,6 @@ async function main() {
     const ownerPend = await oproto.evaluate(() => ({ wait: document.querySelector(".vp-live-wait")?.textContent || "", stop: !!document.querySelector(".vp-live-stop"), open: !!document.querySelector(".vp-live-open") }));
     ok("the owner sees the entry waiting for Approve, with Approve and Stop and no open link", ownerPend.wait === "Live version waiting for your Approve." && ownerPend.stop && !ownerPend.open, JSON.stringify(ownerPend));
 
-    // ---------- Approve: both get Open live prototype, a new tab with no opener and no referrer ----------
     await oproto.locator(".vp-live-approve").click();
     const openOf = page => page.evaluate(() => { const a = document.querySelector(".vp-live-open"); return a && { href: a.getAttribute("href"), target: a.target, rel: a.rel, ref: a.referrerPolicy, text: a.textContent }; });
     const want = { href: `${ORIGIN("L1")}/?variant=A`, target: "_blank", rel: "noopener noreferrer", ref: "no-referrer", text: "Open live prototype" };
@@ -124,7 +104,6 @@ async function main() {
       return shown;
     })());
 
-    // ---------- Stop: ended, no link, no url anywhere ----------
     await oproto.locator(".vp-live-stop").click();
     await until(guest, () => document.querySelector(".vp-live-ended")?.textContent === "Live prototype ended", undefined, 10000);
     const ended = await guest.evaluate(() => ({ label: document.querySelector(".vp-live-ended")?.textContent || "", open: !!document.querySelector(".vp-live-open") }));
@@ -136,7 +115,6 @@ async function main() {
     const gl2 = await leaked(guest);
     ok("the guest's page and state hold no url once it ended", !gl2.links.length && !gl2.state && !gl2.urls, JSON.stringify(gl2));
 
-    // ---------- a server on a port: a look on this machine, and Approve only with the attestation ----------
     await oproto.close();
     oproto = await rec.open(ownerAt("/proto/Q2"));
     await until(oproto, () => window.Core.snapshot()?.me?.role === "owner");
@@ -154,7 +132,6 @@ async function main() {
     await until(guest, () => document.querySelector(".vp-live-open")?.getAttribute("href") === `https://fake-live-l2.trycloudflare.com/`, undefined, 10000);
     ok("with the attestation Approve runs it, and the guest gets its link", (await openOf(guest))?.href === `${ORIGIN("L2")}/`, JSON.stringify(await openOf(guest)));
 
-    // ---------- a start that fails twice with the same error: Approve comes back, the error shows ----------
     const failing = await rec.open(ownerAt("/proto/Q3"));
     await until(failing, () => !!document.querySelector(".vp-live-approve"));
     for (const n of [1, 2]) {
@@ -166,7 +143,6 @@ async function main() {
     }
     await failing.close();
 
-    // ---------- live prototypes off: every entry ends, and guests lose the live view ----------
     await owner.evaluate(() => window.Core.saveSettings({ prototypeTiers: ["screenshot", "snapshot"] }));
     await until(oproto, () => !!document.querySelector(".vp-live-ended"));
     ok("turning live prototypes off ends the running entry on the owner's page", await oproto.evaluate(() => (window.Core.snapshot().lives || []).every(e => e.status.kind === "ended")));
@@ -174,8 +150,6 @@ async function main() {
     const off = await guest.evaluate(() => ({ box: document.querySelector(".vp-livebox")?.hidden, lives: (window.Core.snapshot().lives || []).length, stage: document.querySelector(".vp-off")?.textContent || "" }));
     ok("guests then get no live view: no box, no entry, the live-only variant reads as off", off.box === true && off.lives === 0 && /off in this session/.test(off.stage), JSON.stringify(off));
 
-    // ---------- no errors ----------
-    // The two failed Approves above each log their 502 to the console; nothing else may.
     const failed502 = rec.errors.filter(e => /status of 502/.test(e)), others = rec.errors.filter(e => !/status of 502/.test(e));
     ok("no page error or console error beyond the two expected 502s", others.length === 0 && failed502.length <= 2, rec.errors.join(" | "));
     const csp = await rec.cspViolations();

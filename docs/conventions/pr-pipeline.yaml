@@ -1671,6 +1671,8 @@ merge:
     floor-paths:
       - glob: ".github/actions/check-trusted-trigger/**"
         class: trust
+      - glob: ".github/scripts/lib/github-client.mjs"
+        class: trust
       - glob: ".github/actions/resolve-config/**"
         class: trust
       - glob: ".github/actions/check-kill-switch/**"
@@ -1724,6 +1726,8 @@ merge:
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
         class: gate
       - glob: ".github/scripts/lib/run-title.mjs"
+        class: gate
+      - glob: ".github/scripts/lib/lane-branch.mjs"
         class: gate
       # The arm path's Merge-Risk line, and the rating job's scripts that hand
       # untrusted pull request text to a credentialed model run (#13657).

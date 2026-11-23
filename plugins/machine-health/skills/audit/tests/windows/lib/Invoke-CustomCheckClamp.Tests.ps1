@@ -119,8 +119,6 @@ Describe 'Invoke-CustomCheckClamp' -Tag 'lib' {
     }
 }
 
-# The orchestrator is the only place a review recorded in approvals.json reaches the clamp
-# (Get-ReviewedCheckId -State $approvalState into -ReviewedIds), so this runs it end to end.
 Describe 'Invoke-MachineHealthCheck custom-check clamp with a recorded review' -Tag 'orchestrator' {
     BeforeAll {
         Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
@@ -131,7 +129,6 @@ Describe 'Invoke-MachineHealthCheck custom-check clamp with a recorded review' -
         $catalogDir = New-Item -ItemType Directory -Path (Join-Path $script:stateBase 'catalog') -Force
         $stateDir = New-Item -ItemType Directory -Path (Join-Path $script:stateBase 'state') -Force
 
-        # Every shipped check off, plus two custom checks whose stubs each emit a CRIT.
         $shipped = Get-Content -LiteralPath (Join-Path $script:SkillRoot 'catalog\checks.jsonc') -Raw | ConvertFrom-Jsonc
         $entries = [System.Collections.Generic.List[object]]::new()
         foreach ($c in $shipped.checks) { $entries.Add(@{ id = $c.id; enabled = $false }) }

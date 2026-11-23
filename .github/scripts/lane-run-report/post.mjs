@@ -19,7 +19,7 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, detailSuffix } from "../lib/github-client.mjs";
 import { createRateLimitLatch, REST_PATH_WORDS, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { prMessages, sectionHeading } from "../lib/pr-messages/pr-messages.mjs";
 import { graphqlStore } from "../lib/pr-messages/stores.mjs";

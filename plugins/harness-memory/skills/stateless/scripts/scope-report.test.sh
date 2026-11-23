@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for scope-report.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,15 +13,12 @@ iso_env() {
   env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_DISABLE_AUTO_MEMORY -u GIT_DIR HOME="$ISO_HOME" "$@"
 }
 
-# --- Case 1: --help exits 0 with usage ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: inside a git repo, isolated HOME with no memory written ---
-# Isolate HOME so the report reads the fixture, never the real user settings/memory.
 
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
@@ -39,7 +35,6 @@ assert_contains "reports default memory dir section" "$OUT" "Default auto-memory
 assert_contains "reports MEMORY.md absent when none written" "$OUT" "MEMORY.md: absent"
 assert_contains "env var reported unset when not exported" "$OUT" "unset in OS environment"
 
-# --- Case 3: env var set is reflected ---
 
 OUT=$(cd "$REPO" && iso_env env CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 bash "$SCRIPT")
 assert_contains "env var reported set when exported" "$OUT" "set in OS environment"
@@ -50,8 +45,6 @@ assert_contains "env var reported set when exported" "$OUT" "set in OS environme
 RESOLVER="$SCRIPT_DIR/../../audit/scripts/resolve-memory-dir.sh"
 MEM_DIR=$(cd "$REPO" && iso_env bash "$RESOLVER" 2>/dev/null | tr -d '\r')
 
-# Hard stop before any mkdir/write: a resolved dir outside the suite temp tree means
-# isolation failed and the next two lines would write into a real config tree.
 if [[ "$MEM_DIR" != "$TEST_TMPDIR"/* ]]; then
   printf 'ABORT: resolved memory dir escaped the test tmpdir: %s (expected under %s)\n' "$MEM_DIR" "$TEST_TMPDIR" >&2
   exit 1
@@ -66,8 +59,6 @@ OUT=$(cd "$REPO" && iso_env bash "$SCRIPT")
 assert_contains "MEMORY.md present is reported" "$OUT" "MEMORY.md: PRESENT"
 assert_contains "topic file count reported" "$OUT" "topic files: 1"
 
-# --- Case 4b: a topic filename with an embedded newline counts once ---
-# Regression for the wc -l over-count on newline-delimited find output.
 
 printf '# topic\n' >"$MEM_DIR/oops"$'\n'"weird.md"
 
@@ -76,8 +67,6 @@ assert_contains "newline-named topic file counted once, not twice" "$OUT" "topic
 
 rm -f "$MEM_DIR/oops"$'\n'"weird.md"
 
-# --- Case 5: outside a git repo, the cwd is the project key (docs: "Outside a git
-# repo, the project root is used instead") — resolver and report both resolve, no bail-out ---
 
 NONREPO="$TEST_TMPDIR/plain"
 mkdir -p "$NONREPO"
@@ -104,9 +93,6 @@ assert_contains "reports CLAUDE_CONFIG_DIR when set" "$OUT" "CLAUDE_CONFIG_DIR=$
 assert_contains "user settings resolved under CLAUDE_CONFIG_DIR" "$OUT" "$CFG/settings.json"
 assert_contains "memory dir resolved under CLAUDE_CONFIG_DIR" "$OUT" "$CFG/projects/"
 
-# --- Case 7: an ambient CLAUDE_CONFIG_DIR never leaks into the isolated cases ---
-# Simulates a suite run with CLAUDE_CONFIG_DIR already exported; the sentinel lives
-# under the suite tmpdir so the check itself stays hermetic.
 
 AMBIENT="$TEST_TMPDIR/ambient-config"
 mkdir -p "$AMBIENT"

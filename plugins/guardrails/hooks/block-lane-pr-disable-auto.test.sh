@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-lane-pr-disable-auto.sh (guardrails plugin).
-#
-# Black-box: each case pipes a PreToolUse payload into the guard, alone and
-# under run-guards.sh, with a fake `gh` first on PATH that answers the author
-# read from FAKE_GH_AUTHOR and logs each call, and asserts the same exit code
-# both ways (2 = blocked, 0 = allowed).
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
 # test-scope: plugins/guardrails/hooks/hooks.json plugins/guardrails/.claude-plugin/plugin.json
@@ -24,8 +18,6 @@ BIN="$TEST_TMPDIR/bin"
 CALLS="$TEST_TMPDIR/calls"
 mkdir -p "$BIN"
 
-# The fake gh: `pr view` prints FAKE_GH_AUTHOR, `api graphql` prints the node
-# line the guard's --jq would build. FAKE_GH_FAIL=1 fails every call.
 cat >"$BIN/gh" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE_GH_CALLS"
@@ -53,7 +45,6 @@ export CLAUDE_PLUGIN_OPTION_BLOCK_LANE_PR_DISABLE_AUTO_APP='acme-lanes[bot]'
 REASON_HOLD='hold it with the do-not-merge label instead'
 REASON_UNREAD='could not tell which pull request this auto-merge disable targets'
 
-# check <label> <expected exit> <author> <command> [needle] [env word ...]
 check() {
   local label="$1" expected="$2" author="$3" command="$4" needle="${5-}" via
   shift 4
@@ -68,7 +59,6 @@ check() {
 }
 calls() { cat "$CALLS" 2>/dev/null; }
 
-# --- 1. a lanes App pull request is blocked, with the hold-label fix ----------
 check "--disable-auto on a lanes App PR" 2 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto' "$REASON_LANE"
 assert_contains "lanes PR: names the do-not-merge hold" "$GUARD_ERR" "$REASON_HOLD"
 assert_contains "lanes PR: gives the label command" "$GUARD_ERR" "gh pr edit 42 -R acme/widgets --add-label do-not-merge"
@@ -90,13 +80,11 @@ assert_contains "GraphQL: the node is read" "$(calls)" "id=PR_kwDOabc"
 check "GraphQL inline id" 2 "$LANE" \
   'gh api graphql -f query='"'"'mutation{disablePullRequestAutoMerge(input:{pullRequestId:"PR_kwDOabc"}){clientMutationId}}'"'"'' "$REASON_LANE"
 
-# --- 2. a pull request by another author passes ------------------------------
 check "--disable-auto on another author's PR" 0 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto'
 assert_eq "other author: no stderr" "" "$GUARD_ERR"
 check "GraphQL on another author's PR" 0 "$OTHER" \
   'gh api graphql -f query='"'"'mutation($id:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$id}){clientMutationId}}'"'"' -f id=PR_kwDOabc'
 
-# --- 3. a target the guard cannot read is blocked ----------------------------
 check "a PR number from a variable" 2 "$OTHER" 'gh pr merge "$N" -R acme/widgets --disable-auto' "$REASON_UNREAD"
 assert_eq "variable target: gh is never asked" "" "$(calls)"
 check "a repo from a variable" 2 "$OTHER" 'gh pr merge 42 -R "$REPO" --disable-auto' "$REASON_UNREAD"
@@ -112,7 +100,6 @@ check "GraphQL with two ids" 2 "$OTHER" \
   'gh api graphql -f query='"'"'mutation($id:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$id}){clientMutationId}}'"'"' -f id=PR_a -f other=PR_b' "$REASON_UNREAD"
 check "an author read that fails" 2 "$OTHER" 'gh pr merge 42 -R acme/widgets --disable-auto' "could not read the author" FAKE_GH_FAIL=1
 
-# --- 4. what the guard leaves alone ------------------------------------------
 check "--disable-auto=false" 0 "$LANE" 'gh pr merge 42 -R acme/widgets --disable-auto=false'
 assert_eq "--disable-auto=false: gh is never asked" "" "$(calls)"
 check "a merge without --disable-auto" 0 "$LANE" 'gh pr merge 42 -R acme/widgets --auto --squash'

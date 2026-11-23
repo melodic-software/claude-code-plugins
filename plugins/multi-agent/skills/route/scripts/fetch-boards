@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# Fetch enabled benchmark registry pages through the plugin's scripts/fetch-docs.sh
+# with --profile generic --cache --public-only and per-row --max-age, writing
+# pages and one combined manifest that stamps source_id and page_date per row.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+FETCH_DOCS="$PLUGIN_ROOT/scripts/fetch-docs.sh"
+DEFAULT_REGISTRY="$PLUGIN_ROOT/reference/benchmarks.json"
+
+usage() {
+  cat <<'EOF'
+fetch-boards: fetch enabled benchmark registry pages via scripts/fetch-docs.sh.
+
+Usage:
+  fetch-boards --out <dir> [--manifest <file>] [--registry <file>]
+               [--settings <file>] [--task-type <coding|web-ui|knowledge|image>]
+               [--cache-dir <dir>] [--max-page-bytes <n>]
+
+Options:
+  --out <dir>             directory for fetched page files
+  --manifest <file>       combined manifest JSON (default: <out>/manifest.json)
+  --registry <file>       benchmark registry JSON (default: reference/benchmarks.json)
+  --settings <file>       resolved vendors settings JSON (or route.sh output)
+  --task-type <work_type> fetch only rows covering this work type
+  --cache-dir <dir>       cache directory passed to fetch-docs.sh --cache-dir
+  --max-page-bytes <n>    page byte cap passed to fetch-docs.sh
+
+Exit: 0 manifest written (individual boards may be unread); 2 fatal.
+EOF
+}
+
+die() {
+  printf 'fetch-boards: %s\n' "$1" >&2
+  exit 2
+}
+
+OUT=""
+MANIFEST=""
+REGISTRY="$DEFAULT_REGISTRY"
+SETTINGS=""
+TASK_TYPE=""
+CACHE_DIR=""
+MAX_PAGE_BYTES=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --out | --manifest | --registry | --settings | --task-type | --cache-dir | --max-page-bytes)
+    [[ $# -ge 2 ]] || die "$1 requires a value"
+    case "$1" in
+    --out) OUT="$2" ;;
+    --manifest) MANIFEST="$2" ;;
+    --registry) REGISTRY="$2" ;;
+    --settings) SETTINGS="$2" ;;
+    --task-type) TASK_TYPE="$2" ;;
+    --cache-dir) CACHE_DIR="$2" ;;
+    --max-page-bytes) MAX_PAGE_BYTES="$2" ;;
+    esac
+    shift 2
+    ;;
+  *) die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$OUT" ]] || die "--out is required"
+[[ -f "$FETCH_DOCS" ]] || die "fetch-docs.sh not found at $FETCH_DOCS"
+[[ -r "$REGISTRY" ]] || die "registry unreadable: $REGISTRY"
+[[ -z "$SETTINGS" || -r "$SETTINGS" ]] || die "settings unreadable: $SETTINGS"
+command -v jq >/dev/null 2>&1 || die "jq is required"
+
+# Eval-runner env seam: cases use EVAL_* names because the eval schema permits only EVAL_*.
+if [[ -z "${FETCH_DOCS_FIXTURE_DIR+x}" && -n "${EVAL_FETCH_DOCS_FIXTURE_DIR:-}" ]]; then
+  if [[ "$EVAL_FETCH_DOCS_FIXTURE_DIR" == /* || "$EVAL_FETCH_DOCS_FIXTURE_DIR" =~ ^[A-Za-z]:[/\\] ]]; then
+    export FETCH_DOCS_FIXTURE_DIR="$EVAL_FETCH_DOCS_FIXTURE_DIR"
+  else
+    export FETCH_DOCS_FIXTURE_DIR="$PWD/$EVAL_FETCH_DOCS_FIXTURE_DIR"
+  fi
+fi
+if [[ -z "$CACHE_DIR" && -z "${DOCS_CACHE_DIR:-}" && -n "${EVAL_DOCS_CACHE_DIR:-}" ]]; then
+  if [[ "$EVAL_DOCS_CACHE_DIR" == /* || "$EVAL_DOCS_CACHE_DIR" =~ ^[A-Za-z]:[/\\] ]]; then
+    CACHE_DIR="$EVAL_DOCS_CACHE_DIR"
+  else
+    CACHE_DIR="$PWD/$EVAL_DOCS_CACHE_DIR"
+  fi
+fi
+
+mkdir -p "$OUT" || die "cannot create $OUT"
+MANIFEST="${MANIFEST:-$OUT/manifest.json}"
+mkdir -p "$(dirname "$MANIFEST")" || die "cannot create manifest directory"
+
+WORK="$(mktemp -d)" || die "cannot create temp directory"
+trap 'rm -rf "$WORK"' EXIT
+
+# Compute max allowed page date (today + 1 day UTC) for deterministic date extraction.
+if [[ -n "${DOCS_CACHE_NOW:-}" && "${DOCS_CACHE_NOW}" =~ ^[0-9]+$ ]]; then
+  NOW_PLUS_ONE=$((DOCS_CACHE_NOW + 86400))
+  MAX_DATE="$(date -u -d "@$NOW_PLUS_ONE" +%Y-%m-%d 2>/dev/null || date -u -r "$NOW_PLUS_ONE" +%Y-%m-%d 2>/dev/null || date -u +%Y-%m-%d)"
+else
+  MAX_DATE="$(date -u -d '+1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d 2>/dev/null || date -u +%Y-%m-%d)"
+fi
+
+# Extract the latest valid non-future YYYY-MM-DD date from a page file
+# (ISO dates, "Mon DD, YYYY", or "DD Mon YYYY").
+extract_page_date() {
+  local file="$1"
+  [[ -s "$file" ]] || return 0
+  LC_ALL=C awk -v maxd="$MAX_DATE" '
+    BEGIN {
+      m["jan"]="01"; m["january"]="01"
+      m["feb"]="02"; m["february"]="02"
+      m["mar"]="03"; m["march"]="03"
+      m["apr"]="04"; m["april"]="04"
+      m["may"]="05"
+      m["jun"]="06"; m["june"]="06"
+      m["jul"]="07"; m["july"]="07"
+      m["aug"]="08"; m["august"]="08"
+      m["sep"]="09"; m["sept"]="09"; m["september"]="09"
+      m["oct"]="10"; m["october"]="10"
+      m["nov"]="11"; m["november"]="11"
+      m["dec"]="12"; m["december"]="12"
+      best = ""
+    }
+    function consider(d,   y, mo, da) {
+      y = substr(d, 1, 4) + 0
+      mo = substr(d, 6, 2) + 0
+      da = substr(d, 9, 2) + 0
+      if (y < 2020 || mo < 1 || mo > 12 || da < 1 || da > 31) return
+      if (d <= maxd && d > best) best = d
+    }
+    {
+      s = $0
+      while (match(s, /[0-9]{4}-[0-9]{2}-[0-9]{2}/)) {
+        consider(substr(s, RSTART, RLENGTH))
+        s = substr(s, RSTART + RLENGTH)
+      }
+      s = tolower($0)
+      while (match(s, /(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?[[:space:]]+[0-9]{1,2},?[[:space:]]+[0-9]{4}/)) {
+        tok = substr(s, RSTART, RLENGTH)
+        gsub(/[.,]/, "", tok)
+        n = split(tok, p, /[[:space:]]+/)
+        if (n == 3 && (p[1] in m)) {
+          consider(sprintf("%04d-%s-%02d", p[3] + 0, m[p[1]], p[2] + 0))
+        }
+        s = substr(s, RSTART + RLENGTH)
+      }
+      s = tolower($0)
+      while (match(s, /[0-9]{1,2}[[:space:]]+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?[[:space:]]+[0-9]{4}/)) {
+        tok = substr(s, RSTART, RLENGTH)
+        gsub(/[.,]/, "", tok)
+        n = split(tok, p, /[[:space:]]+/)
+        if (n == 3 && (p[2] in m)) {
+          consider(sprintf("%04d-%s-%02d", p[3] + 0, m[p[2]], p[1] + 0))
+        }
+        s = substr(s, RSTART + RLENGTH)
+      }
+    }
+    END { if (best != "") print best }
+  ' "$file"
+}
+
+MERGED_REGISTRY="$WORK/merged-registry.json"
+NOTES_JSONL="$WORK/notes.jsonl"
+: >"$NOTES_JSONL"
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+REPO_ROOT="${REPO_ROOT%$'\r'}"
+TEAM_REGISTRY=""
+if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/docs/conventions/multi-agent/benchmarks.json" ]]; then
+  cand="$REPO_ROOT/docs/conventions/multi-agent/benchmarks.json"
+  if [[ "$(cd "$(dirname "$cand")" && pwd)/$(basename "$cand")" != "$(cd "$(dirname "$REGISTRY")" && pwd)/$(basename "$REGISTRY")" ]]; then
+    TEAM_REGISTRY="$cand"
+  fi
+fi
+
+if [[ -n "$TEAM_REGISTRY" ]]; then
+  jq -e '
+    type == "object"
+    and .version == 1
+    and (.rows | type == "array")
+    and ((keys - ["version", "note", "rows"]) | length == 0)
+    and all(.rows[]; type == "object"
+      and ((keys - ["id", "workloads", "link", "publisher", "provider_own", "status", "task_set", "expect", "freshness_seconds", "enabled"]) | length == 0)
+      and (.id | type == "string" and test("^[a-z0-9][a-z0-9-]*$"))
+      and (.link | type == "string" and startswith("https://"))
+      and (.workloads | type == "array" and length > 0))
+  ' "$TEAM_REGISTRY" >/dev/null 2>&1 || die "invalid team registry: $TEAM_REGISTRY"
+
+  jq -n --slurpfile shipped "$REGISTRY" --slurpfile team "$TEAM_REGISTRY" '
+    ($shipped[0].rows | map(.id)) as $sids
+    | {
+        rows: ($shipped[0].rows + [$team[0].rows[] | select(.id as $id | ($sids | index($id)) == null)]),
+        duplicates: ([$team[0].rows[].id | select(. as $id | ($sids | index($id)) != null)] | unique)
+      }
+  ' >"$MERGED_REGISTRY" || die "failed to merge team registry: $TEAM_REGISTRY"
+
+  while IFS= read -r dup_id; do
+    dup_id="${dup_id%$'\r'}"
+    [[ -n "$dup_id" ]] || continue
+    msg="team registry row '$dup_id' refused: duplicates shipped row id"
+    printf 'fetch-boards: %s\n' "$msg" >&2
+    jq -cn --arg m "$msg" '$m' >>"$NOTES_JSONL"
+  done < <(jq -r '.duplicates[]' "$MERGED_REGISTRY")
+else
+  jq '{rows: .rows}' "$REGISTRY" >"$MERGED_REGISTRY" || die "failed to read rows from $REGISTRY"
+fi
+
+SOURCES_JSON="$WORK/sources.json"
+if [[ -n "$SETTINGS" ]]; then
+  jq '(.vendors // .) | (.sources // {})' "$SETTINGS" >"$SOURCES_JSON" || die "failed to read settings: $SETTINGS"
+else
+  printf '{}\n' >"$SOURCES_JSON"
+fi
+
+ROWS_TSV="$WORK/rows.tsv"
+jq -r --arg wt "$TASK_TYPE" --slurpfile src "$SOURCES_JSON" '
+  ($src[0] // {}) as $overrides
+  | .rows[]
+  | . as $row
+  | (if ($overrides[$row.id] | type) == "object" and ($overrides[$row.id] | has("enabled")) and ($overrides[$row.id].enabled | type) == "boolean"
+     then $overrides[$row.id].enabled
+     else ($row.enabled // true)
+     end) as $en
+  | select($en == true)
+  | select($wt == "" or ((.workloads | index($wt)) != null))
+  | [.id, .link, ((.freshness_seconds // 86400) | tostring)]
+  | @tsv
+' "$MERGED_REGISTRY" >"$ROWS_TSV" || die "failed to read rows from $REGISTRY"
+
+BOARDS_JSONL="$WORK/boards.jsonl"
+: >"$BOARDS_JSONL"
+
+idx=0
+while IFS=$'\t' read -r row_id row_link row_max_age; do
+  row_id="${row_id%$'\r'}"
+  row_link="${row_link%$'\r'}"
+  row_max_age="${row_max_age%$'\r'}"
+  [[ -n "$row_id" ]] || continue
+  idx=$((idx + 1))
+  row_manifest="$WORK/row-$idx.json"
+  cmd=(bash "$FETCH_DOCS" --profile generic --cache --public-only --max-age "$row_max_age" --out "$OUT" --manifest "$row_manifest")
+  [[ -z "$CACHE_DIR" ]] || cmd+=(--cache-dir "$CACHE_DIR")
+  [[ -z "$MAX_PAGE_BYTES" ]] || cmd+=(--max-page-bytes "$MAX_PAGE_BYTES")
+  cmd+=("$row_link")
+
+  if ! "${cmd[@]}"; then
+    die "fetch-docs.sh failed fatally for $row_id ($row_link)"
+  fi
+
+  page_file="$(jq -r '.pages[0].file // ""' "$row_manifest")"
+  page_file="${page_file%$'\r'}"
+  page_state="$(jq -r '.pages[0].state // "unread"' "$row_manifest")"
+  page_state="${page_state%$'\r'}"
+  page_date=""
+  if [[ "$page_state" == "read" && -n "$page_file" && -f "$page_file" ]]; then
+    page_date="$(extract_page_date "$page_file")"
+    page_date="${page_date%$'\r'}"
+  fi
+
+  jq -cn --arg sid "$row_id" --arg pdate "$page_date" --slurpfile m "$row_manifest" '
+    ($m[0].pages[0] // {state: "unread", reason: "empty-manifest", stale: false}) as $p
+    | {
+        source_id: $sid,
+        url: ($p.url // null),
+        slug: ($p.slug // null),
+        source: ($p.source // null),
+        state: ($p.state // "unread"),
+        stale: ($p.stale // false),
+        reason: ($p.reason // null),
+        http_status: ($p.status // null),
+        retrieved: ($p.retrieved // null),
+        validated: ($p.validated // null),
+        age_seconds: ($p.age_seconds // null),
+        file: ($p.file // null),
+        sha256: ($p.sha256 // null),
+        page_date: (if $pdate == "" then null else $pdate end)
+      }
+  ' >>"$BOARDS_JSONL"
+done <"$ROWS_TSV"
+
+NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+jq -n --arg at "$NOW_ISO" --slurpfile boards "$BOARDS_JSONL" --slurpfile notes "$NOTES_JSONL" \
+  'if ($notes | length) > 0 then {generated_at: $at, boards: $boards, notes: $notes} else {generated_at: $at, boards: $boards} end' >"$MANIFEST.tmp" || die "cannot write $MANIFEST"
+mv "$MANIFEST.tmp" "$MANIFEST" || die "cannot move $MANIFEST into place"
+cat "$MANIFEST"

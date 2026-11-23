@@ -4,12 +4,17 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import intakeTriage from "./credential-legs/intake-triage.mjs";
+import auditLaneRuns from "./credential-legs/maintenance-audit-lane-runs.mjs";
+import tidyCodeUpkeep from "./credential-legs/maintenance-tidy-code-upkeep.mjs";
+import prRateMergeRisk from "./credential-legs/pr-rate-merge-risk.mjs";
 import prVerify from "./credential-legs/pr-verify.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const DECLARATIONS = [prVerify];
+export const DECLARATIONS = [prVerify, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns];
 
 const STEP = /^ {6}- name: (.*)$/;
+const STEP_ID = /^ {8}id: (.*)$/;
 const STEP_COMMENT = /^ {6}#/;
 
 export function jobSpan(lines, id) {
@@ -34,7 +39,10 @@ function parse(job) {
       while (last.body.length > 1 && (last.body.at(-1) === "" || STEP_COMMENT.test(last.body.at(-1)))) lead.unshift(last.body.pop());
       if (last === first && last.body.length > 1) throw new Error(`sync-credential-legs: a line before the first step: ${last.body[1]}`);
       steps.push({ name, lead, body: [line] });
-    } else last.body.push(line);
+    } else {
+      last.body.push(line);
+      last.id ??= STEP_ID.exec(line)?.[1];
+    }
   }
   return { header: job.slice(0, at + 1), steps };
 }
@@ -43,13 +51,15 @@ const count = (text, from) => (typeof from === "string" ? text.split(from).lengt
 
 export function render(keyJob, leg) {
   const { header, steps } = parse(keyJob);
+  const is = (s, name) => s.name === name || (s.id !== undefined && name === `#${s.id}`);
   const named = (name) => {
-    const found = steps.find((s) => s.name === name);
-    if (!found) throw new Error(`sync-credential-legs: ${leg.job} names a step the key job lacks: ${name}`);
-    return found;
+    const found = steps.filter((s) => is(s, name));
+    if (!found.length) throw new Error(`sync-credential-legs: ${leg.job} names a step the key job lacks: ${name}`);
+    if (found.length > 1) throw new Error(`sync-credential-legs: ${leg.job} names ${found.length} steps ${name}; name one by its #id`);
+    return found[0];
   };
   for (const name of [...(leg.drop ?? []), ...Object.keys(leg.move ?? {}), ...Object.values(leg.move ?? {}), ...Object.keys(leg.comments ?? {})]) named(name);
-  let kept = steps.filter((s) => !(leg.drop ?? []).includes(s.name));
+  let kept = steps.filter((s) => !(leg.drop ?? []).some((name) => is(s, name)));
   for (const [name, after] of Object.entries(leg.move ?? {})) {
     const step = named(name);
     kept = kept.filter((s) => s !== step);
@@ -59,7 +69,7 @@ export function render(keyJob, leg) {
   }
   const lines = [...header];
   for (const step of kept) {
-    const comment = leg.comments?.[step.name];
+    const comment = leg.comments?.[step.name] ?? leg.comments?.[`#${step.id}`];
     const own = step.lead.filter((line) => STEP_COMMENT.test(line));
     const written = comment === true ? own : comment === undefined ? [] : comment.split("\n").map((line) => `      # ${line}`.trimEnd());
     lines.push(...step.lead.filter((line) => line === ""), ...written, ...step.body);

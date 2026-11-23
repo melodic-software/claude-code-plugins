@@ -110,10 +110,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done <"$SOURCES"
 [[ ${#IDS[@]} -gt 0 ]] || exit 0
 
-# One fetch for every page: fetch-docs.sh reads each slug once however many
-# records cite it, and ignores the #fragment. --max-age 0 asks the server every
-# time (a cached page costs a conditional request), so a page read within the
-# cache's TTL is never taken as current, and a failed fetch is unread.
 FETCH_ARGS=(--cache --max-age 0 --out "$WORK/docs")
 if [[ $FIXTURE_SET -eq 1 ]]; then
   export FETCH_DOCS_FIXTURE_DIR="$QUOTE_CHECK_FIXTURE_DIR"
@@ -221,7 +217,6 @@ for i in "${!IDS[@]}"; do
     continue
   fi
   if [[ -z "$anchor" ]]; then
-    # A URL with no anchor names the whole page.
     section="$(cat "$file")"
   else
     sid="$(bash "$DOCS_CACHE" map --file "$file" 2>/dev/null | awk -F'\t' -v anchor="$anchor" "$SECTION_AWK")"

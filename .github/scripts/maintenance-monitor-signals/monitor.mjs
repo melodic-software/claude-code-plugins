@@ -16,12 +16,13 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub } from "../lib/github-client.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { FILING, fenced, incidentRules, partlyReadSignals, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";
 import { detect, holdRule } from "./signals.mjs";
 import { budgetedClient } from "../lib/github-rest.mjs";
+import { graphqlCall } from "../lib/run-jobs.mjs";
 import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
 
 const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
@@ -174,7 +175,7 @@ async function main(env = process.env) {
   const windowStart = new Date(now.getTime() - Number(env.WINDOW_MINUTES ?? 65) * 60_000);
   const call = budgetedClient(env, { budget: Number(env.CALL_BUDGET ?? 250) });
   const get = (path) => call("GET", path);
-  const graphql = (query, variables) => call("POST", "/graphql", { query, variables });
+  const graphql = graphqlCall(call);
   const getStatus = async (url) => {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);

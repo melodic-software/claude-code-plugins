@@ -149,7 +149,6 @@ function Invoke-ElevatedBootstrap {
     [OutputType([int])]
     param(
         [Parameter(Mandatory = $true)] [string] $SourceRoot,
-        # Path under the skill root (backslash-separated) -> uppercase hex SHA-256.
         [Parameter(Mandatory = $true)] [System.Collections.IDictionary] $Manifest,
         [Parameter(Mandatory = $true)] [string] $OutputBase,
         [Parameter(Mandatory = $true)] [string] $StateBase,

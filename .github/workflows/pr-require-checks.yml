@@ -1329,6 +1329,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         shell: bash scripts/run-hygiene-gate.sh zizmor {0}
         run: scripts/run-zizmor.sh
 
@@ -5421,24 +5422,28 @@ jobs:
             printf '%s' "$rows"
           } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
           [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || exit 1
-      # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing, and the aggregate below passes those skips. That
-      # green check stays on the head after the ready flip until the
-      # ready_for_review run replaces it, so an enqueue in that gap meets the
-      # required check, and the merge-group run does not fully close it: the
-      # changed-file gates that read only github.base_ref decline there. No
-      # merge hold checks this, so arm a pull request only once the newest
-      # ci-status on its head is not a draft run's. The hold steps that read
-      # GitHub (cost hold, human-gated, hold-lift,
-      # lanes hold) skip on a draft too, so a held draft is green as well;
-      # the ready_for_review run judges every hold. This step says why it is
-      # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
         run: |
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      - name: Read whether a re-run draft run's pull request is ready
+        id: draft_rerun
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.run_attempt != '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          if pull=$(pr_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") && [ "$(jq -r '.draft' <<<"$pull")" = true ]; then
+            echo "Attempt $RUN_ATTEMPT: #$PR_NUMBER is still a draft."
+            echo "ready=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::Attempt $RUN_ATTEMPT of a draft run: #$PR_NUMBER is ready, or its draft state did not read, so the hold and review-lane steps run."
+            echo "ready=true" >>"$GITHUB_OUTPUT"
+          fi
       - name: Resolve main's tip
         id: tip
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -5479,6 +5484,7 @@ jobs:
             /.github/scripts/pr-merge/rotation.mjs
             /.github/scripts/lib/run-title.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/scripts/lib/github-client.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
@@ -5637,6 +5643,7 @@ jobs:
             /.github/scripts/pr-unblock/thread-scope.mjs
             /.github/scripts/work-resolve-issue/report-outcome.mjs
             /.github/scripts/work-resolve-issue/limits.mjs
+            /.github/scripts/lib/lane-branch.mjs
             /.github/scripts/lib/lane-hold-marker.mjs
             /.github/scripts/work-resolve-issue/stop-routes.mjs
             /.github/scripts/work-resolve-issue/stop-routes.json
@@ -5645,6 +5652,7 @@ jobs:
             /.github/scripts/lib/stop-reason.mjs
             /.github/scripts/lib/admission-comment.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/scripts/lib/github-client.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
@@ -5721,7 +5729,7 @@ jobs:
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6062,7 +6070,7 @@ jobs:
       # this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6764,7 +6772,7 @@ jobs:
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request on kill switch, hold path, verifier or veto
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
@@ -7372,31 +7380,6 @@ jobs:
       # reconcile.mjs matches the error below, and a trusted person's re-run
       # does the same. The admin bypass stays the break-glass. A
       # check-kill-switch job that failed stopped the review too, and fails.
-      # Dependabot, the release App and the
-      # standards-sync App, by numeric author id, are exempt: no review lane
-      # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it (with merge.diff-check.path-holds false, Dependabot
-      # alone: the generated guard after hold_patterns empties the list for
-      # every other author), unless every change block of a Dependabot PR
-      # only swaps the ref of an action whose owner the base lists in
-      # merge.dependabot.trusted-action-owners (owner decision
-      # Q-ANTHROPIC-DEPS). A person on the base commit's trusted-actor list
-      # approving the head clears that hold: their newest non-comment review,
-      # matched by numeric id, is APPROVED at the head. It counts as that
-      # person's whatever client submitted it. An unreadable review or
-      # trusted-actor list keeps it. Any other
-      # same-repository PR changing one that an agent App
-      # (merge.trust-path-hold-apps in the base commit's pr-pipeline.yaml)
-      # opened, authored or committed a commit of, or pushed to its head
-      # branch (the repository activity API, one page) fails too, since its
-      # head can rewrite the review callers; it still needs
-      # both lanes otherwise. Those reads run only once a trust-gate path
-      # matched, and an unreadable base config, PR, commit list or push
-      # history, or a short commit list or full push page, fails closed. A draft is exempt
-      # (see `Note a draft`). pr-dispatch-feedback.yml re-runs this job when a
-      # review run completes, and after a listed person's approval
-      # (pr-review-approved.yml). An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
       # step it lists with no conclusion, or not at all, proves nothing either
       # way. Then the job's own check-run annotations decide. The review
@@ -7411,7 +7394,7 @@ jobs:
       # can forge the step list. An unreadable annotation list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
       - name: Require both review lanes on this head
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft == false || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -7424,7 +7407,7 @@ jobs:
           # A contract-only run (a label flip or body edit) does not wait: it
           # holds no review the full run's wait would not, and each would keep
           # a runner.
-          REVIEW_WAIT_SECONDS: ${{ (github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
+          REVIEW_WAIT_SECONDS: ${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
           REVIEW_POLL_SECONDS: 60
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
@@ -7454,7 +7437,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/diff_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/source-control-settings.json' '.github/verify-legacy-fails.json' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/lib/run-title.mjs' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' 'scripts/upstream-drift-vendored-report.sh' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/maintenance-monitor-signals/issues.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/lane-record-cache.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.github/scripts/diff-chunking/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/scripts/intake-triage/triage-rubric.txt' '.github/scripts/intake-triage/refine-schema.json' '.github/scripts/plugin-eval/policy-probe-prompt.txt' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-repin-ci-workflows.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/diff_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/scripts/lib/github-client.mjs' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/source-control-settings.json' '.github/verify-legacy-fails.json' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/api-budget.bash' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/release-eval-hold.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/lib/run-title.mjs' '.github/scripts/lib/lane-branch.mjs' '.github/scripts/pr-merge/merge-risk-line.mjs' '.github/scripts/pr-merge-risk/input.mjs' '.github/scripts/pr-merge-risk/write-rating.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/lib/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/lib/lane-hold-marker.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/resolve-threads.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'docs/upstream/*' 'scripts/upstream-drift-vendored-report.sh' '.github/scripts/recurring-schedule/file-due.mjs' '.github/scripts/maintenance-monitor-signals/issues.mjs' '.github/scripts/lib/github-rest.mjs' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/lib/run-main.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/earlier-fail-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/lib/lane-binding.mjs' '.github/scripts/pr-unblock/lane-record-cache.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/admission-record.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.github/scripts/diff-chunking/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/scripts/intake-triage/triage-rubric.txt' '.github/scripts/intake-triage/refine-schema.json' '.github/scripts/plugin-eval/policy-probe-prompt.txt' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-measure-skill-edit-pass.yml' '.github/workflows/maintenance-measure-skill-edit.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/maintenance-repin-ci-workflows.yml' '.github/workflows/maintenance-tidy-code-upkeep.yml' '.github/workflows/post-merge-file-demotion-issues.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-dispatch-feedback.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-rate-merge-risk.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-run-plugin-evals.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-generate-dependabot-changelog-fragments.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns

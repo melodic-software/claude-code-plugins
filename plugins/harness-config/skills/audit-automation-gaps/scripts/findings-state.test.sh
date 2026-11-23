@@ -32,9 +32,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 SKIPPED=0
 
-# A host-capability skip is reported as itself and never through pass(), so a
-# proof this host could not run can never be read off the summary as one that
-# did.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -115,14 +112,12 @@ cat >"$EMPTY" <<'EOF'
 {"candidates": [], "maturity": "A clean bill of health."}
 EOF
 
-# --- Case 1: --help ---------------------------------------------------------
 
 rc=0
 OUT=$(run --help 2>&1) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help names every subcommand" "$OUT" "findings-state.sh list"
 
-# --- Case 2: paths, and the keyed shape it reports --------------------------
 
 rc=0
 OUT=$(run paths --plugin-data "$DATA" --root "$REPO_A" 2>&1) || rc=$?
@@ -138,11 +133,6 @@ OUT=$(run paths --plugin-data "$DATA" --root "$TEST_TMPDIR" 2>&1) || rc=$?
 assert_exit "a non-repository directory still keys" 0 "$rc"
 assert_contains "the non-repository rung is used" "$OUT" "state_key=nonrepo/"
 
-# --- Case 3: the missing-plugin-data failure must be LOUD -------------------
-#
-# ${CLAUDE_PLUGIN_DATA} is not exported to the Bash tool, so the resolved path
-# arrives as an argument. Guessing a directory here would write one project's
-# verdicts somewhere nothing reads them back.
 
 rc=0
 OUT=$(env -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
@@ -168,7 +158,6 @@ OUT=$(env -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
   bash "$SCRIPT" list --root "$REPO_A" 2>&1) || rc=$?
 assert_exit "list exits 2 with no --plugin-data" 2 "$rc"
 
-# An exported value is still honored where one genuinely exists (a hook context).
 rc=0
 OUT=$(CLAUDE_PLUGIN_DATA="$DATA" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
   bash "$SCRIPT" paths --root "$REPO_A" 2>&1) || rc=$?
@@ -183,10 +172,6 @@ rc=0
 OUT=$(run paths --plugin-data "/tmp/../etc" --root "$REPO_A" 2>&1) || rc=$?
 assert_exit "a --plugin-data containing '..' is refused" 2 "$rc"
 
-# --- Case 4: run-id validation, the path-safety control ---------------------
-#
-# A run id becomes a filename under the plugin's own tree. lib/state-key.sh
-# documents the traversal it defends its half against; this is the other half.
 
 rc=0
 OUT=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id "a..b" 2>&1) || rc=$?
@@ -201,8 +186,6 @@ rc=0
 OUT=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id "" 2>&1) || rc=$?
 assert_exit "an empty run id is refused" 2 "$rc"
 
-# A DIRECTORY may legitimately be named `a..b`; a run id may not. The two rules
-# differ on purpose, and each message says which rule it is enforcing.
 mkdir -p "$TEST_TMPDIR/a..b/data"
 rc=0
 OUT=$(run paths --plugin-data "$TEST_TMPDIR/a..b/data" --root "$REPO_A" 2>&1) || rc=$?
@@ -215,10 +198,6 @@ assert_exit "a real '..' path component is still refused" 2 "$rc"
 assert_contains "the refusal names the component, not a substring" "$OUT" \
   "must not contain a '..' path component"
 
-# 4a: NEGATIVE. Delete the '..' arm and the dot-run id must reach the filename it
-# would become. Asserting only that a message disappears would also pass if the
-# id were refused a line later for some unrelated reason; the constructed path in
-# the output is what shows the id actually got through to path construction.
 DOTS_DATA="$TEST_TMPDIR/dots-data"
 mkdir -p "$DOTS_DATA"
 DOTS_KEY=$(run paths --plugin-data "$DOTS_DATA" --root "$REPO_A" | sed -n 's/^state_key=//p')
@@ -239,10 +218,6 @@ else
     "$broken_out" "findings-a..b.json"
 fi
 
-# --- Case 5: read and list before anything is written -----------------------
-#
-# Rule 3: an artifact that cannot be attributed to this project is never served,
-# and absence is reported rather than papered over with an unkeyed fallback.
 
 rc=0
 OUT=$(run read --plugin-data "$DATA" --root "$REPO_A" 2>&1) || rc=$?
@@ -257,7 +232,6 @@ OUT=$(run list --plugin-data "$DATA" --root "$REPO_A" 2>/dev/null) || rc=$?
 assert_exit "list exits 0 when this project has no artifact" 0 "$rc"
 assert_eq "list prints nothing on stdout when there is nothing" "" "$OUT"
 
-# --- Case 6: write, then read it back ---------------------------------------
 
 rc=0
 OUT=$(run write --plugin-data "$DATA" --root "$REPO_A" --run-id run-0001 --findings "$GOOD" 2>&1) || rc=$?
@@ -282,8 +256,6 @@ assert_eq "the envelope records the state key it was written under" "$A_KEY" \
 assert_eq "counts are derived from the verdict column" "2 1 0 1" \
   "$(printf '%s' "$ENVELOPE" | jq -r '[.counts.total, .counts.pass, .counts.conditional, .counts.reject] | join(" ")')"
 
-# The three payload parts this store exists to persist: the verdict table, the
-# evidence behind each verdict, and the implementation plans.
 assert_eq "the verdict table survives the round trip" "PASS REJECT" \
   "$(printf '%s' "$ENVELOPE" | jq -r '[.findings.candidates[].verdict] | join(" ")')"
 assert_eq "the evidence survives the round trip" "2" \
@@ -301,7 +273,6 @@ rc=0
 OUT=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id no-such-run 2>&1) || rc=$?
 assert_exit "read exits 4 for a run id with no file" 4 "$rc"
 
-# --- Case 7: stdin, the default run id, and non-overwrite -------------------
 
 rc=0
 OUT=$(run write --plugin-data "$DATA" --root "$REPO_A" --findings - <"$EMPTY" 2>&1) || rc=$?
@@ -348,7 +319,6 @@ assert_eq "repo B still serves ITS OWN verdict count" "0" \
 assert_eq "repo B's history holds only its own run" "1" \
   "$(run list --plugin-data "$DATA" --root "$REPO_B" 2>/dev/null | wc -l | tr -d ' ')"
 
-# 8a: NEGATIVE. Drop the state key out of the path and the two collide.
 BROKEN_KEY="$TEST_TMPDIR/broken-key.sh"
 # shellcheck disable=SC2016 # sed program text: the $ are literal characters in the script being mutated
 sed 's|BASE_DIR="\$PLUGIN_DATA/\$COMPONENT/\$STATE_KEY"|BASE_DIR="$PLUGIN_DATA/$COMPONENT"|' \
@@ -364,16 +334,12 @@ else
     --run-id shared --findings "$GOOD" >/dev/null 2>&1
   run_copy "$BROKEN_KEY" write --plugin-data "$UNKEYED" --root "$REPO_B" \
     --run-id shared --findings "$EMPTY" >/dev/null 2>&1
-  # Repo B's write landed beside repo A's under one unkeyed directory, so repo A
-  # is now served an artifact it did not produce: the `latest` pointer names
-  # repo B's run.
   broken_latest=$(run_copy "$BROKEN_KEY" read --plugin-data "$UNKEYED" --root "$REPO_A" |
     jq -r '.state_key')
   assert_eq "with the state key deleted, repo A is served repo B's artifact" \
     "$B_KEY" "$broken_latest"
 fi
 
-# --- Case 9: payload rejection ----------------------------------------------
 
 BAD="$TEST_TMPDIR/bad.json"
 cat >"$BAD" <<'EOF'
@@ -414,14 +380,10 @@ OUT=$(printf '{"maturity":"none"}' | run write --plugin-data "$DATA" --root "$RE
 assert_exit "a payload with no candidates key exits 3" 3 "$rc"
 assert_contains "the refusal names the missing verdict table" "$OUT" 'must carry a "candidates" array'
 
-# An empty verdict table is a RESULT, not a rejection: the skill's own quality
-# principles make a clean bill of health a valid outcome.
 rc=0
 OUT=$(run write --plugin-data "$DATA" --root "$REPO_B" --run-id clean --findings "$EMPTY" 2>&1) || rc=$?
 assert_exit "an empty candidates array is accepted" 0 "$rc"
 
-# 9a: the plan requirement, and its NEGATIVE. A PASS with no plan is the state
-# that leaves --implement holding a verdict and nothing to act on.
 NO_PLAN="$TEST_TMPDIR/no-plan.json"
 cat >"$NO_PLAN" <<'EOF'
 {"candidates": [{"id":"1","candidate":"x","category":"hooks","verdict":"PASS","evidence":["e"]}]}
@@ -442,7 +404,6 @@ else
   assert_exit "with the plan requirement inverted, a PASS with no plan is accepted" 0 "$rc"
 fi
 
-# --- Case 10: argument surface ----------------------------------------------
 
 rc=0
 OUT=$(run 2>&1) || rc=$?
@@ -481,14 +442,6 @@ rc=0
 OUT=$(run paths --plugin-data "$DATA" --root "$TEST_TMPDIR/not-there" 2>&1) || rc=$?
 assert_exit "a --root that is not a directory exits 2" 2 "$rc"
 
-# --- Case 11: CONCURRENCY, the never-overwritten promise under a real race ----
-#
-# Five writers, ONE run id, five DISTINCT payloads, all in flight at once. A
-# check-then-publish implementation passes every earlier case in this file and
-# still loses four verdict sets here while reporting success five times, which is
-# the worst thing a persistence layer can do. The claim under test is not "it
-# does not crash": it is that every payload that was reported written is on disk
-# under the id that was reported back.
 
 CDATA="$TEST_TMPDIR/concurrent-data"
 mkdir -p "$CDATA"
@@ -523,11 +476,6 @@ assert_eq "the history carries one row per surviving run, not five claiming one 
 assert_eq "read serves a real per-run file after the race" "1" \
   "$(run read --plugin-data "$CDATA" --root "$REPO_A" | jq -r '.findings.candidates | length')"
 
-# --- Case 12: one payload document, because only one can be persisted ---------
-#
-# jq accepts a stream of concatenated documents, so a two-document payload used
-# to validate in full and persist only the first. A stream whose second half
-# holds the real verdicts then reported success with counts of zero.
 
 MULTI="$TEST_TMPDIR/multi.json"
 cat >"$MULTI" <<'EOF'
@@ -543,7 +491,6 @@ assert_contains "the refusal says which half would have been kept" "$OUT" \
 assert_eq "a multi-document payload writes no findings file" "" \
   "$(find "$A_DIR" -name 'findings-multi*.json')"
 
-# --- Case 13: a publish is all or nothing, and an orphan is not an absence ----
 
 ODATA="$TEST_TMPDIR/orphan-data"
 ODIR="$ODATA/audit-automation-gaps/$A_KEY"
@@ -555,8 +502,6 @@ assert_contains "the refusal says nothing was written" "$OUT" "nothing was writt
 assert_eq "and nothing was: no orphan findings file is left on disk" "" \
   "$(find "$ODIR" -name 'findings-*.json')"
 
-# A findings file whose pointers are gone is an INCOMPLETE PUBLISH. Reporting it
-# as "no findings are persisted" denies a verdict set that is sitting on disk.
 PDATA="$TEST_TMPDIR/partial-data"
 mkdir -p "$PDATA"
 run write --plugin-data "$PDATA" --root "$REPO_A" --run-id partial --findings "$GOOD" >/dev/null 2>&1
@@ -647,10 +592,6 @@ rc=0
 OUT=$(run list --plugin-data "$FDATA" --root "$REPO_A" 2>&1) || rc=$?
 assert_exit "list exits 5 when the keyed directory is a regular file" 5 "$rc"
 
-# A payload that exists, is readable, is not empty, and still does not parse.
-# Publication stages and renames, so this script cannot leave one behind; a
-# foreign writer or a stray editor can. Serving those bytes under exit 0 would
-# hand the caller something unusable, which is what exit 5 exists to prevent.
 CDATA="$TEST_TMPDIR/corrupt-payload-data"
 CDIR="$CDATA/audit-automation-gaps/$A_KEY"
 mkdir -p "$CDIR"
@@ -663,7 +604,6 @@ assert_exit "read exits 5 when the findings payload does not parse" 5 "$rc"
 assert_contains "the report says the payload cannot be trusted" "$OUT" "cannot be trusted"
 assert_not_contains "the corrupt bytes are never served" "$OUT" "corrupt-not-json"
 
-# --- Case 15: the suffix cap is state exhaustion, not a usage error -----------
 
 CAPDATA="$TEST_TMPDIR/cap-data"
 CAPDIR="$CAPDATA/audit-automation-gaps/$A_KEY"
@@ -679,11 +619,6 @@ OUT=$(run write --plugin-data "$CAPDATA" --root "$REPO_A" --run-id cap --finding
 assert_exit "an exhausted suffix range exits 5, not the usage code" 5 "$rc"
 assert_contains "the refusal names the run id whose names are taken" "$OUT" "run id: cap"
 
-# --- Case 16: what the envelope records, and how the pointer is replaced ------
-#
-# repo_root and written_at are both derived per run. A constant in either place
-# is invisible to a round-trip assertion that only checks the field is present,
-# so both are compared against a value computed OUTSIDE the script.
 
 ENVELOPE=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id run-0001)
 assert_eq "the envelope records the repo root it was derived from" \
@@ -708,8 +643,6 @@ case "$stamped" in
   ;;
 esac
 
-# The `latest` pointer is a file under a directory anything with write access can
-# reach, so the run id it yields is a caller-supplied id by another route.
 POISON="$TEST_TMPDIR/poison-data"
 PODIR="$POISON/audit-automation-gaps/$A_KEY"
 mkdir -p "$PODIR"
@@ -720,8 +653,6 @@ OUT=$(run read --plugin-data "$POISON" --root "$REPO_A" 2>&1) || rc=$?
 assert_exit "a poisoned latest pointer is refused" 2 "$rc"
 assert_contains "the refusal names the plain-segment rule" "$OUT" "plain path segment"
 
-# 16a: NEGATIVE. Delete the validation on the pointer path and the poisoned id
-# reaches path construction.
 BROKEN_PTR="$TEST_TMPDIR/broken-pointer.sh"
 # shellcheck disable=SC2016 # sed program text: the $ is a literal character in the script being mutated
 sed 's@validate_run_id "$run_id"@:@' "$SCRIPT" >"$BROKEN_PTR"
@@ -738,8 +669,6 @@ else
     "$broken_out" "findings-../../etc/passwd.json"
 fi
 
-# `latest` is REPLACED, never written through. A `cp` would follow whatever the
-# name already is and clobber it, and would let a reader see a half pointer.
 PTRDATA="$TEST_TMPDIR/pointer-data"
 PTRDIR="$PTRDATA/audit-automation-gaps/$A_KEY"
 mkdir -p "$PTRDIR"
@@ -762,19 +691,6 @@ fi
 assert_eq "no staged pointer temporary is left behind" "0" \
   "$(find "$PTRDIR" -name 'latest.*' | wc -l | tr -d ' ')"
 
-# --- Case 17: A MISSING TOOL IS NOT A DAMAGED ARTIFACT ------------------------
-#
-# `read` parses the stored envelope with `jq` before serving it. On a host with
-# no `jq` that command fails with exit 127, which is indistinguishable from a
-# document that did not parse unless the prerequisite is checked first. Without
-# the check a perfectly valid persisted run is reported under exit 5 as state an
-# external writer corrupted, which is the script lying about the operator's
-# data: the artifact is fine, the machine is missing a tool. The contract puts a
-# missing prerequisite at exit 2, so that is what this asserts.
-#
-# `jq` is made unavailable by running the script under a PATH holding symlinks
-# to the tools it needs and nothing else. Uninstalling `jq` is not an option and
-# a wrapper that fails would still satisfy `command -v`.
 
 NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
 mkdir -p "$NOJQ_BIN"
@@ -802,9 +718,6 @@ if PATH="$NOJQ_BIN" bash -c 'command -v git >/dev/null 2>&1 && ! command -v jq >
   assert_not_contains "and nothing claims an outside writer touched the artifact" \
     "$OUT" "something outside this script wrote it"
 
-  # The gate belongs only where jq is actually used. `list` serves the history
-  # file with `cat` and `paths` computes a path, so requiring jq for either
-  # would break a host that can still answer both.
   rc=0
   OUT=$(PATH="$NOJQ_BIN" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" \
     list --plugin-data "$NOJQ_DATA" --root "$REPO_A" 2>&1) || rc=$?
@@ -816,8 +729,6 @@ if PATH="$NOJQ_BIN" bash -c 'command -v git >/dev/null 2>&1 && ! command -v jq >
     paths --plugin-data "$NOJQ_DATA" --root "$REPO_A" 2>&1) || rc=$?
   assert_exit "paths still answers with no jq, because it uses none" 0 "$rc"
 
-  # `write` composes the envelope with jq and already gated on it. Asserted here
-  # so the three subcommands are judged against one another in one place.
   rc=0
   OUT=$(PATH="$NOJQ_BIN" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" \
     write --plugin-data "$NOJQ_DATA" --root "$REPO_A" --run-id nojq-2 --findings "$GOOD" 2>&1) || rc=$?

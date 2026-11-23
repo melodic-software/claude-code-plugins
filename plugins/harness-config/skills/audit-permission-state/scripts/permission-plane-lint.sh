@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-# permission-plane-lint.sh — findings over the permission plane: configuration
-# that is written but never read, and allow rules that cannot match.
-#
-# Every check here answers the same shape of question: the operator wrote
-# something believing it takes effect, and it does not. The harness is not
-# silent about all of these — several emit a startup warning — but a warning
-# fires at session start, in one session, for one machine's scopes. This reads
-# every scope at once, before a session, and says which file the dead entry is
-# in.
-#
-# Input: permission-state.sh records on stdin (rule + conf + surface records).
-# With no piped input the reader is run directly and its status propagated.
-#
-# Output:
-#   finding <severity> [<check>] <scope> <detail>
-#   lint summary findings=<n> checks_run=<n>
-#
-#   scope     a reader scope, or project:toplevel for the root's shared file
-#
-#   severity  error | warning   (review plugin's severity vocabulary)
-#
-# Checks, each citing the mechanic it follows from — see reference/criteria.md:
-#   C2-autoMode      autoMode.* in a scope the classifier does not read
-#   C2-defaultMode   defaultMode:"auto" or "bypassPermissions" in project or local settings
-#   C2-planMode      useAutoModeDuringPlan in shared project settings
-#   C5-disableType   disableAutoMode typed as a boolean, not the string "disable"
-#   C6-winPath       a drive-letter or UNC Windows path, which never matches
-#   C6-contentField  a parameter-form rule on a tool's primary content field
-#   C6-uncoveredPath a path rule on a tool whose path rules are never consulted
-#   C6-colonStar     `:*` mid-pattern in a command-prefix rule (not the parameter form)
-#   C6-colonStarAmbiguous  mid-pattern `:*` with no trailing space — indistinguishable from a parameter form (warning)
-#   C6-allowParam    parameter-form matching in an allow rule (deny/ask only)
-#   C6-malformed     text after the closing parenthesis, or an unclosed specifier
-#   C6-literalPath   an uncompilable Read/Edit path: deny/ask guard the literal path
-#
-# Prerequisites: jq (required for correctness — the conf/settings reads are JSON).
-#
-# Usage:
-#   permission-state.sh | permission-plane-lint.sh
-#   permission-plane-lint.sh [--help]
 
 set -uo pipefail
 
@@ -85,9 +45,6 @@ else
   records="$(cat)"
 fi
 
-# Settings paths per scope come from the surface records, so this script never
-# re-derives a location the reader already resolved. A scope the reader could
-# not open contributes no findings and is not claimed clean.
 lint_out="$(printf '%s\n' "$records" | awk '
 function text_of(start,   i, s) {
   s = $start

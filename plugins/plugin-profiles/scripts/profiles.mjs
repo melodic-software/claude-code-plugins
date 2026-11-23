@@ -153,14 +153,11 @@ import { knownFolders, readUsage, usageFile } from "../lib/usage.mjs";
 
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
-// Set by the file itself, so status names the file a session was launched with, merged or not.
 const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";
 // The variable the prerequisite readers in plugin-diagnostics and harness-ops define (their
 // lib/enabled-plugin-roots.mjs), so they read this file as the session layer.
 const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
-/** The profile this session was started in, or null; an empty marker counts as unset. */
 const sessionProfile = (env) => env[SESSION_VAR] || null;
-/** The variables a started claude never inherits; its session file sets its own. */
 const CLEARED = [SESSION_VAR, SESSION_FILE_VAR, SESSION_SETTINGS_VAR];
 const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off] [--finish-pending]
        profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
@@ -179,13 +176,8 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>] [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
        profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>] [--skills <plugins dir>] [--changed <file>]`;
 
-/** Exit status of a reset that wrote what it could and named each file it skipped; 1 stays "nothing written". */
 const PARTLY_DONE = 3;
 
-/**
- * The kinds of file reset asks about one at a time: the answer each label and flag gives, what the one question
- * says it leaves to them, and what reset says when nobody is there to answer.
- */
 const ASKS = {
   unrecorded: {
     yes: { label: "Remove", flag: "--remove-unrecorded" },
@@ -210,7 +202,6 @@ const ASKS = {
   },
 };
 const ANSWER_FLAGS = Object.values(ASKS).flatMap((kind) => [kind.yes.flag, kind.no.flag]);
-/** A file's own question; recommend is the answer reset advises, yes or no, with its one-sentence reason. */
 const askOf = (kind, file, question, recommend) => ({ file, question, yes: kind.yes, no: kind.no, recommend });
 const kindOf = (ask) => Object.values(ASKS).find((kind) => kind.yes.flag === ask.yes.flag);
 
@@ -228,6 +219,12 @@ const RESUME_LINE = "A resumed session does not keep --settings; resume it with:
 const SESSION_ID = /^[A-Za-z0-9-]+$/;
 const validId = (id) => typeof id === "string" && SESSION_ID.test(id);
 const byIdDir = (dataDir) => join(dataDir, "sessions", "by-id");
+const byFolderDir = (dataDir) => join(dataDir, "sessions", "by-folder");
+/** A folder's record of its last session, keyed by its real path; Windows drive letters are lowercased, since C: and c: name one folder. */
+const byFolderFile = (dataDir, folder) => {
+  const key = process.platform === "win32" ? realPath(folder).replace(/^[A-Z]:/, (drive) => drive.toLowerCase()) : realPath(folder);
+  return join(byFolderDir(dataDir), `${createHash("sha256").update(key).digest("hex")}.json`);
+};
 const readJson = (path) => {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
@@ -236,12 +233,10 @@ const readJson = (path) => {
   }
 };
 
-/** remember_folder_profile from the operator's settings; only an explicit false turns it off. */
 function remembersFolder(install) {
   return readOperatorOptions(install, managedSettingsFiles(), ["remember_folder_profile"], { booleans: true }).remember_folder_profile?.value !== "false";
 }
 
-/** Where this run reads and writes: the config folder and data folder come from this script's own install path. */
 function locate(env, cwd, folder = null) {
   const install = resolveInstall(OWN_ROOT);
   const configDir = install.userSettings
@@ -282,13 +277,10 @@ function otherDataDirs(where) {
 
 const stateHome = (where) => join(where.configDir, "plugin-profiles-state");
 
-/** The record home of a settings file in a repository: its git common folder's plugin-profiles, else null. */
 const gitHome = (where, file) => (realPath(file) === realPath(where.paths.user) ? null : repositoryHome(dirname(dirname(file)), { home: where.home }));
 
-/** Where a settings file's record lives first: the repository's git common folder, the config folder for user settings, else null. */
 const primaryHome = (where, file) => (realPath(file) === realPath(where.paths.user) ? stateHome(where) : gitHome(where, file));
 
-/** Records that a repository holds records, so reset finds it from any folder; never fails the caller. */
 function notePointer(where, file) {
   const home = gitHome(where, file);
   try {
@@ -298,7 +290,6 @@ function notePointer(where, file) {
   }
 }
 
-/** A settings file's record: its primary home first, then this copy's data folder, then other copies'. */
 const homesOf = (where, file) => [primaryHome(where, file), where.dataDir, ...otherDataDirs(where)].filter(Boolean);
 const recordOf = (where, file) => {
   const own = findRecord(homesOf(where, file), file);
@@ -317,11 +308,6 @@ function adoptedRecord(where, file) {
   }
 }
 
-/**
- * start keeps its own flags and hands every other word to claude unchanged, except --profile, which names the profile,
- * and --profile-add, which names a plugin to add, anywhere before a bare --. After --claude-args every word is claude's
- * but those two, and no first word names a profile.
- */
 function parseStart(rest) {
   const opts = { command: "start", name: null, profile: null, add: [], passthrough: false, target: "session", folder: null, with: null, unattended: false, dryRun: false, json: false, claudeArgs: [] };
   let ended = false;
@@ -395,7 +381,6 @@ function parseArgs(argv) {
 
 const levelsOf = (where) => profileLevels({ pluginRoot: OWN_ROOT, configDir: where.configDir, projectDir: where.projectDir });
 
-/** The profiles an apply at target resolves; the initial profile never takes a repository's files. */
 function catalogFor(where, target) {
   const levels = levelsOf(where);
   return readCatalog(target === "initial" ? levels.filter((l) => l.level !== "repository") : levels);
@@ -403,7 +388,6 @@ function catalogFor(where, target) {
 
 const shortHash = (text) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 const sessionsDir = (where) => join(where.dataDir, "sessions");
-/** One file per folder and profile; a launcher's own settings add a key of the merged content. */
 const sessionFile = (where, name, content = null) =>
   join(sessionsDir(where), `${shortHash(realPath(where.projectDir))}-${name}${content ? `-${shortHash(content)}` : ""}.json`);
 /** Beside a one-session file, the plugins it adds for one conversation; no variable carries them, so a launch from that session adds nothing. */
@@ -428,7 +412,6 @@ const hideableSkills = (catalog) => new Set(everyProfile(catalog).flatMap((p) =>
 const governedMarketplaces = (catalog) =>
   new Set(everyProfile(catalog).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
 
-/** Reads every input, plans, and works out the exact entries the target file ends with. */
 function prepare(opts, where, catalog, records) {
   const file = targetFile(where, opts.target, opts.name);
   const settings = readSettings(file);
@@ -476,7 +459,6 @@ const KEPT_BECAUSE = {
   folder: "folder settings pin it",
 };
 
-/** What a profile that leaves out always-on says about the always-on plugins: which go off, and which stay on and why. */
 function alwaysOnLines(r) {
   const guardrailsOff = r.alwaysOnOff.some((id) => id.startsWith("guardrails@"));
   return [
@@ -487,10 +469,6 @@ function alwaysOnLines(r) {
   ];
 }
 
-/**
- * The lines that say what an apply changes; the terminal prompt and the mod's preview both show them.
- * The mod's preview counts the plugins left alone instead of naming them all; the terminal names them.
- */
 function previewLines(p, gate, { nameUntouched = true } = {}) {
   const r = p.plan;
   const on = r.enabled.map((id) => (r.repositoryOn.includes(id) ? `${id} (from a repository profile)` : id));
@@ -530,7 +508,6 @@ function previewLines(p, gate, { nameUntouched = true } = {}) {
   return lines;
 }
 
-/** What apply --dry-run --json prints: the preview lines and the facts a caller branches on. */
 const previewJson = (p, gate, upToDate, others) => ({
   profile: p.plan.profile,
   target: p.plan.target,
@@ -573,7 +550,6 @@ async function consent(opts, gate, interactive, question = "Apply these changes?
   if (!["y", "yes"].includes(await ask(question))) throw new NotApplied("not applied");
 }
 
-/** Saves the record only while each record file still holds what this apply read, checked just before the rename: false when a finish's pending record changed, a SettingsConflict when another apply saved a record since prepare, so apply re-plans over it instead of overwriting it. */
 function claimRecord(p, record, finishing) {
   const text = recordText(record);
   if (finishing && !swapRecord(finishing.path, finishing.text, text)) return false;
@@ -582,7 +558,6 @@ function claimRecord(p, record, finishing) {
   throw new SettingsConflict(`${p.recPath} changed while this apply ran`);
 }
 
-/** Writes the record, then the settings file; false, writing nothing, when the pending record a finish read has changed. */
 function commit(p, opts, where, finishing = null) {
   const text = editText(p.settings, p.edits);
   if (opts.target === "session") return writeSettings(p.file, p.settings.hash, text);
@@ -686,15 +661,12 @@ async function apply(opts, where, env, io) {
   return 0;
 }
 
-/** The profile a launch from this session defaults to: the session's own, else the folder's recorded one. */
 function ownProfile(where, env) {
   return sessionProfile(env) ?? folderProfile(where);
 }
 
-/** The profile recorded for this folder while folder remembering is on, else null. */
 const folderProfile = (where) => (where.remembersFolder() ? recordOf(where, where.paths.local).record?.profile ?? null : null);
 
-/** A launcher's own settings, given as claude --settings takes them: a JSON object or a file holding one. */
 function launcherSettings(value) {
   if (value === null) return null;
   if (value.trim().startsWith("{")) {
@@ -702,14 +674,12 @@ function launcherSettings(value) {
       const doc = JSON.parse(value);
       if (doc && typeof doc === "object" && !Array.isArray(doc)) return doc;
     } catch {
-      // Reported below.
     }
     throw new UsageError("--with holds text that is not a JSON object");
   }
   return readSettings(resolve(value)).doc;
 }
 
-/** Removes the files in dir, session files by default, that nothing has written for SESSION_DAYS days, keeping keep. */
 function sweepSessions(where, keep, dir = sessionsDir(where)) {
   const cutoff = Date.now() - SESSION_DAYS * 24 * 60 * 60 * 1000;
   for (const name of readdirSync(dir)) {
@@ -718,7 +688,6 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
     try {
       if (statSync(file).mtimeMs < cutoff) rmSync(file, { force: true });
     } catch {
-      // Another launch removed it first.
     }
   }
 }
@@ -804,20 +773,27 @@ function launch(opts, where, env, io) {
   return 0;
 }
 
-/** The record the session-start hook wrote for a session id, from this copy's data folder or another copy's. */
 function sessionRecord(where, id) {
   const latest = (rec) => [rec.at, rec.plainSince].filter((t) => typeof t === "string").sort().at(-1) ?? "";
   const found = [where.dataDir, ...otherDataDirs(where)].map((dir) => readJson(join(byIdDir(dir), `${id}.json`))).filter((rec) => rec?.profile);
   return found.sort((a, b) => latest(b).localeCompare(latest(a)))[0] ?? null;
 }
 
-/** The one-session profile a live session runs in, from its record, or null once it was resumed without it. */
 function oneSessionProfileOf(where, id) {
   const rec = validId(id) ? sessionRecord(where, id) : null;
   return rec && !rec.plainSince ? rec.profile : null;
 }
 
-/** The first resume or continue flag among claude's arguments: resume with an id, the resume picker, or continue. */
+function folderSessionProfile(where) {
+  const rec = [where.dataDir, ...otherDataDirs(where)]
+    .map((dir) => readJson(byFolderFile(dir, where.projectDir)))
+    .filter((r) => typeof r?.at === "string")
+    .sort((a, b) => b.at.localeCompare(a.at))[0];
+  if (!rec?.profile) return null;
+  const byId = validId(rec.sessionId) ? sessionRecord(where, rec.sessionId) : null;
+  return byId?.plainSince && byId.plainSince >= rec.at ? null : rec.profile;
+}
+
 function resumeOf(args) {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -866,7 +842,6 @@ export function pickProfile(rows, marked, { input = process.stdin, output = proc
   });
 }
 
-/** One reader for every [y/N] question of a run: yes(question) is true only for a typed y or yes; input that ends answers no and asks nothing more. */
 function lineAsker({ input = process.stdin, output = process.stdout } = {}) {
   const rl = createInterface({ input, terminal: false });
   const lines = rl[Symbol.asyncIterator]();
@@ -925,12 +900,17 @@ function runClaude(args, env, io) {
   });
 }
 
-/** What a start resumes and in which profile: the claude arguments to run, the profile, a session file to reuse, and the line to print. */
-function resumePlan(args, given, where) {
+function resumePlan(args, given, where, catalog) {
   const res = resumeOf(args);
   const plan = { args, name: given, reuse: null, folder: null, line: null, res, added: [] };
   if (res?.kind === "pick" && !given) plan.line = "Pick the session; if it ran in a profile, its start notice gives the command that resumes it there.";
-  if (res?.kind === "continue" && !given) plan.line = "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
+  if (res?.kind === "continue" && !given) {
+    const last = folderSessionProfile(where);
+    plan.name = last && profileNamed(catalog, last) ? last : null;
+    if (plan.name) plan.line = `Continuing this folder's last conversation in profile ${plan.name}.`;
+    else if (last) plan.line = `The folder's last session ran in profile ${last}, which no longer exists; continuing with this folder's settings.`;
+    else plan.line = "Continuing with this folder's settings; if that session ran in a profile, its start notice gives the command that resumes it there.";
+  }
   if (res?.kind !== "resume") return plan;
   const rec = validId(res.id) ? sessionRecord(where, res.id) : null;
   if (!rec) {
@@ -950,7 +930,6 @@ function resumePlan(args, given, where) {
   return plan;
 }
 
-/** The plugins a reopen adds: the conversation's earlier ones and each --profile-add word resolved against the installed plugins, or StartRefused. */
 function addedFor(tokens, plan, where, catalog) {
   if (plan.res?.kind !== "resume") throw new StartRefused("start: --profile-add reopens one conversation: give it with --resume <session id>");
   if (!plan.name) throw new StartRefused(`start: no profile is recorded for session ${plan.res.id}; name the profile to reopen it in with --profile`);
@@ -966,7 +945,6 @@ function addedFor(tokens, plan, where, catalog) {
   }
 }
 
-/** The plugin ids the catalogs of the marketplaces installed plugins come from list; a catalog that cannot be read adds none. */
 function marketplaceIds(where, inv) {
   return [...new Set([...inv.keys()].map(marketplaceOf))].flatMap((name) => {
     try {
@@ -991,7 +969,7 @@ async function start(opts, where, env, io) {
     if (given) throw new UsageError("start takes the profile once: as its first word or with --profile");
     given = named(args.shift());
   }
-  const plan = resumePlan(args, given, where);
+  const plan = resumePlan(args, given, where, catalog);
   const at = plan.folder && !opts.with ? locate(env, where.projectDir, plan.folder) : where;
   const add = opts.add.length ? addedFor(opts.add, plan, at, catalog) : { ids: plan.added, records: undefined };
   const plain = opts.passthrough && !plan.res && !given;
@@ -1021,7 +999,6 @@ async function start(opts, where, env, io) {
   return runClaude(argv, env, io);
 }
 
-/** Lists exception counts or records a review for one pair. */
 function exceptions(opts, where, io) {
   if (opts.profile) {
     appendExceptions(where.dataDir, [{ kind: "reviewed", profile: opts.profile, plugin: opts.plugin }]);
@@ -1033,7 +1010,6 @@ function exceptions(opts, where, io) {
   return 0;
 }
 
-/** The record of one settings file compared with the file now. */
 function recordedStatus(target, where) {
   const file = targetFile(where, target);
   const rec = recordOf(where, file).record;
@@ -1060,11 +1036,6 @@ function recordedStatus(target, where) {
   };
 }
 
-/**
- * What is in force for this run: a one-session profile named by the session's environment, and the
- * folder's record, or the initial profile's when folder remembering is off (leftover then names a
- * folder record that is not in force).
- */
 function statusOf(opts, where, env) {
   const base = { surface: where.surface, rememberFolder: true, session: null, leftover: null };
   if (doesNotApply(where.surface)) return { ...base, profile: null, target: opts.target, settingsFile: targetFile(where, opts.target) };
@@ -1100,7 +1071,6 @@ function earlierProfile(where) {
   return { profile: null, file, line };
 }
 
-/** The command that starts another session here in a profile: launch writes its file and prints the claude line. */
 const launchCommandOf = (name, where) =>
   ["node", join(OWN_ROOT, "scripts", "profiles.mjs"), "launch", name, "--folder", where.projectDir].map(quoted).join(" ");
 
@@ -1165,10 +1135,8 @@ function reopenContext(where, env, sessionId) {
   ].join(" ");
 }
 
-/** The session-start notice speaks only where a profile was applied: this folder's, a leftover or earlier one, or this session's. */
 const worthNotice = (s) => Boolean(s.session || s.leftover || s.earlier || (s.rememberFolder && s.profile));
 
-/** The SessionStart hook's JSON from stdin, or an empty object when there is none or it is not an object. */
 function hookInput(io) {
   const doc = (() => {
     try {
@@ -1180,21 +1148,33 @@ function hookInput(io) {
   return doc && typeof doc === "object" ? doc : {};
 }
 
-/** Records the profile this session runs in under its id, or for a session resumed without one, the line naming the profile it ran in. */
+/**
+ * Records this session as the folder's last, with its profile or none, unless it is a claude -p or Agent SDK session (an sdk-*
+ * entrypoint: sdk-cli, sdk-ts, sdk-py), which claude -c skips (https://code.claude.com/docs/en/cli-reference); and the profile it runs in under its id; returns the line
+ * for a resumed session whose profile changed: to another, to one from none, or to none.
+ */
 function sessionStartRecord(where, env, input) {
   if (doesNotApply(where.surface) || !validId(input.session_id)) return null;
   const name = sessionProfile(env);
-  if (name && env[SESSION_FILE_VAR]) {
+  const profiled = Boolean(name && env[SESSION_FILE_VAR]);
+  const at = new Date().toISOString();
+  if (!env.CLAUDE_CODE_ENTRYPOINT?.startsWith("sdk-")) {
+    const folderFile = byFolderFile(where.dataDir, where.projectDir);
+    replaceFile(folderFile, `${JSON.stringify({ sessionId: input.session_id, profile: profiled ? name : null, at }, null, 2)}\n`);
+    sweepSessions(where, folderFile, byFolderDir(where.dataDir));
+  }
+  if (profiled) {
     const before = input.source === "resume" ? sessionRecord(where, input.session_id) : null;
     const added = addedIn(env[SESSION_FILE_VAR]);
-    const rec = { sessionId: input.session_id, profile: name, file: env[SESSION_FILE_VAR], folder: where.projectDir, at: new Date().toISOString(), ...(added.length ? { added } : {}) };
+    const rec = { sessionId: input.session_id, profile: name, file: env[SESSION_FILE_VAR], folder: where.projectDir, at, ...(added.length ? { added } : {}) };
     replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify(rec, null, 2)}\n`);
-    return before && before.profile !== name
-      ? `This session ran in profile ${before.profile} and now runs in ${name}, so a later claude --resume ${input.session_id} restores ${name}.`
-      : null;
+    if (input.source !== "resume") return null;
+    const ran = before && !before.plainSince ? before.profile : null;
+    if (ran === name) return null;
+    return `This session ran ${ran ? `in profile ${ran}` : "without a profile"} and now runs in ${name}, so a later claude --resume ${input.session_id} restores ${name}.`;
   }
   const rec = !name && input.source === "resume" ? sessionRecord(where, input.session_id) : null;
-  if (rec && !rec.plainSince) replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify({ ...rec, plainSince: new Date().toISOString() }, null, 2)}\n`);
+  if (rec && !rec.plainSince) replaceFile(join(byIdDir(where.dataDir), `${input.session_id}.json`), `${JSON.stringify({ ...rec, plainSince: at }, null, 2)}\n`);
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
 }
 
@@ -1256,13 +1236,11 @@ function status(opts, where, env, io) {
   return 0;
 }
 
-/** The line saying that a one-session profile outlasts a clear, or null outside such a session. */
 const keepsSessionProfile = (env) =>
   sessionProfile(env)
     ? `This session runs in profile ${sessionProfile(env)} from a one-session settings file and keeps it after the clear; new sessions in this folder start without a folder profile.`
     : null;
 
-/** Recorded entries edited since the apply that clear would change again: neither the profile's value nor the one clear puts back. */
 function overwrittenEdits(rec, doc) {
   const out = [];
   for (const [key, section] of [["enabledPlugins", "entries"], ["skillOverrides", "skillOverrides"]]) {
@@ -1274,14 +1252,12 @@ function overwrittenEdits(rec, doc) {
   return out;
 }
 
-/** Removes a folder only when it is empty; a folder that holds anything stays. */
 function removeEmptyFolder(dir) {
   try {
     rmdirSync(dir);
   } catch {}
 }
 
-/** What clearing one settings file does: its record, the text or removal that puts it back, and the preview lines. */
 function clearPlan(file, found) {
   const { found: recPath, record: rec } = found;
   const settings = readSettings(file);
@@ -1310,7 +1286,6 @@ function clearPlan(file, found) {
   };
 }
 
-/** Writes or removes the planned file under the hash guard, removes a folder the apply created once empty, then drops the record. */
 function clearWrite(plan, dropRecord = () => plan.recPath && deleteRecord(plan.recPath)) {
   if (plan.removes) {
     deleteSettings(plan.file, plan.settings.hash);
@@ -1339,11 +1314,9 @@ async function clear(opts, where, env, io) {
   return 0;
 }
 
-/** The only files reset writes: a folder's .claude/settings.local.json and user settings. */
 const resetWrites = (where, file) =>
   realPath(file) === realPath(where.paths.user) || (basename(file) === "settings.local.json" && basename(dirname(file)) === ".claude");
 
-/** The settings files the records in homes name, as reset reads them; a file whose records cannot be read has none. */
 function settingsFilesIn(where, homes, knownFiles = []) {
   const quietly = (read, none) => (file) => {
     try {
@@ -1355,7 +1328,6 @@ function settingsFilesIn(where, homes, knownFiles = []) {
   return machineSettingsFiles({ homes, homesOf: quietly(homesOf, []), recordOf: quietly(recordOf, null), knownFiles });
 }
 
-/** The records of a repository's root file from before the repository moved, oldest first, found as reset finds them. */
 function movedRecordsOf(where, file) {
   const home = repositoryHome(dirname(dirname(file)), { home: where.home });
   if (!home) return [];
@@ -1364,7 +1336,6 @@ function movedRecordsOf(where, file) {
     .sort((a, b) => String(a.record.appliedAt).localeCompare(String(b.record.appliedAt)));
 }
 
-/** Every settings file reset can reach, the record homes it read, and how many folders each source named. */
 function machineFiles(where, env) {
   const dataDirs = [where.dataDir, ...otherDataDirs(where)];
   const pointerHomes = readPointers(where.configDir);
@@ -1385,24 +1356,17 @@ function machineFiles(where, env) {
 }
 
 const NO_RECORD = "no record; reset removes its entries only after a yes for this folder";
-/** The values a cut-off row's entries still hold: the ones the profile wrote, or, for an entry an unfinished switch still owes, the one it had yet to change. */
 const wroteValues = (ids, rec) =>
   `the ${ids.length === 1 ? "value" : "values"} profile ${rec.profile} wrote${ids.some((id) => rec.pending?.[id] !== undefined) ? " or its unfinished switch had yet to change" : ""}`;
 const CUT_OFF = "an earlier reset of it was cut off and it changed since; reset puts back its entries still at the profile's values only after a yes for this file, so the file and its record are kept";
 const RESTORES = ["restore", "remove-file", "finish-restore"];
 const counted = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const ownEntries = (n) => counted(n, "plugin and skill entry", "plugin and skill entries");
-/** The first three ids and how many more, followed by tail when some are left out. */
 const fewOf = (ids, tail = "") => (ids.length > 3 ? `${ids.slice(0, 3).join(", ")} and ${ids.length - 3} more${tail}` : list(ids));
-/** An apply's time in this machine's time zone; the recorded text when it is not a date. */
 const localTime = (iso) => {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? String(iso) : at.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 };
-/**
- * The one question that covers every recorded file and what reset advises for it, yes for a person who asked for a reset and
- * no otherwise; null when no file has a record to restore.
- */
 function resetQuestion(rows) {
   const n = rows.filter((r) => RESTORES.includes(r.action)).length;
   if (!n) return null;
@@ -1419,16 +1383,11 @@ function resetQuestion(rows) {
   };
 }
 
-/**
- * What reset advises for a recorded file's own question: yes only while no entry the profile wrote was changed by hand to another
- * value. at names where a moved repository's profile was applied.
- */
 const recommendFrom = (profile, overwrites, at = "") =>
   overwrites.length
     ? { answer: "no", reason: `${counted(overwrites.length, "entry", "entries")} (${fewOf(overwrites.map((e) => e.name))}) changed by hand since profile ${profile} was applied${at}, so the file may hold changes you want; a no changes nothing.` }
     : { answer: "yes", reason: `Each entry profile ${profile} wrote${at && `${at},`} is still at that value or back at its value from before, so a yes changes only what that profile wrote.` };
 
-/** The preview lines naming each entry edited since the apply that a restore changes again. */
 const overwriteLines = (plan) =>
   plan.overwrites.map((e) => `  Overwrites a change made since the apply: ${e.name} is ${e.current}, the profile wrote ${e.after}; reset puts back ${e.before}.`);
 const overwritesOf = (plan) => plan.overwrites.map(({ name, current, before }) => ({ name, current, before }));
@@ -1436,10 +1395,6 @@ const overwritesOf = (plan) => plan.overwrites.map(({ name, current, before }) =
 const WAITS = "folder not found; record kept until reset puts back the later record of its repository's file";
 const WAITED = "folder not found; record kept. This reset put back a later record of its repository's file; run reset again to be offered the next record, newest first";
 
-/**
- * One file's row in the reset preview: what reset does to it and the lines that say so. A moved record waits, offered for
- * nothing, while a later record covers the file at the repository's new place; that later record is layered over it.
- */
 function resetRow(where, f, { waits = false, layered = false } = {}) {
   const file = f.settingsFile;
   const rec = f.record;
@@ -1546,10 +1501,6 @@ function resetRow(where, f, { waits = false, layered = false } = {}) {
   };
 }
 
-/**
- * Puts one previewed file back and says how it went: ok false when it changed under reset, restored when its records are gone,
- * leaves the file and the hash of the bytes reset left in it when those are its bytes before any profile.
- */
 function resetOne(row, { chosen, kept, keepRecorded }) {
   const { file, found: f } = row;
   const leaves = (plan, path = file) => (plan.removes ? undefined : { file: path, hash: hashOf(plan.text) });
@@ -1638,14 +1589,12 @@ function resetOne(row, { chosen, kept, keepRecorded }) {
   return done;
 }
 
-/** Notes the bytes reset left in a file, in the home a record of it is saved in; without the note a later reset lists the file as it did before notes. */
 function noteLeft(where, { file, hash }) {
   try {
     noteRestored(homesOf(where, file)[0], file, hash);
   } catch {}
 }
 
-/** What a preview showed, as one hash: each row's file, action and moved file, and the hashes of the file and records it was planned from. */
 const recordHash = (entry) => hashOf(entry?.copies.find((c) => c.path === entry.recordPath)?.text ?? null);
 const previewIdOf = (rows) =>
   hashOf(JSON.stringify(rows.map((r) => [r.file, r.action, r.movedTo ?? null, (r.plan ?? r.movedPlan)?.settings.hash ?? r.settings?.hash ?? null, recordHash(r.found)])));
@@ -1785,7 +1734,6 @@ function usage(opts, env, io) {
   return 0;
 }
 
-/** The plugins the initial profile switches on: the profile recorded for user settings with what it merges, else always-on. */
 function initialMembers(where) {
   const catalog = catalogFor(where, "initial");
   const rec = recordOf(where, where.paths.user).record;
@@ -1877,7 +1825,6 @@ async function save(opts, where, io) {
   return 0;
 }
 
-/** The marketplace.json this plugin came from: its marketplace's clone for a cached install, else the checkout it sits in. */
 function defaultCatalog(where) {
   const { pluginId } = resolveInstall(OWN_ROOT);
   const root = pluginId ? marketplaceLocation(where.configDir, marketplaceOf(pluginId)) : join(OWN_ROOT, "..", "..");

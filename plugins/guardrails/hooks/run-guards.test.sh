@@ -26,9 +26,6 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH="$HOOK_DIR/run-guards.sh"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
-# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
-# guard's refusal into an ask (refuse.sh). Pin it to 0 so every case below
-# gets the result CI gets; the attended cases set it themselves.
 export CLAUDE_CODE_SESSION_ATTENDED=0
 unset GUARDRAILS_SESSION_UNWATCHED
 jq_crlf_free
@@ -41,23 +38,12 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# Git Bash rewrites an argument that is entirely a POSIX path before a native
-# jq sees it. Fixture files are created at the bash spelling, so payloads must
-# carry it unrewritten or the verifiers never find the file and never call git
-# (#4527). The suppression is scoped to this suite's own jq calls, never
-# exported: git.exe and the guards under test would inherit it and fail to
-# open a POSIX /tmp/... repo. The no-jq probe runs the dispatcher in a child
-# bash, which does not inherit the function. The one path jq must open itself,
-# hooks.json, goes through cygpath -m when it exists, because a native jq
-# cannot open a POSIX /c/... spelling.
 if declare -F jq >/dev/null; then
   jq() { MSYS_NO_PATHCONV=1 command jq --binary "$@"; }
 fi
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v cygpath >/dev/null 2>&1; then HOOKS_JSON=$(cygpath -m "$HOOKS_JSON"); fi
 
-# Stub guards. Each one sources the real library exactly as a shipped guard
-# does, so the dispatcher's overrides are exercised through the same seam.
 stub() {
   local name="$1" body="$2"
   {
@@ -89,8 +75,6 @@ hook::jq_fields "$INPUT" ".session_id" ".tool_name" || exit 0
 printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"'
 stub lib.sh 'printf "ps=%s\n" "${_GUARDRAILS_PS_COMMAND_LOADED:-unset}" >>"'"$SEEN"'"'
 stub dirname.sh 'printf "%s %s\n" "$(type -t dirname)" "$(dirname /foo)" >>"'"$SEEN"'"'
-# Raw documents (no library call) so the no-jq merge fallback is exercised on
-# the shapes it has to recognize, not on what hook::emit_channels happens to build.
 stub deny.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
 stub ask.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
 stub ask1.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"ask one\"}}"'
@@ -98,12 +82,6 @@ stub ask2.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
-# run <stdin-string> [--lib <path>]... <guard>... -> OUT, ERR, RC.
-#
-# The invocation itself is the shared driver's (guardrails-test-helpers.sh), so
-# this suite and every guard suite reach the dispatcher through one code path;
-# what is left here is the translation from this suite's positional guard list
-# to the driver's `--hook` / `--also` / `--lib`.
 run() {
   local input="$1"
   shift
@@ -133,37 +111,30 @@ run() {
   RC="$GUARD_RC"
 }
 
-# --- benign payload, one allowing guard ---------------------------------------
 run "$PAYLOAD" "$TEST_TMPDIR/allow.sh"
 assert_exit "allow-only exits 0" 0 "$RC"
 assert_silent "allow-only prints nothing" "$OUT$ERR"
 assert_eq "guard read its fields from the shared cache" \
   $'git status --short\nBash' "$(cat "$SEEN")"
 
-# Dest named `dest` must still receive the payload through the dispatcher
-# override (an unprefixed local dest would swallow the printf -v).
 run "$PAYLOAD" "$TEST_TMPDIR/dest.sh"
 assert_exit "dest-named dest exits 0" 0 "$RC"
 assert_contains "dest-named dest received the payload" "$(cat "$SEEN")" 'tool_name'
 
-# --- a block does not stop the later guards, and wins the exit code ----------
 run "$PAYLOAD" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "block wins the exit code" 2 "$RC"
 assert_contains "block reason reaches stderr" "$ERR" "BLOCKED: stub"
 assert_eq "the guard after the block still ran" $'git status --short\nBash' "$(cat "$SEEN")"
 
-# --- exit aggregation: a non-block failure surfaces, 2 still dominates ------
 run "$PAYLOAD" "$TEST_TMPDIR/crash.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "highest non-block code surfaces" 3 "$RC"
 run "$PAYLOAD" "$TEST_TMPDIR/crash.sh" "$TEST_TMPDIR/block.sh"
 assert_exit "2 dominates a higher non-block code" 2 "$RC"
 
-# --- stdout: one emitter passes through verbatim -----------------------------
 standalone=$(bash "$TEST_TMPDIR/ctx1.sh" <<<"$PAYLOAD")
 run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh"
 assert_eq "single emitter is passed through verbatim" "$standalone" "$OUT"
 
-# --- stdout: several emitters merge into ONE document ------------------------
 run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/ctx2.sh"
 assert_exit "merge run exits 0" 0 "$RC"
 assert_eq "merged output is exactly one JSON document" "1" "$(jq -s 'length' <<<"$OUT")"
@@ -173,7 +144,6 @@ assert_eq "merged additionalContext carries both guards, in order" $'ctx one\n\n
 assert_eq "merged hookEventName kept" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$OUT")"
 assert_eq "merged systemMessage carries the one guard that set it" "sys two" "$(jq -r '.systemMessage' <<<"$OUT")"
 
-# --- stdout: a permission decision survives the merge (deny > ask) -----------
 hsd() { jq -r ".hookSpecificOutput.$1 // empty" <<<"$OUT" | tr -d '\r'; }
 run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "ask beside a silent guard exits 0" 0 "$RC"
@@ -195,17 +165,13 @@ run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block
 assert_exit "ask and context beside an exit 2: denied" 2 "$RC"
 assert_absent "ask and context beside an exit 2: the ask is dropped" "$OUT" '"ask"'
 
-# --- the shipped guards ask through the dispatcher only when attended --------
-# Outside the temp directory, under the checkout's gitignored .work/:
-# block-dangerous-git allows reset --hard in a repository under the temp
-# directory (#9779), and these rows need its refusal.
 ATT_TOP=$(git -C "$HOOK_DIR" rev-parse --show-toplevel)
 ATT_TOP="${ATT_TOP//$'\r'/}"
 mkdir -p "$ATT_TOP/.work"
 ATT_REPO=$(mktemp -d "$ATT_TOP/.work/run-guards-att.XXXXXX")
 trap 'rm -rf "$TEST_TMPDIR" "$ATT_REPO"' EXIT
 git init -q "$ATT_REPO"
-att_run() { # att_run <attended> <command>: the whole shipped Bash row
+att_run() {
   local p
   p=$(jq -nc --arg c "$2" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
   RC=0
@@ -226,7 +192,6 @@ assert_exit "attended: a guard that denies outright still denies" 2 "$RC"
 att_run 0 'git reset --hard'
 assert_exit "unattended: git reset --hard denies" 2 "$RC"
 assert_absent "unattended: no ask document" "$OUT" '"ask"'
-# An ask is the verdict on the whole command: a budget overrun anywhere denies.
 rg_many=""
 for ((rg_i = 1; rg_i <= 600; rg_i++)); do rg_many+=" a$rg_i"; done
 rg_cds=""
@@ -242,9 +207,6 @@ assert_exit "attended row: a root, then past the directory-change budget, denies
 att_run 1 "git reset --hard; git$rg_hops a1"
 assert_exit "attended row: reset --hard, then past the alias budget, denies" 2 "$RC"
 assert_contains "attended row: the alias budget reason is on stderr" "$ERR" "over 128 re-expansions"
-# The same row on a 1 MB stack, where the platform lets the suite set one: the
-# second alias walk no longer runs on top of the first, and a fresh process
-# that still ran out would report nothing and deny.
 if (ulimit -s 1024) 2>/dev/null; then
   att_p=$(jq -nc --arg c "git reset --hard; git$rg_hops a1" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
   RC=0
@@ -256,11 +218,6 @@ if (ulimit -s 1024) 2>/dev/null; then
   ) || RC=$?
   assert_exit "attended row, 1 MB stack: reset --hard, then past the alias budget, denies" 2 "$RC"
 fi
-# A guard's `exit` unwinds the guard before the next one runs, and the rest of
-# the chain runs in a forked process after a deep exit, so the deny of a guard
-# that exits 140 frames down survives a stack that small, whether or not the
-# next guard's own walk fits in it: the alias chain alone, through the shipped
-# Bash row, at the default stack and at 1 MB.
 alias_p=$(jq -nc --arg c "git$rg_hops a1" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
 for rg_stack in default 1024; do
   if [[ "$rg_stack" != default ]] && ! (ulimit -s "$rg_stack") 2>/dev/null; then continue; fi
@@ -282,7 +239,6 @@ att_run 1 'git status'
 assert_exit "attended: an unrelated command passes" 0 "$RC"
 assert_silent "attended: an unrelated command prints nothing" "$OUT$ERR"
 
-# --- stdin posture is re-served, not re-read ---------------------------------
 run "" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
 assert_exit "empty stdin: every guard's empty-stdin skip, taken once" 0 "$RC"
 assert_silent "empty stdin prints nothing" "$OUT$ERR"
@@ -291,12 +247,6 @@ assert_exit "malformed stdin: a fail-closed guard's rc-2 path is reached" 2 "$RC
 assert_contains "malformed stdin names the reason once" "$ERR" "not valid JSON"
 assert_eq "malformed-stdin reason printed exactly once" "1" "$(grep -c 'not valid JSON' <<<"$ERR")"
 
-# A payload cut short at EOF — a well-formed JSON prefix the pipe CLOSED on
-# (`<<<` closes it) — is a transport fault, not a verdict on the command. The
-# dispatcher takes it once as a loud allow: exit 0, the notice on
-# systemMessage and stderr, and no guard runs (block.sh would have exited 2
-# had it run). That "no guard ran" is EOF-specific; the stall case below is
-# the other half of the pin.
 CUT_PREFIX='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify'
 run "$CUT_PREFIX" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
 assert_exit "cut-short stdin (early EOF): loud allow, taken once" 0 "$RC"
@@ -306,12 +256,6 @@ assert_eq "cut-short stdin (early EOF): exactly one JSON document on stdout" "1"
 assert_contains "cut-short stdin (early EOF): systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$OUT")" "ran unchecked"
 assert_eq "cut-short stdin (early EOF): notice printed exactly once" "1" "$(grep -c 'ran unchecked' <<<"$ERR")"
 assert_eq "cut-short stdin (early EOF): no guard ran" "" "$(cat "$SEEN")"
-# The SAME prefix with the pipe HELD OPEN past the idle bound is a stall, and
-# a stall is rc 2 by decision: the exit above precedes every guard, so an
-# allow on a stall would skip all of them at once. The dispatcher must fall
-# through and the guards must RUN: block.sh's own BLOCKED line on stderr is
-# the proof it was sourced, and the lib's timed-out line is the reason. The
-# hold is a FIFO handshake released only after the dispatcher exits.
 STALL_FIFO="$TEST_TMPDIR/stall.fifo"
 if mkfifo "$STALL_FIFO" 2>/dev/null; then
   stall_hold() { read -r _ <"$STALL_FIFO"; }
@@ -339,34 +283,22 @@ assert_absent "stalled stdin: no cut-short diagnostic" "$ERR" "cut short"
 assert_contains "stalled stdin: block.sh was sourced (its BLOCKED line is on stderr)" "$ERR" "BLOCKED: stub"
 assert_eq "stalled stdin: the notice-only exit was not taken (no JSON document on stdout)" "0" "$(jq -s 'length' <<<"$OUT")"
 
-# --- jq cache: a NUL-bearing payload bypasses the cache ----------------------
 nul_payload=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')
 run "$nul_payload" "$TEST_TMPDIR/nul.sh"
 assert_eq "NUL flag reaches the guard through the real jq path" "nul=1 cmd=git x" "$(cat "$SEEN")"
 
-# --- jq cache: an un-primed filter falls through to the library --------------
 run "$PAYLOAD" "$TEST_TMPDIR/miss.sh"
 assert_eq "cache miss serves the right values" $'s-1\nBash' "$(cat "$SEEN")"
 
-# --- --lib preloads a shared library once, and only on PowerShell ------------
 run "$PAYLOAD" --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh"
 assert_eq "--lib is skipped on a Bash payload" "ps=unset" "$(cat "$SEEN")"
 PWSH_PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"PowerShell",cwd:"/x",tool_input:{command:"git status --short"}}')
 run "$PWSH_PAYLOAD" --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh"
 assert_eq "--lib library is loaded on a PowerShell payload" "ps=1" "$(cat "$SEEN")"
 
-# --- a dispatched guard sees the real dirname, not a dispatcher shadow -------
 run "$PAYLOAD" "$TEST_TMPDIR/dirname.sh"
 assert_eq "dirname inside a dispatched guard is the external command" "file /" "$(cat "$SEEN")"
 
-# --- relative and bare BASH_SOURCE still locate hook-utils --------------------
-# Production always invokes with an absolute path, so the `cd && pwd` arm in
-# run-guards.sh and the `_HOOK_SELF=.` fallback were unhit by the rest of this
-# suite. `./run-guards.sh` makes `${BASH_SOURCE[0]%/*}` answer `.` (a relative
-# dir); a bare filename makes the strip a no-op and takes the `=` fallback.
-# Both must still source the sibling library and serve the jq cache.
-# The spelling under test is the dispatcher path the driver invokes, so it is
-# passed by overriding GUARD_DISPATCH for this call's dynamic extent.
 run_from_hooks_dir() {
   local GUARD_DISPATCH="$1"
   shift
@@ -388,15 +320,6 @@ bare_guard_rc=0
 (cd "$HOOK_DIR" && bash block-no-verify.sh <<<"$PAYLOAD" >/dev/null) || bare_guard_rc=$?
 assert_exit "bare block-no-verify.sh from hooks/ exits 0" 0 "$bare_guard_rc"
 
-# --- benign Bash lane: one shared parse and nothing else ----------------------
-# 0.32.6: every always-on Bash guard used `source "$(dirname …)/hook-utils.sh"`
-# and the dispatcher copied hook::jq_fields through sed. Those were 7 dirname
-# execs plus one sed on a benign `git status --short` (flag-commit-pr-skill-bypass
-# is default-off and exits before source). What remains is the one parse every
-# guard shares (lib/hook-utils.sh hook::_bps_shfmt_to): one shfmt and one jq.
-# PATH shims count execs; function forks are invisible to them, which is the
-# same instrument as spawn-census.sh, so the fork count is pinned separately
-# below through BASHPID in the xtrace.
 SHIM="$TEST_TMPDIR/spawn-shim"
 mkdir -p "$SHIM"
 SPAWN_LOG="$SHIM/spawns.log"
@@ -425,13 +348,6 @@ DISPATCH_XTRACE=$(PS4='+PID=$BASHPID ' bash -x "$DISPATCH" --lib lib/powershell/
   block-exported-msys-pathconv.sh <<<"$PAYLOAD" 2>&1 >/dev/null) || true
 assert_absent "benign Bash dispatcher never sources ps-command.sh" \
   "$DISPATCH_XTRACE" "ps-command.sh"
-# Every traced command ran under the dispatcher's own BASHPID or one of the
-# shared parse's four traced subshells: the `$( )`, printf's pipeline element,
-# the `read -t` group and jq's element before it execs (the group carrying fd 3
-# traces nothing, and the group that starts shfmt traces to /dev/null). No guard
-# ran in a subshell. Every distinct PID in the trace is a process creation on
-# Windows Git Bash. The grep is unanchored: concurrent subshells can write their
-# trace lines into the middle of another's.
 assert_eq "benign Bash dispatcher forks only the shared parse (five BASHPIDs in the xtrace)" \
   "5" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
 # --- a parse seeded by exec-bash.mjs --bps-seed --------------------------------
@@ -441,7 +357,7 @@ assert_eq "benign Bash dispatcher forks only the shared parse (five BASHPIDs in 
 # shellcheck disable=SC2016  # the child shell expands these
 seed_list() { bash -c 'source "$1/hook-utils.sh"; hook::_bps_shfmt_to l "$2" && printf %s "$l"' -- "$HOOK_DIR" "$1"; }
 LS_LIST=$(seed_list 'ls')
-att_seed() { # att_seed <flag or ""> <command> <seed key> <seed list>: the shipped row, seeded
+att_seed() {
   local p
   p=$(jq -nc --arg c "$2" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
   RC=0
@@ -464,12 +380,6 @@ if [[ -n "$LS_LIST" && -x "$SHIM/jq" ]]; then
 else
   bad "need the seed list and the jq shim to test --bps-seeded"
 fi
-# --- PostToolUse verifiers: one path read, one root, one unprimed jq ------------
-# The three verifiers each read the file path and the repository root, and two
-# of them ask for the unprimed `replace_all` filter. Through the dispatcher the
-# path is resolved once (one realpath, none on Linux), the root once (one git), and the jq
-# that answers skill-reference-verify's unprimed filters also answers
-# stale-path-verify's.
 PV_REPO="$TEST_TMPDIR/pv-repo"
 mkdir -p "$PV_REPO"
 git -C "$PV_REPO" init -q
@@ -480,7 +390,6 @@ PV_PAYLOAD=$(jq -cn --arg f "$PV_REPO/doc.md" \
 if [[ -x "$SHIM/jq" ]]; then
   printf '#!/usr/bin/env bash\nprintf "realpath\\n" >>%q\nexec %q "$@"\n' \
     "$SPAWN_LOG" "$(type -P realpath)" >"$SHIM/realpath"
-  # git logs its arguments: stale-path-verify's own ls-files and log are its work, not a root read.
   printf '#!/usr/bin/env bash\nprintf "git %%s\\n" "$*" >>%q\nexec %q "$@"\n' \
     "$SPAWN_LOG" "$(type -P git)" >"$SHIM/git"
   # Git Bash resolves `git` to `git.exe` via PATHEXT. A shim named only `git`
@@ -490,20 +399,14 @@ if [[ -x "$SHIM/jq" ]]; then
   : >"$SPAWN_LOG"
   PATH="$SHIM:$PATH" CLAUDE_PROJECT_DIR="$PV_REPO" bash "$DISPATCH" \
     cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
-  # Outside a marketplace repo skill-reference-verify stops at its plugins gate
-  # before its payload read, and the builtin parser answers stale-path-verify's
-  # `replace_all`: no jq at all.
   assert_eq "post-verify dispatcher: no jq outside a marketplace repo" \
     "0" "$(grep -cx jq "$SPAWN_LOG")"
-  # Linux reads the physical paths with `cd -P` (hook::_physical_builtin_to), so no realpath runs there.
   want_realpath=1
   [[ "$OSTYPE" == linux* ]] && want_realpath=0
   assert_eq "post-verify dispatcher: $want_realpath realpath for the three path reads" \
     "$want_realpath" "$(grep -cx realpath "$SPAWN_LOG")"
   assert_eq "post-verify dispatcher: one git rev-parse for the three root reads" \
     "1" "$(grep -c 'rev-parse --show-toplevel' "$SPAWN_LOG")"
-  # Inside one, skill-reference-verify reads structuredPatch with jq, and that
-  # one jq also answers stale-path-verify's `replace_all` from the cache.
   mkdir -p "$PV_REPO/plugins/p/.claude-plugin"
   printf '{"name":"p"}\n' >"$PV_REPO/plugins/p/.claude-plugin/plugin.json"
   : >"$SPAWN_LOG"
@@ -529,10 +432,6 @@ for g in block-no-verify block-dangerous-git \
     'source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"'
 done
 
-# --- no jq: several emitters yield ONE document, never a concatenation -------
-# Build a PATH with no jq on it. A directory that carries jq is replaced by a
-# shim directory re-exporting its other executables, so every other tool the
-# dispatcher and the stubs need stays reachable.
 NOJQ_PATH=""
 NOJQ_LN_FAILED=""
 IFS=: read -r -a path_dirs <<<"$PATH"
@@ -561,7 +460,7 @@ if [[ -n "$NOJQ_LN_FAILED" ]]; then
 elif PATH="$NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "could not build a PATH without jq"
 else
-  run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does
+  run_nojq() {
     local input="$1"
     shift
     : >"$SEEN"
@@ -584,9 +483,6 @@ else
   assert_eq "no jq: with no blocking document the first one is emitted" "$standalone" "$OUT"
   assert_contains "no jq: the second context document is dropped to stderr" "$ERR" "ctx two"
 
-  # With jq gone, the SHIPPED fail-open guards share one notice latch (the
-  # plugin name), so the first guard of the call tells the user and the model
-  # once and the next guard says nothing: one document, nothing dropped.
   NOJQ_CMD=$(jq -c '. + {session_id: "nojq-s1"}' <<<"$(command_json 'cat > foo.txt && git commit -m x')")
   run_nojq "$NOJQ_CMD" block-convention-violation.sh block-noncanonical-commit.sh
   assert_exit "no jq, real guards: the advisory notices exit 0" 0 "$RC"
@@ -596,11 +492,8 @@ else
     "$OUT" "guardrails: jq not on the hook PATH"
   assert_absent "no jq, real guards: the second guard's notice is not produced" \
     "$ERR" "run-guards: dropped"
-  # A later call in the same session says nothing: the latch holds.
   run_nojq "$NOJQ_CMD" block-convention-violation.sh block-noncanonical-commit.sh
   assert_silent "no jq, real guards: a later call in the session stays quiet" "$OUT$ERR"
-  # A guard that denies on a missing prerequisite still denies, and its reason
-  # reaches stderr with no dropped document beside it.
   run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-convention-violation.sh block-no-verify.sh
   assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
   assert_contains "no jq, real guards: the fail-closed reason reaches stderr" \
@@ -609,19 +502,11 @@ else
     "$ERR" "run-guards: dropped"
 fi
 
-# --- an unknown guard is reported, the rest still run ------------------------
 run "$PAYLOAD" "$TEST_TMPDIR/nope.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "missing guard surfaces as rc 1" 1 "$RC"
 assert_contains "missing guard is named" "$ERR" "guard not found"
 assert_eq "the other guard still ran" $'git status --short\nBash' "$(cat "$SEEN")"
 
-# --- in-process chain: a guard's exit ends the guard, never the dispatcher ---
-# The guards are sourced into the dispatcher's own shell, so `exit` is a
-# function there. These pin the shapes that function must get right: an exit
-# from inside nested functions, an exit that runs in a real subshell (which
-# must end that subshell only), a guard that falls off its end, `exit` with no
-# argument, and a guard that dies of a hard error with its boundary installed,
-# once and twice in one event.
 stub nested.sh 'g() { echo nested >>"'"$SEEN"'"; exit 2; }
 f() { g; echo NOTREACHED >>"'"$SEEN"'"; }
 f
@@ -649,7 +534,7 @@ stub noarg.sh 'false; exit'
 run "$PAYLOAD" "$TEST_TMPDIR/noarg.sh"
 assert_exit "exit with no argument carries the last command's status" 1 "$RC"
 
-hard_stub() { # <name> <posture>: a guard with its boundary that dies of an unbound variable
+hard_stub() {
   stub "$1" 'source "'"$HOOK_DIR"'/abort-boundary.sh"
 guard::abort_boundary '"${1%.sh}"' PreToolUse '"$2"' 0 2
 echo '"${1%.sh}"' >>"'"$SEEN"'"
@@ -707,9 +592,6 @@ run "$PAYLOAD" "$TEST_TMPDIR/deep2.sh" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1
 assert_exit "deep exit 2: the block wins over the forked rest's documents" 2 "$RC"
 assert_absent "deep exit 2: the ask from the forked rest is dropped" "$OUT" '"ask"'
 assert_contains "deep exit 2: the forked rest's context is kept" "$(hsd additionalContext)" "ctx one"
-# A guard that dies of a hard error more than 64 frames down hands the rest to
-# a fresh dispatcher: the only caller of run_rest's deep branch. That needs a
-# payload the fresh process reads back the same; any other is denied.
 stub harddeep.sh 'source "'"$HOOK_DIR"'/abort-boundary.sh"
 guard::abort_boundary harddeep PreToolUse open 0 2
 d() { if (($1)); then d $(($1 - 1)); else : "${RUN_GUARDS_TEST_UNBOUND?forced abort}"; fi; }
@@ -719,26 +601,17 @@ assert_exit "deep hard error: the fresh dispatcher's block comes back" 2 "$RC"
 run "$PAYLOAD" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep hard error: the fresh dispatcher's status comes back" 0 "$RC"
 assert_contains "deep hard error: the fresh dispatcher's documents come back" "$(hsd additionalContext)" "ctx one"
-# The depth bound is reached here by lowering it, not by recursing: an EXIT trap
-# on Linux bash runs after the frames unwind, so a real deep abort never shows
-# run_rest more than 64 frames. The stub is sourced into the dispatcher, so it
-# calls run_rest the way guard_done does, on a stack the lowered bound counts as deep.
 stub restdeep.sh 'RUN_GUARDS_MAX_DEPTH=0
 run_guards::run_rest $((RUN_GUARDS_CUR + 1))
 run_guards::finish'
 run "not json" "$TEST_TMPDIR/restdeep.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep hard error, unprimed payload: denied" 2 "$RC"
 assert_contains "deep hard error, unprimed payload: the reason names it" "$ERR" "reported no verdict"
-# A rest of the chain that dies before reporting has an unknown verdict, so
-# the call is denied, on the forked-subshell path and on the hard-error subshell.
 run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep exit, then the rest dies unreported: denied" 2 "$RC"
 assert_contains "deep exit, then the rest dies unreported: the reason names it" "$ERR" "reported no verdict"
 run "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "hard error, then the rest dies unreported: denied" 2 "$RC"
-# The dispatcher's own boundary is fail-open, but not once a guard has
-# blocked: an abort in the merge after that denies. The stub makes the merge
-# fail and its fallback die of an unbound variable.
 stub mergeabort.sh 'hook::emit_document "{\"systemMessage\":\"b\"}"
 jq() { return 1; }
 run_guards::emit_one() { : "${RG_PROBE_UNBOUND?probe abort}"; }
@@ -749,14 +622,9 @@ assert_contains "a block, then the merge aborts: the fail-closed line is on stde
 run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/mergeabort.sh"
 assert_exit "no block, then the merge aborts: the open posture allows" 0 "$RC"
 
-# --- the verdict marker: every deliberate exit writes it, nothing else -------
-# exec-bash.mjs --require-verdict (#7681) names a file in EXEC_BASH_VERDICT_FILE
-# and denies an exit 0 that left none, which is how a crashed Git Bash reads.
-# The dispatcher writes it at each deliberate exit; a crash, an abort of its own
-# code, and a --report process (whose parent answers) write none.
 VERDICT="$TEST_TMPDIR/verdict"
 verdict_seen() { if [[ -e "$VERDICT" ]]; then echo yes; else echo no; fi; }
-verdict_run() { # <label> <yes|no> <stdin> <guard>...
+verdict_run() {
   local label="$1" want="$2" input="$3" g
   shift 3
   local -a opts=(--hook "$1")
@@ -785,14 +653,6 @@ EXEC_BASH_VERDICT_FILE="$VERDICT" bash "$DISPATCH" --max-substitutions 1 "$TEST_
 assert_exit "verdict marker: the substitution cap still blocks" 2 "$?"
 assert_eq "verdict marker: the substitution cap writes it" yes "$(verdict_seen)"
 
-# Two real guards walk the same alias chain in one process. The alias memo in
-# hook::git_alias_admit is per invocation: a memo hit means "already analyzed,
-# skip". Left armed from block-dangerous-git's walk, it answered
-# block-noncanonical-commit's walk of the same chain and that guard's
-# --config-env refusal never fired. The dispatcher resets the analysis state
-# before each guard, and this pins that both guards still refuse (the profile
-# line carries each guard's status), as they did when each guard had its own
-# process. The refusal text is shared, so the deny reason carries it once.
 ALIAS_CMD='git -c "alias.sh=!git --config-env=alias.c=AV c --allow-empty -m x" sh'
 alias_alone_rc=0
 alias_alone_err=$(bash "$HOOK_DIR/block-noncanonical-commit.sh" <<<"$(command_json "$ALIAS_CMD")" 2>&1 >/dev/null) || alias_alone_rc=$?
@@ -806,11 +666,6 @@ assert_contains "alias chain: the second guard refuses too (its memo was reset)"
 assert_eq "alias chain: the shared refusal is printed once" 1 \
   "$(grep -c "$(head -1 <<<"$alias_alone_err")" <<<"$GUARD_ERR")"
 
-# --- dual-blocked PowerShell sink: both guards deny, one message (#4236) -----
-# Invoke-Command { git reset --hard } is unparsable (special-construct) and
-# mutating. block-no-verify and block-dangerous-git both refuse it, and both
-# honor the same allow token, so the deny reason carries the sink message once.
-# Over-length (#4528) remains the one first-block short-circuit.
 DUAL_PS=$(pwsh_command_json 'Invoke-Command -ScriptBlock { git reset --hard }')
 guard_invoke --via dispatched --payload "$DUAL_PS" --lib lib/powershell/ps-command.sh \
   --hook block-no-verify.sh --also block-dangerous-git.sh -- RUN_GUARDS_PROFILE=1
@@ -823,8 +678,6 @@ assert_contains "PS dual sink: the one message names the token both guards honor
   "$GUARD_ERR" "the user adds ps-unparsable-special-construct to block_dangerous_git_allow; it clears block-dangerous-git too"
 assert_absent "PS dual sink: no kill switch in the deny reason" "$GUARD_ERR" "_enabled"
 
-# Two guards that refuse one call on different sink triggers each print their
-# own token: one token would not clear both. The same trigger prints once.
 SINK_ERR=$(bash -c '
   . "$1/../lib/powershell/ps-command.sh"
   PS_SINK_TRIGGER=special-construct
@@ -842,10 +695,6 @@ assert_contains "PS sink latch: a second trigger still prints its token" \
 assert_eq "PS sink latch: the budget message prints once" 1 \
   "$(grep -c 'five allowed sink shapes' <<<"$SINK_ERR")"
 
-# --- payload refusals several guards share print once per call --------------
-# Every fail-closed guard of the row refuses a NUL payload; the deny reason
-# carries the line once. An unparsable payload never reaches a guard under the
-# dispatcher (its own stdin read refuses it first), and that refusal is one line too.
 NUL_PAYLOAD=$(jq -cn '{tool_name:"Bash",tool_input:{command:("git status" + ([0] | implode) + "x")}}')
 guard_invoke --via dispatched --payload "$NUL_PAYLOAD" --hook block-no-verify.sh \
   --also block-dangerous-git.sh --also block-credential-read.sh --also block-root-delete-target.sh
@@ -856,7 +705,6 @@ guard_invoke --via dispatched --payload '{"tool_name":"Bash","tool_input":"x"}' 
 assert_exit "unparsable payload: the row denies" 2 "$GUARD_RC"
 assert_eq "unparsable payload: one refusal line" 1 "$(grep -c 'BLOCKED' <<<"$GUARD_ERR")"
 
-# --- a real guard decides the same inside the dispatcher as alone ------------
 bypass=$(command_json 'git commit --no-verify -m x')
 alone_rc=0
 alone_err=$(bash "$HOOK_DIR/block-no-verify.sh" <<<"$bypass" 2>&1 >/dev/null) || alone_rc=$?
@@ -865,14 +713,6 @@ assert_exit "real guard blocks through the dispatcher" 2 "$RC"
 assert_eq "real guard: same exit alone and dispatched" "$alone_rc" "$RC"
 assert_eq "real guard: same stderr alone and dispatched" "$alone_err" "$ERR"
 
-# --- two REAL guards, one merged document ------------------------------------
-# The merge above is asserted with stub guards, whose documents this file writes
-# itself. The PostToolUse lane is where two SHIPPED guards emit on the same
-# payload: a markdown file citing both a deleted path (stale-path-verify) and an
-# unresolvable skill command (skill-reference-verify). Claude Code reads exactly
-# one JSON document per hook process, so the two findings have to arrive merged
-# into one additionalContext, in dispatch order — which is what these guards
-# delivered as two separate hooks.
 POST_REPO="$TEST_TMPDIR/post-lane"
 mkdir -p "$POST_REPO/docs" "$POST_REPO/plugins/alpha/.claude-plugin" \
   "$POST_REPO/plugins/alpha/skills/setup"
@@ -903,15 +743,12 @@ assert_contains "two real emitters: the unresolved skill is in the merged contex
   "$POST_CTX" "  /alpha:nosuch"
 assert_eq "two real emitters: merged hookEventName kept" \
   "PostToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$GUARD_OUT")"
-# Dispatch order decides the order of the merged blocks, as it decided the order
-# of the two documents when these were separate hooks.
 if [[ "${POST_CTX%%$'\n'*}" == stale-path-verify* ]]; then
   ok "two real emitters: merged in dispatch order"
 else
   bad "two real emitters: merged out of dispatch order: ${POST_CTX%%$'\n'*}"
 fi
 
-# Each guard alone must say the same thing it said inside the merge.
 for one in stale-path-verify skill-reference-verify; do
   guard_invoke --payload "$POST_PAYLOAD" --hook "$HOOK_DIR/$one.sh" -- "${POST_ENV[@]}"
   assert_eq "$one alone: one document" "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
@@ -919,7 +756,6 @@ for one in stale-path-verify skill-reference-verify; do
     "$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT" | tr -d '\r' | head -2 | tail -1)"
 done
 
-# --- hooks.json wires every guard through the dispatcher by file name ---------
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
@@ -960,7 +796,7 @@ assert_eq "no PostToolUse row is left for the verifiers" 0 \
 # shellcheck source=guard-requires.sh
 source "$HOOK_DIR/guard-requires.sh"
 
-prime_filters() { # the dispatcher's compiled union, read out of its own source
+prime_filters() {
   awk -v q="'" '
     /^PRIME_FILTERS=\(/ { inarr = 1; next }
     inarr && /^\)/ { inarr = 0; next }
@@ -992,24 +828,24 @@ guard_reads() { # <guard.sh> -> the literal filters its source hands jq_fields
     }
   ' "$HOOK_DIR/$1" | sort -u
 }
-declared_fields() { # <guard.sh> -> its declared primed filters
+declared_fields() {
   local -a f=()
   read -r -a f <<<"${GUARD_FIELDS[$1]-}"
   ((${#f[@]})) && printf '%s\n' "${f[@]}" | sort -u
   return 0
 }
-declared_unprimed() { # <guard.sh> -> its declared deliberately-unprimed filters
+declared_unprimed() {
   local d="${GUARD_FIELDS_UNPRIMED[$1]-}"
   [[ -n "$d" ]] && printf '%s\n' "$d" | sort -u
   return 0
 }
-declared_libs() { # <guard.sh> -> the libraries it declared
+declared_libs() {
   local -a l=()
   read -r -a l <<<"${GUARD_LIBS[$1]-}"
   ((${#l[@]})) && printf '%s\n' "${l[@]}" | sort -u
   return 0
 }
-guards_of() { # <hooks.json command> -> the guard file names it dispatches
+guards_of() {
   local -a toks=()
   read -r -a toks <<<"$1"
   local i=0 tok
@@ -1026,7 +862,7 @@ guards_of() { # <hooks.json command> -> the guard file names it dispatches
     printf '%s\n' "$tok"
   done
 }
-libs_of() { # <hooks.json command> -> its --lib operands
+libs_of() {
   local -a toks=()
   read -r -a toks <<<"$1"
   local i=0
@@ -1039,7 +875,7 @@ libs_of() { # <hooks.json command> -> its --lib operands
     ((i++))
   done
 }
-lines_of() { # <text> -> its non-empty lines, sorted, for comm
+lines_of() {
   printf '%s\n' "$1" | grep -v '^$' | sort -u
 }
 
@@ -1085,9 +921,6 @@ while IFS= read -r g; do
   else
     bad "$g declares field(s) PRIME_FILTERS does not carry: $(tr '\n' ' ' <<<"$unprimed")"
   fi
-  # A guard calls into the classifier exactly when it declares it. Declared and
-  # unused is a ~104 KB parse for nothing; used and undeclared runs only
-  # because a sibling guard on the same row happened to pull the library in.
   uses_ps=0
   grep -q 'ps::' "$HOOK_DIR/$g" && uses_ps=1
   has_lib=0
@@ -1101,8 +934,6 @@ while IFS= read -r g; do
   fi
 done <<<"$ALL_DISPATCHED"
 
-# Nothing is primed that no dispatched guard — nor the dispatcher itself — asked
-# for. run-guards.sh declares the two fields it reads under its own name.
 WANTED=$(
   {
     declared_fields run-guards.sh
@@ -1118,10 +949,6 @@ else
   bad "PRIME_FILTERS carries filter(s) no guard declares, primed on every payload for no reader: $(tr '\n' ' ' <<<"$orphan")"
 fi
 
-# Each dispatcher row's `--lib` set is the union of its guards' declarations. A
-# guard whose library is missing from a row still loads it itself, so this is a
-# budget statement rather than a correctness one: the load moves from once per
-# event to once per guard.
 while IFS= read -r cmd; do
   [[ -n "$cmd" ]] || continue
   row_libs=$(libs_of "$cmd" | sort -u)
@@ -1136,12 +963,6 @@ while IFS= read -r cmd; do
   fi
 done <<<"$DISPATCH_CMDS"
 
-# --- a primed field is read by NAME, never by position -----------------------
-# The dispatcher reads `.tool_name` to decide whether the event needs the
-# PowerShell classifier. Read by index, a filter inserted ahead of it hands
-# that decision a neighboring field's value: the classifier is then parsed on
-# the Bash hot path and absent on the PowerShell one, with nothing at run time
-# saying so. abort-boundary.test.sh pins the same property for the event name.
 assert_absent "dispatcher reads no primed value by position" "$DISPATCH_SRC" 'RUN_GUARDS_VALUES['
 SHIFT_DIR="$TEST_TMPDIR/prime-shift"
 mkdir -p "$SHIFT_DIR/hooks" "$SHIFT_DIR/lib"
@@ -1162,10 +983,6 @@ CLAUDE_PLUGIN_ROOT="$SHIFT_DIR" bash "$SHIFT_DIR/hooks/run-guards.sh" \
 assert_eq "a filter ahead of .tool_name: the PowerShell lane still loads it" \
   "ps=1" "$(cat "$SEEN")"
 
-# --- a guard reaches its declared library on BOTH paths ----------------------
-# The dispatcher satisfies the declaration once for the event; alone, the guard
-# satisfies the same declaration itself. Neither arm may leave `ps::` unbound,
-# and a guard that declares no library must not gain one from a sibling.
 expect_both "declared library reaches block-dangerous-git either way" 2 \
   --hook "$HOOK_DIR/block-dangerous-git.sh" --tool PowerShell \
   --command 'git push --force origin main' \
@@ -1174,19 +991,10 @@ expect_both "declared library reaches block-no-verify either way" 2 \
   --hook "$HOOK_DIR/block-no-verify.sh" --tool PowerShell \
   --command 'git commit --no-verify -m x' \
   --lib lib/powershell/ps-command.sh
-# With no `--lib` on the row the dispatcher preloads nothing, and the guard's
-# own declaration is what still binds `ps::`. One statement serves both paths,
-# which is why a row that forgets the cue costs a repeated load and never a
-# verdict.
 guard_invoke --via dispatched --hook "$HOOK_DIR/block-dangerous-git.sh" \
   --tool PowerShell --command 'git push --force origin main'
 assert_exit "a dispatched row with no --lib still reaches the declared library" 2 "$GUARD_RC"
 
-# --- a project root that is not a repository does not scope the secret scan --
-# The secret guard honors CLAUDE_PROJECT_DIR as a scope only when the root is a
-# git work tree. Under the dispatcher, a non-repo root with a secret written
-# outside it must still block. The token is assembled from parts so the joined
-# literal never appears in this file.
 SPD_NONREPO="$TEST_TMPDIR/spd-nonrepo"
 mkdir -p "$SPD_NONREPO"
 SPD_TOKEN="AKIA""IOSFODNN7EXAMPLE"
@@ -1196,12 +1004,6 @@ guard_invoke --via dispatched --hook "$HOOK_DIR/secret-pattern-detection.sh" \
 assert_exit "dispatched secret guard: non-repo root, outside write blocks" 2 "$GUARD_RC"
 assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS Access Key"
 
-# --- substitution count: refused before the first guard is sourced -----------
-# The Bash row's cost grows with the number of command and process
-# substitutions while every per-command cap still holds (#4684), and a row
-# cancelled at its hooks.json timeout blocks nothing. Each run below is under
-# `timeout 20`, a hang backstop and the only timing check: a wall-clock
-# threshold on a shared shard would measure the shard.
 BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOKS_JSON")
 read -r -a BASH_ROW_ARGS <<<"${BASH_ROW#*run-guards.sh }"
 ROW_CAP=""
@@ -1215,20 +1017,20 @@ else
   ROW_CAP=256
 fi
 
-subst_cmd() { # <n> [tail]: `echo ` then <n> sibling `$(: rm)`, then <tail>
+subst_cmd() {
   local s="echo " k
   for ((k = 0; k < $1; k++)); do s+='$(: rm)'; done
   printf '%s%s' "$s" "${2-}"
 }
-rep() { # <text> <n>
+rep() {
   local s="" k
   for ((k = 0; k < $2; k++)); do s+="$1"; done
   printf '%s' "$s"
 }
-tool_payload() { # <tool> <command>
+tool_payload() {
   jq -n --arg t "$1" --arg c "$2" '{tool_name:$t,cwd:"/x",tool_input:{command:$c}}'
 }
-cap_run() { # <stdin> <run-guards argv>... -> OUT, ERR, RC
+cap_run() {
   local input="$1"
   shift
   : >"$SEEN"
@@ -1249,16 +1051,11 @@ assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
 cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
 
-# A single-quoted span does not count. Every reading bash, the library or the
-# root-delete guard's substitution scan could take differently counts, and so
-# does a command naming anything a guard re-parses an argument of. A refusal
-# must come from the count: rc=70 or an unbound variable would be the
-# dispatcher failing, which allows the command.
 OVER=$((ROW_CAP + 1))
 QS=$(rep '$(:)' "$OVER")
 NL=$'\n'
 TAB=$'\t'
-cap_quoted() { # <label> <expected rc> <command>
+cap_quoted() {
   cap_run "$(tool_payload Bash "$3")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
   assert_exit "cap quoted: $1" "$2" "$RC"
   assert_absent "cap quoted: $1, no could-not-run" "$ERR" "rc=70"
@@ -1269,8 +1066,6 @@ cap_quoted() { # <label> <expected rc> <command>
     assert_contains "cap quoted: $1, the guard ran" "$(cat "$SEEN")" "Bash"
   fi
 }
-# Every spelling: skipped in single quotes, counted unquoted and in double
-# quotes. Backticks count in pairs.
 for spelling in '<(:)' '>(:)' '$((1))' '$(:)' '"$(:)"' '`:`'; do
   many=$(rep "$spelling" "$OVER")
   cap_quoted "$OVER of $spelling in one single-quoted string reach the guards" 0 "echo '$many'"
@@ -1294,7 +1089,6 @@ cap_quoted "a span after \\\$ counts" 2 "echo \\\$'$QS'"
 cap_quoted "a quote in a comment counts the rest" 2 "# it's${NL}echo '$QS'"
 cap_quoted "a backtick outside a span counts the rest" 2 "echo \`:\` '$QS'"
 cap_quoted "a substitution in double quotes counts the rest" 2 "echo \"\$(:)\" '$QS'"
-# A quoted-delimiter heredoc body does not count; bash expands an unquoted one.
 for form in "'EOF'" '"EOF"' '\EOF' "E'O'F"; do
   cap_quoted "a <<$form body reaches the guards" 0 "cat <<$form${NL}$QS${NL}EOF"
   cap_quoted "$OVER backtick pairs in a <<$form body reach the guards" 0 "cat <<$form${NL}$(rep '`:`' "$OVER")${NL}EOF"
@@ -1334,8 +1128,6 @@ for cmd in "eval '$QS'" "bash -c '$QS'" "sudo sh -lc '$QS'" "'/bin/bash' -c '$QS
   cap_quoted "a re-parsed argument counts: ${cmd:0:24}" 2 "$cmd"
 done
 cap_quoted "a re-parsed argument counts: a Windows-path shell" 2 "\"C:\\Program Files\\Git\\bin\\bash.exe\" -c '$QS'" # portability-ok: a Windows path in the command under test, not a GNU grep word boundary
-# 16 KB of the shape that costs the scan the most steps finishes well inside
-# the timeout backstop.
 cap_quoted "a 16 KB command of tiny spans is refused" 2 "echo $(rep "'a'\$(:)" 2300)"
 cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: $ROW_CAP backtick pairs reach the guards" 0 "$RC"
@@ -1347,7 +1139,6 @@ cap_run "$(tool_payload PowerShell "echo '$(rep '$(1)' "$((ROW_CAP + 1))")'")" -
 assert_exit "cap: a PowerShell command counts single-quoted text" 2 "$RC"
 cap_run "$(write_json "$TEST_TMPDIR/w.txt" "$(rep '$(:)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: a payload with no command field is not counted" 0 "$RC"
-# An unprimed payload (a NUL in it) is counted whole.
 cap_nul=$(jq -n --arg c "$(subst_cmd "$((ROW_CAP + 1))")" '{tool_name:"Bash",tool_input:{command:($c + ([0] | implode))}}')
 cap_run "$cap_nul" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/nul.sh"
 assert_exit "cap: an unprimed payload past the cap is refused" 2 "$RC"
@@ -1358,9 +1149,6 @@ cap_run "$PAYLOAD" --max-substitutions 0 "$TEST_TMPDIR/block.sh"
 assert_exit "cap: a malformed cap is the dispatcher's could-not-run, not a verdict" 0 "$RC"
 assert_contains "cap: the malformed cap is reported" "$ERR" "rc=70"
 
-# The shipped row, with every guard on it. At the cap the guards judge the
-# command, so a root delete behind the substitutions is refused by its own
-# guard; past it, the two measured payloads (#4684) are refused by the count.
 cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP")")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: a benign command at the cap is allowed" 0 "$RC"
 cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP" '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
@@ -1373,16 +1161,12 @@ assert_contains "cap row: 2,339 are refused by the count" "$ERR" "$CAP_MSG"
 cap_run "$(tool_payload Bash "$(subst_cmd 2330 '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: 2,330 substitutions then a root delete are refused" 2 "$RC"
 assert_contains "cap row: that one is refused by the count too" "$ERR" "$CAP_MSG"
-# Single-quoted, the same payload reaches the guards, and a root delete behind
-# it is refused by its own guard, not by the count.
 cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2339)'")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: 2,339 single-quoted substitutions reach the guards" 0 "$RC"
 cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2300)'; rm -rf /")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: a root delete after them is refused" 2 "$RC"
 assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
 assert_absent "cap row: the count did not" "$ERR" "$CAP_MSG"
-# A quoted heredoc body reaches the guards, and the root-delete guard still
-# reads the substitutions in it. Fed to a shell, the body counts.
 cap_run "$(tool_payload Bash "cat <<'EOF'${NL}$(rep '$(: rm) ' 2000)${NL}EOF")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: 2,000 substitutions in a quoted heredoc body reach the guards" 0 "$RC"
 cap_run "$(tool_payload Bash "bash <<'EOF'${NL}\$(rm -rf /)${NL}EOF")" "${BASH_ROW_ARGS[@]}"
@@ -1419,15 +1203,11 @@ for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}' '${ echo
   cap_run "$(tool_payload Bash "cat <<EOF${NL}$hd_expr${NL}EOF")" "${BASH_ROW_ARGS[@]}"
   assert_eq "heredoc row: $hd_expr in an unquoted body gets its top-level verdict" "$hd_top" "$RC"
 done
-# --- over-length: the first block ends the chain (#4528) ----------------------
-# Past --max-command-len the guards after a block would only add reasons to a
-# decided verdict, and a row that outlives its hooks.json timeout is cancelled
-# with the block discarded. Below or at the ceiling every guard still runs.
 BIG_CMD=$(printf '%*s' 20000 '' | tr ' ' x)
 BIG_PAYLOAD=$(jq -nc --arg c "$BIG_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
 AT_CMD=$(printf '%*s' 16384 '' | tr ' ' x)
 AT_PAYLOAD=$(jq -nc --arg c "$AT_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
-over_run() { # <payload> <dispatcher arg>... -> OUT ERR RC, SEEN reset
+over_run() {
   local payload="$1"
   shift
   : >"$SEEN"
@@ -1447,8 +1227,6 @@ assert_exit "at the ceiling: the block wins" 2 "$RC"
 assert_eq "at the ceiling: the guard after the block still runs" "1" "$(grep -c '^x' "$SEEN")"
 over_run "$BIG_PAYLOAD" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"
 assert_eq "no --max-command-len: the guard after the block still runs" "1" "$(grep -c '^x' "$SEEN")"
-# A NUL leaves the payload unprimed; its own length stands in for the
-# command's, which it can only exceed.
 NUL_BIG_PAYLOAD=$(jq -nc --arg c "$BIG_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:($c + "\u0000")}}')
 over_run "$NUL_BIG_PAYLOAD" --max-command-len 16384 "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/nul.sh"
 assert_exit "unprimed over the ceiling: the block stands" 2 "$RC"
@@ -1457,10 +1235,6 @@ over_run "$PAYLOAD" --max-command-len 16k "$TEST_TMPDIR/allow.sh"
 assert_eq "a --max-command-len that is not a whole number runs no guard" "" "$(cat "$SEEN")"
 assert_contains "a --max-command-len that is not a whole number is reported" "$OUT$ERR" "run-guards"
 
-# The shipped row. The guards carrying a MAX_COMMAND_LEN ceiling refuse an
-# over-length command before they tokenize it, so the row answers at once and
-# the uncapped guards never see it. Each ceiling guard keeps its kill switch:
-# with the first disabled, the next one blocks.
 BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOKS_JSON")
 read -r -a BASH_ROW_TOKS <<<"$BASH_ROW"
 BASH_ROW_ARGS=()
@@ -1495,9 +1269,6 @@ fi
 
 HEREDOC_BODY=""
 while ((${#HEREDOC_BODY} < 70000)); do HEREDOC_BODY+=$'The quick brown fox jumps over the lazy dog, again.\n'; done
-# Through stdin, not `--arg`: a native jq.exe gets the command line whole, and
-# Windows caps one at 32,767 characters, so a 70 KB argument leaves the payload
-# empty and every row case below sees no command at all.
 HEREDOC_PAYLOAD=$(printf '%s' "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" |
   jq -Rsc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:.}}')
 [[ ${#HEREDOC_PAYLOAD} -gt 70000 ]] || bad "the ~70 KB payload was not built (${#HEREDOC_PAYLOAD} chars)"
@@ -1510,7 +1281,6 @@ assert_contains "the shipped row names the ceiling" "$ROW_ERR" "too long to chec
 assert_eq "the shipped row runs one guard on a ~70 KB command" "1" "$(grep -c '^run-guards: .* ms rc=' <<<"$ROW_ERR")"
 if [[ -n "$row_t0" && -n "$row_t1" ]]; then
   row_ms=$(((${row_t1/./} - ${row_t0/./}) / 1000))
-  # A tenth of the row's 60-second timeout; measured at 64 ms.
   if ((row_ms < 6000)); then
     ok "the shipped row answers a ~70 KB command in ${row_ms} ms"
   else
@@ -1524,13 +1294,6 @@ assert_exit "first ceiling guard disabled: the row still blocks" 2 "$ROW_RC"
 assert_contains "first ceiling guard disabled: the next ceiling guard is the one that blocks" \
   "$(grep '^run-guards: .* ms rc=2' <<<"$ROW_ERR")" "block-dangerous-git.sh"
 
-# --- one tokenization per event -----------------------------------------------
-# Every guard that parses the event's command gets the segments a parse of its
-# own would report, argv and HOOK_SEG_* alike, while the string is walked once.
-# A parse cut short by a guard's `exit` inside its callback is never kept.
-# count.sh wraps the library's uncached parse to tally the strings it walks;
-# the wrapper is defined in the dispatcher's shell, so the tally covers every
-# guard after it.
 stub count.sh '[[ -n "$(declare -F bps_orig_uncached)" ]] || {
   eval "bps_orig_uncached() $(declare -f hook::bash_parse_segments_uncached | tail -n +2)"
   hook::bash_parse_segments_uncached() {
@@ -1564,7 +1327,7 @@ stub parse-exit.sh "PARSE_LABEL=x; PARSE_EXIT_ON=echo; ${PARSE_BODY}"
 SHARE_CMD=$'git commit -m "héllo ✓" 2>&1 >out.log && bash -c \'echo inner > f\'; cat <<EOF >>log\nbody\nEOF\necho "tail" <in'
 SHARE_PAYLOAD=$(jq -nc --arg c "$SHARE_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
 printf -v SHARE_WALK 'walk %q' "$SHARE_CMD"
-share_by_label() { # <label> -> that guard's records, label stripped
+share_by_label() {
   sed -n "s/^$1://p" "$SEEN"
 }
 : >"$SEEN"

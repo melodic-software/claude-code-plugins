@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for lane-runs.sh (assertions from test-helpers.sh beside this
-# file; both ship with the plugin). The lease cases drive audit-pass's real
-# run-state.sh, since attach reuses it rather than reimplementing the lease.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,8 +13,6 @@ CASE_NUM=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-# write_bytes <path> <count> <line-width>: <count> bytes of text in lines of
-# <line-width> characters (newline included), so bytes-per-line is controlled.
 write_bytes() {
   mkdir -p "$(dirname "$1")"
   awk -v n="$2" -v w="$3" 'BEGIN {
@@ -43,18 +38,16 @@ gamma	big	$F/gamma/big.md
 gamma	small	$F/gamma/small.md
 gamma	tiny	$F/gamma/tiny.md"
 
-partition() { # partition <input> -> stdout; budget 4000 bytes
+partition() {
   printf '%s\n' "$1" | bash "$LR" partition --window-tokens 1000 --fraction 1 --bytes-per-token 4
 }
 field() { printf '%s\n' "$1" | awk -F= -v k="$2" '$1 == k {print substr($0, length(k) + 2)}'; }
 
-# --- Case 1: --help ------------------------------------------------------------
 rc=0
 OUT=$(bash "$LR" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help names the partition command" "$OUT" "lane-runs.sh partition"
 
-# --- Case 2: plugin-atomic packing and split-by-skill -----------------------------
 P=$(partition "$INPUT")
 assert_eq "budget bytes is window x fraction x bytes-per-token" "4000" "$(field "$P" budget_bytes)"
 assert_contains "alpha and beta pack whole into one lane" "$P" "	alpha,beta"
@@ -66,26 +59,22 @@ assert_eq "three lanes" "3" "$(field "$P" lanes)"
 LANE_FILES=$(printf '%s\n' "$P" | awk -F'\t' '$1 == "file"' | wc -l | tr -d ' ')
 assert_eq "every input file is assigned to a lane" "6" "$LANE_FILES"
 
-# --- Case 3: a single unit over the budget still gets a lane and is named -------
 write_bytes "$F/delta/huge.md" 6000 50
 P2=$(partition "delta	huge	$F/delta/huge.md")
 assert_contains "an oversized unit is named on an over_budget line" "$P2" "over_budget=delta/huge"
 assert_eq "an oversized unit still gets one lane" "1" "$(field "$P2" lanes)"
 
-# --- Case 4: the partition is a function of the input set, not its order --------
 REVERSED=$(printf '%s\n' "$INPUT" | tac 2>/dev/null || printf '%s\n' "$INPUT" | tail -r)
 P3=$(partition "$REVERSED")
 assert_eq "reordered input yields the same partition digest" \
   "$(field "$P" partition_digest)" "$(field "$P3" partition_digest)"
 
-# --- Case 5: the line budget is derived from measured bytes per line -------------
 write_bytes "$F/wide/one.md" 2000 100
 PW=$(partition "wide	one	$F/wide/one.md")
 assert_eq "50-byte lines measure 50.0 bytes per line" "50.0" "$(field "$P" bytes_per_line)"
 assert_eq "50-byte lines give an 80-line budget" "80" "$(field "$P" budget_lines)"
 assert_eq "100-byte lines give a 40-line budget from the same byte budget" "40" "$(field "$PW" budget_lines)"
 
-# --- Case 6: partition usage errors ------------------------------------------------
 rc=0
 printf '%s\n' "$INPUT" | bash "$LR" partition --window-tokens 1000 --fraction 1 >/dev/null 2>&1 || rc=$?
 assert_exit "partition without --bytes-per-token is a usage error" 2 "$rc"
@@ -96,7 +85,6 @@ rc=0
 printf 'x\ty\t%s/nope.md\n' "$F" | bash "$LR" partition --window-tokens 1000 --fraction 1 --bytes-per-token 4 >/dev/null 2>&1 || rc=$?
 assert_exit "a missing input file is refused" 2 "$rc"
 
-# --- Case 7: the lane digest covers every input ------------------------------------
 BASE_PARAMS=(--param catalog_version=1.22.0 --param conflict_criteria_version=1.5.0
   --param prompt_digest=sha256:aa --param harness_version=2.1.300 --param target_model=opus-5
   --param scope=all --param opinion=false --param no_stopping_condition=false)
@@ -142,7 +130,6 @@ ERR=$(digest --partition-digest sha256:p1 --param catalog_version=1 -- "$F/alpha
 assert_exit "a digest missing required params is refused" 2 "$rc"
 assert_contains "the refusal names a missing key" "$ERR" "harness_version"
 
-# --- Case 8: resume plan against per-lane run files ----------------------------------
 RUN="$TEST_TMPDIR/data/audit-instructions/runs/key/20260928T010000Z"
 mkdir -p "$RUN/lanes"
 MARK_A=$(bash "$LR" marker --lane lane-a --digest sha256:da)
@@ -158,11 +145,10 @@ assert_contains "a lane whose digest changed is rerun" "$PLAN" "lane-c	rerun	dig
 assert_contains "a lane with no report is rerun as missing" "$PLAN" "lane-d	rerun	missing"
 assert_contains "a marker that is not the last line does not count" "$PLAN" "lane-e	rerun	incomplete"
 
-# --- Case 9: end to end, an interrupted run resumes only its unfinished lane ---------
 PROJ=$(partition "$INPUT")
 PD=$(field "$PROJ" partition_digest)
 LANES=$(printf '%s\n' "$PROJ" | awk -F'\t' '$1 == "lane" {print $2}')
-lane_digest() { # lane_digest <lane-id> [extra digest args]
+lane_digest() {
   local id="$1"
   shift
   local files
@@ -196,7 +182,6 @@ RESUME2=$(printf '%s' "$PLAN_IN2" | bash "$LR" plan --run-dir "$RUN2")
 assert_eq "a catalog version change reruns every lane" "3" \
   "$(printf '%s\n' "$RESUME2" | awk -F'\t' '$2 == "rerun"' | wc -l | tr -d ' ')"
 
-# --- Case 10: latest run id under the state key ----------------------------------------
 RUNS="$TEST_TMPDIR/data/audit-instructions/runs/key"
 mkdir -p "$RUNS/not-a-run" "$RUNS/20260101T000000Z"
 assert_eq "latest picks the newest run id" "20260928T020000Z" "$(bash "$LR" latest --runs-dir "$RUNS")"
@@ -204,7 +189,6 @@ rc=0
 bash "$LR" latest --runs-dir "$TEST_TMPDIR/none" >/dev/null 2>&1 || rc=$?
 assert_exit "latest with no run exits 1" 1 "$rc"
 
-# --- Case 11: attach refuses a live lease and names its window ---------------------------
 PD_ROOT="$TEST_TMPDIR/data/audit-instructions"
 LIVE="$PD_ROOT/runs/key/20260928T030000Z"
 bash "$RUN_STATE" lease acquire --run-dir "$LIVE" --run-id 20260928T030000Z --plugin-data "$PD_ROOT" >/dev/null
@@ -229,7 +213,6 @@ OUT=$(bash "$LR" attach --run-dir "$RUN2")
 assert_contains "a run with no lease attaches as missing" "$OUT" "verdict=missing"
 assert_contains "a leaseless run adopts at epoch 1" "$OUT" "next_epoch=1"
 
-# --- Summary ------------------------------------------------------------------------------
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then
   printf '%d of %d checks FAILED.\n' "$FAILED" "$CASE_NUM" >&2

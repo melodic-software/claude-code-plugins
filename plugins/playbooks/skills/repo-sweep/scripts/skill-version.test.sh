@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for skill-version.sh against a fixture installed_plugins.json, a fixture
-# repo with a linked worktree, and fixture plugin dirs, all in a temp dir.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -42,7 +40,7 @@ printf '%s\n' "$*" >>"$CLAUDE_LOG"
 EOF
 chmod +x "$TMP/bin/claude"
 
-run_in() { # <dir> <args...>
+run_in() {
   local dir=$1
   shift
   (cd "$dir" && PATH="$TMP/bin:$PATH" CLAUDE_LOG="$TMP/claude.log" CLAUDE_OUT="${CLAUDE_OUT-2.1.283 (Claude Code)}" \

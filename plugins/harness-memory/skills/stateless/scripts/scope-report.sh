@@ -30,7 +30,6 @@ resolver="$script_dir/../../audit/scripts/resolve-memory-dir.sh"
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 row() { printf '%-10s %-8s %s\n' "$1" "$2" "$3"; }
-# presence_row <label> <-f|-d> <path>: a row saying whether <path> exists as that type.
 presence_row() {
   local state=absent
   test "$2" "$3" && state=PRESENT

@@ -63,16 +63,12 @@ function ConvertFrom-WingetTextOutput {
 
         try {
             $name = $line.Substring(0, $idxId).Trim()
-            # The $line.Length -lt $idxVer rows are skipped above, so this
-            # substring is always in range.
             $ident = $line.Substring($idxId, $idxVer - $idxId).Trim()
             $ver = if ($idxAvail -gt $idxVer -and $line.Length -ge $idxAvail) {
                 $line.Substring($idxVer, $idxAvail - $idxVer).Trim()
             } elseif ($line.Length -gt $idxVer) {
                 $line.Substring($idxVer).Trim()
             } else { '' }
-            # Length-guard every later column: a short row would throw in Substring
-            # and the row-level catch would silently drop the package.
             $avail = if ($idxSource -gt $idxAvail -and $idxAvail -ge 0 -and $line.Length -ge $idxSource) {
                 $line.Substring($idxAvail, $idxSource - $idxAvail).Trim()
             } elseif ($idxAvail -ge 0 -and $line.Length -gt $idxAvail) {

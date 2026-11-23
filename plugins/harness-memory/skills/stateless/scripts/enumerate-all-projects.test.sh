@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for enumerate-all-projects.sh (self-contained — ships with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,14 +11,12 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 # stores. Case 6 sets it deliberately on the bash call itself.
 run_isolated() { env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT"; }
 
-# --- Case 1: --help exits 0 with usage ---
 
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: no projects directory at all -> note, exit 0 ---
 
 H2="$TEST_TMPDIR/h2"
 mkdir -p "$H2"
@@ -28,7 +25,6 @@ OUT=$(run_isolated "$H2") || rc=$?
 assert_exit "missing projects root exits 0" 0 "$rc"
 assert_contains "missing projects root reported" "$OUT" "No projects directory"
 
-# --- Case 3: two project memory dirs with MEMORY.md + topic files are listed ---
 
 H3="$TEST_TMPDIR/h3"
 M3A="$H3/.claude/projects/C--proj-alpha/memory"
@@ -46,7 +42,6 @@ assert_contains "alpha MEMORY.md line count" "$OUT" "MEMORY.md:3"
 assert_contains "alpha topic count" "$OUT" "topics:1"
 assert_contains "beta topic count" "$OUT" "topics:0"
 
-# --- Case 4: memory dir with no MEMORY.md reports absent, still listed ---
 
 H4="$TEST_TMPDIR/h4"
 M4="$H4/.claude/projects/C--proj-gamma/memory"
@@ -60,7 +55,6 @@ assert_contains "gamma dir listed" "$OUT" "C--proj-gamma/memory"
 assert_contains "gamma MEMORY.md absent" "$OUT" "MEMORY.md:absent"
 assert_contains "gamma topic count" "$OUT" "topics:1"
 
-# --- Case 5: projects root exists but holds no memory dirs -> note, exit 0 ---
 
 H5="$TEST_TMPDIR/h5"
 mkdir -p "$H5/.claude/projects/C--proj-empty"

@@ -48,13 +48,11 @@ let fakeTmp;
 /** @type {Record<string, string|undefined>} */
 let savedEnv;
 
-/** Watch temp dirs present in the sandboxed OS temp dir. */
 async function watchTempDirs() {
   const names = await fs.readdir(fakeTmp);
   return names.filter((name) => TEMP_PREFIXES.some((prefix) => name.startsWith(prefix))).sort();
 }
 
-/** Acquisition that downloads media into the run's workDir, then reports the given outcome. */
 function acquireWritingMedia(outcome) {
   return async (_url, { workDir }) => {
     await fs.writeFile(path.join(workDir, "dQw4w9WgXcQ.mp4"), "binary");

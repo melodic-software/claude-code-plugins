@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// The Brief's acceptance criteria in real browsers, against `share.sh ensure-running` with the fake cloudflared:
-// the join dialog shows only its heading, the invite line, the name prompt, the name box and Join; a refused join (rate-limited, session full) shows the reason and a retry; two guests see each
-// other's current question and typing within about 2 seconds; Claude's suggestion cards wait behind "Show Claude's
-// take (N)" until the person answers or votes, a chosen card always shows, and Always show shows them; WHILE a question
-// is locked its composer is disabled and says how to suggest a change; a changed locked answer flags its dependents
-// "Needs review" naming the changed question; WHILE uploads are off no upload control appears; the answers and, below
-// them, a folded "Claude on this question" section share one column at every width, with no tabs; on phones the header is one row, the composer one line
-// with send inside it, and the question and answers take at least ~70% of the height; long text clamps with Show more
-// and opens in a reader, and chat shows a character count; the owner and leaders get a Host view (people, queue, round
-// status, links, goal, Later) and a guest does not; IF the server drops, pages show "Reconnecting…", keep unsent text
-// and recover; IF the tunnel restarts with a new address, the owner view shows "New guest link, share again"; after
-// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel; after
-// a while it says for how long; the owner alone can reset it from the Host view behind a confirm, and guests see it reopen),
-// then a "Round N is here" toast on the owner's and a guest's page, moving nobody unless Follow is on; a proposal Claude marks "Not placed" shows its
-// author the reason; WHILE a session is ended guests see a read-only Tree and new joins are refused; Focus, Compare and
-// Tree show the same live data and Compare marks off-screen columns; new answers are announced; answers stay visible at
-// 200% zoom.
-//   node plugins/planning/shared/tests/ui_acceptance.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the Brief's acceptance criteria (PLAN.md), the server's interface contract (error codes, limits) and
-// the texts this suite writes, never from the page.
 "use strict";
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -28,7 +7,7 @@ const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = requir
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const DESK = { viewport: { width: 1440, height: 900 } };
-const MAX_TEXT = 2000; // session.py MAX_TEXT: the longest chat message the server takes
+const MAX_TEXT = 2000;
 const GOAL = "Pick the offsite venue";
 const REC = "Lisbon, by the river.", ALT_A = "Berlin, near the office.", ALT_B = "Porto, small and quiet.";
 const Q1T = "Where should the offsite be?", Q2T = "Which hotel near it?", Q3T = "What should the first evening be?";
@@ -45,7 +24,6 @@ async function main() {
   const toastHas = (page, re) => until(page, r => new RegExp(r).test(document.querySelector(".vf-toast")?.textContent || ""), re.source, 10000);
   const curStep = page => page.evaluate(() => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || "");
   try {
-    // ================= session A: joining, cards, locks, layout, connection, host view, tunnel =================
     const A = await s.start("acceptance");
     s.apply(A.dir, [{ op: "set-title", title: "Offsite" }, { op: "set-goal", goal: GOAL }, { op: "open-round", questions: [
       tq("Q1", Q1T, { recommendation: REC, alternatives: [{ key: "a", text: ALT_A }, { key: "b", text: ALT_B }] }),
@@ -55,10 +33,9 @@ async function main() {
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
 
-    // ---------- join dialog ----------
     const gus = await rec.open(A.localUrl);
     await gus.waitForSelector("dialog.core-name[open]");
-    await until(gus, () => !!document.getElementById("core-name-sub")?.textContent.trim()); // the title comes with the first poll
+    await until(gus, () => !!document.getElementById("core-name-sub")?.textContent.trim());
     const parts = await gus.evaluate(() => {
       const d = document.querySelector("dialog.core-name");
       const shown = [...d.querySelectorAll("form > *")].filter(e => e.offsetParent && (e.matches("input, button") || e.textContent.trim()));
@@ -71,7 +48,6 @@ async function main() {
       && JSON.stringify(parts.links) === JSON.stringify(["Are you the host? Sign in with a code"]) && parts.extra === 1, JSON.stringify(parts));
     const gusPid = await joinAs(gus, "Gus");
 
-    // ---------- refused join: the reason and a retry ----------
     const rae = await rec.open(A.localUrl);
     await rae.waitForSelector("dialog.core-name[open]");
     const refuse = (status, error, message) => route => route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ error, message }) });
@@ -89,7 +65,6 @@ async function main() {
     await rae.click("dialog.core-name button");
     ok("refused join: Try again joins once the server lets them in", await until(rae, () => !document.querySelector("dialog.core-name") && !!window.Core.snapshot()?.me?.pid));
 
-    // ---------- two guests: presence, current question and typing within about 2 seconds ----------
     const pia = await rec.open(A.localUrl);
     const piaPid = await joinAs(pia, "Pia");
     await railQ(pia, Q1T).click();
@@ -104,7 +79,6 @@ async function main() {
       .find(n => n.textContent.includes("What should the first evening"))?.querySelector(`[data-who="${p}"]`), gusPid, 3000));
     await gus.fill("#vf-answer", "");
 
-    // ---------- Claude's suggestion cards ----------
     await railQ(gus, Q1T).click();
     const botCards = page => page.evaluate(() => [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent).map(c => c.textContent));
     const barText = page => page.evaluate(() => { const b = document.querySelector(".vf-claudebar"); return b && b.offsetParent ? b.textContent : ""; });
@@ -115,7 +89,6 @@ async function main() {
     await gus.press("#vf-answer", "Control+Enter");
     ok("Claude's cards: after answering, all three show", await until(gus, n => [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent).length === n
       && !document.querySelector(".vf-claudebar")?.offsetParent, 3), `${(await botCards(gus)).length} cards`);
-    // AC4 names the tag: the recommendation's card reads "Claude recommends"; the alternatives carry no such tag.
     const recTags = () => gus.evaluate(() => [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent)
       .map(c => [c.textContent.slice(0, 60), [...c.querySelectorAll(".vf-tag")].filter(t => !t.hidden).map(t => t.textContent).join("|")]));
     ok("Claude's cards: the recommendation is tagged \"Claude recommends\" and the alternatives are not", await until(gus, ([rec, a, b]) => {
@@ -138,7 +111,6 @@ async function main() {
     ok("Claude's cards: Always show shows them before answering", await until(pia, n => [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent).length === n, 3)
       && !(await pia.evaluate(p => (window.Core.snapshot().cards.Q1 || []).some(c => c.ref === `p:${p}`), piaPid)), `${(await botCards(pia)).length} cards`);
 
-    // ---------- long text ----------
     const LONG = Array.from({ length: 30 }, (_, i) => `Line ${i + 1} of a long answer about the evening plan, with enough words to wrap.`).join(" ").slice(0, 1500);
     await railQ(ivy, Q3T).click();
     await ivy.evaluate(t => window.Core.answerCiting("Q3", t, []), LONG);
@@ -165,7 +137,6 @@ async function main() {
     await ivy.fill(".vf-minput", "");
     await ivy.keyboard.press("Escape");
 
-    // ---------- uploads off: no upload control ----------
     const uploadControls = page => page.evaluate(() => [...document.querySelectorAll("input[type=file], .vf-attach, button, [role=button]")]
       .filter(e => e.offsetParent && (e.matches("input[type=file], .vf-attach") || /attach|upload/i.test(`${e.textContent} ${e.getAttribute("aria-label") || ""} ${e.title || ""}`)))
       .map(e => e.getAttribute("aria-label") || e.textContent.trim() || e.className));
@@ -177,7 +148,6 @@ async function main() {
     await gus.keyboard.press("Escape");
     ok("uploads off: no upload or attach control on the guest's question or chat", upFocus.length === 0 && upChat.length === 0, JSON.stringify([...upFocus, ...upChat]));
 
-    // ---------- reconnecting keeps unsent text ----------
     await railQ(gus, Q3T).click();
     const DRAFT = "A dinner by the water, not sent yet";
     await gus.fill("#vf-answer", DRAFT);
@@ -189,7 +159,6 @@ async function main() {
     ok("reconnecting: the unsent answer is still there after it recovers", (await gus.inputValue("#vf-answer")) === DRAFT, await gus.inputValue("#vf-answer"));
     await gus.fill("#vf-answer", "");
 
-    // ---------- answers, then "Claude on this question" below them: one column at 1440x900 and 390x844, no tabs ----------
     await railQ(ivy, Q1T).click();
     await until(ivy, t => document.querySelector(".vf-qtext")?.textContent === t, Q1T);
     const column = async page => ({ still: await settled(page, { rects: true }), ...await page.evaluate(() => {
@@ -209,7 +178,6 @@ async function main() {
     const p1 = await column(pho);
     ok("one column: at 390x844 the same order, no tabs, Claude folded", p1.still && p1.tabs === 0 && p1.below && p1.open === "false", JSON.stringify(p1));
     await pho.locator(".vf-cltoggle").tap();
-    // The section scrolls its head into view a frame after it opens: wait for that, then for the page to hold still.
     await until(pho, () => { const sc = document.querySelector(".vf-scroll").getBoundingClientRect(), h = document.querySelector(".vf-clhead").getBoundingClientRect();
       return !document.querySelector(".vf-clbody").hidden && h.top >= sc.top - 1 && h.bottom <= sc.bottom + 1; });
     const p2 = { still: await settled(pho, { rects: true }), ...await pho.evaluate(() => {
@@ -220,7 +188,6 @@ async function main() {
     ok("opening it pushes the page: the composer and answers stay, and its head scrolls into view", p2.still && p2.body && p2.ans && p2.comp && p2.inView, JSON.stringify(p2));
     await pho.locator(".vf-cltoggle").tap();
 
-    // ---------- phone 390x844: header one row, composer one line with send inside, question and answers >= 70% ----------
     await pho.evaluate(() => document.activeElement?.blur());
     await until(pho, () => document.querySelector(".vf-clbody").hidden);
     const geoStill = await settled(pho, { rects: true });
@@ -240,7 +207,6 @@ async function main() {
     ok("phone 390x844: the composer is one line with send inside it", geoStill && geo.oneLine && geo.sendIn, JSON.stringify({ still: geoStill, ...geo }));
     ok("phone 390x844: the question and answers take at least 70% of the height with nothing focused", geoStill && geo.region >= 0.7, `${geo.region.toFixed(3)}${geoStill ? "" : ", not settled"}`);
 
-    // ---------- locked question: composer disabled, says how to suggest a change ----------
     await owner.evaluate(() => window.Core.lock("Q1", "c:rec"));
     await railQ(gus, Q1T).click();
     ok("locked question: the guest's composer is disabled and says how to suggest a change", await until(gus, () => {
@@ -249,7 +215,6 @@ async function main() {
     }), await gus.evaluate(() => `${document.getElementById("vf-answer").disabled} ${document.getElementById("vf-answer").placeholder}`));
     ok("locked question: a Suggest a change control is offered", await gus.locator("button", { hasText: "Suggest a change" }).first().isVisible());
 
-    // ---------- Needs review on a dependent question ----------
     await owner.evaluate(() => window.Core.lockEdit("Q1", "Lisbon, by the river, in May."));
     await railQ(gus, Q2T).click();
     ok("needs review: a question depending on the changed locked answer shows Needs review naming Q1", await until(gus, () => {
@@ -257,7 +222,6 @@ async function main() {
     }), await gus.evaluate(() => JSON.stringify([document.querySelector(".vf-qtext")?.textContent, document.querySelector(".vf-reviewrow")?.outerHTML.slice(0, 300), document.querySelector(".vf-center")?.dataset.mode])));
     ok("needs review: nothing was deleted (Q1's answers are all still there)", await owner.evaluate(p => (window.Core.snapshot().cards.Q1 || []).some(c => c.ref === `p:${p}` && c.text === "Somewhere with a lake."), gusPid));
 
-    // ---------- Host view: owner and a leader; a guest has none ----------
     const hostPane = async page => {
       const seg = page.locator(".vf-bar .vf-seg-btn", { hasText: /^Host$/ }), more = page.locator(".vf-viewopts");
       if (!(await seg.isVisible()) && (await more.isVisible())) await more.click();
@@ -272,7 +236,6 @@ async function main() {
     const own = await hostPane(owner);
     ok("host view: the owner's shows people, the queue, round status, links, goal and Later",
       !!own && ["People", "Queue", "Round", "Links and settings", "Later"].every(k => own.secs.includes(k)) && own.people.includes("Gus") && /Round 1/.test(own.round) && own.goal === GOAL, JSON.stringify(own));
-    // The owner renames a guest from that guest's row; the guest's own page takes the new name.
     const gusRow = owner.locator(".vf-hpeople .vf-hperson", { has: owner.locator(`[data-pid="${gusPid}"]`) });
     await gusRow.locator(".vf-pa-rename").click();
     await gusRow.locator(".vf-hp-rename input").fill("Gustavo");
@@ -282,8 +245,6 @@ async function main() {
       && (await toastHas(owner, /Renamed to Gustavo\./)) && (await until(gus, () => window.Core.snapshot()?.me?.name === "Gustavo", null, 10000)));
     ok("host view: the owner's own row offers no Rename", await owner.evaluate(() => ![...document.querySelectorAll(".vf-hperson")].some(li => /^You$/.test(li.querySelector(".vf-hp-name")?.textContent || "") && li.querySelector(".vf-pa-rename")?.offsetParent)));
     await owner.evaluate(p => window.Core.setLeader(p, true), piaPid);
-    // Until the page shows it, not only knows it: the promotion swaps View options for the view switch, and a click on
-    // View options read before that swap waits for a button that is gone.
     await until(pia, () => window.Core.me.isLeader && [...document.querySelectorAll(".vf-bar .vf-seg-btn")].some(b => b.offsetParent && b.textContent.trim() === "Host"));
     const lead = await hostPane(pia);
     ok("host view: a leader's shows people, the queue, round status, goal and Later",
@@ -291,11 +252,9 @@ async function main() {
     ok("host view: a leader's rows offer no Rename", await pia.evaluate(() => document.querySelectorAll(".vf-hperson").length > 0 && ![...document.querySelectorAll(".vf-pa-rename")].some(b => b.offsetParent)));
     ok("host view: a plain guest has none", (await hostPane(gus)) === null && !(await gus.evaluate(() => [...document.querySelectorAll(".vf-msitem")].some(m => m.offsetParent && /Host view/.test(m.textContent)))));
 
-    // ---------- the share popover says what a restart does to the link: a quick tunnel's can change ----------
     ok("share popover: a quick tunnel's link can change after a restart", await until(owner, () => (document.querySelector(".vf-share .vf-pop-note")?.textContent || "")
       === "Anyone with this link can join. The link can change after the tunnel restarts."));
 
-    // ---------- new tunnel address ----------
     const recFile = path.join(A.dir, ".shared-tunnel.json");
     const cf = JSON.parse(fs.readFileSync(recFile, "utf8"));
     const cmd = process.platform === "win32"
@@ -307,7 +266,6 @@ async function main() {
       || document.querySelector(".vf-share")?.getAttribute("aria-label") === "New guest link, share again"
       || [...document.querySelectorAll("button")].some(b => b.offsetParent && b.getAttribute("aria-label") === "New guest link, share again"), null, 40000));
 
-    // ================= session B: the round lifecycle, Follow, a proposal not placed =================
     const B = await s.start("rounds");
     s.apply(B.dir, [{ op: "set-title", title: "Venue" }, { op: "open-round", questions: [tq("Q1", Q1T), tq("Q2", Q2T)] }]);
     const host = await rec.open(B.ownerUrl);
@@ -326,7 +284,6 @@ async function main() {
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();
     ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.waitFor({ timeout: 8000 }).then(() => true, () => false));
-    // Follow-up 33 review: Claude acks and opens the next round in one apply, so while it waits it may already be reading
     ok("round lifecycle: while it waits the owner reads that Claude may already be reading it and Cancel still works", await until(host, () =>
       /Claude may already be reading it; you can still cancel\./.test(document.querySelector(".vf-next .vf-step-note")?.textContent || "")), await host.evaluate(() => document.querySelector(".vf-next .vf-step-note")?.textContent));
     const waitLater = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
@@ -344,12 +301,10 @@ async function main() {
     ok("round lifecycle: once Claude picks it up, the page shows Claude is working", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Claude is working"), await curStep(bo));
     ok("round lifecycle: while Claude is working the owner has no Cancel", await until(host, () => window.Core.snapshot().round.status === "working"
       && ![...document.querySelectorAll("button")].some(b => b.offsetParent && /^Cancel sending$/.test(b.textContent.trim()))));
-    // Follow-up 33: after a while in working, the step says how long (the server's clock read 5 minutes later)
     const later = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
     await bo.route("**/api/state?*", later);
     ok("round lifecycle: five minutes into working, the step says how long", await until(bo, () => /^Claude is working · 5 min$/.test(document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || ""), null, 15000), await curStep(bo));
     await bo.unroute("**/api/state?*", later);
-    // A stalled preparation: the owner resets it from the Host view behind a confirm step; guests never get the control.
     const toView = async (page, label) => {
       const b = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
       if (!(await b.isVisible()) && (await more.isVisible())) await more.click();
@@ -392,7 +347,6 @@ async function main() {
     await cy.locator(".vf-follow").click();
     ok("round lifecycle: with Follow on, the guest moves to the owner's question", await until(cy, t => document.querySelector(".vf-qtext")?.textContent === t, Q3T), await qText(cy));
 
-    // ================= session C: ended =================
     const C = await s.start("ended");
     s.apply(C.dir, [{ op: "set-title", title: "Done" }, { op: "open-round", questions: [tq("Q1", Q1T)] }]);
     const boss = await rec.open(C.ownerUrl);
@@ -410,7 +364,6 @@ async function main() {
     ok("session ended: a new join is refused with a reason", await until(late, () => /ended/i.test(document.getElementById("core-n-err")?.textContent || "")) && !(await snap(late))?.me,
       await late.evaluate(() => document.getElementById("core-n-err")?.textContent));
 
-    // ================= session D: views share data, Compare's edge, new answers announced, 200% zoom =================
     const D = await s.start("views");
     const MANY = Array.from({ length: 8 }, (_, i) => tq(`Q${i + 1}`, `View question ${i + 1}?`));
     s.apply(D.dir, [{ op: "set-title", title: "Views" }, { op: "open-round", questions: MANY }]);
@@ -434,7 +387,6 @@ async function main() {
       await b.click();
       return until(page, m => document.querySelector(".vf-center")?.dataset.mode === m, label.toLowerCase(), 5000);
     };
-    // Tree summarizes each question (its answer count), so the same data there is "1 answer" on Q1, "no answers" on Q2.
     const inFocus = await until(vg, t => [...document.querySelectorAll(".vf-card")].some(c => c.offsetParent && c.textContent.includes(t)), MARK);
     const inCompare = (await seg(vg, "Compare")) && await until(vg, t => document.querySelector(".vf-board")?.innerText.includes(t), MARK);
     const inTree = (await seg(vg, "Tree")) && await until(vg, () => /View question 1\?\s+Open\s+1 answer\b/.test(document.querySelector(".vf-tree")?.innerText || "")
@@ -462,7 +414,6 @@ async function main() {
     const zoom = await rec.open(D.localUrl, { context: { viewport: { width: 720, height: 450 }, deviceScaleFactor: 2 } });
     await joinAs(zoom, "Zed");
     await zoom.locator(".vf-q", { hasText: "View question 1?" }).first().click().catch(() => {});
-    // Visible = in the page, not clipped away: scrolled into view inside its pane, it is the element on top there.
     ok("200% zoom (1440x900 at 200% = 720x450): the answers stay visible", await until(zoom, t => [...document.querySelectorAll(".vf-card")].some(c => {
       if (!c.textContent.includes(t) || !c.offsetParent) return false;
       c.scrollIntoView({ block: "center" });

@@ -106,8 +106,6 @@ run 1 "a missing tag beside an owner quote still fails" --err 'source 2: author_
   "$(mkslice mixed-tag "$(claim Direct "$QUOTE
 $(src -)")")"
 
-# --- other tiers are not gated ----------------------------------------------
-
 for tier in Supported Inferred Speculative Unknown; do
   run 0 "$tier with only a relay passes" \
     "$(mkslice "relay-$tier" "$(claim "$tier" "$RELAY")")"
@@ -116,14 +114,10 @@ expect_out "a non-Direct claim counts in claims only" 'status=pass claims=1 dire
 run 0 "an Unknown claim's searched sources carry no tag" \
   "$(mkslice unknown-untagged "$(claim Unknown "$(src -)")")"
 
-# --- a tier the check cannot read does not slip past it ---------------------
-
 run 1 "a missing tier fails" --err 'claim 1: tier is None' \
   "$(mkslice no-tier "$(claim - "$RELAY")")"
 run 1 "a lowercase direct fails rather than skipping the rule" --err "tier is 'direct'" \
   "$(mkslice low-tier "$(claim direct "$RELAY")")"
-
-# --- counting across claims and sidecars ------------------------------------
 
 two="$(mkslice two "$(claim Direct "$QUOTE")
 $(claim Inferred "$RELAY")")"
@@ -133,8 +127,6 @@ printf -- '---\ntopic: t\nsection: b\nabstract: a\nquestion: q\nclaims:\n%s\npro
   "$(claim Direct "$RELAY")" >"$two/INTENT-b.md"
 run 1 "a violation names its own sidecar" --err 'INTENT-b.md: claim 1' "$two"
 expect_out "second sidecar counts" 'status=fail violations=1 claims=3 direct=2'
-
-# --- ungradeable ------------------------------------------------------------
 
 mkslice none '[]' >/dev/null
 printf -- '---\ntopic: t\nclaims: []\nproduced_by: p\n---\n' >"$WORK/none/INTENT-s.md"

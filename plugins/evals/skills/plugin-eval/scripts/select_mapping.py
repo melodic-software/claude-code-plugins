@@ -17,6 +17,9 @@ MIN_PYTHON = (3, 8)
 
 DESC_TOKEN_RE = re.compile(r"\w+|[^\w\s]")
 HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+MEANING_FLIP_WORDS = frozenset(
+    ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
+)
 DELIM_REL_PATH_RES = (
     re.compile(r"<((?:\.\.?/)+[^<>#\r\n]+)(?:#[^<>\r\n]*)?>"),
     re.compile(r'"((?:\.\.?/)+[^"#\r\n]+)(?:#[^"\r\n]*)?"'),
@@ -167,9 +170,14 @@ def git_show(repo_root, rev, rel_path):
     return done.stdout
 
 
+def _flips_meaning(word):
+    token = word.replace("\u2019", "'").strip(".,;:!?()\"'`*_").lower()
+    return token in MEANING_FLIP_WORDS or token.endswith("n't")
+
+
 def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
-    its new lines: a re-wrap or a pure insertion."""
+    its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -182,12 +190,26 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
         elif hunks and line.startswith("+") and not line.startswith("+++"):
-            hunks[-1][2].extend(line[1:].split())
-    def kept(old, new):
-        remaining = iter(new)
-        return all(word in remaining for word in old)
+            hunks[-1][2].append(line[1:].split())
 
-    return any(edits and not kept(old, new) for edits, old, new in hunks)
+    def is_cut(old, new_lines):
+        """Old words must survive in order; a flip word inserted into a line that keeps old words
+        is a cut, while a wholly new line stays additive."""
+        index = 0
+        for words in new_lines:
+            added = []
+            kept_here = False
+            for word in words:
+                if index < len(old) and word == old[index]:
+                    index += 1
+                    kept_here = True
+                else:
+                    added.append(word)
+            if kept_here and any(_flips_meaning(word) for word in added):
+                return True
+        return index != len(old)
+
+    return any(edits and is_cut(old, new) for edits, old, new in hunks)
 
 
 def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):

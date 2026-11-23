@@ -123,7 +123,6 @@ const texts = async (ui: any): Promise<string[]> => {
   return found.map(t => t.text)
 }
 
-// The bar's segments: the Texts drawn of block characters alone, in order.
 const segments = (found: Found[]) => found.filter(t => /^[█░]+$/.test(t.text))
 
 for (const surface of ['terminal', 'desktop'] as const) {
@@ -483,7 +482,6 @@ test('warning: a Skills row below 1% renders as any other row, with no color and
   const ui = await mountPane($)
   const found: Found[] = await ui.findAll({ type: 'Text' })
   await ui.unmount()
-  // 9k of 1M is 0.9%, shown rounded as 1%.
   expect(found.find(t => t.text === 'Skills 9k 1%')?.props.color).toBeUndefined()
   expect(found.map(t => t.text).join('\n')).not.toContain('/skill-doctor')
 })

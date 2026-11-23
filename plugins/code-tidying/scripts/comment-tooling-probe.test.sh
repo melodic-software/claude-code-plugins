@@ -36,8 +36,6 @@ for layer in count extract attach proof-powershell commented-out rules; do
   fi
 done
 
-# Every row is either present, or absent WITH a stated cost. An absent row
-# carrying "-" would tell the reader nothing about what to install or why.
 if printf '%s\n' "$out" | awk -F'\t' 'NR>1 && $3=="absent" && (length($4)<20 || $4=="-") {bad=1} END{exit bad+0}'; then
   ok "every absent layer states the capability lost"
 else
@@ -64,8 +62,6 @@ else
   no "--json emits valid JSON with every layer"
 fi
 
-# The degradation path: with nothing resolvable, every layer must read absent
-# and the probe must still exit 0.
 EMPTY="$(mktemp -d)"
 trap 'rm -rf "$EMPTY"' EXIT
 # BASH must be an absolute path: with PATH emptied the run would die at 127 before
@@ -82,8 +78,6 @@ else
   no "reports every layer absent when nothing resolves"
 fi
 
-# Determinism: the same environment must produce byte-identical output, or a
-# report diffed across runs shows phantom churn.
 check "output is deterministic" "$(bash "$PROBE" | md5sum)" "$(bash "$PROBE" | md5sum)"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

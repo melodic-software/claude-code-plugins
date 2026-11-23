@@ -110,8 +110,6 @@ function Write-EgressLogLine {
     try {
         Add-Content -LiteralPath $LogPath -Value $line -Encoding utf8
     } catch {
-        # The orchestrator reads this log into `urls_called`; surface a failed
-        # write on stderr rather than silently corrupting that snapshot.
         [Console]::Error.WriteLine("[machine-health] egress log write failed ($($_.Exception.Message)). Dropped: $line")
     }
 }

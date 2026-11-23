@@ -29,7 +29,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
 
-# mkrepo <name> — echo a fresh git root with docs/conventions present
 mkrepo() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d/docs/conventions"
@@ -37,21 +36,18 @@ mkrepo() {
   printf '%s' "$d"
 }
 
-# mkplain <name> — echo a fresh directory that is not inside a git work tree
 mkplain() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d/docs/conventions"
   printf '%s' "$d"
 }
 
-# commit_all <root> — commit everything in the root, echo the 40-hex commit id
 commit_all() {
   git -C "$1" add -A >/dev/null 2>&1
   git -C "$1" commit -q -m t >/dev/null 2>&1
   git -C "$1" rev-parse HEAD
 }
 
-# region <token-line...> — print a marked region whose body is the given lines
 region() {
   printf '%s\n' "$BEGIN"
   printf '%s\n' "$@"
@@ -60,14 +56,12 @@ region() {
 
 pointer() { printf 'Team conventions live in `%s` - read the topic doc there first.' "$1"; }
 
-# run <root> — sets OUT, ERR, RC
 run() {
   OUT="$(bash "$SCRIPT" --root "$1" 2>/dev/null)"
   RC=0
   ERR="$(bash "$SCRIPT" --root "$1" 2>&1 >/dev/null)" || RC=$?
 }
 
-# --- Case 1: AGENTS.md with a region resolves ---------------------------------
 r="$(mkrepo agents-only)"
 { printf '# Repo\n\nIntro prose.\n\n'; region "$(pointer docs/conventions)"; printf '\nMore prose.\n'; } >"$r/AGENTS.md"
 run "$r"
@@ -75,17 +69,12 @@ assert_exit "case 1: resolves with exit 0" 0 "$RC"
 assert_eq "case 1: prints the repo-relative home" "docs/conventions" "$OUT"
 assert_eq "case 1: stderr is silent on success" "" "$ERR"
 
-# --- Case 2: CLAUDE.md alone (no AGENTS.md) resolves --------------------------
 r="$(mkrepo claude-only)"
 { region "$(pointer docs/conventions)"; } >"$r/CLAUDE.md"
 run "$r"
 assert_exit "case 2: CLAUDE.md alone resolves" 0 "$RC"
 assert_eq "case 2: prints the home" "docs/conventions" "$OUT"
 
-# --- Case 3: a pure @AGENTS.md shim is never consulted ------------------------
-# Even though the shim's body has a backticked path nowhere, the point is that a
-# region inside a shim is impossible by definition; but a shim next to an
-# AGENTS.md with no region must yield "ask", not a parse of the shim.
 r="$(mkrepo shim)"
 printf '\n  @AGENTS.md\r\n\n' >"$r/CLAUDE.md"
 printf '# Repo\n\nNo region here.\n' >"$r/AGENTS.md"
@@ -95,13 +84,11 @@ assert_contains "case 3: says to ask" "$ERR" "ask the operator"
 err_explain="$(bash "$SCRIPT" --root "$r" --explain 2>&1 >/dev/null)"
 assert_contains "case 3: explain names the shim" "$err_explain" "pure @AGENTS.md shim"
 
-# --- Case 4: shim with no AGENTS.md at all -> exit 1 --------------------------
 r="$(mkrepo shim-orphan)"
 printf '@AGENTS.md\n' >"$r/CLAUDE.md"
 run "$r"
 assert_exit "case 4: orphan shim -> exit 1" 1 "$RC"
 
-# --- Case 5: both files carry a region: AGENTS.md wins, duplicate reported ---
 r="$(mkrepo both)"
 mkdir -p "$r/other/home"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
@@ -112,7 +99,6 @@ assert_eq "case 5: AGENTS.md supplies the value" "docs/conventions" "$OUT"
 assert_contains "case 5: duplicate reported on stderr" "$ERR" "duplicate:"
 assert_contains "case 5: remediation names the CLAUDE.md copy" "$ERR" "remove the CLAUDE.md copy"
 
-# --- Case 6: two pointer lines in one region -> exit 3 ------------------------
 r="$(mkrepo two-pointers)"
 { region "$(pointer docs/conventions)" "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 run "$r"
@@ -120,7 +106,6 @@ assert_exit "case 6: two pointers exit 3" 3 "$RC"
 assert_contains "case 6: names the condition" "$ERR" "two pointer lines"
 assert_eq "case 6: stdout empty" "" "$OUT"
 
-# --- Case 7: target directory missing -> exit 3 --------------------------------
 r="$(mkrepo missing-target)"
 { region "$(pointer docs/nowhere)"; } >"$r/AGENTS.md"
 run "$r"
@@ -128,7 +113,6 @@ assert_exit "case 7: missing target exits 3" 3 "$RC"
 assert_contains "case 7: names the condition" "$ERR" "target directory missing"
 assert_contains "case 7: names the path" "$ERR" "docs/nowhere"
 
-# --- Case 8: invalid pointer paths each exit 3 --------------------------------
 backslash=$(printf '%b' '\134')
 tilde=$(printf '%b' '\176')
 i=0
@@ -141,7 +125,6 @@ for bad in "/etc/conventions" "../escape" "${tilde}/conventions" "docs${backslas
   assert_contains "case 8.$i: names invalid pointer path" "$ERR" "invalid pointer path"
 done
 
-# --- Case 9: a shell-shaped token is rejected and never executed --------------
 r="$(mkrepo injection)"
 marker="$TEST_TMPDIR/pwned"
 { region "$(pointer "\$(touch $marker)")"; } >"$r/AGENTS.md"
@@ -149,33 +132,28 @@ run "$r"
 assert_exit "case 9: command-substitution token exits 3" 3 "$RC"
 if [[ -e "$marker" ]]; then fail "case 9: token was executed" "marker file exists"; else pass "case 9: token was not executed"; fi
 
-# --- Case 10: CRLF-authored AGENTS.md resolves cleanly ------------------------
 r="$(mkrepo crlf)"
 { printf '# Repo\r\n\r\n'; region "$(pointer docs/conventions)" | sed 's/$/\r/'; printf 'tail\r\n'; } >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 10: CRLF file resolves" 0 "$RC"
 assert_eq "case 10: printed home carries no CR" "docs/conventions" "$OUT"
 
-# --- Case 11: no root instruction file at all -> exit 1 -----------------------
 r="$(mkrepo bare)"
 run "$r"
 assert_exit "case 11: no root file exits 1" 1 "$RC"
 
-# --- Case 12: unterminated region -> exit 3 ------------------------------------
 r="$(mkrepo unterminated)"
 { printf '%s\n' "$BEGIN"; pointer docs/conventions; printf '\n'; } >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 12: unterminated region exits 3" 3 "$RC"
 assert_contains "case 12: names the condition" "$ERR" "no END marker"
 
-# --- Case 13: region present but no pointer line -> exit 1 --------------------
 r="$(mkrepo empty-region)"
 { region "Conventions are documented somewhere."; } >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 13: empty region exits 1" 1 "$RC"
 assert_contains "case 13: says the region has no pointer" "$ERR" "no pointer line"
 
-# --- Case 14: first backticked token wins; prose lines in the region ignored --
 r="$(mkrepo first-token)"
 mkdir -p "$r/docs/second"
 { region "A prose line with no path." 'Home is `docs/conventions` and not `docs/second`.'; } >"$r/AGENTS.md"
@@ -183,26 +161,22 @@ run "$r"
 assert_exit "case 14: one pointer line with two tokens is fine" 0 "$RC"
 assert_eq "case 14: first token is the home" "docs/conventions" "$OUT"
 
-# --- Case 15: a backticked path outside the region is not a pointer ----------
 r="$(mkrepo outside)"
 printf '# Repo\n\nSee `docs/conventions` for the rules.\n' >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 15: outside-region path is ignored -> exit 1" 1 "$RC"
 
-# --- Case 16: trailing slash is dropped on output -----------------------------
 r="$(mkrepo trailing-slash)"
 { region "$(pointer docs/conventions/)"; } >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 16: trailing slash accepted" 0 "$RC"
 assert_eq "case 16: normalized without trailing slash" "docs/conventions" "$OUT"
 
-# --- Case 17: markers tolerate surrounding whitespace -------------------------
 r="$(mkrepo marker-ws)"
 { printf '  %s  \n' "$BEGIN"; pointer docs/conventions; printf '\n'; printf '\t%s\n' "$END"; } >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 17: indented markers still delimit the region" 0 "$RC"
 
-# --- Case 18: --explain writes to stderr and leaves stdout clean --------------
 r="$(mkrepo explain)"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 out="$(bash "$SCRIPT" --root "$r" --explain 2>/dev/null)"
@@ -211,14 +185,12 @@ assert_eq "case 18: stdout is exactly the home" "docs/conventions" "$out"
 assert_contains "case 18: explain names the chosen file" "$err" "chosen:    AGENTS.md"
 assert_contains "case 18: explain names the token" "$err" "token:"
 
-# --- Case 19: a broken canonical file is not papered over by CLAUDE.md -------
 r="$(mkrepo canonical-broken)"
 { region "$(pointer docs/conventions)" "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 { region "$(pointer docs/conventions)"; } >"$r/CLAUDE.md"
 run "$r"
 assert_exit "case 19: AGENTS.md FAIL wins over a clean CLAUDE.md" 3 "$RC"
 
-# --- Case 20: usage errors exit 2 ----------------------------------------------
 rc=0
 bash "$SCRIPT" --nope >/dev/null 2>&1 || rc=$?
 assert_exit "case 20: unknown argument exits 2" 2 "$rc"
@@ -232,17 +204,12 @@ rc=0
 bash "$SCRIPT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "case 20: --help exits 0" 0 "$rc"
 
-# --- Case 21: an over-long line is truncated, not parsed past the cap --------
 r="$(mkrepo long-line)"
 long="$(printf 'x%.0s' $(seq 1 5000))"
 { region "$long "'`docs/conventions`'; } >"$r/AGENTS.md"
 run "$r"
 assert_exit "case 21: token past the cap is not seen -> region reads empty -> exit 1" 1 "$RC"
 
-# --- Case 22: UTF-8 BOM immediately before BEGIN still matches ----------------
-# POSIX [:space:] does not include U+FEFF. A UTF-8 BOM (bytes EF BB BF)
-# immediately before the BEGIN marker would otherwise leave the line unmatched
-# and the file would be reported as carrying no region (exit 1).
 bom=$(printf '\357\273\277')
 r="$(mkrepo bom-absent)"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
@@ -259,7 +226,6 @@ run "$r"
 assert_exit "case 22b: same fixture with BOM immediately before BEGIN resolves" 0 "$RC"
 assert_eq "case 22b: with BOM prints the home" "docs/conventions" "$OUT"
 
-# --- Case 23: root classification: $HOME, an ancestor of it, or outside git -----
 r="$(mkrepo class-home)"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 OUT="$(HOME="$r" bash "$SCRIPT" --root "$r" 2>/dev/null)"; RC=0
@@ -288,7 +254,6 @@ RC=0
 HOME="$TEST_TMPDIR/elsewhere" bash "$SCRIPT" --root "$r" >/dev/null 2>&1 || RC=$?
 assert_exit "case 23e: a git root that is neither \$HOME nor its ancestor resolves" 0 "$RC"
 
-# --- Case 24: CLAUDE.md -> AGENTS.md (or the reverse) is one file, no duplicate -
 r="$(mkrepo symlink-claude)"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 ln -s AGENTS.md "$r/CLAUDE.md"
@@ -316,13 +281,11 @@ cp "$r/AGENTS.md" "$r/CLAUDE.md"
 run "$r"
 assert_contains "case 24c: a real copy is still a duplicate" "$ERR" "duplicate:"
 
-# --- Case 25: --ref reads the committed file ------------------------------------
 r="$(mkrepo ref-sha)"
 printf 'x\n' >"$r/docs/conventions/x.md"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 sha="$(commit_all "$r")"
 git -C "$r" update-ref refs/remotes/origin/main "$sha"
-# The working tree now disagrees with the commit: the ref must win.
 { region "Nothing is bound here."; } >"$r/AGENTS.md"
 OUT="$(bash "$SCRIPT" --root "$r" --ref "$sha" 2>/dev/null)"; RC=0
 bash "$SCRIPT" --root "$r" --ref "$sha" >/dev/null 2>&1 || RC=$?
@@ -347,7 +310,6 @@ RC=0
 bash "$SCRIPT" --root "$r" --ref >/dev/null 2>&1 || RC=$?
 assert_exit "case 25f: --ref with no value exits 2" 2 "$RC"
 
-# A committed home that is missing at the ref is a FAIL even when the working tree has it.
 r="$(mkrepo ref-missing-home)"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
 sha="$(commit_all "$r")"
@@ -357,7 +319,6 @@ RC=0
 bash "$SCRIPT" --root "$r" --ref "$sha" >/dev/null 2>&1 || RC=$?
 assert_exit "case 25g: a home directory absent at the ref exits 3" 3 "$RC"
 
-# --ref with --root below the toplevel reads that subdirectory's committed files.
 r="$(mkrepo ref-subdir)"
 mkdir -p "$r/sub/docs/conventions"
 printf 'x\n' >"$r/sub/docs/conventions/x.md"
@@ -368,7 +329,6 @@ bash "$SCRIPT" --root "$r/sub" --ref "$sha" >/dev/null 2>&1 || RC=$?
 assert_exit "case 25h: --ref with a --root below the toplevel reads that directory's file" 0 "$RC"
 assert_eq "case 25h: prints the home" "docs/conventions" "$OUT"
 
-# --- Case 26: stdin `-` reads the region ---------------------------------------
 OUT="$({ region "$(pointer docs/conventions)"; } | bash "$SCRIPT" - 2>/dev/null)"; RC=0
 { region "$(pointer docs/conventions)"; } | bash "$SCRIPT" - >/dev/null 2>&1 || RC=$?
 assert_exit "case 26a: stdin region resolves" 0 "$RC"
@@ -383,7 +343,6 @@ RC=0
 { region "$(pointer docs/conventions)"; } | bash "$SCRIPT" - --root "$TEST_TMPDIR" >/dev/null 2>&1 || RC=$?
 assert_exit "case 26d: stdin with --root exits 2" 2 "$RC"
 
-# --- Case 27: a declined line has its own exit code ----------------------------
 r="$(mkrepo declined)"
 { region "declined"; } >"$r/AGENTS.md"
 run "$r"
@@ -406,7 +365,6 @@ r="$(mkrepo declined-with-pointer)"
 run "$r"
 assert_exit "case 27d: declined beside a pointer is a FAIL" 3 "$RC"
 
-# --- Case 28: the default root is the git toplevel, not CLAUDE_PROJECT_DIR ------
 r="$(mkrepo toplevel)"
 mkdir -p "$r/packages/app"
 { region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
@@ -418,7 +376,6 @@ assert_eq "case 28a: prints the toplevel's home" "docs/conventions" "$OUT"
 OUT="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$r/packages/app" bash "$SCRIPT" 2>/dev/null)"
 assert_eq "case 28b: the subdirectory's own AGENTS.md is not consulted" "docs/conventions" "$OUT"
 
-# --- Case 29: a pointer at .git or inside it is a FAIL -------------------------
 for bad in .git .git/ .git/hooks .GIT sub/.git/info .git. .Git../hooks; do
   r="$(mkrepo "dot-git-$CASE_NUM")"
   mkdir -p "$r/sub/.git/info"
@@ -433,7 +390,6 @@ mkdir -p "$r/.github"
 run "$r"
 assert_exit "case 29: a segment that only starts with .git resolves" 0 "$RC"
 
-# --- Case 30: a home reached through a symlink is a FAIL ------------------------
 r="$(mkrepo symlinked-home)"
 mkdir -p "$r/Real"
 ln -s Real "$r/Alias"

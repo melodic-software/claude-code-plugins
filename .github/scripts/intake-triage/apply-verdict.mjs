@@ -96,7 +96,8 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, isFault, paginate } from "../lib/github-client.mjs";
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMISSION_STATUS_READS, admit, authorTrust, CLEAR_ADMITTED, CLEAR_READY, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, judgedLine, loadRules, noteUnrunnable, ownVerdict, specOf, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_CLEAR, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
@@ -942,8 +943,6 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
-// isFault (check-trusted-trigger.mjs): what happened to the issue is unknown,
-// not wrong.
 export { isFault };
 
 // The step's closing annotations and exit code, for run()'s result or the

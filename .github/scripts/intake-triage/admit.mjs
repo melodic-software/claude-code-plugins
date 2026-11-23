@@ -142,7 +142,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { paginate } from "../lib/github-client.mjs";
+import { appCloseKind, isTrustedClose } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, isStatusLabel, readyWhileDeferred, StatusReadError } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
@@ -150,6 +151,7 @@ import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-
 import { contentHash, matchesRecord, readAdmissionRecord, writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
+import { SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export { ADMIT_MARKER, refusalText };
@@ -322,7 +324,6 @@ export function readSchedule(path = fileURLToPath(new URL("../../recurring-sched
 
 // The schedule row ids a body names on a `<!-- recurring-schedule id=<id> -->`
 // line, the marker that links a recurring issue to its row whatever its title.
-const SCHEDULE_MARKER = /^<!-- recurring-schedule id=(\S+) -->\r?$/gm;
 const scheduleIds = (body) => [...String(body ?? "").matchAll(SCHEDULE_MARKER)].map((match) => match[1]);
 
 // Why a `recurring` item needs a person, or null: its schedule row (the one

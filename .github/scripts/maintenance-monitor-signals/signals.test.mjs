@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError } from "../lib/github-client.mjs";
 import { closing } from "../intake-triage/apply-verdict.mjs";
 import { closing as resolverClosing, HELD_REASON, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import {
