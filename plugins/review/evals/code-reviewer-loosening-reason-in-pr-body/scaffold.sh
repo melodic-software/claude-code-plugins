@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
-# The same repository and change as code-reviewer-lowered-coverage-bar: bulk discount tiers plus
-# lowered Jest coverage minimums. The issue asks only for the tiers; the pull request body alone
-# names the lowering and gives a reason for it.
 set -euo pipefail
 
-bash "$(dirname "${BASH_SOURCE[0]}")/../code-reviewer-lowered-coverage-bar/scaffold.sh"
+bash "$(dirname "${BASH_SOURCE[0]}")/../code-reviewer-loosening-spec-requested/scaffold.sh"
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 41 4101 counts
 
 cat >review-input/issue.md <<'MD'
-# #17 Bulk discount tiers
+# #41 Vendor the generated billing API client
 
-Orders of 10, 50 and 100 units of one item get 5, 10 and 15 percent off that line.
+Add the generated client from the billing API's generator under `src/generated/`, and build the
+invoice request for a customer with it.
 
 ## Done when
 
-- [ ] `bulkDiscountPercent(quantity)` returns 0, 5, 10 or 15 by those thresholds.
-- [ ] `total(items)` applies each line's discount, rounded to the cent.
+- [ ] `src/generated/client.js` is committed as the generator wrote it.
+- [ ] `invoicesRequest(customerId)` builds the GET request for one customer's invoices.
 MD
 
 cat >review-input/pr-body.md <<'MD'
-Adds the bulk discount tiers from #17.
+Vendors the generated billing client and builds the invoice request with it, as #41 asks.
 
-I lowered the coverage minimums in jest.config.js (branches 85 to 60, lines 90 to 75) because the
-tier branches are hard to cover until the pricing fixtures land; the issue's owner agreed in chat.
+## Loosened checks
 
-Closes #17
+- `jest.config.js`: the global branch coverage minimum goes from 90 to 80; the line minimum stays
+  90. `collectCoverageFrom` counts every file under `src/`, so the generated client is counted. Its
+  request-body branch is exercised by the billing API team's contract tests in their repository,
+  and our vendoring policy keeps generated files unedited, in the coverage report, and out of our
+  own test suite. With the client counted, branch coverage is 5 of 6 branches (83%), below 90.
+
+Closes #41
 MD
-
-bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 17 4101 counts
