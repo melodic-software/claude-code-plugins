@@ -26,7 +26,7 @@ graders:
     target: last_message
   - name: not-all-three-one-tree
     type: regex
-    pattern: '(?<!not )(?<!than )(?<!of )(?<!fold )(?<!folding )\ball three\b(?:(?!\b(?:two|first|1 and 2|pair)\b)[^\n.]){0,60}\b(?:one|single|same)\s+(?:decision\s+)?(?:tree|design|thread)\b'
+    pattern: '(?<!not )(?<!than )(?<!of )(?<!than folding )(?<!instead of folding )(?<!not fold )(?<!n.t fold )\ball three\b(?:(?!\b(?:two|first|1 and 2|pair)\b)[^\n.]){0,60}\b(?:one|single|same)\s+(?:decision\s+)?(?:tree|design|thread)\b'
     flags: i
     match: not_contains
     target: last_message
