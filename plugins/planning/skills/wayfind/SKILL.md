@@ -162,8 +162,8 @@ skill's chain), stop and report that charting needs an interactive session. Do n
 1. **Survey, interview, fog test.** Read the repository's glossary and work-item conventions
    first, when it has them, so questions use its terms and items follow its tracker rules (the
    glossary is found the way `/planning:interview`'s survey finds it). Then ground in the effort
-   (any existing `<memory_dir>/<slug>/`, recent commits, the topic). With no glossary found and
-   `/domain-driven-design:ubiquitous-language` enabled, offer its `seed` action once, before the map
+   (any existing `<memory_dir>/<slug>/`, recent commits, the topic). With no glossary found, offer
+   the `seed` action of `/domain-driven-design:ubiquitous-language` (if enabled) once, before the map
    is proposed, so items use settled terms from the start; a no goes on without it.
    - **Seed from the interview:** when the slice holds an interview ledger
      (`interview-checklist.md`), its settled answers become one seed decision item, created with
@@ -332,8 +332,8 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    items now (create, then wire, as chart step 4) and delete that bullet from Not-yet-specified.
    Each question the resolution defers becomes, in the same step, a decision item (sharp) or a
    Not-yet-specified bullet (foggy), so the map cannot close while it is open.
-   **Provisional confirmed.** When a prototype's verdict confirms a provisional decision and
-   `/architecture:adr` is enabled, offer it the confirmed decision; a decision still provisional
+   **Provisional confirmed.** When a prototype's verdict confirms a provisional decision, offer
+   `/architecture:adr` (if enabled) the confirmed decision; a decision still provisional
    is never offered.
    **Data-sharing item.** When the resolution selects an outside service that will receive user
    data, chart one `interview` item for that service: which fields cross to it and under what
@@ -367,7 +367,7 @@ skill's chain), stop and report that charting needs an interactive session. Do n
    resolution comment records, not only the link (a decision still provisional is stated as provisional, naming the prototype still to run), and names the dossier branch when one exists (on a route that creates no container, run the dossier-branch step below before posting it), and ends with the line `Handoff: pending` until the map closes. Then hand the decisions
    to the destination's skill in a source form it accepts, and close the map issue once that
    skill reports its artifact (for a general summary, at once); for a set of build items that is
-   the PLAN.md `/planning:plan` reports, or `/work-items:decompose`'s publish on the slices route.
+   the PLAN.md `/planning:plan` reports, or the publish of `/work-items:decompose` (if enabled) on the slices route.
    A question that skill raises first becomes a decision item on the map and is worked like any
    other; once it resolves, post a new closing comment that opens `Supersedes <link to the earlier
    closing comment>` and states every decision again, then resume the handoff:
