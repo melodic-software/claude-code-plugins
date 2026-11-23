@@ -5,8 +5,6 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Invoke-FindingCorrelation.ps1'
 
     function New-WindowsUpdateResult {
-        # windows-update check result with reboot_pending set, the state the
-        # WUClient/20 correlation rule pairs against.
         param([string] $Severity = 'INFO')
         [pscustomobject]@{
             id       = 'windows-update'
@@ -17,8 +15,6 @@ BeforeAll {
     }
 
     function New-EventLogResult {
-        # event-log-errors check result whose only top source is the
-        # WindowsUpdateClient/20 provider with the given event count.
         param([int] $WuClientEventCount)
         [pscustomobject]@{
             id       = 'event-log-errors'

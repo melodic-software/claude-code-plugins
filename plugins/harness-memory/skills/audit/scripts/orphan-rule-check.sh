@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# orphan-rule-check.sh — reverse-drift detector for the always-loaded rule layer.
-# A rule with `description:` is never an orphan: the rendered rules index omits
-# unscoped rules, so being unreferenced alone does not mean nobody can find it.
 
 set -uo pipefail
 
@@ -40,13 +37,11 @@ if [[ -z "$repo_root" ]]; then
 fi
 cd "$repo_root" || exit 1
 
-# The in-repo memory tier, not the auto-memory dir resolve-memory-dir.sh derives.
 memory_dir=".work"
 
 orphans=()
 shopt -s nullglob
 for file in .claude/rules/*.md; do
-  # A `paths:` rule is path-scoped, not always-loaded.
   rule_frontmatter_declares "$file" paths && continue
   rule_frontmatter_declares "$file" description && continue
   base="${file##*/}"

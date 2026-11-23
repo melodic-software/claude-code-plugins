@@ -43,8 +43,6 @@ Describe 'Get-CheckLastRun' -Tag 'lib' {
     }
 
     It 'finds a check whose last run is deeper than 8 entries back (justifies the deep cadence tail)' {
-        # A monthly check's last actual run sits beyond the newest 8 entries; the lookup
-        # must still find it, which is why the orchestrator loads a deep tail.
         $tail = @(
             New-Entry -RunId '2026-05-01T00:00:00Z' -ChecksRan @('cert-expiry')
         )
@@ -55,8 +53,6 @@ Describe 'Get-CheckLastRun' -Tag 'lib' {
     }
 
     It 'normalizes a datetime run_id (ConvertFrom-Json coercion) back to parseable ISO 8601' {
-        # ConvertFrom-Json coerces an ISO run_id to [datetime]; the helper must re-emit ISO,
-        # not a locale-specific string that would misparse on a non-US-locale host.
         $dt = [datetime]::new(2026, 5, 8, 9, 30, 0, [System.DateTimeKind]::Utc)
         $tail = @([pscustomobject]@{ run_id = $dt; checks_ran = @('disk-space') })
         $result = Get-CheckLastRun -CheckId 'disk-space' -HistoryTail $tail

@@ -43,30 +43,19 @@ why the target registry is named in the command
 EOF
 )
 
-# --- The phase's own sanity check: strict-parseable output --------------------
-# Strict is correct here BECAUSE we author this output. The non-strict allowance
-# elsewhere in the plugin exists for the CLI's malformed emission, and adopting
-# it here would hide a defect of our own making.
 OUT=$(draft "$ANSWERS")
 rc=0
 printf '%s' "$OUT" | jq -e . >/dev/null 2>&1 || rc=$?
 assert_exit "the drafted block parses under a STRICT parser" 0 "$rc"
 
-# --- Every section keeps the built-in rules ----------------------------------
-# Omitting "$defaults" discards the shipped rule list for that section, which is
-# the single highest-consequence mistake this skill could bake into a draft.
 assert_eq "every emitted section opens with \$defaults" 0 \
   "$(printf '%s' "$OUT" | jq '[to_entries[] | select(.value[0] != "$defaults")] | length')"
 
-# --- Only sections that received entries are emitted --------------------------
-# A section printed empty-but-for-$defaults would still REPLACE the built-in
-# list on paste, so emitting an untouched section is not harmless.
 assert_eq "only the two sections with entries are present" "allow soft_deny" \
   "$(printf '%s' "$OUT" | jq -r 'keys | join(" ")')"
 assert_eq "no empty section is emitted" 0 \
   "$(printf '%s' "$OUT" | jq '[to_entries[] | select((.value | length) < 2)] | length')"
 
-# --- Entry shape follows the critique's recommendation ------------------------
 entry=$(printf '%s' "$OUT" | jq -r '.allow[1]')
 assert_contains "the entry opens with its label" "$entry" "Test Execution:"
 assert_contains "COVERED is its own header line" "$entry" "COVERED:"
@@ -75,13 +64,10 @@ assert_contains "NOT COVERED is stated explicitly" "$entry" "NOT COVERED:"
 assert_contains "and the exclusion is a bullet under it" "$entry" "- installing new dependencies"
 assert_contains "and the rationale is one line at the end" "$entry" "Why: the runner is named in the command text"
 
-# An entry with no exclusions still renders, without an empty NOT COVERED header
-# that would read as "nothing is excluded" rather than "none were stated".
 entry2=$(printf '%s' "$OUT" | jq -r '.allow[2]')
 assert_contains "an entry without exclusions still renders" "$entry2" "Formatting:"
 assert_not_contains "and carries no empty NOT COVERED header" "$entry2" "NOT COVERED:"
 
-# --- Multiple covered/not lines accumulate ------------------------------------
 MULTI=$(
   cat <<'EOF'
 section allow
@@ -100,9 +86,6 @@ assert_contains "the second covered line appears too" "$entry" "- second covered
 assert_contains "the first excluded line appears" "$entry" "- first excluded thing"
 assert_contains "the second excluded line appears too" "$entry" "- second excluded thing"
 
-# --- jq owns the escaping -----------------------------------------------------
-# Hand-rolled JSON escaping is how a draft would end up carrying the very defect
-# this plugin reports elsewhere: a raw control character inside a string value.
 QUOTED=$(
   cat <<'EOF'
 section allow
@@ -118,9 +101,6 @@ assert_exit "quotes, backslashes and tabs still yield strict-valid JSON" 0 "$rc"
 assert_contains "and the text survives the round trip" \
   "$(printf '%s' "$OUT_QUOTED" | jq -r '.allow[1]')" 'a value with "double quotes" and a \backslash'
 
-# --- Malformed and partial input ---------------------------------------------
-# A line that is not a record is ignored rather than fatal: the interview feeds
-# this, and a stray blank or comment must not cost the operator their answers.
 NOISY=$(
   cat <<'EOF'
 
@@ -134,8 +114,6 @@ EOF
 OUT_NOISY=$(draft "$NOISY")
 assert_contains "an unrecognized line does not lose the entry" "$OUT_NOISY" "Real Entry:"
 
-# A covered line before any label has no entry to attach to and is dropped
-# rather than silently starting one with an empty label.
 ORPHAN=$(
   cat <<'EOF'
 section allow
@@ -150,7 +128,6 @@ assert_eq "an orphaned covered line creates no entry" 1 \
 assert_not_contains "and its text is not smuggled into the real entry" \
   "$(printf '%s' "$OUT_ORPHAN" | jq -r '.allow[1]')" "orphaned line"
 
-# An entry with no section is dropped: there is nowhere correct to put it.
 NOSECTION=$(
   cat <<'EOF'
 label Sectionless
@@ -163,12 +140,6 @@ assert_exit "a sectionless entry does not crash the drafter" 0 "$rc"
 assert_eq "and yields an empty object rather than a guessed section" "{}" \
   "$(printf '%s' "$OUT_NOSECTION" | jq -c .)"
 
-# --- An unknown section FAILS CLOSED ------------------------------------------
-# Skipping it printed a warning on stderr and JSON on stdout, which breaks the
-# moment a caller captures both together -- and agent tooling merges streams by
-# default, so the merged stream was not parseable JSON. Failing loudly leaves no
-# partial output to corrupt, and matches every other script here: a non-zero
-# exit means "could not run", never "found nothing".
 UNKNOWN=$(
   cat <<'EOF'
 section bogus_section_name
@@ -189,17 +160,13 @@ assert_contains "and the caller is told nothing was drafted" "$ERR_UNKNOWN" "Not
 OUT_UNKNOWN=$(printf '%s\n' "$UNKNOWN" | bash "$SCRIPT" 2>/dev/null)
 assert_eq "no partial JSON is emitted" "" "$OUT_UNKNOWN"
 
-# The merged stream is the case this posture exists for: with nothing on stdout,
-# there is no JSON for the warning to corrupt.
 MERGED=$(printf '%s\n' "$UNKNOWN" | bash "$SCRIPT" 2>&1 || true)
 assert_not_contains "the merged stream carries no half-written JSON" "$MERGED" "{"
 
-# An empty section name is the same class.
 rc=0
 printf 'section \nlabel X\ncovered y\n' | bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_exit "an empty section name also exits 2" 2 "$rc"
 
-# A wholly legal input is unaffected.
 rc=0
 OUT_OK=$(printf 'section allow
 label Real
@@ -208,7 +175,6 @@ covered z
 assert_exit "a legal input still exits 0" 0 "$rc"
 assert_contains "and drafts normally" "$OUT_OK" "Real:"
 
-# --- Fail-loud ----------------------------------------------------------------
 rc=0
 err=$(printf '' | bash "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 on empty input" 2 "$rc"
@@ -229,11 +195,6 @@ assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help states the no-write contract" "$help" "Writes nothing, anywhere, under any flag"
 assert_contains "--help explains why \$defaults leads every section" "$help" "REPLACES the"
 
-# --- The no-write contract, asserted rather than assumed ----------------------
-# Checked by RUNNING the script and looking at the filesystem, not by grepping
-# it for redirect syntax: this file is mostly an embedded jq program, where `>`
-# is a comparison operator and appears in prose, so a text scan cannot tell a
-# redirect from either. Measuring the effect is both simpler and sound.
 WATCH="$TEST_TMPDIR/watch"
 mkdir -p "$WATCH/nested"
 before="$(find "$WATCH" | LC_ALL=C sort)"
@@ -241,8 +202,6 @@ before="$(find "$WATCH" | LC_ALL=C sort)"
 after="$(find "$WATCH" | LC_ALL=C sort)"
 assert_eq "running the drafter changes nothing in its working directory" "$before" "$after"
 
-# And nothing under a fixture HOME either — the settings file this skill drafts
-# for lives there, and never touching it is the whole posture.
 FAKE_HOME="$TEST_TMPDIR/fake-home"
 mkdir -p "$FAKE_HOME/.claude"
 printf '{"permissions":{"allow":[]}}\n' >"$FAKE_HOME/.claude/settings.json"

@@ -55,7 +55,6 @@ Describe 'ConvertTo-DetailMarkdown' -Tag 'lib' {
             value = $sentinel; changed_at = '2026-10-18T09:00:00.0000000-04:00'
             label = 'history within log retention since 2026-07-01T00:00:00.0000000-04:00'
         }
-        # The defender detail as latest.json holds it: round-tripped through JSON.
         $detail = [pscustomobject]@{
             exclusion_change_count = 1; items_count = 1; muted_count = 0; items = @([pscustomobject]$item)
         } | ConvertTo-Json -Depth 5 | ConvertFrom-Json

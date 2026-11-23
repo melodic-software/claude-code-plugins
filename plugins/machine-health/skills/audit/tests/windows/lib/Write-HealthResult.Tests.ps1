@@ -88,7 +88,6 @@ Describe 'Write-HealthResult' -Tag 'lib' {
 
         It 'preserves a single-element commands array as a JSON array (regression)' {
             $out = $script:validResult | Write-HealthResult
-            # Raw JSON must contain array brackets around the lone command, not scalar form.
             $out | Should -Match '"commands":\["Get-Volume"\]'
         }
 

@@ -48,10 +48,8 @@ $script:DefenderEventIds = @(1116, 1117, 5007)
 # Remediating action ids (Clean, Quarantine, Remove, Block): the Set-MpPreference threat action table.
 $script:DefenderRemediatingActionIds = @(1, 2, 3, 10)
 
-# Stands in for an empty Threat ID or Path, so a sparse event still yields a usable item key.
 $script:DefenderMissingField = '(not recorded)'
 
-# Longest threat name or resource carried out of this file (judgment: the classic Windows MAX_PATH).
 $script:DefenderTextMaxLength = 260
 
 function ConvertTo-DefenderText {

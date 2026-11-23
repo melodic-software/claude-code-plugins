@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Most cases here assert a §1 ASSERTION by number, because the assertions are the
-# contract and a test that only round-trips the script proves nothing about it.
-# Two are NEGATIVE tests in the sense this repo means it: they mutate a copy of
-# the script to delete exactly one check and assert the mutated copy reaches the
-# outcome the real one refuses.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,13 +24,11 @@ ref_sha() {
   fi
 }
 
-# --- Normalization, v1 ------------------------------------------------------
 
 assert_eq "trailing whitespace is stripped and internal runs collapse to one space" \
   "one two three" "$(run normalize --excerpt '  one   two
 three  ')"
 
-# 1.8: case is PRESERVED, because these surfaces carry code and identifiers.
 assert_eq "case is preserved" "MixedCase Identifier" \
   "$(run normalize --excerpt 'MixedCase Identifier')"
 
@@ -47,19 +40,12 @@ BARE=$(run anchor --excerpt '@README')
 assert_ne "1.8: a backticked @README and a bare one produce different anchors" \
   "$BACKTICKED" "$BARE"
 
-# 1.8: a block-level HTML comment outside a fence changes no anchor; the same
-# edit inside a fence does.
 PLAIN=$(run anchor --excerpt 'rule text')
 COMMENTED=$(run anchor --excerpt 'rule <!-- note to self --> text')
 assert_eq "1.8: an HTML comment outside a fence does not change the anchor" "$PLAIN" "$COMMENTED"
 IN_FENCE=$(run anchor --excerpt 'rule <!-- note to self --> text' --in-fence)
 assert_ne "1.8: inside a fence the same comment is content and does change it" "$PLAIN" "$IN_FENCE"
 
-# 1.8: the WHOLE whitespace class collapses, not just tab and newline. A set
-# missing `\r` leaves `a\r\nb` as `a\r b` where `a\nb` becomes `a b`, so two
-# checkouts differing only in line-ending handling anchor differently and their
-# suppression ids stop matching. Compared as ANCHORS, which is where the
-# divergence would be permanent.
 LF_ANCHOR=$(run anchor --excerpt "$(printf 'a\nb')")
 CRLF_ANCHOR=$(run anchor --excerpt "$(printf 'a\r\nb')")
 CR_ANCHOR=$(run anchor --excerpt "$(printf 'a\rb')")
@@ -72,9 +58,6 @@ assert_eq "1.8: a form feed and a vertical tab collapse too" \
 assert_eq "1.8: a mixed whitespace run still collapses to exactly one space" \
   "a b" "$(run normalize --excerpt "$(printf 'a \r\n\t\v\f  b')")"
 
-# NEGATIVE: narrow the set back to tab and newline and the CRLF excerpt anchors
-# differently from the LF one. A class whose narrowing changes nothing is not
-# doing the collapsing.
 COPY_WS="$TEST_TMPDIR/partial-ws-class.sh"
 sed "s/tr '\\\\t\\\\n\\\\v\\\\f\\\\r' '     '/tr '\\\\n\\\\t' '  '/" "$SCRIPT" >"$COPY_WS"
 assert_ne "without the full class CRLF and LF anchor differently" \
@@ -86,7 +69,6 @@ assert_eq "surrounding emphasis markers are stripped, nested ones too" \
 assert_eq "an emphasis marker inside the excerpt is content and stays" \
   "a *b* c" "$(run normalize --excerpt 'a *b* c')"
 
-# --- anchor/v1 shape --------------------------------------------------------
 
 A=$(run anchor --excerpt 'some rule' --heading-path 'Rules')
 if [[ "$A" =~ ^e:[0-9a-f]{12}:[0-9a-f]{8}$ ]]; then
@@ -99,20 +81,15 @@ rc=0
 run anchor --whole --excerpt 'x' >/dev/null 2>&1 || rc=$?
 assert_exit "--whole with an excerpt is refused: a whole-surface anchor is content-free" 2 "$rc"
 
-# 1.10: two identical excerpts under DIFFERENT heading paths get distinct anchors.
 D1=$(run anchor --excerpt 'never do X' --heading-path 'Rules')
 D2=$(run anchor --excerpt 'never do X' --heading-path 'Gotchas')
 assert_ne "1.10: identical excerpts under different heading paths differ in <n>" "$D1" "$D2"
 assert_eq "1.10: and they agree on the excerpt half" "${D1%%:*}" "${D2%%:*}"
 
-# 1.10a: under the SAME heading path they collide, deliberately. No positional
-# scheme can separate them without reintroducing the suppression-transfer bug.
 S1=$(run anchor --excerpt 'never do X' --heading-path 'Rules')
 S2=$(run anchor --excerpt 'never   do X' --heading-path 'Rules')
 assert_eq "1.10a: two identical normalized excerpts under one heading path collide" "$S1" "$S2"
 
-# 1.2: inserting an unrelated paragraph above a finding changes nothing, because
-# the discriminator is the ENCLOSING HEADING PATH and not the neighboring text.
 assert_eq "1.2: the anchor does not depend on neighboring content" \
   "$D1" "$(run anchor --excerpt 'never do X' --heading-path 'Rules')"
 
@@ -121,28 +98,22 @@ SENTINEL_EXPECTED=$(printf '\x00' | ref_sha)
 assert_eq "a surface with no heading above the excerpt uses the 0x00 sentinel" \
   "${SENTINEL_EXPECTED:0:8}" "${NO_HEADING##*:}"
 
-# --- finding_id/v1 ----------------------------------------------------------
 
 ID_AB=$(run finding-id --check p/s/c --claim claim.one --site 'a.md=s:' --site 'b.md=s:')
 ID_REVERSED=$(run finding-id --check p/s/c --claim claim.one --site 'b.md=s:' --site 'a.md=s:')
-# 1.4: a pairwise finding discovered one way round and the other is ONE id.
 assert_eq "1.4: site order does not change finding_id" "$ID_AB" "$ID_REVERSED"
 assert_eq "finding_id is 16 hex characters" 16 "${#ID_AB}"
 
-# Independently re-derived, so the test is not the script checking itself.
 EXPECTED_ID=$(printf 'p/s/c\x1fclaim.one\x1fa.md\x1fs:\x1fb.md\x1fs:' | ref_sha)
 assert_eq "finding_id equals the independently derived pinned body" \
   "${EXPECTED_ID:0:16}" "$ID_AB"
 
-# 1.7: editing any line of a surface leaves an s: finding's id unchanged;
-# renaming that surface changes it.
 ID_RENAMED=$(run finding-id --check p/s/c --claim claim.one --site 'renamed.md=s:' --site 'b.md=s:')
 assert_ne "1.7: renaming a surface changes an s: finding's id" "$ID_AB" "$ID_RENAMED"
 
 ID_OTHER_CLAIM=$(run finding-id --check p/s/c --claim claim.two --site 'a.md=s:' --site 'b.md=s:')
 assert_ne "a different claim is a different finding" "$ID_AB" "$ID_OTHER_CLAIM"
 
-# --- group/v1 ---------------------------------------------------------------
 
 G=$(run group-id --check p/s/c --claim claim.one)
 if [[ "$G" =~ ^g:[0-9a-f]{16}$ ]]; then
@@ -150,18 +121,14 @@ if [[ "$G" =~ ^g:[0-9a-f]{16}$ ]]; then
 else
   fail "group/v1 is g:<16hex>" "got: $G"
 fi
-# 1.12: group is unchanged by adding, removing, or fixing any site, because it is
-# derived from check and claim ALONE.
 assert_eq "1.12: group does not depend on any site" "$G" "$(run group-id --check p/s/c --claim claim.one)"
 assert_ne "a different claim is a different group" "$G" "$(run group-id --check p/s/c --claim claim.two)"
 
-# --- The emitter guard ------------------------------------------------------
 
 if ! command -v python3 >/dev/null 2>&1; then
   printf 'SKIP: python3 absent, the emitter guard cases do not run\n'
 else
   mk_record() {
-    # $1 check, $2 claim, then site specs; prints a valid record.
     local check="$1" claim="$2"
     shift 2
     local sites_json="" spec surface anchor first=1 id
@@ -186,7 +153,6 @@ else
   assert_exit "a well-formed one-site finding passes the guard" 0 "$rc"
   assert_eq "and says so" "ok" "$OUT"
 
-  # 1.13: identity absent or null.
   rc=0
   OUT=$(run validate-record --record '{"record":"finding","identity":null,"lane":"skills"}' 2>&1) || rc=$?
   assert_exit "1.13: identity null is refused with the record verdict" 4 "$rc"
@@ -196,41 +162,34 @@ else
   OUT=$(run validate-record --record '{"record":"finding","lane":"skills"}' 2>&1) || rc=$?
   assert_exit "1.13: identity absent is refused too" 4 "$rc"
 
-  # 1.13: three or more sites.
   THREE=$(mk_record p/s/c claim.one 'a.md=e:aaaaaaaaaaaa:bbbbbbbb' 'b.md=e:cccccccccccc:dddddddd' 'c.md=e:eeeeeeeeeeee:ffffffff')
   rc=0
   OUT=$(run validate-record --record "$THREE" 2>&1) || rc=$?
   assert_exit "1.13: three sites is a hard error" 4 "$rc"
   assert_contains "and the refusal names the split the lane owed" "$OUT" "split"
 
-  # 1.13: two sites without a pairwise declaration.
   TWO_NOT_PAIRWISE='{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":false,"sites":[{"surface":"a.md","anchor":"e:aaaaaaaaaaaa:bbbbbbbb"},{"surface":"b.md","anchor":"e:cccccccccccc:dddddddd"}]},"finding_id/v1":"0000000000000000"}'
   rc=0
   OUT=$(run validate-record --record "$TWO_NOT_PAIRWISE" 2>&1) || rc=$?
   assert_exit "1.13: two sites without a pairwise claim is refused" 4 "$rc"
   assert_contains "and the refusal names the remedy" "$OUT" "split them per site"
 
-  # 1.6: an s: anchor in a two-site finding.
   S_TWO_SITE='{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":true,"sites":[{"surface":"a.md","anchor":"s:"},{"surface":"b.md","anchor":"e:cccccccccccc:dddddddd"}]},"finding_id/v1":"0000000000000000"}'
   rc=0
   OUT=$(run validate-record --record "$S_TWO_SITE" 2>&1) || rc=$?
   assert_exit "1.6: an s: anchor with two sites is a hard error" 4 "$rc"
 
-  # 1.3: free prose in claim.
   PROSE='{"record":"finding","identity":{"check":"p/s/c","claim":"this instruction is too prescriptive","pairwise":false,"sites":[{"surface":"a.md","anchor":"s:"}]},"finding_id/v1":"0000000000000000"}'
   rc=0
   OUT=$(run validate-record --record "$PROSE" 2>&1) || rc=$?
   assert_exit "1.3: free prose in claim is a hard error" 4 "$rc"
 
-  # 1.13: a stored id that disagrees with its own constituents. A suppression
-  # keyed to the stored id would never match the finding it names.
   WRONG_ID='{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":false,"sites":[{"surface":"a.md","anchor":"s:"}]},"finding_id/v1":"deadbeefdeadbeef"}'
   rc=0
   OUT=$(run validate-record --record "$WRONG_ID" 2>&1) || rc=$?
   assert_exit "1.13: a finding_id disagreeing with its constituents is refused" 4 "$rc"
   assert_contains "and both values are named" "$OUT" "deadbeefdeadbeef"
 
-  # A note is validated against the NOTE shape: a note_id and no identity block.
   rc=0
   OUT=$(run validate-record --record '{"record":"note","note_id":"n1","names":["aaaa","bbbb"]}' 2>&1) || rc=$?
   assert_exit "a well-formed overlap note passes" 0 "$rc"
@@ -245,15 +204,12 @@ else
   run validate-record --record '{bad json}' >/dev/null 2>&1 || rc=$?
   assert_exit "a malformed record is refused rather than appended" 4 "$rc"
 
-  # NEGATIVE: delete the site-count check and the three-site record sails
-  # through. A bound whose removal changes nothing is not a bound.
   COPY="$TEST_TMPDIR/no-site-cap.sh"
   sed '/if len(sites) > 2:/,+4d' "$SCRIPT" >"$COPY"
   rc=0
   bash "$COPY" validate-record --record "$THREE" >/dev/null 2>&1 || rc=$?
   assert_exit "without the site cap a three-site record is accepted" 0 "$rc"
 
-  # NEGATIVE: delete the identity-null check and the null record sails through.
   COPY2="$TEST_TMPDIR/no-identity-check.sh"
   sed '/if "identity" not in rec or rec\["identity"\] is None:/,+1d' "$SCRIPT" >"$COPY2"
   rc=0
@@ -261,14 +217,6 @@ else
   assert_ne "without the identity check the null record no longer hits that refusal" \
     "invalid: a finding record requires an identity block; identity was absent or null" "$OUT"
 
-  # --- The anchor grammar, in full --------------------------------------------
-  # A prefix test on `e:` accepts any non-empty string starting with it, so
-  # `e:garbage` reaches an id derived from a string no anchor version produces.
-  # The id is DERIVED for each anchor rather than hardcoded. A fixed placeholder
-  # id disagrees with its own constituents, so the consistency check refuses the
-  # record before the anchor is ever examined: every assertion below would then
-  # pass with the grammar bug present, testing the wrong refusal. Deriving it
-  # leaves the anchor as the only thing that can refuse these records.
   mk_anchor_record() {
     local anchor="$1" id
     id="$(run finding-id --check 'p/s/c' --claim 'claim.one' --site "a.md=$anchor")"
@@ -286,7 +234,6 @@ else
   OUT=$(run validate-record --record "$(mk_anchor_record 'e:garbage')" 2>&1) || rc=$?
   assert_contains "and the refusal names the grammar" "$OUT" 'e:<12hex>:<8hex>'
 
-  # Both legal forms still pass, so the grammar narrowed nothing it should not.
   rc=0
   run validate-record --record "$(mk_record p/s/c claim.one 'a.md=e:0123456789ab:0a1b2c3d')" \
     >/dev/null 2>&1 || rc=$?
@@ -295,7 +242,6 @@ else
   run validate-record --record "$(mk_record p/s/c claim.one 'a.md=s:')" >/dev/null 2>&1 || rc=$?
   assert_exit "the bare whole-surface anchor still passes" 0 "$rc"
 
-  # NEGATIVE: restore the prefix test and `e:garbage` is accepted again.
   COPY3="$TEST_TMPDIR/prefix-anchor-check.sh"
   sed 's/if not ANCHOR_RE.match(anchor):/if not (anchor == "s:" or anchor.startswith("e:")):/' \
     "$SCRIPT" >"$COPY3"
@@ -309,9 +255,6 @@ else
   assert_exit "and the real guard refuses the same record" 4 "$rc"
 fi
 
-# --- guarded-append: the guard is ON the append path ------------------------
-# A guard a lane can complete the documented steps without invoking is a guard
-# that does not exist, and the record it would have refused is permanent.
 
 if ! command -v python3 >/dev/null 2>&1; then
   printf 'SKIP: python3 absent, guarded-append cannot run its guard\n'
@@ -321,7 +264,6 @@ else
   bash "$SCRIPT_DIR/run-state.sh" lease acquire \
     --run-dir "$GA_RUN" --run-id run-ga --epoch 2 --plugin-data "$GA_DATA" >/dev/null 2>&1
 
-  # A stub appender that records being reached. The guard must refuse BEFORE it.
   STUB="$TEST_TMPDIR/stub-appender.sh"
   STUB_LOG="$TEST_TMPDIR/stub.log"
   {
@@ -335,11 +277,6 @@ else
     --record "$GA_BAD" --epoch 2 2>&1) || rc=$?
   assert_exit "guarded-append refuses an invalid record with the record verdict" 4 "$rc"
 
-  # The guard runs before the APPENDER'S OWN precondition, not merely before the
-  # write. Checked the other way round, an unreadable appender turns a bad record
-  # into exit 2, reporting the operator's environment for a fault that is in the
-  # lane's output. Nothing is written on either ordering, so only the exit code
-  # distinguishes them.
   rc=0
   OUT=$(AUDIT_PASS_APPENDER=/nonexistent/appender run guarded-append \
     --run-dir "$GA_RUN" --record "$GA_BAD" --epoch 2 2>&1) || rc=$?
@@ -350,8 +287,6 @@ else
   assert_eq "and the appender was never reached" "0" \
     "$(if [[ -f "$STUB_LOG" ]]; then wc -l <"$STUB_LOG" | tr -d ' '; else printf '0'; fi)"
 
-  # The same record through the real append path: refused, and no partial exists
-  # for a bare `partial append` to have written into.
   GA_PARTIAL="$GA_RUN/findings.partial.2.jsonl"
   rc=0
   run guarded-append --run-dir "$GA_RUN" --record "$GA_BAD" --epoch 2 >/dev/null 2>&1 || rc=$?
@@ -359,15 +294,12 @@ else
   assert_eq "no partial was written by the refused append" "" \
     "$(ls "$GA_RUN"/findings.partial.*.jsonl 2>/dev/null || true)"
 
-  # NEGATIVE: a bare `partial append`, which is what the skill used to prescribe,
-  # accepts the very same record. That is the defect the guard closes.
   rc=0
   bash "$SCRIPT_DIR/run-state.sh" partial append --run-dir "$GA_RUN" \
     --record "$GA_BAD" --epoch 2 >/dev/null 2>&1 || rc=$?
   assert_exit "a bare partial append accepts the null-identity record" 0 "$rc"
   rm -f "$GA_RUN"/findings.partial.*.jsonl
 
-  # A valid record goes all the way through and lands in the writer's epoch file.
   GA_GOOD=$(mk_record p/s/c claim.one 'a.md=e:aaaaaaaaaaaa:bbbbbbbb')
   rc=0
   run guarded-append --run-dir "$GA_RUN" --record "$GA_GOOD" --epoch 2 >/dev/null 2>&1 || rc=$?
@@ -375,15 +307,8 @@ else
   assert_eq "into the file named for the epoch the writer holds" "$GA_GOOD" \
     "$(cat "$GA_PARTIAL" 2>/dev/null)"
 
-  # The half that proves the guard is ON the path rather than beside it: against
-  # a partial that ALREADY has rows, a refused record leaves the artifact
-  # byte-for-byte and line-for-line what it was.
   GA_BYTES_BEFORE=$(wc -c <"$GA_PARTIAL" | tr -d ' ')
   GA_LINES_BEFORE=$(wc -l <"$GA_PARTIAL" | tr -d ' ')
-  # Each rejection carries its OWN label. Three assertions sharing one name make
-  # a failure report ambiguous about which input regressed, and a reader
-  # comparing two runs by counting FAIL lines rather than reading their names
-  # cannot tell a fixed case from a newly broken one.
   GA_REJECT_CASES=(
     "null identity:$GA_BAD"
     "an anchor outside the grammar:$(mk_anchor_record 'e:garbage')"
@@ -401,9 +326,6 @@ else
   assert_eq "and unchanged in lines" \
     "$GA_LINES_BEFORE" "$(wc -l <"$GA_PARTIAL" | tr -d ' ')"
 
-  # FENCED reaches the caller as 3. Collapsing it to 0 would let a superseded run
-  # keep dispatching lanes whose output nothing will assemble. The lease holds
-  # epoch 2, so an append declaring epoch 1 is a fenced writer.
   rc=0
   OUT=$(run guarded-append --run-dir "$GA_RUN" --record "$GA_GOOD" --epoch 1 2>&1 >/dev/null) || rc=$?
   assert_exit "a fenced append exits 3 through the guard, not 0" 3 "$rc"
@@ -411,7 +333,6 @@ else
   assert_eq "the fenced row went to the writer's own epoch file" "$GA_GOOD" \
     "$(cat "$GA_RUN/findings.partial.1.jsonl" 2>/dev/null)"
 
-  # The appender's own refusals still reach the caller unchanged.
   rc=0
   run guarded-append --run-dir "$TEST_TMPDIR/no-such-run" --record "$GA_GOOD" --epoch 2 \
     >/dev/null 2>&1 || rc=$?
@@ -421,7 +342,6 @@ else
   assert_exit "guarded-append without --record exits 2" 2 "$rc"
 fi
 
-# --- Usage ------------------------------------------------------------------
 
 rc=0
 run >/dev/null 2>&1 || rc=$?

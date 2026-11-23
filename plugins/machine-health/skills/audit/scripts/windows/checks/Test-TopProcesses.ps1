@@ -42,7 +42,6 @@ $PassThru = $false
 $CheckBody = {
     $thresholdsLabel = 'Windows Server guidance (Microsoft Learn)'
     $topCount = 10
-    # Values per band, keyed by the severity each reads as (mapping: catalog section 26).
     $band = @{
         CpuPct           = @{ INFO = 50; WARN = 80 }
         QueuePerCpu      = 2
@@ -91,7 +90,6 @@ $CheckBody = {
     $byMemory = @($sample.Processes | Sort-Object -Property @{ Expression = 'PrivateBytes'; Descending = $true }, Name |
             Select-Object -First $topCount)
     $seen = [System.Collections.Generic.HashSet[int]]::new()
-    # Keyed by image file name, so a mute covers every instance of that program in every run.
     $items = @(foreach ($p in @($byCpu) + @($byMemory)) {
             if (-not $seen.Add($p.Id)) { continue }
             $image = $p.Path ? [System.IO.Path]::GetFileName($p.Path) : "$($p.Name).exe"

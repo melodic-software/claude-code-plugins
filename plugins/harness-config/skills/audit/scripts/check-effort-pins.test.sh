@@ -14,7 +14,6 @@ SCRIPT="$SCRIPT_DIR/check-effort-pins.sh"
 FX="$SCRIPT_DIR/fixtures/effort-pins"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
-# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$T/cache" XDG_CONFIG_HOME="$T/config"
 
@@ -25,9 +24,6 @@ assert_eq() {
 }
 count() { grep -c -- "$2" <<<"$1"; }
 
-# variant <name> <sed script>: a fixture dir whose page is the shipped page run
-# through <sed script>. A script that edits nothing fails the suite, so no case
-# passes against the unchanged page by accident.
 variant() {
   mkdir -p "$T/v-$1"
   cp "$FX/llms.txt" "$T/v-$1/llms.txt"
@@ -37,7 +33,6 @@ variant() {
   printf '%s' "$T/v-$1"
 }
 
-# run <fixture dir> <args...>: OUT is stdout, ERR stderr, RC the exit code.
 run() {
   local fx="$1"
   shift
@@ -46,8 +41,6 @@ run() {
   ERR="$(cat "$T/stderr")"
 }
 
-# A scan root holding every pin kind. The no-effort agent carries `effort:` in its
-# body only, which is not frontmatter and so not a pin.
 ROOT="$T/root"
 mkdir -p "$ROOT/plugins/p1/agents" "$ROOT/plugins/p1/skills/s1/context" "$ROOT/plugins/p1/workflows" "$ROOT/plugins/p1/tests" \
   "$ROOT/plugins/p2/skills/lanes/context" "$ROOT/prompts/loops"
@@ -74,13 +67,11 @@ fixture_hash() { (cd "$FX" && find . -type f | sort | xargs sha256sum | sha256su
 TREE_BEFORE="$(tree_hash)"
 FX_BEFORE="$(fixture_hash)"
 
-# --- help -------------------------------------------------------------------
 RC=0
 OUT="$(bash "$SCRIPT" --help)" || RC=$?
 assert_eq "help: exits 0" 0 "$RC"
 assert_contains "help: prints usage" "$OUT" "Usage:"
 
-# --- print-baseline round trip --------------------------------------------------
 run "$FX" --print-baseline --root "$EMPTY"
 assert_eq "print-baseline: exits 0" 0 "$RC"
 if [[ "$OUT" =~ ^sha256=[0-9a-f]{64}\ levels=low,medium,high,xhigh,max\ as_of=[0-9]{4}-[0-9]{2}-[0-9]{2}\ source=https://code.claude.com/docs/en/model-config$ ]]; then
@@ -92,10 +83,6 @@ BASE="$T/fixture.baseline"
 printf '%s\n' "$OUT" >"$BASE"
 assert_not_contains "print-baseline: no row text in the baseline" "$(cat "$BASE")" "socks"
 
-# --- slice path: the hash the whole-page scan gave on the committed fixture ---------
-# The hashed lines, copied by hand from the fixture: the level rows of the Choose
-# table, the Levels table rows, then the list item that states the defaults,
-# without its list number.
 want="$(printf '%s\n' \
   '| `low` | Sorting socks by color |' \
   '| `medium` | Baking bread from a known recipe |' \
@@ -117,12 +104,10 @@ run "$(variant outside '/^## Synthetic section$/i\
 | `low` | A table outside the Adjust section |\
 ')" --baseline "$BASE" --root "$EMPTY"
 assert_contains "slice path: a Choose table outside the Adjust section is not read" "$OUT" "table status=same"
-# Thresholds that make every slice escalate to the whole page still leave the read scoped.
 DOCS_CACHE_WHOLE_PAGE_BYTES=0 DOCS_CACHE_ESCALATE_BYTES=0 run "$T/v-outside" --baseline "$BASE" --root "$EMPTY"
 assert_contains "slice path: escalation thresholds set to 0 do not widen the read" "$OUT" "table status=same"
 assert_not_contains "slice path: no escalation to the whole page" "$ERR" "printing the whole page"
 
-# --- unchanged table: every pin kind is listed and ok -----------------------------
 run "$FX" --baseline "$BASE" --root "$ROOT"
 assert_eq "unchanged table: exits 0" 0 "$RC"
 assert_contains "unchanged table: table line is same" "$OUT" "table status=same levels=low,medium,high,xhigh,max"
@@ -138,19 +123,16 @@ assert_not_contains "test scripts are not pins" "$OUT" "t.mjs"
 assert_not_contains "no effort in frontmatter: not a pin" "$OUT" "a-none.md"
 assert_contains "unchanged table: summary" "$OUT" "summary pins=8 drift=0 status=ok"
 
-# --- backticked-cell: level cells are read without their backticks ---------------
 assert_not_contains "backticked-cell: levels carry no backtick" "$(grep '^table ' <<<"$OUT")" '`'
 variant plain 's/`//g' >/dev/null
 run "$T/v-plain" --print-baseline --root "$EMPTY"
 assert_contains "backticked-cell: the same level set with or without backticks" "$OUT" "levels=low,medium,high,xhigh,max "
 
-# --- text outside the three hashed parts does not move the hash ------------------
 run "$(variant prose 's/Paragraph about picking a dial position./Other words entirely./; s/A pretend toggle that is not a level/Reworded toggle/')" \
   --baseline "$BASE" --root "$ROOT"
 assert_eq "unhashed text and a non-level row edited: exits 0" 0 "$RC"
 assert_contains "unhashed text and a non-level row edited: same" "$OUT" "table status=same"
 
-# A heading inside a fenced block is not a heading.
 run "$(variant fenced '/^# Synthetic model page/a\
 \
 ```text\
@@ -162,7 +144,6 @@ run "$(variant fenced '/^# Synthetic model page/a\
 assert_eq "fenced heading ignored: exits 0" 0 "$RC"
 assert_contains "fenced heading ignored: same" "$OUT" "table status=same"
 
-# --- changed-table: a level row changed ------------------------------------------
 run "$(variant changed 's/Tuning a piano with a friend listening/Tuning a harp alone/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "changed-table: exits 1" 1 "$RC"
 assert_contains "changed-table: table line is changed" "$OUT" "table status=changed"
@@ -170,13 +151,11 @@ assert_eq "changed-table: every pin flagged table-changed" 8 "$(count "$OUT" 're
 assert_eq "changed-table: no pin left ok" 0 "$(count "$OUT" 'status=ok')"
 assert_contains "changed-table: summary" "$OUT" "summary pins=8 drift=8 status=drift"
 
-# A model row of the Levels table changed.
 run "$(variant levels 's/^| Model Gamma | `low`, `medium`, `high`, `max` |$/| Model Gamma | `low`, `medium`, `high`, `xhigh`, `max` |/')" \
   --baseline "$BASE" --root "$ROOT"
 assert_eq "changed-table, Levels row: exits 1" 1 "$RC"
 assert_contains "changed-table, Levels row: changed" "$OUT" "table status=changed"
 
-# --- changed-defaults: the resolution-list item that states the defaults changed ----
 run "$(variant defaults 's/Model Gamma at `low`/Model Gamma at `high`/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "changed-defaults: exits 1" 1 "$RC"
 assert_contains "changed-defaults: table line is changed" "$OUT" "table status=changed"
@@ -184,8 +163,6 @@ assert_eq "changed-defaults: every pin flagged table-changed" 8 "$(count "$OUT" 
 run "$(variant item4 's/a coin toss/a dice roll/')" --baseline "$BASE" --root "$ROOT"
 assert_contains "changed-defaults: another list item is not hashed" "$OUT" "table status=same"
 
-# The defaults item is found by what it says, wherever the list numbers it: new
-# sources above it push it to item 5, and item 3 becomes a line with no defaults.
 MOVE_DEFAULTS='/^3\. Pretend default source/{
 s/^3\. /5. /
 i\
@@ -199,16 +176,13 @@ printf '%s\n' "$OUT" >"$MOVED_BASE"
 run "$(variant moved-edited "$MOVE_DEFAULTS;"'s/Model Gamma at `low`/Model Gamma at `high`/')" --baseline "$MOVED_BASE" --root "$ROOT"
 assert_contains "defaults moved: an edit to the defaults line still changes the hash" "$OUT" "table status=changed"
 
-# A renumber alone, with every word the same, is not a change.
 run "$(variant renumbered 's/^3\. Pretend default source/7. Pretend default source/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "renumbered defaults item: exits 0" 0 "$RC"
 assert_contains "renumbered defaults item: same" "$OUT" "table status=same"
 
-# A second item that mentions a default is hashed too, never skipped for the first.
 run "$(variant two-defaults 's/a coin toss/a default coin toss/')" --baseline "$BASE" --root "$ROOT"
 assert_contains "two default items: a change to either one is seen" "$OUT" "table status=changed"
 
-# --- failed-fetch: the page cannot be read ---------------------------------------
 mkdir -p "$T/v-noindex"
 printf '%s\n' '# Synthetic docs index' '- [Other](https://code.claude.com/docs/en/other.md): other' >"$T/v-noindex/llms.txt"
 cp "$FX/model-config.md" "$T/v-noindex/model-config.md"
@@ -227,7 +201,6 @@ run "$T/v-nopage" --print-baseline --root "$EMPTY"
 assert_eq "failed-fetch, print-baseline: exits 3" 3 "$RC"
 assert_eq "failed-fetch, print-baseline: prints no baseline" "" "$OUT"
 
-# --- reshaped page ---------------------------------------------------------------
 run "$(variant reshaped 's/^#### Choose an effort level$/#### Pick a dial position/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "reshaped, Choose heading renamed: exits 3" 3 "$RC"
 assert_contains "reshaped, Choose heading renamed: unparsed" "$OUT" "table status=unparsed"
@@ -236,7 +209,6 @@ assert_eq "reshaped, Choose heading renamed: no pin line" 0 "$(count "$OUT" '^pi
 run "$(variant nodefaults '/^3\. /d')" --baseline "$BASE" --root "$ROOT"
 assert_eq "reshaped, no defaults item: exits 3" 3 "$RC"
 assert_contains "reshaped, no defaults item: reason" "$OUT" "reason=no-defaults-item"
-# Item 3 is still there but no longer states the defaults: no claim, not a stale hash.
 run "$(variant reworded 's/^3\. Pretend default source.*/3. Pretend flag source: a switch at launch/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "reshaped, item 3 states no default: exits 3" 3 "$RC"
 assert_contains "reshaped, item 3 states no default: reason" "$OUT" "reason=no-defaults-item"
@@ -244,7 +216,6 @@ run "$(variant nocol 's/^| Model | Levels |$/| Model | Options |/')" --baseline 
 assert_eq "reshaped, Levels column renamed: exits 3" 3 "$RC"
 assert_contains "reshaped, Levels column renamed: reason" "$OUT" "reason=no-levels-column"
 
-# --- a pin whose level is not in the table ------------------------------------------
 run "$FX" --baseline "$BASE" --root "$BOGUS"
 assert_eq "level not in table: exits 1" 1 "$RC"
 assert_contains "level not in table: flagged" "$OUT" "pin path=plugins/p1/agents/a-bogus.md kind=frontmatter effort=turbo status=drift reason=level-not-in-table"
@@ -252,13 +223,10 @@ assert_contains "level not in table: the others stay ok" "$OUT" "summary pins=9 
 run "$T/v-changed" --baseline "$BASE" --root "$BOGUS"
 assert_contains "level not in table: wins over table-changed" "$OUT" "effort=turbo status=drift reason=level-not-in-table"
 
-# --- no pins ----------------------------------------------------------------------
 run "$FX" --baseline "$BASE" --root "$EMPTY"
 assert_eq "no pins: exits 0" 0 "$RC"
 assert_contains "no pins: summary" "$OUT" "summary pins=0 drift=0 status=ok"
 
-# --- --docs-dir reads the page from disk, with no fetcher ---------------------------
-# The plugin root holds the docs cache script only: the section is still sliced.
 mkdir -p "$T/cache-only/scripts"
 cp "$SCRIPT_DIR/../../../scripts/docs-cache.sh" "$T/cache-only/scripts/"
 RC=0
@@ -266,7 +234,6 @@ OUT="$(CLAUDE_PLUGIN_ROOT="$T/cache-only" SETTINGS_AUDIT_DOCS_FIXTURE_DIR='' bas
 assert_eq "docs-dir: the on-disk page is used without the fetcher" 0 "$RC"
 assert_contains "docs-dir: same" "$OUT" "table status=same"
 
-# --- fatal ------------------------------------------------------------------------
 run "$FX" --baseline "$T/absent.baseline" --root "$ROOT"
 assert_eq "missing baseline: exits 2" 2 "$RC"
 assert_contains "missing baseline: named" "$ERR" "baseline not found"
@@ -282,7 +249,6 @@ assert_contains "missing fetcher: named" "$OUT" "shared fetcher not found"
 
 assert_eq "every page variant edits the page" "" "$(cat "$T/noop-variants" 2>/dev/null)"
 
-# --- no scanned file changed --------------------------------------------------------
 assert_eq "byte-identical: no scan-root file changed across every case" "$TREE_BEFORE" "$(tree_hash)"
 assert_eq "byte-identical: no fixture file changed across every case" "$FX_BEFORE" "$(fixture_hash)"
 
