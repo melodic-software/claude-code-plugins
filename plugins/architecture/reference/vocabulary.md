@@ -121,7 +121,10 @@ Which style a repository follows is its own decision, read from its standards
   into every caller, means it was doing real work. A module that only forwards calls has three
   fixes: delete it so callers call what it wrapped, move work between it and the module it wraps
   so each has a distinct job, or merge the two into one deeper module (Ousterhout, *A Philosophy
-  of Software Design*, §7.1).
+  of Software Design*, §7.1). A scan records the result as `concentrates` when removing the module
+  gathers logic into fewer places (it only forwarded calls, or several shallow modules fold into one
+  deep one), a candidate, or `moves` when the logic would be copied into every caller, a module that
+  earns its keep and is not a candidate.
 - **Count the edits one change forces.** Suppose invoice lines gain an exemption code. If
   `TaxCalculator`'s rate step, its rounding step and its receipt step each need an edit, each step
   reads the line layout for itself: the code was cut along the sequence of the pipeline, not along

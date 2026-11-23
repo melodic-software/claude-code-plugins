@@ -64,7 +64,7 @@ must change? A "no" confirms the hazard, and the candidate cites the test in `sh
 | Hand-synced list | Two or more places list the same items and adding one means editing every list; an agent updates only the list it sees. Remedy: keep one list and derive the others, or fail the build when they disagree | Supported regions are listed in the rate table, the validator and the region picker |
 
 Run the **deletion test** on anything that looks shallow, and record the result in the schema's
-`deletion-verdict` field: `concentrates` is the candidate signal and `moves` marks a pass-through,
+`deletion-verdict` field: `concentrates` is the candidate signal and `moves` marks a module that earns its keep,
 with both results defined in [vocabulary.md](../../../../reference/vocabulary.md) and Phase 1.
 
 When judging whether an area is tested, a suite that skips because a required tool is missing is

@@ -27,7 +27,8 @@ subagents in the same turn, and does not hold the dispatch for the user's answer
 
 ## 2. The briefs the subagents read
 
-Launch three or four subagents at once through the Agent tool. Each brief carries one design
+Launch three or four fresh subagents at once through the Agent tool, never a fork, which would
+carry the parent's favored shape into every design. Each brief carries one design
 constraint, and the constraints are picked to pull against each other, so that following a brief
 faithfully cannot lead two subagents to the same shape:
 
