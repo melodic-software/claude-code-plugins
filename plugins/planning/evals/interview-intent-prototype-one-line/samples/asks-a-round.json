@@ -21,6 +21,10 @@
     {
       "answer": "Plan:\n1. Pull the orders\n2. Write the CSV\n3. Show finance",
       "why": "a numbered list with no question"
+    },
+    {
+      "answer": "Plan:\n1. Pull orders\n2. Write CSV\n\nShall I lock it?",
+      "why": "a numbered plan list, then a lock question that is not a numbered question"
     }
   ]
 }

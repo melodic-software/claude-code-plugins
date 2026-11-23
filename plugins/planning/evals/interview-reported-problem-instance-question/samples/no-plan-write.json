@@ -5,6 +5,7 @@
     {"answer": [], "why": "no tool call"}
   ],
   "fail": [
-    {"answer": [{"tool": "Write", "input": {"file_path": ".work/webhook-retry/PLAN.md", "content": "## Brief\n"}}], "why": "wrote the Brief before the problem was confirmed"}
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/webhook-retry/PLAN.md", "content": "## Brief\n"}}], "why": "wrote the Brief before the problem was confirmed"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/csv-export-speed/brief.md", "content": "## Brief\n"}}], "why": "wrote a Brief to a file other than PLAN.md"}
   ]
 }

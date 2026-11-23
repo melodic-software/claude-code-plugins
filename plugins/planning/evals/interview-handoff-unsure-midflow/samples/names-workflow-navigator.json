@@ -35,6 +35,14 @@
       "why": "negated navigator after a quoted phrase"
     },
     {
+      "answer": "There's no need to run \"/session-flow:workflow\" yet.",
+      "why": "negation before a quoted navigator"
+    },
+    {
+      "answer": "Don't use “/session-flow:workflow” here; run /planning:plan.",
+      "why": "negation before a curly-quoted navigator"
+    },
+    {
       "answer": "You are at an unknown workflow stage, so run /planning:design.",
       "why": "mentions a workflow stage but not the navigator"
     }
