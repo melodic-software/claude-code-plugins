@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import { loadTrustedActors as statusList } from "../../actions/resolve-config/read-status.mjs";
 import { loadTrustedActors, loadTrustedList as triggerList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -26,11 +27,10 @@ test("the list path is the one under .github/standards, under .base unless a bas
 
 test("merge-holds, read-status and resolve-config, which import nothing from scripts/lib, name the same path", () => {
   assert.equal(HOLDS_PATH, TRUSTED_ACTORS_PATH);
-  const base = mkdtempSync(join(tmpdir(), "trusted-actors-base-"));
+  const base = tempDir("trusted-actors-base-");
   mkdirSync(dirname(join(base, TRUSTED_ACTORS_PATH)), { recursive: true });
   writeFileSync(join(base, TRUSTED_ACTORS_PATH), '{"marker":1}');
   assert.deepEqual(statusList({ BASE_PATH: base }), { marker: 1 });
-  rmSync(base, { recursive: true });
   const source = readFileSync(join(ROOT, ".github/actions/resolve-config/resolve-config.mjs"), "utf8");
   assert.match(source, new RegExp(`\\nconst TRUSTED_ACTORS_PATH = "${TRUSTED_ACTORS_PATH.replaceAll(".", "\\.")}";\\n`));
 });
@@ -109,7 +109,7 @@ const cell = (fn) => {
 const view = (list) => ({ ids: [...list.ids], humans: [...list.humans], logins: [...list.logins] });
 
 function gateSourceCopyBesideFixture() {
-  const tree = mkdtempSync(join(tmpdir(), "trusted-actors-gate-"));
+  const tree = tempDir("trusted-actors-gate-");
   for (const rel of ["pr-unblock/gate-source.mjs", "pr-unblock/escalation-routes.mjs", "pr-unblock/escalation-routes.json", "lib/lane-binding.mjs", "lib/trusted-actors.mjs"]) {
     mkdirSync(dirname(join(tree, ".github/scripts", rel)), { recursive: true });
     copyFileSync(join(SCRIPTS, rel), join(tree, ".github/scripts", rel));
@@ -138,7 +138,7 @@ async function readers(path, text, tree, n) {
 }
 
 test("every reader, permissive ones included, returns what main returned on each malformed list", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "trusted-actors-fixtures-"));
+  const dir = tempDir("trusted-actors-fixtures-");
   const tree = gateSourceCopyBesideFixture();
   let n = 0;
   for (const [name, text] of Object.entries(FIXTURES)) {
@@ -151,8 +151,6 @@ test("every reader, permissive ones included, returns what main returned on each
       assert.deepEqual(got[i], want === RAW ? JSON.parse(text) : want, `${COLUMNS[i]} on the ${name} list returns what main returned ("!Name" is a throw)`);
     });
   }
-  rmSync(dir, { recursive: true });
-  rmSync(tree, { recursive: true });
 });
 
 test("on the real list every reader agrees with the validated view", async () => {
@@ -172,5 +170,4 @@ test("on the real list every reader agrees with the validated view", async () =>
     humans,
     humans,
   ]);
-  rmSync(tree, { recursive: true });
 });
