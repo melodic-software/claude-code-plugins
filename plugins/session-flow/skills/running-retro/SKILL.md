@@ -27,7 +27,7 @@ for a single end-of-session pass.
 
 It **captures and routes** findings; it does not apply them. Codification (editing `CLAUDE.md`,
 rules, or memory) stays with `/session-flow:retro`'s approval checkpoint, and turning one recurring
-mistake into a check or a line with `/corrections:codify`, which proposes and never applies. Tracker filing is offered, never
+mistake into a check or a line with `/corrections:codify` (if enabled), which proposes and never applies. Tracker filing is offered, never
 performed automatically.
 
 ## Siblings. Pick the right one
@@ -135,7 +135,7 @@ counted over the whole session by the parser, replacing the last stamp. A non-ze
 ledger as it was: note it and go on. The observer stamps its own appends the same way.
 
 **The ledger is a public artifact.** Its directory, its name glob and its `session_id` and
-`plugin_usage` frontmatter keys are the contract other plugins read (`/plugin-quality:audit session`
+`plugin_usage` frontmatter keys are the contract other plugins read (`/plugin-quality:audit session` (if enabled)
 finds the ledger by `session_id` and reads `plugin_usage`), so a change to any of them changes that
 contract.
 
@@ -159,7 +159,7 @@ Present the checkpoint findings, each skill-fit gap with an `Owner:` field or an
 naming `<plugin>:<skill>` or `no owner found`, then offer the forward routes; act only on the ones
 the user picks:
 
-- **Codify a durable learning** → `/corrections:codify "<the learning>"` when the `corrections`
+- **Codify a durable learning** → `/corrections:codify "<the learning>"` (if enabled) when the `corrections`
   plugin is enabled, otherwise `/session-flow:retro`, whose session mode codifies approved
   learnings (running-retro never edits `CLAUDE.md`, rules, or memory itself). A request, in the
   invocation or later, to write a learning into `CLAUDE.md`, `.claude/rules/` or memory gets this
@@ -167,13 +167,13 @@ the user picks:
   untouched, with any tool.
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
   For each **Skill-fit gap** finding, first fill its `existing issue` field: search the owning
-  plugin's open issues through `/work-items:track search` (the tracker seam; name no provider
+  plugin's open issues through `/work-items:track search` (if enabled) (the tracker seam; name no provider
   command), when the `work-items` plugin is enabled, and record the match or `none found`. When
   it is not enabled, or the owner is `no owner found`, leave `not searched` and say so. List the gap, owning skill, evidence, proposed change and existing
   issue together, and file only the ones the user says yes to, skipping any that already has an
   issue. Skill-fit findings are never auto-filed.
-- **Build the new-skill candidate** → read `/playbooks:skill-authoring` for the authoring doctrine
-  and draft against it, then gate the result on `/skill-quality:check`, when those are enabled;
+- **Build the new-skill candidate** → read `/playbooks:skill-authoring` (if enabled) for the authoring doctrine
+  and draft against it, then gate the result on `/skill-quality:check` (if enabled), when those are enabled;
   otherwise say the candidate has no authoring route here and leave it recorded. Read the
   doctrine before drafting rather than inventing a shape from scratch. (It is a knowledge surface:
   it takes no arguments and performs no actions, so it informs the drafting rather than doing it.)
@@ -266,7 +266,7 @@ counterpart. When checking when a `/loop` task stops firing, fetch
 
 - **Does not score the session**. The five scored dimensions are `/session-flow:retro`'s.
 - **Does not codify learnings**, capture + route only; codification is `/session-flow:retro` or
-  `/corrections:codify`.
+  `/corrections:codify` (if enabled).
 - **Does not auto-file tracker issues**, skill-fit gaps included; it offers routing; the user decides.
 - **Does not `/clear` or end the session**, unlike `handoff`; the session continues.
 - **Does not run builds, tests, or a code review**, and does not write into the consumer's repo

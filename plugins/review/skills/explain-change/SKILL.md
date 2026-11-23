@@ -20,7 +20,7 @@ A request for the risk rating alone goes to `/review:merge-risk`.
 
 ## 1. Decide whether to run
 
-Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide. `<option>` is this plugin's `medium` option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json` (if enabled), invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide. `<option>` is this plugin's `medium` option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "<option>" [--setting '<name>=<value>' ...] [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
@@ -40,7 +40,7 @@ The output names the `action`, the `triggers` that fired, the `medium`, and the 
 
 ## 2. Write the record
 
-Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <url> --diff --out <dir>/pr.diff`, where `<url>` is the `url` in `facts.json`, so the gated diff is the pull request whose repository the publish gate looks up (same fallback as step 1), then read it from that file. Write the digest in markdown, in this order:
+Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <url> --diff --out <dir>/pr.diff` (if enabled), where `<url>` is the `url` in `facts.json`, so the gated diff is the pull request whose repository the publish gate looks up (same fallback as step 1), then read it from that file. Write the digest in markdown, in this order:
 
 - **Why.** The problem the change solves, in two or three sentences.
 - **Before and after.** What a user or caller saw before, and what they see now.
@@ -50,7 +50,7 @@ Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <ur
 - **File by file.** For each file a reader should open: its status, one note, and the hunks that matter, each with its location, the lines, and a note.
 - **Quiz.** Only when the reader passed `--quiz` or asked for one. Three to five questions on what the change does and why, each with two to four choices and the answer with one sentence of reason. With no request, the record and the page have no quiz section.
 
-**Recording.** Link a recording only when `/testing:run-e2e` captured it (its evidence output names the recording path) with the checked-out commit equal to the pull request's head, `headRefOid` in `facts.json`. A recording of any other commit is not linked. Write the path relative to the repository root, never absolute or under `~`: an absolute path shows the reader's username, and the builder drops it. With none, the record and the page have no recording section.
+**Recording.** Link a recording only when `/testing:run-e2e` (if enabled) captured it (its evidence output names the recording path) with the checked-out commit equal to the pull request's head, `headRefOid` in `facts.json`. A recording of any other commit is not linked. Write the path relative to the repository root, never absolute or under `~`: an absolute path shows the reader's username, and the builder drops it. With none, the record and the page have no recording section.
 
 ## 3. Rate the risk
 

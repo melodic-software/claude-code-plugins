@@ -46,7 +46,7 @@ and name this accepted set on any other token; never guess.
 ## Consumer mode: `sweep-only`
 
 For a skill that invokes this one through the Skill tool and parses the result, such as
-`/performance:go-faster`. It reads the store as it is and writes nothing: skip Step 1 (no collect,
+`/performance:go-faster` (if enabled). It reads the store as it is and writes nothing: skip Step 1 (no collect,
 so the first-collect disclosure under "Paths" never applies), run Step 2 with `--format json` in
 place of `--format md` and without `--write-report`, skip Step 3's presenting, and return
 sweep.py's stdout verbatim with its exit code, exit 3 included. The envelope holds no excerpt,
@@ -60,7 +60,7 @@ Exits 0, 1 and 2 mean what Step 2 says.
 ## Consumer mode: `excerpts-only`
 
 For a skill that invokes this one through the Skill tool and reads the person's typed turns, such as
-`/corrections:codify preferences`. It reads the store as it is and writes nothing: skip Step 1, as
+`/corrections:codify preferences` (if enabled). It reads the store as it is and writes nothing: skip Step 1, as
 `sweep-only` does, and skip Step 3's presenting. Run, with the caller's options:
 
 ```bash
@@ -250,7 +250,7 @@ every key, which is text matched out of a stored title, branch or path.
 
 `pr` looks back over one pull request: every session that linked it or ran on its head branch in
 its repository, subagents included, measured, read in subagents sized to the transcripts, and its
-human review comments handed to `/corrections:codify reviews --pr`, plus the CI lane legs pulled for its head branch. Read [actions/pr.md](actions/pr.md) and follow
+human review comments handed to `/corrections:codify reviews --pr` (if enabled), plus the CI lane legs pulled for its head branch. Read [actions/pr.md](actions/pr.md) and follow
 its process.
 
 ## Correction lens
@@ -302,14 +302,14 @@ which reads every project, so say which scope was read. Give every
 6. **Present** as Step 3 says. The report's `Judged (unranked)` section lists each turn judged a
    correction with its excerpt and reason. Say that a model, not a measurement, made these calls,
    that no agreement figure on a labeled sample exists yet, and that they are never ranked beside
-   the measured findings. Each one suggests `/corrections:codify` for the person to run, marked `(not installed)` when
+   the measured findings. Each one suggests `/corrections:codify` (if enabled) for the person to run, marked `(not installed)` when
    the catalog lacks it.
 
 ## Score trends: `trends`
 
 `trends` shows how this project's session health scores move across sessions, with the team's
 delivery metrics beside them. It takes no option, runs neither Step 1 nor Step 2, and reads no
-store: its only inputs are the score history under "Paths" and `/work-items:measure-delivery` when
+store: its only inputs are the score history under "Paths" and `/work-items:measure-delivery` (if enabled) when
 that skill is available, so the first-collect disclosure under "Paths" does not apply. Read
 [actions/trends.md](actions/trends.md) and follow its process.
 

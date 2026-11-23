@@ -192,7 +192,7 @@ its branch); resume instead only when the unit needs state that lives in that wo
 costly to move: its checkout, uncommitted changes, or a running process. Settings page:
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 To choose between a workflow and subagents, and the model and effort each spawn gets, run
-`/multi-agent:assess` and `/multi-agent:route` when they resolve in this session; otherwise read
+`/multi-agent:assess` (if enabled) and `/multi-agent:route` (if enabled) when they resolve in this session; otherwise read
 <https://code.claude.com/docs/en/sub-agents#choose-a-model> (record: `context/sources.md`,
 "Priming addendum: model and effort routing").
 Resolve the repository's verification level once with

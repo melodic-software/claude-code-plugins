@@ -17,7 +17,7 @@ names a mechanism at file:line: what reference holds memory alive, or where CPU 
 and reproduction loops belong to `/debugging:debug`, which sends an artifact here when it has one
 but cannot reproduce the failure.
 
-No artifact yet: stop. Name `/app-control:drive capture --kind <trace|cpu|heap>` as the
+No artifact yet: stop. Name `/app-control:drive capture --kind <trace|cpu|heap>` (if enabled) as the
 command for the person to run, and ask them to come back with the file. Never invoke that skill or
 any recorder yourself, whether or not someone is present.
 
@@ -106,7 +106,7 @@ placeholder before running a command (where Claude Code substitutes it:
 - **Does not fix.** It stops at the mechanism. A fix with a regression test is `/debugging:debug`;
   a measured speed-up is the performance plugin's chain.
 - **Does not start the program.** It never launches or attaches a profiler and never invokes
-  `/app-control:drive`; it names `/app-control:drive capture` for the person to run.
+  `/app-control:drive` (if enabled); it names `/app-control:drive capture` (if enabled) for the person to run.
 - **Does not keep what it made.** The SQLite directory is deleted at the end
   unless the user says otherwise.
 

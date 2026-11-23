@@ -31,9 +31,9 @@ or wrong; the neighbors below own those verdicts.
 | What can I invoke, and where did it come from? | **this skill** |
 | Is my install directory healthy. What is stale, what does the product manage? | `/harness-ops:audit-install-state` |
 | Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
-| Are settings, hooks, permissions, and MCP config correct? | `/harness-config:audit` |
-| Which permission scopes hold which rules? | `/harness-config:audit-permission-state` |
-| Are the configured MCP servers safe to run? | `/mcp-tools:audit-posture` (composed below when present) |
+| Are settings, hooks, permissions, and MCP config correct? | `/harness-config:audit` (if enabled) |
+| Which permission scopes hold which rules? | `/harness-config:audit-permission-state` (if enabled) |
+| Are the configured MCP servers safe to run? | `/mcp-tools:audit-posture` (if enabled) (composed below when present) |
 
 The distinction that matters most: `audit-install-state` inventories **files on disk**, this skill
 inventories **capabilities that resolve**. A plugin can be present on disk and contribute nothing
@@ -325,13 +325,13 @@ plugin skills). Recheck when the cache layout or `defaultEnabled` precedence cha
 
 ## MCP servers
 
-When `/mcp-tools:audit-posture` is among the available skills, invoke it through the Skill tool
+When `/mcp-tools:audit-posture` (if enabled) is among the available skills, invoke it through the Skill tool
 after the script runs. Save its report in the directory that holds the `--out` file, as
 `mcp-posture-<YYYY-MM-DD>.md`. When that directory already holds an earlier `mcp-posture-*.md`,
 pass the newest one's path in the Skill call's arguments as the previous report, so the posture
 report adds its "Changes since" section. Without `--out`, show the report and save nothing.
 
-When `/mcp-tools:audit-posture` is not among the available skills, print
+When `/mcp-tools:audit-posture` (if enabled) is not among the available skills, print
 `MCP coverage: mcp-tools is not enabled` and say nothing more about it.
 
 Either way, say that claude.ai connectors arrive in the session at runtime and never appear in a

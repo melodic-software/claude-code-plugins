@@ -174,7 +174,7 @@ is "this plugin versus no plugin".
 A skill or agent that is not yet wrapped is not a target: report the wrap route, print it, and stop.
 The next preflight sees `wrapped-skill` or `wrapped-agent` and proceeds.
 
-For a `rules` target, invoke `/harness-config:unhobble` through the Skill tool when the
+For a `rules` target, invoke `/harness-config:unhobble` (if enabled) through the Skill tool when the
 `harness-config` plugin is installed: it measures standing instructions by stripping them and
 watching what the model stumbles over. When that plugin is absent, say so and describe the
 experiment in one sentence (strip the instructions on a branch, log observed stumbles, restore only

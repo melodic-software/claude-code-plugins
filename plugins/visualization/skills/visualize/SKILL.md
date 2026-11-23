@@ -93,7 +93,7 @@ fall back to a simple, honest default (a labeled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
 
-When the form hand-authors CSS or SVG styling outside the page chrome (Step 3) and `/user-interface:write-css` is enabled, use it to write that CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The page chrome stays governed by the bundled chrome reference either way.
+When the form hand-authors CSS or SVG styling outside the page chrome (Step 3) and `/user-interface:write-css` (if enabled) is enabled, use it to write that CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The page chrome stays governed by the bundled chrome reference either way.
 
 When the form is a hand-tweakable visual layout, render this skill's rich page
 (or the form Step 3's resolved medium calls for) and offer the person the
@@ -408,7 +408,7 @@ It turns the material into a slide deck when the request is for slides rather th
 An **interactive parameter explorer whose output returns as a prompt** (controls
 beside a live preview with a copy-out prompt, the "playground" shape) is not a form
 this skill renders. When the first-party `playground` plugin is enabled, route the
-request to its `playground` skill, or to the `playgrounds` wrapper's `/playgrounds:use`
+request to its `playground` skill, or to the `playgrounds` wrapper's `/playgrounds:use` (if enabled)
 when that wrapper is enabled, which also owns the install uplift and cloud delivery
 guidance. When neither is enabled, say the capability exists as an installable
 plugin and continue with this skill's closest static form (a rich page without the

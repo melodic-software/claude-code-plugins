@@ -29,11 +29,11 @@ The counter arrives from one of five places:
 
 | Source | What it hands over |
 |---|---|
-| `/performance:protect` | a verified counter: name, command, field, and the goal with its Correlation value |
-| the ratchet offer on a counting rung's proposal from `/corrections:codify` | a lint rule, once it exists, whose violation count is above zero |
-| `/code-metrics:audit-suppressions`, when that skill is available | a command that prints the suppression count |
+| `/performance:protect` (if enabled) | a verified counter: name, command, field, and the goal with its Correlation value |
+| the ratchet offer on a counting rung's proposal from `/corrections:codify` (if enabled) | a lint rule, once it exists, whose violation count is above zero |
+| `/code-metrics:audit-suppressions` (if enabled), when that skill is available | a command that prints the suppression count |
 | the user, from a telemetry store | a command that queries one run's count and prints it |
-| `/performance:target` on slow checks | a check count that grows with the repository: checks per hook stage or CI job, files a check scans, or test suites a change selects |
+| `/performance:target` (if enabled) on slow checks | a check count that grows with the repository: checks per hook stage or CI job, files a check scans, or test suites a change selects |
 
 A check count holds a lane's growth where its duration cannot be held: a ceiling on files scanned
 or checks per stage fails the change that adds one, and the lane's speed is measured separately.
@@ -86,7 +86,7 @@ suppression comment itself (for example an ESLint rule that reports every disabl
 that rule on at error severity. When no such rule exists, nothing in the linter fails on the first
 new suppression, so ratchet the count at `0` like any other counter.
 
-A counter from `/performance:protect` with a value of `0` is also ratcheted at `0`, since no linter
+A counter from `/performance:protect` (if enabled) with a value of `0` is also ratcheted at `0`, since no linter
 stands behind it.
 
 On the per-file path with no native baseline, run the rule in its own linter invocation, the one
@@ -151,7 +151,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/ratchet.py" add --file <ceilings file> \
 - The ceiling is the measured value. A ceiling above it is room for a regression to land unnoticed.
 - `--goal` says what the ceiling protects. For a lint rule: the rule id and the direction ("no new
   `no-floating-promises` violations; fix existing ones down to 0"). For a counter from
-  `/performance:protect`: the verified goal, ending with its Correlation value exactly as protect
+  `/performance:protect` (if enabled): the verified goal, ending with its Correlation value exactly as protect
   passed it.
 
 ### Per-file counters
@@ -309,9 +309,9 @@ Awaiting:  human approval of the files above
 
 ## Boundary
 
-- **Does not choose the rule.** `/corrections:codify` proposes rungs; this holds a count
+- **Does not choose the rule.** `/corrections:codify` (if enabled) proposes rungs; this holds a count
   once a rule or counter exists.
-- **Does not prove a performance win.** `/performance:verify` does; this takes the verified counter.
+- **Does not prove a performance win.** `/performance:verify` (if enabled) does; this takes the verified counter.
 - **Does not commit, push or merge,** under any autonomy setting. The scheduled job opens a draft
   PR and stops.
 - **Does not check in a duration** or run a model in CI.

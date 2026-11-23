@@ -64,10 +64,10 @@ is `prune`; anything else asks which action.
 
 ## Invocation by consuming workflows
 
-- **Readers** (`/planning:interview`, `/planning:plan`, `/planning:prd`, `/testing:write`,
-  `/work-items:decompose`, `/naming:name-it-better` and others) invoke `lookup` at the step where they
+- **Readers** (`/planning:interview` (if enabled), `/planning:plan` (if enabled), `/planning:prd` (if enabled), `/testing:write` (if enabled),
+  `/work-items:decompose` (if enabled), `/naming:name-it-better` (if enabled) and others) invoke `lookup` at the step where they
   choose or judge a name, and use its canonical terms. `lookup` never writes.
-- **Writers** (`/planning:interview`, `/planning:design`, `/architecture:improve`, EventStorming
+- **Writers** (`/planning:interview` (if enabled), `/planning:design` (if enabled), `/architecture:improve` (if enabled), EventStorming
   wrap-up) invoke `curate` when a discussion resolves vocabulary, then resume. This skill does not
   take ownership of the caller's Brief or design artifacts.
 
@@ -76,7 +76,7 @@ is `prune`; anything else asks which action.
 - **Loaded on demand only.** The glossary reaches a session through `lookup`, never through an
   `@` import in `CLAUDE.md` or an always-loaded rule: a session that names nothing pays nothing.
 - **No bounded-context discovery.** Consume existing boundaries. When the project has not
-  established the boundaries a term needs, route that work to `/event-storming:simulation`.
+  established the boundaries a term needs, route that work to `/event-storming:simulation` (if enabled).
 - **No general dictionary.** Exclude generic programming and methodology terms unless the consuming
   project's domain gives them a distinct meaning, and everyday words in their ordinary sense; a term
   earns an entry only when it removes ambiguity.
@@ -84,13 +84,13 @@ is `prune`; anything else asks which action.
 - **No spec or scratchpad.** Behavior, implementation, acceptance criteria and open questions belong
   in their owning artifacts.
 - **No ADR ownership.** Why the system is built a certain way, a decision chosen over a weighed
-  alternative, is `/architecture:adr`'s; this skill records only what a term means.
+  alternative, is `/architecture:adr` (if enabled)'s; this skill records only what a term means.
 - **No speculative scaffolding.** An empty glossary or index is worse than no file; create lazily.
 - **No autonomous consensus.** Ambiguous language is a question, not a write; `seed` writes only
   items the person accepted, an accept-all reply to the list shown included, and `prune` removes or
   merges only entries a person accepted.
 - **Never rewrites code or copy.** Code names follow the glossary, but the rename goes through
-  `/docs-hygiene:rename-references` in its own reviewed change; user-facing copy and error messages
+  `/docs-hygiene:rename-references` (if enabled) in its own reviewed change; user-facing copy and error messages
   are reported, never rewritten.
 
 ## Next

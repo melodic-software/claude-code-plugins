@@ -146,7 +146,7 @@ class-B moves, and reports.
 1. **Dispatch** with the resolved scope (files, and lines under `diff`), posture, settings, under
    `necessary` the resolved keep list's path, the discovered markers and the tooling layer. Model and effort: the
    agent's own definition, unless
-   `/multi-agent:route worker code` resolves in this session and a config layer (basis `config`)
+   `/multi-agent:route worker code` (if enabled) resolves in this session and a config layer (basis `config`)
    sets the `worker` role, in which case pass that role's `single` variant model and effort.
 2. **Check its report and its diff.** Re-run `change-shape.sh` on every file it touched, before
    against after: anything but COMMENT-ONLY, or DOCSTRING-ONLY on a Python file whose only
@@ -157,7 +157,7 @@ class-B moves, and reports.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.
 4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, hand each ADR
-   candidate it listed to `/architecture:adr` per [ADR candidates](#postures), write
+   candidate it listed to `/architecture:adr` (if enabled) per [ADR candidates](#postures), write
    the findings file ([actions/remove.md](actions/remove.md#findings-file)) from the rows it
    listed, less the reshape flags whose move you applied and plus one for each move whose gate
    failed, then report.
@@ -203,7 +203,7 @@ the signature is proposed for deletion, never deleted.
 repository's own deliberate decisions and names the alternative it was chosen over is an ADR
 candidate as well as a reshape flag; one that names no alternative is a reshape flag only. The
 run that triages it lists it in the report. In an interactive run with the `architecture` plugin
-enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:adr`
+enabled, the orchestrator, never `comment-reviewer`, then invokes `/architecture:adr` (if enabled)
 via the Skill tool for each listed candidate, with the decision, the alternative and the comment's
 text; that skill owns and applies the admission test. Otherwise
 (unattended, `report` mode, or no `architecture` plugin) the candidate stays listed.
@@ -220,7 +220,7 @@ an UNPROVABLE file yields proposals only.
 ## Hard rules
 
 - **Never delete information without a landing place.** Removed narrative is staged in the report
-  as a proposed commit-message block for `/source-control:commit` (and appended to `--notes` when
+  as a proposed commit-message block for `/source-control:commit` (if enabled) (and appended to `--notes` when
   given). Under `explanatory` a class-B comment's information moves into code before the comment
   goes; under `necessary` and `none` a class-B comment the run cannot dissolve goes to the staged
   block and a reshape flag. The block carries an `Intentional-removal:` line only when the target
@@ -259,7 +259,7 @@ an UNPROVABLE file yields proposals only.
   is argument, then repository file, then setting, then enforced. The behavioral guards, the
   work-tracking entries and SELF-UPDATE EXTRA HARD hold at every setting.
 - **A comment shape the repository uses at scale is proposed, never applied**, with its count.
-- **Code files only.** Markdown is `/docs-hygiene:audit-noise` territory.
+- **Code files only.** Markdown is `/docs-hygiene:audit-noise` (if enabled) territory.
 - **Never add comments, never flag missing ones.** The add-side is `/code-tidying:tidy`'s Explaining
   Comments tidying.
 - **Structure-only edits.** Class-B moves are behavior-preserving refactorings from the named
@@ -273,8 +273,8 @@ an UNPROVABLE file yields proposals only.
 - Not `/code-tidying:tidy` or `/code-tidying:batch-simplify`: no lane rotation, no scope budget, no
   wave machinery, one pass over one resolved scope.
 - Not a bug-hunter or general simplifier: `/code-review` and `/simplify` own those, and
-  `/ai-slop:audit` owns prose.
-- Lint and type suppressions in scope are listed by `/code-metrics:audit-suppressions`, which marks
+  `/ai-slop:audit` (if enabled) owns prose.
+- Lint and type suppressions in scope are listed by `/code-metrics:audit-suppressions` (if enabled), which marks
   the correctness rules; point to it over the same scope rather than rebuilding it.
 
 ## Next

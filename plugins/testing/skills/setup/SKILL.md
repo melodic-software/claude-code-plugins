@@ -61,7 +61,7 @@ audit goes quiet with no plugin change; an excluded path or a disabled adapter s
 ## The test judge
 
 The judge that asks where each changed test's expected value came from runs on demand, as
-`/testing:audit --judge`, and in `/source-control:pull-request` prep. It has no plugin option and
+`/testing:audit --judge`, and in `/source-control:pull-request` (if enabled) prep. It has no plugin option and
 no hook.
 
 ## `check` (read-only)
@@ -122,29 +122,29 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      [F631](https://docs.astral.sh/ruff/rules/assert-tuple/). As of 2026-11-10; recheck when a ruff
      release note changes the default rule set.
    - Bash, PowerShell and Go: no maintained rule. For a can't-fail test pattern in one of these
-     languages, name the call `/corrections:codify "<the test pattern>"` for the user to run;
-     `check` builds no mechanism. When `/corrections:codify` is among the available skills, hand
+     languages, name the call `/corrections:codify "<the test pattern>"` (if enabled) for the user to run;
+     `check` builds no mechanism. When `/corrections:codify` (if enabled) is among the available skills, hand
      it the choice of mechanism; it picks the strongest rung of the enforcement ladder that can
      decide the rule and proves the check. Otherwise, propose the strongest mechanism that can
      decide the rule: a change that makes the mistake impossible first, then a check that blocks
      it, then a test, and an instruction only when nothing a machine runs can decide it. Say that
-     `/corrections:codify` was not available, so the proposal is unproven.
+     `/corrections:codify` (if enabled) was not available, so the proposal is unproven.
    - Any other detected language: named with `setup has no lint check for this language`, not a
      finding. For a can't-fail test pattern in that language, name the call
-     `/corrections:codify "<the test pattern>"` for the user to run; `check` builds no mechanism.
-     When `/corrections:codify` is among the available
+     `/corrections:codify "<the test pattern>"` (if enabled) for the user to run; `check` builds no mechanism.
+     When `/corrections:codify` (if enabled) is among the available
      skills, hand it the choice of mechanism; it picks the strongest rung of the enforcement ladder
      that can decide the rule and proves the check. Otherwise, propose the strongest mechanism that
      can decide the rule: a change that makes the mistake impossible first, then a check that
      blocks it, then a test, and an instruction only when nothing a machine runs can decide it.
-     Say that `/corrections:codify` was not available, so the proposal is unproven.
+     Say that `/corrections:codify` (if enabled) was not available, so the proposal is unproven.
 4. **instruction**: the optional line, naming one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is
    read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). Offer it as a pointer: it
    names the `testing:test-value` skill and, when `docs/conventions/testing.md` exists, adds a line
    pointing at that team file; do not paste it anywhere. A test rule a check could decide goes to
-   `/corrections:codify "<the test pattern>"` instead of the instruction line, named for the user
+   `/corrections:codify "<the test pattern>"` (if enabled) instead of the instruction line, named for the user
    behind the same availability gate and fallback as the lint rows above.
 5. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
    per-edit hook, then, when a consumer glob matches no shipped `test-weaken` row, a line naming
@@ -189,7 +189,7 @@ missing launcher.
    `apply` printed and a commit, and run each only when the user accepts. Personal overrides go in
    `<home>/testing.local.yaml`, which should be gitignored. `check` also prints the optional line
    to paste into `CLAUDE.md` or `AGENTS.md` that points at `docs/conventions/testing.md` when that
-   file exists; a test rule a check could decide goes to `/corrections:codify` instead, as
+   file exists; a test rule a check could decide goes to `/corrections:codify` (if enabled) instead, as
    `check`'s instruction section says.
 
 ## Next

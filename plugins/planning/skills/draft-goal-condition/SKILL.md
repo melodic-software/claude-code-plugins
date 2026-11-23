@@ -36,8 +36,8 @@ see the result. When either is missing, prompt once instead.
 
 - **Metric hill-climb** (one editable target, a scorer the agent cannot edit, keep a round's change
   when the score improves and revert it otherwise, log every round) → no new runner. For runtime
-  speed or a counter: `/performance:goal`, then `/performance:snapshot`, then
-  `/performance:verify`. For a prompt or model setting against an eval suite: `/evals:methodology`,
+  speed or a counter: `/performance:goal` (if enabled), then `/performance:snapshot` (if enabled), then
+  `/performance:verify` (if enabled). For a prompt or model setting against an eval suite: `/evals:methodology` (if enabled),
   which says when the bundled `claude-api` skill's hillclimb fits and who starts it.
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop`, not `/goal`.
 - **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) →
@@ -57,8 +57,8 @@ see the result. When either is missing, prompt once instead.
 - **Multi-window / multi-ticket** ("keep several sessions going", work that will not finish in one
   context window, a decomposed backlog) → when `work-items` is enabled: already-decomposed
   backlog / existing tickets →
-  `/work-items:work` (or the work-loop); undecomposed plan or intent → `/work-items:decompose` then
-  `/work-items:work`. When `work-items` is not enabled, tell the user to enable it (installing it
+  `/work-items:work` (if enabled) (or the work-loop); undecomposed plan or intent → `/work-items:decompose` (if enabled) then
+  `/work-items:work` (if enabled). When `work-items` is not enabled, tell the user to enable it (installing it
   first if needed), or draft only if they insist on one-session completion. We route
   multi-window work to decomposed items so each item starts in a fresh window; what one window
   carries across a compaction is in
@@ -79,7 +79,7 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
 - **The lever is unreachable from an ordinary subagent.** We treat the `Workflow` tool as
   missing from every non-fork subagent (which tools a subagent gets:
   [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools);
-  `/discovery:research`, if enabled, selects its workflow-backed deep tier only in the main
+  `/discovery:research` (if enabled), if enabled, selects its workflow-backed deep tier only in the main
   conversation for this reason). A lever whose work lands in dispatched non-fork subagents (the
   loop lanes' workers, for instance) cannot be the workflow row; recommend it only where the
   orchestrating context is the main thread or a fork.
@@ -229,7 +229,7 @@ session-flow's
 [Markdown surfaces](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/session-flow/reference/save-point.md#markdown-surfaces)
 section says, the instruction line ends ``then paste this.`` before its confirm sentence and the
 condition sits in a fenced `text` block. Both shapes match the goal region
-`/session-flow:handoff` writes, so a goal drafted here pastes the same way after a handoff.
+`/session-flow:handoff` (if enabled) writes, so a goal drafted here pastes the same way after a handoff.
 
 When the `ProposeGoal` tool resolves in this session, also propose the condition through it under
 the conditions the Routing paragraph below lists. The tool has its own, lower cap: read it from
@@ -276,7 +276,7 @@ asking; without that flag it asks.
 a `ProposeGoal` dialog. This skill never sets `ask_user` false, and never sets, replaces, or
 clears a goal on the person's behalf. One exception covers this gate and the Boundary's
 reserved-for-the-person line: when the person, shown a condition, explicitly asks
-`/session-flow:continue-in-background` to launch with it, that request is their approval, and that
+`/session-flow:continue-in-background` (if enabled) to launch with it, that request is their approval, and that
 skill passes the condition as the launched session's `/goal`.
 
 **Availability is never assumed.** This section says what to do when the person can run `/goal`

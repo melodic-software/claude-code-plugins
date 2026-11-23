@@ -127,7 +127,7 @@ waiting from before the anchor. Work the session can still do itself is not an a
 Add a visual (table, diagram) only when one exists or can be built from what is in hand; never
 invent a number or picture.
 
-When `/explainer-video:produce` is among the available skills and the reply did not stop at
+When `/explainer-video:produce` (if enabled) is among the available skills and the reply did not stop at
 Needs you, end the reply with a one-line offer of a video of the catch-up, and on a yes hand the
 catch-up to that skill, which owns how the video is made. When that skill is not available, say
 nothing about a video. Unattended, record the offer in the output instead of asking.
@@ -146,7 +146,7 @@ Otherwise take the first of these that resolves, and name the one used, with its
 report's first line:
 
 1. **Spec container**: the open container item the current branch's work item links to, read
-   through `/work-items:track` when it is among the available skills.
+   through `/work-items:track` (if enabled) when it is among the available skills.
 2. **Branch**: the current branch, when it is not the default branch.
 3. **Plan file**: the plan file the conversation names.
 4. **Topic slug**: the frontmatter `topic` of the handoff this session resumed from.
@@ -212,8 +212,7 @@ both with their labels, and point to `/session-flow:reanchor` to settle which st
    none recorded, say so.
 
 A session timeline (a Gantt chart) or a phase-status diagram is optional: offer it in one line
-above the open decisions, and on a yes hand the rows to `/visualization:visualize` (if that plugin
-is enabled), which owns the form and the medium, including a shareable page; otherwise write the
+above the open decisions, and on a yes hand the rows to `/visualization:visualize` (if enabled), which owns the form and the medium, including a shareable page; otherwise write the
 rows as a mermaid block in the reply. Unattended, record the offer in the output instead of asking.
 
 ## Boundaries. Pick the right sibling

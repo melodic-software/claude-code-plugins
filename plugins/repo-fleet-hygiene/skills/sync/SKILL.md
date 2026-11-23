@@ -87,7 +87,7 @@ Parking flags, not in `argument-hint`:
   is put back as it was, skipped, and the remedy quotes the helper's first message line.
 
 Without `--worktree-create`, a dirty repo is planned `skip ... worktree-create-missing` and nothing is
-stashed. Park it by hand with `/source-control:worktree create --existing-branch`, or commit or
+stashed. Park it by hand with `/source-control:worktree create --existing-branch` (if enabled), or commit or
 stash the work.
 
 Run:

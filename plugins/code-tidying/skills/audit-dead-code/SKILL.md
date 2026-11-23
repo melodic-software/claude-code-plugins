@@ -185,7 +185,7 @@ are gaps, not a clean bill. After presenting the lane roster:
    a build.
 2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
    the operator to edit and submit. Do nothing unless they agree.
-3. **Offer research and install**: with consent, run `/discovery:research` to pick a detector for
+3. **Offer research and install**: with consent, run `/discovery:research` (if enabled) to pick a detector for
    the language, show the choice and its install command, and install or invoke it only after an
    explicit yes. Record its precision as **unmeasured** until trap fixtures cover it.
 

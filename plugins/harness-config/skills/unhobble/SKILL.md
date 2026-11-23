@@ -372,7 +372,7 @@ restore and close rules are under Deletion watch, unchanged.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds and consequential rules sent to a watch listed separately), and merge or
    fold the experiment branch per the repo's normal PR flow. The register hold covers only protected rules, so before that merge run
-   `/review:security-review` against the pull request (if the `review` plugin is enabled). Its
+   `/review:security-review` (if enabled) against the pull request (if the `review` plugin is enabled). Its
    instruction-surface lens checks every rule the merge leaves deleted for a guardrail nothing else
    enforces. Without the plugin, record in the pull request body that the retired rules got no
    security pass.
@@ -427,7 +427,7 @@ consequential rule that needs a watch, a kept-or-retired call) without a new eng
 manifest schema. It composes skills that are already there:
 
 1. List the open decisions from the manifest and ledger, one line each.
-2. When the `discovery` plugin is enabled, run `/discovery:research` once per decision and keep
+2. When the `discovery` plugin is enabled, run `/discovery:research` (if enabled) once per decision and keep
    one memo per decision. When it is absent, say so and ask the operator each decision as a
    question instead; the steps below do not run.
 3. Give each decision's memo to two blind decision agents that never see each other's answer.

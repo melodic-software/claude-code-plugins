@@ -102,8 +102,8 @@ record which source each finding rests on:
    area. An ADR records a decision this run does not re-litigate.
 2. **Current upstream guidance**, interactive runs only, when the focus is `currency` or
    `performance`, or the repo's standards say nothing about the target. Invoke
-   `/discovery:research` via the Skill tool for an approach or framework question, or
-   `/context7:lookup` via the Skill tool for a library or API question, or research official
+   `/discovery:research` (if enabled) via the Skill tool for an approach or framework question, or
+   `/context7:lookup` (if enabled) via the Skill tool for a library or API question, or research official
    documentation inline where neither skill is enabled. Scale the depth to the
    target: one lookup for a method, a full research pass for a framework or architecture change.
    Unattended runs skip this rung (see Unattended mode).
@@ -126,7 +126,7 @@ carries its `Basis:`: the standard's `file:line` or the fetched URL, or `judgmen
 - It must fit the hard cap in
   [`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md).
   When the best candidate does not fit, never grow the PR past the cap. Interactive runs offer a
-  smaller complete slice or `/planning:plan` for the whole change; unattended runs file the
+  smaller complete slice or `/planning:plan` (if enabled) for the whole change; unattended runs file the
   remainder as a deduplicated work item (Unattended mode). The PR body names any deferred item by
   number.
 - A candidate a `judgment` basis supports alone is never picked for a consequential change
@@ -144,10 +144,10 @@ unless the user redirects. `dry-run` presents the pick with its proposed diff an
 When an enabled skill owns the kind of fix picked, invoke it via the Skill tool, scoped to the
 target. What happens next depends on what that skill returns:
 
-- **It ships its own PR** (for example `/code-tidying:tidy`): its run is this run's result, and
+- **It ships its own PR** (for example `/code-tidying:tidy` (if enabled)): its run is this run's result, and
   its contract applies. Stop here.
-- **It proposes or edits without shipping** (for example `/naming:name-it-better` offers names
-  for a human to pick; `/docs-hygiene:compress` edits in place): take its output and continue
+- **It proposes or edits without shipping** (for example `/naming:name-it-better` (if enabled) offers names
+  for a human to pick; `/docs-hygiene:compress` (if enabled) edits in place): take its output and continue
   with the steps below. Unattended runs skip a lane that needs a human pick and fix the gap here
   instead, or move to the next candidate.
 
@@ -165,12 +165,12 @@ Otherwise, and after a lane that does not ship, fix it here:
    `pr-scope-budget.md`. The estimate in Step 3 can miss references and formatting, so the cap
    is checked on the real diff. Over the cap: cut to a complete slice that fits, or unstage and
    hand the remainder on as in Step 3.
-4. **Verify.** Invoke `/toolchain:check` via the Skill tool for the changed files, or the
+4. **Verify.** Invoke `/toolchain:check` (if enabled) via the Skill tool for the changed files, or the
    project's documented build, test, and lint commands where that skill is absent. A failing
    check is fixed or the change is dropped; it never ships red.
-5. **Commit** through `/source-control:commit` via the Skill tool, one commit for the
+5. **Commit** through `/source-control:commit` (if enabled) via the Skill tool, one commit for the
    improvement. Where that skill is absent, `git commit` with a Conventional Commits subject.
-6. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which leaves
+6. **Open the PR** through `/source-control:pull-request create` (if enabled) via the Skill tool, which leaves
    it ready or a draft by its open-state rule. Where that skill is absent, push the branch and open a draft PR with the
    forge's own tooling, passing the title and a body file: a CLI that prompts for a missing
    title or body fails where no one can answer.
@@ -182,7 +182,7 @@ Otherwise, and after a lane that does not ship, fix it here:
    create otherwise runs `ready --unattended` itself when the open state resolves `ready`.
 7. **Ready.** For a PR still in draft, follow the repository's own rule for when the author marks a PR ready (some
    repositories run review and test lanes only on ready PRs). Interactive: offer the flip.
-   Unattended: flip through `/source-control:pull-request ready --unattended` only when the caller's prompt
+   Unattended: flip through `/source-control:pull-request ready --unattended` (if enabled) only when the caller's prompt
    authorizes it; otherwise leave the draft and say so in the run report.
 
 A human merges. This skill never merges and never edits outside the picked improvement.
@@ -199,12 +199,12 @@ Routine, a scheduled workflow, a loop lane). Never inferred from the environment
   standards; the class rules are in the `autonomy` plugin's routines reference. A
   currency-focused improvement is filed as a work item for an interactive run instead.
 - **Throttle.** Count this skill's open PRs: the length of the array
-  `/source-control:pull-request list --head-match '^[a-z]+/improve-'` returns, invoked via the
+  `/source-control:pull-request list --head-match '^[a-z]+/improve-'` (if enabled) returns, invoked via the
   Skill tool. Where that skill is absent, list every open PR with the forge's own tooling, past
   any default row cap, and count the head branches matching that pattern. At 3 or more, stop
-  and report; the caller's prompt may set another limit. Basis: the `/code-tidying:tidy`
+  and report; the caller's prompt may set another limit. Basis: the `/code-tidying:tidy` (if enabled)
   backlog throttle uses the same limit.
-- **Overflow is filed**, not planned: one work item via `/work-items:track` invoked via the Skill
+- **Overflow is filed**, not planned: one work item via `/work-items:track` (if enabled) invoked via the Skill
   tool, or the tracker's own create command with a title and a body file where that skill is
   absent, searched for duplicates first, and linked from the PR body.
 - **A clean, isolated checkout is required.** A dirty tree is a stop, never a stash.

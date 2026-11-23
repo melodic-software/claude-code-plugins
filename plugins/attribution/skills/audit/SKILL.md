@@ -286,7 +286,7 @@ form, nothing in this skill changes. What differs here:
   pointer target, never a second copy. A tree read is not an identity-checked live fetch, so an
   in-estate finding never reaches `fingerprint-confirmed` and stays report-only. The contract's
   "Cross-repository signals" says which copies a mechanism owns, and whole-file duplicates across
-  repositories are `/coupling:reduce`'s measurement.
+  repositories are `/coupling:reduce` (if enabled)'s measurement.
 - **Report.** One report across all repositories, merged as "Merging findings" says. Declined
   counts, stamp declines, budget telemetry and the verification line are stated per repository,
   since each reads its own config.
@@ -329,7 +329,7 @@ lists the file layers.
 This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
 
 When `deep_research_on_exhaustion` is on and a research-capable skill is enabled, a
-budget-exhausted candidate may escalate to `/discovery:research` (if that plugin is enabled).
+budget-exhausted candidate may escalate to `/discovery:research` (if enabled).
 When it is not enabled, the run says so once and takes the ordinary neutral disposition
 instead; it never refuses and never silently skips the escalation.
 

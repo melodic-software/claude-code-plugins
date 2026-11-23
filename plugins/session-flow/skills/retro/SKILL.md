@@ -88,7 +88,7 @@ A retro of one pull request (its sessions, its review comments) names no retro m
 
 A `codify` argument, "codify reviews" or "mine review comments" names no retro mode: one recurring
 mistake, or the lessons in recent merged pull requests' review comments, go to
-`/corrections:codify` (its `reviews` action reads the review comments) when the `corrections`
+`/corrections:codify` (if enabled) (its `reviews` action reads the review comments) when the `corrections`
 plugin is enabled. Name that skill and stop; when it is not enabled, say that no enabled
 skill codifies one mistake or mines review comments, and stop.
 
@@ -236,8 +236,8 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 - **Codifying follows the workflow too**. A finding that lands as instruction text (a `CLAUDE.md`,
   `AGENTS.md` or rules-file line, the guidance tier of
   [reference/enforcement-ladder.md](reference/enforcement-ladder.md)) names its proof in the PR:
-  an eval case, or a deletion watch with a date (`/harness-config:unhobble`, when the
-  `harness-config` plugin is enabled). A mechanical finding goes to `/corrections:codify` (when
+  an eval case, or a deletion watch with a date (`/harness-config:unhobble` (if enabled), when the
+  `harness-config` plugin is enabled). A mechanical finding goes to `/corrections:codify` (if enabled) (when
   the `corrections` plugin is enabled), which proves its own check, run once the user picks it at
   Phase 4
 - **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user

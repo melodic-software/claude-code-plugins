@@ -468,7 +468,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 | [reference/wip-commit.md](reference/wip-commit.md) | `wip_commit` resolved `true` for a qualifying pause: the refusal checks, staging, the hook-rejection path and what the save-point records. |
 | [reference/pending-ci-caveat.md](reference/pending-ci-caveat.md) | Applying claim provenance to a fix still in CI, merge or another unreturned check. |
 | [reference/export-verification.md](reference/export-verification.md) | Deciding whether to suggest `/export`, or finding the probe record behind that gate. |
-| [reference/phase-boundary-owner.md](reference/phase-boundary-owner.md) | A resident `/implementation:implement-dispatch` boundary asks who writes the handoff. |
+| [reference/phase-boundary-owner.md](reference/phase-boundary-owner.md) | A resident `/implementation:implement-dispatch` (if enabled) boundary asks who writes the handoff. |
 
 ## Next
 
@@ -488,7 +488,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
   not relax this. A forked side task is the hard rule's exception: this session keeps its own task
 - **Does not offer a resident / no-stop mode.** A resident
-  `/implementation:implement-dispatch` boundary runs plan marks and the commit; the handoff is
+  `/implementation:implement-dispatch` (if enabled) boundary runs plan marks and the commit; the handoff is
   written last, and only when a clear, model switch, run end, or user-only commit gate applies.
   Dual-owner split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point

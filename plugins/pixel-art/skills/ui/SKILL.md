@@ -16,7 +16,7 @@ Produce a window skin, icon set, HUD element, or bitmap font the target can use,
 
 Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
 does, including the `brief.md` file, the one-line defaults, and the presence-gated
-`/planning:interview` offer. Then add:
+`/planning:interview` (if enabled) offer. Then add:
 
 - **Kind**: window skin, icon set, HUD element, or bitmap font, and what it should feel like.
 - **Target file**: the engine image or a plain sheet. Read the system-image rows in

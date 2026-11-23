@@ -10,7 +10,7 @@ metadata:
 # Test value
 
 A test is worth keeping when it fails for the bug it guards and passes for any correct
-implementation. `/tdd:principles` (when the `tdd` plugin is enabled) carries the wider Beck and
+implementation. `/tdd:principles` (if enabled) (when the `tdd` plugin is enabled) carries the wider Beck and
 Khorikov doctrine.
 
 ## 1. Every expected value names its independent source
@@ -48,7 +48,7 @@ A property is a source only when it comes from the spec, requirement, docstring 
 written down before it runs against the code. A property found by watching what the code does is a
 recording, and one that re-implements the code (`add(a, b) === a + b`) is the restated expectation
 this section rules out. A new property needs evidence that it can fail: a mutant it kills
-(`/mutation-testing:audit --exercised`, when that plugin is enabled) or a known-bad input marked
+(`/mutation-testing:audit --exercised` (if enabled), when that plugin is enabled) or a known-bad input marked
 expected-fail, such as Hypothesis `@example(...).xfail()`.
 
 Verification record. Claim: a material share of LLM-written property tests are unsound or
@@ -160,7 +160,7 @@ https://jestjs.io/docs/snapshot-testing.
 A surviving mutant on changed code is one more signal of this class: the changed line was
 altered and every test stayed green, so unless the mutant is equivalent (behaves exactly as the
 original), no test checks the behavior the mutant changed. Assert that behavior, with an expected
-value from §1. `/mutation-testing:audit` (when that plugin is enabled) produces the surviving
+value from §1. `/mutation-testing:audit` (if enabled) (when that plugin is enabled) produces the surviving
 mutants for a change.
 
 **Change detectors** (fail on any edit, prove no behavior):

@@ -82,7 +82,7 @@ Write one JSON model. The builder turns it into the record and the page, so the 
   real function, file and service names demoted to parentheses after it. It is a floor, not a
   starting rung: a reader who wants the precise version wants `newcomer` or `/education:explain`.
 
-**The STE register.** Invoke `/docs-hygiene:write-for-humans` via the Skill tool and apply the
+**The STE register.** Invoke `/docs-hygiene:write-for-humans` (if enabled) via the Skill tool and apply the
 ASD-STE100 rules its Load layer names (the "Load" section of its sentence rules) to every
 `summary`, `caption`, and `text` line, never to identifiers or `sources`. When that skill is not
 enabled, say the STE register is unavailable and write in the plain register.
@@ -151,7 +151,7 @@ The `markdown` format delivers the record by the same rules, with no page.
 
 ## Step 5. Offer the video view
 
-When `/explainer-video:produce` is in this session's skill listing, offer a narrated video of the
+When `/explainer-video:produce` (if enabled) is in this session's skill listing, offer a narrated video of the
 record. On a yes, hand it the record as a storyboard, not as a topic:
 
 1. Make a fresh folder with `mktemp -d`, outside the record's folder, and write
@@ -174,7 +174,7 @@ record. On a yes, hand it the record as a storyboard, not as a topic:
 
 3. Narration: one plain paragraph per moment saying what the frame shows. Add every `terms` entry
    the reader needs to the narration of the moment that first uses it.
-4. Invoke `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
+4. Invoke `/explainer-video:produce` (if enabled) via the Skill tool on `<dir>/storyboard.json` (its stills
    renderer), with no output directory; it decides where the video goes and keeps it out of the
    record's folder. Done when it reports the video's path; give that path to the reader.
 
@@ -185,10 +185,10 @@ unavailable because the explainer-video plugin is not enabled. Never install it.
 
 - **Plainer words, not a picture** ("explain this simply", "I don't get it") is
   `/education:explain`; invoke it via the Skill tool.
-- **Reorganizing a dense message** without losing precision is `/adhd:clarify` via the Skill tool
+- **Reorganizing a dense message** without losing precision is `/adhd:clarify` (if enabled) via the Skill tool
   (if enabled). Without it, restructure in place and keep the terms verbatim.
 - **Picking the best form for content already in the conversation** (a table, a chart, a
-  code-shape sketch) is `/visualization:visualize` via the Skill tool (if enabled).
+  code-shape sketch) is `/visualization:visualize` (if enabled) via the Skill tool.
 - **Ongoing coaching** is `/education:teach`.
 
 ## Related

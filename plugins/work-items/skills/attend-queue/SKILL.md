@@ -81,7 +81,7 @@ the view.
 3. **`[post-merge]`**. Open issues held whose body's first line is
    a post-merge record marker, `<!-- babysit-merge-demotion sha=<S> signal=<name> -->` or
    `<!-- post-merge-failure sha=<S> signal=<name> -->` (record format owned by
-   `/source-control:babysit-prs`). An open record is an unresolved
+   `/source-control:babysit-prs` (if enabled)). An open record is an unresolved
    failure, so no last-pass state is kept. A record counts only when the issue's author is the
    forge's workflow identity (`github-actions[bot]` on GitHub) or a trusted escalation author; one
    from any other author is a suspected spoof, reported with its author named and never listed.
@@ -200,7 +200,7 @@ never compress this restatement away.
   **interactive** direction gate applies: brief before asking, recommend, wait for direction, then
   mutate. All triage machinery (states, outcomes, briefs, closing invariant) is owned there.
 - **`[escalated]` rows**. Read the machine-marked comment for the escalated question, restate the
-  brief above, then drive it to a decision by invoking `/planning:interview` via the Skill tool (when the `planning` plugin is
+  brief above, then drive it to a decision by invoking `/planning:interview` (if enabled) via the Skill tool (when the `planning` plugin is
   enabled; otherwise ask the focused questions inline, one at a time, most load-bearing first, the
   same fallback shape triage's interview step uses). **Write the answer back as an issue comment** on
   the item, the decision lives on the tracker, never only in the session, replying in the thread of
@@ -280,7 +280,7 @@ when the setting resolves `true`
 `{lane}` → `attend-queue`; the per-user value it reads is `${user_config.ai_disclaimer}`); the
 operator's own words need none.
 
-Each answer opens with the decision and stops there: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled;
+Each answer opens with the decision and stops there: invoke `/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled;
 otherwise apply that discipline inline. It never trims the per-row restatement above.
 
 ## Telemetry

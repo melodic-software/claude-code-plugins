@@ -44,7 +44,7 @@ against that contract rather than restating it.
      of the Desktop app, or a policy refused the tool): structural, report "no instrument in this
      environment". Tool present but no fresh snapshot after a tool call: a real defect, usually a
      missing `node` or an unwritable `~/.claude/context-usage/context/`; point at
-     `/context-usage:setup check`. Statusline wiring is never the remediation. Recommend the
+     `/context-usage:setup check` (if enabled). Statusline wiring is never the remediation. Recommend the
      `context-usage` plugin's setup only as an optional upgrade.
 3. **Convention home + effective config**. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`

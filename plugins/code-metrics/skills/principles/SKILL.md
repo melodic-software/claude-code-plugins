@@ -102,18 +102,18 @@ This plugin does not measure these. Each one has an owner, and each pointer is g
 named plugin is not enabled, the concern is out of this plugin's scope and nothing here
 substitutes for it, unless the bullet names its own fallback.
 
-- **Surviving mutants and mutation score.** Invoke `/mutation-testing:principles` for what a
-  surviving mutant means, and `/mutation-testing:audit` to run one, when the `mutation-testing`
+- **Surviving mutants and mutation score.** Invoke `/mutation-testing:principles` (if enabled) for what a
+  surviving mutant means, and `/mutation-testing:audit` (if enabled) to run one, when the `mutation-testing`
   plugin is enabled. Coverage cannot answer it: a covered line can still be unchecked.
-- **Tautological and assertion-free tests.** Invoke `/testing:audit` when the `testing` plugin is
+- **Tautological and assertion-free tests.** Invoke `/testing:audit` (if enabled) when the `testing` plugin is
   enabled.
-- **Dead code.** Invoke `/code-tidying:audit-dead-code` when the `code-tidying` plugin is
+- **Dead code.** Invoke `/code-tidying:audit-dead-code` (if enabled) when the `code-tidying` plugin is
   enabled. ISO/IEC 5055 files dead code as its own weakness (7.1.5, CWE-561), separate from
   every measure here.
-- **Coupling and fan-in.** Invoke `/coupling:reduce` when the `coupling` plugin is enabled.
-- **Lint rules and style violations.** Invoke `/toolchain:lint` when the `toolchain` plugin is
+- **Coupling and fan-in.** Invoke `/coupling:reduce` (if enabled) when the `coupling` plugin is enabled.
+- **Lint rules and style violations.** Invoke `/toolchain:lint` (if enabled) when the `toolchain` plugin is
   enabled. A lint rule fires a finding; the measures here do not.
-- **Comparing two reports.** Feed an audit skill's `--json` document to `/verification:measure metrics` when the `verification` plugin is enabled,
+- **Comparing two reports.** Feed an audit skill's `--json` document to `/verification:measure metrics` (if enabled) when the `verification` plugin is enabled,
   treating a report whose `status` is `empty` on either side as INCONCLUSIVE; otherwise keep the
   JSON beside your notes and compare by hand.
 

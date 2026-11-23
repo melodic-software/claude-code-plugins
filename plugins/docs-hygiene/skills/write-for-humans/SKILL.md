@@ -138,11 +138,11 @@ The table follows the Before text from its first word to its last:
 
 - **Run the project's prose linter.** When the repository configures one, run it on the files you
   wrote, fix what it reports in them, and report the command and its result.
-- **Check for AI-writing tells.** Invoke `/ai-slop:audit` on the files you wrote via the Skill tool
+- **Check for AI-writing tells.** Invoke `/ai-slop:audit` (if enabled) on the files you wrote via the Skill tool
   when it is available in the session; it reports filler, stacked hedging, negative parallelism,
   and promotional tone by line. When it is not available, report that the AI-tell check did not
   run.
-- **Swapped out a figurative noun that ai-slop's catalog lacks?** With `/ai-slop:audit` among the
+- **Swapped out a figurative noun that ai-slop's catalog lacks?** With `/ai-slop:audit` (if enabled) among the
   available skills, end the reply with a candidate line for `rule-abstract-metaphor-jargon` giving
   the noun, its sentence, and your literal replacement. Only a person who accepts the candidate
   changes the catalog. Without ai-slop, the replacement in the draft is enough.
@@ -159,20 +159,20 @@ The table follows the Before text from its first word to its last:
   set is a fallback, and the output states which one was applied.
 - **Does not audit existing prose.** Structure and derivability belong to the `docs-hygiene` audit
   siblings; AI-writing tells belong to `ai-slop:audit`. This skill fires at the writing moment only.
-  Reshaping existing prose so a scanning reader gets the point is `/writing:be-concise` when the
+  Reshaping existing prose so a scanning reader gets the point is `/writing:be-concise` (if enabled) when the
   `writing` plugin is enabled; without it, say the draft already exists and offer a re-read
   against the standard you resolved, not a rewrite.
 - **Does not write agent-consumed markdown**. CLAUDE.md or AGENTS.md content, rules files, and
   agent-loaded reference docs are `docs-hygiene:write-for-agents`.
 - **Does not touch commit messages or PR bodies.** `source-control:commit`'s subject-convention
   ladder and the marketplace's PR-body-sections convention own their shape, and the markdown-prose
-  regime already excludes them. The wording inside a PR body is `/writing:be-concise` when the
+  regime already excludes them. The wording inside a PR body is `/writing:be-concise` (if enabled) when the
   `writing` plugin is enabled; without it, keep the required shape and leave the wording to the
-  author. AI-writing tells in a commit message or PR body are `/ai-slop:audit commit` and
-  `/ai-slop:audit pr-body`.
+  author. AI-writing tells in a commit message or PR body are `/ai-slop:audit commit` (if enabled) and
+  `/ai-slop:audit pr-body` (if enabled).
 - **Does not cover product UI strings.** Button labels, empty states, and error toasts are product
   copy, not documentation; they follow your product's own copy guidelines. AI-writing tells in
-  them are `/ai-slop:audit copy <source files>`.
+  them are `/ai-slop:audit copy <source files>` (if enabled).
 - **Does not author skills**: a SKILL.md is `playbooks:skill-authoring` and `skill-quality:check`
   territory.
 - **Does not claim to be the standards it names.** Each layer is our selection from a published

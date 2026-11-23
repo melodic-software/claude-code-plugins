@@ -93,7 +93,7 @@ in the codebase.
 ### Writing the paved-path entry
 
 This skill is the only one that writes paved-path entries; every other skill
-(the architecture conventions lens, `/corrections:codify`, review) proposes
+(the architecture conventions lens, `/corrections:codify` (if enabled), review) proposes
 an entry to it and writes none. When the work establishes a new way for a
 recurring concern, or openly replaces a listed one, draft the entry: the
 concern, the chosen way as a pointer to the code or template that shows it,

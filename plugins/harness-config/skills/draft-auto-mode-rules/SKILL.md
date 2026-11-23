@@ -99,7 +99,7 @@ Three things there change what you should ask:
 
 - A section missing `"$defaults"` drops the built-in rules by the docs' account (pointer in Phase 3),
   though for `soft_deny` the behavior probes observed them kept, git and non-git rules alike
-  (`/harness-ops:behavior-probes` record 6). Say both, and add the token before adding to that
+  (`/harness-ops:behavior-probes` (if enabled) record 6). Say both, and add the token before adding to that
   section: it is correct under either behavior.
 - A `C2b-contradiction` or `C3-shadowed` finding means the block already disagrees with itself.
   Resolving that comes before adding an entry that would deepen it.
@@ -117,12 +117,12 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
    A `hard_deny` entry is a classifier judgment. When the answer is an action that must never
    happen (it cannot be undone, exposes a secret, or sends data outside), say that a classifier
    judgment alone is not enough for it, and keep the `hard_deny` entry as a second layer. When
-   `/corrections:codify` is among the available skills, hand it the choice of mechanism; it picks
+   `/corrections:codify` (if enabled) is among the available skills, hand it the choice of mechanism; it picks
    the strongest rung of the enforcement ladder that can decide the rule and proves the check.
-   Name the call, `/corrections:codify "<the rule>"`, for the user to run; never make it.
+   Name the call, `/corrections:codify "<the rule>"` (if enabled), for the user to run; never make it.
    Otherwise, propose the strongest mechanism that can decide the rule: a change that
    makes the mistake impossible first, then a check that blocks it, then a test, and an instruction
-   only when nothing a machine runs can decide it. Say that `/corrections:codify` was not
+   only when nothing a machine runs can decide it. Say that `/corrections:codify` (if enabled) was not
    available, so the proposal is unproven. Before recommending a deny rule for a Bash action, read
    what it matches in [permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax).
 2. **A short label**: the subject, two or three words. It is what a reader scans for.

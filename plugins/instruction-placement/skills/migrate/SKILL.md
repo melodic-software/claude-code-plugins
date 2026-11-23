@@ -47,7 +47,7 @@ during `plan` or `apply`, however unnecessary it looks.
 [invocation-mode rubric](../../../../docs/contracts/invocation-mode/README.md) fits: this is not a
 `setup` skill (class ii), not maintainer-only (class iii), and not class (i) either, since the human
 already decides every write at the gate below rather than deciding the *timing* of an unattended
-mutation. It is also a chain target: `/harness-memory:audit`'s N1 fix route and this plugin's own
+mutation. It is also a chain target: `/harness-memory:audit` (if enabled)'s N1 fix route and this plugin's own
 `setup` remediation both point a repository here, and the invocation-reach invariant makes a `true`
 skill unreachable from another skill.
 
@@ -80,7 +80,7 @@ directory the repository already keeps (`docs/`, `doc/`, `documentation/`). Use 
 A pointer is not a summary. One line naming the file and the condition that should send a reader to
 it ("Read `docs/release-process.md` before cutting a release") beats a paragraph restating it.
 
-`/docs-hygiene:write-for-agents` owns how this text is written: invoke it via the Skill tool when
+`/docs-hygiene:write-for-agents` (if enabled) owns how this text is written: invoke it via the Skill tool when
 that plugin is enabled, for the root `AGENTS.md`, every new `.claude/rules/` file, and every
 pointer. Where it is not enabled, write the text here and say that the write-side doctrine was
 not available, rather than skipping the move.
@@ -162,7 +162,7 @@ between steps must leave content duplicated rather than deleted:
    be built on a file whose identity is not settled.
 1. **Create or extend `AGENTS.md`** with the content that belongs there. Merge under a new heading;
    never clobber an existing file. **Moved text moves verbatim.** The hard rule below wins over any
-   write-side advice: `/docs-hygiene:write-for-agents` governs text you are *writing new* here
+   write-side advice: `/docs-hygiene:write-for-agents` (if enabled) governs text you are *writing new* here
    (pointer lines, a rules file's always-relevant reason, a new heading), never text you are
    relocating. Rewording moved text is a separate, later edit the operator asks for by name.
 2. **Write the pointer targets** into the detected docs home, and the pointer lines into `AGENTS.md`.
@@ -411,7 +411,7 @@ One native Claude Code surface works on the same file, and the two are easy to c
 - **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin that reads `AGENTS.md` as
   project instructions, under its **Project instructions** (`instructionFiles`) option. It moves
   no file and writes no shim. Whether this build registers it, requires it in this session type,
-  and gates it is read at run time from `/harness-ops:inventory`'s `builtin_plugins` lane when the
+  and gates it is read at run time from `/harness-ops:inventory` (if enabled)'s `builtin_plugins` lane when the
   `harness-ops` plugin is enabled, never assumed; without it, report those facts as unverified and say once that the `harness-ops` plugin would read them.
   - **Pointer**: for the plugin's settings IDs and the option's values, fetch
     [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)

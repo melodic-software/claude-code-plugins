@@ -55,7 +55,7 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    drift apart.
 3. **Research.** Take the argument parser, layout and test style the project already uses. Where
    it has none, research the choice from official docs at run time: through
-   `/discovery:research` when the discovery plugin is enabled; otherwise in this session,
+   `/discovery:research` (if enabled) when the discovery plugin is enabled; otherwise in this session,
    official docs first, the basis labeled.
 4. **Withhold what you cannot settle.** A choice the user left open, or a consequential one
    (data that cannot be recovered, security, a new dependency for the whole team) that the
@@ -75,9 +75,9 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    it does, whether it reads from the terminal, its non-interactive flags. This is the one
    conventions edit this skill makes; anything else goes through `/developer-experience:setup`.
 7. **Verify** in the same turn as the writing, by running the checks yourself; a list of commands
-   for the user to run is not verification. Build and test through `/toolchain:check` when the
+   for the user to run is not verification. Build and test through `/toolchain:check` (if enabled) when the
    toolchain plugin is enabled; otherwise run the project's own build and test commands (its
-   ecosystem file, else its build files, else ask). Run one smoke run through `/testing:run-e2e`
+   ecosystem file, else its build files, else ask). Run one smoke run through `/testing:run-e2e` (if enabled)
    when the testing plugin is enabled; otherwise run the command yourself: `--help`, then the
    dry-run, then a real run only when it changes nothing or the user agreed. A script runs once on
    this platform and must exit 0; when a run could change anything, use its dry-run or ask first
@@ -90,7 +90,7 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    with its output, including a failure the change did not cause, and the files stay in place for
    review: never revert or delete work to make a check pass.
 
-Wording and layout of help text, errors and output: `/user-interface:design` when the
+Wording and layout of help text, errors and output: `/user-interface:design` (if enabled) when the
 user-interface plugin is enabled; otherwise follow the project's existing commands.
 
 ## Review mode
@@ -102,7 +102,7 @@ tool's files and the contract table inline, not the reasoning that produced them
 findings to the fifteen rules, the secrets rule and correctness. Use a non-fork subagent, so the
 review stays blind to this session (pointer: when choosing the subagent type, fetch
 <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live). General code review
-beyond the contract is `/review:quality-gate`, when the review
+beyond the contract is `/review:quality-gate` (if enabled), when the review
 plugin is enabled; otherwise say it was not run.
 
 Before that dispatch, run

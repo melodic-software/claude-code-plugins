@@ -40,7 +40,7 @@ is `active`:
 
 ## 3. Run the evidence check
 
-Invoke `/discipline:do-your-research full` via the Skill tool.
+Invoke `/discipline:do-your-research full` (if enabled) via the Skill tool.
 
 It audits the collected recommendations as pending ones. When the Skill tool reports that skill
 missing or the discipline plugin off, carry the same audit inline, for each recommendation:

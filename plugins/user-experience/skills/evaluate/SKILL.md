@@ -62,7 +62,7 @@ analytics MCP server or export, a design-tool MCP server).
 - **Evaluation plan**: pick the method from evaluation.md "Pick the method", with `Basis:`. When the
   plan includes a usability test, invoke `/user-experience:plan-user-research` via the Skill tool
   for the test script.
-- **Expert review**: heuristic sets come from `/user-interface:design` when it is enabled (invoke
+- **Expert review**: heuristic sets come from `/user-interface:design` (if enabled) when it is enabled (invoke
   it via the Skill tool); otherwise cite Nielsen's ten heuristics as evaluation.md "Heuristic
   evaluation" points. LLM inspection, this skill's included, is a pre-study filter: label its
   findings likely problems until people confirm them. For a live app, also run evaluation.md

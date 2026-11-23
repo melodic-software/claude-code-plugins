@@ -424,10 +424,10 @@ label. When none of the configured queue labels exist, the Queues section report
 
 ## Cross-references
 
-- `/source-control:babysit-prs`, the **authoritative** PR merge gate and readiness
+- `/source-control:babysit-prs` (if enabled), the **authoritative** PR merge gate and readiness
   classification. The merge-ready list here is a fast gh-native glance, not a
   substitute for that skill's per-PR gate.
-- `/harness-ops:observability`. Reads locally captured telemetry (OTEL store, hook-event JSONL,
+- `/harness-ops:observability` (if enabled). Reads locally captured telemetry (OTEL store, hook-event JSONL,
   ccusage). This skill instead reads GitHub-side queue and PR state.
 
 ## What this skill does not do
@@ -436,6 +436,6 @@ label. When none of the configured queue labels exist, the Queues section report
   budget, plan, policy or Azure setting change.
 - **Does not run in CI**. The Cost section reads with the operator's own `gh` and `az` logins;
   a runner would need credentials this skill never asks for.
-- **Does not classify PR merge-readiness authoritatively**. Invoke `/source-control:babysit-prs`
+- **Does not classify PR merge-readiness authoritatively**. Invoke `/source-control:babysit-prs` (if enabled)
   via the Skill tool.
-- **Does not read local telemetry stores**. Invoke `/harness-ops:observability` via the Skill tool.
+- **Does not read local telemetry stores**. Invoke `/harness-ops:observability` (if enabled) via the Skill tool.

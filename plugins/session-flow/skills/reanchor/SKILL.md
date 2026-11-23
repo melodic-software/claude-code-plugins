@@ -118,13 +118,13 @@ read from there.
 ## What this skill does not do
 
 - **Does not inventory worktrees.** Enumerating every worktree by
-  path / branch / PR / commit-age staleness is `/source-control:worktree`
+  path / branch / PR / commit-age staleness is `/source-control:worktree` (if enabled)
   status's job when that plugin is enabled (it reports no behind-base or
   dirty-tree signal); reanchor does its own base-drift check (a `git`
   behind-count on the working branch) and never reimplements that
   cross-worktree inventory.
 - **Does not classify PR feedback or run the PR loop.** Per-PR fresh-evidence
-  discipline and feedback triage are `/source-control:babysit-prs`'s job when
+  discipline and feedback triage are `/source-control:babysit-prs` (if enabled)'s job when
   it is enabled; reanchor never performs them. It only checks whether a
   *referenced* PR is still in its claimed state.
 - **Does not re-anchor a standing rule or discipline.** Correcting behavioral

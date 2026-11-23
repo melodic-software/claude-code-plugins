@@ -81,7 +81,7 @@ Do not proceed unless the user explicitly overrides ("write the PRD anyway") or 
 Spend the first turn grounding yourself, in parallel:
 
 - Take product direction and current modules from the project's always-loaded instructions (root `CLAUDE.md` / `AGENTS.md`), already in context; read a nested `AGENTS.md` under the area the topic touches, since those load only when a file they cover is read
-- When the topic touches a known module, read the domain glossary: `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when available, else Glob `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` and Read the match covering the area
+- When the topic touches a known module, read the domain glossary: `/domain-driven-design:ubiquitous-language lookup` (if enabled) via the Skill tool when available, else Glob `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` and Read the match covering the area
 - An item ref (`#<map>`): read it per [map-source](../../context/map-source.md)
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
@@ -147,7 +147,7 @@ Stop asking once every required section has a resolved answer or an explicit "op
 
 Derive `<topic-slug>` from the task description or current branch name (`git branch --show-current`; the task description alone when that fails), kebab-case, ≤40 chars: the slug `/planning:interview`, `/planning:design` and `/planning:plan` share for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
 
-When the task description carries a `Source map: #<n>` line (a `/planning:wayfind` map closed to this PRD), copy it verbatim on the line after the frontmatter: `/planning:plan` and `/work-items:decompose` read it from there.
+When the task description carries a `Source map: #<n>` line (a `/planning:wayfind` map closed to this PRD), copy it verbatim on the line after the frontmatter: `/planning:plan` and `/work-items:decompose` (if enabled) read it from there.
 
 When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note saying why before rewriting.
 
@@ -180,7 +180,7 @@ Each tier's template in [`context/templates.md`](context/templates.md) sets whic
 
 **Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers, so the PRD stays accurate after a refactor.
 
-**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled, else apply it inline. The nine required sections, the tier's depth, and every metric, threshold and open question stay.
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled, else apply it inline. The nine required sections, the tier's depth, and every metric, threshold and open question stay.
 
 **Non-goals graduation edge.** A permanently rejected non-goal (not a deferral) graduates to the consuming repo's rejected-concept ledger, one file per concept at `docs/out-of-scope/<concept>.md`, created on the first rejection; each resurfacing adds a "Prior requests" entry, so the ledger answers later proposals instead of relitigating them. With no ledger, the plain Non-goals list suffices.
 
@@ -193,10 +193,10 @@ Optionally offer a self-contained HTML pitch view of the finalized PRD for non-e
 After writing the PRD, recommend the next step by remaining ambiguity:
 
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → `/planning:interview` in this session (it reads the topic's `PRD.md` as scope)
-- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise the environment's codebase-exploration capability
-- **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
+- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` (if enabled) if enabled, otherwise the environment's codebase-exploration capability
+- **Need external research (libs, APIs, comparables)** → `/discovery:research` (if enabled) if enabled, otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
-- **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
+- **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready` (if enabled), one tracker item carrying the PRD's acceptance criteria
 - **An open question waits on a stakeholder** → also `/planning:interview document <topic>`, the interview's document surface, which turns it into a document that person fills in; it runs beside the next step, not in place of it
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.

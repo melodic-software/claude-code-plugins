@@ -162,7 +162,7 @@ other, and the question is whether both refuse a renewal of a reserved copy.
    - **Timing**: the wall-clock time of that variant's own calls, measured separately for each
      variant and labeled `timing (unqualified)`. It is one run on this machine, with no warm-up,
      repeats or load control, so it ranks nothing on its own. Qualified timing is
-     `/performance:snapshot`'s job.
+     `/performance:snapshot` (if enabled)'s job.
 4. **Recommend.** Give a recommendation that names the variant to keep and the observed evidence
    behind it: the input, and what each variant did with it. When the runs do not tell the
    variants apart, say so and recommend nothing.
@@ -175,8 +175,7 @@ other, and the question is whether both refuse a renewal of a reserved copy.
 **Product and preference calls stay with the person.** When the variants differ in what users
 should get, what reads better or which trade-off the team accepts, record the evidence and ask;
 the recommendation covers only what the run settled. When the fork is itself a performance target
-(the question is which variant meets a speed or resource goal), hand off to `/performance:goal`
-(if the `performance` plugin is enabled; otherwise say once that the `performance` plugin would qualify the timing, record it as unqualified, and ask)
+(the question is which variant meets a speed or resource goal), hand off to `/performance:goal` (if enabled); otherwise say once that the `performance` plugin would qualify the timing, record it as unqualified, and ask
 instead of recommending from unqualified timing.
 
 The model auto-invoke gate in the shared discipline holds for `observe` too: when nobody asked

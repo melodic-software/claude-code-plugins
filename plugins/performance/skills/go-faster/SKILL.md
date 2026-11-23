@@ -29,7 +29,7 @@ per-area checks live in [reference/areas.md](reference/areas.md), walked by the
 [reference/catalog/README.md](reference/catalog/README.md).
 
 Delivery metrics (change lead time, failed deployment recovery time) come from
-`/work-items:measure-delivery`, which the sweeper calls for the `pr-review` area when the
+`/work-items:measure-delivery` (if enabled), which the sweeper calls for the `pr-review` area when the
 work-items plugin is enabled. Without it the report lists those metrics as `not-checked`
 (`owner-unavailable`), naming the plugin to enable, and the sweep goes on.
 
@@ -150,7 +150,7 @@ conditions differ.
 - **Edits no repository file or setting.** It writes only its own data folder, through findings.py.
 - **Applies no fix.** A `later` finding goes to its owner; a `now` finding changes only how this
   session works, and only after a yes.
-- **Never removes or weakens a check.** That is `/overengineering:audit`'s to judge.
+- **Never removes or weakens a check.** That is `/overengineering:audit` (if enabled)'s to judge.
 - **Does not root-cause a failure.** A specific broken behavior is a debugging task.
 
 ## Next

@@ -72,11 +72,11 @@ those files.
 ## Findings for the review relay (`--findings`)
 
 `--findings` runs the same scan in the same scope, prints the same report, then writes one findings
-file in the shape `/review:fanout fix` reads and prints its path. It asks nothing, so a pipeline or
+file in the shape `/review:fanout fix` (if enabled) reads and prints its path. It asks nothing, so a pipeline or
 another skill can run it. Bare invocation and `--json` write no findings file.
 
 - **Where it goes.** `<memory root>/reviews/<branch-slug>/<UTC stamp>-suppressions.md`, the
-  directory `/review:fanout` "Shared inputs" names. The memory root is `.work` under the repository
+  directory `/review:fanout` (if enabled) "Shared inputs" names. The memory root is `.work` under the repository
   root; when the project's instructions name another memory root, pass it with `--memory-dir`. A
   memory root with no `.gitignore` gets one holding `*`, and the run says so. An existing file is
   never overwritten: a second run in the same second takes a `-2` suffix.
@@ -123,7 +123,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py" --count
 # unjustified=<n>
 ```
 
-When `/toolchain:ratchet` is among the available skills, it can hold that count as a CI ceiling: it
+When `/toolchain:ratchet` (if enabled) is among the available skills, it can hold that count as a CI ceiling: it
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
 

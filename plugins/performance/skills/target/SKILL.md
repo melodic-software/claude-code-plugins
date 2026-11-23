@@ -28,7 +28,7 @@ Rank by evidence, and say so when there is none.
 |---|---|
 | The current session's own pain | Name the operation that felt slow and what was observed. A screenshot or recording counts. Anecdote is a valid *candidate source* and an invalid *ranking basis*. |
 | A named path or component | Enumerate the layers it spans before choosing one (see "Measure the layers first"). |
-| A telemetry store | `/harness-ops:observability` for Claude Code's own; otherwise the project's. Prefer it over every other source, after checking its accuracy and coverage. |
+| A telemetry store | `/harness-ops:observability` (if enabled) for Claude Code's own; otherwise the project's. Prefer it over every other source, after checking its accuracy and coverage. |
 | Slow checks: git hooks, a local check script or CI jobs | Rank per check and lane (see "Slow checks, hooks and CI"). Claude Code's own hooks are the go-faster `hooks` area, not this row. |
 | Open-ended "what is slow here" | The open-ended sweep belongs to `/performance:go-faster`; this skill ranks what that sweep, or the user, brings. With nothing brought, expect "instrument this first". |
 
@@ -99,7 +99,7 @@ head before a pull request opens) and CI. Treat each lane as a layer and attribu
    being replaced or upgraded still resolves to a version that supports it, read from the package
    manager's dependency tree before the change is proposed.
 6. **Resolve stack specifics at run time**: which faster tool exists, its cache and incremental
-   flags and the runner's parallel semantics come from `/discovery:research` and the repository's
+   flags and the runner's parallel semantics come from `/discovery:research` (if enabled) and the repository's
    own conventions, never from this skill.
 
 **A check that got faster because it checked nothing is broken, not fast.** Before and after a
@@ -107,7 +107,7 @@ change, confirm each check reports the files it inspected; a zero-input pass is 
 
 **Checks slow as the repository grows.** Fill the Growing state column with the counter that grows
 (files a check scans, test suites a change selects, checks per lane) and route it to
-`/toolchain:ratchet`, which holds a counter, never a duration.
+`/toolchain:ratchet` (if enabled), which holds a counter, never a duration.
 
 ## Name the counter, not just the duration
 
@@ -149,11 +149,11 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
 - **Does not root-cause an observed failure.** A specific broken or slow behavior with a
   reproduction is a debugging task, not a candidate ranking.
 - **Does not read a captured profile down to a line.** A CPU profile, trace or heap snapshot
-  already on disk goes to `/debugging:analyze-profile` when the debugging plugin is enabled;
+  already on disk goes to `/debugging:analyze-profile` (if enabled) when the debugging plugin is enabled;
   otherwise open it in the tool that recorded it. Either way, its finding enters this ranking as
   E1 or E2 evidence.
 - **Does not diagnose a slow Claude Code installation.** That is
-  `/harness-ops:audit-performance`, which this skill consumes as a telemetry source rather than
+  `/harness-ops:audit-performance` (if enabled), which this skill consumes as a telemetry source rather than
   duplicating.
 
 ## Next

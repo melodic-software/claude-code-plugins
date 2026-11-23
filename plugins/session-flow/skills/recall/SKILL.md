@@ -125,20 +125,20 @@ Run each source that is available, and name any that is not:
   `git log --all --grep='This reverts commit' --format='%h %ad %s%n%b' --date=short` and keep the
   reverts whose subject or reverted commit matches the topic. Read each kept revert's reverted
   commit with `git log -1 --format='%h %ad %B' --date=short '<sha>'`.
-- **Closed pull requests that never merged.** When `/source-control:pull-request` is among the
-  available skills, run `/source-control:pull-request list --state closed --search '<word>'` once
+- **Closed pull requests that never merged.** When `/source-control:pull-request` (if enabled) is among the
+  available skills, run `/source-control:pull-request list --state closed --search '<word>'` (if enabled) once
   per word of the search terms (a search value takes only letters, digits and `._/#-`) and keep the rows whose
   `mergeCommit` is null. Otherwise, or when the read exits non-zero, say so and skip it.
-- **Tracker items, open and closed.** When `/work-items:track` is among the available skills, run
-  `/work-items:track search '<term>'` once per search term; it covers open and closed items.
+- **Tracker items, open and closed.** When `/work-items:track` (if enabled) is among the available skills, run
+  `/work-items:track search '<term>'` (if enabled) once per search term; it covers open and closed items.
   Otherwise say the tracker was not searched. Read each match whose kind the rows do not show with
-  `/work-items:track view '<id>' --comments`. Closed rows show no kind, and `view` returns labels
+  `/work-items:track view '<id>' --comments` (if enabled). Closed rows show no kind, and `view` returns labels
   but no native issue type, so on a repository that types items natively a closed match can carry
   no label that names its kind. A match whose kind nothing read shows is of unknown kind: run the
   checks below on it too, and report each one it meets with its kind unconfirmed rather than
   dropping it.
 - **Tracker state history: always run this after a search that matched.** Run
-  `/work-items:track view '<id>' --history` for every match of a `recall_report_kinds` kind or of
+  `/work-items:track view '<id>' --history` (if enabled) for every match of a `recall_report_kinds` kind or of
   unknown kind, open or closed. Do it even when the search rows already show the item's kind and
   state. A search row shows only whether an item is open or closed now, never whether it was closed
   and reopened. This read is the only place a reopen shows up.

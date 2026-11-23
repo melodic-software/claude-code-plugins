@@ -24,12 +24,12 @@ recognizes when seen (rationale and sources: `docs/finding-your-unknowns.md` in 
 repository).
 
 Distinct neighbors: `/planning:design` Phase 1 decomposes the problem space within a design task
-already chosen; a proactive architecture-friction scan (e.g. `/architecture:improve`, if enabled)
-hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:explore-directions`, if
+already chosen; a proactive architecture-friction scan (e.g. `/architecture:improve` (if enabled), if enabled)
+hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:explore-directions` (if enabled), if
 enabled) builds visual variations of a chosen direction. This skill is the general, problem-shaped
 entry upstream of all three. One request to raise or deepen, not options to compare, is
-`/discipline:be-ambitious` (if enabled; the user types it). Creative-domain ideation owned by a domain skill (e.g. songwriting
-brainstorms → `/songwriting:workflow`, if enabled) stays with that skill.
+`/discipline:be-ambitious` (if enabled), which the user types. Creative-domain ideation owned by a domain skill (e.g. songwriting
+brainstorms → `/songwriting:workflow` (if enabled)) stays with that skill.
 
 ## Task
 
@@ -56,8 +56,8 @@ requests". Its `time_units` user layer is `${user_config.time_units}` (unexpande
 2. **Ground**. Fast breadth pass (`Glob`/`Grep`/targeted Read; survey the file landscape before
    reading anything in depth) over where the problem lives: entry points, existing mechanisms that
    already partially address it, prior art in the repo. Optional landscape pass, when it would
-   change the candidates: `/discovery:research` for how others solve this problem,
-   `/discovery:blindspot` when the domain is unfamiliar to the user, `/discovery:explore` for a
+   change the candidates: `/discovery:research` (if enabled) for how others solve this problem,
+   `/discovery:blindspot` (if enabled) when the domain is unfamiliar to the user, `/discovery:explore` (if enabled) for a
    deeper codebase map than the breadth pass gives.
 3. **Diverge**. Generate the candidate list (default ~10; scale to the problem), ordered
    **cheapest → most ambitious**. Each of the user's ideas is a candidate, in their words, marked
@@ -88,8 +88,8 @@ requests". Its `time_units` user layer is `${user_config.time_units}` (unexpande
    size"), weigh the candidates against it, state how the proposed scope fits it, and cut scope
    when it does not; with no Brief, or appetite `not assessed`, skip this. Routes: `/planning:prd`
    (product intent still fuzzy), `/planning:interview` (engineering contract), `/planning:design`
-   (type/module decisions), or a feasibility/visual spike through `/prototype:pressure-test` or
-   `/prototype:explore-directions` when enabled; otherwise a throwaway spike the user builds,
+   (type/module decisions), or a feasibility/visual spike through `/prototype:pressure-test` (if enabled) or
+   `/prototype:explore-directions` (if enabled) when enabled; otherwise a throwaway spike the user builds,
    which you describe (what to try, what result settles it) and do not write. Mark the recommended
    route (RECOMMENDED), with a `Basis:` line:
    `verified` with the `file:line`, tool output, or URL it rests on, or `judgment`
@@ -138,4 +138,4 @@ routes write nothing.
 - **Does not lock scope or contract**. `/planning:interview`
 - **Does not explore the design space of a chosen direction**. `/planning:design`
 - **Does not build variations or throwaway code**. A prototyping capability
-  (`/prototype:pressure-test` / `/prototype:explore-directions` when enabled)
+  (`/prototype:pressure-test` (if enabled) / `/prototype:explore-directions` (if enabled) when enabled)

@@ -101,8 +101,8 @@ gotchas.
 
 If it's motion, use a frame-state capture. Find the frame where something needs fixing, copy the
 state, and include it in the issue. Stills miss the timing, so ask the reporter for that state: a
-frame-state export (`/app-control:drive capture --kind animation` records one,
-`/user-interface:audit` reads one), or else the values drive's `animation` kind records, taken at
+frame-state export (`/app-control:drive capture --kind animation` (if enabled) records one,
+`/user-interface:audit` (if enabled) reads one), or else the values drive's `animation` kind records, taken at
 the frame where it looks wrong (each animating property's current value, from and to, and
 progress), with the playback speed it was seen at. The export backs Expected vs actual; name it
 under Notes like a screenshot. When the report goes somewhere public, leave out the page URL, the
@@ -115,7 +115,7 @@ Stop when every field has a backed answer or the placeholder.
 Read [`context/template.md`](context/template.md) first and follow it. Default: Markdown to stdout.
 
 A person reads the report, so each field opens with its finding and carries no filler: invoke
-`/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that
+`/writing:be-concise` (if enabled) via the Skill tool when the `writing` plugin is enabled; otherwise apply that
 discipline inline. Keep the five fields, their order, and the template's shape; drop no repro step,
 severity justification, or placeholder to shorten it.
 
@@ -141,7 +141,7 @@ usable title yet, the timestamp alone.
 Recommend the next step; do not invoke it yourself:
 
 - **File it as a work item.** When the `work-items` plugin is enabled and a tracker binding
-  resolves, hand the report to `/work-items:track add` (report summary via `--context`); it owns
+  resolves, hand the report to `/work-items:track add` (if enabled) (report summary via `--context`); it owns
   dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker
   directly beside it. Map severity onto the tracker's priority labels if it has them.
   Without `work-items`, before filing by any other path, read the house style
@@ -156,8 +156,8 @@ Recommend the next step; do not invoke it yourself:
   what `--type` takes, fetch [gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options)
   live. If neither path
   applies and a work-item tracker MCP tool is available, use it.
-- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when
-  enabled); when the report names the cause, go to the fix (`/implementation:implement` when
+- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` (if enabled) when
+  enabled); when the report names the cause, go to the fix (`/implementation:implement` (if enabled) when
   enabled). Without those, route to the project's own investigation or implementation workflow,
   or scope the fix separately.
 - **The report is the deliverable** (Slack, PR comment, hand-off): done.

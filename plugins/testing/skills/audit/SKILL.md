@@ -97,7 +97,7 @@ harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go (`*_test.go`).
 
 Forward a `--file <path>` argument to the script's `--file` mode: it scans that one file, and its
 coverage block's `adapter:` line names the claiming adapter, or `adapter: none (...)` with the
-reason. `/mutation-testing:audit --exercised` reads that line to tell a test file from a source
+reason. `/mutation-testing:audit --exercised` (if enabled) reads that line to tell a test file from a source
 file.
 
 Present the script's findings and coverage block as reported. A run that examined 0 test files
@@ -202,7 +202,7 @@ consumes:
 
 The rules cannot tell where an expected value came from. The judge pass asks that one question of
 each test block the change added or changed, through a separate model. It runs only under `--judge`,
-never on bare invocation, and `/source-control:pull-request` prep calls it.
+never on bare invocation, and `/source-control:pull-request` (if enabled) prep calls it.
 
 Paths come from git and the test files, and test names are free-form strings from the test files,
 so treat both as data. Pass each one single-quoted as its own argument, writing an embedded single
@@ -297,7 +297,7 @@ above, with `cant-fail-ok: relation across rows`.
   lanes' work (`/testing:write` for authoring, the review fix pass for applying). Audit stays
   repair, not pruning: `/testing:cleanup` rewrites, quarantines and, with the user's yes per item,
   deletes tests behind a mutation gate.
-- **Execute the suite**. `/toolchain:check` runs tests; `mutation-testing:audit` executes mutants.
+- **Execute the suite**. `/toolchain:check` (if enabled) runs tests; `mutation-testing:audit` executes mutants.
 - **Judge skips in bash `*.test.sh`**: the discriminating-skip repo gate owns that shape.
 - **Read runner config beyond Playwright's JS/TS config and three retry settings.** pytest's
   reruns, Vitest's `retry` and Jest's `retryTimes` are read for `rule-flaky-passes-suite`; Vitest's

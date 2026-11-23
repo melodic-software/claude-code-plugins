@@ -21,7 +21,7 @@ Parse `$ARGUMENTS` for:
   same request in words, run the audit once per repository. See
   [Several repositories](#several-repositories). With none, the audit covers this repository only.
 - **`--fix`**: after reporting, hand the findings off to the remediation lanes
-  (`/implementation:implement` then `/verification:confirm`) rather than fixing inline. See
+  (`/implementation:implement` (if enabled) then `/verification:confirm` (if enabled)) rather than fixing inline. See
   [Remediation](#remediation-delegated-to-other-plugins). Per the naming doctrine's verb
   contract, bare `audit` is read-only. It reports at Phase 3 and stops; remediation intent sits
   behind this explicit override. (`--review-only` is also accepted and means the bare read-only
@@ -57,7 +57,7 @@ against the repo's actual state. Seven adjacent lanes each own a different kind 
 skill owns none of them.
 
 **This table is a router for the operator, not a dispatch list for this skill.** Bare `audit` is
-read-only, and some of these lanes mutate: `/discipline:recheck-against-upstream` says to "Correct
+read-only, and some of these lanes mutate: `/discipline:recheck-against-upstream` (if enabled) says to "Correct
 each forward now: fix gaps toward upstream", and others carry a fix mode. Invoking one from inside a
 read-only run would let this skill edit the repo through a sibling, which its own verb contract
 forbids. So a request that belongs to another lane is **reported as uncovered**, and that lane is
@@ -69,13 +69,13 @@ Each row states its own invocation form, since one row is an agent and the rest 
 
 | The drift is about | Owner |
 |---|---|
-| Whether a page **deserves to exist**: derivable from the code it describes, aspirational, or redundant. Also doc freshness scoped to a change under review | the `review` plugin's `doc-drift-detector` **agent**, so invoke it with the Agent tool as `@review:doc-drift-detector`, or run `/review:fanout run-everything`. Name that mode: fanout's default lifecycle-tiered mode never dispatches this agent, only `run-everything` does, so an unqualified `/review:fanout` can finish without ever reaching the owner. **The dispatch rule is the question asked, not the scope swept:** whether a page should exist is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are true is always this skill's, repo-wide included. `--docs-only` is this skill's own exhaustive claim pass and never routes out |
-| A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` |
-| Whether the surface in flight still matches the current official upstream docs | `/discipline:recheck-against-upstream` |
-| Prose restating an external source with no pointer, and verification stamps past their expiry window | `/attribution:audit` |
-| Claude Code's own configuration and instruction surfaces: `settings.json`, `.mcp.json`, hooks, permissions, environment variables, and the text of `CLAUDE.md`, `AGENTS.md`, and `.claude/rules/` judged against current model capability or against how Claude Code actually behaves | `/harness-config:audit`, with `/harness-config:audit-automation-gaps` for automation-landscape gaps and `/harness-config:audit-instructions` for instruction-surface drift. Phase 0 reads those instruction files here too, but only as the convention lens: a claim they make about this repo is this skill's to verify, a claim they make about the harness or a prescription aimed at the model is not |
-| What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` |
-| What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` |
+| Whether a page **deserves to exist**: derivable from the code it describes, aspirational, or redundant. Also doc freshness scoped to a change under review | the `review` plugin's `doc-drift-detector` **agent**, so invoke it with the Agent tool as `@review:doc-drift-detector`, or run `/review:fanout run-everything` (if enabled). Name that mode: fanout's default lifecycle-tiered mode never dispatches this agent, only `run-everything` does, so an unqualified `/review:fanout` (if enabled) can finish without ever reaching the owner. **The dispatch rule is the question asked, not the scope swept:** whether a page should exist is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are true is always this skill's, repo-wide included. `--docs-only` is this skill's own exhaustive claim pass and never routes out |
+| A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` (if enabled) |
+| Whether the surface in flight still matches the current official upstream docs | `/discipline:recheck-against-upstream` (if enabled) |
+| Prose restating an external source with no pointer, and verification stamps past their expiry window | `/attribution:audit` (if enabled) |
+| Claude Code's own configuration and instruction surfaces: `settings.json`, `.mcp.json`, hooks, permissions, environment variables, and the text of `CLAUDE.md`, `AGENTS.md`, and `.claude/rules/` judged against current model capability or against how Claude Code actually behaves | `/harness-config:audit` (if enabled), with `/harness-config:audit-automation-gaps` (if enabled) for automation-landscape gaps and `/harness-config:audit-instructions` (if enabled) for instruction-surface drift. Phase 0 reads those instruction files here too, but only as the convention lens: a claim they make about this repo is this skill's to verify, a claim they make about the harness or a prescription aimed at the model is not |
+| What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` (if enabled) |
+| What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` (if enabled) |
 
 The last two are delta lanes over their own prior runs, not over this audit's findings. This skill
 keeps no baseline and reports no deltas: each run is a full pass.
@@ -193,9 +193,9 @@ form, nothing in this skill changes. What differs here:
   finding in the repository that makes the claim, and name the repository the claim is about in
   its Verification cell. A claim about a repository outside the scope is verified as it is today.
 - **Duplicated files across repositories belong to another lane.** Exact and diverged copies
-  between repositories are measured by `/coupling:reduce`, as the contract's "Cross-repository
+  between repositories are measured by `/coupling:reduce` (if enabled), as the contract's "Cross-repository
   signals" says. After the report, name its read-only form
-  (`/coupling:reduce dry-run --repo <repo> ...`) as a lane the operator can run next, the way the
+  (`/coupling:reduce dry-run --repo <repo> ...` (if enabled)) as a lane the operator can run next, the way the
   [Boundary](#boundary-the-adjacent-drift-lanes) table names a lane. Never invoke it from this run.
 - **One report for all repositories.** Merge the findings as "Merging findings" says, with the
   repository in the File:Line cell (`<owner>/<name>:<path>:<line>`), and write one Needs you line.
@@ -203,7 +203,7 @@ form, nothing in this skill changes. What differs here:
   per repository, because each repository resolves its own config. Offer a config gap's
   `/codebase-health:setup apply` in the repository it belongs to.
 - **`--fix` hands off per repository.** For each repository with findings, the handoff suggests
-  `/implementation:implement` then `/verification:confirm`, run from a worktree of that
+  `/implementation:implement` (if enabled) then `/verification:confirm` (if enabled), run from a worktree of that
   repository, as "Writes stay per repository" says.
 
 This skill keeps no state of its own between runs, so it has no ledger or cursor to keep per
@@ -368,7 +368,7 @@ If the audit finds no discrepancies, report a clean bill of health:
 
 ### Rendered view (offered, never emitted)
 
-Genre: reports. The report feeds a fix pass (`/implementation:implement`), so it offers a view and
+Genre: reports. The report feeds a fix pass (`/implementation:implement` (if enabled)), so it offers a view and
 never builds one. The report stays the record; a view is a second presentation of it, never a
 place a finding first appears. In a session with no one reading, skip this section. When `medium`
 resolves to `terminal`, make no offer and print no unavailable line. Otherwise, with
@@ -418,17 +418,17 @@ verifying, self-reviewing, and retrospecting are separate lanes owned end-to-end
 
 Route remediation to the dedicated lanes (soft dependencies. Use when the plugin is enabled):
 
-- **Fix** → `/implementation:implement` (when the `implementation` plugin is enabled). Hand it the
+- **Fix** → `/implementation:implement` (if enabled) (when the `implementation` plugin is enabled). Hand it the
   Phase 3 findings, whose "Fix priority" section already carries the Config Drift → Missing
   Enforcement → Code Quality → Doc Drift order (see
   [`reference/category-playbook.md`](reference/category-playbook.md)); that lane owns the fix cadence:
   TDD, build/test at each checkpoint, and the post-fix simplification pass.
-- **Verify** → `/verification:confirm` (when the `verification` plugin is enabled). Confirms the
+- **Verify** → `/verification:confirm` (if enabled) (when the `verification` plugin is enabled). Confirms the
   fixes against the repo's own build/test/lint gates with no regressions, and covers the self-review
   and retrospective that the fix lane hands it.
 
 **With `--fix`**, present the Phase 3 findings and output an explicit user-directed suggestion to run
-`/implementation:implement` with those findings, then `/verification:confirm`. Do not auto-invoke
+`/implementation:implement` (if enabled) with those findings, then `/verification:confirm` (if enabled). Do not auto-invoke
 either skill, the user drives both. When those plugins are not enabled, say so and stop: the
 Phase 3 findings table is the handoff, to be remediated manually in the reported fix-priority order.
 Never re-inline a fix/verify/review/retro loop here.

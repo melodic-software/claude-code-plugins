@@ -27,15 +27,15 @@ reads, leave the directory to the caller, and skip step 4,
 because whoever reads owns their freshness. Otherwise make a fresh
 directory under the OS temp directory (`mktemp -d`), never in the working tree, and remove it with
 `rm -rf -- <dir>` (the literal path) when the run ends at any step. Read the facts through
-`/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json` and the diff
-through `/source-control:pull-request view <url> --diff --out <dir>/pr.diff`, both via the Skill
+`/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json` (if enabled) and the diff
+through `/source-control:pull-request view <url> --diff --out <dir>/pr.diff` (if enabled), both via the Skill
 tool, where `<url>` is the `url` in `facts.json`. Without the `source-control` plugin, report that
 the read is unavailable and stop.
 
 The head is `headRefOid` in `facts.json`. When `<dir>/issue.md` already exists, it is the closing
 issue read: skip the read below. Otherwise find the closing issue from the body's `Closes`, `Fixes`
 or `Resolves` line. On a `github.com` pull request, read it through
-`/work-items:track view github:<owner>/<repo>#<n>` via the Skill tool, with the pull request's own
+`/work-items:track view github:<owner>/<repo>#<n>` (if enabled) via the Skill tool, with the pull request's own
 repository for a bare `#<n>`, so the read never lands on another tracker's item that shares the
 number; save what it returns to `<dir>/issue.md` with the Write tool. With no closing issue, another
 forge, no `work-items` plugin, or a refused or failed read, say the issue is unread; the rubric

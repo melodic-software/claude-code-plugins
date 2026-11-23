@@ -77,7 +77,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    [Page.startScreencast](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-startScreencast)
    live.
 4. **Narration (only when `demo_narration` is true).** When the speech plugin is enabled, run
-   `/speech:narrate` once per line into `<work>/audio/<step>/`, `<work>/audio/<step>.outcome/` and,
+   `/speech:narrate` (if enabled) once per line into `<work>/audio/<step>/`, `<work>/audio/<step>.outcome/` and,
    for a typing step, `<work>/audio/<step>.results/`; each folder gets `narration.wav` and
    `words.json`. Without the speech plugin, skip narration and say so.
 5. **Build the edit plan.**
@@ -107,7 +107,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
      `verification: skipped (<level>)` with the video reported as not independently judged for
      quality.
 9. **Post.** [reference/posting.md](reference/posting.md): verification evidence goes through
-   `/source-control:pull-request evidence` when it resolves. A demo a person asked for, or
+   `/source-control:pull-request evidence` (if enabled) when it resolves. A demo a person asked for, or
    evidence when that step does not resolve, goes locally through `gh pr comment --attach`, and in
    CI as a non-zipped Actions artifact plus a comment linking it. Pointer: when checking what
    `--attach` takes, fetch [gh pr comment: Options](https://cli.github.com/manual/gh_pr_comment#options)

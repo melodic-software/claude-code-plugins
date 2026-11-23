@@ -231,7 +231,7 @@ Then summarize in chat:
 
 Verdicts are a closed set of four tokens: `MISSING` (finding, with proposed addition as a fenced diff;
 a MISSING P7 instead carries the catalog's P7 "Proposal when MISSING": the named
-`/corrections:codify "<the rule>"` call when that skill is available, otherwise the strongest
+`/corrections:codify "<the rule>"` (if enabled) call when that skill is available, otherwise the strongest
 mechanism as a fenced diff of the file that would carry it, marked unproven),
 `PRESENT` (where it is), `NOT-APPLICABLE` (with the failed predicate), `info` (a Phase D verifier
 refuted it, always kept as a row, never dropped, never a proposal to apply). Two markers are

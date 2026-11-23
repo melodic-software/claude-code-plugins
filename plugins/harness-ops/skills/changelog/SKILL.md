@@ -166,15 +166,14 @@ finish and verify. Show the sort with the rows and let the user move a row acros
 ### Phase 4. Hand off
 
 1. **Rows that fit**: work them in this session's branch, one branch and PR per owner plugin. Use
-   `/planning:plan` for the edit plan (if the planning plugin is enabled), `/implementation:implement`
-   for the edits (if the implementation plugin is enabled) and `/verification:confirm` for the
+   `/planning:plan` (if enabled) for the edit plan (if the planning plugin is enabled), `/implementation:implement` (if enabled)
+   for the edits (if the implementation plugin is enabled) and `/verification:confirm` (if enabled) for the
    check (if the verification plugin is enabled). A stage whose plugin is not enabled is not done by
    hand here: report the rows that needed it as not executed, naming the plugin to enable. A
    `replace` row is never edited: nominate it into `/harness-ops:audit-native-overlap`
-2. **Rows too large**: file one issue per row through `/work-items:track` (if the work-items plugin
-   is enabled), carrying the owner surface, lens, required sentence, item ids and range. That
+2. **Rows too large**: file one issue per row through `/work-items:track` (if enabled), carrying the owner surface, lens, required sentence, item ids and range. That
    issue is worked later in its own PR, behind an interview-style human gate before any edit. When
-   `/work-items:track` is not enabled, report the row and file nothing. List the rows to file and
+   `/work-items:track` (if enabled) is not enabled, report the row and file nothing. List the rows to file and
    file them only after the user confirms that batch; a row the user does not confirm is reported, not
    filed
 3. **Docs lag**: hand the docs-lag pairs to `/harness-ops:known-issues`. They are never a decision row
@@ -194,7 +193,7 @@ Re-read what Claude Code ships and file what moved. Run the inventory self-check
 store's recheck triggers. Report surface changes (added, removed, renamed, reclassified),
 invocability and marker changes, docs cross-check changes, and new overlap candidates. File one
 work item per new candidate, fired trigger, and degraded or broken self-check through
-`/work-items:track`, deduped by a `native-drift:<kind>:<surface>:<component>` key; a self-check
+`/work-items:track` (if enabled), deduped by a `native-drift:<kind>:<surface>:<component>` key; a self-check
 degraded only by a CLI version past the validated build proposes revalidation instead. A repository
 with no overlap store is report-only: report, file nothing, keep the baseline. Commands,
 the summary's location, items, dedupe and approval: [context/native-drift.md](context/native-drift.md).
@@ -210,7 +209,7 @@ bash <harness-config plugin root>/skills/audit/scripts/check-effort-pins.sh
 
 Report its lines with the native-drift report. Exit 1 means model-config's effort tables or
 per-model defaults moved, or a pin names a level the page does not list: each flagged pin waits on
-a person to re-decide it and rebaseline, as the `/harness-config:audit` `effort-pins` scope
+a person to re-decide it and rebaseline, as the `/harness-config:audit` (if enabled) `effort-pins` scope
 documents. Exit 3 means the page was unread or reshaped, so the check made no claim; say so.
 Without the harness-config plugin, report that the effort-pin check was not run.
 
@@ -226,7 +225,7 @@ cases and run nothing until the user agrees.
 
 End the run with a report that leads with what waits on the user (rows left out of scope, rows
 filed or reported unfiled, stages skipped for a plugin not enabled), then the PRs opened and what each
-changed, what `/verification:confirm` showed, the docs-lag pairs handed off, and the Phase 5 drift
+changed, what `/verification:confirm` (if enabled) showed, the docs-lag pairs handed off, and the Phase 5 drift
 report with the items filed or skipped.
 
 ---

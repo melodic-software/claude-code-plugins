@@ -50,7 +50,7 @@ releases.
 
 What clears each dimension resolves down the same ladder as the discipline
 itself: what the consuming project declares wins; failing that, the contract
-`/discovery:research` states as mandatory disciplines, when the `discovery`
+`/discovery:research` (if enabled) states as mandatory disciplines, when the `discovery`
 plugin is enabled; failing both, the floor below. The floor is this skill's
 own baseline, deliberately lighter than a research pass's numbers, because it
 settles one claim mid-conversation:
@@ -119,8 +119,8 @@ yet settled is audited too, whether it is an option, verdict, default, or
 next step. Apply the contract in
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
 ground the affected code and its consumers or blast radius through
-`/discovery:explore`, and the authoritative sources the contract names
-through `/discovery:research`,
+`/discovery:explore` (if enabled), and the authoritative sources the contract names
+through `/discovery:research` (if enabled),
 when the `discovery` plugin is enabled; without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:

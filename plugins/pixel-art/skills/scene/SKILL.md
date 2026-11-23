@@ -15,7 +15,7 @@ Compose a moving pixel-art scene the user opens in any browser.
 ## 1. Brief
 
 Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md): the shared fields, the `brief.md`
-file before the first build, one-line defaults, and the presence-gated `/planning:interview`
+file before the first build, one-line defaults, and the presence-gated `/planning:interview` (if enabled)
 offer (planning owns a numbered-question brief; the in-skill brief is the fallback and the
 default). Then add:
 

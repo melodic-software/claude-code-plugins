@@ -100,7 +100,7 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    detected runner and the tool's support status. Unsupported → FAIL; this blocks every later step,
    so report it before anything about scores. A supported runner also gets an INFO row naming what
    it supports, decided as `apply` step 2 decides it: a name-filter-only runner has no
-   `audit --exercised` and no `/testing:cleanup` mutation gate, while the diff, `--full` and
+   `audit --exercised` and no `/testing:cleanup` (if enabled) mutation gate, while the diff, `--full` and
    `--paths` scopes still work.
 4. **Baseline suite is green**. Run the project's test command once, unmutated, and report the
    result. Red → FAIL. A red baseline kills every mutant and reports a perfect score, so no mutation
@@ -197,7 +197,7 @@ unambiguous; ask only where the answer is genuinely the user's.
    any later question, name the detected test runner and what it supports, so the user can stop
    here; read its kind from the audit skill's
    [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
-   forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup`'s
+   forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup` (if enabled)'s
    mutation gate, which runs through it. A name-filter-only runner, or one whose kind that section
    leaves unknown, supports neither: `audit --exercised` refuses
    unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always

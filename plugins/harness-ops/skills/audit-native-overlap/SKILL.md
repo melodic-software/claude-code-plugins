@@ -35,8 +35,8 @@ editor (bare invocation mutates nothing at all).
 | Is this machine's install directory healthy? | `/harness-ops:audit-install-state` |
 | Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | What changed in the last CLI release? | `/harness-ops:changelog` |
-| Do our MCP tools duplicate each other or the built-ins? | `/mcp-tools:audit` |
-| Is this SKILL.md structurally sound, and is the listing over budget? | `/skill-quality:check` |
+| Do our MCP tools duplicate each other or the built-ins? | `/mcp-tools:audit` (if enabled) |
+| Is this SKILL.md structurally sound, and is the listing over budget? | `/skill-quality:check` (if enabled) |
 | Is each installed skill actually VISIBLE to the model right now, and why not? | `/harness-ops:audit-skill-visibility` |
 
 The line that matters most: `inventory` enumerates **what resolves**; this skill compares that
@@ -197,7 +197,7 @@ is not the exposure ranking and description length matters too; see
 [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
 So the report says what the baking would cost. When the `skill-quality` plugin is enabled, invoke
-`/skill-quality:check listing-budget` over the repo's plugin skill roots and fold its aggregate
+`/skill-quality:check listing-budget` (if enabled) over the repo's plugin skill roots and fold its aggregate
 estimate into the Budget exposure section. When that plugin is not enabled, state "budget
 exposure unavailable. `skill-quality` not enabled" and continue; never reach into another
 plugin's files by path to fake the number.
@@ -326,7 +326,7 @@ asked for this plugin by name. It emits one clause, front-loaded, carrying the p
 …"), the provenance class, and the routing split, and, when `integration` is `wrap` or
 `suggest`, the Native step section or the suggest sentence. Before writing, `description` plus
 `when_to_use` after baking must fit the per-entry cap the native-references convention records,
-measured by `/skill-quality:check <skill>` (when `skill-quality` is not enabled, state "description
+measured by `/skill-quality:check <skill>` (if enabled) (when `skill-quality` is not enabled, state "description
 length unmeasured. `skill-quality` not enabled" and do not bake); a row that would exceed
 the cap is not baked. Every wrapped or suggesting skill declares `--unattended` in its
 `argument-hint`. The
@@ -350,7 +350,7 @@ as one fleet-wide edit.
 **One plugin is one unit.** For each unit, in order:
 
 1. **Apply**. Bake the description phrases and Boundary sections for that plugin's rows only.
-2. **Verify**, the overlap self-check passes; `/skill-quality:check` passes for every touched
+2. **Verify**, the overlap self-check passes; `/skill-quality:check` (if enabled) passes for every touched
    skill; the plugin carries the repo's release record: a version bump plus CHANGELOG entry, or a
    changelog fragment where the repo uses them (see the repo's AGENTS.md).
 3. **PR**. Open one PR for that unit, with the affected store rows quoted in the body so a

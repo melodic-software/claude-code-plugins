@@ -121,7 +121,7 @@ level; the category ledger and the standards collector are part of that spine:
 | Effort | Step 5 review seams, research, and emitted-finding samples |
 |---|---|
 | `low` | `skill-quality:check` only, and only for a skill target. The ledger and the standards collector still run. No claim is researched: every finding's `research:` stays `open-question`. Emitted-finding samples may stay `unvalidated`. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
-| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` when that plugin is enabled; absent, the manual discipline in `reference/categories.md`) |
+| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` (if enabled) when that plugin is enabled; absent, the manual discipline in `reference/categories.md`) |
 | `high`, `xhigh`, `max` | every presence-gated seam over every finding, including research on every finding's claim and remediation and a `confirmed` or `false` verdict on every emitted-finding sample |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
@@ -166,12 +166,12 @@ Two more entries to this same audit, not new skills. No hook starts either and t
 selects one; a model that thinks a session earns the pass offers it in one line and waits. Read
 [`reference/session-mode.md`](reference/session-mode.md) before running either.
 
-- **`arm`**, at session start: invoke `/session-flow:running-retro arm` when session-flow is
+- **`arm`**, at session start: invoke `/session-flow:running-retro arm` (if enabled) when session-flow is
   enabled (absent: say the observer cannot be armed here and stop), then record the armed state
   in this plugin's data directory. Nothing is audited.
 - **`session`**, at session end: read `plugin_usage` from the session's running-retro ledger,
   session-flow's documented artifact (no ledger or no key: tell the operator to run
-  `/session-flow:running-retro` and re-run, never a second parser), show the discovered plugin and
+  `/session-flow:running-retro` (if enabled) and re-run, never a second parser), show the discovered plugin and
   skill list, and wait for
   the operator to confirm it. The confirmed list is the resolved target list above; steps 1 to 6
   then run over the union unchanged, and step 6's egress gate is untouched (unattended: rung 4).
@@ -320,7 +320,7 @@ where the human's judgment enters the audit. Do not skip it.
 **Research gate (readiness label).** Every load-bearing claim in the item, not only the
 suggested change, carries its `research:` line in the ledger, and a tier record names the saved
 file and quoted span the collector checks. A suggested change is labeled `agent-ready` only
-after a `/discovery:research` pass, with its source tiers recorded in the item. Every other
+after a `/discovery:research` (if enabled) pass, with its source tiers recorded in the item. Every other
 suggested change files as `needs-decision`, and research that is absent, declined, or empty means
 `needs-decision`, never `agent-ready`. Both names stand for the target repository's labels,
 taken from its configuration ([`reference/session-mode.md`](reference/session-mode.md) "Research
@@ -329,10 +329,10 @@ question, never as a fact or a recommendation ([`reference/session-mode.md`](ref
 "Research gate").
 
 **Autonomous invocation (no interactive user).** When this skill is invoked by a loop lane (e.g.
-`/work-items:work-loop`), by another agent, or in any other unattended context, there is nobody to
+`/work-items:work-loop` (if enabled)), by another agent, or in any other unattended context, there is nobody to
 interview and blocking on the question strands the run. The step is still **performed**, never
 skipped. What changes is where its answers come from. Resolve each decision by the same two rules
-`/work-items:setup` uses for its own unattended path:
+`/work-items:setup` (if enabled) uses for its own unattended path:
 
 - **A decision whose recommended answer is safe resolves to it silently**, and the resolution is
   recorded in `contract.md` as auto-resolved, with what it was derived from.
@@ -362,7 +362,7 @@ runs is used when enabled, with a one-line fallback when absent:
 - `review:fanout` / `review:quality-gate`. Breadth/depth review of the findings write-up.
   *Absent:* run a structured self-review checklist in a fresh subagent (correctness of each
   claim, reproduction evidence present, severity justified, remediation actionable).
-- `/discovery:research`, the research seam, when the effort row runs it: one call per finding
+- `/discovery:research` (if enabled), the research seam, when the effort row runs it: one call per finding
   at or above the severity floor, covering its claim and its remediation. With two or more such
   findings, one batched pass covering all of them is allowed instead: it saves every fetched source
   under one directory inside the packet and still gives each finding its own record, as below. One
@@ -466,8 +466,8 @@ observability).
 
 ## What this composes
 
-This audit calls, and replaces none of: `/session-flow:running-retro` (`arm`, and the ledger
-`session` reads), `/discovery:research` (the research gate), `skill-quality:check`,
+This audit calls, and replaces none of: `/session-flow:running-retro` (if enabled) (`arm`, and the ledger
+`session` reads), `/discovery:research` (if enabled) (the research gate), `skill-quality:check`,
 `review:fanout` / `review:quality-gate`, and the role-resolved seams of step 5. Each is used
 presence-gated with the fallback stated where it is invoked. Every one keeps its own owner and
 behavior.

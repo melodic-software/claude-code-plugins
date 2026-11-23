@@ -166,8 +166,8 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 
 Understand before changing; this holds even for a one-line tidying, since rework from skipped research costs more than the research.
 
-1. Explore the lane's scope globs: if the `discovery` plugin is enabled, invoke `/discovery:explore` via the Skill tool on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
-2. Research current best practice for the lane's stack: if the `discovery` plugin is enabled, invoke `/discovery:research` via the Skill tool using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
+1. Explore the lane's scope globs: if the `discovery` plugin is enabled, invoke `/discovery:explore` (if enabled) via the Skill tool on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
+2. Research current best practice for the lane's stack: if the `discovery` plugin is enabled, invoke `/discovery:research` (if enabled) via the Skill tool using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
 
 ### Phase D. Hunt + prioritize + scope-budget enforce
 
@@ -176,7 +176,7 @@ Understand before changing; this holds even for a one-line tidying, since rework
 3. Build a prioritized findings table. Each row carries a `Basis:`, `verified` with the `file:line`, tool output, or Phase C source URL it rests on, or `judgment` (never for a consequential change: cross-repo, shared infrastructure, irreversible, or security; one that cannot be verified is withheld and routed to the overflow list as an open question naming the evidence that would settle it). Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 4. Apply the scope budget: the target and hard cap in [`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](../../reference/pr-scope-budget.md), with tidy's priority order and greedy selection in `reference/scope-budget.md` (spokes write the plugin directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`). Take the highest-priority subset that fits.
 5. **Override enumeration gate**, only for paths lifted by the `override` argument. List those specific HARD paths the surviving candidates would touch, each with its tidying, and take a go-ahead on that list before Phase E. Interactive: the user answers. Non-interactive: report the list and continue with those argument-lifted candidates dropped, since a blanket token is not a decision about paths nobody has seen yet. Paths lifted by `hard_exclusions=advisory` or by `.claude/code-tidying/exclusion-overrides.md` skip this gate: those channels already are a standing decision, and a non-interactive run must honor them. A `dry-run` presents the argument-lifted enumeration and stops there. An argument-lifted path that no candidate touches never reaches this gate.
-6. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` via the Skill tool when that plugin is enabled, else read the house style (`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`), apply it, and run `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead. Dry-run never files tracker items or causes any other external side effect.**
+6. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` (if enabled) via the Skill tool when that plugin is enabled, else read the house style (`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`), apply it, and run `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead. Dry-run never files tracker items or causes any other external side effect.**
 
 Zero applicable improvements: clean exit with a one-line note and no PR. Do not produce empty-PR churn.
 
@@ -202,11 +202,11 @@ Self-review by the producing context is enough here: a fresh-context verifier is
 
 ### Phase H. Ship
 
-**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged; `in-place=commit` makes one commit of them, titled per the format below (via `/source-control:commit` when enabled). Print to the user the title, the body content `/source-control:pull-request create` would write, and the audit-trail sections below that would have gone to the PR, then stop.
+**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged; `in-place=commit` makes one commit of them, titled per the format below (via `/source-control:commit` (if enabled) when enabled). Print to the user the title, the body content `/source-control:pull-request create` (if enabled) would write, and the audit-trail sections below that would have gone to the PR, then stop.
 
 Otherwise, never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what is left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips.
 
-If the `source-control` plugin is enabled, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (the tree is clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and the facts the body needs (lane, tidyings, anchor commit, verification commands run and their results); it writes the body from the repo's configured sections. Tidy's own audit trail goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is enabled, invoke `/source-control:pull-request create` (if enabled) via the Skill tool. Its stage-and-commit step is a no-op here (the tree is clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and the facts the body needs (lane, tidyings, anchor commit, verification commands run and their results); it writes the body from the repo's configured sections. Tidy's own audit trail goes in a follow-up comment (below), not the PR body:
 
 Title:
 
@@ -224,7 +224,7 @@ Body facts to supply:
 - Which lane, which tidyings, and the anchor commit.
 - Verification commands run and their results.
 
-`/source-control:pull-request create` reports the created `<pr_number>`. Immediately post one follow-up comment on that PR with `tidy`'s audit trail:
+`/source-control:pull-request create` (if enabled) reports the created `<pr_number>`. Immediately post one follow-up comment on that PR with `tidy`'s audit trail:
 
 ```bash
 gh pr comment <pr_number> --body-file - <<'EOF'

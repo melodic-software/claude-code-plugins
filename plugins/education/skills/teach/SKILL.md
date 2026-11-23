@@ -163,7 +163,7 @@ roots put personal learning state in a shared repo (an explicit rung-1 team choi
 
 ## Pre-computed Context
 
-Gather with one Bash call. Keep `$`-expansion off this line; `/source-control:worktree` owns the
+Gather with one Bash call. Keep `$`-expansion off this line; `/source-control:worktree` (if enabled) owns the
 accepted shapes, under "Accepted command shapes for body-time and subagent Bash".
 And `${user_config.*}` tokens must never appear on this line: a surviving literal is a
 bash `bad substitution` that kills the whole call before any fallback (**Pointer**: when deciding
@@ -374,7 +374,7 @@ substituted or expanded on the way to the Bash tool.
 
 - **Write production code.** It teaches understanding; code changes go through the project's own
   implementation workflow.
-- **Extract book knowledge into skill reference files.** That is `/knowledge:distill` when enabled.
+- **Extract book knowledge into skill reference files.** That is `/knowledge:distill` (if enabled) when enabled.
 - **Task-context codebase investigation.** That is the project's code-exploration tooling;
   `/education:teach codebase` is structured learning.
 - **Answer a one-off inline question.** Answer it directly instead.

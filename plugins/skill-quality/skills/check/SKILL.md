@@ -14,7 +14,7 @@ metadata:
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
 `check-skill.sh`. Thirty checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's existing `<skill>/evals/evals.json`
-(new evals are `case.yaml` suite cases, which `/evals:validate` checks) against the bundled JSON
+(new evals are `case.yaml` suite cases, which `/evals:validate` (if enabled) checks) against the bundled JSON
 schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
@@ -132,13 +132,13 @@ that line before editing, since it may be an illustrative example path rather th
 ## Action: validate-evals
 
 This action reads only the skill-creator JSON file a skill may still carry. A skill's new evals
-are `case.yaml` cases in its plugin's `evals/` directory: `/evals:design skill <name>` writes them
-and `/evals:validate` checks them. Point an author adding evals there. Under `check
+are `case.yaml` cases in its plugin's `evals/` directory: `/evals:design skill <name>` (if enabled) writes them
+and `/evals:validate` (if enabled) checks them. Point an author adding evals there. Under `check
 --require-evals`, check 14 passes a skill with no JSON file when a case in its plugin's `evals/`
 lists the skill's directory name in a one-line `tags: [...]`.
 
 1. Locate `<skills-root>/<skill-name>/evals/evals.json`. If absent, report that the skill ships no
-   skill-creator file (not a failure) and that its suite cases, if any, are `/evals:validate`'s.
+   skill-creator file (not a failure) and that its suite cases, if any, are `/evals:validate` (if enabled)'s.
 2. Read the bundled schema at
    [`${CLAUDE_PLUGIN_ROOT}/reference/evals.schema.json`](../../reference/evals.schema.json) and the
    skill's `evals.json`.
@@ -168,7 +168,7 @@ lists the skill's directory name in a one-line `tags: [...]`.
    reason; the schema verdict from steps 3-4 still stands.
 
 `validate-evals` checks structure and lint only. A suite case runs with and without the plugin,
-and `/evals:plugin-eval` reads the delta.
+and `/evals:plugin-eval` (if enabled) reads the delta.
 
 ## Action: listing-budget
 
@@ -366,7 +366,7 @@ and review against the invariant.
   good; its broad token set means it under-reports by design. The write-side doctrine whose floor it
   checks is `docs-hygiene:write-for-agents` (steps state observable completion criteria; guard
   premature completion, post-completion obligations, and legwork). When authoring new agent docs or
-  fixing a flagged procedure, invoke `/docs-hygiene:write-for-agents` via the Skill tool.
+  fixing a flagged procedure, invoke `/docs-hygiene:write-for-agents` (if enabled) via the Skill tool.
 - Check 24 (explicit invocation mode) FAILs a marketplace plugin skill (`plugins/*/skills/*`) whose
   frontmatter omits `disable-model-invocation`, and only WARNs anywhere else, so a consumer's own
   skill is informed by this fleet's convention rather than broken by it (the key's default:

@@ -116,7 +116,7 @@ The reply always calls the ratio an estimate, beside the ratio, with the reason 
 [Reading the result](#reading-the-result); a reply that drops the word reads as a defect count.
 List every surviving seed with its `file:line`, the original and seeded text, and the behavior no
 test checked. Then name the test that would have caught it; writing that test is
-`/testing:write`'s job, not this skill's.
+`/testing:write` (if enabled)'s job, not this skill's.
 
 ### Reading the result
 

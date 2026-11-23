@@ -221,7 +221,7 @@ flags lead.
 The lane files no work item. `work-items:track add` decides what authorizes filing, and no other
 skill's steps count, so a cycle proposes and a human or the triage lane files. When the queue is
 not empty, end the section with a draft item (a title, and the queued rows as its body) that
-`/work-items:track add` can take as written.
+`/work-items:track add` (if enabled) can take as written.
 
 ## The report
 
