@@ -76,7 +76,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - Every run uses the maintenance API key and stops at its credit stop, except a compare run
   dispatched with `credential: subscription`: both its passes run on the maintenance subscription
   token, and only for a PR whose author is a human on the trusted-actor list; `compare-prepare`
-  refuses any other, a listed bot included, since a bot's PR can start from public issue text. A suite run dispatched with `credential: subscription` also runs on that token, only on
+  refuses any other, a listed bot included, since a bot's PR can start from public issue text. A
+  suite run dispatched with `credential: subscription` also runs on that token, only on
   the default branch and only with `case`, `cases` or `tag` set; `run-eval-subscription` refuses
   any other. Each keeps the affected cases, the per-run ceiling (a list-price estimate, not a
   plan-usage cap), `--no-publish`, the kill switch and the `CLAUDE_EVALS_DISABLED` switch. No

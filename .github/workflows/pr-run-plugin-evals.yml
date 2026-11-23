@@ -1575,7 +1575,8 @@ jobs:
   # input's one secret: the API key, or the subscription token when
   # compare-prepare found the pull request's author listed there as a human,
   # never a bot (docs/review/evals.md). The record job is the only one that
-  # writes: it holds pull-requests: write, checks out only this branch, and posts nothing unless
+  # writes: it holds pull-requests: write, checks out only this branch, and
+  # posts nothing unless
   # every job before it passed and the head has not moved. A run whose jobs
   # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
   # still concludes success, so release-eval-hold.mjs trusts the record only by
