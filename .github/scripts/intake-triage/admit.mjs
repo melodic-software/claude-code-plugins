@@ -945,7 +945,7 @@ const NEGATED_HEAD = new RegExp(
 const BOUND = /\b(?:limits?|expir\w*)\b/i;
 const unnegated = (clause) => {
   const head = NEGATED_HEAD.exec(clause)?.[0];
-  return head === undefined || [CHARGING, SAFEGUARD, SPEND_LIMIT, BOUND].some((keeps) => keeps.test(head)) ? clause : clause.slice(head.length);
+  return head === undefined || CHARGING.test(clause) || [SAFEGUARD, SPEND_LIMIT, BOUND].some((keeps) => keeps.test(head)) ? clause : clause.slice(head.length);
 };
 const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s|#{1,6}(?:\s|$)))|(?<=^ {0,3}#{1,6}(?:[ \t][^\n]*)?)\n/m);
 

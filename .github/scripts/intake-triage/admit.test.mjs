@@ -1303,6 +1303,7 @@ describe("decide", () => {
         assert.deepEqual(charged("No spending limit on the lanes account."), ["spending limit"], "a negated spend guard");
         assert.deepEqual(charged("No retention limit."), ["retention"], "a negated bound on a charge");
         assert.deepEqual(charged("No expiry on artifact retention."), ["retention"], "a negated expiry on a charge");
+        assert.deepEqual(charged("Without a larger runner the job times out, so use one."), ["larger runner"], "a negated condition the clause then commits to");
       });
 
       test("a negation that opens a work section reads as no charge", () => {
