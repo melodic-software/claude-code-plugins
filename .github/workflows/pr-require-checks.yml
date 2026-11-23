@@ -7521,10 +7521,9 @@ jobs:
                 # swaps: one "<owner>/<repo> <new SHA>" line per new ref, or
                 # nothing when any file or line falls outside the shape.
                 swaps=
-                if [ "$owners" != '[]' ] && [ -s "$RUNNER_TEMP/pr-files.json" ]; then
-                  swaps=$(jq -nr --argjson owners "$owners" '
-                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>(?<owner>[A-Za-z0-9]+(-[A-Za-z0-9]+)*)/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$")
-                      | select(.owner | ascii_downcase | IN($owners[]));
+                if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
+                  swaps=$(jq -nr '
+                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>[A-Za-z0-9]+(-[A-Za-z0-9]+)*/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$");
                     def blocks: reduce ((split("\n") | map(sub("\r$"; "")))[], "") as $l ({done: [], cur: []};
                       if $l | test("^[-+]") then .cur += [$l] elif .cur == [] then . else .done += [.cur] | .cur = [] end) | .done;
                     [inputs | arrays[]] as $files
@@ -7540,16 +7539,30 @@ jobs:
                     else empty end' "$RUNNER_TEMP/pr-files.json") || swaps=
                 fi
                 if [ -n "$swaps" ]; then
-                  untagged=
+                  untagged='' untrusted=''
                   while read -r repo sha; do
                     if ! tags=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote --tags "https://github.com/$repo") ||
                       ! awk -v sha="$sha" '$1 == sha && index($2, "refs/tags/") == 1 { found = 1 } END { exit !found }' <<<"$tags"; then
                       untagged="$untagged $repo@$sha"
                     fi
+                    jq -e --arg owner "${repo%%/*}" 'any(.[]; . == ($owner | ascii_downcase))' <<<"$owners" >/dev/null || untrusted="$untrusted $repo"
                   done <<<"$swaps"
-                  if [ -z "$untagged" ]; then
+                  if [ -z "$untagged$untrusted" ]; then
                     echo "#$PR_NUMBER by Dependabot changes only the ref of actions by owners in merge.dependabot.trusted-action-owners ($owners), each to a tagged commit, on trust-gate paths:${held//%/%25}, which clears the trust-gate hold (owner decision Q-ANTHROPIC-DEPS); the review lanes are not required."
                     exit 0
+                  fi
+                  if [ -z "$untagged" ]; then
+                    if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] &&
+                      comments=$(read_api "the comments of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) &&
+                      jq -es --argjson app "$LANES_APP_ID" --arg head "$HEAD_SHA" '[add[] | select(.user.id == $app and .user.type == "Bot"
+                          and (.body | strings | startswith("<!-- pr-unblock:review-dependency-round ")))]
+                        | length > 0 and (max_by([.created_at, .id]).body | split("\n")[0] | sub("\r$"; "")
+                          | test("^<!-- pr-unblock:review-dependency-round head=\($head) verdict=merge run=[1-9][0-9]*-[1-9][0-9]* -->$"))' <<<"$comments" >/dev/null; then
+                      echo "#$PR_NUMBER by Dependabot changes only the ref of actions, each to a tagged commit, on trust-gate paths:${held//%/%25}, and the lanes App's newest review-dependency round marker names $HEAD_SHA with verdict=merge, which clears the trust-gate hold (owner decision 2026-11-23, dependency review verdict for any owner); the review lanes are not required."
+                      exit 0
+                    fi
+                    echo "::error::#$PR_NUMBER by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:${held//%/%25}, and merge.dependabot.trusted-action-owners does not list the owner of:$untrusted. The lanes App's review-dependency verdict=merge at this head clears it, as does a person on the trusted-actor list approving this head."
+                    exit 1
                   fi
                   echo "No tag of the action's repository points to, or its tag list could not be read for:$untagged, so the trusted-owner exception does not apply."
                 fi

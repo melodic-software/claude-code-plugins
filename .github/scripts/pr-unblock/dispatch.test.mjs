@@ -1986,3 +1986,27 @@ test("readBaseTip returns the base ref's commit and its committed time, and refu
   assert.deepEqual(bodies[0].variables, { owner: "octo", name: "repo", base: "main" });
   await assert.rejects(api.readBaseTip("main"), /the main tip is not a commit/);
 });
+
+test("the adapter lists a PR's issue comments over pages and re-runs one job by id", async () => {
+  const requests = [];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url, init = {}) => {
+      requests.push({ url, method: init.method ?? "GET" });
+      if (url.includes("/comments")) {
+        const next = url.endsWith("page=2") ? "" : '<https://api.example/repos/octo/repo/issues/9/comments?per_page=100&page=2>; rel="next"';
+        return { ok: true, status: 200, headers: { get: () => next }, json: async () => [{ id: requests.length }] };
+      }
+      return { ok: true, status: 201, json: async () => ({}) };
+    },
+  });
+  assert.deepEqual(await api.listIssueComments(9), [{ id: 1 }, { id: 2 }]);
+  assert.equal(requests[0].url, "https://api.example/repos/octo/repo/issues/9/comments?per_page=100");
+  await api.rerunJob(4242);
+  assert.deepEqual(requests[2], { url: "https://api.example/repos/octo/repo/actions/jobs/4242/rerun", method: "POST" });
+  await assert.rejects(api.rerunJob("1/../2"), /not a job id/);
+  assert.equal(requests.length, 3, "a refused job id sends nothing");
+});
