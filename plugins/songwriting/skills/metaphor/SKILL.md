@@ -94,9 +94,13 @@ Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled skill default, first match, per that file's "Template override".
 
-## Related skills
+## Next
 
-- Sensory raw material feeding the collisions → `/songwriting:object-writing`
-- Cliché taxonomy and redemption → `/songwriting:object-writing cliche`
-- Line generation once the metaphor is chosen → `/songwriting:co-write`
-- Whole-draft diagnosis, including "this song has no metaphor" → `/songwriting:diagnose`
+/songwriting:co-write
+
+## Related
+
+- Sensory raw material feeding collisions or cliche repair: /songwriting:object-writing.
+- Rhyme partner for metaphor key word: /songwriting:rhyme.
+- Structural placement of image: /songwriting:song-form.
+- Whole-draft diagnosis: /songwriting:diagnose.

@@ -50,7 +50,8 @@ loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled default, first match, per that file's "Template override".
 
-## Related skills
+## Related
 
-- A single in-session object-writing or metaphor prompt → `/songwriting:object-writing`
-- Rhyme worksheets specifically → `/songwriting:rhyme worksheet`
+- Single in-session object-writing prompt: /songwriting:object-writing.
+- Rhyme worksheets specifically: /songwriting:rhyme.
+- Start or route a song project: /songwriting:workflow.

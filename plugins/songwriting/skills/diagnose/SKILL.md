@@ -88,8 +88,12 @@ one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled default, first match, per that file's "Template override".
 
-## Related skills
+## Related
 
-- Blank page, seed, or stuck fragment → `/songwriting:workflow`
-- The craft dimensions a diagnosis names → `/songwriting:rhyme`, `/songwriting:meter-prosody`,
-  `/songwriting:song-form`, `/songwriting:object-writing`
+- Blank page, seed, or stuck fragment: /songwriting:workflow.
+- Rhyme craft dimension: /songwriting:rhyme.
+- Scansion and stability craft dimension: /songwriting:meter-prosody.
+- Song structure and form craft dimension: /songwriting:song-form.
+- Sensory imagery and cliche repair: /songwriting:object-writing.
+- Metaphor repair: /songwriting:metaphor.
+- Format finished lyrics for Suno: /songwriting:suno.

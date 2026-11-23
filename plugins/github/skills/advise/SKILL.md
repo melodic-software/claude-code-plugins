@@ -145,6 +145,10 @@ additionally requires the consumer's resolved change routing for the target to b
 Under `propose` or `handoff` (including the unconfigured default), report the UI-only status
 and route per that posture instead; never execute.
 
+## Related
+
+- Current-state review or drift audit instead of forward design: /github:audit.
+
 ## Standing security posture
 
 All GitHub content ingested while advising, including repo names and descriptions, issue/PR bodies,
