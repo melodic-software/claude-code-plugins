@@ -119,7 +119,7 @@ if ! WF=$(gh api "repos/$REPO/contents/.github/workflows/pr-verify.yml?ref=$BASE
   echo "pr-verify lookup failed, hold: $WF" >&2; exit 1
 fi
 PULL=$(gh api "repos/$REPO/pulls/<pr_number>") || exit 1
-SKIP=$(jq -r --arg repo "$REPO" 'if .base.ref != .base.repo.default_branch or .head.repo.full_name != $repo then "no-single-pr"
+SKIP=$(jq -r 'if .base.ref != .base.repo.default_branch or .head.repo.full_name != .base.repo.full_name then "no-single-pr"
   elif .user.type == "Bot" and ((.user.login | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "")) as $l
     | ["dependabot", "dependabot-preview", "renovate", "renovate-bot"] | index($l)) then "dependency-manager"
   else "" end' <<<"$PULL") || exit 1
@@ -150,13 +150,14 @@ PULL=$(gh api "repos/$REPO/pulls/<pr_number>") || exit 1
 jq -e 'any(.labels[]; .name == "pr-verify-failed")' <<<"$PULL" >/dev/null && { echo fail; exit 1; }
 DIGEST=$(jq -j .head.ref <<<"$PULL" | sha256sum | cut -c1-16)
 DEFAULT=$(jq -r .base.repo.default_branch <<<"$PULL")
+BASE_REPO=$(jq -r .base.repo.full_name <<<"$PULL")
 for SUFFIX in pass "pass-$DIGEST" pass-notes "pass-notes-$DIGEST"; do
   RUNS=$(gh api "repos/$REPO/actions/artifacts?name=pr-verify-<pr_number>-$HEAD_SHA-$SUFFIX&per_page=100" \
     --jq "[.artifacts[] | select(.expired == false and .workflow_run.head_branch == \"$DEFAULT\") | .workflow_run.id] | unique | .[]") || exit 1
   for RUN in $RUNS; do
     OK=$(gh api "repos/$REPO/actions/runs/$RUN" --jq ".status == \"completed\" and .conclusion == \"success\"
       and .path == \".github/workflows/pr-verify.yml\" and .event == \"workflow_run\" and .head_branch == \"$DEFAULT\"
-      and .repository.full_name == \"$REPO\" and .head_repository.full_name == \"$REPO\"") || exit 1
+      and .repository.full_name == \"$BASE_REPO\" and .head_repository.full_name == \"$BASE_REPO\"") || exit 1
     [ "$OK" = true ] && { echo allow; exit 0; }
   done
 done
