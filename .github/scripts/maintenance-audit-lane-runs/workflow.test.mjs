@@ -1,3 +1,4 @@
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // maintenance-audit-lane-runs.yml's hardening, from docs/conventions/pr-pipeline/README.md
 // ("Every lane" and "The lane sweep"): only a schedule or a manual run starts
 // it, the model legs and the route jobs hold read permissions only, each leg
@@ -7,8 +8,10 @@
 // leg to the subscription leg, and from there to the fallback leg, only on a
 // clean handoff. The hourly schedule runs only the triage sweep.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { workflowText } from "../lib/workflow-text.mjs";
 import { routeSkipped } from "./handoff.mjs";
 
@@ -135,24 +138,10 @@ test("each leg reads only the data and the checkout, with Read, Grep and Glob an
   }
 });
 
-test("the later legs repeat the key leg's steps but for the credential, the leg check and the fallback reason", () => {
-  // Comments differ, and so do the lines that name the credential, the
-  // handoff and the leg's place in the chain; every other line is equal.
-  const differs = [
-    /^ {10}(api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|known-failure-class|handoff): /,
-    /^ {8}if: .*steps\.(handoff|key-leg|sub-leg)\.|^ {8}if: always\(\) /,
-    /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/,
-  ];
-  const normalize = (job) =>
-    steps(job)
-      .filter((s) => !/^Check the (key|subscription) leg$|^(Record|Upload) the handoff$|^Check the credential$|^Pick the next leg$/.test(s.name))
-      .filter((s) => !(s.name === "Scan the upload for credentials" && /\/lane-sweep-handoff\//.test(s.text)))
-      .map(({ name, text: block }) => ({
-        name,
-        lines: block.split("\n").filter((line) => line.trim() !== "" && !/^\s*#/.test(line) && !differs.some((re) => re.test(line))),
-      }));
-  assert.deepEqual(normalize(SUB), normalize(KEY));
-  assert.deepEqual(normalize(FB), normalize(KEY));
+test("the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test("a unit reaches the next leg only through a clean handoff its route job reads from a marker", () => {

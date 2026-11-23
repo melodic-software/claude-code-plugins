@@ -93,6 +93,29 @@ test("a declaration naming a step the key job lacks stops the render", () => {
   assert.throws(() => render(KEY_JOB.split("\n"), { ...LEG, move: { "Check the credential": "Gate the key" } }), /moves Check the credential after a dropped step/);
 });
 
+test("a step name two steps share stops the render, and its #id names just one", () => {
+  const keyJob = `  judge:
+    steps:
+      - name: Scan
+        id: scan-handoff
+        run: echo handoff
+      - name: Scan
+        id: scan-upload
+        run: echo upload`.split("\n");
+  const leg = { job: "judge-fallback" };
+  assert.throws(() => render(keyJob, { ...leg, drop: ["Scan"] }), /judge-fallback names 2 steps Scan; name one by its #id/);
+  assert.equal(
+    render(keyJob, { ...leg, drop: ["#scan-handoff"], comments: { "#scan-upload": "The upload's scan." } }),
+    `  judge:
+    steps:
+      # The upload's scan.
+      - name: Scan
+        id: scan-upload
+        run: echo upload`,
+  );
+  assert.throws(() => render(keyJob, { ...leg, drop: ["#scan"] }), /names a step the key job lacks: #scan/);
+});
+
 test("a job's span ends at its last non-blank line, before the next job's comment", () => {
   const lines = ["jobs:", "  a:", "    steps:", "      - name: A", "", "        run: x", "", "  # b's comment", "  b:", "    steps: []", ""];
   assert.deepEqual(jobSpan(lines, "a"), [1, 6]);
