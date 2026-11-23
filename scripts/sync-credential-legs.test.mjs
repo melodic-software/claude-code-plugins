@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { tempDir } from "../lib/test-tmp.mjs";
+import { readRunnerCalls } from "./credential-legs/read-runner-calls.mjs";
 import { checkFunding, jobSpan, main, render } from "./sync-credential-legs.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -114,6 +115,99 @@ test("a step name two steps share stops the render, and its #id names just one",
         run: echo upload`,
   );
   assert.throws(() => render(keyJob, { ...leg, drop: ["#scan"] }), /names a step the key job lacks: #scan/);
+});
+
+const CALLER = `  call:
+    name: Call
+    needs: pick
+    if: >-
+      needs.pick.outputs.go == 'true'
+      && vars.KEY_OFF != 'true'
+    # The key alone.
+    uses: ./.github/workflows/runner.yml
+    with:
+      start-gate: true
+      key-credit-job: call
+      lane: l
+    secrets:
+      claude-api-key: \${{ secrets.X_CLAUDE_API_KEY }}
+      carrier: \${{ secrets.CARRIER }}`.split("\n");
+
+test("a key job with no steps is all header: each replacement applies to the whole job, and a step name stops the render", () => {
+  const leg = { job: "call-subscription", replace: [["  call:\n    name: Call\n", "  call-subscription:\n    name: Call Subscription\n", 1], ["claude-api-key: ${{ secrets.X_CLAUDE_API_KEY }}", "claude-code-oauth-token: ${{ secrets.X_CLAUDE_CODE_OAUTH_TOKEN }}", 1]] };
+  assert.equal(
+    render(CALLER, leg),
+    `  call-subscription:
+    name: Call Subscription
+    needs: pick
+    if: >-
+      needs.pick.outputs.go == 'true'
+      && vars.KEY_OFF != 'true'
+    # The key alone.
+    uses: ./.github/workflows/runner.yml
+    with:
+      start-gate: true
+      key-credit-job: call
+      lane: l
+    secrets:
+      claude-code-oauth-token: \${{ secrets.X_CLAUDE_CODE_OAUTH_TOKEN }}
+      carrier: \${{ secrets.CARRIER }}`,
+  );
+  assert.throws(() => render(CALLER, { ...leg, drop: ["Judge it"] }), /call-subscription names a step the key job lacks: Judge it/);
+});
+
+test("a read-runner call's subscription and fallback legs take their own header, credential and secret, and drop the key's comments", () => {
+  const declaration = readRunnerCalls({
+    workflow: ".github/workflows/w.yml",
+    key: "call",
+    role: "X",
+    upstream: ["pick"],
+    comments: 1,
+    subscription: { if: "${{ !cancelled() && needs.call-handoff.outputs.posted != 'true' }}" },
+    fallback: { replace: [["      start-gate: true\n", "", 1]] },
+  });
+  assert.equal(declaration.workflow, ".github/workflows/w.yml");
+  assert.equal(declaration.key, "call");
+  const [subscription, fallback] = declaration.legs;
+  assert.equal(subscription.job, "call-subscription");
+  assert.equal(
+    render(CALLER, subscription),
+    `  call-subscription:
+    name: Call Subscription
+    needs: [pick, call, call-handoff]
+    if: \${{ !cancelled() && needs.call-handoff.outputs.posted != 'true' }}
+    uses: ./.github/workflows/runner.yml
+    with:
+      start-gate: true
+      fallback: handoff
+      fallback-ready: \${{ needs.call-handoff.outputs.fallback-ready }}
+      lane: l
+    secrets:
+      claude-code-oauth-token: \${{ secrets.X_CLAUDE_CODE_OAUTH_TOKEN }}
+      carrier: \${{ secrets.CARRIER }}`,
+  );
+  assert.equal(fallback.job, "call-fallback");
+  assert.equal(
+    render(CALLER, fallback),
+    `  call-fallback:
+    name: Call Fallback
+    needs: [pick, call, call-handoff, call-subscription, call-subscription-handoff]
+    if: \${{ !cancelled() && needs.call-handoff.outputs.fallback-ready == 'true' && needs.call-subscription-handoff.outputs.handed-off == 'true' }}
+    uses: ./.github/workflows/runner.yml
+    with:
+      fallback: fallback
+      lane: l
+    secrets:
+      fallback-claude-code-oauth-token: \${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+      carrier: \${{ secrets.CARRIER }}`,
+  );
+});
+
+test("a read-runner call whose key job gained or lost a comment stops the render", () => {
+  const legs = (comments) => readRunnerCalls({ workflow: "w.yml", key: "call", role: "X", upstream: ["pick"], comments, subscription: { if: "true" } }).legs;
+  for (const comments of [0, 2]) {
+    for (const leg of legs(comments)) assert.throws(() => render(CALLER, leg), new RegExp(`${leg.job} expects ${comments} of .*, found 1`), `${leg.job} ${comments}`);
+  }
 });
 
 test("a job's span ends at its last non-blank line, before the next job's comment", () => {

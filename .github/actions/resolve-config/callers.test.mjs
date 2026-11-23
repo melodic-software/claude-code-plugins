@@ -575,7 +575,7 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(stepSecrets(job), []);
 });
 
-test("intake-triage.yml, maintenance-tidy-code-upkeep.yml and post-merge-test-mutation.yml: the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+test("intake-triage.yml, maintenance-tidy-code-upkeep.yml, post-merge-test-mutation.yml, pr-refine.yml, pr-unblock.yml and work-resolve-issue.yml: the later legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
   const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
   const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stdout + run.stderr);
