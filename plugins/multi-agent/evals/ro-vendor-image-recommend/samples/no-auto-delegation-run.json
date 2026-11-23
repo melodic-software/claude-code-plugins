@@ -23,6 +23,17 @@
         }
       ],
       "why": "ran external-agents run even though auto_delegation is false"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "${CLAUDE_SKILL_DIR}/scripts/delegate codex <<'PROMPT'\ndraw a cat\nPROMPT"
+          }
+        }
+      ],
+      "why": "ran the delegate script even though auto_delegation is false"
     }
   ]
 }

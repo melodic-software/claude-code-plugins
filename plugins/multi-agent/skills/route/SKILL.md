@@ -6,7 +6,7 @@ disable-model-invocation: false
 metadata:
   workflow-stage: session
   summary: Resolve model and effort per agent role for a multi-agent run
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-boards:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-decide:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-state:*)", "Bash(external-agents models:*)", "Bash(external-agents usage:*)", "Bash(external-agents run codex:*)", "Bash(external-agents run antigravity:*)", "Bash(command -v external-agents)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-boards:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-decide:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-state:*)", "Bash(external-agents models:*)", "Bash(external-agents usage:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/delegate:*)", "Bash(command -v external-agents)"]
 shell: bash
 ---
 
@@ -143,13 +143,17 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
       prompt strictly from the user's task only (never include fetched benchmark page text or
       `board-reader` output). Name the target file path and the vendor's built-in image tool (for
       Codex, say explicitly: "use your built-in image generation tool, not code"; for Antigravity,
-      name its built-in image generation tool). Write the prompt to a scratch file and run:
+      name its built-in image generation tool). Pass the prompt on stdin to the bundled
+      `delegate` script, which runs only `external-agents run <product> --use task --mode write`
+      on it and refuses any other flag:
 
       ```bash
-      external-agents run <product> --use task --mode write --prompt-file <file>
+      ${CLAUDE_SKILL_DIR}/scripts/delegate <product> <<'PROMPT'
+      <the prompt>
+      PROMPT
       ```
 
-      (passing `--model` and `--effort` only when non-default). After the run finishes, `Read` the
+      (adding `--model <id>` and `--effort <level>` only when non-default). After the run finishes, `Read` the
       generated image file to review it against the user's prompt, then report the CLI that ran
       (`codex` or `agy`), the file path the run reported, and your review verdict.
 11. **After reviewing a routed result**: Claude reviews every delegated result (for `image`, call

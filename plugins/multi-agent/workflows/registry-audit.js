@@ -199,18 +199,18 @@ async function parseRaw(url, out) {
   const m = /^docs-raw: url=(\S+) state=(read|unread)((?: [a-z0-9_]+=\S*)*)$/.exec(nl < 0 ? text : text.slice(0, nl))
   if (!m || m[1] !== url) {
     if (out == null) return { ...base, state: 'unread', unchecked: true, reason: 'no result from the fetch stage' }
-    return { ...base, state: 'unread', reason: 'the fetch stage returned no docs-raw header for this URL' }
+    return { ...base, state: 'unread', unchecked: true, reason: 'the fetch stage returned no docs-raw header for this URL' }
   }
   const f = Object.fromEntries([...m[3].matchAll(/ ([a-z0-9_]+)=(\S*)/g)].map(x => [x[1], x[2]]))
   if (m[2] === 'unread') return { ...base, state: 'unread', reason: f.reason || 'unstated' }
   const page = { ...base, state: 'read', kind: f.kind || 'unknown', format: f.format || '', validated: f.validated || '', sha256: f.sha256 || '' }
   if (f.kind === 'too-large') return page
   const body = nl < 0 ? '' : text.slice(nl + 1).replace(/\n+$/, '')
-  if (String(utf8Bytes(body)) !== f.bytes) return { ...base, state: 'unread', reason: 'the body does not match the header byte count' }
+  if (String(utf8Bytes(body)) !== f.bytes) return { ...base, state: 'unread', unchecked: true, reason: 'the body does not match the header byte count' }
   const subtle = globalThis.crypto && globalThis.crypto.subtle
   if (subtle && typeof TextEncoder === 'function') {
     const hex = [...new Uint8Array(await subtle.digest('SHA-256', new TextEncoder().encode(body)))].map(b => b.toString(16).padStart(2, '0')).join('')
-    if (hex !== f.body_sha256) return { ...base, state: 'unread', reason: 'the body does not match the header body_sha256' }
+    if (hex !== f.body_sha256) return { ...base, state: 'unread', unchecked: true, reason: 'the body does not match the header body_sha256' }
   }
   return { ...page, body }
 }

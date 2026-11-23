@@ -142,9 +142,25 @@ test('tampered fetcher output (byte count or hash mismatch) leaves row unread an
   })
   assert.equal(by(calls, 'judge:').length, 0)
   assert.equal(result.rows[0].reachable, false)
-  assert.equal(result.proposedChanges[0].field, 'status')
+  assert.equal(result.rows[0].partial, true)
+  assert.deepEqual(result.proposedChanges, [])
+})
+
+test('fetch output with no docs-raw header leaves the row partial and proposes no change', async () => {
+  const { result, calls } = await run({ rows: ROWS, asOf: '2026-11-23' }, {
+    reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: 'docs-raw: cannot read the manifest' } : d(p, o)),
+  })
+  assert.equal(by(calls, 'judge:').length, 0)
+  assert.ok(result.rows.every(r => r.partial === true))
+  assert.deepEqual(result.proposedChanges, [])
+})
+
+test('a docs-raw header that says state=unread still counts as unreachable', async () => {
+  const { result } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+    reply: (p, o, d) => (o.label.startsWith('fetch:') ? { output: 'docs-raw: url=' + data(p, 'url') + ' state=unread reason=http-404' } : d(p, o)),
+  })
+  assert.equal(result.rows[0].partial, false)
   assert.equal(result.proposedChanges[0].to, 'support-only')
-  assert.match(result.diff, /-  "status": "permanent"\n\+  "status": "support-only"/)
 })
 
 const MAP = [
