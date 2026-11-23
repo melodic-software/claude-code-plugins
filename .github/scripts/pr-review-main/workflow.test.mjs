@@ -4,13 +4,14 @@
 // uploads the verdict once, after it is written, under the name the writer
 // chose. Each lane runs one leg on the review lanes' credentials in their
 // order, a later leg only for a lane the previous one handed on.
-// test-scope: plugins/source-control/.claude-plugin/plugin.json
+// test-scope: plugins/source-control/.claude-plugin/plugin.json scripts/sync-credential-legs.mjs scripts/credential-legs/*
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, symlinkSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { admits } from "../lib/gate-expression.mjs";
 import { heldNoted } from "../maintenance-reconcile-lost-runs/reconcile.mjs";
 import { HELD_STEP } from "../pr-verify/resolve-pr.mjs";
@@ -1687,28 +1688,13 @@ test("the handoff step names its lane and a closed reason, and a handed-off leg 
   }
 });
 
-test("every later leg repeats the key leg's steps but for its credential and why it ran", () => {
-  const normal = (block) =>
-    block
-      .replace(/secrets\.[A-Z_]+/g, "secrets.X")
-      .replace(/^( {8}with:\n)(?: {10}#.*\n)+ {10}ref: .*\n/m, "$1          ref: REF\n")
-      .replace(new RegExp(`^( {10})(?:${CREDENTIAL_INPUTS.join("|")}): `, "m"), "$1credential: ")
-      // The credential call's leg, the fallback check and the route's reason
-      // (pinned per leg in the credential-order test and credential-legs.test.mjs).
-      .replace(/^ {10}leg: (?:key|subscription|fallback)\n/m, "")
-      .replace(/^ {10}fallback-set: .*\n/m, "")
-      .replace(/\n {10}key-off: \$\{\{ vars\.CLAUDE_API_KEYS_DISABLED == 'true' \}\}$/m, "")
-      .replace(/\n {10}reason: \$\{\{ matrix\.reason \}\}$/m, "")
-      // The key leg's take on the check-trigger job's gate (its own test above).
-      .replace(/ && needs\.check-trigger\.outputs\.run-attempt != github\.run_attempt$/m, "")
-      .replace(/^ {10}# The check-trigger job's result, only from this run attempt\.\n/m, "")
-      .replace(/^ {10}CARRIED(?:_[A-Z]+)?: .*\n/gm, "")
-      .replace(/^ {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/m, "")
-      .replace(/\n {10}# Why this leg ran, for its lane record\.\n {10}fallback-reason: [^\n]*/, "")
-      // The handoff input, pinned per leg in the handoff test.
-      .replace(/^ {10}handoff: \$\{\{ steps\.review-\d\.outputs\.handoff \}\}\n/m, "")
-      .replace(/ && steps\.handoff\.outcome != 'success'|and handed nothing on\n {6}# fails here,|fails here,/g, "");
-  // Only the key leg reads main's tip; a later leg checks out the commit it recorded.
+test("the subscription and fallback legs are what scripts/sync-credential-legs.mjs renders from the key leg", () => {
+  const sync = fileURLToPath(new URL("../../../scripts/sync-credential-legs.mjs", import.meta.url));
+  const run = spawnSync(process.execPath, [sync, "--check"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+});
+
+test("each later leg runs the key leg's steps but main's tip, and names why it ran", () => {
   const keyNames = STEPS[KEY].map((s) => s.name).filter((name) => name !== "Resolve main's tip");
   assert.deepEqual(STEPS[SUB].map((s) => s.name), keyNames);
   const FB_WARNING = "Warn that the fallback token reviews";
@@ -1717,24 +1703,10 @@ test("every later leg repeats the key leg's steps but for its credential and why
     keyNames.filter((name) => name !== "Pick the next leg" && name !== "Hand the lane on"),
   );
   for (const job of [SUB, FB]) {
-    for (const s of STEPS[job].filter((s) => s.name !== FB_WARNING)) assert.equal(normal(s.text), normal(step(s.name, KEY)), `${job}: ${s.name}`);
-    // Each record names why it ran: the route's reason, checked by the
-    // credential call against report-lane-outcome's closed list.
     assert.equal(input(step("Check the credential", job), "reason"), "${{ matrix.reason }}");
     for (let k = 1; k <= SLOTS; k++) {
       assert.equal(input(step(`Report chunk ${k}'s outcome`, job), "fallback-reason"), "${{ steps.credential.outputs.fallback-reason }}");
     }
-    // Its gates are the key leg's.
-    // Past the route checks, its gates are the key leg's.
-    // The key leg's skip on the check-trigger job's answer (its own test below).
-    const gates = (id) =>
-      /^ {4}if: >-\n((?: {6}.*\n)+)/m
-        .exec(jobText(id))[1]
-        .replace(/^ {6}!cancelled\(\)\n {6}&& needs\.[a-z-]+\.result == 'success'\n {6}&& /, "      ")
-        // The key leg's credit gate and its check-trigger job's success (their own test above).
-        .replace(/^ {6}needs\.review-handoffs-credit\.outputs\.next-leg != 'subscription'\n {6}&& !cancelled\(\)\n {6}&& needs\.check-trigger\.result == 'success'\n {6}&& /, "      ")
-        .replace(KEY_SKIP, "");
-    assert.equal(gates(job), gates(KEY));
   }
   assert.equal(input(step("Report chunk 1's outcome", KEY), "fallback-reason"), undefined);
 });
