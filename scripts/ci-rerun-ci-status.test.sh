@@ -314,7 +314,6 @@ import { appendFileSync } from "node:fs";
 appendFileSync(process.env.STUB_LOG, `record-check ${process.env.REVIEW_RUN_ID}\n`);
 process.exit(Number(process.env.STUB_RECORD_RC));
 STUB
-# The list names one human and one bot; KYLE is the human.
 KYLE=153232337 LANES_APP=337595936 STRANGER=9999001
 jq -n --argjson h "$KYLE" --argjson b "$LANES_APP" '{version: 1, actors: [{id: $h, login: "kyle-sexton", kind: "human"},
   {id: $b, login: "melodic-automation-lanes[bot]", kind: "bot"}]}' >"$TMP_ROOT/trusted-actors.json"

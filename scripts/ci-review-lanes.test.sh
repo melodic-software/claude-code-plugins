@@ -156,7 +156,6 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
 done
 
-# Both callers run pr-review-cli at the same ref.
 pins="$(sed -nE 's/^    uses: .*pr-review-cli\.yml@([^ ]+).*/\1/p' "$ROOT/.github/workflows/pr-review-hosted.yml" "$ROOT/.github/workflows/pr-review-security-hosted.yml" | sort -u)"
 if [[ -n "$pins" && "$pins" != *$'\n'* ]]; then
   ok "both review callers run pr-review-cli at one ref"
@@ -199,7 +198,6 @@ else
   ok "the path-holds true body holds every exempt author"
 fi
 
-# The base commit's config names the agent App.
 mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/bare-config/docs/conventions"
 printf 'merge:\n  trust-path-hold-apps:\n    - melodic-agent[bot]\n' >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
 printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
@@ -306,7 +304,6 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
-# sleep logs its seconds.
 cat >"$TMP_ROOT/bin/sleep" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG.sleeps"
@@ -560,7 +557,6 @@ for case in \
     "::error::'$CODE_CHECK' passed in https://github.com/o/r/actions/runs/10, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for claude-review on $HEAD"
 done
 NOTES_31="$GOOD_NOTES" STUB_NOTES_FAIL=1 expect "an unreadable annotation list fails closed" 1 "::error::could not read the annotations of job 31; re-run this run."
-# The security lane's notice names its own lane.
 JOBS_10="$PASS_CODE" JOBS_20="$(jobs "$(kill_job success skipped)" "$(listed "$SEC_CHECK" 32 '[]')")"
 NOTES_32="$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-security-review sha=$HEAD findings=0 inline=0 scope=whole")")"
 expect "the security lane counts on its own lane's notice" 0 "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20): GitHub listed no" "::error::"
@@ -781,7 +777,6 @@ done
 STUB_FILES="$(files README.md)" STUB_CHANGED=3
 AUTHOR_ID=49699333 expect "a short file listing fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_CHANGED=1 STUB_FILES_FAIL=1 AUTHOR_ID=49699333 expect "an unreadable file listing fails closed" 1 "::error::could not read the files of #77"
-# The broker step's pages are reused, so the files are not read again.
 STUB_FILES_FAIL=1 STUB_CHANGED=3 SHARED_FILES="$(files README.md)$(files docs/a.md 'docs/b.md<docs/c.md')" \
   AUTHOR_ID=49699333 expect "the broker step's file pages, across pages, are reused" 0 "no trust-gate path changed"
 if grep -q '/files' "$TMP_ROOT/log"; then fail "the files were read again"; else ok "a reused file list makes no files read"; fi
