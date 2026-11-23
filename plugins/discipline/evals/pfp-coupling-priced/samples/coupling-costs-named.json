@@ -1,7 +1,7 @@
 {
   "pass": [
     {"answer": "Every dependency is a coupling point. Before adopting it, weigh: abandonment (who maintains it), a pricing pivot, a license change, its security posture, and the exit cost of removing it later."},
-    {"answer": "- Abandoned upstream?\n- Price changes\n- Licence terms\n- Security record\n- Cost of switching away", "why": "British spelling, switching"},
+    {"answer": "- Abandoned upstream?\n- Price changes\n- Licensing terms\n- Security record\n- Cost of switching away", "why": "switching for exit cost"},
     {"answer": "Coupling costs: abandonment risk, pricing, licensing, security, and lock-in if we need to rip it out.", "why": "lock-in for exit cost"}
   ],
   "fail": [

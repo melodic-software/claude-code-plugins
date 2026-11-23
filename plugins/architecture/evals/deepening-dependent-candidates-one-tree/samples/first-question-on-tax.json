@@ -6,6 +6,8 @@
   "fail": [
     {"answer": ""},
     {"answer": "Plan: mail sender first, on its own.\n\nShould the recording adapter and SMTP share one port interface?", "why": "first question on the mail sender"},
-    {"answer": "Candidates 1 and 2 are one tree, tax module first. I will start when you are ready.", "why": "no question"}
+    {"answer": "Candidates 1 and 2 are one tree, tax module first. I will start when you are ready.", "why": "no question"},
+    {"answer": "Plan: the tax module and invoice total form one tree, tax first.\n\nShould the mail sender's port live in its own module?", "why": "tax only in the planning paragraph; the question is about the mail sender"},
+    {"answer": "The tax module goes first. Should the SMTP adapter send asynchronously?", "why": "tax in the sentence before the question"}
   ]
 }
