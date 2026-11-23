@@ -138,8 +138,6 @@ def insert_profile(con, profile, nodes, samples, deltas, start=None):
             one_based(frame.get("columnNumber")),
         )
     deltas = deltas if isinstance(deltas, list) else []
-    # ts: the profile's start plus every delta so far, on the clock the
-    # trace's events use; unknown from the first missing number on.
     ts = number(start)
     for seq, frame_id in enumerate(samples):
         delta = deltas[seq] if seq < len(deltas) else None

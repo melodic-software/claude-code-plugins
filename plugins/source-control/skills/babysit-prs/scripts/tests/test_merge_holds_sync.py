@@ -69,6 +69,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_policy as policy
 import diff_risk as risk
 
+BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 # This repository's effective floor: the built-in rows joined to its config.
 ROWS = policy.floor_paths_in(
@@ -303,7 +304,7 @@ def _glob_samples(glob: str) -> list[str]:
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
-@unittest.skipUnless(shutil.which("bash"), "bash not installed")
+@unittest.skipUnless(BASH, "bash not installed")
 class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
     """merge-holds.mjs's matchesHoldPath and ci-status's bash `hold_patterns`
     judge each sample path alike (bash's `*` crosses `/`, Node's does not),
@@ -321,12 +322,13 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
                 "--input-type=module",
                 "-e",
                 "import { HOLD_PATH_CLASSES, matchesHoldPath } from %s;"
-                " const [paths, extra] = JSON.parse(process.argv[1]);"
+                ' let text = ""; for await (const chunk of process.stdin) text += chunk;'
+                " const [paths, extra] = JSON.parse(text);"
                 " const globs = [...extra, ...HOLD_PATH_CLASSES.map(([g]) => g)];"
                 " console.log(JSON.stringify(paths.map((p) => globs.some((g) => matchesHoldPath(p, g)))));"
                 % json.dumps(MODULE.as_uri()),
-                json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
             ],
+            input=json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
             capture_output=True,
             text=True,
             check=True,
@@ -334,20 +336,19 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
         line = _hold_patterns_line()
         bash = subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
                 line + "\nshopt -s nocasematch\nwhile IFS= read -r path; do"
                 ' held=false; for pattern in "${hold_patterns[@]}"; do'
                 ' [[ $path != $pattern ]] || held=true; done; echo "$held";'
                 " done",
             ],
-            input="\n".join(paths) + "\n",
+            input=("\n".join(paths) + "\n").encode(),
             capture_output=True,
-            text=True,
             check=True,
         )
         node_held = json.loads(node.stdout)
-        bash_held = [v == "true" for v in bash.stdout.split()]
+        bash_held = [v == b"true" for v in bash.stdout.split()]
         for path, py, js, sh in zip(paths, python, node_held, bash_held, strict=True):
             with self.subTest(path):
                 self.assertEqual(js, sh)
@@ -418,6 +419,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             ".github/scripts/intake-triage/triage-rubric.txt",
             ".github/scripts/intake-triage/refine-schema.json",
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
+            ".github/scripts/pr-unblock/test-scope.mjs",
+            ".github/scripts/pr-unblock/declare-test-scope.mjs",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -447,7 +450,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 98)
+        self.assertEqual(len(FLOOR.high), 100)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -686,6 +689,50 @@ class TheHoldLabelsAreTheGates(unittest.TestCase):
             check=True,
         )
         self.assertEqual(json.loads(proc.stdout), list(policy.MERGE_HOLD_LABELS))
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheNativeBaselineIsTheGates(unittest.TestCase):
+    """Owner decision Q152 (B): ci-status (`baselineOnly`) and the arm's
+    reader (`baseline_only`) take the same lanes App pull requests, those
+    changing exactly the configured `merge.baseline-file`, with no link or
+    verdict, and none when it is unset."""
+
+    def test_both_take_the_same_pull_requests(self) -> None:
+        file = "docs/upstream/claude-code-native-surfaces.min.json"
+        lanes = {"login": "melodic-automation-lanes[bot]", "id": 9, "type": "Bot"}
+        cases = [
+            (lanes, [file], file),
+            (lanes, [file], None),
+            (lanes, [file], ""),
+            (lanes, [file], "docs/upstream/other.json"),
+            (lanes, [file, "docs/a.md"], file),
+            (lanes, [file, "docs/upstream/old.json"], file),
+            (lanes, ["docs/upstream/claude-code.md"], file),
+            (lanes, [], file),
+            ({**lanes, "type": "User"}, [file], file),
+            ({**lanes, "login": "melodic-agent[bot]"}, [file], file),
+        ]
+        script = (
+            f"const {{ baselineOnly }} = await import({json.dumps(MODULE.as_uri())});"
+            "const cases = JSON.parse(process.argv[1]);"
+            "console.log(JSON.stringify(cases.map(([user, files, file]) => baselineOnly(user, files, 9, file ?? undefined))));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        py = [
+            policy.baseline_only(
+                {"user": user}, "melodic-automation-lanes[bot]", baseline, files
+            )
+            for user, files, baseline in cases
+        ]
+        self.assertEqual(answers, py)
+        self.assertEqual(answers.count(True), 1)
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
@@ -1239,7 +1286,9 @@ def _activity(heads: dict[str, Any]) -> list[dict[str, Any]]:
 
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads, answers, activity] = JSON.parse(process.argv[1]);
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [body, comment, issue, heads, answers, activity] = JSON.parse(text);
 const github = async (method, path, data) => {
   if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&direction=desc&per_page=100") return activity;
   const tip = "3".repeat(40);
@@ -1277,22 +1326,17 @@ def js_decision(
 ) -> str | None:
     script = NODE_DECISION % (json.dumps(MODULE.as_uri()), json.dumps(HEAD))
     proc = subprocess.run(
-        [
-            "node",
-            "--input-type=module",
-            "-e",
-            script,
-            json.dumps(
-                [
-                    body,
-                    comment,
-                    ISSUE,
-                    DEFAULT_HEADS | heads,
-                    _answers(DEFAULT_HEADS | heads),
-                    _activity(DEFAULT_HEADS | heads),
-                ]
-            ),
-        ],
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps(
+            [
+                body,
+                comment,
+                ISSUE,
+                DEFAULT_HEADS | heads,
+                _answers(DEFAULT_HEADS | heads),
+                _activity(DEFAULT_HEADS | heads),
+            ]
+        ),
         capture_output=True,
         text=True,
         check=True,

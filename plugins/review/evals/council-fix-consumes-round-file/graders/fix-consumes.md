@@ -1,8 +1,5 @@
 ---
-type: llm
-arm: both
+type: regex
+pattern: '^(?=[\s\S]*(?:(?<!not )(?<!n.t )(?<!never )\b(?:admits?|reads?|applies|consumes?|picks? up|uses?)\b(?:(?!\.\s|\bskip|\bnot\b|\bnever\b|n.t\b|\bignor|\band\b|\bbut\b)[^\n;]){0,80}council-r1|council-r1(?:(?!\.\s|\bskip|\bnot\b|\bnever\b|n.t\b|\bignor|\band\b|\bbut\b)[^\n;]){0,120}\b(?:is|gets)\s+(?:read|admitted|applied|consumed|picked up)\b))(?=[\s\S]*review-findings)(?=[\s\S]*council-run)'
+flags: i
 ---
-
-PASS if the answer says fix applies the council's findings by admitting the round file (`-council-r1.md`), because it is a `type: review-findings` file for this branch in fanout's findings location and shape, and that fix does not read the run file (`-council.md`) as findings because its type is `council-run`, not review-findings.
-
-FAIL if the answer says fix cannot read council output, needs a conversion step, reads the run file as findings, or reads both files as findings.

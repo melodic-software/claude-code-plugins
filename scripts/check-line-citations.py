@@ -68,7 +68,6 @@ CITATION = re.compile(
 # A fence may sit inside a block quote (`> ````) or open a list item (`- ````).
 FENCE = re.compile(r"^(?:\s*>)*\s*(?:(?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
 
-# Point-in-time records, by repository-relative prefix or by basename.
 RECORD_PREFIXES = ("docs/adr/", "docs/upstream/", ".changes/")
 RECORD_NAMES = frozenset({"CHANGELOG.md"})
 

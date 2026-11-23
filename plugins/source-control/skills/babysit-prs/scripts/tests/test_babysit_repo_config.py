@@ -1,10 +1,4 @@
 # test-scope: plugins/source-control/lib/parse-concern-value.sh
-"""Per-target-repository resolution of the babysit repository-policy keys.
-
-Covers each merge mode, the fail-closed fetch contract (only a gh-reported 404
-means "no file"), the default-branch-only read, and the once-per-process
-deprecation note. The gh seam is a fake runner; no real gh process is spawned.
-"""
 
 from __future__ import annotations
 

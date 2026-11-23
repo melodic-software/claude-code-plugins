@@ -65,7 +65,6 @@ helper=missing
 [[ -x "$GREEN/.git/eval-forge/bin/git-remote-evalforge" ]] && helper=executable
 assert_eq "install.sh: git-remote-evalforge lands executable beside the gh stand-in" executable "$helper"
 
-# push-branch.sh through the helper: origin reads as github.com, the bytes land in the bare repository.
 PUSH="$SCRIPT_DIR/../skills/pull-request/scripts/push-branch.sh"
 FORGE_PATH="$GREEN/.git/eval-forge/bin:$PATH"
 (
@@ -80,7 +79,6 @@ assert_eq "push-branch.sh: the bare origin's head ref equals local HEAD" \
 (cd "$GREEN" && PATH="$FORGE_PATH" git fetch origin) >/dev/null 2>&1
 assert_exit "git fetch origin succeeds through the helper" 0 "$?"
 
-# The babysit cycle's commands. THREADED has an open PR with two unresolved review threads.
 THREADED="$TEST_TMPDIR/threaded"
 make_forge threaded --open --thread T_one --thread T_two
 CALLS="$THREADED/.git/eval-forge/calls.jsonl"
@@ -119,7 +117,6 @@ assert_eq "api graphql: the resolved thread reads resolved afterwards" "true,fal
 run_gh "$THREADED" api graphql -f 'query=mutation{deleteRepository}' >/dev/null 2>&1
 assert_exit "api graphql: any other query is refused" 1 "$?"
 
-# --outdated-bot-thread serves a bot-authored thread GitHub marks outdated, in argument order.
 BOTTHREAD="$TEST_TMPDIR/botthread"
 make_forge botthread --open --thread T_human --outdated-bot-thread T_bot
 out=$(run_gh "$BOTTHREAD" api graphql -f "query=$THREADS_QUERY" \
@@ -171,7 +168,6 @@ out=$(cd "$READONLY" && PATH="$READONLY/.git/eval-forge/bin:$PATH" git fetch ori
 assert_exit "read-only .git: git fetch exits 0 ($out)" 0 "$?"
 chmod -R u+w "$READONLY/.git"
 
-# --no-pr: the create phase's path. No PR until `pr create`, which takes the body file and opens it.
 CREATE="$TEST_TMPDIR/create"
 make_forge create --no-pr
 CREATE_FORGE="$CREATE/.git/eval-forge"
@@ -193,7 +189,6 @@ assert_exit "pr create: a second create for the branch is refused" 1 "$?"
 out=$(run_gh "$CREATE" pr ready 7)
 assert_eq "pr ready: flips the created draft" "false" "$(run_gh "$CREATE" pr view 7 --json isDraft --jq .isDraft)"
 
-# Issues from issues/<n>.json, over GraphQL-shaped `issue view` and REST.
 printf '{"number":5,"title":"t","state":"OPEN","body":"b","subIssues":{"nodes":[{"number":6,"title":"s","state":"OPEN"}]},"url":"https://github.com/eval-fixture/app/issues/5"}\n' \
   >"$CREATE_FORGE/issues/5.json"
 assert_eq "issue view: state and body from the fixture" "OPEN b" "$(run_gh "$CREATE" issue view 5 --json state,body --jq '"\(.state) \(.body)"')"
@@ -209,7 +204,6 @@ assert_exit "api contents: a missing file is a 404, exit 1" 1 "$?"
 run_gh "$CREATE" api --method POST repos/eval-fixture/app/pulls -f title=x >/dev/null 2>&1
 assert_exit "api: a write method is refused" 1 "$?"
 
-# The reads branch-update-signals.sh makes. FORGED is PR 7, feat/x one commit ahead of main and up to date with it.
 FORGED="$TEST_TMPDIR/forged"
 make_forge forged --open
 FORGED_HEAD=$(git -C "$FORGED" rev-parse feat/x)
@@ -259,7 +253,6 @@ assert_eq "pr list --base=: a PR into that base is listed" "1" \
 assert_eq "pr list --base: a head branch has no PR based on it" "0" \
   "$(run_gh "$FORGED" pr list --base feat/x --state open --limit 1 --json number --jq length)"
 
-# --dir and --extra-pr: a forge installed into a checkout below the launch directory, serving two PRs.
 MULTI="$TEST_TMPDIR/multi"
 mkdir -p "$MULTI/app"
 (

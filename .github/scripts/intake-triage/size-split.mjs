@@ -3,10 +3,11 @@ import { isDeepStrictEqual } from "node:util";
 
 import { paginate } from "../lib/github-client.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
-import { baseAdmissionRules, countedRefinement, here, humanActor, names, parentOf, personChecks, RECURRING, repoOf, specOf, taskItems, taskLinesOf, trustedTaskLines, withoutItems } from "./admit.mjs";
+import { baseAdmissionRules, countedRefinement, here, names, parentOf, personChecks, RECURRING, repoOf, scopeTarget, specOf, SPLIT_CHILD_MARKER, splitChildBody, splitSourceLine, taskItems, taskLinesOf, taskText, trustedTaskLines, withoutItems } from "./issue-spec.mjs";
+
+export { SCOPE_PREFIX, scopeTarget, SPLIT_CHILD_MARKER, splitChildBody, splitChildHeader, splitScope, splitSourceLine, taskText } from "./issue-spec.mjs";
 
 export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
-export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 
 export async function splitParentOf(github, repository, parent, appId) {
   if (parent === null || !here(parent.repository_url, repository) || !Number.isInteger(parent.number)) {
@@ -32,82 +33,6 @@ export function splitTaskLines(spec, humans, taskList, appId, webHosts) {
   const more = usable ? taskLinesOf(refinement.body, taskList) : [];
   return { lines: [...own, ...more], human: own.length, source: more.length > 0 ? { id: refinement.databaseId, updatedAt: refinement.updatedAt } : null };
 }
-
-export const splitSourceLine = ({ id, updatedAt }) => `<!-- size-split refinement=${id} updated_at=${updatedAt} -->`;
-const SOURCE = /^<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->$/;
-
-export const splitChildHeader = (parent, part, parts, source = null, scoped = false) =>
-  [
-    SPLIT_CHILD_MARKER,
-    `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). ${scoped ? "The done-when lines below are" : "The done-when below is"} copied from #${parent}${source ? " and intake's refinement comment on it" : ""} as written${scoped ? ", and the Scope line names the targets this part covers" : ""}.`,
-    ...(source ? [splitSourceLine(source)] : []),
-    "",
-    "## Done when",
-    "",
-  ].join("\n");
-
-export function splitChildBody(spec, humans, taskList) {
-  const parent = spec?.splitParent;
-  const author = spec?.author;
-  if (typeof taskList !== "string" || taskList === "" || parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
-    return null;
-  }
-  const human = humanActor(humans);
-  const edited = spec.lastEditedAt != null;
-  if (!human(parent.spec?.author) || (edited && !human(spec.editor))) {
-    return null;
-  }
-  const body = String(spec.body ?? "");
-  const rows = body.split("\n");
-  const part = /^Part ([1-9][0-9]?) of ([1-9][0-9]?) of #/.exec(rows[1] ?? "");
-  const tag = SOURCE.exec(rows[2] ?? "");
-  const source = tag ? { id: Number(tag[1]), updatedAt: tag[2] } : null;
-  const scoped = rows.at(-1).startsWith(SCOPE_PREFIX);
-  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]), source, scoped)}\n` : null;
-  if (header === null || !body.startsWith(header)) {
-    return null;
-  }
-  let refinement = [];
-  if (source !== null) {
-    const comments = parent.spec?.comments ?? [];
-    const whole = (parent.spec?.commentCount ?? comments.length) === comments.length;
-    const newest = whole ? countedRefinement(parent.spec, humans, parent.appId) : undefined;
-    if (newest?.databaseId !== source.id || typeof newest.updatedAt !== "string" || !(newest.updatedAt === newest.createdAt || newest.updatedAt === source.updatedAt)) {
-      return null;
-    }
-    refinement = taskLinesOf(newest.body, taskList);
-  }
-  const exact = [...trustedTaskLines(parent.spec, humans, taskList), ...refinement];
-  const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
-  const lines = body.slice(header.length).split("\n");
-  const scope = lines.at(-1)?.startsWith(SCOPE_PREFIX) ? scopeTargets(lines.pop(), exact.map((line) => taskText(line, taskList))) : [];
-  return scope !== null && lines.length > 0 && lines.every((line) => allowed.has(line)) ? body : null;
-}
-
-export const SCOPE_PREFIX = "Scope: ";
-
-export const taskText = (line, taskList) => line.trimStart().slice(taskList.length);
-
-export const scopeTarget = (name, texts) =>
-  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`@#\r\n]/.test(name) && texts.some((text) => text.includes(name));
-
-export function splitScope(body) {
-  const last = String(body ?? "").split("\n").at(-1);
-  return last.startsWith(SCOPE_PREFIX) ? last.slice(SCOPE_PREFIX.length).split(", ") : null;
-}
-
-function scopeTargets(line, texts) {
-  const names = splitScope(line);
-  return new Set(names).size === names.length && names.every((name) => scopeTarget(name, texts)) ? names : null;
-}
-
-const tickedForms = (line, taskList) => {
-  if (taskList.split("[ ]").length !== 2) {
-    return [];
-  }
-  const indent = line.slice(0, line.length - line.trimStart().length);
-  return ["[x]", "[X]"].map((box) => indent + taskList.replace("[ ]", box) + taskText(line, taskList));
-};
 
 export const linesDigest = (lines) => createHash("sha256").update(JSON.stringify(lines)).digest("hex");
 const RECORD = /^<!-- size-split items=([0-9a-f]{64}) parts=([0-9,;]+) order=([0-9>,]*) filed=([0-9,]*)(?: groups=([A-Za-z0-9_-]{1,8000}))? -->$/;

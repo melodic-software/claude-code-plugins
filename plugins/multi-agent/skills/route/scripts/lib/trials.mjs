@@ -89,15 +89,24 @@ export function isPairFailed(failedOutcomes, cand) {
   )
 }
 
-export function isProvenEligible(outcome, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType) {
+export function isProvenEligible(
+  outcome,
+  modelsByVendor,
+  skippedSilentVendors,
+  unavailableInUseVendors,
+  taskType,
+  gatedVendors = new Set(),
+) {
   const { vendor, model, version, effort } = outcome.key
-  if (skippedSilentVendors.has(vendor) || unavailableInUseVendors.has(vendor)) return false
+  if (skippedSilentVendors.has(vendor) || unavailableInUseVendors.has(vendor) || gatedVendors.has(vendor)) {
+    return false
+  }
   const vInfo = modelsByVendor.get(vendor)
   if (!vInfo || vInfo.status !== 'ok' || vInfo.ids.length === 0) return false
   if (!vInfo.idSet.has(model.toLowerCase())) return false
   const currentVersion = vInfo.versionByModel.get(model.toLowerCase()) || null
   if (!versionMatches(version, currentVersion)) return false
-  if (taskType === 'image' && vInfo.image === false) return false
+  if (taskType === 'image' && vInfo.image !== true) return false
   if (effort && effort !== 'default') {
     const allowed = vInfo.effortsByModel.get(model.toLowerCase()) || vInfo.topEfforts
     if (!allowed || allowed.length === 0 || !allowed.includes(effort)) return false
@@ -110,12 +119,13 @@ export function selectProvenOutcome({
   modelsByVendor,
   skippedSilentVendors,
   unavailableInUseVendors,
+  gatedVendors = new Set(),
   effectiveVendorOrder,
   taskType,
   notes,
 }) {
   const eligibleProven = provenOutcomes.filter((o) =>
-    isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType),
+    isProvenEligible(o, modelsByVendor, skippedSilentVendors, unavailableInUseVendors, taskType, gatedVendors),
   )
   if (eligibleProven.length === 0) return null
 
@@ -146,6 +156,7 @@ export function selectActiveTrial({
   modelsByVendor,
   skippedSilentVendors,
   unavailableInUseVendors,
+  gatedVendors = new Set(),
   effectiveVendorOrder,
   failedOutcomes,
   taskType,
@@ -155,10 +166,17 @@ export function selectActiveTrial({
   const trialCandidates = []
   const seenCand = new Set()
   const pushCandidate = (vName, candModel, candEffort) => {
-    if (vName === 'claude' || skippedSilentVendors.has(vName) || unavailableInUseVendors.has(vName)) return
+    if (
+      vName === 'claude' ||
+      skippedSilentVendors.has(vName) ||
+      unavailableInUseVendors.has(vName) ||
+      gatedVendors.has(vName)
+    ) {
+      return
+    }
     const vInfo = modelsByVendor.get(vName)
     if (!vInfo || vInfo.status !== 'ok' || vInfo.ids.length === 0) return
-    if (taskType === 'image' && vInfo.image === false) return
+    if (taskType === 'image' && vInfo.image !== true) return
     const chosenModel =
       candModel && vInfo.idCanonical.get(candModel.toLowerCase())
         ? vInfo.idCanonical.get(candModel.toLowerCase())

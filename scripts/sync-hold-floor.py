@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -113,8 +114,11 @@ def hold_paths(indent: str) -> list[str]:
 
 def path_holds() -> bool:
     """pr-pipeline.yaml's `merge.diff-check.path-holds`: absent is false."""
+    bash = babysit_merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
+    if bash is None:
+        raise SystemExit("sync-hold-floor: no usable bash found")
     found = subprocess.run(
-        ["bash", str(ROOT / "lib/parse-concern-value.sh"), "--strict"]
+        [bash, str(ROOT / "lib/parse-concern-value.sh"), "--strict"]
         + [str(ROOT / PIPELINE), "merge.diff-check.path-holds", "false"],
         capture_output=True,
         text=True,
@@ -161,8 +165,6 @@ def api_budget_sh(indent: str) -> list[str]:
 
 
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
-# Each block's full marker label: its lines sit between `BEGIN <label>` and
-# `END <label>`.
 BLOCKS = {
     PIPELINE: {"hold-floor GATE_WORKFLOWS": gate_workflow_rows},
     MERGE_HOLDS: {

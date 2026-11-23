@@ -1,11 +1,3 @@
-"""`request_review` takes the trigger phrase and reviewer logins from `userConfig` only.
-
-A repository's own declaration of either is ignored, and an unreadable repository
-config still refuses the run. The gh seam for the repository config read is a
-fake; the guarded-mutation opener is a mock, so no state directory or network is
-touched.
-"""
-
 from __future__ import annotations
 
 import argparse

@@ -341,7 +341,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             result = self._collect(tmp, capture=empty)
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
-            # Nothing counted: no file row either, only the lane row.
             self.assertEqual(len(rows), 1)
             self.assertIsNone(rows[0]["values"]["type_coverage_pct"])
             self.assertEqual(rows[0]["values"]["any_count"], 0)

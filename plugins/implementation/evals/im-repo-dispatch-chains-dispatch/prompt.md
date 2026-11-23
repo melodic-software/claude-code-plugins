@@ -1,5 +1,5 @@
 ---
-description: "A repository code_writing value of dispatch, read from docs/conventions/implementation.yaml, sends an approved plan whose one phase is main-window routed to /implementation:implement-dispatch, reported with the repository file as its layer. Read-only, cheap sibling of code-writing-dispatch."
+description: "A repository code_writing value of dispatch, read from docs/conventions/implementation.yaml, sends an approved plan whose one phase is main-window routed to /implementation:implement-dispatch, reported with the repository file as its layer. Read-only."
 tags: [implement, concise-rollout, setting, code-writing, read-only]
 runs: 3
 max_turns: 15

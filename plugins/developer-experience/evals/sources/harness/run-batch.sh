@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Run a list of eval runs through run-cell.sh, up to N at a time.
 set -uo pipefail
 
 usage() {

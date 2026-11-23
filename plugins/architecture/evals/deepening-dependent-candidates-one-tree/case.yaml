@@ -9,6 +9,29 @@ execution:
   max_turns: 10
   timeout_seconds: 300
 graders:
-  - name: one-tree-for-the-dependent-pair
-    type: llm
-    criteria: "PASS only if all of these hold: (a) the reply says candidates 1 (tax module) and 2 (invoice total) are interviewed together as one tree, one design or one combined thread, and gives the dependency as the reason; (b) candidate 1 comes before candidate 2; (c) candidate 3 (mail sender) is kept as its own separate interview or design fork, not part of that tree; (d) the first question asked is about the tax module. FAIL if the three are simply interviewed one after another as three separate forks with no statement that 1 and 2 form one tree, or if all three are folded into one tree."
+  - name: pair-is-one-tree
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b(?:one|a single|the same|a shared|a combined|one combined)\s+(?:decision\s+)?(?:tree|thread|design|interview)\b|\btogether\b))(?=[\s\S]*\bdepend)'
+    flags: i
+    target: last_message
+  - name: tax-module-first
+    type: regex
+    pattern: '\b(?:start|begin|first)\w*\b(?:(?!invoice|candidate 2|\(2\))[^\n.]){0,60}\b(?:tax|candidate 1|\(1\)|#1)|\b(?:tax module|candidate 1)\b[^\n.]{0,80}\bfirst\b|\b(?:tax|candidate 1|\(1\))[^\n.]{0,80}\b(?:before|then)\b[^\n.]{0,80}\b(?:invoice|candidate 2|\(2\))'
+    flags: i
+    target: last_message
+  - name: mail-sender-own-fork
+    type: regex
+    pattern: '\bmail\b[^\n]{0,150}\b(?:own|separate|separately|independent|independently|apart)\b|\b(?:own|separate|independent)\b[^\n]{0,80}\b(?:fork|interview|tree)\b[^\n]{0,80}\bmail\b'
+    flags: i
+    target: last_message
+  - name: not-all-three-one-tree
+    type: regex
+    pattern: '(?<!not )(?<!than )(?<!of )(?<!than folding )(?<!instead of folding )(?<!not fold )(?<!n.t fold )\ball three\b(?:(?!\b(?:two|first|1 and 2|pair)\b)[^\n.]){0,60}\b(?:one|single|same)\s+(?:decision\s+)?(?:tree|design|thread)\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: first-question-on-tax
+    type: regex
+    pattern: '(?:^|[.!?\n])[^.!?\n]*(?:\btax\w*|\bquote\(|\bcandidate 1\b|\bentry point\b)[^.!?\n]*\?[^?]*$'
+    flags: i
+    target: last_message

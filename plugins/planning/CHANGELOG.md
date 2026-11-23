@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.6] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to seven skills, matching the committed skill-link table
+
+  brainstorm, design, design-handoff, draft-goal-condition, interview, prd and
+  wayfind now list their context-dependent links after `## Next`, one
+  condition per line.
+
+## [5.14.5] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [5.14.4] - 2026-11-23
+
+### Fixed
+
+- The shared config resolver reads the personal override (`<home>/<plugin>.local.*`) from the repository's main checkout when it runs in a linked worktree that has no personal file of its own, so personal settings no longer drop in worktrees.
+- The rendered-views medium resolver checks a personal publishing medium's trust (untracked, gitignored, no symlink) on the file the value was read from, so a value from the main checkout is checked in the main checkout.
+
 ## [5.14.3] - 2026-11-23
 
 ### Changed

@@ -108,9 +108,8 @@ conventions for per-ecosystem naming, locations, and fixtures.
 
 ## Next
 
-/testing:audit
-
-Checks the new tests for assertions that cannot fail.
+- New tests, their quality unchecked: /testing:audit.
+- Tests written for survivors a mutation run handed over: /mutation-testing:audit on that file, to confirm each kill.
 
 ## Gotchas
 

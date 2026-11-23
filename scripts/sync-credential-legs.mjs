@@ -6,18 +6,20 @@ import { fileURLToPath } from "node:url";
 
 import intakeTriage from "./credential-legs/intake-triage.mjs";
 import auditLaneRuns from "./credential-legs/maintenance-audit-lane-runs.mjs";
+import measureSkillEditPass from "./credential-legs/maintenance-measure-skill-edit-pass.mjs";
 import tidyCodeUpkeep from "./credential-legs/maintenance-tidy-code-upkeep.mjs";
 import postMergeTestMutation from "./credential-legs/post-merge-test-mutation.mjs";
 import prRateMergeRisk from "./credential-legs/pr-rate-merge-risk.mjs";
 import prRefine from "./credential-legs/pr-refine.mjs";
 import prReviewMain from "./credential-legs/pr-review-main.mjs";
+import prRunPluginEvals from "./credential-legs/pr-run-plugin-evals.mjs";
 import prUnblock from "./credential-legs/pr-unblock.mjs";
 import prVerify from "./credential-legs/pr-verify.mjs";
 import upstreamApplyChangelog from "./credential-legs/upstream-apply-changelog.mjs";
 import workResolveIssue from "./credential-legs/work-resolve-issue.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const DECLARATIONS = [prVerify, prReviewMain, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns, ...postMergeTestMutation, ...upstreamApplyChangelog, prRefine, ...prUnblock, workResolveIssue];
+export const DECLARATIONS = [prVerify, prReviewMain, prRateMergeRisk, intakeTriage, tidyCodeUpkeep, auditLaneRuns, measureSkillEditPass, prRunPluginEvals, ...postMergeTestMutation, ...upstreamApplyChangelog, prRefine, ...prUnblock, workResolveIssue];
 
 const STEP = /^ {6}- name: (.*)$/;
 const STEP_ID = /^ {8}id: (.*)$/;

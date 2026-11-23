@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "content": "# Coupling ledger\n"
+          }
+        }
+      ],
+      "why": "ledgers it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/config/services.json",
+            "content": "[]"
+          }
+        }
+      ],
+      "why": "regenerates the list"
+    }
+  ]
+}

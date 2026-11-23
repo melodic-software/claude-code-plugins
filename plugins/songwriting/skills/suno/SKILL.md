@@ -293,6 +293,10 @@ Nothing below is needed to write a prompt. It is the maintainer surface for this
 |---|---|
 | [reference/suno-drift-audit-ledger.md](reference/suno-drift-audit-ledger.md) | Re-rating a claim in a context spoke, answering whether a claim was ever audited, or shipping any change to a spoke. It is the committed record of which claims have been audited, which are unsourced, and which release last touched each, with the dated search records and per-claim audit history behind every confidence label. A row that moves is updated in the same PR as the claim |
 
+## Related
+
+- Craft or revise lyrics before Suno formatting: /songwriting:workflow.
+
 ## What this skill does not do
 
 - **Generate audio**. Suno does that. This skill produces text prompts.

@@ -113,6 +113,10 @@ and that one line. Do not start a removal run and do not propose exact paths for
 
 Run when the findings warrant removal and the user wants it; it takes the same target, not this snapshot.
 
+## Related
+
+- Single repository cache or build-output cleanup: /repo-hygiene:clean.
+
 ## Gotchas
 
 - The argument-free probe is not one of the calls the engine-gate adjudicates, so a session in a

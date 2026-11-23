@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:prd",
+            "args": "Decisions: Q1 every household member edits; Q2 30 days; D3 offline edits merge on reconnect.\nSource map: #520"
+          }
+        }
+      ],
+      "why": "qualified name with the task description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prd"
+          }
+        }
+      ],
+      "why": "unqualified name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:plan",
+            "args": "Source map: #520"
+          }
+        }
+      ],
+      "why": "near miss: hands the map to the plan sibling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:prd-review"
+          }
+        }
+      ],
+      "why": "near miss: a name that only starts with prd"
+    },
+    {
+      "answer": [],
+      "why": "names the call in text but makes no tool call"
+    }
+  ]
+}

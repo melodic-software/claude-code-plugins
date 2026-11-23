@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.26.0] - 2026-11-23
+
+### Added
+
+- `/evals:plugin-eval` select prints a `compare-refused:` line for each changed path of a plugin that compare mode would refuse, with its reason, and says to run the cases in a suite run on the default branch after merge instead. It runs the repository's own `.github/scripts/plugin-eval/select-plugins.mjs`, so select and compare mode refuse by the same rules. A repository without that script gets no such line, and when Node is missing select warns that the check did not run. `--json` output gains a `compare-refused` list per plugin.
+
+## [0.25.0] - 2026-11-23
+
+### Added
+
+- `/evals:audit` reports an eval suite's health and edits nothing: skills with no case or no deterministic triggering case, judged graders with no labeled samples, legacy-only skills and missing should-not-fire cases, then judged findings on gate pairs, duplicates, grader fit and drift, each naming where its fix goes.
+
 ## [0.24.2] - 2026-11-23
 
 ### Added

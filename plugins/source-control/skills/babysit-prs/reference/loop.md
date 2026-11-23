@@ -135,7 +135,7 @@ Before monitoring work on each PR, arm event delivery, in order:
 
 1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → poll CI (REST
    check-runs when more than one worker polls, per the monitor.md section the per-PR rescan flow's CI check cites) +
-   the comment fetch on a fixed 60-90s cadence. Where the session offers it, also subscribe to
+   the comment fetch on a fixed 90s cadence. Where the session offers it, also subscribe to
    the PR's activity once per PR per session. The record of which PRs this session subscribed
    is the iteration checklist's `Subscribed PRs` line (§5.5): read it from
    `<working-notes>/babysit-checklist.md` before subscribing, and write the updated set into this iteration's checklist. It records
@@ -154,7 +154,7 @@ Before monitoring work on each PR, arm event delivery, in order:
    filter for `<N>` (health checks + arming per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)
 3. **Monitor-tool fallback:** channel absent/unhealthy → arm a Monitor watch, re-armed at each
-   deadline (60s REST poll, never a blocking checks watch
+   deadline (90s REST poll, never a blocking checks watch
    ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads)); arming pattern per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist

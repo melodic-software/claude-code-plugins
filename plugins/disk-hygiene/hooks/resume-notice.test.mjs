@@ -78,8 +78,6 @@ function registered(event, needle) {
   return row
 }
 
-// Exec form spawns `command` with `args`; shell form runs `command` under bash, as Claude Code
-// does where Git Bash or a POSIX shell is present. Placeholders are substituted first in both.
 function run(row, dataRoot, payload, env = {}) {
   const sub = (a) => a.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginRoot).replaceAll('${CLAUDE_PLUGIN_DATA}', dataRoot)
   const [cmd, args] = row.args ? [row.command, row.args.map(sub)] : ['bash', ['-c', sub(row.command)]]

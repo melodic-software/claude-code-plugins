@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/route.sh worker session=opus --user-file ''"
+          }
+        }
+      ],
+      "why": "resolves settings through route.sh first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugin/reference/vendors.md"
+          }
+        }
+      ],
+      "why": "never ran route.sh"
+    }
+  ]
+}

@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Output: Phrase, Instance/Citation/Primary URL counts and samples, scoped to
-# the tracked *.md files of the repository the script runs in.
-# Exit: 0 for fact runs (fact-emitter must never fail the caller; -e and
-# pipefail omitted so partial grep failures don't abort the run); 2 on
-# argument errors.
+# Exit: 0 for fact runs; 2 on argument errors.
 set -u
 
 PHRASE=""
@@ -51,7 +47,6 @@ if [[ -n "$repo_root" ]]; then
   cd "$repo_root" 2>/dev/null || true
 fi
 
-# git pathspec '*.md' matches tracked markdown at any depth.
 SCOPE='*.md'
 
 emit_facts() {

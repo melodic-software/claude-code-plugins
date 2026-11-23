@@ -298,8 +298,17 @@ When all planned work is done:
 
 - Coverage of the change not yet planned: `/testing:plan`.
 - Tests written during the work, their quality unchecked: `/testing:audit`.
+- Survivors persisted by the advisory mutation run: `/testing:write`.
 - A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.
 - Tests planned, checked and green: `/review:quality-gate`.
+
+## Related
+
+- Orchestrated worker-subagent execution: /implementation:implement-dispatch.
+- Major divergence requiring replan: /planning:plan.
+- Build and test checks during blocks: /toolchain:check.
+- TDD test design guidance: /tdd:principles.
+- Outcome verification after review: /verification:confirm.
 
 ## Gotchas
 

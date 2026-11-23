@@ -88,7 +88,6 @@ _FORWARDED_SWITCHES = ("analysis", "bare")
 
 def main() -> int:
     p = argparse.ArgumentParser(description="detached launcher for observer.py")
-    # Forwarded verbatim to observer.py:
     p.add_argument("--transcript", required=True)
     p.add_argument("--work-dir", required=True)
     p.add_argument("--ledger-dir", required=True)

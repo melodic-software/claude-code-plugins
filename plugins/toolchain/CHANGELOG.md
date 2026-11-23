@@ -3,6 +3,19 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.1] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
+## [3.2.0] - 2026-11-23
+
+### Changed
+
+- `setup` gains a `## Next` naming `/toolchain:check` and `/toolchain:lint`.
+- `lint` gains a `## Next` naming `/toolchain:check` and `/verification:confirm`.
+
 ## [3.1.3] - 2026-11-23
 
 ### Changed

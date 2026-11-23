@@ -212,6 +212,12 @@ never rely on a `${…}` token in a file read from disk being expanded later.
 - The Preserve / Change / Avoid / Risk set touches types, contracts, or boundaries: `/planning:design`.
 - No design question is open: `/planning:plan`, reading the Preserve / Change / Avoid / Risk set.
 
+## Related
+
+- Understand what the code does now: /discovery:explore.
+- Challenge whether a convention should still hold: /discipline:reason-dont-recite.
+- Check current external facts: /discovery:research.
+
 ## Gotchas
 
 See [`context/gotchas.md`](context/gotchas.md).
