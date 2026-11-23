@@ -72,11 +72,16 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - Every run uses the maintenance API key and stops at its credit stop, except a compare run
   dispatched with `credential: subscription`: both its passes run on the maintenance subscription
   token, and only for a PR whose author is on the trusted-actor list; `compare-prepare` refuses any
-  other. It keeps the affected cases, the per-run ceiling (a list-price estimate, not a plan-usage
-  cap), `--no-publish` and the `CLAUDE_EVALS_DISABLED` switch. No fallback token follows it: a
-  limit stop ends the pass. No other eval run uses a subscription token (Q14, Q53, as amended by
-  the owner decision "Eval runs on a subscription token, case pruning, and how #18356 lands",
-  2026-11-23, in [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md)).
+  other. A suite run dispatched with `credential: subscription` also runs on that token, only on
+  the default branch and only with `case`, `cases` or `tag` set; `run-eval-subscription` refuses
+  any other. Each keeps the affected cases, the per-run ceiling (a list-price estimate, not a
+  plan-usage cap), `--no-publish`, the kill switch and the `CLAUDE_EVALS_DISABLED` switch. No
+  fallback token follows either: a limit stop ends the run. The label run and every other eval run
+  use no subscription token (Q14, Q53, as amended by the owner decision "Eval runs on a
+  subscription token, case pruning, and how #18356 lands", 2026-11-23, in
+  [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md),
+  and extended to suite runs by
+  [owner-decisions.md#L370](https://github.com/melodic-software/architecture/blob/9fecf3f103380aa38f9a7936c4209330f9ab4bcd/docs/owner-decisions.md#L370)).
 
 ## Budget
 
