@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for snapshot-tree.sh in a throwaway repository and a linked worktree of it. Expected values
-# come from git's own meaning of a tree id (same content, same id; any change, a different id) and
-# the script's stated promise to change no ref, index or work-tree file.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 set -uo pipefail

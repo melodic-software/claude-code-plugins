@@ -93,11 +93,6 @@ function check(env) {
   return report(lines.length ? lines : ["INFO review-digest: no retired file"], 0);
 }
 
-/**
- * What moving the retired personal file does: the keys the new file lacks, and the keys it already
- * sets, which win. The new file must be one the digest reads (untracked, gitignored, no symlink at
- * it or a parent) before anything is written to it or counted from it.
- */
 function personalPlan(root) {
   const old = readRetired(join(root, RETIRED_PERSONAL));
   if (old.error || old.bad.length) return { error: `${old.error ?? `unknown or invalid keys ${old.bad.join(", ")}`}; fix the file first` };

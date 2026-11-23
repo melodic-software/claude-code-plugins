@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-evals-quality.sh.
-#
-# Self-contained and cwd-independent: builds throwaway fixture eval sets —
-# each seeding exactly one defect — runs the lint, and asserts on exit code
-# and the specific Q-check finding. A clean rich-form set proves the happy
-# path stays silent.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,8 +19,6 @@ fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# make_evals <skill-name> <evals-json-body>: writes the file at the
-# conventional <skill>/evals/evals.json location and echoes its path.
 make_evals() {
   local name="$1" body="$2"
   mkdir -p "$TMP/$name/evals"
@@ -64,7 +56,6 @@ CLEAN='{
   ]
 }'
 
-# 1. --help exits 0 and prints the whole header without spilling into code.
 out="$(run --help 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
@@ -75,7 +66,6 @@ else
   fail "--help should print the complete header and stop at the first code line (rc=$rc): $out"
 fi
 
-# 2. No arguments is a usage error (exit 2).
 out="$(run 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'Usage' <<<"$out"; then
@@ -84,7 +74,6 @@ else
   fail "no arguments should exit 2 (rc=$rc): $out"
 fi
 
-# 2b. An option-shaped argument is reported as an unknown option, not a missing file.
 out="$(run --bogus 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'unknown option: --bogus' <<<"$out"; then
@@ -93,7 +82,6 @@ else
   fail "an unknown option should exit 2 naming it (rc=$rc): $out"
 fi
 
-# 3. A missing input file is an environment error (exit 2), not a skip.
 out="$(run "$TMP/absent/evals/evals.json" 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'not a file' <<<"$out"; then
@@ -140,7 +128,6 @@ else
   fail "Q1 should flag duplicate ids (rc=$rc): $out"
 fi
 
-# 7. Q2: duplicate case names FAIL.
 f="$(make_evals dup-name '{
   "skill_name": "dup-name",
   "evals": [
@@ -156,7 +143,6 @@ else
   fail "Q2 should flag duplicate names (rc=$rc): $out"
 fi
 
-# 8. Q3: an empty / whitespace-only expectations item FAILs.
 f="$(make_evals empty-item '{
   "skill_name": "empty-item",
   "evals": [
@@ -206,8 +192,6 @@ else
   fail "Q3 should flag a whitespace-only sole expected_output once (rc=$rc): $out"
 fi
 
-# 9. Q4: a files entry that resolves nowhere FAILs; entries resolving
-#    relative to the skill dir or the evals dir pass.
 mkdir -p "$TMP/fixtures-ok/evals/fixtures"
 printf 'fixture\n' >"$TMP/fixtures-ok/evals/fixtures/sample.md"
 mkdir -p "$TMP/fixtures-ok/.claude"
@@ -357,7 +341,6 @@ else
   fail "Q4 should warn on v1.2/... prose paths (rc=$rc): $out"
 fi
 
-# 10. Q5: a case carrying BOTH expectations and assertions WARNs (exit 0).
 f="$(make_evals both-fields '{
   "skill_name": "both-fields",
   "evals": [
@@ -374,8 +357,6 @@ else
   fail "Q5 should warn on mixed field names (rc=$rc): $out"
 fi
 
-# 11. Q6: two cases with identical prompt AND files WARN; same prompt with
-#     different files does not.
 f="$(make_evals dup-prompt '{
   "skill_name": "dup-prompt",
   "evals": [
@@ -408,8 +389,6 @@ else
   fail "Q6 should not warn when files differ (rc=$rc): $out"
 fi
 
-# 12. Q7: a whole-item hedge WARNs; a verifiable criterion that merely
-#     contains a hedge-adjacent word does not.
 f="$(make_evals vague '{
   "skill_name": "vague",
   "evals": [
@@ -438,8 +417,6 @@ else
   fail "Q7 must not flag verifiable criteria (rc=$rc): $out"
 fi
 
-# Q10: an undefined evaluative qualifier WARNs; technical uses and
-#      precise items stay silent; an item Q7 flags is not reported twice.
 f="$(make_evals q10 '{
   "skill_name": "q10",
   "evals": [
@@ -496,8 +473,6 @@ else
   fail "Q10 must skip Q7-flagged items (rc=$rc): $out"
 fi
 
-# Q11: a case marked difficulty: hard with no why_hard WARNs; a hard case
-#      with a reason and a routine case stay silent.
 f="$(make_evals q11 '{
   "skill_name": "q11",
   "evals": [
@@ -527,8 +502,6 @@ else
   fail "Q11 must not flag a reasoned hard case or a routine case (rc=$rc): $out"
 fi
 
-# 13. Q8: a thin sole-criterion expected_output WARNs; the same string with
-#     expectations alongside does not.
 f="$(make_evals thin '{
   "skill_name": "thin",
   "evals": [

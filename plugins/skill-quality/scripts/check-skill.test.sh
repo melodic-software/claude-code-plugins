@@ -57,7 +57,6 @@ just a heading
 '
 
 run() {
-  # Run from inside the fixture repo so `git rev-parse` resolves to it.
   (cd "$TMP" &&
     CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
       bash "$SUT" "$@")
@@ -79,14 +78,12 @@ run_roots() {
       bash "$SUT" "$@")
 }
 
-# 1. --help exits 0.
 if run --help >/dev/null 2>&1; then
   pass "--help exits 0"
 else
   fail "--help should exit 0"
 fi
 
-# 2. Well-formed skill passes.
 out="$(run good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
@@ -95,7 +92,6 @@ else
   fail "well-formed skill should pass (rc=$rc): $out"
 fi
 
-# 3. Skill without frontmatter fails.
 out="$(run bad-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'FAIL' <<<"$out"; then
@@ -104,7 +100,6 @@ else
   fail "frontmatter-less skill should fail (rc=$rc): $out"
 fi
 
-# 3b. An unquoted ": " in a plain description is a YAML mapping indicator.
 colon_body='---
 name: colon-skill
 description: Use when: the user asks for a thing.
@@ -127,7 +122,6 @@ else
   fail "unquoted colon-space in description should fail (rc=$rc): $out"
 fi
 
-# 3c. A block scalar may contain the indicator, and a short compatibility passes.
 block_body='---
 name: block-colon-skill
 description: |
@@ -152,7 +146,6 @@ else
   fail "block description with colon-space should pass (rc=$rc): $out"
 fi
 
-# 3d. compatibility outside 1-500 fails. 501 ASCII characters.
 long_compat="$(printf 'x%.0s' {1..501})"
 compat_body="---
 name: compat-skill
@@ -177,7 +170,6 @@ else
   fail "compatibility over 500 characters should fail (rc=$rc): $out"
 fi
 
-# 4. Missing skill errors with exit 1.
 run does-not-exist >/dev/null 2>&1
 rc=$?
 if [[ $rc -eq 1 ]]; then
@@ -186,7 +178,6 @@ else
   fail "missing skill should exit 1 (rc=$rc)"
 fi
 
-# 4a. Missing bare-name skill hints at CHECK_SKILL_SKILLS_ROOT.
 out="$(run does-not-exist 2>&1)"
 if grep -q 'CHECK_SKILL_SKILLS_ROOT' <<<"$out"; then
   pass "missing bare-name skill hints at CHECK_SKILL_SKILLS_ROOT"
@@ -240,7 +231,6 @@ Committed baseline carrying two single-quoted trigger phrases.
 make_skill trig-skill "$trig_head"
 git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'add trig-skill'
-# Rewrite the working tree dropping the 'beta trigger' phrase.
 make_skill trig-skill '---
 name: trig-skill
 description: "Trigger fixture. Use when: '"'"'alpha trigger'"'"'."
@@ -275,7 +265,6 @@ Committed baseline carrying the phrase that will move.
 '
 git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'add mover-src'
-# Working tree: mover-src drops delta; sibling mover-dst now carries it.
 make_skill mover-src '---
 name: mover-src
 description: "Move fixture. Use when: '"'"'gamma trigger'"'"'."
@@ -365,7 +354,6 @@ else
   fail "relative skills root should resolve via CLAUDE_PROJECT_DIR (rc=$rc): $out"
 fi
 
-# 7. Content before the opening `---` fence is not frontmatter (check 1 fails).
 make_skill preamble-skill 'Stray preamble before the fence.
 ---
 name: preamble-skill
@@ -472,7 +460,6 @@ else
   fail "dropped unquoted trigger should warn naming only that item (rc=$rc): $out"
 fi
 
-# 9a2. Quoting a committed unquoted item keeps it tracked: no drop warning.
 git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'unq-drop: two unquoted items'
 make_skill unq-drop '---
@@ -746,7 +733,6 @@ else
   fail "escaped name should fail the charset gate (rc=$rc): $out"
 fi
 
-# 17. Comment stripping must not mask a real mismatch.
 make_skill commented-bad '---
 name: wrong-name # with a comment too
 description: "Wrong name plus a comment. Use when: '"'"'checking comment stripping'"'"'."
@@ -998,7 +984,6 @@ else
   fail "git stash/clean block should not warn precompute (rc=$rc): $out"
 fi
 
-# 18f. A non-shell fenced block (json) is never scanned, so it is not flagged.
 make_skill precompute-jsonfence '---
 name: precompute-jsonfence
 description: "Returns JSON. Use when: '"'"'shaping json output'"'"'."
@@ -1613,7 +1598,6 @@ else
   fail "prose #! code span should not trip the injection checks (rc=$rc): $out"
 fi
 
-# 29. Check 21: malformed fresh-eyes-exempt directive FAILs.
 make_skill fe-malformed '---
 name: fe-malformed
 description: "Fresh-eyes fixture. Use when: '"'"'fe malformed fixture'"'"'."
@@ -1635,7 +1619,6 @@ else
   fail "malformed fresh-eyes directive should FAIL (rc=$rc): $out"
 fi
 
-# 30. Check 21: unknown exemption class FAILs.
 make_skill fe-unknown-class '---
 name: fe-unknown-class
 description: "Fresh-eyes fixture. Use when: '"'"'fe unknown class fixture'"'"'."
@@ -1657,7 +1640,6 @@ else
   fail "unknown fresh-eyes class should FAIL (rc=$rc): $out"
 fi
 
-# 31. Check 21: directive missing its reason FAILs.
 make_skill fe-no-reason '---
 name: fe-no-reason
 description: "Fresh-eyes fixture. Use when: '"'"'fe no reason fixture'"'"'."
@@ -1680,7 +1662,6 @@ else
   fail "reason-less fresh-eyes directive should FAIL (rc=$rc): $out"
 fi
 
-# 32. Check 21: undeclared judgment language WARNs (skill still passes).
 make_skill fe-undeclared '---
 name: fe-undeclared
 description: "Fresh-eyes fixture. Use when: '"'"'fe undeclared fixture'"'"'."
@@ -1702,7 +1683,6 @@ else
   fail "undeclared judgment language should WARN and pass (rc=$rc): $out"
 fi
 
-# 33. Check 21: valid directive with no judgment-language hit nearby WARNs stale.
 make_skill fe-stale '---
 name: fe-stale
 description: "Fresh-eyes fixture. Use when: '"'"'fe stale fixture'"'"'."
@@ -1726,7 +1706,6 @@ else
   fail "stale fresh-eyes directive should WARN and pass (rc=$rc): $out"
 fi
 
-# 34. Check 21: delegation prose satisfies proximity — both spellings.
 make_skill fe-delegated '---
 name: fe-delegated
 description: "Fresh-eyes fixture. Use when: '"'"'fe delegated fixture'"'"'."
@@ -1774,7 +1753,6 @@ else
   fail "called-done self-check should WARN at SKILL.md:9 and pass (rc=$rc): $out"
 fi
 
-# 34b. Check 21: the same shape with a fresh-context judge nearby passes.
 make_skill fe-called-done-delegated '---
 name: fe-called-done-delegated
 description: "Fresh-eyes fixture. Use when: '"'"'fe called done delegated fixture'"'"'."
@@ -1798,7 +1776,6 @@ else
   fail "called-done with fresh-context judge should pass clean (rc=$rc): $out"
 fi
 
-# 35. Check 21: valid exemption directive near judgment language passes clean.
 make_skill fe-exempt-valid '---
 name: fe-exempt-valid
 description: "Fresh-eyes fixture. Use when: '"'"'fe exempt valid fixture'"'"'."
@@ -2596,7 +2573,6 @@ else
   fail "100-codepoint summary should pass at the boundary (rc=$rc): $out"
 fi
 
-# 38b. Check 22: 101 codepoints fails.
 sum_101="$(printf 's%.0s' $(seq 1 101))"
 make_skill cap-fail "---
 name: cap-fail
@@ -2992,7 +2968,6 @@ else
   fail "backslash pointers inside spokes should fail and name the file (rc=$rc): $out"
 fi
 
-# 42. --require-evals FAILs on any shape without evals/evals.json.
 make_skill no-evals '---
 description: "A plain skill. Use when: '"'"'checking evals presence'"'"'."
 ---
@@ -3013,7 +2988,6 @@ else
   fail "--require-evals should fail without evals (rc=$rc): $out"
 fi
 
-# 43. Without --require-evals, a non-action-router skill without evals stays green.
 out="$(run no-evals 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'skill ships no evals/evals.json' <<<"$out"; then
@@ -3022,7 +2996,6 @@ else
   fail "non-action-router without evals should pass without --require-evals (rc=$rc): $out"
 fi
 
-# 44. --require-evals on a new skill (no base-ref SKILL.md) still FAILs.
 git -C "$TMP" add -A && git -C "$TMP" commit -qm base >/dev/null
 make_skill brand-new '---
 description: "A brand-new skill. Use when: '"'"'checking new-skill evals'"'"'."
@@ -3045,7 +3018,6 @@ else
   fail "new skill without evals should fail under --require-evals (rc=$rc): $out"
 fi
 
-# 45. CHECK_SKILL_REQUIRE_EVALS=1 env mirrors --require-evals.
 out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
   CHECK_SKILL_REQUIRE_EVALS=1 bash "$SUT" no-evals 2>&1)"
 rc=$?
@@ -3565,7 +3537,6 @@ else
   fail "audit+mutate-desc should fail (rc=$rc): $out"
 fi
 
-# 25b. The compliant override shape — audit + --fix in the listing — is silent.
 make_skill audit-fixok '---
 name: audit-fixok
 description: "Reports findings and remediates them. Use when: '"'"'auditing config'"'"'; pass --fix to apply auto-correctable findings."
@@ -3588,7 +3559,6 @@ else
   fail "audit+--fix should not warn (rc=$rc): $out"
 fi
 
-# 25c. Mutate verb (fix) whose description lead claims read-only warns.
 make_skill fix '---
 name: fix
 description: "Read-only findings report. Use when: '"'"'reporting findings'"'"'."
@@ -3612,7 +3582,6 @@ else
   fail "fix+readonly-desc should fail (rc=$rc): $out"
 fi
 
-# 25d. Description claims read-only; body mutates on bare invocation.
 make_skill report-then-write '---
 name: report-then-write
 description: "Read-only findings report. Use when: '"'"'reporting then writing'"'"'."
@@ -3636,7 +3605,6 @@ else
   fail "readonly-desc+bare-mutate-body should fail (rc=$rc): $out"
 fi
 
-# 25e. Description advertises fixing; body claims the skill never mutates.
 make_skill advertise-no-write '---
 name: advertise-no-write
 description: "Rewrites the files you point at. Use when: '"'"'rewriting pointed files'"'"'."
@@ -3732,7 +3700,6 @@ else
   fail "noun/negated-list should not warn (rc=$rc): $out"
 fi
 
-# 25i. A fenced example of mismatch language does not trip the body limbs.
 make_skill audit-fenced '---
 name: audit-fenced
 description: "Read-only findings report. Use when: '"'"'showing a fenced example'"'"'."
@@ -3782,7 +3749,6 @@ else
   fail "consistent fix skill should not warn (rc=$rc): $out"
 fi
 
-# 25k. "never rewrites the files" is a negation, not a mutate advertisement.
 make_skill audit-never-rewrite '---
 name: audit-never-rewrite
 description: "Reports findings and never rewrites the files. Use when: '"'"'reporting without rewriting'"'"'."
@@ -3841,7 +3807,6 @@ else
   fail "CHECK_SKILL_ONLY=25 on a mismatch should fail on check 25 alone (rc=$rc): $out"
 fi
 
-# 25n. CHECK_SKILL_ONLY=25 skips check 1, so a skill with no frontmatter passes.
 out="$(CHECK_SKILL_ONLY=25 run bad-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q '^CHECK-SKILL bad-skill: PASS' <<<"$out"; then
@@ -3850,7 +3815,6 @@ else
   fail "CHECK_SKILL_ONLY=25 should skip check 1 (rc=$rc): $out"
 fi
 
-# 25o. Any other CHECK_SKILL_ONLY value is a usage error.
 out="$(CHECK_SKILL_ONLY=7 run good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'CHECK_SKILL_ONLY=7 is not supported' <<<"$out"; then
@@ -4004,7 +3968,6 @@ fi
 # fires. Every case names the count it expects back, so an off-by-one in either
 # direction breaks a specific assertion rather than sliding through.
 
-# run_with_baseline <baseline-path> <skill> — check 2b's recorded-breach seam.
 run_with_baseline() {
   local baseline="$1"
   shift
@@ -4221,7 +4184,6 @@ else
   fail "a missing named baseline should FAIL (rc=$rc): $out"
 fi
 
-# 2b-viii. An unset baseline is the default and the strict case: no downgrades.
 out="$(run_with_baseline "" field-cap-over 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'FAIL: description alone is 1025 codepoints' <<<"$out"; then
@@ -4256,7 +4218,6 @@ else
   fail "--require-evals should pass a recorded skip (rc=$rc): $out"
 fi
 
-# 48. --require-evals still FAILs an unlisted sibling in the same plugins/ tree.
 mkdir -p "$TMP/plugins/p1/skills/listed"
 cat >"$TMP/plugins/p1/skills/listed/SKILL.md" <<'EOF'
 ---
@@ -4325,7 +4286,6 @@ if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
 else
   fail "a converted case tagged listed should satisfy --require-evals (rc=$rc): $out"
 fi
-# 48d. A case with only a prompt.md, its front matter tagging the skill, counts too.
 rm -f "$TMP/plugins/p1/evals/c1/case.yaml"
 out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
   bash "$SUT" --require-evals listed 2>&1)"
@@ -5015,7 +4975,6 @@ for xrepo_r in caller external; do
   git -C "$XREPO/$xrepo_r" add -A
   git -C "$XREPO/$xrepo_r" commit -qm fixture
 done
-# Driven from the CALLER's repo, against a root inside the EXTERNAL repo.
 out="$(cd "$XREPO/caller" &&
   env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
     CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$XREPO/external/skills" 2>&1)"
@@ -5184,7 +5143,7 @@ else
 fi
 
 # Provider-format ids carry ':', '/' and '@'; only empty or spaced values fail.
-model_case() { # name, model line, expected rc, label
+model_case() {
   make_skill "$1" "---
 name: $1
 description: \"Do a thing. Use when: 'a thing' is needed.\"
@@ -5209,7 +5168,7 @@ model_case model-bool 'model: true' 1 "frontmatter model unquoted boolean fails"
 model_case model-quoted-bool 'model: "true"' 0 "frontmatter model quoted string passes"
 
 # The colon check reads the whole plain scalar, not only its first line.
-desc_case() { # name, description block (lines inside the fences), expected rc, label
+desc_case() {
   make_skill "$1" "---
 name: $1
 $2
@@ -5336,7 +5295,6 @@ else
   fail "check 7 should stop launching at the deadline (rc=$rc): $out"
 fi
 
-# A test that ran and failed still fails; the one left is still named.
 make_script_tests deadline-fail 'sleep 6; exit 1'
 printf -v now '%(%s)T' -1
 rc=0
@@ -5878,7 +5836,7 @@ fi
 # misread "When `${user_config.x}` is true", the `/code-tidying:tidy` fallback
 # sentence, the "when non-empty, else the root default" form, and a token in a
 # fenced shell block.
-st_skill() { # name, body text after the frontmatter
+st_skill() {
   make_skill "$1" "---
 name: $1
 description: \"Do a thing. Use when: 'a thing' is needed.\"
@@ -5893,7 +5851,6 @@ $2
 None known.
 "
 }
-# run_st <baseline-file> <skill>: check 31 against a given baseline.
 run_st() {
   (cd "$TMP" &&
     CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
@@ -6097,7 +6054,7 @@ fi
 # that names its own baseline (the empty-file cases above) is strict. With no
 # baseline named, only a run of the checker on its own repository applies the
 # default baseline; a consumer repository or a plain tree gets WARNs, exit 0.
-run_st_default() { # cwd, checker path, skills root, skill
+run_st_default() {
   (cd "$1" && env -u CHECK_SKILL_SETTINGS_TOKEN_BASELINE \
     CHECK_SKILL_SKILLS_ROOT="$3" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$2" "$4")
 }
@@ -6123,7 +6080,6 @@ else
   fail "check 31 should WARN on a plain tree (rc=$rc): $out"
 fi
 
-# The checker inside the repository it checks: its default baseline applies.
 ST_TOOL="$TMP/tools/skill-quality"
 mkdir -p "$ST_TOOL"
 cp "$SCRIPT_DIR/check-skill.sh" "$SCRIPT_DIR/skill-frontmatter.sh" "$SCRIPT_DIR/metadata-registry.txt" "$ST_TOOL/"
