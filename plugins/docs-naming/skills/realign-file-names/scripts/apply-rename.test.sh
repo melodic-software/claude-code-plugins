@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for apply-rename.sh, driven against the committed fixture
-# tree the audit sibling owns (fixtures/build-fixture.sh in audit-file-names).
-#
-# The audit stages run for real in `audit()` rather than being stubbed: the
-# artifact is this script's only instruction set, so a suite that hand-wrote it
-# would test a plan shape no audit produces.
-#
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
-#
-# APPLY_RENAME_TEST_SHARD=1 or 2 runs one half of the case groups (the Windows
-# lane runs the halves in parallel jobs); unset runs every group. The group
-# list at the bottom is the only place a group is scheduled, and the suite
-# refuses to start when a defined group is missing from it, so the two halves
-# always add up to the whole suite.
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/* plugins/docs-naming/skills/audit-file-names/scripts/inventory.sh plugins/docs-naming/skills/audit-file-names/scripts/emit-findings.sh
 # test-scope: plugins/docs-naming/scripts/root-scopes.jq
 set -uo pipefail
@@ -33,7 +18,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../lib/test-helpers.sh
 source "$SCRIPT_DIR/../../../lib/test-helpers.sh"
 
-# stage <root> : audit the tree and leave plan.md beside it. Prints the plan path.
 stage() {
   w="$1/.audit"
   mkdir -p "$w"
@@ -55,30 +39,6 @@ inplace() {
   rm -f "$f.tmp.$$"
 }
 
-# Only the clean variant is used here: the collision variant makes the AUDIT
-# refuse to emit a plan, so there is no artifact for this stage to act on.
-#
-# The fixture repository and its audits are built once and copied per case. On
-# Git Bash each process spawn costs ~140 ms, and a build plus the three audit
-# stages cost ~15 s a case there. The audit is a function of the tree and its
-# branch, and its plan names no path of the checkout it ran in: two audits of
-# the same tree differ only in `date:` and `head:`, which the executor never
-# reads. Each template is built on first use, so a shard that never needs one
-# never pays for it.
-#
-#   tree     the fixture repository, unaudited
-#   staged   the fixture with its plan at .audit/plan.md
-#   mutated  the fixture plus the edits four cases audit, with its plan
-#
-# The mutated template carries all four edits at once, and that holds only
-# because each case reads sites the other three edits never touch: a new
-# historical file citing Alpha-One (two forms on line 5), the executable bit
-# on docs/tool.py (cites BETA), README.md line 14 (the Alpha-One bare stem
-# beside a longer name) and docs/Gamma_Three.md line 4 (a self-citation). The
-# Alpha-One cases also edit the other Alpha-One site, and assert only on their
-# own line. A case whose edit would change another case's sites needs a
-# template of its own. The linked-worktree case audits the worktree itself, so
-# it still stages its own.
 TEMPLATE="$TEST_TMPDIR/template"
 
 template_tree() {
@@ -118,7 +78,6 @@ new_fixture() {
   printf '%s' "$d"
 }
 
-# new_staged : a fresh copy of the fixture with its plan already at .audit/plan.md
 new_staged() {
   template_staged
   d="$TEST_TMPDIR/fx-$CASES-$RANDOM"
@@ -126,7 +85,6 @@ new_staged() {
   printf '%s' "$d"
 }
 
-# new_mutated : a fresh copy of the mutated fixture, plan at .audit/plan.md
 new_mutated() {
   template_mutated
   d="$TEST_TMPDIR/fx-$CASES-$RANDOM"
@@ -134,7 +92,6 @@ new_mutated() {
   printf '%s' "$d"
 }
 
-# id_for <plan> <old-path> : the finding id whose record renames <old-path>
 id_for() {
   awk -v old="\`$2\`" '$1=="###" && $3==old {print $2; exit}' "$1"
 }
@@ -153,8 +110,6 @@ status_of() {
 run() {
   bash "$SUT" "$@" 2>&1
 }
-
-# --- a single accepted rename, every current-tier form rewritten --------------
 
 case_single_accepted_rename() {
   root="$(new_staged)"
@@ -178,28 +133,20 @@ case_single_accepted_rename() {
   assert_contains "an unambiguous bare stem is rewritten" "$readme" "unambiguous and edited: alpha-one."
   assert_absent "no current-tier site keeps the old basename" "$readme" "Alpha-One.md"
 
-  # --- the released tier is frozen -------------------------------------------
-
   assert_eq "a released file is byte-identical after an apply" "0" \
     "$(git -C "$root" diff --quiet -- CHANGELOG.md && echo 0 || echo 1)"
   assert_contains "the released entry keeps the old name" \
     "$(cat "$root/CHANGELOG.md")" "[Alpha One](docs/Alpha-One.md)"
-
-  # --- the historical tier takes links and paths, never narrative -------------
 
   adr="$(cat "$root/docs/adr/0001-historical.md")"
   assert_contains "a historical markdown link is repointed" "$adr" "[Alpha One](../alpha-one.md)"
   assert_contains "historical narrative is left as written" "$adr" \
     "the team argued about BETA for two weeks"
 
-  # --- an unaccepted sibling is never touched --------------------------------
-
   assert_eq "a pending sibling stays pending" "pending" \
     "$(status_of "$plan" "$(id_for "$plan" docs/Gamma_Three.md)")"
   assert_eq "an unaccepted offender keeps its path" "1" \
     "$(git -C "$root" ls-files -- docs/Gamma_Three.md | wc -l | tr -d ' ')"
-
-  # --- the generated record is regenerated, never text-edited ----------------
 
   assert_contains "the run names the generated path it rebuilt" "$out" "REGENERATED	build/out.json"
   gen="$(cat "$root/build/out.json")"
@@ -208,9 +155,6 @@ case_single_accepted_rename() {
   assert_absent "the rebuilt record drops the old path" "$gen" "docs/Alpha-One.md"
 }
 
-# The other half of `links-and-paths`: a backtick path in the same historical
-# file is repointed too. Applying BETA rather than Alpha-One, because that is
-# the pair whose historical site is a backtick path.
 case_historical_backtick_path() {
   root2="$(new_staged)"
   plan2="$root2/.audit/plan.md"
@@ -223,15 +167,6 @@ case_historical_backtick_path() {
   assert_contains "and the narrative bare stem beside it is not" "$adr2" \
     "the team argued about BETA for two weeks"
 }
-
-# --- one line, one editable form and one frozen one --------------------------
-#
-# A historical line carrying BOTH an editable `md-link` and a bare `plain`
-# occurrence of the same basename. The sweep records the line once, by the
-# first form on its ladder, so a replacement that took every occurrence would
-# rewrite the narrative `links-and-paths` exists to preserve. The pair of
-# assertions is what discriminates: the link must move AND the prose must not.
-# The line is docs/adr/0002-two-forms.md in the mutated template.
 
 case_two_forms_on_one_line() {
   root3="$(new_mutated)"
@@ -246,26 +181,9 @@ case_two_forms_on_one_line() {
     "names Alpha-One.md in prose"
 }
 
-# --- mode bits survive an edit ------------------------------------------------
-#
-# The INDEX assertion is the contract, and it holds everywhere: it is what a
-# clone restores and what a reviewer reads in the diff. The worktree `-x` test
-# is the same fact where the filesystem records it, and NTFS does not record it
-# at all, so it is probed rather than assumed. Probed, not sniffed by OS name:
-# what matters is whether this filesystem carries the bit, which is also false
-# on a POSIX volume mounted `noexec`. The mutated template commits
-# docs/tool.py as 100755.
-
 case_mode_bits_survive() {
   root="$(new_mutated)"
 
-  # THE PROBE IS A COPY OF THE SUBJECT, not a file of its own shape. Git Bash
-  # answers `-x` by sniffing the content and the extension rather than by reading
-  # a recorded bit, so a probe written as `#!/bin/sh` reports executable on NTFS
-  # while `docs/tool.py`, which opens with a docstring and carries no shebang,
-  # never can. That difference is not a property of the filesystem, it is a
-  # property of the two files, and it made the probe predict the opposite of what
-  # the assertion would find. Copying the subject removes the only variable.
   probe="$TEST_TMPDIR/exec-probe-$RANDOM.py"
   cp "$root/docs/tool.py" "$probe"
   chmod +x "$probe" 2>/dev/null
@@ -289,8 +207,6 @@ case_mode_bits_survive() {
   fi
 }
 
-# --- two mutually referencing offenders, applied one after the other ----------
-
 case_mutually_citing_pair() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
@@ -313,15 +229,11 @@ case_mutually_citing_pair() {
   assert_absent "the first run's output is not a no-op report" "$first" "EDITED	0"
 }
 
-# --- a drifted site is reported and skipped, never edited blind --------------
-
 case_drifted_site() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
   id="$(id_for "$plan" docs/Gamma_Three.md)"
   accept "$plan" "$id"
-  # The audit recorded a backtick path on README.md line 6; move it out from under
-  # the record without touching the line count.
   # shellcheck disable=SC2016  # the backticks are literal markdown, not a subshell
   inplace "$root/README.md" '6s|.*|- backtick path: `docs/somewhere-else.md`|'
   out="$(run --artifact "$plan" --id "$id" --root "$root")"
@@ -333,13 +245,6 @@ case_drifted_site() {
     "$(sed -n '6p' "$root/README.md")" 'docs/somewhere-else.md'
   assert_contains "the undrifted sites still applied" "$out" "APPLIED	$id"
 }
-
-# --- a bare stem is rewritten anchored, never inside a longer name -----------
-#
-# The sweep anchors its DETECTION so a hyphenated sibling is never matched
-# inside a stem. An unanchored apply would throw that away and rewrite a
-# reference to a file nobody renamed, which the run would report as an edit.
-# README.md line 14 carries the sibling in the mutated template.
 
 case_anchored_bare_stem() {
   root="$(new_mutated)"
@@ -353,8 +258,6 @@ case_anchored_bare_stem() {
   assert_contains "a longer name carrying the stem is left alone" "$line" "Alpha-One-notes.md"
 }
 
-# --- the id is a finding id, never a pattern ---------------------------------
-
 case_id_is_not_a_pattern() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
@@ -366,13 +269,6 @@ case_id_is_not_a_pattern() {
   assert_contains "the refusal names the shape it wanted" "$out" "must be a finding id of the form"
   assert_eq "and nothing was touched" "$before" "$(git -C "$root" status --porcelain)"
 }
-
-# --- a file that cites itself -------------------------------------------------
-#
-# Its own sites are planned against the old path, which the move retires. A run
-# that read them and stopped there would exit 1 with the tree half-changed,
-# contradicting what exit 1 promises. docs/Gamma_Three.md line 4 carries the
-# self-citation in the mutated template.
 
 case_self_citing_offender() {
   root="$(new_mutated)"
@@ -389,14 +285,6 @@ case_self_citing_offender() {
     "$(cat "$root/docs/gamma-three.md")" '`docs/gamma-three.md`'
 }
 
-# --- a generated path is never text-edited, whatever the record says ----------
-#
-# Discriminating on purpose: the record is hand-edited to mark the generated
-# site `edit`, the one input that would reach the guard. Without the guard the
-# substitution would land and the regenerator would then rewrite over it, so a
-# fixture whose generated site is already `regenerate` cannot tell the two
-# apart.
-
 case_generated_never_text_edited() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
@@ -412,8 +300,6 @@ case_generated_never_text_edited() {
   assert_contains "so its stale sample is still the old path, not a substitution" \
     "$(cat "$root/build/out.json")" "docs/Alpha-One.md"
 }
-
-# --- a missing old path is refused -------------------------------------------
 
 case_missing_old_path() {
   root="$(new_staged)"
@@ -432,8 +318,6 @@ case_missing_old_path() {
     "$(status_of "$plan" "$(id_for "$plan" docs/Alpha-One.md)")"
 }
 
-# A record nobody accepted is left alone: nothing was decided about it, so
-# there is no decision to mark unachievable.
 case_missing_old_path_pending() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
@@ -442,8 +326,6 @@ case_missing_old_path_pending() {
   run --artifact "$plan" --id "$id" --root "$root" >/dev/null
   assert_eq "a pending record whose file moved stays pending" "pending" "$(status_of "$plan" "$id")"
 }
-
-# --- an unresolvable regenerator stops the run BEFORE anything moves ----------
 
 case_unresolvable_regenerator() {
   root="$(new_staged)"
@@ -461,14 +343,11 @@ case_unresolvable_regenerator() {
   assert_eq "the record is untouched" "accepted" "$(status_of "$plan" "$id")"
 }
 
-# --- an interrupted apply resumes --------------------------------------------
-
 case_interrupted_apply_resumes() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
   id="$(id_for "$plan" docs/Gamma_Three.md)"
   accept "$plan" "$id"
-  # The shape a run that died between `git mv` and its first edit leaves behind.
   inplace "$plan" "/^### $id /,/^### FN-/{s/^- \*\*Status:\*\* accepted\$/- **Status:** applying/}"
   git -C "$root" mv docs/Gamma_Three.md docs/gamma-three.md
   out="$(run --artifact "$plan" --id "$id" --root "$root")"
@@ -482,8 +361,6 @@ case_interrupted_apply_resumes() {
   assert_eq "a resumed run reports no drift" "DRIFTED	0" \
     "$(printf '%s\n' "$out" | grep '^DRIFTED')"
 
-  # --- a second run over an applied record is refused, not repeated ----------
-
   before="$(git -C "$root" status --porcelain)"
   plan_before="$(cat "$plan")"
   out="$(run --artifact "$plan" --id "$id" --root "$root")"
@@ -493,8 +370,6 @@ case_interrupted_apply_resumes() {
   assert_eq "the second run is a no-op on the tree" "$before" "$(git -C "$root" status --porcelain)"
   assert_eq "and a no-op on the plan" "$plan_before" "$(cat "$plan")"
 }
-
-# --- --dry-run changes nothing -----------------------------------------------
 
 case_dry_run() {
   root="$(new_staged)"
@@ -516,8 +391,6 @@ case_dry_run() {
   assert_eq "a dry run leaves the record alone" "accepted" "$(status_of "$plan" "$id")"
 }
 
-# --- --regenerate-only is the closing pass -----------------------------------
-
 case_regenerate_only() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
@@ -538,8 +411,6 @@ case_regenerate_only() {
     "$(cat "$root/build/out.json")" "docs/gamma-three.md"
 }
 
-# --- a plan written on another branch is refused ------------------------------
-
 case_plan_from_another_branch() {
   root="$(new_staged)"
   plan="$root/.audit/plan.md"
@@ -552,20 +423,12 @@ case_plan_from_another_branch() {
   assert_eq "a plan from another branch blocks" "1" "$rc"
   assert_contains "the refusal names both branches" "$out" "and this checkout is on 'some-other-branch'"
 
-  # --- an id the plan does not carry -----------------------------------------
-
   git -C "$root" checkout -q -
   out="$(run --artifact "$plan" --id FN-deadbeef --root "$root")"
   rc=$?
   assert_eq "an unknown id blocks" "1" "$rc"
   assert_contains "the refusal names the id" "$out" "carries no finding 'FN-deadbeef'"
 }
-
-# --- a pending record is applied without a separate accept gate ---------------
-#
-# The gate is the SKILL's, per finding and per human. The script refuses only a
-# status it cannot act on, so a plan record left pending still applies when the
-# skill asks for it; what it must never do is act on one already applied.
 
 case_pending_record_applies() {
   root="$(new_staged)"
@@ -574,8 +437,6 @@ case_pending_record_applies() {
   out="$(run --artifact "$plan" --id "$id" --root "$root")"
   assert_eq "a pending record applies when the caller asks" "applied" "$(status_of "$plan" "$id")"
 }
-
-# --- --root drives a checkout the script is not run from ----------------------
 
 case_root_outside_cwd() {
   root="$(new_staged)"
@@ -591,12 +452,6 @@ case_root_outside_cwd() {
   assert_eq "the rename landed in the named root" "1" \
     "$(git -C "$root" ls-files -- docs/gamma-three.md | wc -l | tr -d ' ')"
 }
-
-# --- a real linked worktree ---------------------------------------------------
-#
-# A linked worktree's `.git` is a FILE pointing at the main repository's
-# `worktrees/` directory, not a directory. Every git call here goes through
-# `-C "$ROOT"`, so it resolves; an ordinary directory would not exercise that.
 
 case_linked_worktree() {
   root="$(new_fixture)"
@@ -617,12 +472,6 @@ case_linked_worktree() {
     "$(git -C "$root" ls-files -- docs/Gamma_Three.md | wc -l | tr -d ' ')"
   git -C "$root" worktree remove --force "$wt" >/dev/null 2>&1
 }
-
-# --- the group list -----------------------------------------------------------
-#
-# "<shard> <group>", in run order. Shard 1 owns every case on the mutated
-# template and the linked worktree, which need no staged template, plus enough
-# staged cases to even the halves by their measured Windows cost.
 
 CASE_GROUPS=(
   "2 single_accepted_rename"
@@ -657,8 +506,6 @@ case "$SHARD" in
   ;;
 esac
 
-# Every defined group is listed exactly once, with a shard that runs. Checked
-# on every run, sharded or not, so a group cannot fall out of both halves.
 listed=" "
 for entry in "${CASE_GROUPS[@]}"; do
   s="${entry%% *}"
@@ -690,8 +537,6 @@ for entry in "${CASE_GROUPS[@]}"; do
   "case_${entry#* }"
   groups_run=$((groups_run + 1))
 done
-
-# --- results ------------------------------------------------------------------
 
 if [[ -n "$SHARD" ]]; then
   printf '\nshard %s of %d: %d of %d group(s)\n' "$SHARD" "$SHARD_COUNT" "$groups_run" "${#CASE_GROUPS[@]}"

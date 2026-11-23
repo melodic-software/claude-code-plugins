@@ -2,22 +2,16 @@ import type { EngineInterface, Register, RenderElement, RenderPropsOf } from 'cl
 import { blankProps, compilePatterns, distinct, maskProps, splitBlocks } from './mask.ts'
 
 const MASK = '[hidden]'
-// Block style, as the hide-email mod in Anthropic's "Mods in Claude Code" video draws it: a bar the
-// color of its own text, readable while the pointer is over its row.
 const VIDEO = {
   masked: { backgroundColor: '#3B4252', color: '#3B4252' },
   shown: { backgroundColor: '#4C566A', color: '#ECEFF4', bold: true },
 } as const
-// A terminal without full color approximates hex to its palette, so it gets theme keys, which
-// follow the person's light or dark theme: a mid-gray bar, and the theme's own text inverted.
 const THEME = {
   masked: { backgroundColor: 'inactive', color: 'inactive' },
   shown: { backgroundColor: 'text', color: 'inverseText', bold: true },
 } as const
 type Palette = typeof VIDEO | typeof THEME
 const FULL_COLOR = new Set(['truecolor', '24bit'])
-// A failed read falls back to theme colors, never to unmasked text.
-// Read once per render, and only in block mode; undefined in text mode.
 const palette = async ($: EngineInterface, isBlock: boolean): Promise<Palette | undefined> => {
   if (!isBlock) return undefined
   try {
@@ -39,7 +33,6 @@ const COMMAND = {
   immediate: true,
 } as const
 
-// The text-bearing props of each masked component; every other prop is passed on as received.
 const KEYS = {
   AssistantMessage: ['text'],
   UserMessage: ['text'],
@@ -75,7 +68,6 @@ const distinctQuestions = (questions: unknown): unknown => {
   })
 }
 
-// An AskUserQuestion record (the call's input, or its result) with its questions kept distinct.
 const distinctAsked = (tool: string, record: unknown): unknown =>
   tool === 'AskUserQuestion' && isRecord(record) && 'questions' in record
     ? { ...record, questions: distinctQuestions(record.questions) }
@@ -83,8 +75,6 @@ const distinctAsked = (tool: string, record: unknown): unknown =>
 
 type Elements = Pick<ReturnType<EngineInterface['ui']['resolve']>, 'Box' | 'Markdown' | 'Text'>
 
-// The mod's own tree for a text with a match: blocks without one drawn as Markdown, a block with one
-// as wrapping Text with each match a bar. Undefined where the text rewrite should draw instead.
 function drawMasked(
   { Box, Markdown, Text }: Elements,
   text: string,
@@ -115,8 +105,6 @@ const isDisabled = async ($: EngineInterface): Promise<boolean> => (await $.stat
 
 export const register: Register = (on, options) => {
   const { patterns, invalid } = compilePatterns(extraPatterns(options.extra_patterns))
-  // `mask` runs the patterns; `blank`, for a .catch, replaces every string whole and runs none, so
-  // it finishes within the handler's grace whatever the patterns cost.
   type Rewrite = (props: Record<string, unknown>, keys: readonly string[]) => Record<string, unknown>
   const mask: Rewrite = (props, keys) => maskProps(props, keys, patterns, MASK)
   const blank: Rewrite = (props, keys) => blankProps(props, keys, patterns, MASK)
@@ -144,14 +132,10 @@ export const register: Register = (on, options) => {
   const draw = (elements: Elements, text: string, colors: Palette | undefined) =>
     colors && drawMasked(elements, text, patterns, colors)
 
-  // Each .catch (a hook that threw or overran) draws its text-bearing props as the mask whole,
-  // running no pattern: a fault never draws the original props.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (await isDisabled($)) return next(e)
     return draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) ?? next(hide(e, KEYS.AssistantMessage))
   }).catch(($, e, next) => next(hide(e, KEYS.AssistantMessage, blank)))
-  // A task notification or another party's message the engine draws as a compact row; only the
-  // person's own prompt is drawn whole.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (await isDisabled($)) return next(e)
     const isOwn = e.props.task === undefined && e.props.from === undefined
@@ -180,14 +164,12 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // `/clear` starts a new session with no session.start, so the command is declared again.
   on('session.end', async ($, e, next) => {
     const result = await next(e)
     if (e.reason === 'clear') await $.command.register(COMMAND)
     return result
   }).catch(($, e, next) => next(e))
 
-  // The answer carries no text: a command's output row is stored where the model reads it.
   on('command.run', { command: 'display-redaction' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off' || arg === 'on') {

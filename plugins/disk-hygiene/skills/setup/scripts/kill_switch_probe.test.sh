@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the kill-switch probe test suite.
 # test-scope: plugins/disk-hygiene/*
 set -euo pipefail
 

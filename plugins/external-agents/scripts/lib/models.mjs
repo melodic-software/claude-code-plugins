@@ -35,7 +35,6 @@ export function effortChoices(help, flag) {
   return choices ? choices[1].split("|") : null;
 }
 
-/** A cached fact for this version, or the command's output cached now; throws when the CLI gives none. */
 function fact(dir, name, args, ask) {
   const file = join(dir, `${name}.txt`);
   const cached = existsSync(file) ? readFileSync(file, "utf8") : "";

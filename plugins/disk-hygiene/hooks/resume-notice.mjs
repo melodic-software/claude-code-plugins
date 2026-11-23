@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// SessionStart notice for a session resumed after /disk-hygiene:clean ran in it (#9853).
-//
-// The clean skill's frontmatter belt (the PowerShell deletion prompts and the
-// deny-by-default Bash lane) is registered in the process that invoked the
-// skill. A Windows probe found it absent after `claude -p --resume`, which
-// starts a new process on the same session id. Two rows in hooks.json write
-// `<marker-root>/clean-invoked/<session>.launched` through run-python-hook.sh's
-// `--launch-marker`: UserPromptExpansion when the user types the command, and
-// the PreToolUse `Skill` row when the model loads it. On `source: resume` this script looks
-// for that marker and, when it is there, tells the model to make no deletes or
-// overwrites until the user types /disk-hygiene:clean again, which registers
-// the belt again. It is a notice, not a gate.
-//
-//   node resume-notice.mjs --marker-root <dir>
-//
-// It always exits 0 and prints nothing unless the source is `resume` and a
-// marker exists. Candidates mirror run-python-hook.sh's `_marker_candidates`:
-// the marker root, then (off Windows) `${TMPDIR:-/tmp}/disk-hygiene-clean-invoked`.
-// On Windows the launcher's tmp fallback is a Git Bash path this script does
-// not resolve, so only the marker root counts there; with
-// ${CLAUDE_PLUGIN_DATA} expanded the launcher writes the marker root first.
 import { existsSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -57,9 +36,6 @@ export function decide(payload, ctx) {
 export const MAX_STDIN_BYTES = 1 << 20
 export const STDIN_DEADLINE_MS = 2000
 
-// Read the payload without waiting for EOF: stop at the first chunk that
-// completes a JSON object, at the size cap, or at the deadline, so a pipe that
-// stays open cannot hold session start for the hook's whole timeout.
 export function readPayload(stream, { maxBytes = MAX_STDIN_BYTES, deadlineMs = STDIN_DEADLINE_MS } = {}) {
   return new Promise((settle) => {
     let text = ''
@@ -109,7 +85,6 @@ function realPath(p) {
   }
 }
 if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
-  // A failed notice must never break session start; exit even if stdin stays open.
   main(process.argv.slice(2))
     .catch(() => {})
     .finally(() => process.stdout.write('', () => process.exit(0)))

@@ -1,34 +1,9 @@
 #!/usr/bin/env bash
-# layer-yaml.sh — read and write a docs-naming layer kept as YAML.
-#
-# Sourced by resolve-config.sh, setup-apply.sh and setup-check.sh, so the three
-# agree on one conversion between the team file (`<home>/docs-naming.yaml`, its
-# personal sibling `<home>/docs-naming.local.yaml`) and the JSON document the
-# merge works on: `{"schema": 1, "file_names": {<key>: <value>}}`.
-#
-# THE FILE. Top-level keys are the `file_names` keys themselves, with no
-# `schema` or `file_names` wrapper; plugins/docs-naming/schemas/docs-naming.schema.json
-# validates it. Parsing is lib/yaml-subset.awk's, the repository's one YAML
-# parser, so a value the parser rejects is a parse error here too. That parser
-# reads every scalar as text, so the one key whose value is not text,
-# `redirect_map: null`, is mapped back to JSON null, and an explicit empty list
-# (`exempt_paths: []`, which the parser prints nothing for) is restored from the
-# top-level line so "declared empty" stays different from "not declared".
-#
-# THE HOME. `<home>` is the convention home the repository binds in the pointer
-# region of AGENTS.md or CLAUDE.md (lib/resolve-convention-home.sh), else
-# docs/conventions. A broken pointer is an error, never the default.
-#
-# Needs jq and awk. Bash 3.2-compatible.
 
 LAYER_YAML_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_YAML_AWK="$LAYER_YAML_LIB_DIR/yaml-subset.awk"
 LAYER_YAML_HOME_RESOLVER="$LAYER_YAML_LIB_DIR/resolve-convention-home.sh"
 
-# layer_yaml_home <root>: print the repo-relative convention home. A root that
-# binds none, declined one, or is not a repository gets the default. A broken
-# pointer (malformed, duplicate, dangling) or an unusable root returns 1 with
-# the resolver's message on stderr, so no caller reads or writes the wrong layer.
 layer_yaml_home() {
   local out err rc
   err="$(mktemp)" || return 1
@@ -47,8 +22,6 @@ layer_yaml_home() {
   rm -f "$err"
 }
 
-# layer_yaml_to_json <file>: print the layer as JSON on one line. Returns 1 with
-# the parser's line and message on stderr when the file does not parse.
 layer_yaml_to_json() {
   local file="$1" records empties declared blank
   [[ -f "$LAYER_YAML_AWK" ]] || {
@@ -62,9 +35,6 @@ layer_yaml_to_json() {
   empties="$(LC_ALL=C tr -d '\r' <"$file" |
     sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*:[[:space:]]*\[[[:space:]]*\][[:space:]]*\(#.*\)\{0,1\}$/\1/p' |
     jq -R -s -c 'split("\n") | map(select(length > 0))')" || return 1
-  # The parser prints nothing for an empty value (`regex:`), which would read as
-  # an undeclared key and silently inherit a lower layer: a top-level key the
-  # file declares that yields no record and is not `[]` is an error.
   declared="$(LC_ALL=C tr -d '\r' <"$file" | sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*:.*$/\1/p')"
   for blank in $declared; do
     grep -q "^${blank}[.	]" <<<"$records" && continue
@@ -87,9 +57,6 @@ layer_yaml_to_json() {
   ' | tr -d '\r'
 }
 
-# layer_yaml_render <file_names-json>: print the YAML body for a file_names
-# object. Strings are double-quoted, which the subset parser reads back exactly
-# for the characters a name, glob or command holds.
 layer_yaml_render() {
   printf '%s' "$1" | jq -r '
     def pad($n): " " * $n;
