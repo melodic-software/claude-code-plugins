@@ -1724,6 +1724,10 @@ merge:
         class: gate
       - glob: ".github/scripts/lib/run-title.mjs"
         class: gate
+      - glob: ".github/scripts/lib/lane-registry.mjs"
+        class: gate
+      - glob: ".github/lane-registry.json"
+        class: gate
       # The arm path's Merge-Risk line, and the rating job's scripts that hand
       # untrusted pull request text to a credentialed model run (#13657).
       - glob: ".github/scripts/pr-merge/merge-risk-line.mjs"

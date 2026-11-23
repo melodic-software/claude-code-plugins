@@ -247,6 +247,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { jobNames, laneJob } from "../lib/lane-registry.mjs";
 import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
@@ -294,11 +295,7 @@ export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-check-managed-files-hosted.yml",
   ...GATED_REVIEWS,
 ]);
-// The hosted review callers' check-kill-switch job, by its name (Kill Switch
-// before its rename to Check Kill Switch, kill-switch on a head tested before
-// an earlier rename), and the step that fails it while the upstream-status
-// gate skips the review.
-export const GATE_JOBS = new Set(["Kill Switch", "kill-switch", "Check Kill Switch"]);
+export const GATE_JOBS = new Set([...GATED_REVIEWS].flatMap((path) => jobNames(path.slice(".github/workflows/".length), "check-kill-switch")));
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
 // The step that job runs when a kill switch stops the review, and the caller's
 // job names for the review itself (`PR Review`, or a reusable's `PR Review / x`;
@@ -336,16 +333,14 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // labels it needs-triage after 2 dispatches leave it untriaged. Otherwise, and
 // once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
-// intake-label-needs-triage names it on a run from before the rename.
-export const INTAKE_LABEL_JOBS = ["Intake Label Needs Triage", "intake-label-needs-triage"];
+export const INTAKE_LABEL_JOBS = jobNames("intake-triage.yml", "intake-label-needs-triage");
 const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.name ?? "").startsWith(`${name} / `));
 // pr-dispatch-feedback's job that applies a pr-verify verdict to its PR, and
 // the step that fails that job while the lanes kill switch is on: the failed
 // first attempt is the record of a verdict not yet applied. Re-running its
 // failed jobs, once, applies it (verify-notes.mjs posts only what is missing).
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
-// post-verify-notes names it on a run from before the rename.
-export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
+export const VERDICT_JOBS = new Set(jobNames("pr-dispatch-feedback.yml", "post-verify-notes"));
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
 // A job's conclusions that rerun-failed-jobs leaves alone.
 const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
@@ -423,7 +418,7 @@ export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".gi
 export const RATER_SWITCH_STEP = "Check the kill switch";
 export const RATER_RESOLVE_STEP = "Resolve the pull request";
 /** The rater's legs by job name, in the order each hands off to the next. */
-export const RATER_LEGS = ["Rate Merge Risk", "Rate Merge Risk Subscription", "Rate Merge Risk Fallback"];
+export const RATER_LEGS = ["rate-merge-risk", "rate-merge-risk-subscription", "rate-merge-risk-fallback"].map((id) => laneJob("pr-rate-merge-risk.yml", id).name);
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
 // for the next pass, so a pass after a long outage adds a bounded load.

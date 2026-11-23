@@ -502,7 +502,7 @@ async function checksHeld(read, repo, head) {
 // names it, under the caller's display name first; the lower-case caller is a
 // head tested before the rename, `Status` its Title Case job name and
 // `Publish Review` its planned one), and whether only a whole review counts.
-const LANE_RECORDS = Object.freeze([
+export const LANE_RECORDS = Object.freeze([
   {
     file: "pr-review-hosted.yml",
     lane: "claude-review",
@@ -802,7 +802,7 @@ function pairedWithPrMerge(appComments, since) {
 
 export const STALE_HOLD = "stale-review-hold";
 // Each review caller's lane id, as its notices and comments name it.
-const LANE_OF = Object.freeze({ "pr-review-hosted.yml": "claude-review", "pr-review-security-hosted.yml": "claude-security-review" });
+const LANE_OF = Object.freeze(Object.fromEntries(LANE_RECORDS.map(({ file, lane }) => [file, lane])));
 const SECURITY_LANE = "claude-security-review";
 // The security lane's per-finding severity line (/review:security-review
 // "Reporting"; babysit_review_evidence's SEVERITY_RE); its summary line is
