@@ -6,7 +6,6 @@ cat >docs/conventions/multi-agent.yaml <<'EOF'
 schema: 1
 vendors:
   routing: true
-  auto_delegation: false
   codex:
     in_use: true
     rank: 1

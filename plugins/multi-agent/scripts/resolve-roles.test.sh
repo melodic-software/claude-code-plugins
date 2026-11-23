@@ -426,6 +426,17 @@ else
   fail "valid vendors output is valid JSON" "parses" "$out"
 fi
 
+fixture vendorsteamauto
+cat >"$T/vendorsteamauto/repo/docs/conventions/multi-agent.yaml" <<'YAML'
+schema: 1
+vendors:
+  auto_delegation: true
+YAML
+out="$(run vendorsteamauto worker --session-model opus)"
+assert_contains "team layer cannot turn on auto-delegation" "$out" '"auto_delegation":false,'
+assert_contains "team auto-delegation keeps the bundled source" "$out" '"auto_delegation":"bundled"'
+assert_contains "team auto-delegation is noted" "$out" 'team: vendors.auto_delegation ignored: it is a per-user setting'
+
 fixture vendorsinvalid
 cat >"$T/vendorsinvalid/user.yaml" <<'YAML'
 schema: 1

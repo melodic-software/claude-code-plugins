@@ -23,7 +23,7 @@ graders:
     target: 'last_message'
   - name: 'shows-how-to-run'
     type: 'regex'
-    pattern: 'external-agents\s+run\s+codex\b[^\n]*--use\s+task[^\n]*--mode\s+write|external-agents\s+run\s+codex\b'
+    pattern: 'external-agents\s+run\s+codex\b(?=[^\n]*--use\s+task)(?=[^\n]*--mode\s+write)'
     flags: 'i'
     target: 'last_message'
   - name: 'explains-claude-cannot'

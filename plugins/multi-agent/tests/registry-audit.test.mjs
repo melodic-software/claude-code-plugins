@@ -183,6 +183,21 @@ test('a mapped page whose sections cannot be read skips the judge and proposes n
   assert.equal(result.diff, null)
 })
 
+test('a mapped page whose expect section is too large to read stays partial and proposes no demotion', async () => {
+  const big = MAP.replace('\t9000\t', '\t70000\t')
+  const { result, calls } = await run({ rows: [ROWS[0]], asOf: '2026-11-23' }, {
+    reply: (p, o, d) => {
+      if (!o.label.startsWith('fetch:')) return d(p, o)
+      const url = data(p, 'url')
+      return { output: data(p, 'sections').length ? rawPage(url).replace('kind=page', 'kind=sections') : rawPage(url, big, 'map') }
+    },
+  })
+  assert.deepEqual(by(calls, 'fetch:').map(c => data(c.prompt, 'sections')), [[]])
+  assert.equal(by(calls, 'judge:').length, 0)
+  assert.equal(result.rows[0].partial, true)
+  assert.deepEqual(result.proposedChanges, [])
+})
+
 test('proposes dropping stale, undated, or non-current permanent shipped rows and adjusting freshness_seconds', async () => {
   const { result } = await run({ rows: ROWS, asOf: '2026-11-23' }, {
     reply: (p, o, d) => {

@@ -258,7 +258,8 @@ function pickSections(mapBody, expects) {
     if (m) rows.push({ id: Number(m[1]), start: Number(m[2]), end: Number(m[3]), bytes: Number(m[4]), path: m[5].toLowerCase() })
   }
   const wanted = expects.map(e => e.toLowerCase())
-  const ordered = [...rows.filter(r => wanted.some(w => r.path.includes(w))), ...rows]
+  const matches = r => wanted.some(w => r.path.includes(w))
+  const ordered = [...rows.filter(matches), ...rows]
   const picked = []
   let total = 0
   for (const r of ordered) {
@@ -268,6 +269,7 @@ function pickSections(mapBody, expects) {
     picked.push(r)
     total += r.bytes
   }
+  if (!picked.some(matches)) return []
   return picked.map(r => r.id).sort((a, b) => a - b)
 }
 

@@ -7,12 +7,20 @@
     {
       "answer": "To run it manually: `external-agents run codex --use task --mode write --model sparrow-1 --prompt-file prompt.txt`.",
       "why": "shows command with model flag"
+    },
+    {
+      "answer": "Run `external-agents run codex --mode write --use task --prompt-file p.txt`.",
+      "why": "flags in the other order"
     }
   ],
   "fail": [
     {
       "answer": "Use Codex for this image.",
       "why": "omits how to run it"
+    },
+    {
+      "answer": "Run external-agents run codex yourself.",
+      "why": "omits --use task and --mode write"
     }
   ]
 }
