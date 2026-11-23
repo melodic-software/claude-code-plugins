@@ -15,6 +15,7 @@ import { admits } from "../lib/gate-expression.mjs";
 import { heldNoted } from "../maintenance-reconcile-lost-runs/reconcile.mjs";
 import { HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
+import { filePatch, MIXED, MIXED_MANIFEST } from "../diff-chunking/fixtures.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 // The one commit and version comment every select-model-credential pin in
@@ -160,52 +161,21 @@ test("the diff shows every file as text and refuses one a review cannot read who
   assert.match(diff, /python3 -I \.base\/\.github\/scripts\/pr-review-main\/write-diff\.py "\$SRC" "\$BASE_SHA" "\$HEAD_SHA" "\$DATA\/diff\.patch" "\$MAX_DIFF_BYTES"$/m);
   assert.match(writeDiff, /^DIFF = \["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"\]$/m);
   assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
-  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/pr-review-main\/split-diff\.py "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$PART_BYTES" \|\| split=\$\?$/m);
+  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/diff-chunking\/diff_chunking\.py split "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$PART_BYTES" \|\| split=\$\?$/m);
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
 });
 
-test("the diff is split into parts one read returns whole, and a longer line folds", () => {
-  const diff = step("Write the diff");
-  const awk = diff.match(/LC_ALL=C (awk -v dir=.*?' "\$dir\.patch")/s)[1];
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-split-"));
-  try {
-    const run = (text, env = {}) => {
-      rmSync(path.join(dir, "diff"), { recursive: true, force: true });
-      mkdirSync(path.join(dir, "diff"));
-      writeFileSync(path.join(dir, "diff.patch"), text);
-      return spawnSync("bash", ["-c", `LC_ALL=C ${awk}`], { env: { ...process.env, dir: path.join(dir, "diff"), PART_BYTES: "10", PART_LINES: "2", LONG_LINE_BYTES: "40", ...env } });
-    };
-    const read = () =>
-      readdirSync(path.join(dir, "diff"))
-        .sort()
-        .map((p) => readFileSync(path.join(dir, "diff", p)));
-    // 5 lines of 4 bytes: 2 lines per part at most, so 3 parts, in order.
-    assert.equal(run("aaa\nbbb\nccc\nddd\neee\n").status, 0);
-    const parts = readdirSync(path.join(dir, "diff")).sort();
-    assert.deepEqual(parts, ["part-001.patch", "part-002.patch", "part-003.patch"]);
-    assert.equal(parts.map((p) => readFileSync(path.join(dir, "diff", p), "utf8")).join(""), "aaa\nbbb\nccc\nddd\neee\n");
-    // A line over LONG_LINE_BYTES continues on `\ continued: ` lines of at
-    // most that many bytes, never cut inside a UTF-8 character, and every
-    // byte comes back when the folds are joined.
-    const long = `+${"x".repeat(50)}${"\u00e9\u20ac".repeat(20)}\n ${"y".repeat(39)}\n`;
-    assert.equal(run(long, { PART_BYTES: "1000", PART_LINES: "100" }).status, 0);
-    const folded = Buffer.concat(read());
-    const lines = folded.toString("utf8").split("\n").slice(0, -1);
-    assert.ok(lines.length > 4);
-    for (const line of lines) {
-      assert.ok(Buffer.byteLength(line) <= 40, line);
-      assert.doesNotThrow(() => new TextDecoder("utf-8", { fatal: true }).decode(Buffer.from(line)));
-    }
-    assert.ok(lines.slice(1, -1).every((line) => line.startsWith("\\ continued: ")));
-    assert.equal(folded.toString("utf8").replaceAll("\n\\ continued: ", ""), long);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+test("the diff is split into parts by the chunking module", () => {
+  for (const job of LEGS) {
+    const diff = step("Write the diff", job);
+    assert.match(diff, /^ {10}bytes=\$\(python3 -I \.base\/\.github\/scripts\/diff-chunking\/diff_chunking\.py parts "\$DATA\/diff" "\$PART_BYTES" "\$PART_LINES"\)$/m, job);
+    assert.doesNotMatch(diff, /awk/, job);
   }
 });
 
 test("a diff with a line past the review's cap is folded, and every byte of it reaches a whole read", async () => {
   const { LONG_LINE_BYTES, longestLine } = await import("./write-verdict.mjs");
-  assert.match(step("Write the diff"), new RegExp(`LONG_LINE_BYTES: "${LONG_LINE_BYTES}"`));
+  for (const job of LEGS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), undefined, `${job} folds at the module's length, not its own`);
   const patch = `diff --git a/x b/x\n@@ -1,2 +1,2 @@\n-${"o".repeat(4000)}\n+${"x".repeat(4000)}\n ${"\u00e9".repeat(1500)}\n`;
   const readParts = (data) =>
     readdirSync(path.join(data, "diff"), { recursive: true })
@@ -223,153 +193,7 @@ test("a diff with a line past the review's cap is folded, and every byte of it r
   }
 });
 
-// split-diff.py on a fixture patch: the chunk files it writes, by name.
-const SPLIT_DIFF = new URL("./split-diff.py", import.meta.url).pathname;
-// With `manifestBytes`, it returns the manifest it wrote (null for none).
-// With `maxFiles`, it passes the optional seventh argument.
-function split(patch, maxBytes, maxChunks, manifestBytes, maxFiles) {
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-chunks-"));
-  try {
-    writeFileSync(path.join(dir, "diff.patch"), patch);
-    mkdirSync(path.join(dir, "out"));
-    const manifest = path.join(dir, "manifest.txt");
-    const args = [path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)];
-    const run = spawnSync("python3", ["-I", SPLIT_DIFF, ...args, ...(maxFiles === undefined ? [] : [String(maxFiles)])], { encoding: "utf8" });
-    const chunks = Object.fromEntries(readdirSync(path.join(dir, "out")).sort().map((name) => [name, readFileSync(path.join(dir, "out", name), "utf8")]));
-    if (manifestBytes !== undefined) {
-      return { status: run.status, chunks, stderr: run.stderr, manifest: (() => { try { return readFileSync(manifest, "utf8"); } catch { return null; } })() };
-    }
-    return { status: run.status, chunks, stderr: run.stderr };
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-// A file's patch of exactly `bytes` bytes: its header and one hunk padded
-// with one added line.
-const filePatch = (name, bytes) => {
-  const head = `diff --git a/${name} b/${name}\n@@ -1 +1 @@\n+`;
-  const patch = `${head}${"x".repeat(bytes - head.length - 1)}\n`;
-  assert.equal(Buffer.byteLength(patch), bytes);
-  return patch;
-};
-// The 43-byte header of the file big, and a hunk of exactly `bytes` bytes.
-const BIG = "diff --git a/big b/big\n--- a/big\n+++ b/big\n";
-const hunkPatch = (n, bytes) => {
-  const head = `@@ -${n} +${n} @@\n+`;
-  const hunk = `${head}${"y".repeat(bytes - head.length - 1)}\n`;
-  assert.equal(Buffer.byteLength(hunk), bytes);
-  return hunk;
-};
-
-test("an oversize diff splits into chunks under the cap at file boundaries, in order", () => {
-  const [a, b, c] = [filePatch("a", 60), filePatch("b", 70), filePatch("c", 50)];
-  // 60 + 70 fits 150; 50 more does not, so c starts the second chunk.
-  assert.deepEqual(split(a + b + c, 150, 4), { status: 0, chunks: { "chunk-1.patch": a + b, "chunk-2.patch": c }, stderr: "" });
-  // At 180 bytes the whole diff is one chunk.
-  assert.deepEqual(split(a + b + c, 180, 4).chunks, { "chunk-1.patch": a + b + c });
-});
-
-test("a single file over the cap is cut at its hunks into pieces, each under the file's header", () => {
-  const [h1, h2, h3] = [hunkPatch(1, 30), hunkPatch(5, 30), hunkPatch(9, 30)];
-  assert.equal(BIG.length, 43);
-  const result = split(BIG + h1 + h2 + h3, 110, 4, 15000);
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(result.chunks, { "chunk-1.patch": BIG + h1 + h2, "chunk-2.patch": BIG + h3 });
-  assert.equal(result.manifest, "chunk 1 piece 1 of 2 modified big\nchunk 2 piece 2 of 2 modified big\n");
-  const small = filePatch("s", 40);
-  const beside = split(BIG + h1 + h2 + h3 + small, 120, 4, 15000);
-  assert.deepEqual(beside.chunks, { "chunk-1.patch": BIG + h1 + h2, "chunk-2.patch": BIG + h3 + small });
-  assert.equal(beside.manifest, "chunk 1 piece 1 of 2 modified big\nchunk 2 piece 2 of 2 modified big\nchunk 2 modified s\n");
-  const whole = split(BIG + h1 + h2 + h3 + small, 133, 4, 15000);
-  assert.deepEqual(whole.chunks, { "chunk-1.patch": BIG + h1 + h2 + h3, "chunk-2.patch": small });
-  assert.equal(whole.manifest, "chunk 1 modified big\nchunk 2 modified s\n");
-  const over = split(BIG + h1 + h2 + h3, 80, 2);
-  assert.equal(over.status, 3);
-  assert.deepEqual(over.chunks, {});
-  assert.match(over.stderr, /the diff needs 3 chunks, more than 2/);
-  assert.deepEqual(split(BIG + h1 + h2 + h3, 80, 3).chunks, { "chunk-1.patch": BIG + h1, "chunk-2.patch": BIG + h2, "chunk-3.patch": BIG + h3 });
-  assert.deepEqual(split(BIG + h1 + h2 + h3 + small, 120, 4, undefined, 1).chunks, { "chunk-1.patch": BIG + h1 + h2, "chunk-2.patch": BIG + h3, "chunk-3.patch": small });
-});
-
-test("a hunk over the cap with its file's header is too large and writes nothing", () => {
-  const hunk = split(BIG + hunkPatch(1, 30) + hunkPatch(5, 80) + filePatch("s", 40), 110, 4);
-  assert.equal(hunk.status, 3);
-  assert.deepEqual(hunk.chunks, {});
-  assert.match(hunk.stderr, /^split-diff: a file has a hunk larger than one chunk of 110 bytes: modified big$/m);
-  assert.equal(split(BIG + hunkPatch(1, 80), 110, 4).status, 3);
-});
-
-test("a chunk of exactly the cap, and exactly the most chunks, still split", () => {
-  const [a, b] = [filePatch("a", 100), filePatch("b", 100)];
-  assert.deepEqual(split(a, 100, 1), { status: 0, chunks: { "chunk-1.patch": a }, stderr: "" });
-  assert.deepEqual(split(a + b, 100, 2).chunks, { "chunk-1.patch": a, "chunk-2.patch": b });
-});
-
-test("with a file cap a chunk also ends at that many files, and without one only bytes cut", () => {
-  const files = ["a", "b", "c", "d", "e"].map((name) => filePatch(name, 50));
-  const [a, b, c, d, e] = files;
-  const all = files.join("");
-  // Five 50-byte files fit one 1000-byte chunk; a cap of 2 cuts at every second file.
-  assert.deepEqual(split(all, 1000, 4).chunks, { "chunk-1.patch": all });
-  assert.deepEqual(split(all, 1000, 4, 15000, 0).chunks, { "chunk-1.patch": all });
-  assert.deepEqual(split(all, 1000, 4, undefined, 2), { status: 0, chunks: { "chunk-1.patch": a + b, "chunk-2.patch": c + d, "chunk-3.patch": e }, stderr: "" });
-  // Bytes still cut first: at 100 bytes and a cap of 3, each chunk holds two files.
-  assert.deepEqual(split(all, 100, 4, undefined, 3).chunks, { "chunk-1.patch": a + b, "chunk-2.patch": c + d, "chunk-3.patch": e });
-  // A cap that needs more than the most chunks is too large and writes nothing.
-  const over = split(all, 1000, 2, undefined, 2);
-  assert.equal(over.status, 3);
-  assert.deepEqual(over.chunks, {});
-  assert.match(over.stderr, /3 chunks/);
-});
-
-test("more chunks than the most is too large and writes nothing", () => {
-  const [a, b, c] = [filePatch("a", 100), filePatch("b", 100), filePatch("c", 100)];
-  const over = split(a + b + c, 100, 2);
-  assert.equal(over.status, 3);
-  assert.deepEqual(over.chunks, {});
-  assert.match(over.stderr, /3 chunks/);
-  // An empty diff is no chunk at all.
-  assert.deepEqual(split("", 100, 2), { status: 0, chunks: {}, stderr: "" });
-});
-
-// One file of each status, as write-diff.py prints them over the cap: an
-// edit, an add whose path has a space and `&`, an empty delete, a mode
-// change, a move collapsed to its rename lines, and an add git quotes.
-const MIXED = [
-  `diff --git a/src/a.sh b/src/a.sh\nindex 1111111..2222222 100644\n--- a/src/a.sh\n+++ b/src/a.sh\n@@ -1 +1 @@\n-x\n+source lib/b.sh ${"p".repeat(400)}\n`,
-  "diff --git a/lib/b & c.sh b/lib/b & c.sh\nnew file mode 100644\nindex 0000000..3333333\n--- /dev/null\n+++ b/lib/b & c.sh\t\n@@ -0,0 +1 @@\n+echo\n",
-  "diff --git a/old.txt b/old.txt\ndeleted file mode 100644\nindex e69de29..0000000\n",
-  "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n",
-  "diff --git a/docs/x.md b/guide/x.md\nsimilarity index 100%\nrename from docs/x.md\nrename to guide/x.md\n",
-  'diff --git "a/r\\303\\251sum\\303\\251.md" "b/r\\303\\251sum\\303\\251.md"\nnew file mode 100644\nindex 0000000..4444444\n--- /dev/null\n+++ "b/r\\303\\251sum\\303\\251.md"\n@@ -0,0 +1 @@\n+hi\n',
-];
-const MIXED_MANIFEST = [
-  "chunk 1 modified src/a.sh",
-  "chunk 2 added lib/b & c.sh",
-  "chunk 2 deleted old.txt",
-  "chunk 2 modified run.sh",
-  "chunk 2 renamed docs/x.md -> guide/x.md",
-  'chunk 2 added "r\\303\\251sum\\303\\251.md"',
-];
-
-test("a diff in more than one chunk writes a manifest of every file, its chunk and its status", () => {
-  const [first, ...rest] = MIXED.map((p) => Buffer.byteLength(p));
-  // The edit fills chunk 1 alone; the rest fit chunk 2.
-  assert.ok(first <= 600 && first + rest[0] > 600 && rest.reduce((a, b) => a + b) <= 600);
-  const two = split(MIXED.join(""), 600, 4, 15000);
-  assert.equal(two.status, 0, two.stderr);
-  assert.deepEqual(Object.keys(two.chunks), ["chunk-1.patch", "chunk-2.patch"]);
-  assert.equal(two.manifest, `${MIXED_MANIFEST.join("\n")}\n`);
-  // One chunk is the single-pass review: no manifest.
-  assert.equal(split(MIXED.join(""), 100000, 4, 15000).manifest, null);
-  // Past its cap the manifest lists what fits and counts the rest, the count's
-  // line included in the cap.
-  const capped = split(MIXED.join(""), 600, 4, 83);
-  assert.ok(Buffer.byteLength(capped.manifest) <= 83);
-  assert.equal(capped.manifest, `${MIXED_MANIFEST.slice(0, 2).join("\n")}\nand 4 more files, not listed\n`);
-  // A diff too large to split writes no manifest either.
-  assert.equal(split(MIXED.join(""), 600, 1, 15000).manifest, null);
-});
+const CHUNKING = new URL("../diff-chunking/diff_chunking.py", import.meta.url).pathname;
 
 // The "Write the diff" script run under bash as Actions runs it, with git and
 // python3 stubbed: python3 (write-diff.py) writes the given patch, or fails.
@@ -383,15 +207,14 @@ function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxC
     mkdirSync(bin);
     writeFileSync(path.join(bin, "git"), `#!/bin/sh\ncase "$*" in *rev-parse*) echo ${"e".repeat(40)} ;; esac\n`);
     writeFileSync(path.join(dir, "fixture.patch"), patch);
-    // write-diff.py writes the fixture, or fails; split-diff.py runs as is.
     const writes = pythonFails ? "exit 1" : `cp "${path.join(dir, "fixture.patch")}" "$6"`;
-    writeFileSync(path.join(bin, "python3"), `#!/bin/sh\ncase "$2" in\n  *write-diff.py) ${writes} ;;\n  *split-diff.py) shift 2; exec "${PYTHON}" -I "${SPLIT_DIFF}" "$@" ;;\n  *) exit 9 ;;\nesac\n`);
+    writeFileSync(path.join(bin, "python3"), `#!/bin/sh\ncase "$2" in\n  *write-diff.py) ${writes} ;;\n  *diff_chunking.py) shift 2; exec "${PYTHON}" -I "${CHUNKING}" "$@" ;;\n  *) exit 9 ;;\nesac\n`);
     chmodSync(path.join(bin, "git"), 0o755);
     chmodSync(path.join(bin, "python3"), 0o755);
     const out = path.join(dir, "out");
     writeFileSync(out, "");
     const data = path.join(dir, "data");
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, LANE: "claude-security-review", HEAD_SHA: SHA_A, BASE_SHA: SHA_B, PR_NUMBER: "7", DATA: data, SRC: path.join(dir, "src"), MAX_DIFF_BYTES: maxBytes, MAX_CHUNKS: maxChunks, PART_BYTES: "15000", PART_LINES: "1000", LONG_LINE_BYTES: "1800" };
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, LANE: "claude-security-review", HEAD_SHA: SHA_A, BASE_SHA: SHA_B, PR_NUMBER: "7", DATA: data, SRC: path.join(dir, "src"), MAX_DIFF_BYTES: maxBytes, MAX_CHUNKS: maxChunks, PART_BYTES: "15000", PART_LINES: "1000" };
     const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { encoding: "utf8", env });
     const parts = (() => {
       try {
@@ -494,7 +317,6 @@ test("each chunk's prompt names the manifest file and holds none of its paths, a
       assert.doesNotMatch(text, /^\s*chunk \d+ (added|modified|deleted|renamed) /m, `${job} chunk ${k}`);
       for (const pathText of ["lib/b & c.sh", "docs/x.md", "guide/x.md", "r\\303\\251sum"]) assert.ok(!text.includes(pathText), `${job} chunk ${k}: ${pathText}`);
     });
-    // The file holds every file in either chunk as split-diff.py wrote it.
     assert.equal(two.after.manifest, `${MIXED_MANIFEST.join("\n")}\n`, job);
     // One chunk: no note and no manifest, the template's own text.
     const one = runDiff(MIXED.join(""), { job, maxBytes: "300000", after: (data, output) => renderPrompts(data, output, job) });

@@ -1,0 +1,7 @@
+{
+  "name": "diff-chunking",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

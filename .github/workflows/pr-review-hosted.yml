@@ -418,6 +418,7 @@ jobs:
         .github/scripts/lib/admission-record.mjs
         .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
+        .github/scripts/diff-chunking/**
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         docs/standards/**

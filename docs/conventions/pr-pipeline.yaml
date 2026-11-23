@@ -1842,6 +1842,9 @@ merge:
       - glob: ".github/scripts/pr-review-main/**"
         class: gate
         author-lift: false
+      - glob: ".github/scripts/diff-chunking/**"
+        class: gate
+        author-lift: false
       - glob: "docs/conventions/instruction-exception-register/**"
         class: gate
         author-lift: false
