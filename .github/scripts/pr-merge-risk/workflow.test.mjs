@@ -108,8 +108,6 @@ test("each leg starts only after the one before named it as the next leg, and a 
   assert.match(step(LEGS.key, "Report the skipped key leg"), /if: steps\.credential\.outputs\.key-skipped == 'true'\n/);
   assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-PR_VERIFY_CLAUDE_API_KEY' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-PR_VERIFY_CLAUDE_API_KEY\n/);
-  // The key and subscription legs name the next leg the same way; the
-  // fallback leg, last, names none.
   assert.equal(step(LEGS.key, "Pick the next leg"), step(LEGS.subscription, "Pick the next leg"));
   assert.ok(!stepsOf(LEGS.fallback).has("Pick the next leg"));
   for (const [leg, id] of Object.entries(LEGS)) {
