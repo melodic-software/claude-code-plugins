@@ -7,17 +7,21 @@ import { join } from 'node:path'
 import {
   BENCHMARKS,
   CONFIG_SCHEMA,
-  FETCH_BOARDS,
   MODELS,
   OLD_DATE,
   RECENT,
   REGISTRY_SCHEMA,
   VERDICT_SCHEMA,
   boardEntry,
+  codexLeadRecords,
   gitCleanEnv,
   makeFixture,
   rec,
   row,
+  runFetchBoardsCacheFixture,
+  seedOutcome,
+  tieWithTokensRecords,
+  twoBoards,
 } from './lib/test-fixtures.mjs'
 
 process.env.GIT_CONFIG_GLOBAL ??= devNull
@@ -39,8 +43,9 @@ test('schemas are closed JSON Schemas and shipped benchmarks.json has pointers o
   assert.deepEqual(verSchema.properties.tokens.required.sort(), ['source', 'unit', 'value'])
 
   assert.equal(shipped.version, 1)
-  assert.equal(shipped.rows.length, 3)
-  assert.deepEqual(shipped.rows.map((r) => r.id).sort(), ['cursorbench', 'terminal-bench', 'webdev-arena'])
+  assert.deepEqual(shipped.rows.map((r) => r.id).sort(), [
+    'aa-image-t2i', 'cursorbench', 'gdpval-aa', 'terminal-bench', 'vals-index', 'webdev-arena',
+  ])
   for (const r of shipped.rows) {
     assert.ok(r.status === 'permanent' || r.status === 'support-only')
     assert.ok(r.task_set && r.expect && r.publisher && r.link.startsWith('https://'))
@@ -49,17 +54,12 @@ test('schemas are closed JSON Schemas and shipped benchmarks.json has pointers o
 
 
 test('AC2: consensus of two independent permanent live boards moves work off Claude and cites both', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'high' }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead', { effort: 'high' }),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const res = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'high' }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead', { effort: 'high' }),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ])
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.work_type, 'coding')
   assert.equal(res.json.vendor, 'codex')
@@ -74,10 +74,7 @@ test('AC2: one leading source alone stays on Claude default from defaults.yaml',
   const res = makeFixture(t, {
     registry: { version: 1, rows: [row('board-a')] },
     manifest: { boards: [boardEntry('board-a')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-    ],
+    records: [rec('board-a', 'codex', 'sparrow-1', 'lead'), rec('board-a', 'claude', 'kestrel-1', 'behind')],
     extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(res.code, 0, res.stderr)
@@ -88,17 +85,12 @@ test('AC2: one leading source alone stays on Claude default from defaults.yaml',
 })
 
 test('AC2: split between two independent trusted boards keeps default Claude', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'claude', 'kestrel-1', 'lead'),
-      rec('board-b', 'codex', 'sparrow-1', 'behind'),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const res = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead'),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'claude', 'kestrel-1', 'lead'),
+    rec('board-b', 'codex', 'sparrow-1', 'behind'),
+  ])
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
@@ -115,12 +107,7 @@ test('AC14: two boards from one publisher count as one source and do not reach c
       ],
     },
     manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead'),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
+    records: codexLeadRecords(),
     extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(res.code, 0, res.stderr)
@@ -154,41 +141,29 @@ test('AC14: one task_set on two sites counts as one source and does not reach co
 })
 
 test('AC14: a score with no error_range only supports and cannot count as a leading source', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { error_range: true }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind', { error_range: true }),
-      rec('board-b', 'codex', 'sparrow-1', 'lead', { error_range: false }),
-      rec('board-b', 'claude', 'kestrel-1', 'behind', { error_range: false }),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const res = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { error_range: true }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind', { error_range: true }),
+    rec('board-b', 'codex', 'sparrow-1', 'lead', { error_range: false }),
+    rec('board-b', 'claude', 'kestrel-1', 'behind', { error_range: false }),
+  ])
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
-  const boardB = res.json.sources.find((s) => s.source_id === 'board-b')
-  assert.equal(boardB.role, 'support-only')
+  assert.equal(res.json.sources.find((s) => s.source_id === 'board-b').role, 'support-only')
 })
 
 test('AC14: a board missing a vendor current model id abstains for that vendor', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead'),
-      rec('board-b', 'claude', 'kestrel-0', 'behind'),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const res = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead'),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead'),
+    rec('board-b', 'claude', 'kestrel-0', 'behind'),
+  ])
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
-  const boardB = res.json.sources.find((s) => s.source_id === 'board-b')
-  assert.equal(boardB.role, 'abstains')
+  assert.equal(res.json.sources.find((s) => s.source_id === 'board-b').role, 'abstains')
   assert.ok(res.json.notes.some((n) => /abstain/i.test(n) && /claude/i.test(n)))
 })
 
@@ -292,25 +267,7 @@ test('AC14: new sources with status support-only do not count toward consensus',
 
 
 test('AC3: on a tie with no tiebreak configured, lists tied vendors with token counts and keeps caller vendor', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'claude', 'kestrel-1', 'tie', {
-        tokens: { value: 140000, unit: 'tokens/task', source: 'board-a' },
-      }),
-      rec('board-a', 'codex', 'sparrow-1', 'tie', {
-        tokens: { value: 90000, unit: 'tokens/task', source: 'board-a' },
-      }),
-      rec('board-b', 'claude', 'kestrel-1', 'tie', {
-        tokens: { value: 160000, unit: 'tokens/task', source: 'board-b' },
-      }),
-      rec('board-b', 'codex', 'sparrow-1', 'tie', {
-        tokens: { value: 110000, unit: 'tokens/task', source: 'board-b' },
-      }),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const res = twoBoards(t, tieWithTokensRecords())
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
@@ -323,23 +280,7 @@ test('AC3: on a tie with no tiebreak configured, lists tied vendors with token c
 })
 
 test('AC3: on a tie with fewest-tokens tiebreak configured, picks the vendor with fewer tokens', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'claude', 'kestrel-1', 'tie', {
-        tokens: { value: 140000, unit: 'tokens/task', source: 'board-a' },
-      }),
-      rec('board-a', 'codex', 'sparrow-1', 'tie', {
-        tokens: { value: 90000, unit: 'tokens/task', source: 'board-a' },
-      }),
-      rec('board-b', 'claude', 'kestrel-1', 'tie', {
-        tokens: { value: 160000, unit: 'tokens/task', source: 'board-b' },
-      }),
-      rec('board-b', 'codex', 'sparrow-1', 'tie', {
-        tokens: { value: 110000, unit: 'tokens/task', source: 'board-b' },
-      }),
-    ],
+  const res = twoBoards(t, tieWithTokensRecords(), {
     extraArgs: ['--task-type', 'coding', '--tiebreak', 'fewest-tokens'],
   })
   assert.equal(res.code, 0, res.stderr)
@@ -492,81 +433,14 @@ test('AC6: second fetch-boards run on a fixture row within its window has source
     t.skip('bash unavailable or sandboxed on this host')
     return
   }
-
-  const dir = mkdtempSync(join(tmpdir(), 'fetch-boards-test-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
-  const fixtureDir = join(dir, 'fixtures')
-  const cacheDir = join(dir, 'cache')
-  const out1 = join(dir, 'out1')
-  const out2 = join(dir, 'out2')
-  const regPath = join(dir, 'benchmarks.json')
-
-  mkdirSync(join(fixtureDir, 'www-tbench-ai'), { recursive: true })
-  writeFileSync(
-    join(fixtureDir, 'www-tbench-ai', 'leaderboard.md'),
-    '# Terminal-Bench Leaderboard\n\nUpdated 2026-11-18\n\n| Model | Score | CI |\n|---|---|---|\n| sparrow-1 | 82.0% | +/- 1.1% |\n| kestrel-1 | 78.0% | +/- 1.2% |\n',
-  )
-  writeFileSync(
-    regPath,
-    JSON.stringify({
-      version: 1,
-      rows: [
-        {
-          id: 'terminal-bench',
-          workloads: ['coding'],
-          link: 'https://www.tbench.ai/leaderboard',
-          publisher: 'tbench.ai',
-          provider_own: false,
-          status: 'permanent',
-          task_set: 'terminal-bench',
-          expect: 'Terminal-Bench',
-          freshness_seconds: 3600,
-        },
-      ],
-    }),
-  )
-
-  const toPosix = (p) => p.replace(/\\/g, '/')
-  const nowSec = Math.floor(Date.UTC(2026, 10, 22, 12, 0, 0) / 1000)
-  const env = {
-    ...process.env,
-    FETCH_DOCS_FIXTURE_DIR: toPosix(fixtureDir),
-    DOCS_CACHE_DIR: toPosix(cacheDir),
-    DOCS_CACHE_NOW: String(nowSec),
-  }
-
-  const run1 = spawnSync(
-    'bash',
-    [
-      toPosix(FETCH_BOARDS),
-      '--registry', toPosix(regPath),
-      '--out', toPosix(out1),
-      '--manifest', toPosix(join(out1, 'manifest.json')),
-      '--cache-dir', toPosix(cacheDir),
-    ],
-    { encoding: 'utf8', env },
-  )
+  const { run1, run2, m1, m2 } = runFetchBoardsCacheFixture(t)
   assert.equal(run1.status, 0, run1.stderr)
-  const m1 = JSON.parse(readFileSync(join(out1, 'manifest.json'), 'utf8'))
   assert.equal(m1.boards.length, 1)
   assert.equal(m1.boards[0].source_id, 'terminal-bench')
   assert.equal(m1.boards[0].state, 'read')
   assert.equal(m1.boards[0].source, 'fixture')
   assert.equal(m1.boards[0].page_date, '2026-11-18')
-
-  const run2 = spawnSync(
-    'bash',
-    [
-      toPosix(FETCH_BOARDS),
-      '--registry', toPosix(regPath),
-      '--out', toPosix(out2),
-      '--manifest', toPosix(join(out2, 'manifest.json')),
-      '--cache-dir', toPosix(cacheDir),
-    ],
-    { encoding: 'utf8', env: { ...env, DOCS_CACHE_NOW: String(nowSec + 100) } },
-  )
   assert.equal(run2.status, 0, run2.stderr)
-  const m2 = JSON.parse(readFileSync(join(out2, 'manifest.json'), 'utf8'))
   assert.equal(m2.boards[0].source_id, 'terminal-bench')
   assert.equal(m2.boards[0].state, 'read')
   assert.equal(m2.boards[0].source, 'cache')
@@ -615,18 +489,7 @@ test('multi-agent.schema.json defines closed vendors block with exact keys and c
 })
 
 test('AC11: routing false prints routing-off Decision recommending nothing, including work Claude cannot do', (t) => {
-  const resCoding = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead'),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    settings: { routing: false, trials: true },
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const resCoding = twoBoards(t, codexLeadRecords(), { settings: { routing: false, trials: true } })
   assert.equal(resCoding.code, 0, resCoding.stderr)
   assert.equal(resCoding.json.vendor, null)
   assert.equal(resCoding.json.model, null)
@@ -634,15 +497,11 @@ test('AC11: routing false prints routing-off Decision recommending nothing, incl
   assert.equal(resCoding.json.basis, 'routing-off')
   assert.ok(resCoding.json.notes.some((n) => /routing is off/i.test(n)))
 
-  const imageModels = {
-    claude: { status: 'ok', models: [{ id: 'kestrel-1' }], image: false },
-    gemini: { status: 'ok', models: [{ id: 'finch-1' }], image: true },
-  }
   const resImage = makeFixture(t, {
     registry: { version: 1, rows: [row('board-a')] },
     manifest: { boards: [] },
     records: [],
-    models: imageModels,
+    models: { claude: { status: 'ok', models: [{ id: 'kestrel-1' }], image: false }, gemini: { status: 'ok', models: [{ id: 'finch-1' }], image: true } },
     settings: { vendors: { routing: false } },
     extraArgs: ['--task-type', 'image'],
   })
@@ -653,41 +512,18 @@ test('AC11: routing false prints routing-off Decision recommending nothing, incl
 })
 
 test('AC4: vendor with in_use false is skipped silently even when unavailable or leading', (t) => {
-  const modelsWithoutCodex = {
-    claude: MODELS.claude,
-    codex: { status: 'unavailable', reason: 'not installed', models: [] },
-    gemini: MODELS.gemini,
-  }
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead'),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    models: modelsWithoutCodex,
+  const res = twoBoards(t, codexLeadRecords(), {
+    models: { claude: MODELS.claude, codex: { status: 'unavailable', reason: 'not installed', models: [] }, gemini: MODELS.gemini },
     settings: { routing: true, codex: { in_use: false } },
-    extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
   assert.equal(res.json.notes.some((n) => /codex/i.test(n)), false, `unexpected codex note: ${res.json.notes.join('; ')}`)
 
-  const resLeading = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead'),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead'),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
+  const resLeading = twoBoards(t, codexLeadRecords(), {
     models: MODELS,
     settings: { routing: true, codex: { in_use: false } },
-    extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(resLeading.code, 0, resLeading.stderr)
   assert.equal(resLeading.json.vendor, 'claude')
@@ -695,24 +531,19 @@ test('AC4: vendor with in_use false is skipped silently even when unavailable or
 })
 
 test('AC4: vendor declared in_use true but unavailable in --models gets exactly one note line', (t) => {
-  const modelsUnavailable = {
-    claude: MODELS.claude,
-    codex: MODELS.codex,
-    gemini: { status: 'unavailable', reason: 'cli missing', models: [] },
-  }
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
+  const res = twoBoards(
+    t,
+    [
       rec('board-a', 'gemini', 'finch-1', 'lead'),
       rec('board-a', 'claude', 'kestrel-1', 'behind'),
       rec('board-b', 'gemini', 'finch-1', 'lead'),
       rec('board-b', 'claude', 'kestrel-1', 'behind'),
     ],
-    models: modelsUnavailable,
-    settings: { routing: true, antigravity: { in_use: true } },
-    extraArgs: ['--task-type', 'coding'],
-  })
+    {
+      models: { claude: MODELS.claude, codex: MODELS.codex, gemini: { status: 'unavailable', reason: 'cli missing', models: [] } },
+      settings: { routing: true, antigravity: { in_use: true } },
+    },
+  )
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   const geminiNotes = res.json.notes.filter((n) => /gemini|antigravity/i.test(n))
@@ -728,28 +559,20 @@ test('AC3: settings tiebreak steps apply in order using vendor ranks; empty tieb
     rec('board-b', 'claude', 'kestrel-1', 'tie'),
     rec('board-b', 'codex', 'sparrow-1', 'tie'),
   ]
-  const resEmpty = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: tieRecords,
+  const resEmpty = twoBoards(t, tieRecords, {
     settings: { routing: true, tiebreak: [], codex: { rank: 1 }, claude: { rank: 2 } },
-    extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(resEmpty.code, 0, resEmpty.stderr)
   assert.equal(resEmpty.json.vendor, 'claude')
   assert.equal(resEmpty.json.basis, 'default')
 
-  const resOrder = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: tieRecords,
+  const resOrder = twoBoards(t, tieRecords, {
     settings: {
       routing: true,
       tiebreak: ['fewest-tokens', 'most-usage-left', 'vendor-order'],
       codex: { rank: 1 },
       claude: { rank: 2 },
     },
-    extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(resOrder.code, 0, resOrder.stderr)
   assert.equal(resOrder.json.vendor, 'codex')
@@ -760,21 +583,16 @@ test('AC3: settings tiebreak steps apply in order using vendor ranks; empty tieb
 })
 
 test('sources.<id>.enabled false in settings disables that registry row', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
+  const res = twoBoards(
+    t,
+    [
       rec('board-a', 'codex', 'sparrow-1', 'lead'),
       rec('board-a', 'claude', 'kestrel-1', 'behind'),
       rec('board-b', 'codex', 'sparrow-1', 'lead'),
       rec('board-b', 'claude', 'kestrel-1', 'behind'),
     ],
-    settings: {
-      routing: true,
-      sources: { 'board-b': { enabled: false } },
-    },
-    extraArgs: ['--task-type', 'coding'],
-  })
+    { settings: { routing: true, sources: { 'board-b': { enabled: false } } } },
+  )
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'claude')
   assert.equal(res.json.basis, 'default')
@@ -897,17 +715,7 @@ test('settings roles.worker.single supplies Claude base model and effort before 
 })
 
 test('coding effort floor raises consensus and trial recommendations below model default with one note', (t) => {
-  const res = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'low' }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead', { effort: 'low' }),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const res = twoBoards(t, codexLeadRecords({ effort: 'low' }))
   assert.equal(res.code, 0, res.stderr)
   assert.equal(res.json.vendor, 'codex')
   assert.equal(res.json.effort, 'medium')
@@ -917,10 +725,7 @@ test('coding effort floor raises consensus and trial recommendations below model
   const resTrial = makeFixture(t, {
     registry: { version: 1, rows: [row('board-a')] },
     manifest: { boards: [boardEntry('board-a')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'low' }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-    ],
+    records: [rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'low' }), rec('board-a', 'claude', 'kestrel-1', 'behind')],
     settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
     extraArgs: ['--task-type', 'coding'],
   })
@@ -956,59 +761,234 @@ test('security: board-reader findings text is never copied to stdout; fixed note
 })
 
 test('security: unsafe record fields dropped, unlisted effort falls back to default, pair_key ignores record version', (t) => {
-  const resInject = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'high; rm -rf ~' }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead', { effort: 'high' }),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const resInject = twoBoards(t, [
+    rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'high; rm -rf ~' }),
+    rec('board-a', 'claude', 'kestrel-1', 'behind'),
+    rec('board-b', 'codex', 'sparrow-1', 'lead', { effort: 'high' }),
+    rec('board-b', 'claude', 'kestrel-1', 'behind'),
+  ])
   assert.equal(resInject.code, 0, resInject.stderr)
   assert.equal(resInject.json.vendor, 'claude')
   assert.equal(resInject.stdout.includes('high; rm -rf ~'), false)
   assert.ok(resInject.json.notes.some((n) => /board-a/.test(n) && /effort/.test(n)))
 
-  const resUnlisted = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { effort: 'ultra', version: 'board-claimed-v99' }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead', { effort: 'ultra', version: 'board-claimed-v99' }),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    extraArgs: ['--task-type', 'coding'],
-  })
+  const resUnlisted = twoBoards(t, codexLeadRecords({ effort: 'ultra', version: 'board-claimed-v99' }))
   assert.equal(resUnlisted.code, 0, resUnlisted.stderr)
   assert.equal(resUnlisted.json.vendor, 'codex')
   assert.equal(resUnlisted.json.effort, 'medium')
   assert.equal(resUnlisted.json.pair_key.includes('board-claimed-v99'), false)
   assert.equal(resUnlisted.json.pair_key, 'codex:sparrow-1:null:medium:coding')
 
-  const modelsWithVer = {
-    ...MODELS,
-    codex: {
-      status: 'ok',
-      models: [{ id: 'sparrow-1', version: '2026-10', efforts: ['low', 'medium', 'high'], default_effort: 'medium' }],
+  const resModelsVer = twoBoards(t, codexLeadRecords({ version: 'board-claimed-v99' }), {
+    models: {
+      ...MODELS,
+      codex: {
+        status: 'ok',
+        models: [{ id: 'sparrow-1', version: '2026-10', efforts: ['low', 'medium', 'high'], default_effort: 'medium' }],
+      },
     },
-  }
-  const resModelsVer = makeFixture(t, {
-    registry: { version: 1, rows: [row('board-a'), row('board-b')] },
-    manifest: { boards: [boardEntry('board-a'), boardEntry('board-b')] },
-    records: [
-      rec('board-a', 'codex', 'sparrow-1', 'lead', { version: 'board-claimed-v99' }),
-      rec('board-a', 'claude', 'kestrel-1', 'behind'),
-      rec('board-b', 'codex', 'sparrow-1', 'lead', { version: 'board-claimed-v99' }),
-      rec('board-b', 'claude', 'kestrel-1', 'behind'),
-    ],
-    models: modelsWithVer,
-    extraArgs: ['--task-type', 'coding'],
   })
   assert.equal(resModelsVer.code, 0, resModelsVer.stderr)
   assert.equal(resModelsVer.json.pair_key.includes('board-claimed-v99'), false)
   assert.equal(resModelsVer.json.pair_key, 'codex:sparrow-1:2026-10:high:coding')
+})
+
+test('AC5: --needs-tools skips harness lacking a required tool with one note; capable harness still wins', (t) => {
+  const resSkip = twoBoards(t, codexLeadRecords(), {
+    models: {
+      claude: { ...MODELS.claude, tools: ['file', 'shell', 'mcp'] },
+      codex: { ...MODELS.codex, tools: ['file', 'shell'] },
+      gemini: { ...MODELS.gemini, tools: ['file', 'shell', 'mcp'] },
+    },
+    extraArgs: ['--task-type', 'coding', '--needs-tools', 'file,mcp'],
+  })
+  assert.equal(resSkip.code, 0, resSkip.stderr)
+  assert.equal(resSkip.json.vendor, 'claude')
+  assert.equal(resSkip.json.basis, 'default')
+  const toolNotes = resSkip.json.notes.filter((n) => /codex/i.test(n) && /tool/i.test(n))
+  assert.equal(toolNotes.length, 1, `expected 1 tool note, got: ${JSON.stringify(toolNotes)}`)
+  assert.match(toolNotes[0], /mcp/i)
+
+  const resOk = twoBoards(t, codexLeadRecords(), {
+    models: {
+      claude: { ...MODELS.claude, tools: ['file', 'shell', 'mcp'] },
+      codex: { ...MODELS.codex, tools: ['file', 'shell', 'mcp'] },
+    },
+    extraArgs: ['--task-type', 'coding', '--needs-tools', 'file,mcp'],
+  })
+  assert.equal(resOk.code, 0, resOk.stderr)
+  assert.equal(resOk.json.vendor, 'codex')
+  assert.equal(resOk.json.basis, 'consensus')
+})
+
+test('AC5: --context skips models below required tokens with one note and does not skip Claude when unknown', (t) => {
+  const resSkipCodex = twoBoards(t, codexLeadRecords(), {
+    models: {
+      claude: MODELS.claude,
+      codex: {
+        status: 'ok',
+        models: [{ id: 'sparrow-1', efforts: ['medium', 'high'], default_effort: 'medium', context_window: 128000 }],
+      },
+    },
+    extraArgs: ['--task-type', 'coding', '--context', '300000'],
+  })
+  assert.equal(resSkipCodex.code, 0, resSkipCodex.stderr)
+  assert.equal(resSkipCodex.json.vendor, 'claude')
+  assert.equal(resSkipCodex.json.basis, 'default')
+  const ctxNotes = resSkipCodex.json.notes.filter((n) => /sparrow-1/i.test(n) && /context_window/i.test(n))
+  assert.equal(ctxNotes.length, 1, `expected 1 context note, got: ${JSON.stringify(ctxNotes)}`)
+  assert.equal(resSkipCodex.json.notes.some((n) => /claude/i.test(n) && /context_window/i.test(n)), false)
+
+  const resSkipClaude = twoBoards(t, [], {
+    models: {
+      claude: {
+        status: 'ok',
+        models: [{ id: 'kestrel-1', efforts: ['medium', 'high'], default_effort: 'medium', context_window: 200000 }],
+        default_model: 'inherit',
+        default_effort: 'medium',
+      },
+      codex: {
+        status: 'ok',
+        models: [{ id: 'sparrow-big', efforts: ['medium', 'high'], default_effort: 'medium', context_window: 1000000 }],
+      },
+    },
+    extraArgs: ['--task-type', 'coding', '--context', '500000'],
+  })
+  assert.equal(resSkipClaude.code, 0, resSkipClaude.stderr)
+  assert.equal(resSkipClaude.json.vendor, 'codex')
+  assert.equal(resSkipClaude.json.model, 'sparrow-big')
+  assert.equal(resSkipClaude.json.basis, 'claude-cannot')
+  assert.equal(resSkipClaude.json.notes.filter((n) => /kestrel-1/i.test(n) && /context_window/i.test(n)).length, 1)
+})
+
+test('AC4: vendor with breaker.open true is skipped with one note naming reset_at; in_use false stays silent', (t) => {
+  const breakerModels = {
+    claude: MODELS.claude,
+    codex: {
+      ...MODELS.codex,
+      breaker: { open: true, reason: 'usage-limit', reset_at: '2026-11-23T06:00:00.000Z' },
+    },
+  }
+  const res = twoBoards(t, codexLeadRecords(), { models: breakerModels })
+  assert.equal(res.code, 0, res.stderr)
+  assert.equal(res.json.vendor, 'claude')
+  assert.equal(res.json.basis, 'default')
+  const breakerNotes = res.json.notes.filter((n) => /codex/i.test(n) && /breaker/i.test(n))
+  assert.equal(breakerNotes.length, 1, `expected 1 breaker note, got: ${JSON.stringify(breakerNotes)}`)
+  assert.match(breakerNotes[0], /2026-11-23T06:00:00\.000Z/)
+
+  const resSilent = twoBoards(t, codexLeadRecords(), {
+    models: breakerModels,
+    settings: { routing: true, codex: { in_use: false } },
+  })
+  assert.equal(resSilent.code, 0, resSilent.stderr)
+  assert.equal(resSilent.json.notes.some((n) => /codex/i.test(n)), false)
+})
+
+test('D12/AC17: most-usage-left picks highest remaining; unavailable or missing reading falls back to vendor order with one note', (t) => {
+  const tieRecords = [
+    rec('board-a', 'claude', 'kestrel-1', 'tie'),
+    rec('board-a', 'codex', 'sparrow-1', 'tie'),
+    rec('board-b', 'claude', 'kestrel-1', 'tie'),
+    rec('board-b', 'codex', 'sparrow-1', 'tie'),
+  ]
+  const resMost = twoBoards(t, tieRecords, {
+    settings: { routing: true, tiebreak: ['most-usage-left'], claude: { rank: 1 }, codex: { rank: 2 } },
+    usage: {
+      claude: { status: 'ok', remaining: 0.32, window: '5h', source: 'rate-limits' },
+      codex: { status: 'ok', remaining: 0.84, window: '5h', source: 'codex app-server' },
+    },
+  })
+  assert.equal(resMost.code, 0, resMost.stderr)
+  assert.equal(resMost.json.vendor, 'codex')
+  assert.equal(resMost.json.basis, 'consensus')
+  assert.ok(resMost.json.notes.some((n) => /most-usage-left selected codex/i.test(n)))
+
+  const resUnavail = twoBoards(t, tieRecords, {
+    settings: { routing: true, tiebreak: ['most-usage-left'], codex: { rank: 1 }, claude: { rank: 2 } },
+    usage: {
+      claude: { status: 'unavailable', reason: 'rate-limits plugin not enabled', source: 'rate-limits' },
+      codex: { status: 'ok', remaining: 0.84, window: '5h', source: 'codex app-server' },
+    },
+  })
+  assert.equal(resUnavail.code, 0, resUnavail.stderr)
+  assert.equal(resUnavail.json.vendor, 'codex')
+  assert.equal(resUnavail.json.basis, 'consensus')
+  const fbNotes = resUnavail.json.notes.filter((n) => /most-usage-left unavailable/i.test(n))
+  assert.equal(fbNotes.length, 1, `expected 1 fallback note, got: ${JSON.stringify(fbNotes)}`)
+  assert.match(fbNotes[0], /vendor-order/i)
+
+  const resOrderIgnoresUsage = twoBoards(t, tieRecords, {
+    settings: { routing: true, tiebreak: ['vendor-order'], claude: { rank: 1 }, codex: { rank: 2 } },
+    usage: {
+      claude: { status: 'ok', remaining: 0.1, window: '5h' },
+      codex: { status: 'ok', remaining: 0.99, window: '5h' },
+    },
+  })
+  assert.equal(resOrderIgnoresUsage.code, 0, resOrderIgnoresUsage.stderr)
+  assert.equal(resOrderIgnoresUsage.json.vendor, 'claude')
+  assert.equal(resOrderIgnoresUsage.json.notes.some((n) => /most-usage-left/i.test(n)), false)
+})
+
+test('AC8/AC20: image routes to capable vendor with claude-cannot; every capable vendor failed recommends nothing and lets user choose', (t) => {
+  const imageModels = {
+    claude: { status: 'ok', models: [{ id: 'kestrel-1' }], image: false },
+    codex: {
+      status: 'ok',
+      models: [{ id: 'sparrow-1', version: '1', efforts: ['medium', 'high'], default_effort: 'medium' }],
+      tools: ['file', 'shell', 'image_generation'],
+      image: true,
+    },
+    gemini: {
+      status: 'ok',
+      models: [{ id: 'finch-1', version: '1' }],
+      efforts: ['low', 'medium', 'high'],
+      default_effort: 'medium',
+      tools: ['file', 'shell', 'generate_image'],
+      image: true,
+    },
+  }
+  const resCapable = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [] },
+    records: [],
+    models: imageModels,
+    settings: { routing: true, codex: { rank: 1 }, antigravity: { rank: 2 } },
+    extraArgs: ['--task-type', 'image'],
+  })
+  assert.equal(resCapable.code, 0, resCapable.stderr)
+  assert.equal(resCapable.json.vendor, 'codex')
+  assert.equal(resCapable.json.model, 'sparrow-1')
+  assert.equal(resCapable.json.basis, 'claude-cannot')
+
+  const failedBothDir = seedOutcome(t, [
+    {
+      key: { vendor: 'codex', model: 'sparrow-1', version: '1', effort: 'medium', work_type: 'image' },
+      result: 'failed',
+      at: '2026-11-22T00:00:00.000Z',
+      results_counted: 2,
+    },
+    {
+      key: { vendor: 'gemini', model: 'finch-1', version: '1', effort: 'medium', work_type: 'image' },
+      result: 'failed',
+      at: '2026-11-22T00:00:00.000Z',
+      results_counted: 2,
+    },
+  ])
+  const resAllFailed = makeFixture(t, {
+    registry: { version: 1, rows: [row('board-a')] },
+    manifest: { boards: [] },
+    records: [],
+    models: imageModels,
+    settings: { routing: true, trials: true, trials_prove: 3, trials_fail: 2 },
+    stateDir: failedBothDir,
+    extraArgs: ['--task-type', 'image'],
+  })
+  assert.equal(resAllFailed.code, 0, resAllFailed.stderr)
+  assert.equal(resAllFailed.json.vendor, null)
+  assert.equal(resAllFailed.json.model, null)
+  assert.equal(resAllFailed.json.effort, null)
+  assert.equal(resAllFailed.json.pair_key, null)
+  assert.equal(resAllFailed.json.basis, 'user-choice')
+  assert.ok(resAllFailed.json.notes.some((n) => /every image-capable vendor failed/i.test(n) && /user chooses/i.test(n)))
 })

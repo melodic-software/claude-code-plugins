@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/route/scripts/vendor-decide --task-type image --settings /tmp/s/settings.json --manifest /tmp/s/manifest.json --models /tmp/s/models.json --records /tmp/s/empty.json"
+          }
+        }
+      ],
+      "why": "invokes vendor-decide"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}
