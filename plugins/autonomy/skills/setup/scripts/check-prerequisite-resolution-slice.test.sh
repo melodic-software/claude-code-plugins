@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for the prerequisite-resolution setup slice wrappers.
 # test-scope: plugins/autonomy/skills/setup/scripts/fixtures/prerequisite-resolution/*
 set -uo pipefail
 
@@ -28,7 +27,6 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# --- bare-repo check: every identity negative/unknown, no error -------------
 if out="$(node "$CHECK" --repo "$FIXTURES/bare-repo/repo" --surface ci-cron 2>"$tmp/err")"; then
   node -e '
     const o = JSON.parse(process.argv[1]);
@@ -49,8 +47,6 @@ else
   fail "bare_repo_check: check exited non-zero: $(cat "$tmp/err")"
 fi
 
-# --- reconcile finding: declaration vs ran-negative probe -------------------
-# Reuse probe-negative-caps fixture (declaration asserts tracker present; absent).
 if out="$(node "$APPLY" --repo "$FIXTURES/probe-negative-caps/repo" --surface ci-cron --non-interactive 2>"$tmp/err")"; then
   node -e '
     const o = JSON.parse(process.argv[1]);
@@ -71,7 +67,6 @@ else
   fail "reconcile_finding: apply exited non-zero: $(cat "$tmp/err")"
 fi
 
-# --- ratify writes section without surfaces map; envelope check passes ------
 mkdir -p "$tmp/repo/.claude/autonomy"
 cat >"$tmp/repo/.claude/autonomy/binding.json" <<'EOF'
 {
@@ -130,10 +125,6 @@ else
   fail "ratify: apply --ratify failed: $(cat "$tmp/err")"
 fi
 
-# --- ratify again: a matching declaration is replaced in place --------------
-# The binding now holds the tracker declaration above; a proposal with the same
-# surface, identity and need replaces it where it stands, a new need appends,
-# and surface_refs stay deduplicated.
 cat >"$tmp/proposal-replace.json" <<'EOF'
 {
   "schema_version": "1.0",
@@ -175,7 +166,6 @@ else
   fail "ratify_replace: apply --ratify failed: $(cat "$tmp/err")"
 fi
 
-# --- check with no --surface derives the surfaces from the binding ----------
 if out="$(node "$CHECK" --repo "$tmp/repo" 2>"$tmp/err")"; then
   node -e '
     const o = JSON.parse(process.argv[1]);
@@ -192,7 +182,6 @@ else
   fail "binding_surfaces: check exited non-zero: $(cat "$tmp/err")"
 fi
 
-# Envelope conformance against the fixture binding carrying the new section.
 cat >"$tmp/envelope.md" <<'EOF'
 <!-- autonomy:signal:v1 -->
 ```json
@@ -210,8 +199,6 @@ cat >"$tmp/envelope.md" <<'EOF'
 }
 ```
 EOF
-# Enable the routine so the envelope can cite it; prerequisite_resolution section
-# must still not introduce a surfaces map (envelope merges surfaces across sections).
 node -e '
 const fs = require("node:fs");
 const p = process.argv[1];
@@ -225,8 +212,6 @@ else
   fail "envelope: $(cat "$tmp/env.err")"
 fi
 
-# executor_class is deprecated and optional: a security binding without it
-# passes the envelope checker's structural gate.
 if node "$ENVELOPE" "$tmp/envelope.md" --binding "$tmp/repo/.claude/autonomy/binding.json" \
   --security-binding "$SELF_DIR/../evals/fixtures/security-binding/executor-class-absent.json" >/dev/null 2>"$tmp/env.err"; then
   ok "envelope: security binding without executor_class passes the gate"

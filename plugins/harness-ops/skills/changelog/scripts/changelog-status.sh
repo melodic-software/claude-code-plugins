@@ -76,12 +76,11 @@ range_arg=""
 cap_releases="${HARNESS_OPS_CHANGELOG_CAP_RELEASES:-10}"
 cap_items="${HARNESS_OPS_CHANGELOG_CAP_ITEMS:-300}"
 
-need_value() {
-  if [[ $# -lt 2 || -z "$2" ]]; then
-    err "$1 needs a value"
-    exit 3
-  fi
-}
+# shellcheck source=../../../lib/opt-value.sh
+opt_value_dir="${BASH_SOURCE[0]%/*}"
+[[ "$opt_value_dir" != "${BASH_SOURCE[0]}" ]] || opt_value_dir=.
+source "$opt_value_dir/../../../lib/opt-value.sh"
+OPT_VALUE_EXIT=3
 
 while (($#)); do
   case "$1" in
@@ -90,12 +89,12 @@ while (($#)); do
     exit 0
     ;;
   --ledger)
-    need_value "$@"
+    require_opt_value changelog-status.sh "$@"
     ledger_arg="$2"
     shift 2
     ;;
   --changelog)
-    need_value "$@"
+    require_opt_value changelog-status.sh "$@"
     changelog_arg="$2"
     shift 2
     ;;
@@ -104,17 +103,17 @@ while (($#)); do
     shift
     ;;
   --range)
-    need_value "$@"
+    require_opt_value changelog-status.sh "$@"
     range_arg="$2"
     shift 2
     ;;
   --cap-releases)
-    need_value "$@"
+    require_opt_value changelog-status.sh "$@"
     cap_releases="$2"
     shift 2
     ;;
   --cap-items)
-    need_value "$@"
+    require_opt_value changelog-status.sh "$@"
     cap_items="$2"
     shift 2
     ;;

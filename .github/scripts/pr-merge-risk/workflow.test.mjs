@@ -6,32 +6,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { workflowText } from "../lib/workflow-text.mjs";
 import { ARTIFACT_PREFIX, RATING_WORKFLOW_PATH, runTitle } from "../pr-merge/merge-risk-line.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-rate-merge-risk.yml", import.meta.url), "utf8");
 const LEGS = { key: "rate-merge-risk", subscription: "rate-merge-risk-subscription", fallback: "rate-merge-risk-fallback" };
-// Each job's text, by its id: from its id line to the next job's, less the
-// next job's header comment.
-const jobsText = text.split("\njobs:\n")[1];
-const starts = [...jobsText.matchAll(/^ {2}([a-z-]+):$/gm)];
-const jobs = new Map(starts.map((match, i) => [match[1], jobsText.slice(match.index, starts[i + 1]?.index).replace(/\s*(?:\n {2}#[^\n]*)*\s*$/, "\n")]));
-const job = (id) => {
-  assert.ok(jobs.has(id), `no job ${id}`);
-  return jobs.get(id);
-};
-// A job's steps' text, by step name, less the next step's comment.
-const stepsOf = (id) =>
-  new Map(
-    job(id)
-      .split(/\n(?= {6}- name: )/)
-      .slice(1)
-      .map((block) => [/^ {6}- name: (.+)$/m.exec(block)[1], block.replace(/\s*(?:\n {6}#[^\n]*)*\s*$/, "\n")]),
-  );
-const step = (id, name) => {
-  const steps = stepsOf(id);
-  assert.ok(steps.has(name), `${id} has no step named ${name}`);
-  return steps.get(name);
-};
+const wf = workflowText(text);
+const { job } = wf;
+const stepsOf = (id) => new Map(wf.steps(id).map((s) => [s.name, s.text]));
+const step = (id, name) => wf.stepNamed(id, name).text;
 const list = (block, key) =>
   new RegExp(`\\n {10}${key}: \\|\\n((?: {12}.+\\n)+)`)
     .exec(block)[1]
@@ -48,7 +31,7 @@ test("the run-name renders as runTitle, so a run still going is found for its he
 
 test("the workflow grants nothing, its three jobs are the three legs, and each job token only reads", () => {
   assert.match(text, /\npermissions: \{\}\n/);
-  assert.deepEqual([...jobs.keys()], Object.values(LEGS));
+  assert.deepEqual(wf.ids, Object.values(LEGS));
   for (const id of Object.values(LEGS)) {
     assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read # [^\n]+\n {6}pull-requests: read # [^\n]+\n {6}actions: read # [^\n]+\n {4}(?:outputs|steps):/, id);
   }

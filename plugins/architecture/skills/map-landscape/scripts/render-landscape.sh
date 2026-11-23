@@ -67,8 +67,6 @@ set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 
 usage() {
-  # Print the header comment block only, selected by comment marker so --help
-  # stays correct as the block grows.
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
@@ -162,21 +160,14 @@ layout_problem="$(record_layout_problem "$record")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout landscape-record.sh writes ($layout_problem); regenerate it: $record" 1
 
-# The first top-level "<key>": "<string>" value in the record, else <default>.
 record_string() {
   local value
   value="$(sed -n "s/^[[:space:]]*\"$1\"[[:space:]]*:[[:space:]]*\"\\(.*\\)\".*\$/\\1/p" "$record" | head -1)"
   printf '%s' "${value:-$2}"
 }
 
-# Which organization the landscape is drawn from. A checkout is internal because
-# its owner matches this one, not because someone happened to have it on disk.
-# A record that names no subject owner cannot make that call, so every checkout
-# in it stays internal and the drawing is the same as it was.
 subject_owner="$(record_string subject_owner unknown)"
 
-# The top-level key/value split in lib/split-object.awk, shared with
-# landscape-record.sh, then this script's own functions.
 read -r -d '' SPLIT_AWK <<'AWK' || true
 # The record is JSON, so a quote or a backslash inside a value arrives escaped.
 # Stripping the delimiters without undoing the escapes hands the next stage a
@@ -227,14 +218,6 @@ AWK
 SPLIT_OBJECT_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/split-object.awk"
 SPLIT_AWK="$(<"$SPLIT_OBJECT_AWK")"$'\n'"$SPLIT_AWK"
 
-# --- The shared node and edge model ----------------------------------------
-#
-# Both renderers read the same three streams, so a system drawn in one dialect
-# is the same system in the other.
-#
-#   node<TAB>alias<TAB>owner/repo<TAB>display<TAB>relation<TAB>description<TAB>owner
-#   edge<TAB>from-alias<TAB>to-alias<TAB>label<TAB>relation
-#   omit<TAB>external-systems-not-drawn
 
 model="$(awk -v top="$top_external" -v subject_owner="$subject_owner" "$SPLIT_AWK"'
 function alias(s,   a) {
@@ -408,7 +391,6 @@ remote_state="$(record_string remote 'not used')"
 
 omit_ext="$(printf '%s\n' "$model" | awk -F'\t' '$1 == "omit" { print $2 }')"
 
-# --- Artifact one, the landscape -------------------------------------------
 
 if [[ "$dialect" == "mermaid" ]]; then
   target="$outdir/landscape.md"
@@ -491,10 +473,6 @@ else
     printf '%s\n' "$model" | awk -F'\t' '$1 == "edge" { printf "    %s -> %s \"%s\"\n", $2, $3, $4 }'
     printf '  }\n  views {\n    systemLandscape "landscape" {\n'
     printf '      include *\n      autoLayout\n    }\n'
-    # Structurizr removed the internal/external `location` property, so a tag is
-    # the only carrier left for that fact. Without a style to read it the tag
-    # renders nothing, and the DSL artifact would lose a distinction the mermaid
-    # one keeps through System versus System_Ext.
     printf '    styles {\n      element "External" {\n'
     printf '        background #999999\n        color #ffffff\n      }\n    }\n'
     printf '  }\n}\n'
@@ -508,7 +486,6 @@ if [[ -n "$notes" ]]; then
   } >>"$target"
 fi
 
-# --- Artifact two, the portfolio table -------------------------------------
 
 {
   printf '# Application portfolio\n\n'
@@ -560,8 +537,6 @@ fi
       for (i = 1; i <= n; i++) print rows[i]
     }
   ' "$record"
-  # Development-scope dependencies stay out of the table: they are the longest
-  # list in the record and would push every other column off the page.
   dev_lines="$(awk "$SPLIT_AWK"'
     function deplist(v,   n, list, parts, i, out) {
       n = arraycount(v)

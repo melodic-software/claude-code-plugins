@@ -5,27 +5,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { admits } from "../lib/gate-expression.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 
 const text = readFileSync(new URL("../../workflows/intake-label-outside-actor-activity.yml", import.meta.url), "utf8");
-// The job's folded `if: >-` scalar, joined as YAML folds it.
-const condition = /\n {4}if: >-\n((?: {6,}.*\n)+)/.exec(text)[1].split("\n").map((line) => line.trim()).filter(Boolean).join(" ");
+const wf = workflowText(text);
+const condition = wf.jobIf("label-outside-actor");
 const block = (name) => new RegExp(`\\n {4}${name}:\\n((?: {6}[a-z-]+: .*\\n)+)`).exec(text)[1];
 const pairs = (body) => Object.fromEntries([...body.matchAll(/ {6}([a-z-]+): ([^\s#]+)/g)].map((m) => [m[1], m[2]]));
-const steps = text.split(/\n {6}- name: /).slice(1);
+const steps = wf.steps("label-outside-actor");
+const named = (name) => steps.find((step) => step.name === name).text;
 
-// Evaluates the job's `if` against a payload: it uses only `github.event`
-// paths, `!=`, `&&`, `||`, `!`, contains() and fromJSON() over literals.
-function runs(event, repository = "melodic-software/claude-code-plugins", eventName = event.pull_request ? "pull_request_target" : "issues") {
-  const get = (pathText) => pathText.split(".").reduce((value, key) => value?.[key], event) ?? null;
-  const js = condition
-    .replace(/github\.event\.([a-z_.]+)/g, (_, p) => `get(${JSON.stringify(p)})`)
-    .replace(/github\.repository\b/g, JSON.stringify(repository))
-    .replace(/github\.event_name\b/g, JSON.stringify(eventName))
-    .replace(/fromJSON\('([^']*)'\)/g, "JSON.parse('$1')")
-    .replace(/ (==|!=) /g, " $1= ");
-  return new Function("get", "contains", `return Boolean(${js});`)(get, (list, item) => list.includes(item));
-}
+const runs = (event, repository = "melodic-software/claude-code-plugins", eventName = event.pull_request ? "pull_request_target" : "issues") =>
+  admits(condition, { github: { event, repository, event_name: eventName } });
 
 const user = { type: "User", login: "stranger" };
 
@@ -137,10 +130,10 @@ test("the job holds the job token with least privilege, and no secret, App token
 });
 
 test("it checks out main only, without credentials, and pins every external action by SHA", () => {
-  const checkout = steps.find((step) => step.includes("uses: actions/checkout@"));
+  const checkout = steps.find((step) => step.text.includes("uses: actions/checkout@")).text;
   assert.match(checkout, /\n {8}uses: actions\/checkout@[0-9a-f]{40} #/);
   assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
-  assert.match(steps.find((step) => step.startsWith("Resolve main's tip\n")), /\n {10}branch: main$/);
+  assert.match(named("Resolve main's tip"), /\n {10}branch: main\n$/);
   for (const [, uses] of text.matchAll(/\n +uses: ([^\s.][^\s]*)/g)) {
     assert.match(uses, /@[0-9a-f]{40}$/, uses);
   }
@@ -153,22 +146,22 @@ test("it checks out main only, without credentials, and pins every external acti
 
 test("no event text reaches a shell: run lines carry no expression, the script reads the payload", () => {
   for (const step of steps) {
-    const run = step.split(/\n +run: /)[1];
-    if (run !== undefined) assert.doesNotMatch(run, /\$\{\{/, step.split("\n")[0]);
+    const run = step.text.split(/\n +run: /)[1];
+    if (run !== undefined) assert.doesNotMatch(run, /\$\{\{/, step.name);
   }
-  const flag = steps.find((step) => step.startsWith("Flag an outside actor\n"));
+  const flag = named("Flag an outside actor");
   assert.equal(
     flag,
-    "Flag an outside actor\n        env:\n          GITHUB_TOKEN: ${{ github.token }}\n" +
+    "      - name: Flag an outside actor\n        env:\n          GITHUB_TOKEN: ${{ github.token }}\n" +
       "          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json\n" +
       "        run: node .base/.github/scripts/security-outside-actor/flag.mjs\n",
   );
 });
 
 test("a failed resolve-config install does not skip the flag step", () => {
-  const install = steps.find((step) => step.startsWith("Install resolve-config's packages\n"));
+  const install = named("Install resolve-config's packages");
   assert.match(install, /\n {8}continue-on-error: true\n/);
-  const flag = steps.find((step) => step.startsWith("Flag an outside actor\n"));
+  const flag = named("Flag an outside actor");
   assert.doesNotMatch(flag, /\n {8}if: /, "the flag step runs on the default success() condition, which a continue-on-error failure keeps");
 });
 

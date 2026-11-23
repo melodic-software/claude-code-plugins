@@ -1,6 +1,6 @@
 ---
 description: "The repository's convention home sets acceptance_criteria_format to ears: the locked Brief's acceptance criteria carry the bracketed EARS pattern tag after each AC id"
-tags: [interview, acceptance-criteria, ears, convention]
+tags: [interview, acceptance-criteria, ears, convention, no-network]
 runs: 3
 max_turns: 25
 timeout_seconds: 900

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # test-scope: plugins/*/evals/*/case.yaml plugins/*/evals/*/matchers.json plugins/*/evals/*/samples/*
+# test-scope: plugins/evals/matchers/*
 """Tests for check-matchers.py: rendering, drift, sample registration, both
-regex engines, and the live fragments file with every suite in the repository."""
+regex engines, and the live fragment files with every suite in the repository."""
 
 import importlib.util
 import json
@@ -209,6 +210,26 @@ class HarnessTests(unittest.TestCase):
         result = self.run_check()
         self.assertEqual(1, result.returncode)
         self.assertIn('fragment "thin" needs must-fail samples', result.stdout)
+
+    def test_a_directory_loads_every_file_and_refuses_a_name_twice(self):
+        library = self.tmp / "library"
+        library.mkdir()
+        data = json.loads(self.fragments.read_text(encoding="utf-8"))
+        anywhere = data.pop("anywhere")
+        (library / "a.json").write_text(json.dumps(data), encoding="utf-8")
+        (library / "b.json").write_text(
+            json.dumps({"anywhere": anywhere}), encoding="utf-8"
+        )
+        self.fragments = library
+        result = self.run_check()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("2 fragments, 1 cases with matchers", result.stdout)
+        (library / "c.json").write_text(
+            json.dumps({"anywhere": anywhere}), encoding="utf-8"
+        )
+        result = self.run_check()
+        self.assertEqual(2, result.returncode)
+        self.assertIn('fragment "anywhere" is in both b.json and c.json', result.stderr)
 
     def test_without_node_it_refuses(self):
         result = self.run_check(env={"PATH": ""})

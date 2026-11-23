@@ -1,6 +1,6 @@
 ---
 description: "Contract case for the document hand-off on an assumption-sweep `person` item the user cannot answer (the retention window the team's DBA sets). Why hard: the Brief is locked and the natural handoff is /planning:plan alone, so the one question only the DBA can answer stays parked in the Brief with nobody asked to answer it, or the run fills in a window on her behalf."
-tags: [interview, handoff, document, assumption-sweep]
+tags: [interview, handoff, document, assumption-sweep, no-network]
 runs: 3
 max_turns: 12
 timeout_seconds: 600

@@ -130,9 +130,11 @@ Each sense keeps its name by a recorded decision.
 **harness**
 
 The program that runs a model as an agent: it gives the model its tools, gates their use, loads
-its instructions and memory, and repeats the model-then-tools cycle. In this repository the
-harness is Claude Code, the sense in the `harness-config`, `harness-memory` and `harness-ops`
-plugin names ([Claude Code glossary](https://code.claude.com/docs/en/glossary), read 2026-11-21).
+its instructions and memory, and repeats the model-then-tools cycle. Bare *harness* means Claude
+Code, the sense in the `harness-config`, `harness-memory` and `harness-ops` plugin names
+([Claude Code glossary](https://code.claude.com/docs/en/glossary), read 2026-11-21). In **vendor
+routing** it is any agent CLI a delegated task runs in (Claude Code, Codex CLI, Antigravity CLI),
+the sense benchmark rows use when they name the agent a model ran inside.
 
 ### Work items
 
@@ -342,6 +344,81 @@ playbook does differently on it.
 
 Avoid: delta chapter
 
+### Vendor routing
+
+**vendor routing**
+
+Choosing the vendor (Claude, Codex or Gemini), harness, model and effort for one delegated task,
+owned by [`vendors.md`](../plugins/multi-agent/reference/vendors.md). Distinct from routing a
+Claude model and effort to an agent role, which `/multi-agent:route <role>` does.
+
+**work type**
+
+A kind of work routed on its own, such as coding (review, debugging and game development
+included), web UI, knowledge work or image generation.
+
+**workload**
+
+The subject matter a benchmark measures within a work type, such as terminal work or multi-file
+editing within coding. Sources are counted per workload.
+
+Avoid: slice (bare **slice** is the topic folder)
+
+**benchmark registry**
+
+The list of benchmarks and provider result pages vendor routing may read. Each row is a pointer to
+a page; the scores stay on the page.
+
+**permanent row**
+
+A benchmark registry row that has passed the longevity, accuracy and coverage tests. A row not yet
+permanent is a support-only source.
+
+**leading source**
+
+A permanent row that publishes an error range for its scores, so it can show a lead or a tie.
+
+**support-only source**
+
+A source whose scores can back a routing choice but never lead one: a score with no error range,
+a provider's results for its own models, or a row not yet permanent.
+
+**abstain**
+
+What a benchmark does for a vendor whose current models it does not test: it neither supports nor
+blocks routing work to that vendor.
+
+**error range**
+
+The plus-or-minus a benchmark states beside a score. A lead smaller than it is a tie.
+
+**trial mode**
+
+Vendor routing with the trials switch on, so a model, version and effort not yet proven on the
+machine can receive work under a **trial**.
+
+**trial**
+
+Routing work to one model, version and effort not yet proven on a machine, with Claude reviewing
+each result, until the trial ends.
+
+States: running, then proven or failed.
+
+**proven**
+
+The state of a model, version and effort whose trial succeeded on a machine: routing sends it work
+there without a new trial, until the user sends it back to trial.
+
+**trial notes**
+
+The per-machine record of one running trial's reviewed results, deleted when the trial ends; only
+its outcome is kept.
+
+**auto-delegation**
+
+Claude handing a task to the vendor routing names without asking first, then reviewing the result.
+With it off, routing only recommends the vendor.
+
 ### Upstream records
 
 **pointer record**
@@ -377,6 +454,7 @@ Each maps to the term or doctrine that owns the concept.
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
 | sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is not project vocabulary |
 | slice *(the work-item sense)* | **vertical slice** above; bare "slice" means the topic folder |
+| slice *(the benchmark sense)* | **workload** above; bare "slice" means the topic folder |
 | task *(for a lane)* | **lane** above; collides with the `Task` Issue Type admission reads ([`admission-rules.json`](../.github/actions/resolve-config/admission-rules.json)) |
 | factory workflow *(for a lane)* | **lane** above; not every workflow is a lane |
 | approval *(for admission)* | **admission** above; implies a judge, and admission runs no model |
