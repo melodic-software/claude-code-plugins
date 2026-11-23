@@ -112,6 +112,7 @@ import { PlanError, TARGET_LEVEL, effective, excludedAlwaysOn, plan } from "../l
 import { OptionsError, managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { missingRequired } from "../lib/prerequisite-gate.mjs";
 import { readText, replaceFile } from "../lib/atomic-file.mjs";
+import { appendExceptions, exceptionCounts, exceptionsToReview, PROFILE_NAME, readExceptions, SESSION_DAYS } from "../lib/exceptions.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
 import { listRecords, machineSettingsFiles, readPointers, repositoryHome, sessionFolders, writePointer } from "../lib/machine-records.mjs";
@@ -167,6 +168,8 @@ const USAGE = `usage: profiles.mjs apply <name> --for session|folder|initial [--
        profiles.mjs start [--with <settings file or JSON>] [--unattended] [--dry-run] --claude-args [claude arguments, --profile <profile> among them]
        profiles.mjs start [--profile <profile>] --resume <session id> --profile-add <plugin id | plugin name | plugin:skill | skill>... [--dry-run]
        profiles.mjs status [--for folder|initial] [--json] [--session-start]
+       profiles.mjs exceptions [--json]
+       profiles.mjs exceptions --reviewed <profile> --plugin <plugin id>
        profiles.mjs clear [--for folder|initial|worktree] [--dry-run [--json]] [--yes]
        profiles.mjs reset [--dry-run [--json]] [--yes [--json] [--preview-id <id>]] [--keep-recorded] [--remove-unrecorded <file>]... [--keep-unrecorded <file>]... [--finish-cut-off <file>]... [--keep-cut-off <file>]... [--put-back-moved <file>]... [--keep-moved <file>]...
        profiles.mjs list [--json]
@@ -217,10 +220,8 @@ class StartRefused extends Error {}
 
 const dataDirName = (id) => id.replace(/[^A-Za-z0-9_-]/g, "-");
 const marketplaceOf = (id) => id.slice(id.lastIndexOf("@") + 1);
-const PROFILE_NAME = /^[a-z0-9][a-z0-9-]*$/;
 const SAVE_LISTS = { plugins: "plugins", optional: "optional", remove: "remove", exclude: "exclude", hideSkills: "hideSkills" };
 const NAMED = ["apply", "install", "save"];
-const SESSION_DAYS = 30;
 const OWN_DATA_NAME = /^plugin-profiles(-|$)/;
 
 const RESUME_LINE = "A resumed session does not keep --settings; resume it with: claude --resume <session id>";
@@ -357,6 +358,14 @@ function parseStart(rest) {
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   if (command === "start") return parseStart(rest);
+  if (command === "exceptions") {
+    if (!rest.length || (rest.length === 1 && rest[0] === "--json")) return { command, json: rest.length === 1 };
+    const [reviewed, profile, flag, plugin] = rest;
+    if (rest.length === 4 && reviewed === "--reviewed" && PROFILE_NAME.test(profile) && flag === "--plugin" && PLUGIN_ID.test(plugin)) {
+      return { command, profile, plugin };
+    }
+    throw new UsageError("exceptions takes [--json] or --reviewed <profile> --plugin <name@marketplace>");
+  }
   if (!["apply", "launch", "status", "clear", "reset", "list", "inventory", "usage", "install", "save", "check"].includes(command)) throw new UsageError(command ? `unknown command ${command}` : "no command given");
   const opts = { command, name: null, target: command === "apply" ? null : command === "launch" ? "session" : "folder", dryRun: false, yes: false, deferOff: false, json: false, sessionStart: false, catalog: null, shipped: null, level: null, description: null, folder: null, with: null, unattended: false, answers: [], previewId: null };
   const flags = { apply: ["--dry-run", "--yes", "--defer-off", "--json", "--finish-pending"], launch: ["--unattended", "--json", "--dry-run"], status: ["--json", "--session-start"], clear: ["--dry-run", "--yes", "--json"], reset: ["--dry-run", "--yes", "--json", "--keep-recorded"], list: ["--json"], inventory: ["--json"], usage: ["--json"], install: ["--dry-run", "--yes"], save: ["--dry-run", "--yes"], check: [] }[command];
@@ -949,7 +958,8 @@ function addedFor(tokens, plan, where, catalog) {
   const inv = inventory({ projectDir: where.projectDir, records });
   const known = () => [...everyProfile(catalog).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]), ...marketplaceIds(where, inv)];
   try {
-    return { ids: [...new Set([...plan.added, ...resolveAdded(tokens, inv, known)])], records };
+    const requested = resolveAdded(tokens, inv, known);
+    return { ids: [...new Set([...plan.added, ...requested])], requested, records };
   } catch (error) {
     if (error instanceof AddError) throw new StartRefused(`start: ${error.message}`);
     throw error;
@@ -1007,7 +1017,20 @@ async function start(opts, where, env, io) {
     io.out(JSON.stringify({ argv: ["claude", ...argv], env_removed: CLEARED, file, profile: plan.name, added: add.ids }, null, 2));
     return 0;
   }
+  if (add.requested) appendExceptions(at.dataDir, add.requested.map((plugin) => ({ kind: "exception", profile: plan.name, plugin, sessionId: plan.res.id, folder: at.projectDir })));
   return runClaude(argv, env, io);
+}
+
+/** Lists exception counts or records a review for one pair. */
+function exceptions(opts, where, io) {
+  if (opts.profile) {
+    appendExceptions(where.dataDir, [{ kind: "reviewed", profile: opts.profile, plugin: opts.plugin }]);
+  } else {
+    const pairs = exceptionCounts(readExceptions(where.dataDir));
+    const text = pairs.map(({ profile, plugin, count, sessions, lastAt }) => `${profile} ${plugin}: ${count}${count ? ` (${sessions.join(", ")}; last ${lastAt})` : ""}`);
+    io.out(opts.json ? JSON.stringify(pairs, null, 2) : text.join("\n") || "No exceptions recorded on this machine in the last 30 days.");
+  }
+  return 0;
 }
 
 /** The record of one settings file compared with the file now. */
@@ -1215,6 +1238,12 @@ function status(opts, where, env, io) {
     try {
       const s = statusOf(opts, where, env);
       if (worthNotice(s)) lines.push(...noticeLines(s, input.session_id));
+      const profile = s.session?.profile ?? s.profile;
+      if (profile) {
+        for (const { plugin, count } of exceptionsToReview(readExceptions(where.dataDir), profile)) {
+          lines.push(`Profile ${profile} was reopened with ${plugin} in ${count} sessions since its last review; run /plugin-profiles:profile setup to add it to the profile or keep it off.`);
+        }
+      }
     } catch {
       // A session start never fails on a profile problem; status run by hand reports it.
     }
@@ -1814,7 +1843,11 @@ async function save(opts, where, io) {
   const files = readProfileFiles(levels);
   const current = files.find((f) => f.path === path);
   const merged = { description: opts.description ?? current?.def.description ?? null, alwaysOn: current?.def.alwaysOn ?? null };
-  for (const [flag, field] of Object.entries(SAVE_LISTS)) merged[field] = [...new Set([...(current?.def[field] ?? []), ...idsOf(opts[flag])])];
+  const adding = new Set([...idsOf(opts.plugins), ...idsOf(opts.optional)]);
+  for (const [flag, field] of Object.entries(SAVE_LISTS)) {
+    const kept = (current?.def[field] ?? []).filter((id) => !["remove", "exclude"].includes(field) || !adding.has(id));
+    merged[field] = [...new Set([...kept, ...idsOf(opts[flag])])];
+  }
   const text = profileText(merged);
   const def = parseProfile(text, path);
   const others = files.filter((f) => f.path !== path);
@@ -1826,6 +1859,9 @@ async function save(opts, where, io) {
     const blocked = excludedAlwaysOn(catalog, p);
     if (blocked.length) throw new ProfileError(`${path}: profile ${p.name} would exclude always-on members: ${blocked.join(", ")}`);
   }
+  const saved = catalog.profiles.get(opts.name);
+  const stillOff = saved ? [...adding].filter((id) => saved.exclude.has(id) || !(saved.plugins.has(id) || saved.optional.has(id))) : [];
+  if (stillOff.length) io.out(`Stays off: another file of profile ${opts.name} removes or excludes ${list(stillOff)}.`);
   const before = current ? readFileSync(path, "utf8") : null;
   if (before === text) {
     io.out(`Nothing to change: ${path} already holds this profile.`);
@@ -1901,6 +1937,7 @@ export async function main(argv, env = process.env, cwd = process.cwd(), io = { 
     const where = locate(env, cwd, opts.folder);
     io.stdin ??= readStdin;
     if (opts.command === "start") return await start(opts, where, env, io);
+    if (opts.command === "exceptions") return exceptions(opts, where, io);
     if (opts.command === "apply") return await apply(opts, where, env, io);
     if (opts.command === "launch") return launch(opts, where, env, io);
     if (opts.command === "status") return status(opts, where, env, io);

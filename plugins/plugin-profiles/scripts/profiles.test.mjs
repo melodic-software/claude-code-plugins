@@ -1093,6 +1093,19 @@ test("save adds to the lists of an existing file and keeps its description", () 
   assert.equal(readFileSync(userProfile(w, "notes"), "utf8"), `description: "Notes."\nplugins:\n  - "review@${M}"\n  - "songwriting@${M}"\n`);
 });
 
+test("#18318: save --plugins drops the id from that file's remove and exclude, and says when another file still keeps it off", () => {
+  const w = world();
+  writeTree(w.home, { ".claude/plugin-profiles/build.yaml": `remove:\n  - songwriting@${M}\nexclude:\n  - songwriting@${M}\n  - review@${M}\n` });
+  const r = w.run(["save", "build", "--level", "user", "--plugins", `songwriting@${M}`, "--yes"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /Stays off/);
+  assert.equal(readFileSync(userProfile(w, "build"), "utf8"), `plugins:\n  - "songwriting@${M}"\nexclude:\n  - "review@${M}"\n`);
+  assert.doesNotMatch(w.run(["apply", "build", "--for", "folder", "--dry-run"]).stdout, /Switches off \(\d+\):[^\n]*songwriting/);
+  assert.equal(w.run(["save", "build", "--level", "repository", "--exclude", `tdd@${M}`, "--yes"]).status, 0);
+  const off = w.run(["save", "build", "--level", "user", "--plugins", `tdd@${M}`, "--dry-run"]);
+  assert.match(off.stdout, /Stays off: another file of profile build removes or excludes tdd@melodic-software\./);
+});
+
 test("save writes and previews every list in alphabetical order, whatever order the ids came in", () => {
   const w = world();
   const args = ["save", "notes", "--level", "user", "--plugins", `tdd@${M},review@${M},code-tidying@${M}`, "--optional", `spelling@${M},bash-format@${M}`, "--hide-skills", "zeta-skill,alpha-skill"];
@@ -3823,6 +3836,75 @@ const hookJson = (w, input, extra = {}) => {
   return r.stdout ? JSON.parse(r.stdout) : null;
 };
 const SONG = `songwriting@${M}`;
+
+test("#18318 AC5: only a reopen that starts claude logs the requested plugins, never a dry run or a refused one", () => {
+  const w = world();
+  addInstalled(w, "gizmo@vendor");
+  addInstalled(w, "gadget@vendor", { dependencies: ["gizmo"] });
+  sessionInBuild(w, "abc-1");
+  const file = join(dirname(dirname(byIdDir(w))), "exceptions.jsonl");
+  const args = ["--resume", "abc-1", "--profile-add", "gadget"];
+  startJson(w, args);
+  assert.equal(w.run(["start", ...args, "--unattended", "--profile-add", "absent@vendor"]).status, 2);
+  assert.equal(existsSync(file), false);
+  const reopened = reopen(w, args);
+  const lines = () => readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
+  const [entry] = lines();
+  assert.deepEqual(lines(), [{ kind: "exception", profile: "build", plugin: "gadget@vendor", sessionId: "abc-1", folder: w.project, at: new Date(entry.at).toISOString() }]);
+  hookJson(w, { session_id: "abc-1", source: "resume" }, JSON.parse(readFileSync(reopened.file, "utf8")).env);
+  reopen(w, ["--resume", "abc-1"]);
+  launchJson(w, ["build"]);
+  assert.deepEqual(lines(), [entry]);
+  reopen(w, ["--resume", "abc-1", "--profile-add", "songwriting"]);
+  reopen(w, ["--resume", "abc-1", "--profile-add", SONG]);
+  assert.deepEqual(lines().map(({ plugin }) => plugin), ["gadget@vendor", SONG, SONG]);
+  const rows = JSON.parse(w.run(["exceptions", "--json"]).stdout);
+  assert.deepEqual(rows, [
+    { profile: "build", plugin: "gadget@vendor", count: 1, sessions: ["abc-1"], lastAt: entry.at },
+    { profile: "build", plugin: SONG, count: 1, sessions: ["abc-1"], lastAt: lines().at(-1).at },
+  ]);
+});
+
+test("#18318 AC5: the start notice nudges the profile in force after three sessions until reviewed", () => {
+  const w = world();
+  const setup = /\/plugin-profiles:profile setup/;
+  const open = (id) => {
+    const file = sessionInBuild(w, id);
+    reopen(w, ["--resume", id, "--profile-add", SONG]);
+    return JSON.parse(readFileSync(file, "utf8")).env;
+  };
+  const notice = (env) => hookJson(w, { source: "startup" }, env);
+  const build = open("abc-1");
+  open("abc-2");
+  assert.doesNotMatch(notice(build).systemMessage, setup);
+  open("abc-3");
+  const nudged = notice(build);
+  assert.match(nudged.systemMessage, /Profile build was reopened with songwriting@melodic-software in 3 sessions since its last review/);
+  assert.match(nudged.systemMessage, setup);
+  assert.doesNotMatch(nudged.hookSpecificOutput.additionalContext, setup);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  assert.match(notice().systemMessage, setup);
+  const review = JSON.parse(readFileSync(launchJson(w, ["review"]).file, "utf8")).env;
+  assert.doesNotMatch(notice(review).systemMessage, setup);
+  const result = w.run(["exceptions", "--reviewed", "build", "--plugin", SONG]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(w.run(["exceptions", "--json"]).stdout),
+    [{ profile: "build", plugin: SONG, count: 0, sessions: [], lastAt: null }]);
+  assert.doesNotMatch(notice(build).systemMessage, setup);
+});
+
+test("#18318 AC5: exceptions rejects invalid arguments without writing the log", () => {
+  const w = world();
+  for (const args of [["--reviewed"], ["--reviewed", "Build", "--plugin", SONG],
+    ["--reviewed", "build", "--plugin", "songwriting"], ["--reviewed", "build", "--plugin", "a@b@c"],
+    ["--plugin", SONG], ["--json", "--reviewed", "build", "--plugin", SONG]]) {
+    const result = w.run(["exceptions", ...args]);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /exceptions takes/);
+  }
+  assert.deepEqual(JSON.parse(w.run(["exceptions", "--json"]).stdout), []);
+  assert.equal(existsSync(join(dirname(dirname(byIdDir(w))), "exceptions.jsonl")), false);
+});
 
 test("#18314 AC3/AC4: start --claude-args --resume X --profile-add Y reopens X in its profile with only Y added, claude never gets --profile-add, and the recorded file stays", () => {
   const w = world();

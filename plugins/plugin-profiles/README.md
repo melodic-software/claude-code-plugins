@@ -73,6 +73,9 @@ Claude Code itself has no `--profile` flag; the function adds it:
   `claude --resume <id>` of that conversation keeps the plugin; `claude -c`, new sessions and
   handoffs start without it. In a one-session profile the session-start hook tells the model this
   line, again after compaction, so a pointer to an off plugin leads to the offer.
+  After three distinct conversations reopened with the same plugin in a profile since its last
+  review, the start notice suggests `/plugin-profiles:profile setup`. Setup reviews this machine's
+  last 30 days of exceptions and lets you add each plugin to its profile or keep it off.
 - Everything else `claude` does is unchanged.
 
 The function runs the real `claude` untouched
