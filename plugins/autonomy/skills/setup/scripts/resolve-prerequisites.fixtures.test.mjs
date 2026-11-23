@@ -1,11 +1,5 @@
 #!/usr/bin/env node
 
-// Graded-fixture suite for resolve-prerequisites.mjs. Every directory under
-// scripts/fixtures/prerequisite-resolution/ must appear in the co-located
-// manifest; each fixture is a mini repo tree graded by named assertions.
-//
-// Also asserts wall-clock-free reproducibility: two consecutive runs on the
-// same tree emit byte-identical JSON.
 
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -57,7 +51,6 @@ function requireRow(output, identity) {
   return row;
 }
 
-// --- Self-policing: every fixture directory is graded ----------------------
 const onDisk = readdirSync(fixturesRoot, { withFileTypes: true })
   .filter((e) => e.isDirectory())
   .map((e) => e.name)
@@ -71,7 +64,6 @@ for (const name of Object.keys(fixtures)) {
   else fail(`manifest-refs-exist: ${name}`, "manifest names missing fixture dir");
 }
 
-// --- Reproducibility on positive-verdict -----------------------------------
 {
   const repo = join(fixturesRoot, "positive-verdict", "repo");
   const a = runResolver(repo, "ci-cron");
@@ -193,8 +185,6 @@ function assertPositiveVerdict(output) {
   }
 }
 
-// The same repository with only a root .work-item-tracker.json: it no longer
-// binds, so the tracker is absent and the detail names the one-step fix.
 function assertRetiredJsonBinding(output) {
   const row = requireRow(output, "issue-triage-sweep");
   if (row.verdict === "supported") {

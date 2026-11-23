@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Tests for concat-gotchas.sh.
-# Each case: PASS prints, FAIL prints. Non-zero exit on any FAIL.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -265,8 +263,6 @@ NO_GIT=1
 run_case "root outside a git work tree has no team layer" $'(none)'
 NO_GIT=0
 
-# A root that differs from $HOME only in case is home on a case-insensitive
-# filesystem (Windows, macOS). Two real directories stand in for that here.
 HOME="${FIXTURES}/home-j/user"
 CLAUDE_PROJECT_DIR="${FIXTURES}/home-j/USER"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR/.claude"

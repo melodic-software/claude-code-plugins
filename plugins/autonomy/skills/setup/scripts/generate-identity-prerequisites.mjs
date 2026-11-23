@@ -1,12 +1,5 @@
 #!/usr/bin/env node
 
-// Generates the machine-readable identity-and-prerequisite emission from the
-// eleven v1 routine definition leaves. Leaves stay the authored single home; this
-// file is derived output the resolver and CI consume. Run with no argument to
-// rewrite the emission; run with --check to fail on drift (CI gate).
-//
-// Usage:
-//   node generate-identity-prerequisites.mjs [--check] [--root <dir>]
 // Exit 0 = in sync (or rewritten); 1 = drift / parse failure; 2 = usage error.
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -20,8 +13,6 @@ const LEAVES_REL = join("reference", "routines");
 const EMISSION_REL = join("generated", "identity-prerequisites.json");
 const SCHEMA_VERSION = 1;
 
-// Stable need vocabulary derived from leaf "Repo needs" prose. Order is the
-// match priority; each id appears at most once per identity after expansion.
 const NEED_PATTERNS = [
   {
     id: "tracker",
@@ -220,8 +211,6 @@ function recordFromAxes(identity, axes, leafRel) {
   };
 }
 
-// Inherited needs (copied, never shared) overridden by the ones the record's
-// own prose names, id-sorted.
 function mergedNeeds(inherited, prose) {
   const byId = new Map(inherited.map((n) => [n.id, { ...n }]));
   for (const need of needsFromProse(prose)) byId.set(need.id, need);
@@ -249,7 +238,6 @@ function expandNeeds(records) {
         throw new Error(`${record.identity}: cannot expand inheritance from ${token}`);
       }
       if (parent.needs === null) {
-        // Parent must be expanded first; two-pass below handles ordering.
         record._inheritFrom = parent.identity;
         continue;
       }
@@ -258,7 +246,6 @@ function expandNeeds(records) {
     record.needs = mergedNeeds(inherited, prose);
   }
 
-  // Second pass for inherit-before-parent edge cases.
   let pending = records.filter((r) => r.needs === null);
   let guard = pending.length + 1;
   while (pending.length > 0 && guard > 0) {

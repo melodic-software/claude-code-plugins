@@ -145,6 +145,19 @@ def run():
     return retry_budget
 '''
 
+PY_DOCS = '''"""Module summary."""
+
+
+def _outer(value):
+    """Wrap a value."""
+
+    def _inner():
+        """Return the value."""
+        return value
+
+    return _inner()
+'''
+
 CS_BASE = """/// <summary>Public doc.</summary>
 public class Widget {
     // internal note
@@ -181,13 +194,164 @@ class PythonVerdicts(unittest.TestCase):
         code, out, _ = run(PY_BASE, after, ".py")
         self.assertEqual(code, 0, out)
 
-    def test_docstring_deletion_is_code_changed(self):
-        # A docstring is a string expression statement, not a comment node; removing
-        # it must never pass as COMMENT-ONLY.
-        after = PY_BASE.replace(
-            '"""Module docstring stays: it is a doc comment, not a code token."""\n', ""
+    def test_plain_docstring_removal_is_docstring_only(self):
+        after = (
+            PY_DOCS.replace('"""Module summary."""\n', "")
+            .replace('    """Wrap a value."""\n', "")
+            .replace('        """Return the value."""\n', "")
         )
-        code, out, _ = run(PY_BASE, after, ".py")
+        code, out, _ = run(PY_DOCS, after, ".py", "--json")
+        self.assertEqual(code, 11, out)
+        self.assertIn('"verdict": "DOCSTRING-ONLY"', out)
+        self.assertIn('"removed_lines": [1, 5, 8]', out)
+
+    def test_nested_function_docstring_removal_is_docstring_only(self):
+        after = PY_DOCS.replace('        """Return the value."""\n', "")
+        code, out, _ = run(PY_DOCS, after, ".py", "--json")
+        self.assertEqual(code, 11, out)
+        self.assertIn('"removed_lines": [8]', out)
+
+    def test_docstring_removal_is_never_comment_only(self):
+        after = PY_DOCS.replace('"""Module summary."""\n', "")
+        code, out, _ = run(PY_DOCS, after, ".py")
+        self.assertNotEqual(code, 0, out)
+        self.assertTrue(out.startswith("DOCSTRING-ONLY"), out)
+
+    def test_docstring_read_through_dunder_doc_is_code_changed(self):
+        before = PY_DOCS + "\nparser = argparse.ArgumentParser(description=__doc__)\n"
+        after = before.replace('"""Module summary."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("read docstrings at run time", out)
+
+    def test_docstring_removal_plus_code_change_is_code_changed(self):
+        after = PY_DOCS.replace('"""Module summary."""\n', "").replace(
+            "return value", "return value + 1"
+        )
+        code, out, _ = run(PY_DOCS, after, ".py")
+        self.assertEqual(code, 20, out)
+
+    def test_docstring_removal_that_empties_a_body_is_code_changed(self):
+        before = 'def noop():\n    """Do nothing."""\n\n\nx = 1\n'
+        after = "def noop():\n\n\nx = 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("empty body", out)
+
+    def test_docstring_moved_to_another_owner_is_code_changed(self):
+        after = (
+            PY_DOCS.replace('    """Wrap a value."""\n', "")
+            .replace(
+                "        return value",
+                '        """Wrap a value."""\n        return value',
+            )
+            .replace('        """Return the value."""\n', "")
+        )
+        code, out, _ = run(PY_DOCS, after, ".py")
+        self.assertEqual(code, 20, out)
+
+    def test_string_promoted_to_docstring_is_code_changed(self):
+        before = '"""Summary."""\n"""Second string."""\nx = 1\n'
+        after = '"""Second string."""\nx = 1\n'
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 20, out)
+
+    def test_doctest_docstring_removal_is_code_changed(self):
+        before = 'def f():\n    """>>> f()\n    1\n    """\n    return 1\n'
+        after = "def f():\n    return 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("doctest", out)
+
+    def test_decorated_function_docstring_removal_is_code_changed(self):
+        before = (
+            '@app.command()\ndef go():\n    """Shown as --help text."""\n    return 1\n'
+        )
+        after = "@app.command()\ndef go():\n    return 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("decorator", out)
+
+    def test_subclass_docstring_removal_is_code_changed(self):
+        before = (
+            'class Item(BaseModel):\n    """Schema description."""\n    name: str\n'
+        )
+        after = "class Item(BaseModel):\n    name: str\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("class docstring", out)
+
+    def test_plain_class_docstring_removal_is_code_changed(self):
+        before = 'class _Tool:\n    """Hold a value."""\n    value = 1\n'
+        after = "class _Tool:\n    value = 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("class docstring", out)
+
+    def test_class_docstring_of_an_instance_given_to_fire_is_code_changed(self):
+        before = 'class _Tool:\n    """Shown as help."""\n    value = 1\n\n\nfire.Fire(_Tool())\n'
+        after = before.replace('    """Shown as help."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("class docstring", out)
+
+    def test_method_docstring_of_a_class_given_to_fire_is_code_changed(self):
+        before = 'class _Tool:\n    def run(self):\n        """Shown as help."""\n        return 1\n\n\nfire.Fire(_Tool)\n'
+        after = before.replace('        """Shown as help."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("method docstring", out)
+
+    def test_method_docstring_in_a_plain_class_is_code_changed(self):
+        before = (
+            'class Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
+        )
+        after = "class Tool:\n    def run(self):\n        return 1\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("method docstring", out)
+
+    def test_file_walking_vars_is_code_changed(self):
+        before = (
+            'class Tool:\n    def run(self):\n        """Run it."""\n        return 1\n'
+            "\nhelp_rows = [f.__name__ for f in vars(Tool).values()]\n"
+        )
+        after = before.replace('        """Run it."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn('"at": "vars"', out)
+
+    def assert_value_reference_refused(self, use: str, owner: str, at: str):
+        before = (
+            f'def {owner}():\n    """Shown as help text."""\n    return 1\n\n{use}\n'
+        )
+        after = before.replace('    """Shown as help text."""\n', "")
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn(f'"at": "{at}"', out)
+
+    def test_function_passed_to_typer_run_is_code_changed(self):
+        self.assert_value_reference_refused("typer.run(_main)", "_main", "_main")
+
+    def test_function_passed_to_fire_is_code_changed(self):
+        self.assert_value_reference_refused("fire.Fire(_cli)", "_cli", "_cli")
+
+    def test_function_stored_in_a_dict_is_code_changed(self):
+        self.assert_value_reference_refused('handlers = {"x": _f}', "_f", "_f")
+
+    def test_function_given_to_help_is_code_changed(self):
+        self.assert_value_reference_refused("help(_f)", "_f", "help")
+
+    def test_function_only_called_is_docstring_only(self):
+        before = 'def _f():\n    """Return one."""\n    return 1\n\n\nx = _f() + _f()\n'
+        after = before.replace('    """Return one."""\n', "")
+        code, out, _ = run(before, after, ".py")
+        self.assertEqual(code, 11, out)
+
+    def test_f_string_first_statement_is_not_a_docstring(self):
+        before = 'def f(x):\n    f"{x}"\n    return x\n'
+        after = "def f(x):\n    return x\n"
+        code, out, _ = run(before, after, ".py")
         self.assertEqual(code, 20, out)
 
     def test_rename_is_rename_only(self):
