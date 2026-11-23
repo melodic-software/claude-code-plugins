@@ -57,7 +57,7 @@ import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, s
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { shareWorkflowRuns } from "./feedback-dispatch.mjs";
-import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
+import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, dispatchTestScope, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
@@ -981,8 +981,9 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }
   const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...copies.dispatched];
-  const failed = conflicts.failed + reviews.failed + fixes.failed + copies.failed;
+  const scopes = await dispatchTestScope({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...copies.dispatched, ...scopes.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed + copies.failed + scopes.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

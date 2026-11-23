@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -9311,6 +9312,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-shared-copies -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-test-scope -> pr-run-activity-write.yml",
     "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
     "pr-unblock.yml:resolve-feedback-threads -> pr-run-activity-write.yml",
     "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
@@ -11174,4 +11176,76 @@ test("report-outcome keeps the base checkout its run-time .base imports need", (
   const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
   assert.equal(config.activities["report-outcome"].checkout, "base");
   assert.match(read("../../scripts/work-resolve-issue/report-outcome.mjs"), /env\.BASE_PATH \|\| "\.base", "\.github", "actions"/);
+});
+
+test("pr-run-activity-write.yml: the first step admits every fix-test-scope escalation reason, each routed to fix-test-scope", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps[0];
+  const routes = JSON.parse(read("../../scripts/pr-unblock/escalation-routes.json"));
+  const rules = JSON.parse(read("./patch-rules.json"));
+  for (const reason of ["test-scope-not-all-gaps", "test-scope-gaps-remain", ...rules["test-scope"].escalations]) {
+    const status = spawnSync("bash", ["-c", step.run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, APP_SENDER_ID: "1", DEFAULT_BRANCH: "main", ESCALATION_REASON: reason },
+    }).status;
+    assert.equal(status, 0, reason);
+    assert.equal(routes[reason]?.activity, "fix-test-scope", reason);
+    assert.equal(routes[reason]?.label, undefined, `${reason} adds no label while the activity is dark`);
+  }
+});
+
+test("pr-run-activity-write.yml: the script step passes apply-patch's test-scope reasons out and refuses another row's", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "act-script");
+  const root = mkdtempSync(join(tmpdir(), "act-script-"));
+  try {
+    mkdirSync(join(root, "base-script"));
+    const resolved = join(root, "resolved.json");
+    writeFileSync(resolved, JSON.stringify({ selected: { args: "" }, loop: { "review-rounds": 1 } }));
+    writeFileSync(join(root, "base-script", "apply-patch.mjs"), '#!/bin/bash\necho "$REASON" >"$ESCALATION_REASON_FILE"\n', { mode: 0o755 });
+    const run = (reason) => {
+      const output = join(root, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", step.run], {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, RUNNER_TEMP: root, RESOLVED: resolved, SCRIPT: ".github/scripts/apply-patch/apply-patch.mjs", TRACKER_SHA256: "absent", TRACKER_CONFIG: join(root, "none"), SKIP_REASON_FILE: join(root, "skip"), ESCALATION_REASON_FILE: join(root, "escalation"), PREPARE: "apply-patch", PATCH_PREPARE: "test-scope", REASON: reason, GITHUB_OUTPUT: output },
+      });
+      return { status: result.status, output: readFileSync(output, "utf8") };
+    };
+    for (const reason of ["test-scope-invalid", "test-scope-not-applied", "test-scope-protected-path"]) {
+      const { status, output } = run(reason);
+      assert.equal(status, 0, reason);
+      assert.match(output, new RegExp(`^escalation-reason=${reason}$`, "m"));
+    }
+    assert.equal(run("shared-copy-patch-invalid").status, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("pr-unblock.yml: fix-test-scope posts its check on every decided outcome, and apply-test-scope runs only with test-scope.apply on", () => {
+  const jobs = workflow("pr-unblock.yml").jobs;
+  const post = jobs["fix-test-scope-not-run"].steps.find((step) => step.name === "Post the fix-test-scope check run");
+  const notRun = (proceed, skip = "", result = "success") => ({
+    "inputs.activity": "fix-test-scope",
+    "needs.fix-test-scope-select.result": result,
+    "needs.fix-test-scope-select.outputs.proceed": proceed,
+    "needs.fix-test-scope-select.outputs.skip-reason": skip,
+    "needs.fix-test-scope-select.outputs.head-sha": "a".repeat(40),
+    "steps.stop.outputs.skip": "lane-stopped",
+  });
+  assert.equal(evaluate(jobs["fix-test-scope-not-run"].if, notRun("true")), true, "a written patch with apply off still posts, so the head is sent once");
+  assert.equal(evaluate(post.with["not-run-reason"], notRun("true")), "no-model-turn");
+  assert.equal(evaluate(post.with["not-run-reason"], notRun("false", "not-applicable")), "not-applicable");
+  assert.equal(evaluate(post.with["not-run-reason"], notRun("false")), "lane-stopped");
+  const apply = (value) => ({ "needs.fix-test-scope-select.outputs.proceed": "true", "needs.fix-test-scope-select.outputs.apply": value });
+  assert.equal(evaluate(jobs["apply-test-scope"].if, apply("false")), false);
+  assert.equal(evaluate(jobs["apply-test-scope"].if, apply("true")), true);
+  assert.equal(jobs["apply-test-scope"].with["patch-prepare"], "test-scope");
+  const select = jobs["fix-test-scope-select"];
+  assert.equal(evaluate(select.outputs.apply, { "steps.build.outputs.apply": "" }), "false", "an absent flag is off");
+  const download = select.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+  assert.equal(download.with["run-id"], "${{ steps.locate.outputs.run-id }}");
+  const head = select.steps.find((step) => step.name === "Check out the PR head");
+  assert.equal(head.with["persist-credentials"], false);
+  assert.equal(select.permissions["pull-requests"], "read");
+  assert.equal(select.permissions.contents, "read");
 });

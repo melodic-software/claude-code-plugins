@@ -111,10 +111,11 @@ test("build writes a patch that applies to the head and that apply-patch's conte
   const env = { GITHUB_OUTPUT: join(out, "output"), GITHUB_REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: head.head, TRACE_DIR: trace, HEAD_DIR: head.dir, BASE_DIR: base.dir, PATCH_OUT: join(out, "patch.diff") };
   writeFileSync(env.GITHUB_OUTPUT, "");
   const call = async () => [{ filename: "t/a.test.sh", status: "added" }, { filename: "t/B.Tests.ps1", status: "modified" }];
-  assert.equal(await main(["build"], env, { call, log: () => {} }), 0);
+  assert.equal(await main(["build"], env, { call, log: () => {}, loadTestScope: async () => ({ apply: false }) }), 0);
   const output = readFileSync(env.GITHUB_OUTPUT, "utf8");
   assert.match(output, /^state=written$/m);
   assert.match(output, /^declarations=2$/m);
+  assert.match(output, /^apply=false$/m);
   git(head.dir, ["apply", "--check", env.PATCH_OUT]);
   git(head.dir, ["apply", env.PATCH_OUT]);
   assert.equal(readFileSync(join(head.dir, "t/B.Tests.ps1"), "utf8"), "# B.\r\n# test-scope: lib/y.ps1\r\nDescribe 'b' {}\r\n");

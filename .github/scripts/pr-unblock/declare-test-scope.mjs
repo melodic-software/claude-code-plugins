@@ -218,7 +218,12 @@ export async function locate({ call, repository, pr, headSha }) {
 
 const output = (env, values) => appendFileSync(env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(""));
 
-export async function main(argv, env, { call, log = (line) => console.log(line) } = {}) {
+export async function testScopeFromBase(baseDir) {
+  const resolver = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+  return resolver.testScopeFromBase({ BASE_PATH: baseDir });
+}
+
+export async function main(argv, env, { call, log = (line) => console.log(line), loadTestScope = testScopeFromBase } = {}) {
   const need = (keys) => {
     const missing = keys.filter((key) => !env[key]);
     if (missing.length > 0) {
@@ -266,7 +271,8 @@ export async function main(argv, env, { call, log = (line) => console.log(line) 
   const patch = buildPatch(env.HEAD_DIR, plan.files);
   writeFileSync(env.PATCH_OUT, patch);
   const declarations = plan.files.reduce((sum, file) => sum + file.paths.length, 0);
-  output(env, { state: "written", sha256: createHash("sha256").update(patch).digest("hex"), suites: plan.files.length, declarations });
+  const { apply } = await loadTestScope(env.BASE_DIR);
+  output(env, { state: "written", sha256: createHash("sha256").update(patch).digest("hex"), suites: plan.files.length, declarations, apply: apply === true });
   log(`declare-test-scope: ${declarations} declaration(s) in ${plan.files.length} suite(s): ${plan.files.map((file) => file.path).join(", ")}`);
   return 0;
 }

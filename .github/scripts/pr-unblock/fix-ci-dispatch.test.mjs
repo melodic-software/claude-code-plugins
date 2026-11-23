@@ -6,7 +6,7 @@ import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { adoptableOwnerIds, DEFAULTS, dispatchCiFixes, humanGatedLabel, skipReason, staleStop } from "./fix-ci-dispatch.mjs";
+import { adoptableOwnerIds, DEFAULTS, dispatchCiFixes, dispatchTestScope, humanGatedLabel, skipReason, staleStop, testScopeSkip } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -1611,4 +1611,60 @@ test("adoption leaves out Dependabot and the release and standards-sync Apps, wh
   assert.ok(excluded.every((id) => ids.includes(id)));
   assert.deepEqual(adopted, ids.filter((id) => !excluded.includes(id)));
   assert.ok(adopted.includes(APP));
+});
+
+const TRACE_RUN = { run: { conclusion: "failure" }, jobs: [{ name: "Test Selection", conclusion: "failure", steps: [{ name: "Check out", conclusion: "success" }, { name: "Trace the changed suites", conclusion: "failure" }] }] };
+const SCOPE_OWNER = 1000;
+const scopePr = (number, overrides = {}) => pr(number, { author: { login: "someone", databaseId: SCOPE_OWNER }, updatedAt: new Date(NOW).toISOString(), ...overrides });
+
+function scopeApi({ required = new Map(), checks = new Map(), runs = [] } = {}) {
+  const calls = { dispatch: [], required: [] };
+  return {
+    calls,
+    async readRequiredRun(sha, path) {
+      calls.required.push([sha, path]);
+      return required.get(sha) ?? TRACE_RUN;
+    },
+    listCheckRuns: async ({ sha }) => checks.get(sha) ?? [],
+    listWorkflowRuns: async () => runs,
+    async dispatchWorkflow(request) {
+      calls.dispatch.push(request);
+      return { workflowRunId: 7000 + calls.dispatch.length };
+    },
+  };
+}
+
+test("fix-test-scope: an active owner PR whose trace alone failed is dispatched at once, with no adoption idle wait", async () => {
+  const api = scopeApi();
+  const node = scopePr(51);
+  const result = await dispatchTestScope({ api, runId: 55, log: () => {}, listed: [node] });
+  assert.deepEqual(api.calls.dispatch, [{ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "51", activity: "fix-test-scope", "dispatcher-run-id": "55" } }]);
+  assert.deepEqual(result, { dispatched: [{ number: 51, workflowRunId: "7001" }], failed: 0 });
+  assert.notEqual(skipReason(node, { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: DEFAULTS.checkName, holdLabels: DEFAULTS.holdLabels, restarts: 1, now: NOW }), "", "fix-ci would not take this owner PR");
+});
+
+test("fix-test-scope: no dispatch for a fork, a draft, Dependabot, a do-not-merge or needs-session label, or lanes that passed", () => {
+  const options = { base: "main", actionsAppId: ACTIONS };
+  assert.equal(testScopeSkip(scopePr(1), options), "");
+  assert.equal(testScopeSkip(scopePr(1, { isCrossRepository: true }), options), "not a ready same-repository PR into the base");
+  assert.equal(testScopeSkip(scopePr(1, { isDraft: true }), options), "not a ready same-repository PR into the base");
+  assert.equal(testScopeSkip(scopePr(1, { author: { login: "dependabot", databaseId: 49699333 } }), options), "opened by Dependabot");
+  for (const name of ["do-not-merge", "needs-session"]) {
+    assert.equal(testScopeSkip(scopePr(1, { labels: { nodes: [{ name }] } }), options), "held", name);
+  }
+  assert.equal(testScopeSkip(scopePr(1, { checks: [lanes("SUCCESS")] }), options), "ci-lanes has not failed");
+});
+
+test("fix-test-scope: once per head, and only when the trace step was the one failure", async () => {
+  const done = scopePr(52, { checks: [lanes("FAILURE"), check("pr-unblock / fix-test-scope", "NEUTRAL")] });
+  const other = scopePr(53);
+  const listed = scopePr(54);
+  const record = emptyRecord();
+  const api = scopeApi({
+    required: new Map([[other.headRefOid, { run: { conclusion: "failure" }, jobs: [...TRACE_RUN.jobs, { name: "Lint", conclusion: "failure", steps: [] }] }]]),
+    checks: new Map([[listed.headRefOid, [{ name: "pr-unblock / fix-test-scope", status: "completed", conclusion: "neutral" }]]]),
+  });
+  await dispatchTestScope({ api, runId: 55, log: () => {}, listed: [done, other, listed], record });
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(isHandled(record, "pr-unblock / fix-test-scope", listed.headRefOid), true, "a head whose check the rollup missed is recorded");
 });

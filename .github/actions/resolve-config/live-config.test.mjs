@@ -16,7 +16,7 @@ import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { statusBotSetters } from "./issue-status.mjs";
-import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase } from "./resolve-config.mjs";
+import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase, testScopeFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -172,6 +172,8 @@ test("live config: pr-unblock runs its slots in order", () => {
       "apply-patch",
       "sync-shared-copies",
       "apply-shared-copies",
+      "fix-test-scope",
+      "apply-test-scope",
       "report-escalation",
     ],
   );
@@ -966,4 +968,11 @@ test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () =
     .split("\n")
     .filter((line) => line.startsWith("error\t"));
   assert.deepEqual(errors, []);
+});
+
+test("live config: test-scope.apply is off, so fix-test-scope uploads its patch and apply-test-scope never runs", () => {
+  assert.deepEqual(testScopeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }), { apply: false });
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.equal(grant("fix-test-scope").effect, "read");
+  assert.deepEqual(grant("apply-test-scope"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });
 });
