@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.4] - 2026-11-23
+
+### Changed
+
+- `audit` gains a `## Related` section per the accepted skill-link table.
+
 ## [0.21.3] - 2026-11-23
 
 ### Changed

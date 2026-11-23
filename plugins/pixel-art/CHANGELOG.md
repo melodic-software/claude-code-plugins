@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.31] - 2026-11-23
+
+### Changed
+
+- `scene` gains a `## Related` section per the accepted skill-link table.
+
 ## [0.7.30] - 2026-11-21
 
 ### Changed
