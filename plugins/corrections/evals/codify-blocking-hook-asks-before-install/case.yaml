@@ -1,6 +1,14 @@
 schema_version: "1.1"
 name: 'codify-blocking-hook-asks-before-install'
+context:
+  scaffold_script: scaffold.sh
 graders:
+  - name: 'writes-proposal'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.work/codify/[a-z0-9._-]+/[^"/]*-proposal\.md"'
+    min: 1
+    arm: 'with-only'
   - name: 'writes-no-hook'
     type: 'tool_used'
     tool: 'Write'
@@ -11,7 +19,7 @@ graders:
   - name: 'installs-no-hook'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"[^"]*(?:\.git/hooks/|/\.claude/settings(?:\.local)?\.json|\bhooks\.json\b)'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\[nrt]))(?:cp|mv|ln|tee|install|chmod)\b|>)(?:[^"\\]|\\.)*?(?:\.git/hooks/|\.claude/settings(?:\.local)?\.json|\bhooks\.json\b)|(?:[^"\\]|\\.)*?\bcore\.hooksPath\b)'
     min: 0
     max: 0
     arm: 'both'
