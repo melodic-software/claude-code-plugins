@@ -97,19 +97,20 @@ pr-verify judges the PR's author by `merge.verify-authors` in that commit's
 default branch uploaded under one of four exact names, the ones the merge queue's CI Status step
 reads: `pr-verify-<pr>-<head>-pass` or `-pass-notes`, each also with `-<digest>` appended, the
 first 16 hex digits of the SHA-256 of the head branch name. A FAIL at the head puts the
-`pr-verify-failed` label on the PR, and a later pass at that head removes it. Exact-name reads cost
-four calls; `babysit_verify_evidence.py evidence`, the lanes' reader, lists every artifact in the
-repository, which a session's budget cannot carry:
+`pr-verify-failed` label on the PR, and a later pass at that head removes it, so the label is read
+first: it outranks an older pass at the same head. Exact-name reads cost four calls;
+`babysit_verify_evidence.py evidence`, the lanes' reader, lists every artifact in the repository,
+which a session's budget cannot carry.
+
+Whether to wait at all, read once:
 
 ```bash
 REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
-: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 BASE_SHA=$(gh api "repos/$REPO/commits/<baseRefName>" --jq .sha) || exit 1
 if ! gh api "repos/$REPO/contents/.github/workflows/pr-verify.yml?ref=$BASE_SHA" --silent 2>/dev/null; then
   echo 'no pr-verify on the base: nothing to wait for'; exit 0
 fi
-PULL=$(gh api "repos/$REPO/pulls/<pr_number>") || exit 1
-AUTHOR=$(jq -r '"\(.user.id) \(.user.login)"' <<<"$PULL")
+AUTHOR=$(gh api "repos/$REPO/pulls/<pr_number>" --jq '"\(.user.id) \(.user.login)"') || exit 1
 CONF=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml?ref=$BASE_SHA") || exit 1
 MODE=$(sed -n 's/^  verify-authors: *\([a-z-]*\).*/\1/p' <<<"$CONF" | head -n 1)
 LANE=$(sed -n 's/^  agent-identity: *\([^ #]*\).*/\1/p' <<<"$CONF" | head -n 1)
@@ -121,8 +122,18 @@ case "${MODE:-lane}" in
   lane-or-owner) grep -qxF "${AUTHOR%% *}" <<<"$TRUSTED" && JUDGED=yes ;;
 esac
 [ "${AUTHOR#* }" = "$LANE" ] && JUDGED=yes
-[ "$JUDGED" = yes ] || { echo "pr-verify does not judge ${AUTHOR#* }: nothing to wait for"; exit 0; }
+[ "$JUDGED" = yes ] && echo 'pr-verify judges this author: read the verdict' \
+  || echo "pr-verify does not judge ${AUTHOR#* }: nothing to wait for"
+```
+
+The verdict, read again on each 60-second pass (at most five calls):
+
+```bash
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
+PULL=$(gh api "repos/$REPO/pulls/<pr_number>") || exit 1
 [ "$(jq -r .head.sha <<<"$PULL")" = "$HEAD_SHA" ] || { echo 'head moved: hold'; exit 1; }
+jq -e 'any(.labels[]; .name == "pr-verify-failed")' <<<"$PULL" >/dev/null && { echo fail; exit 1; }
 DIGEST=$(jq -j .head.ref <<<"$PULL" | sha256sum | cut -c1-16)
 DEFAULT=$(jq -r .base.repo.default_branch <<<"$PULL")
 for SUFFIX in pass "pass-$DIGEST" pass-notes "pass-notes-$DIGEST"; do
@@ -130,12 +141,13 @@ for SUFFIX in pass "pass-$DIGEST" pass-notes "pass-notes-$DIGEST"; do
     --jq "[.artifacts[] | select(.expired == false and .workflow_run.head_branch == \"$DEFAULT\")] | length") || exit 1
   [ "$N" -gt 0 ] && { echo allow; exit 0; }
 done
-jq -e 'any(.labels[]; .name == "pr-verify-failed")' <<<"$PULL" >/dev/null && { echo fail; exit 1; }
 echo missing
 ```
 
-It prints `allow`, `fail` (a hold), or `missing` while pr-verify has not judged the head. On a
-triangular flow, name the base repository in the first line, as the top of this file says.
+It prints `allow`, `fail` (a hold), or `missing` while pr-verify has not judged the head. A head
+pr-verify skips (a credit stop, an outage) never gets a pass, so it holds after the 30-minute wait,
+and a lanes App PR's FAIL sets no label, so it too reads `missing` until then. On a triangular
+flow, name the base repository in both scripts' first line, as the top of this file says.
 
 ## Wait for a known merge state
 
