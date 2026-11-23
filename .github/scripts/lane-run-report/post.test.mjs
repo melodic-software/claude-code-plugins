@@ -41,11 +41,11 @@ const ENV = {
     dropped: 0,
   }),
 };
-const MARKER = "<!-- lane-run-report activity=read/fix-ci -->";
-const OLD_MARKER = "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->";
-const heading = (run, attempt, rung, leg) => `<!-- lane-run-report-section run=${run} attempt=${attempt} rung=${rung} leg=${leg} -->`;
+const MARKER = "<!-- lane-run-report run=123 -->";
+const OLD_MARKER = "<!-- lane-run-report activity=read/fix-ci -->";
+const heading = (attempt, rung, leg, activity = "read/fix-ci") => `<!-- lane-run-report-section activity=${activity} attempt=${attempt} rung=${rung} leg=${leg} -->`;
 const headings = (body) => body.split("\n").filter((line) => line.startsWith("<!-- lane-run-report-section "));
-const current = (store) => prMessages({ store, repo: "o/r", number: 42 }).read("lane-run-report", { activity: "read/fix-ci" });
+const current = (store) => prMessages({ store, repo: "o/r", number: 42 }).read("lane-run-report", { run: "123" });
 
 async function run(env, deps = {}) {
   const lines = [];
@@ -133,7 +133,7 @@ test("a cell is escaped for markdown and HTML", () => {
 });
 
 const report = (more = {}) =>
-  reportOf({ runId: "9", attempt: "1", rung: "0", leg: "base", runResult: "success", actOutcome: "success", readLane: true, failures: { rows: [], dropped: 0 }, ...more });
+  reportOf({ activity: "read/fix-ci", attempt: "1", rung: "0", leg: "base", runResult: "success", actOutcome: "success", readLane: true, failures: { rows: [], dropped: 0 }, ...more });
 
 test("a section opens with its marker and lists the rung, leg, outcome, commits and failures", () => {
   const text = renderSection(
@@ -145,15 +145,14 @@ test("a section opens with its marker and lists the rung, leg, outcome, commits 
       readLane: false,
       failures: failureRows(JSON.stringify({ rows: [{ method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 }], dropped: 2 })),
     }),
-    (runId) => `https://github.com/o/r/actions/runs/${runId}`,
   );
-  assert.ok(text.startsWith(`${heading(9, 1, 1, "handoff")}\n`));
+  assert.ok(text.startsWith(`${heading(1, 1, "handoff")}\n`));
   assert.match(text, /\| Model rung \| 1 \|/);
   assert.match(text, /\| Leg \| handoff \|/);
   assert.match(text, /\| Run job \| success \|/);
   assert.match(text, /\| Activity step \| failure \|/);
   assert.match(text, new RegExp(`\\| Commits pushed \\| ${"a".repeat(40)} \\|`));
-  assert.match(text, /\| Run \| \[9\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/9\) \|/);
+  assert.match(text, /^### read\/fix-ci, attempt 1$/m);
   assert.match(text, /\| PATCH \| \/repos\/\{repo\}\/git\/refs\/heads\/&#42; \| 422 \|/);
   assert.match(text, /more rows not shown/i);
   assert.doesNotMatch(text, /\b2 more/);
@@ -223,7 +222,7 @@ test("a section parsed back from its text renders the same", () => {
   });
   const text = renderSection(original);
   const [head, ...rest] = text.split("\n");
-  assert.equal(head, heading(9, 1, 0, "base"));
+  assert.equal(head, heading(1, 0, "base"));
   const parsed = parseSection({ fields: original.fields, text: rest.join("\n") });
   assert.equal(renderSection(parsed), text);
 });
@@ -241,17 +240,47 @@ test("main posts the report on the pull request after one GraphQL list", async (
   );
   const body = api.writes()[0].body.body;
   assert.ok(body.startsWith(`${MARKER}\n`));
-  assert.deepEqual(headings(body), [heading(123, 1, 0, "base")]);
+  assert.deepEqual(headings(body), [heading(1, 0, "base")]);
+  assert.match(body, /\| Run \| \[123\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/123\) \|/);
   assert.match(body, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 502 \|/);
   assert.ok(out.lines.includes("::notice::posted the lane run report on #42"));
 });
 
-test("two runs of one activity leave one comment holding only the newer run", async () => {
+const CLEAN = { RUN_RESULT: "success", ACT_OUTCOME: "success", API_FAILURES: JSON.stringify({ rows: [], dropped: 0 }) };
+
+test("a clean run writes its report to the job summary and makes no call", async () => {
+  const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
+  writeFileSync(summary, "");
+  const api = fakeGitHub();
+  const out = await run({ ...CLEAN, GITHUB_STEP_SUMMARY: summary }, { github: api.github });
+  assert.equal(out.code, 0);
+  assert.deepEqual(api.calls, []);
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(1, 0, "base")]);
+  assert.ok(out.lines.includes("::notice::read/fix-ci succeeded with no failed GitHub API call, so no lane run report comment is posted; the report is in this job's summary"));
+});
+
+test("a run whose step failed, or that recorded only a failed or dropped API call, posts its report", async () => {
+  for (const env of [
+    { ACT_OUTCOME: "failure" },
+    { RUN_RESULT: "cancelled" },
+    { ACT_OUTCOME: "skipped" },
+    { API_FAILURES: ENV.API_FAILURES },
+    { API_FAILURES: JSON.stringify({ rows: [], dropped: 3 }) },
+  ]) {
+    const store = memoryStore();
+    await run({ ...CLEAN, ...env }, { store });
+    assert.equal(store.comments.length, 1, JSON.stringify(env));
+  }
+});
+
+test("every activity of one run shares one comment, and another run gets its own", async () => {
   const store = memoryStore();
-  await run({ RUN_ID: "123" }, { store });
-  await run({ RUN_ID: "124", LEG: "handoff" }, { store });
-  assert.equal(store.comments.length, 1);
-  assert.deepEqual(headings(store.comments[0].body), [heading(124, 1, 0, "handoff")]);
+  await run({}, { store });
+  await run({ LANE: "pr-unblock", ACTIVITY: "apply-patch" }, { store });
+  await run({ RUN_ID: "124" }, { store });
+  assert.equal(store.comments.length, 2);
+  assert.deepEqual(headings(store.comments[0].body), [heading(1, 0, "base"), heading(1, 0, "base", "pr-unblock/apply-patch")]);
+  assert.ok(store.comments[1].body.startsWith("<!-- lane-run-report run=124 -->\n"));
 });
 
 test("every leg and every same-activity call of one run keeps its own section", async () => {
@@ -261,7 +290,7 @@ test("every leg and every same-activity call of one run keeps its own section", 
   await run({ MODEL_RUNG: "1" }, { store });
   await run({}, { store });
   assert.equal(store.comments.length, 1);
-  assert.deepEqual(headings(store.comments[0].body), [heading(123, 1, 0, "base"), heading(123, 1, 0, "handoff"), heading(123, 1, 1, "base"), heading(123, 1, 0, "base")]);
+  assert.deepEqual(headings(store.comments[0].body), [heading(1, 0, "base"), heading(1, 0, "handoff"), heading(1, 1, "base"), heading(1, 0, "base")]);
 });
 
 test("a re-run attempt replaces the newest earlier-attempt section of its rung and leg", async () => {
@@ -270,42 +299,29 @@ test("a re-run attempt replaces the newest earlier-attempt section of its rung a
   await run({ LEG: "handoff" }, { store });
   await run({}, { store });
   await run({ GITHUB_RUN_ATTEMPT: "2" }, { store });
-  assert.deepEqual(headings(store.comments[0].body), [heading(123, 1, 0, "base"), heading(123, 1, 0, "handoff"), heading(123, 2, 0, "base")]);
+  assert.deepEqual(headings(store.comments[0].body), [heading(1, 0, "base"), heading(1, 0, "handoff"), heading(2, 0, "base")]);
   await run({ GITHUB_RUN_ATTEMPT: "2" }, { store });
-  assert.deepEqual(headings(store.comments[0].body), [heading(123, 2, 0, "base"), heading(123, 1, 0, "handoff"), heading(123, 2, 0, "base")]);
+  assert.deepEqual(headings(store.comments[0].body), [heading(2, 0, "base"), heading(1, 0, "handoff"), heading(2, 0, "base")]);
 });
 
-test("an older run's report leaves the comment unchanged and goes to the job summary", async () => {
-  const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
-  writeFileSync(summary, "");
-  const store = memoryStore();
-  await run({ RUN_ID: "1000000000000" }, { store });
-  const before = store.comments[0].body;
-  const out = await run({ RUN_ID: "999999999999", GITHUB_STEP_SUMMARY: summary }, { store });
-  assert.equal(out.code, 0);
-  assert.equal(store.comments[0].body, before);
-  assert.equal(store.comments.length, 1);
-  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(999999999999, 1, 0, "base")]);
-  assert.ok(out.lines.some((line) => line.startsWith("::notice::") && line.includes("newer run")));
-});
-
-test("a person-edited comment, then two more runs, leaves exactly one current bot comment", async () => {
+test("a person-edited comment, then two more report jobs, leaves exactly one current bot comment", async () => {
+  const edited = `${MARKER}\n${heading(1, 0, "base")}\nmy note`;
   const store = memoryStore({
-    comments: [{ id: 1, author: BOT, body: `${MARKER}\n${heading(122, 1, 0, "base")}\nmy note`, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: "2026-11-21T00:01:00Z", editor: "octocat", isMinimized: false }],
+    comments: [{ id: 1, author: BOT, body: edited, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: "2026-11-21T00:01:00Z", editor: "octocat", isMinimized: false }],
   });
-  await run({ RUN_ID: "123" }, { store });
-  await run({ RUN_ID: "124" }, { store });
+  await run({}, { store });
+  await run({ LEG: "handoff" }, { store });
   assert.equal(store.comments.length, 2);
-  assert.equal(store.comments[0].body, `${MARKER}\n${heading(122, 1, 0, "base")}\nmy note`);
+  assert.equal(store.comments[0].body, edited);
   const own = await current(store);
   assert.equal(own.id, 2);
   assert.deepEqual(
-    own.sections.map((s) => s.fields.run),
-    ["124"],
+    own.sections.map((s) => s.fields.leg),
+    ["base", "handoff"],
   );
 });
 
-test("an old per-run comment is ignored and left as it is", async () => {
+test("an old per-activity comment is ignored and left as it is", async () => {
   const old = { id: 1, author: BOT, body: `${OLD_MARKER}\nold`, createdAt: "2026-11-21T00:00:00Z", lastEditedAt: null, editor: null, isMinimized: false };
   const store = memoryStore({ comments: [{ ...old }] });
   await run({}, { store });
@@ -317,7 +333,7 @@ test("an old per-run comment is ignored and left as it is", async () => {
 test("planted text in a kept section is not carried forward", async () => {
   const planted = [
     MARKER,
-    heading(123, 1, 0, "base"),
+    heading(1, 0, "base"),
     "| Run job | pwned |",
     "| Activity step | success |",
     "| Commits pushed | [click](https://example.com) |",
@@ -331,9 +347,9 @@ test("planted text in a kept section is not carried forward", async () => {
   await run({ LEG: "handoff" }, { store });
   const body = store.comments[0].body;
   assert.equal(store.comments.length, 1);
-  assert.deepEqual(headings(body), [heading(123, 1, 0, "base"), heading(123, 1, 0, "handoff")]);
+  assert.deepEqual(headings(body), [heading(1, 0, "base"), heading(1, 0, "handoff")]);
   assert.doesNotMatch(body, /sk-ant|example\.com|pwned|007/);
-  const [kept] = body.split(heading(123, 1, 0, "handoff"));
+  const [kept] = body.split(heading(1, 0, "handoff"));
   assert.match(kept, /\| Run job \| unknown \|/);
   assert.match(kept, /\| Commits pushed \| none recorded \|/);
   assert.match(kept, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 404 \|/);
@@ -363,13 +379,13 @@ test("a body past 60,000 characters drops the oldest sections' rows, then the ol
   }
 });
 
-test("a newer run clears the trim note with the older run's sections", async () => {
+test("a newer run's comment carries no trim note from an older run", async () => {
   const rows = Array.from({ length: MAX_ROWS }, (_, i) => ({ method: "GET", path: "/repos/o/r/pulls/1", status: 400 + i }));
   const store = memoryStore();
   for (let i = 0; i < 30; i++) await run({ API_FAILURES: JSON.stringify({ rows, dropped: 0 }) }, { store });
   assert.match(store.comments[0].body, /^Not shown/m);
   await run({ RUN_ID: "124" }, { store });
-  assert.doesNotMatch(store.comments[0].body, /Not shown/);
+  assert.doesNotMatch(store.comments[1].body, /Not shown/);
 });
 
 test("a list past its time limit falls back to the job summary without a write", async () => {
@@ -385,7 +401,7 @@ test("a list past its time limit falls back to the job summary without a write",
   assert.deepEqual(calls, ["/graphql"]);
   assert.deepEqual(out.waits, []);
   assert.ok(out.lines.some((line) => line.startsWith("::warning::could not post")));
-  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(123, 1, 0, "base")]);
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(1, 0, "base")]);
 });
 
 test("no pull request, or a bad lane, activity, run id, attempt, rung, leg or repository, makes no call", async () => {
@@ -416,7 +432,7 @@ test("each runner leg and model rung renders as its own section", async () => {
   await run({ MODEL_RUNG: "1" }, { store });
   assert.deepEqual(
     headings(store.comments[0].body),
-    [...["base", "handoff", "credit-stop", "no-key", "fallback", "base"].map((leg) => heading(123, 1, 0, leg)), heading(123, 1, 1, "base")],
+    [...["base", "handoff", "credit-stop", "no-key", "fallback", "base"].map((leg) => heading(1, 0, leg)), heading(1, 1, "base")],
   );
 });
 
@@ -444,7 +460,7 @@ test("a refused post names GitHub's answer and writes the report to the job summ
   assert.deepEqual(out.waits, []);
   const warning = out.lines.find((line) => line.startsWith("::warning::could not post"));
   assert.ok(warning.endsWith(`status 403 [${detail}]; the report is in this job's summary`), warning);
-  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(123, 1, 0, "base")]);
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(1, 0, "base")]);
 });
 
 test("a secondary rate limit on the list is retried once, list and write together, after its retry-after", async () => {
@@ -474,7 +490,7 @@ test("a secondary limit named only in the body waits the default, and a second r
   assert.equal(out.code, 0);
   assert.equal(calls, 2);
   assert.deepEqual(out.waits, [SIGNALS.fallbackSeconds * 1000]);
-  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(123, 1, 0, "base")]);
+  assert.deepEqual(headings(readFileSync(summary, "utf8")), [heading(1, 0, "base")]);
 });
 
 test("secondaryWait leaves a primary limit, other statuses, an unexplained 403 and a retry-after past the cap alone", () => {

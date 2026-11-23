@@ -1,11 +1,12 @@
-// The report jobs of pr-run-activity-read.yml and -write.yml: one comment per
-// activity on the pull request (the lane-run-report kind of
-// lib/pr-messages), holding a section for each report job of the newest run:
-// the activity's outcome, the commits it pushed and each GitHub API call that
-// failed. No model runs here, but the run job that carried the failure rows
-// shared RUNNER_TEMP with one, so every row is checked again, and a forged
-// outcome or commit renders as unknown or none, and no count the run job
-// carried is shown. A secondary rate limit's refusal is retried once after its
+// The report jobs of pr-run-activity-read.yml and -write.yml. A report job
+// whose run did not succeed or recorded a failed GitHub API call puts its
+// section in one comment per workflow run on the pull request (the
+// lane-run-report kind of lib/pr-messages): the activity's outcome, the
+// commits it pushed and each GitHub API call that failed. A clean report job
+// writes its report to the job summary only. No model runs here, but the run
+// job that carried the failure rows shared RUNNER_TEMP with one, so every row
+// is checked again, a forged outcome or commit renders as unknown or none,
+// and no count the run job carried is shown. A secondary rate limit's refusal is retried once after its
 // retry-after (a minute when absent, when it is at most MAX_WAIT_SECONDS,
 // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
 // A failure to post warns with GitHub's answer, writes the report to the job
@@ -130,9 +131,9 @@ const unescapeCell = (value) => value.replace(/&(?:#([0-9]{1,7})|amp|lt|gt);/g, 
 
 const outcome = (value) => (OUTCOMES.has(value) ? value : "unknown");
 
-export function reportOf({ runId, attempt, rung = "0", leg = "base", runResult, actOutcome, commit, readLane, failures }) {
+export function reportOf({ activity, attempt, rung = "0", leg = "base", runResult, actOutcome, commit, readLane, failures }) {
   return {
-    fields: { run: runId, attempt, rung: rung === "1" ? "1" : "0", leg },
+    fields: { activity, attempt, rung: rung === "1" ? "1" : "0", leg },
     runResult: outcome(runResult),
     actOutcome: outcome(actOutcome),
     commits: readLane ? "none (read lane)" : /^[0-9a-f]{40}$/.test(commit ?? "") ? commit : "none recorded",
@@ -140,11 +141,14 @@ export function reportOf({ runId, attempt, rung = "0", leg = "base", runResult, 
   };
 }
 
-export function renderSection(section, runUrlOf = () => "") {
-  const { run, attempt, rung, leg } = section.fields;
+export const failed = (section) =>
+  section.runResult !== "success" || section.actOutcome !== "success" || section.failures.rows.length > 0 || section.failures.dropped > 0;
+
+export function renderSection(section) {
+  const { activity, attempt, rung, leg } = section.fields;
   const lines = [
     sectionHeading(KIND, section.fields),
-    `### Run ${run}, attempt ${attempt}`,
+    `### ${escapeCell(activity)}, attempt ${attempt}`,
     "",
     "| Field | Value |",
     "| --- | --- |",
@@ -154,8 +158,6 @@ export function renderSection(section, runUrlOf = () => "") {
     `| Activity step | ${escapeCell(section.actOutcome)} |`,
     `| Commits pushed | ${escapeCell(section.commits)} |`,
   ];
-  const runUrl = runUrlOf(run);
-  if (runUrl) lines.push(`| Run | [${escapeCell(run)}](${runUrl}) |`);
   lines.push("", "#### Failed GitHub API calls", "");
   const { rows, dropped } = section.failures;
   if (rows.length === 0) {
@@ -199,27 +201,25 @@ export function parseSection({ fields, text }) {
 const NOTE = /^Not shown, to keep this comment under 60,000 characters: ([0-9]{1,9}) failure rows and ([0-9]{1,9}) sections\.$/m;
 
 export function merge(kept, mine) {
-  const run = BigInt(mine.fields.run);
-  const newest = kept.reduce((max, s) => (BigInt(s.fields.run) > max ? BigInt(s.fields.run) : max), 0n);
-  if (run < newest) return null;
-  const same = kept.filter((s) => BigInt(s.fields.run) === run);
+  const { activity, rung, leg } = mine.fields;
   const attempt = Number(mine.fields.attempt);
   let at = -1;
-  same.forEach((s, i) => {
-    if (s.fields.rung !== mine.fields.rung || s.fields.leg !== mine.fields.leg || Number(s.fields.attempt) >= attempt) return;
-    if (at === -1 || Number(s.fields.attempt) >= Number(same[at].fields.attempt)) at = i;
+  kept.forEach((s, i) => {
+    if (s.fields.activity !== activity || s.fields.rung !== rung || s.fields.leg !== leg || Number(s.fields.attempt) >= attempt) return;
+    if (at === -1 || Number(s.fields.attempt) >= Number(kept[at].fields.attempt)) at = i;
   });
-  return at === -1 ? { sections: [...same, mine], own: same.length } : { sections: same.with(at, mine), own: at };
+  return at === -1 ? { sections: [...kept, mine], own: kept.length } : { sections: kept.with(at, mine), own: at };
 }
 
-export function renderBody({ activity, sections, own, runUrlOf, cut = { rows: 0, sections: 0 } }) {
+export function renderBody({ run, sections, own, runUrlOf, cut = { rows: 0, sections: 0 } }) {
   const list = [...sections];
-  const texts = list.map((s) => renderSection(s, runUrlOf));
+  const texts = list.map(renderSection);
   let mine = own;
   let rowsCut = cut.rows;
   let sectionsCut = cut.sections;
   const head = () => {
-    const lines = ["## Lane run report", "", "| Field | Value |", "| --- | --- |", `| Activity | ${escapeCell(activity)} |`, ""];
+    const runUrl = runUrlOf(run);
+    const lines = ["## Lane run report", "", "| Field | Value |", "| --- | --- |", `| Run | ${runUrl ? `[${run}](${runUrl})` : run} |`, ""];
     if (rowsCut + sectionsCut > 0) lines.push(`Not shown, to keep this comment under 60,000 characters: ${rowsCut} failure rows and ${sectionsCut} sections.`, "");
     return `${lines.join("\n")}\n`;
   };
@@ -228,7 +228,7 @@ export function renderBody({ activity, sections, own, runUrlOf, cut = { rows: 0,
     if (i === mine || list[i].failures.rows.length === 0) continue;
     rowsCut += list[i].failures.rows.length;
     list[i] = { ...list[i], failures: { rows: [], dropped: Math.max(list[i].failures.dropped, 1) } };
-    texts[i] = renderSection(list[i], runUrlOf);
+    texts[i] = renderSection(list[i]);
   }
   while (size() > MAX_BODY && list.length > 1) {
     const oldest = mine === 0 ? 1 : 0;
@@ -263,7 +263,7 @@ export async function main(env = process.env, { github, store, sleep = (ms) => n
   const runUrlOf = (run) => (server ? `${server}/${env.REPOSITORY}/actions/runs/${run}` : "");
   const activity = `${env.LANE}/${env.ACTIVITY}`;
   const mine = reportOf({
-    runId: env.RUN_ID,
+    activity,
     attempt: env.GITHUB_RUN_ATTEMPT,
     rung: env.MODEL_RUNG || "0",
     leg: LEGS.get(env.LEG ?? ""),
@@ -273,7 +273,7 @@ export async function main(env = process.env, { github, store, sleep = (ms) => n
     readLane: env.READ_LANE === "true",
     failures: failureRows(env.API_FAILURES),
   });
-  const alone = renderBody({ activity, sections: [mine], own: 0, runUrlOf });
+  const alone = renderBody({ run: env.RUN_ID, sections: [mine], own: 0, runUrlOf });
   const toSummary = () => {
     try {
       if (!env.GITHUB_STEP_SUMMARY) return "";
@@ -283,17 +283,19 @@ export async function main(env = process.env, { github, store, sleep = (ms) => n
       return "";
     }
   };
+  if (!failed(mine)) {
+    console.log(`::notice::${activity} succeeded with no failed GitHub API call, so no lane run report comment is posted${toSummary()}`);
+    return 0;
+  }
   try {
     const client = store ? undefined : (github ?? createGitHub({ token: env.GITHUB_TOKEN, latch: createRateLimitLatch({ budgetMs: LATCH_BUDGET_MS, hold: true }) }));
     const post = async () => {
       const thread = prMessages({ store: store ?? graphqlStore(client, { timeoutMs: listTimeoutMs }), repo: env.REPOSITORY, number: Number(env.PULL) });
-      const current = await thread.read(KIND, { activity });
+      const current = await thread.read(KIND, { run: env.RUN_ID });
       const merged = merge((current?.sections ?? []).map(parseSection), mine);
-      if (merged === null) return "older";
       const note = NOTE.exec(current?.preamble ?? "");
-      const sameRun = current?.sections.some((s) => s.fields.run === mine.fields.run);
-      const cut = sameRun && note ? { rows: Number(note[1]), sections: Number(note[2]) } : undefined;
-      return thread.write(KIND, { activity }, {}, renderBody({ activity, ...merged, runUrlOf, cut }));
+      const cut = note ? { rows: Number(note[1]), sections: Number(note[2]) } : undefined;
+      return thread.write(KIND, { run: env.RUN_ID }, {}, renderBody({ run: env.RUN_ID, ...merged, runUrlOf, cut }));
     };
     let done;
     try {
@@ -304,10 +306,6 @@ export async function main(env = process.env, { github, store, sleep = (ms) => n
       console.log(`::notice::GitHub's secondary rate limit refused the lane run report on #${env.PULL}${detailSuffix(causeOf(error))}; trying once more in ${wait}s`);
       await sleep(wait * 1000);
       done = await post();
-    }
-    if (done === "older") {
-      console.log(`::notice::the lane run report on #${env.PULL} already holds a newer run of ${activity}, so it is left as it is${toSummary()}`);
-      return 0;
     }
     console.log(`::notice::${done === "unchanged" ? "left unchanged" : done} the lane run report on #${env.PULL}`);
   } catch (error) {

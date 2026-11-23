@@ -4048,9 +4048,10 @@ jobs:
             exit 1
           }
 
-      # One comment per activity on the PR (lane-run-report/post.mjs), found
-      # by the marker `<!-- lane-run-report activity=<lane>/<activity> -->`,
-      # with a section per report job of the newest run:
+      # A run that did not succeed or recorded a failed API call gets one
+      # comment per workflow run on the PR (lane-run-report/post.mjs), marked
+      # `<!-- lane-run-report run=<run id> -->`, with a section per failed
+      # report job; a clean run writes the job summary only:
       # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md
       # A checked-out base without the script, or a failed post, warns and
       # leaves the job green. A broker kill-switch refusal or budget stop ran
