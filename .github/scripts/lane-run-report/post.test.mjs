@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 // post.mjs: the lane run report comment, its rows checked again here because
 // the run job that carried them shared RUNNER_TEMP with the model.
 import assert from "node:assert/strict";
