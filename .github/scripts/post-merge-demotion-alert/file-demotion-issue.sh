@@ -673,7 +673,6 @@ $pr_line- $sha_label: \`$RUN_SHA\`
 - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}${canary_block:+
 
 $canary_block}"
-# TODO(#10517): move these holds off needs-human.
 record="$(file_issue Bug -f title="$title" -f body="$body")"
 if [[ "$signal" == canary || -n "$fix_over" ]]; then
   if [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-human critical; then
