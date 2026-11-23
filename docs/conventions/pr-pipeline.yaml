@@ -1662,8 +1662,18 @@ merge:
     # organization's code, not third-party code (owner decision 2026-11-15,
     # the Dependabot policy's `fastTrack`).
     trusted-action-owners:
+      - actions
       - anthropics
+      - aws-actions
+      - azure
+      - docker
+      - github
+      - google
+      - google-github-actions
+      - hashicorp
       - melodic-software
+      - microsoft
+      - openai
   diff-check:
     denied-paths: []
     high-path-floor: false
