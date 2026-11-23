@@ -777,7 +777,7 @@ jobs:
           for attempt in 1 2 3; do
             if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state=pending -f context=ci-lanes \
-              -f description="full run $GITHUB_RUN_ID in flight" \
+              -f description="full run $GITHUB_RUN_ID in flight, testing $GITHUB_SHA" \
               -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
               echo "Marked ci-lanes pending on $HEAD_SHA."
               exit 0
@@ -837,10 +837,6 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
-    # The detect-changes action lists the pull request's files through the
-    # API, and the queue-hold step reads the queued pull request. No step here
-    # reads commit statuses: queueHolds takes only the pull request. No write
-    # scope: this job runs pull request code.
     permissions:
       contents: read
       pull-requests: read
@@ -951,6 +947,8 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" >"$RUNNER_TEMP/queued-pull.json" || leave "could not read #$pr"
           head=$(jq -r '.head.sha // ""' "$RUNNER_TEMP/queued-pull.json") || head=
           [[ $head =~ ^[0-9a-f]{40}$ ]] || leave "the head of #$pr is not a commit SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" >"$RUNNER_TEMP/queued-head-statuses.json" ||
+            rm -f "$RUNNER_TEMP/queued-head-statuses.json"
           tracker=null
           [ ! -s "$RULES/tracker.json" ] || tracker=$(cat "$RULES/tracker.json")
           jq -n --slurpfile pull "$RUNNER_TEMP/queued-pull.json" --argjson tracker "$tracker" \
@@ -1188,6 +1186,17 @@ jobs:
           cat "$RUNNER_TEMP/changed-suites.txt"
           if [ -s "$RUNNER_TEMP/changed-suites.txt" ]; then echo "any=true"; else echo "any=false"; fi >>"$GITHUB_OUTPUT"
           echo "list=$(jq -Rnc '[inputs]' <"$RUNNER_TEMP/changed-suites.txt")" >>"$GITHUB_OUTPUT"
+      - name: Log what a narrower merge-group run would skip
+        id: mq_scope
+        if: github.event_name == 'merge_group'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          scripts/merge-group-scope.sh --pull "$RUNNER_TEMP/queued-pull.json" \
+            --statuses "$RUNNER_TEMP/queued-head-statuses.json" --group-base "$GROUP_BASE_SHA" \
+            --pr-plan "$RUNNER_TEMP/plan.txt" --summary "$GITHUB_STEP_SUMMARY"
       # A merge group's hold step emits this job's notices itself. Elsewhere
       # this step does, and on a pull request it names detect-changes, which
       # lists the files through actions/github-script, a client no counter sees.
