@@ -1,12 +1,32 @@
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkVersion, claimDaily, parseVersion } from "../../lib/cli-version-check.mjs";
 import { closeBreaker } from "./breaker.mjs";
+import { pluginRoot } from "./config.mjs";
 import { query } from "./process.mjs";
 import { EXIT, guardValues, oneLine, pickBinary, setup, Stop } from "./runner.mjs";
 
 const TIMEOUT_MS = 5000;
+const PAGE_TIMEOUT_MS = 30_000;
 const reasonOf = (error) => (error?.name === "TimeoutError" ? `no answer in ${TIMEOUT_MS} ms` : oneLine(error?.message ?? error));
+
+/** One page's text, read through the plugin's fetch-docs.sh copy and the shared docs cache; throws with the reason it stayed unread. */
+export function readCachedPage(url, env = process.env) {
+  const out = mkdtempSync(join(tmpdir(), "external-agents-page-"));
+  try {
+    const args = [join(pluginRoot, "scripts", "fetch-docs.sh"), "--cache", "--profile", "generic", "--out", out.replaceAll("\\", "/"), url];
+    const done = spawnSync("bash", args, { env, cwd: pluginRoot, encoding: "utf8", timeout: PAGE_TIMEOUT_MS, windowsHide: true });
+    if (done.error) throw done.error;
+    if (done.status !== 0) throw new Error(oneLine(done.stderr ?? "") || `fetch-docs.sh exited ${done.status}`);
+    const page = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8")).pages?.[0];
+    if (page?.state !== "read") throw new Error(page?.reason ?? "fetch-docs.sh recorded no page");
+    return readFileSync(page.file, "utf8");
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+}
 
 /** Every config key the runner passes with the record's config flag, in the order the record lists them. */
 export function configKeys(record) {
@@ -37,7 +57,7 @@ export function versionSource(record, binaryPath) {
 
 const named = (key) => new RegExp(`(?<![A-Za-z0-9_.])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9_])`);
 
-async function checkKeys(ctx, record, help) {
+async function checkKeys(ctx, record, help, readPage) {
   const keys = configKeys(record);
   if (!keys.length) return { line: "config keys: none passed", fine: true };
   const missing = keys.filter((key) => !named(key).test(help));
@@ -45,9 +65,7 @@ async function checkKeys(ctx, record, help) {
   if (!record.config_reference) return { line: `config keys: drift: ${missing.join(", ")} not in the CLI help`, fine: false };
   let text;
   try {
-    const res = await ctx.fetch(record.config_reference, { headers: { accept: "text/markdown, text/plain" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    text = await res.text();
+    text = await readPage(record.config_reference, ctx.env);
   } catch (error) {
     return { line: `config keys: unverified: ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in the CLI help, and ${record.config_reference} could not be read (${reasonOf(error)})`, fine: false };
   }
@@ -148,7 +166,7 @@ export async function update(opts) {
     const due = claimDaily({ stateDir: ctx.dataDir, name: `routing-${record.product}`, now: ctx.now() });
     lines.push(due ? "routing: due; re-read the routing pointers" : "routing: checked earlier today");
 
-    const keys = await checkKeys(ctx, record, help);
+    const keys = await checkKeys(ctx, record, help, opts.readPage ?? readCachedPage);
     lines.push(keys.line);
     if (!keys.fine) attention.push("config keys");
 
