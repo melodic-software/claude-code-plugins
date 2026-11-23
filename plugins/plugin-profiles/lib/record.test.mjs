@@ -17,7 +17,7 @@ function recordFile(record) {
 
 test("rollback puts the previous record back while the file still holds this apply's", () => {
   const path = recordFile(B);
-  assert.equal(rollbackRecord(path, recordText(B), PREVIOUS), true);
+  assert.equal(rollbackRecord(path, recordText(B), recordText(PREVIOUS)), true);
   assert.equal(readFileSync(path, "utf8"), recordText(PREVIOUS));
 });
 
@@ -28,7 +28,7 @@ test("rollback deletes a record it created while the file still holds it", () =>
 });
 
 test("a rollback after another apply saved its record leaves that record in place", () => {
-  for (const previous of [PREVIOUS, null]) {
+  for (const previous of [recordText(PREVIOUS), null]) {
     const path = recordFile(A);
     assert.equal(rollbackRecord(path, recordText(B), previous), false);
     assert.equal(readFileSync(path, "utf8"), recordText(A));
