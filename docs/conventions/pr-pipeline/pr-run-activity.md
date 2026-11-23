@@ -1348,9 +1348,10 @@ warns of a [classifier gap](README.md#classifier-gaps).
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
    `not-applicable`; one whose head is no longer the head read skips `superseded-sha`. One whose
    only CI Status failure is the trust-gate hold (`#<n> is by an author no review lane reviews
-   and changes trust-gate paths`), which only a trusted approver clears, escalates
-   `dependency-gate-hold` with no model turn and skips `awaiting-human`: a hold that names no
-   owner reason and says the lane did not judge the update's content.
+   and changes trust-gate paths`), which only a trusted approver clears, skips `awaiting-human`
+   with no model turn and no escalation, so no human-gated label goes on (that label would keep
+   CI Status red after the approval); its step summary says the lane did not judge the update's
+   content.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / review-dependency` check run that ended `success` or

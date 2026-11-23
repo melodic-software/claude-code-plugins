@@ -185,7 +185,6 @@ declare -A OWNER_REASONS=([feedback-round-cap-security]=security [feedback-uncer
   [feedback-question-security]=security [dependency-security-close]=security [dependency-escalate]=intent
   [dependency-escalate-intent]=intent [dependency-escalate-design]=design
   [dependency-escalate-security]=security [dependency-escalate-cost]=cost [superseded-by-main]=intent)
-GATE_HOLD_REASONS=(dependency-gate-hold)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
@@ -204,9 +203,9 @@ FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-confl
   shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
-  "$(printf '%s\n' "${HOLD_REASONS[@]}" "${GATE_HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
+  "$(printf '%s\n' "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
 check "the routing table holds these for a person" \
-  "$(printf '%s\n' "${HOLD_REASONS[@]}" "${GATE_HOLD_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "hold") | .key' "$ROUTES" | sort)"
+  "$(printf '%s\n' "${HOLD_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "hold") | .key' "$ROUTES" | sort)"
 check "the routing table queues these for a session builder, each a fail route" \
   "$(printf '%s\n' "${SESSION_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "fail" and .value.label == "needs-session") | .key' "$ROUTES" | sort)"
 check "the routing table names no other label" "" "$(jq -r 'to_entries[] | select(.value | has("label")) | select(.value.route != "fail" or .value.label != "needs-session") | .key' "$ROUTES")"
@@ -214,8 +213,8 @@ check "the routing table names these owner reasons, each on a hold route" \
   "$(for r in "${!OWNER_REASONS[@]}"; do printf '%s=%s\n' "$r" "${OWNER_REASONS[$r]}"; done | sort)" \
   "$(jq -r 'to_entries[] | select(.value | has("owner-reason")) | select(.value.route == "hold") | "\(.key)=\(.value."owner-reason")"' "$ROUTES" | sort)"
 check "the routing table names no owner reason off a hold route" "" "$(jq -r 'to_entries[] | select(.value | has("owner-reason")) | select(.value.route != "hold") | .key' "$ROUTES")"
-check "every hold row but a gate hold names its owner reason" "" "$(jq -r --arg gates "${GATE_HOLD_REASONS[*]}" 'to_entries[] | select(.value.route == "hold") | select(.key | IN($gates | split(" ")[]) | not) | select((.value."owner-reason" // "") | IN("intent", "design", "security", "cost") | not) | .key' "$ROUTES")"
-for reason in "${HOLD_REASONS[@]}" "${GATE_HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}"; do
+check "every hold row names its owner reason" "" "$(jq -r 'to_entries[] | select(.value.route == "hold") | select((.value."owner-reason" // "") | IN("intent", "design", "security", "cost") | not) | .key' "$ROUTES")"
+for reason in "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}"; do
   check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
 done
 
@@ -272,7 +271,7 @@ run ci-fix-weaken-required
 check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
 # Held reasons: one comment, one label, both on the PR.
-for reason in "${HOLD_REASONS[@]}" "${GATE_HOLD_REASONS[@]}"; do
+for reason in "${HOLD_REASONS[@]}"; do
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"
@@ -308,14 +307,6 @@ setup '[]' '[]'
 run bogus
 check "an unlisted reason's hold carries no stop-reason marker" null \
   "$(LIB="$SCRIPT_DIR/../lib/stop-reason.mjs" node --input-type=module -e "$PARSE" <"$STUB/bodies")"
-for reason in "${GATE_HOLD_REASONS[@]}"; do
-  setup '[]' '[]'
-  run "$reason"
-  check "$reason: the gate hold carries no stop-reason marker" null \
-    "$(LIB="$SCRIPT_DIR/../lib/stop-reason.mjs" node --input-type=module -e "$PARSE" <"$STUB/bodies")"
-  check "$reason: the gate hold names no security risk" 0 "$(grep -ci 'security' "$STUB/bodies" || true)"
-  has "$reason: the gate hold says the content was not judged risky" "did not judge the update's content risky" "$STUB/bodies"
-done
 
 # Fail-routed reasons: one lanes-stopped comment, no label, no status from
 # the comment run.
@@ -459,7 +450,7 @@ for reason in "${FAIL_REASONS[@]}"; do
   has "status, $reason: description names the reason" "description=Lane stopped: $reason; checked again on a new head" "$STUB/calls"
 done
 
-for reason in "${HOLD_REASONS[@]}" "${GATE_HOLD_REASONS[@]}"; do
+for reason in "${HOLD_REASONS[@]}"; do
   setup '[]' '[]'
   MODE=status run "$reason"
   check "status, held $reason: exit 0" 0 "$RC"

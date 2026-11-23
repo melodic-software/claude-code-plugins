@@ -4,7 +4,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -206,14 +205,12 @@ const gateHold = (pr) => ({
 const majorBump = (annotations) =>
   select({ api: fakeApi({ gateRuns: [supersededRun], annotations }), pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] });
 
-test("select holds a pull request whose only CI Status failure is the trust-gate hold, with no model turn and no security reason", async () => {
+test("select skips a pull request whose only CI Status failure is the trust-gate hold, with no model turn, escalation or label", async () => {
   const result = await majorBump({ 9: [NOTICE, EXIT, gateHold(7), NOTICE] });
-  assert.equal(result.decision, "escalate");
-  assert.equal(result.escalationReason, "dependency-gate-hold");
+  assert.equal(result.decision, "skip");
+  assert.equal(result.skipReason, "awaiting-human");
+  assert.equal(result.escalationReason, undefined, "no escalation, so no needs-human label and no security reason");
   assert.equal(result.file, undefined, "no context file, so no model turn");
-  assert.equal(escalationRoute(result.escalationReason), "hold");
-  assert.notEqual(ROUTES[result.escalationReason]["owner-reason"], "security", "a gate hold is not a security finding");
-  assert.doesNotMatch(ROUTES[result.escalationReason].why, /security/i);
 });
 
 test("select hands the model a trust-gate hold for another pull request, or one beside another failure", async () => {
@@ -526,9 +523,12 @@ test("main writes no context or run file when the select skips", async () => {
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "proceed=false\nskip-reason=superseded-sha\nescalation-reason=\n");
   assert.equal(existsSync(env.DEPENDENCY_FILE), false);
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
-  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: fakeApi({ gateRuns: [supersededRun], annotations: { 9: [EXIT, gateHold(7)] } }), log: () => {} });
-  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=awaiting-human\nescalation-reason=dependency-gate-hold\n");
+  const lines = [];
+  await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: fakeApi({ gateRuns: [supersededRun], annotations: { 9: [EXIT, gateHold(7)] } }), log: (line) => lines.push(line) });
+  assert.equal(readFileSync(join(dir, "held"), "utf8"), "proceed=false\nskip-reason=awaiting-human\nescalation-reason=\n");
   assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
+  assert.ok(lines.some((line) => line.includes("trust-gate hold") && line.includes("content was not judged")), "the step summary says why no review ran");
+  assert.ok(!lines.some((line) => /security/i.test(line)), "a gate hold names no security risk");
 });
 
 // main over a readable base config and policy, with the registry stubbed.

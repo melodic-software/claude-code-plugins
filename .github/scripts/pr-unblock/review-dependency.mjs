@@ -290,7 +290,7 @@ export async function select({
     relockError = error.message;
   }
   if (gate.gateHold) {
-    return { decision: "escalate", escalationReason: "dependency-gate-hold", rounds: 0, classification, pinError, relockError };
+    return { decision: "skip", skipReason: "awaiting-human", gateHold: true, classification, pinError, relockError };
   }
   const comments = await api.listIssueComments(pr);
   // One commit's check runs at a time: element 6's serial reads.
@@ -473,6 +473,9 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     output("relock-state", "written");
     output("relock-sha256", createHash("sha256").update(request).digest("hex"));
     summary(`${result.relock.directory}: ${result.relock.name} ${result.relock.from} to ${result.relock.to}, relocked by review-dependency-relock and pushed by apply-dependency-relock with no model turn`);
+  }
+  if (result.gateHold) {
+    summary(`#${pr}: the only failing CI Status check is the trust-gate hold, which only a person on the trusted-actor list approving this head clears, so no dependency review ran and the update's content was not judged`);
   }
   if (result.pinError) {
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);
