@@ -21,7 +21,9 @@ grep -E) matches its text; every other one prints
 on stdout. A path with no lexer is skipped with one notice on stderr. Under necessary, a
 one-line ADR pointer (ADR-0042, or a path into <adr-dir>) passes only when the record exists
 under <adr-dir> (default docs/adr; one outside <records> falls back to it) of <records>, the
-repository as the change holds it; with no <records> it fails.
+repository as the change holds it; with no <records> it fails. An added line whose trimmed
+text matches a trimmed line of <deleted> (the change's deleted lines) is a moved line, not
+judged.
 
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
@@ -398,8 +400,9 @@ def _allowed(texts: list[str], allow: list[str]) -> set[int]:
     return {int(row.split(":", 1)[0]) - 1 for row in proc.stdout.splitlines() if row}
 
 
-def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR):
-    """The finding lines for the comments on <added> lines of <path>; None when no lexer reads it."""
+def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, moved=frozenset()):
+    """The finding lines for the comments on <added> lines of <path>, none on a line whose
+    trimmed text is in <moved>; None when no lexer reads it."""
     lexer, tokens = _lex(path, text)
     if lexer is None:
         return None
@@ -410,7 +413,7 @@ def findings(path: str, text: str, added, posture: str, allow: list[str], repo: 
     candidates = []
     for first, last in added:
         for n in range(max(first, 1), min(last, len(lines) - 1) + 1):
-            if not lines[n].comment:
+            if not lines[n].comment or source[n - 1].strip() in moved:
                 continue
             if lexer.name == "PowerShell" and _inside_word(
                 source[n - 1] if n - 1 < len(source) else "", lines[n].comment
@@ -448,6 +451,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--allow", type=Path)
     parser.add_argument("--records", type=Path)
     parser.add_argument("--adr-dir", default=ADR_DIR)
+    parser.add_argument("--deleted", type=Path)
     args = parser.parse_args(argv)
     try:
         import pygments  # noqa: F401
@@ -461,6 +465,12 @@ def main(argv: list[str]) -> int:
     if args.allow:
         allow = [p for p in args.allow.read_text(encoding="utf-8").splitlines() if p]
     ranges = _ranges(args.ranges)
+    moved = frozenset()
+    if args.deleted:
+        moved = frozenset(
+            line.strip()
+            for line in args.deleted.read_text(encoding="utf-8", errors="replace").splitlines()
+        )
     paths = [
         p
         for p in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0")
@@ -470,7 +480,7 @@ def main(argv: list[str]) -> int:
     for path in paths:
         text = (args.root / path).read_text(encoding="utf-8", errors="replace")
         try:
-            got = findings(path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir)
+            got = findings(path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir, moved)
         except ValueError as err:
             print(
                 f"comment-lint: grep -E rejected a comment_lint_allow pattern: {err}",

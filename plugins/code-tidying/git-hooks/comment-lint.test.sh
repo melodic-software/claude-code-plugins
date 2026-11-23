@@ -272,6 +272,60 @@ stage_fixture shape6.sh.txt src/a.sh
 printf 'x=1 # keep this exact wording remove-comments-ignore\nz=0\ny=2\n' >"$REPO/src/a.sh"
 expect "partly staged: the staged comment is judged, not the work tree" "1|$(finding src/a.sh 3 necessary)" "$(check "$REPO")"
 
+moved_repo() {
+  new_repo 'comment_lint: block'
+  mkdir -p "$REPO/src" "$REPO/lib"
+  printf 'x=1\n# keep the exit code for the caller\ny=2\n' >"$REPO/src/a.sh"
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -q -m old --no-verify
+  git -C "$REPO" rm -q src/a.sh
+}
+moved_repo
+printf 'z=1\n  # keep the exit code for the caller\n' >"$REPO/lib/b.sh"
+git -C "$REPO" add lib/b.sh
+expect "a comment moved to another file and re-indented is not judged" "0|" "$(check "$REPO")"
+moved_repo
+printf 'z=1\n# keep the exit status for the caller\n' >"$REPO/lib/b.sh"
+git -C "$REPO" add lib/b.sh
+expect "a moved comment that is reworded is judged" "1|$(finding lib/b.sh 2 necessary)" "$(check "$REPO")"
+moved_repo
+printf 'z=1\n# keep the exit code for the caller\n# a brand new note\n' >"$REPO/lib/b.sh"
+git -C "$REPO" add lib/b.sh
+expect "a new comment beside a moved one is judged" "1|$(finding lib/b.sh 3 necessary)" "$(check "$REPO")"
+moved_repo
+printf 'z=1\n# keep the exit code for the caller\n' >"$REPO/lib/b.sh"
+expect "--worktree: an unstaged move to an untracked file is not judged" "0|" "$(check "$REPO" --worktree)"
+
+new_repo 'comment_lint: block'
+printf 'echo note\n' >"$REPO/seed.sh"
+printf '# Setup\n' >"$REPO/README.md"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m old --no-verify
+printf 'x=1\n' >"$REPO/seed.sh"
+: >"$REPO/README.md"
+printf 'x=1\n# echo note\n# Setup\n' >"$REPO/c.sh"
+git -C "$REPO" add -A
+expect "a deleted line exempts only an added line of the same trimmed text, in any file type" \
+  "1|$(finding c.sh 2 necessary)" "$(check "$REPO")"
+
+new_repo 'comment_lint: block'
+printf 'x=1\n' >"$REPO/a.sh"
+git -C "$REPO" add a.sh
+git -C "$REPO" commit -q -m base --no-verify
+git -C "$REPO" checkout -q -b side
+printf 'x=1\n# side note\n' >"$REPO/a.sh"
+git -C "$REPO" commit -q -am side --no-verify
+git -C "$REPO" checkout -q main
+printf 'y=1\n' >"$REPO/m.sh"
+git -C "$REPO" add m.sh
+git -C "$REPO" commit -q -m main --no-verify
+git -C "$REPO" merge -q --no-commit --no-ff side >/dev/null 2>&1
+printf 'x=1\n' >"$REPO/a.sh"
+printf 'z=1\n# side note\n# merge note\n' >"$REPO/b.sh"
+git -C "$REPO" add a.sh b.sh
+expect "a merge that moves the other parent's comment judges only the new one" \
+  "1|$(finding b.sh 3 necessary)" "$(check "$REPO")"
+
 new_repo 'comment_lint: block'
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 expect "the vendored installer installs the entry" '[{"entry":"comment-lint","status":"installed"}]' \

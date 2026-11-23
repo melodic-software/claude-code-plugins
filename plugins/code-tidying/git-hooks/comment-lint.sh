@@ -32,6 +32,8 @@ the file's name, or POSIX and Bash token rules for a shell script. Findings prin
 reader fails on is named on stderr while the other files are still judged, and blocks
 like any tool failure. An ADR pointer's record is looked up in comment_adr_dir where
 the file's text is read: the index, the work tree with --worktree, or the pushed tips.
+A comment line the same change also deletes, its trimmed text identical on any deleted
+line of any file (a moved or re-indented line), is not judged.
 A missing python3, or a python3 that cannot import pygments, follows
 checks.skipmissing (tool names python3 and pygments).
 EOF
@@ -138,8 +140,18 @@ while IFS= read -r -d '' f; do
 done < <(adr_records)
 
 checks_changed_lines
+deleted_lines() {
+  checks_diff "$@" -U0 --text --inter-hunk-context=0 2>/dev/null |
+    LC_ALL=C awk '
+      left > 0 || right > 0 { c = substr($0, 1, 1); if (c == "-") { left--; print substr($0, 2) } else if (c == "+") right--; next }
+      /^@@ / { split($2, o, ","); left = (o[2] == "") ? 1 : o[2] + 0; split($3, n, ","); right = (n[2] == "") ? 1 : n[2] + 0 }'
+}
+{
+  deleted_lines
+  while read -r m; do deleted_lines "$m"; done < <(checks_merge_heads)
+} >"$CHECKS_TMP/deleted"
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" --deleted "$CHECKS_TMP/deleted" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing
