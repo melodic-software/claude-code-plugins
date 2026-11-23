@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.14.6] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to seven skills, matching the committed skill-link table
+
+  brainstorm, design, design-handoff, draft-goal-condition, interview, prd and
+  wayfind now list their context-dependent links after `## Next`, one
+  condition per line.
+
 ## [5.14.5] - 2026-11-23
 
 ### Changed

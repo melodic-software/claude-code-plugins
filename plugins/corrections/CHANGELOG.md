@@ -3,6 +3,15 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.1] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to codify, matching the committed skill-link table
+
+  It lists the skill's context-dependent links after `## Next`, one condition
+  per line.
+
 ## [1.10.0] - 2026-11-23
 
 ### Changed

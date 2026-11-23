@@ -3,6 +3,15 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-11-23
+
+### Changed
+
+- add a `## Related` section to audit, delta and justify
+
+  Each lists its context-dependent links after `## Next`, one condition per
+  line, as the committed skill-link table says.
+
 ## [0.13.2] - 2026-11-23
 
 ### Fixed
