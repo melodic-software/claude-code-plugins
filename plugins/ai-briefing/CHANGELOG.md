@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.35] - 2026-11-23
+
+### Changed
+
+- `setup` gains a `## Next` section naming `/ai-briefing:generate`, per the accepted skill-link table.
+
 ## [1.0.34] - 2026-11-23
 
 ### Fixed
