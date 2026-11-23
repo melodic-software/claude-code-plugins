@@ -25,7 +25,6 @@ const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const GATE = "refine-key-credit";
 const LEGS = ["refine-issue", "refine-issue-subscription", "refine-issue-fallback"];
 
-// The old conditions and reasons, at 5599e627fc.
 const PICKED = "!cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'";
 const OLD = {
   gate: `\${{ ${PICKED} }}`,
