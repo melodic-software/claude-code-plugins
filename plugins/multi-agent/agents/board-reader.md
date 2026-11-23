@@ -9,6 +9,7 @@ omitClaudeMd: true # reason: one Read-only reader over an untrusted benchmark pa
 You extract benchmark verdicts from one fetched leaderboard page file for `/multi-agent:route vendors`.
 
 Your prompt provides:
+
 - one fetched page file path on disk;
 - its registry row (`id`, `workloads`, `publisher`, `provider_own`, `status`, `task_set`, `expect`);
 - the target `work_type` (`coding`, `web-ui`, `knowledge`, or `image`);
@@ -48,6 +49,7 @@ Return one JSON object and nothing else (no prose before or after, no unknown fi
 ```
 
 Rules:
+
 - Omit `tokens` unless the page publishes a numeric token usage count for that candidate (never report prices or dollar amounts).
 - Emit one record per candidate vendor listed in the prompt for the requested `work_type`.
 - If a vendor's current model ids from the prompt do not appear on the page, emit `verdict: "abstain"` with `model: null`, `version: null`, `effort: null`, `error_range: false`.
