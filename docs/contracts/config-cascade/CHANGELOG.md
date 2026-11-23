@@ -9,8 +9,15 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 ## [Unreleased]
 
-No contract change.
+Additive (minor bump): a linked worktree reads the personal override from the main checkout. The
+other entries below leave `contract_version` as it is.
 
+- **A linked worktree reads the main checkout's personal override.** Git does not copy an ignored
+  file into a linked worktree, so every personal value was lost there. `lib/config-cascade.mjs`
+  now reads `<main checkout>/<home>/<concern>.local.<ext>` when the worktree has no personal file
+  of its own; a worktree's own file is read instead, never merged with the main checkout's. The
+  symlink and outside-the-project guards apply to the main checkout's file. The plugins that carry
+  the synced copies record it in their own changelog fragments.
 - **The `overengineering` row reads `<home>/overengineering.yaml`.** The team file moves to the
   convention home with a schema and the personal override to `<home>/overengineering.local.yaml`;
   the plugin keeps no user-global file. Each old `.claude` file is still read, with a warning,
