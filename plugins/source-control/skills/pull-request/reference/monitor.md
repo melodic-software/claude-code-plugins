@@ -166,7 +166,7 @@ The poll keeps its 90s cadence: readiness needs every check terminal, the curren
    `bash "<skill-dir>/scripts/monitor-poll.sh" --pr <N> --checkout "<checkout>"`, `<skill-dir>` and
    `<checkout>` put in place; `<skill-dir>` is the pull-request skill's directory even when another
    skill, such as babysit-prs, arms the watch. Its reads are conditional requests (**Pointer**: for what
-   one counts against the REST limit, fetch [Use conditional requests if appropriate](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate) live); add `--interval <seconds>` above its default 90
+   one counts against the REST limit, fetch [Use conditional requests](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests) live); add `--interval <seconds>` above its default 90
    only when the [API budget](../../../reference/providers/github/README.md#api-budget) arithmetic says so. It resolves
    `OWNER` and `REPO` itself from `<checkout>` and exits 1 when that read refuses; on a triangular
    flow, add `--repo <base-owner>/<repo>`, the PR's base repository, as the provider reference
