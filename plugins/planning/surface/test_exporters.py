@@ -5235,6 +5235,65 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         self.assertEqual(rc, 6, out)
         self.assertEqual(register_rows(ledger), answered)
 
+    REOPENED_Q1 = "- Q1 | open | round 1 | Question Q1? | reopened:: round 2"
+
+    def reopened_q1(self):
+        """Q1, Q2 and Q4 accepted on the page and exported, then Q1 reopened for round 2."""
+        self.three_of_four()
+        ledger = self.tmp / "checklist.md"
+        ledger.write_bytes(self.export("ledger").read_bytes())
+        fact = self.tmp / "fact.txt"
+        fact.write_text("the tracker says otherwise (user, round 2)", encoding="utf-8")
+        rc, out = self.rp(
+            "reopen", "--ledger", str(ledger), "Q1", "--round", "2", "--fact-file", str(fact)
+        )
+        self.assertEqual(register_rows(ledger)[0], self.REOPENED_Q1, out)
+        return ledger
+
+    def answer_q1_again(self, kind, alt=None, at=AT, round_2_at=None):
+        """The page's Q1 answered again by `kind` at `at`; round 2 posted at `round_2_at`."""
+        doc = self.doc()
+        events = [event(n, qid, "accept") for n, qid in enumerate(("Q1", "Q2", "Q4"), start=1)]
+        self.session(doc["questions"], [*events, {**event(4, "Q1", kind, alt=alt), "at": at}])
+        if round_2_at:
+            doc = self.doc()
+            restate = {"text": "Q1 asked again.", "decided": ["Q2", "Q4"], "open": ["Q1"]}
+            doc["rounds"] = [
+                {"round": 2, "stage": "interview", "at": round_2_at, "restate": restate}
+            ]
+            (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def test_a_reopened_page_answer_stays_open_through_sync(self):
+        ledger = self.reopened_q1()
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            register_rows(ledger)[0], self.REOPENED_Q1, "sync restored the reopened answer"
+        )
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertIn("Q1 status: kept the ledger's reopened 'open'", out)
+        self.assertNotIn("conflict", out)
+
+    def test_a_different_page_answer_after_a_reopen_wins_the_sync(self):
+        ledger = self.reopened_q1()
+        self.answer_q1_again("alt", alt="a")
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        row = register_rows(ledger)[0]
+        self.assertTrue(row.startswith("- Q1 | answered | "), row)
+        self.assertIn("Alt a of Q1", row)
+        self.assertTrue(row.endswith("reopened:: round 2"), row)
+
+    def test_the_same_page_answer_given_after_the_reopen_round_posts_wins_the_sync(self):
+        ledger = self.reopened_q1()
+        self.answer_q1_again(
+            "accept", at="2026-09-24T12:00:00Z", round_2_at="2026-09-24T11:00:00Z"
+        )
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        row = register_rows(ledger)[0]
+        self.assertTrue(row.startswith("- Q1 | answered | "), row)
+
     def test_sync_ledger_into_an_empty_register_keeps_its_prose_apart(self):
         self.decided()
         ledger = self.tmp / "empty.md"

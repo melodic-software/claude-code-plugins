@@ -855,7 +855,9 @@ def merged_register(d, text=None):
     ledger's title and its round cell while that cell still names the page's round; and a row
     the ledger settled that the page shows otherwise, with no decision of the page's own since
     any import, keeps the ledger's status and resolution, a conflict (a page decision since
-    then is newer than the ledger row and is written over it). A row the ledger holds keeps the
+    then is newer than the ledger row and is written over it). A row `reopen` set back to open
+    stays open while the page still holds the answer it reopened, unless the page answered it
+    after the round that asks it again was posted. A row the ledger holds keeps the
     ledger's tag tail, so a tag the terminal lane wrote after an import survives the merge.
     notes are (kind, line) pairs, one per difference between the ledger
     and the merge or the page: kind `change` (the merge rewrites the ledger), `conflict` or
@@ -881,6 +883,26 @@ def merged_register(d, text=None):
             q.get("supersededBy")
         )
 
+    reopened = {n: (rnd, was) for n, rnd, was, _ in reopened_entries(text or "")}
+    numbers = ledger_numbers(text)
+
+    def held_open(q, status, res, page_res):
+        """True when the ledger reopened q's row (`status` and `res` its ledger cells) and the
+        page's resolution `page_res` still holds the answer it reopened, given before the round
+        that asks it again was posted."""
+        entry = reopened.get(f"Q{numbers[q['id']]}")
+        tags = parse_tags(split_tags(res)[1], q["id"], "the ledger")
+        if status != "open" or not entry or "reopened" not in tags:
+            return False
+        rnd, was = entry
+        posted = [
+            r["at"] for r in doc.get("rounds") or [] if r.get("at") and (r.get("round") or 0) >= rnd
+        ]
+        stamps = [x.get("updatedAt") for x in (responses.get(q["id"]), q.get("terminal")) if x]
+        if posted and any(s and s > min(posted) for s in stamps):
+            return False
+        return split_lead(split_tags(drop_stale(page_res))[0])[1] == was
+
     rows = []
     tails = {i: split_tags(res)[1] for i, (_, _, _, res) in old.items()}
     for r in register(doc, resp, pos, tails):
@@ -903,6 +925,8 @@ def merged_register(d, text=None):
                 and not page_decided(q)
             ):
                 row.update(status=status, resolution=res, readable=None)
+            elif held_open(q, status, res, page["resolution"]):
+                row.update(status=status, resolution=res, readable=None, reopen=True)
         rows.append(row)
     for i in extra:
         status, cell, title, res = old[i]
@@ -930,6 +954,14 @@ def merged_register(d, text=None):
         for col, before in zip(COLUMNS, was if page and was else ()):
             if before != r[col]:
                 notes.append(("change", f"{n} {col}: {before!r} -> {r[col]!r}"))
+            elif before != page[col] and col == "status" and r.get("reopen"):
+                notes.append(
+                    (
+                        "kept",
+                        f"{n} status: kept the ledger's reopened {before!r} (page: "
+                        f"{page[col]!r}, the answer it reopened)",
+                    )
+                )
             elif before != page[col] and col == "status":
                 notes.append(
                     (
