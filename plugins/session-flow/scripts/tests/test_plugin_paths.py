@@ -1,5 +1,3 @@
-"""Unit tests for plugin_paths.py: the data root rule, the atomic write and the git call."""
-
 from __future__ import annotations
 
 import os

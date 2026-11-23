@@ -6,8 +6,9 @@ export function usage() {
     [
       'Usage: vendor-decide --task-type <coding|web-ui|knowledge|image> [--settings <file>]',
       '                     --manifest <file> --records <[source_id=]file> [--records ...]',
-      '                     --models <file> [--registry <file>] [--defaults <file>]',
+      '                     --models <file> [--usage <file>] [--registry <file>] [--defaults <file>]',
       '                     [--state-dir <dir>] [--task-class <everyday|heavy>]',
+      '                     [--needs-tools <tools>] [--context <tokens>]',
       '                     [--tiebreak <steps>] [--vendor-order <vendors>] [--now <YYYY-MM-DD>]',
       '',
     ].join('\n'),
@@ -21,10 +22,13 @@ export function parseArgs(argv, pluginRoot) {
     manifest: null,
     records: [],
     models: null,
+    usage: null,
     settings: null,
     stateDir: null,
     registry: path.join(pluginRoot, 'reference', 'benchmarks.json'),
     defaults: path.join(pluginRoot, 'reference', 'defaults.yaml'),
+    needsTools: [],
+    context: null,
     tiebreak: [],
     tiebreakSet: false,
     vendorOrder: ['claude', 'codex', 'gemini'],
@@ -58,6 +62,25 @@ export function parseArgs(argv, pluginRoot) {
       case '--models':
         opts.models = needVal()
         break
+      case '--usage':
+        opts.usage = needVal()
+        break
+      case '--needs-tools': {
+        const raw = needVal()
+        opts.needsTools = raw
+          ? [...new Set(raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))]
+          : []
+        break
+      }
+      case '--context': {
+        const raw = needVal()
+        const parsed = Number(raw)
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          die(`--context must be a positive integer, got '${raw}'`)
+        }
+        opts.context = parsed
+        break
+      }
       case '--settings':
         opts.settings = needVal()
         break
