@@ -120,7 +120,7 @@ jobs:
 
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
 
@@ -240,7 +240,7 @@ jobs:
       - name: Resolve main's tip
         id: tip
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -276,9 +276,17 @@ jobs:
       # run reads again (element 3). No stored state decides the pause. Its
       # queued cap (`admission-open`) gates only new agent-ready labels in
       # work-unblock, never this run: a queued issue leaves the count by running.
+      - name: Set up Node
+        id: node
+        if: steps.kill.outputs.proceed != 'false'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
+        with:
+          node-version-file: .base/.node-version
+
       - name: Check the WIP cap
         id: wip
-        if: steps.kill.outputs.proceed != 'false'
+        if: steps.kill.outputs.proceed != 'false' && steps.node.outcome == 'success'
         continue-on-error: true
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
@@ -296,7 +304,7 @@ jobs:
         if: steps.wip.outputs.capped == 'false'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           leg: start
           role: issue-lane
@@ -465,7 +473,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -529,7 +537,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -540,15 +548,13 @@ jobs:
           sparse-checkout: |
             .github/scripts/lib/handoff-evidence.sh
             .github/actions/log-api-budget
-            .github/actions/scan-upload
-            .github/actions/setup-pinned-node
             .node-version
             lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           node-version-file: .base/.node-version
 
@@ -576,8 +582,9 @@ jobs:
         if: steps.credit-marker-resolve-issue.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
+          gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/key-credit-stop-resolve-issue/run-id
 
       - name: Upload resolve-issue's credit-stop marker
@@ -663,7 +670,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -760,7 +767,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -851,7 +858,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -954,7 +961,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1016,7 +1023,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip
@@ -1095,7 +1102,7 @@ jobs:
     steps:
       - name: Resolve main's tip
         id: tip
-        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@bd7215226a13b57f2a875fb784d401daf37399b6 # v0.79.0
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@8972ed0d6815585dbbead0532c4ea65b4088375e # v0.81.0
         with:
           branch: ${{ github.event.repository.default_branch }}
       - name: Check out the default branch tip

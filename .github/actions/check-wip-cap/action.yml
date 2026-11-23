@@ -15,7 +15,8 @@ description: >
   admissions pause (queued work at or over the queued cap on or after
   `wip.pause-from`, or, whatever `wip.pause-from` says, a search answered
   `incomplete_results: true` or the base config could not be read).
-  Run it from the default branch checkout, before any slot or lane token.
+  Run it from the default branch checkout, before any slot or lane token,
+  after ci-workflows' setup-pinned-node has set up the base's pinned Node.
 
 inputs:
   base-path:
@@ -53,14 +54,6 @@ outputs:
 runs:
   using: composite
   steps:
-    # setup-pinned-node's script, the sibling action in the same checkout: no
-    # GitHub API call, unlike actions/setup-node on a tool-cache miss.
-    - name: Set up Node
-      shell: bash
-      env:
-        VERSION_FILE: ${{ inputs.base-path }}/.node-version
-      run: bash "$GITHUB_ACTION_PATH/../setup-pinned-node/install-node.sh" "$VERSION_FILE"
-
     # The cap comes through resolve-config, which needs its dependencies; an
     # install that fails leaves the base config unread, so the run holds and admissions close.
     # A composite step takes no timeout-minutes, so `timeout` bounds the install.

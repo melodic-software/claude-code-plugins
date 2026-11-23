@@ -1469,9 +1469,14 @@ test("work-resolve-issue.yml: a WIP cap check that fails holds pick-slot green w
       const context = { "steps.kill.outputs.proceed": proceed, "steps.wip.outputs.capped": capped };
       assert.equal(evaluate(hold.if, context), runs, `hold notice on proceed ${JSON.stringify(proceed)}, capped ${JSON.stringify(capped)}`);
     }
-    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
+    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed, "steps.node.outcome": "success" }), true, `cap check on proceed ${JSON.stringify(proceed)}`);
+    assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": proceed, "steps.node.outcome": "failure" }), false, `no Node skips the cap check on proceed ${JSON.stringify(proceed)}`);
   }
-  assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false" }), false, "the switch on skips the cap check");
+  assert.equal(evaluate(wip.if, { "steps.kill.outputs.proceed": "false", "steps.node.outcome": "skipped" }), false, "the switch on skips the cap check");
+  const node = pick.steps.find((item) => item.id === "node");
+  assert.equal(node.if, "steps.kill.outputs.proceed != 'false'");
+  assert.equal(node["continue-on-error"], true, "a failed Node setup holds green");
+  assert.ok(pick.steps.indexOf(node) < pick.steps.indexOf(wip), "Node is set up before the check");
   assert.equal(evaluate(hold.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.capped": "" }), false, "the switch on names no hold");
   const marker = pick.steps.find((item) => item.id === "hold-marker");
   assert.equal(evaluate(marker.if, { "steps.kill.outputs.proceed": "false", "steps.wip.outputs.held": "", "steps.wip.outputs.capped": "" }), false, "the switch on marks no hold");
@@ -3963,7 +3968,7 @@ test("pr-run-activity-read.yml: the scan job's github-script steps count each re
   const api = (getContent) => ({ rest: { repos: { getBranch: async () => ({ data: { commit: { sha: GATE_TIP } } }), getContent } } });
   const served = async () => ({ data: { content: Buffer.from("export const x = 1;\n").toString("base64") } });
   const stage = { RUNNER_TEMP: root };
-  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "3\n", "getBranch and two getContent");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "2\n", "getBranch and the gate's getContent");
   assert.equal(await count("stage-scanner", "scan-stage-calls", api(refused), stage), "2\n", "a refused read still counts");
   assert.equal(await count("stage-scanner", "scan-stage-calls", { rest: { repos: { getBranch: refused } } }, stage), "1\n");
   const leak = { HEAD_SHA: "a".repeat(40) };
@@ -5280,7 +5285,7 @@ test("pr-run-activity-read.yml: a record step refuses a carried bundle that is n
 test("pr-run-activity-read.yml: the run job uploads nothing, and the transcript job that uploads its leg's transcript holds no checkout, secret, environment or token", () => {
   const { jobs, on } = workflow("pr-run-activity-read.yml");
   for (const step of jobs.run.steps) {
-    assert.ok(!isUpload(step) && !/\/upload-lane-transcript$/.test(String(step.uses ?? "")), `run: ${step.name} uploads`);
+    assert.ok(!isUpload(step) && !/\/upload-lane-transcript@[0-9a-f]{40}$/.test(String(step.uses ?? "")), `run: ${step.name} uploads`);
   }
   const steps = runSteps();
   const at = (id) => steps.findIndex((s) => s.id === id);
@@ -9177,7 +9182,7 @@ const TRANSCRIPT_EXEMPT = new Set([
   "pr-run-activity-read.yml#run",
 ]);
 const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
-const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
+const isTranscriptUpload = (step) => /\/upload-lane-transcript@[0-9a-f]{40}$/.test(String(step.uses ?? ""));
 
 test("every model leg is followed by a sealed transcript upload of its own execution file, under a job id unique in its workflow", () => {
   let legs = 0;
@@ -9641,8 +9646,8 @@ test("no job loads an action from ./.base/ after a checkout that replaced it", (
   }
 });
 
-test("the read runner's scan job and the write runner's run job scan uploads with a scanner staged in RUNNER_TEMP before the head checkout", () => {
-  const run = 'node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"';
+test("the read runner's scan job and the write runner's run job scan uploads with a gate staged in RUNNER_TEMP before the head checkout", () => {
+  const gate = "${{ runner.temp }}/scan-gate/lib/publish-gate.mjs";
   const jobs = [
     [workflow("pr-run-activity-read.yml").jobs.scan, "Check out the gated head"],
     [workflow("pr-run-activity-write.yml").jobs.run, "Check out the PR head"],
@@ -9655,8 +9660,8 @@ test("the read runner's scan job and the write runner's run job scan uploads wit
     const scans = job.steps.filter((s) => /^scan-upload/.test(s.id ?? ""));
     assert.ok(scans.length > 0);
     for (const scan of scans) {
-      assert.equal(scan.uses, undefined, scan.id);
-      assert.equal(scan.run, run, scan.id);
+      assert.match(scan.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40}$/, scan.id);
+      assert.equal(scan.with?.["gate-path"], gate, scan.id);
     }
   }
 });
@@ -10225,7 +10230,7 @@ test("the release-key workflows run no ci-workflows action, and their tip steps 
   }
 });
 
-// The guards of https://github.com/melodic-software/ci-workflows/blob/bd7215226a13b57f2a875fb784d401daf37399b6/.github/actions/resolve-branch-tip/resolve.sh
+// The guards of https://github.com/melodic-software/ci-workflows/blob/8972ed0d6815585dbbead0532c4ea65b4088375e/.github/actions/resolve-branch-tip/resolve.sh
 test("the inline tip read authenticates, takes the exact ref, retries only timeouts and 5xx, and fails fast on 401/403", (t) => {
   const tipRun = inlineTipSteps()[0].step.run;
   const root = tempDir("inline-tip-");
