@@ -1325,6 +1325,25 @@ describe("decide", () => {
           ["Not a code change – artifact retention goes to 400 days.", ["retention"]],
           ["Not a code change - artifact retention goes to 400 days.", ["retention"]],
           ["Without owner sign-off the lanes account gets extra usage.", ["extra usage"]],
+          ["Not to exceed 500 macos minutes a month.", ["macos minutes"]],
+          ["Not exceeding 500 macos minutes a month.", ["macos minutes"]],
+          ["Not over 500 macos minutes a month.", ["macos minutes"]],
+          ["Not over 500 macos minutes.", ["macos minutes"]],
+          ["Not limited to hosted runners for e2e.", ["hosted runners"]],
+          ["Not limited to hosted runners.", ["hosted runners"]],
+        ]) {
+          assert.deepEqual(charged(body), found, body);
+        }
+      });
+
+      test("a negation reaches only a short noun phrase, so a charge past a verb or connective still counts", () => {
+        const charged = (body) => workCharges({ title: "", body }, chargePattern(), false, RULES["task-list"]);
+        for (const [body, found] of [
+          ["No new workflow so e2e jobs get larger runners.", ["larger runners"]],
+          ["No code change needed once e2e gets larger runners.", ["larger runners"]],
+          ["No new workflow (e2e gets larger runners).", ["larger runners"]],
+          ["No workflow so larger runners.", ["larger runners"]],
+          ["No move to hosted runners.", ["hosted runners"]],
         ]) {
           assert.deepEqual(charged(body), found, body);
         }
