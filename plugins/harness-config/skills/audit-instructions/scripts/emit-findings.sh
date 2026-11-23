@@ -138,7 +138,6 @@ if [[ -n "$FROM_LANE" && ! -f "$FROM_LANE" ]]; then
   echo "emit-findings.sh: --from-lane file not found: $FROM_LANE" >&2
   exit 2
 fi
-# awk tells the two streams apart by FILENAME, so one file cannot be both.
 if [[ -n "$FROM" && "$FROM" == "$FROM_LANE" ]]; then
   echo "emit-findings.sh: --from and --from-lane name the same file; the paths admit different rules" >&2
   exit 2
@@ -247,9 +246,6 @@ if [[ -n "$CYGPATH_BIN" ]]; then
   [[ -n "$CYGPATH_IO" ]] || CYGPATH_BIN=""
 fi
 
-# Identity for every row an intake path could admit, keyed by the row verbatim.
-# Only the admitted families are identified: a scan over a large corpus carries
-# thousands of rows for families that never reach this file.
 IDMAP="$(mktemp)"
 trap 'rm -f "$IDMAP" ${CYGPATH_IO:+"$CYGPATH_IO"}' EXIT
 LC_ALL=C sed $'s/\r$//' "${INPUTS[@]}" |

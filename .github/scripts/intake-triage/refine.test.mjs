@@ -475,8 +475,6 @@ describe("applyRefinement", () => {
     assert.ok(writes(fake.calls)[2].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(issueOf().body)}\n`), "it names the body it refined");
   });
 
-  // The issue carries no status label and no label event: its hold and who
-  // set it come from the Work status field alone.
   test("an exact refinement lifts the App's needs-owner-decision that exists only on the field", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields: onField(APP, "needs-owner-decision") });
     assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
@@ -735,7 +733,6 @@ describe("applyRefinement", () => {
     await assert.rejects(apply({ github: fake.github, calls: fake.calls, setStatus }, EXACT), /transient/);
     assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/comments")), "no marker comment was posted");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"), "the issue keeps needs-decision when setting needs-triage fails");
-    // The retry sees the labels the failed run left: the App's needs-decision, no marker.
     const retry = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
     const result = await apply(retry, EXACT);
     assert.equal(result.redispatch, true);

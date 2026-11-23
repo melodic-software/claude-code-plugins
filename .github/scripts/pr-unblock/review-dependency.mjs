@@ -98,7 +98,7 @@ export function countCheckRounds(checkRunsByCommit) {
   ).length;
 }
 
-const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
+export const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
 
 // The newest gate run GitHub Actions posted on the head: its conclusion once
 // completed, else pending.
@@ -121,11 +121,23 @@ export function supersededOnly(annotations, headSha) {
 }
 
 export const GATE_HOLD_SKIP = "gate-hold";
-const GATE_HOLD = /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/;
+const GATE_HOLDS = [
+  ["person", /^#([1-9][0-9]*) is by an author no review lane reviews and changes trust-gate paths:/],
+  ["verdict", /^#([1-9][0-9]*) by Dependabot swaps only action refs, each to a tagged commit, on trust-gate paths:/],
+];
 export function gateHoldOnly(annotations, pr) {
   const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
-  const holds = (message) => GATE_HOLD.exec(message)?.[1] === String(pr);
-  return failures.some(holds) && failures.every((message) => holds(message) || EXIT_LINE.test(message));
+  const kindOf = (message) => GATE_HOLDS.find(([, pattern]) => pattern.exec(message)?.[1] === String(pr))?.[0];
+  const kinds = failures.map(kindOf).filter(Boolean);
+  if (kinds.length === 0 || !failures.every((message) => kindOf(message) || EXIT_LINE.test(message))) return false;
+  return kinds.includes("person") ? "person" : "verdict";
+}
+
+export function newestRound(issueComments, appId) {
+  const mine = issueComments.filter((comment) => comment.user?.id === appId && firstLine(comment.body).startsWith(ROUND_PREFIX));
+  const newest = mine.reduce((a, b) => (a === null || String(b.created_at) > String(a.created_at) || (b.created_at === a.created_at && b.id > a.id) ? b : a), null);
+  const match = newest && ROUND_LINE.exec(firstLine(newest.body));
+  return match ? { head: match[1], verdict: match[2], run: match[3], createdAt: String(newest.created_at) } : null;
 }
 
 // The gate's check runs on a head, listed by `list(name)`: CI Status's, else
@@ -300,7 +312,7 @@ export async function select({
   } catch (error) {
     cdnError = error.message;
   }
-  if (gate.gateHold) {
+  if (gate.gateHold === "person") {
     return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError, cdnError };
   }
   const comments = await api.listIssueComments(pr);
@@ -335,6 +347,7 @@ export async function select({
       classification,
       rounds: done,
       files_truncated: files.length >= FILES_CAP,
+      merge_clears_gate_hold: gate.gateHold === "verdict",
       files: capPatches(files),
       // Dependabot's text, with the upstream release notes it quotes: data.
       body: pull.body ?? "",

@@ -73,8 +73,8 @@ import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { specSource } from "./spec-source.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { ACTIONS_BOT_ID, actionsBotOnly, baseAdmissionRules, briefedIssue, carriesSplit, DRIFT_TITLE, driftIssue, vendoredRows, loadRules, ownAgentIds, ownAgentText, personChecks, readSchedule, refinementSpec, SOURCE_LABEL, sourceLabels, taskItems, trustedDriftSpec, webHostsFrom } from "../intake-triage/admit.mjs";
-import { SPLIT_CHILD_MARKER, splitChildBody, splitScope } from "../intake-triage/size-split.mjs";
+import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
+import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 

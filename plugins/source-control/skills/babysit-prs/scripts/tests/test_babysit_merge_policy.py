@@ -3722,7 +3722,12 @@ class RealResolver(unittest.TestCase):
         # the resolver's own check is the one that refuses there.
         with mock.patch.object(policy, "PROMOTION_RESOLVER", self.resolver):
             result = self.read()
-        self.assertEqual(result.reason, "lane-writable:promotion_evidence_checker")
+        self.assertEqual(
+            result.reason,
+            "writability-unverifiable-on-win32"
+            if sys.platform == "win32"
+            else "lane-writable:promotion_evidence_checker",
+        )
         self.assertFalse(result.promoted("C2"))
 
 
@@ -3811,9 +3816,9 @@ class ReadPromotion(unittest.TestCase):
         }
 
         def writable(path: pathlib.Path) -> bool:
-            if str(path) == absent:
+            if path == pathlib.Path(absent):
                 return policy._lane_writable(path)
-            return str(path) == creds_file
+            return path == pathlib.Path(creds_file)
 
         result, _ = self.run_resolver(payload, writable=writable)
         self.assertEqual(
@@ -3821,7 +3826,9 @@ class ReadPromotion(unittest.TestCase):
         )
         result, _ = self.run_resolver(
             payload,
-            writable=lambda p: policy._lane_writable(p) if str(p) == absent else False,
+            writable=lambda p: (
+                policy._lane_writable(p) if p == pathlib.Path(absent) else False
+            ),
         )
         self.assertIsNone(result.reason)
         self.assertTrue(result.promoted("C3"))
@@ -3847,7 +3854,7 @@ class ReadPromotion(unittest.TestCase):
             "cells": self.CELLS,
         }
         result, _ = self.run_resolver(
-            payload, writable=lambda p: str(p) == bound_file
+            payload, writable=lambda p: p == pathlib.Path(bound_file)
         )
         self.assertEqual(
             result.reason, "settings-lane-writable:promotion_evidence_max_age_hours"
@@ -5542,7 +5549,7 @@ class LocalEnabledSince(unittest.TestCase):
         # Before the clone read: one trees-API call per side.
         base = self.commit("tool.sh", "echo\n", "2026-10-01T00:00:00Z")
         (self.clone / "tool.sh").chmod(0o755)
-        self.git(self.clone, "add", "tool.sh")
+        self.git(self.clone, "update-index", "--chmod=+x", "tool.sh")
         self.git(self.clone, "commit", "-q", "-m", "x", date="2026-10-02T00:00:00Z")
         head = self.git(self.clone, "rev-parse", "HEAD")
         gh = self.local()

@@ -263,6 +263,11 @@ The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:ch
 - **`--code-fix` in non-interactive session without `--yes`**: plan + stop, never mutate
 - **Both `--fix` and `--code-fix`**: prefer `--code-fix`, note `--fix` ignored
 
+## Next
+
+- Lint clean, build and tests not yet run: /toolchain:check.
+- Lint clean as part of finishing a change: /verification:confirm.
+
 ## Relationship to other skills
 
 - **Composes from `/toolchain:check`**: `/toolchain:check` owns the shared run rules and gotchas. Reference it rather than duplicating

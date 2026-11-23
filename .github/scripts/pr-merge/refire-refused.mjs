@@ -414,8 +414,6 @@ export const actionsClient = (env, { latch = rateLimitLatch, fetchImpl } = {}) =
   createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("github-token", latch), ...(fetchImpl ? { fetchImpl } : {}) });
 
 export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
-  // The outcome counts, logged when the PRs were listed, whether or not the
-  // run then stopped.
   let outcome = null;
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
@@ -467,9 +465,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       }
     }
     const byNumber = new Map(open.map((pull) => [pull.number, pull]));
-    // A lane's run listing failing fails the step after the other lanes.
     let listingFailed = false;
-    // One refused file per PR, the first found.
     const refused = new Map();
     for (const [file, lane] of Object.entries(LANES)) {
       let runs;
@@ -495,7 +491,6 @@ export async function main({ env = process.env, github, actions, now = Date.now(
         }
       }
     }
-    // Main's blob SHA of each named file, read once per run.
     const blobs = new Map();
     const blobOf = async (path) => {
       if (!blobs.has(path)) {

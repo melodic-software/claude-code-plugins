@@ -48,7 +48,12 @@ check "the prompt file holds stdin" "prompt=draw a cat" "$(sed -n 2p <<<"$out")"
 out="$(printf 'x' | run antigravity --model gpt-5.5 --effort high 2>&1)"
 check "model and effort pass through after the fixed flags" "[--model][gpt-5.5][--effort][high]" "$(head -1 <<<"$out" | sed 's/.*prompt\.md\]//')"
 
-for bad in "--add-dir /" "--unsandboxed auto" "--resume" "--last" "--prompt-file /etc/hosts" "--mode read"; do
+out="$(printf 'review this' | run codex --use investigate 2>&1)"
+check "investigate runs read-only" "[run][codex][--use][investigate][--mode][read-only][--prompt-file]" "$(head -1 <<<"$out" | sed 's/\[[^]]*prompt\.md\]//')"
+out="$(printf 'x' | run antigravity --use task --effort high 2>&1)"
+check "an explicit --use task keeps write mode" "[run][antigravity][--use][task][--mode][write][--prompt-file][--effort][high]" "$(head -1 <<<"$out" | sed 's/\[[^]]*prompt\.md\]//')"
+
+for bad in "--add-dir /" "--unsandboxed auto" "--resume" "--last" "--prompt-file /etc/hosts" "--mode read" "--mode write" "--use review" "--use" "--use investigate --use task"; do
   # shellcheck disable=SC2086
   printf 'x' | run codex $bad >/dev/null 2>&1
   check "rejects $bad" 2 "$?"

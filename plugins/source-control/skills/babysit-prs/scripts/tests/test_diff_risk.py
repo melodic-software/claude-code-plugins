@@ -298,7 +298,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 26, "gate": 72, "enforcement": 67},
+            {"trust": 26, "gate": 72, "enforcement": 68},
         )
         self.assertEqual(
             FLOOR.high,
@@ -2337,7 +2337,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(FLOOR.review), 67)
+        self.assertEqual(len(FLOOR.review), 68)
         for glob in FLOOR.review:
             with self.subTest(glob):
                 path = glob.replace("**", "x.md")

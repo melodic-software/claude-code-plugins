@@ -632,11 +632,12 @@ that extends a production entry is production too; it cannot clear the mark.
 
 ### Data sources
 
-A data source is where an agent reads what the app did in an environment. Each `sources` entry
-holds:
+A data source is where an agent reads what the app did in an environment, or what people said
+about it. Each `sources` entry holds:
 
 - `kind`: `logs`, `telemetry`, `database`, `tracker` (the work-item tracker that holds the app's
-  reported defects) or `errors` (the error reporter);
+  reported defects), `errors` (the error reporter) or `conversations` (meeting transcripts, call
+  notes, support chats);
 - `where`: how to read it, as a path, a url or a read-only command;
 - `read`: when a run may read it, on the same three levels as a write grant: `never`; `attended`,
   only with a person present in this session; `unattended`, with no one present too. An entry with
@@ -663,7 +664,9 @@ agent's tool can be bypassed by the text the agent sends, so the guarantee rests
 own grants, the stance ADR 0086 in the marketplace repository takes for its read tier.
 
 An environment's sources are those left once `extends` is resolved, inherited ones included. Each of
-the five kinds with no entry there is missing, the tracker and the error reporter included. `/app-control:drive ready` reports each
+the five kinds other than `conversations` with no entry there is missing, the tracker and the
+error reporter included; `conversations` is optional, listed when an environment has one and never
+reported missing. `/app-control:drive ready` reports each
 environment's sources with their read levels, each `credential` by variable name, each `data` field
 and each cap, and lists the missing kinds. It runs each `grants` command where the entry's `read`
 level allows a read in this run and reports its exit, or `not run` with that level; that command shows grants, not the source's

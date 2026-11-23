@@ -10352,6 +10352,10 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
 });
 
 const EVAL_KEY = ["LANE_API_KEY", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"];
+const SUBSCRIPTION_EVAL_JOBS = {
+  "maintenance-measure-skill-edit-pass.yml": ["run-eval-subscription"],
+  "pr-run-plugin-evals.yml": ["compare-before", "compare-after"],
+};
 // The one run-claude-cli commit maintenance-measure-skill-edit.yml pins; the
 // classifier checkouts must name it.
 const CLASSIFIER_PINS = new Set([...read("../../workflows/maintenance-measure-skill-edit.yml").matchAll(/run-claude-cli@([0-9a-f]{40}) /g)].map((m) => m[1]));
@@ -10363,8 +10367,10 @@ for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
 ]) {
   test(`${file}: the eval runs on the API key alone, and a stopped key ends the run`, () => {
     const { jobs } = workflow(file);
-    assert.deepEqual(Object.keys(jobs).filter((id) => /^run-eval/.test(id)), [keyId], "one eval leg");
-    assert.doesNotMatch(JSON.stringify(jobs), /secrets\.[A-Z_]*CLAUDE_CODE_OAUTH_TOKEN/, "no job reads a subscription token");
+    const tokenJobs = SUBSCRIPTION_EVAL_JOBS[file];
+    assert.deepEqual(Object.keys(jobs).filter((id) => /^run-eval/.test(id)), [keyId, ...tokenJobs.filter((id) => /^run-eval/.test(id))], "the key leg, and any subscription leg");
+    assert.deepEqual(Object.keys(jobs).filter((id) => /secrets\.[A-Z_]*CLAUDE_CODE_OAUTH_TOKEN/.test(JSON.stringify(jobs[id]))), tokenJobs, "which jobs read the subscription token");
+    assert.doesNotMatch(JSON.stringify(jobs), /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/, "no job reads the fallback token");
     const steps = jobs[keyId].steps;
     const launchers = steps.filter((s) => isLauncherStep(s, "claude-cli"));
     assert.ok(launchers.some((s) => /^\s*claude plugin eval /m.test(s.run)), `${keyId} runs the eval`);
@@ -10435,13 +10441,22 @@ for (const [file, gateId, keyId, keyJob, marker, stopLevel] of [
   });
 }
 
-test("the measuring pass takes the API key and no subscription token from its callers", () => {
+test("the measuring pass takes the API key, and the subscription token only from a subscription compare", () => {
   const pass = workflow("maintenance-measure-skill-edit-pass.yml");
-  assert.deepEqual(Object.keys(pass.on.workflow_call.secrets), ["MAINTENANCE_CLAUDE_API_KEY"]);
+  assert.deepEqual(Object.keys(pass.on.workflow_call.secrets), ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const file of ["maintenance-measure-skill-edit.yml", "pr-run-plugin-evals.yml"]) {
     for (const [id, job] of Object.entries(workflow(file).jobs)) {
       if (job.uses !== "./.github/workflows/maintenance-measure-skill-edit-pass.yml") continue;
-      assert.deepEqual(Object.keys(job.secrets ?? {}), ["MAINTENANCE_CLAUDE_API_KEY"], `${file} ${id}`);
+      if (file === "pr-run-plugin-evals.yml") {
+        assert.deepEqual(job.secrets, {
+          MAINTENANCE_CLAUDE_API_KEY: "${{ inputs.credential != 'subscription' && secrets.MAINTENANCE_CLAUDE_API_KEY || '' }}",
+          MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: "${{ inputs.credential == 'subscription' && secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN || '' }}",
+        }, `${file} ${id}`);
+        assert.equal(job.with.credential, "${{ inputs.credential }}", `${file} ${id}`);
+      } else {
+        assert.deepEqual(Object.keys(job.secrets ?? {}), ["MAINTENANCE_CLAUDE_API_KEY"], `${file} ${id}`);
+        assert.equal(job.with?.credential, undefined, `${file} ${id} runs the default api-key leg`);
+      }
     }
   }
   const generate = workflow("maintenance-measure-skill-edit.yml").jobs["generate-edit"];
@@ -10589,7 +10604,7 @@ test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop s
 
 test("every eval leg runs the same managed-policy step and the same probe", () => {
   const legs = [
-    ["maintenance-measure-skill-edit-pass.yml", ["run-eval"]],
+    ["maintenance-measure-skill-edit-pass.yml", ["run-eval", "run-eval-subscription"]],
     ["pr-run-plugin-evals.yml", ["run-eval"]],
   ].flatMap(([file, ids]) => ids.map((id) => [file, id, workflow(file).jobs[id].steps]));
   const step = (steps, id) => steps.find((s) => s.id === id);
@@ -10816,11 +10831,14 @@ function missingLegs(catalog, launched) {
 // says.
 const EVAL_KEY_ONLY = "owner decisions Q14 and Q136: evals run on the API key alone and stop at its credit stop, so no subscription token reaches PR plugin text or spends plan usage (docs/review/evals.md)";
 const evalKeyOnly = { legs: ["subscription", "fallback"], reason: EVAL_KEY_ONLY };
+const EVAL_NO_FALLBACK =
+  "owner decision of 2026-11-23 amending Q14 and Q53: a compare run may use the subscription token on a trusted author's pull request, with no fallback token, so a limit stop ends the pass (docs/review/evals.md)";
+const evalNoFallback = { legs: ["fallback"], reason: EVAL_NO_FALLBACK };
 const LEG_EXEMPTIONS = {
   "pr-run-plugin-evals.yml maintenance run-eval": evalKeyOnly,
-  "pr-run-plugin-evals.yml maintenance compare-before": evalKeyOnly,
-  "pr-run-plugin-evals.yml maintenance compare-after": evalKeyOnly,
-  "maintenance-measure-skill-edit-pass.yml maintenance run-eval": evalKeyOnly,
+  "pr-run-plugin-evals.yml maintenance compare-before": evalNoFallback,
+  "pr-run-plugin-evals.yml maintenance compare-after": evalNoFallback,
+  "maintenance-measure-skill-edit-pass.yml maintenance run-eval": evalNoFallback,
   "maintenance-measure-skill-edit.yml maintenance measure-baseline": evalKeyOnly,
   "maintenance-measure-skill-edit.yml maintenance measure-baseline-again": evalKeyOnly,
   "maintenance-measure-skill-edit.yml maintenance generate-edit": evalKeyOnly,
