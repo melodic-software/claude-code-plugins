@@ -911,15 +911,6 @@ export async function publish(args) {
   return result;
 }
 
-// A round on the notes of an earlier FAIL's verdict artifact (run.json's
-// verify_notes, address-feedback.mjs select): no thread, so nothing is posted
-// or resolved. Every note needs a disposition (else feedback-incomplete). A
-// VALID note's fix must be the one push of this round (fixesLanded, each note
-// as a thread on its path, no earlier fix): then the round ends as a pushed
-// fix does; else feedback-not-landed. With no VALID note every one is
-// already-addressed: an unmoved head escalates feedback-already-addressed,
-// for a session, never a silent success; a moved one, a push no note named,
-// feedback-not-landed.
 async function settleNotes({ api, pr, run, headSha, replies, appId, log }) {
   if (replies.length !== run.verify_notes.length) {
     const disposed = new Set(replies.map((reply) => reply.thread));

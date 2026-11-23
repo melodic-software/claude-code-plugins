@@ -1673,6 +1673,8 @@ merge:
         class: trust
       - glob: ".github/scripts/lib/github-client.mjs"
         class: trust
+      - glob: ".github/scripts/lib/trusted-actors.mjs"
+        class: trust
       - glob: ".github/actions/resolve-config/**"
         class: trust
       - glob: ".github/actions/check-kill-switch/**"
@@ -1746,6 +1748,8 @@ merge:
       - glob: ".github/actions/report-check-run/posting-run.mjs"
         class: gate
       - glob: ".github/scripts/pr-dispatch-feedback/rerun-ci-status.sh"
+        class: gate
+      - glob: ".github/scripts/post-merge-demotion-alert/file-demotion-issue.sh"
         class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust

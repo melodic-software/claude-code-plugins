@@ -143,8 +143,6 @@ export function k2Refusals(files) {
   });
 }
 
-// ------------------------------------------------------------ deck files
-
 class Refused extends Error {}
 
 /** Every file under <root>/project, as [relative path, text]. A symlink or special file anywhere refuses the deck. */

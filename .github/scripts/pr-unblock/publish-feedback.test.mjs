@@ -1,3 +1,4 @@
+// test-scope: .github/scripts/lib/* .github/scripts/pr-unblock/*
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -1903,14 +1904,14 @@ test("an earlier-fail round whose push fixes a named note ends as a pushed fix d
   assert.equal(api.markers().length, 1);
 });
 
-test("an earlier-fail round that pushes nothing and reports every note already addressed escalates feedback-already-addressed for a session", async () => {
+test("an earlier-fail round that pushes nothing and reports every note already addressed escalates feedback-already-addressed, queued for no session", async () => {
   const api = fakeApi({ compare: { status: "identical", commits: [], files: [] } });
   const result = await run(api, lines(noteReply("VNOTE_1", "already-addressed", "src/a.js:3"), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1")), notesRun(NOW));
   assert.equal(result.escalationReason, "feedback-already-addressed");
   assert.equal(result.skipReason, undefined);
   assert.deepEqual(api.posted(), []);
   const { ROUTES } = await import("./escalation-routes.mjs");
-  assert.deepEqual([ROUTES[result.escalationReason].route, ROUTES[result.escalationReason].label], ["fail", "needs-session"]);
+  assert.deepEqual([ROUTES[result.escalationReason].route, ROUTES[result.escalationReason].label], ["fail", undefined], "pr-verify judges the head itself, so no session is queued");
   assert.match(ROUTES[result.escalationReason].why, /verify:earlier-fail/);
   assert.match(ROUTES[result.escalationReason].why, /already addressed/);
 });
