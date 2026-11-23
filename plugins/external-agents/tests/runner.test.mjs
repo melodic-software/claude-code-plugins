@@ -398,6 +398,62 @@ describe("a binary run through cmd.exe", () => {
   });
 });
 
+describe("use modes set once per machine through the plugin options", () => {
+  const agy = (w, settings, extra) => ({ ...w.opts, product: "antigravity", providersRoot: fixtures, binary: fakeAgy, model: "m1", operatorSettings: settings, use: "task", mode: "write", prompt: "fix it", ...extra });
+  const ok = { envelope: { status: "SUCCESS", response: "done", conversation_id: "conv-1" } };
+  const downgrade = /notice: write was requested, but antigravity\.uses\.task\.mode is read-only, so this run is read-only/;
+  const teamReadOnly = "schema: 1\nantigravity:\n  uses:\n    task:\n      mode: read-only\n";
+  let files = 0;
+  const userSettings = (text) => {
+    const file = join(scratch, `user-settings-${(files += 1)}.json`);
+    writeFileSync(file, text);
+    return { install: { pluginId: "external-agents@test-market", name: "external-agents", userSettings: file }, managedFiles: [] };
+  };
+  const withOptions = (options) => userSettings(JSON.stringify({ pluginConfigs: { "external-agents@test-market": { options } } }));
+
+  test("a user-settings write with no repository files runs agy's task write with no downgrade notice", async () => {
+    const got = await run(agy(world(ok), withOptions({ antigravity_uses_task_mode: "write" })));
+    assert.equal(got.job.mode, "write");
+    assert.doesNotMatch(got.stderr, downgrade);
+  });
+
+  test("a team file's read-only beats the user-settings write and prints the notice", async () => {
+    const got = await run(agy(world(ok, { team: teamReadOnly }), withOptions({ antigravity_uses_task_mode: "write" })));
+    assert.equal(got.job.mode, "read-only");
+    assert.match(got.stderr, downgrade);
+  });
+
+  test("with no option set, agy's task stays read-only and Codex's task writes", async () => {
+    const unset = withOptions({});
+    const agyRun = await run(agy(world(ok), unset));
+    assert.equal(agyRun.job.mode, "read-only");
+    assert.match(agyRun.stderr, downgrade);
+    const w = world({ stdout: clean, final: "done" });
+    assert.equal((await run({ ...w.opts, operatorSettings: unset, use: "task", prompt: "fix it" })).job.mode, "write");
+  });
+
+  test("an invalid stored value is a config notice and the key takes the team value, else the default", async () => {
+    const bad = withOptions({ antigravity_uses_task_mode: "yes" });
+    const alone = await run(agy(world(ok), bad));
+    assert.match(alone.stderr, /notice: config: userConfig: "antigravity\.uses\.task\.mode": "yes" is not one of "read-only", "write"/);
+    assert.equal(alone.job.mode, "read-only");
+    const teamWrite = await run(agy(world(ok, { team: teamReadOnly.replace("read-only", "write") }), bad));
+    assert.equal(teamWrite.job.mode, "write");
+  });
+
+  test("a settings file that cannot be read is a config notice and sets no option", async () => {
+    const got = await run(agy(world(ok), userSettings("{ not json")));
+    assert.match(got.stderr, /notice: config: userConfig: settings file .* is not valid JSON .*; no option is read from settings/);
+    assert.equal(got.job.mode, "read-only");
+  });
+
+  test("a managed settings file applies with no user settings location, as for a --plugin-dir copy", async () => {
+    const managed = withOptions({ antigravity_uses_task_mode: "write" });
+    const got = await run(agy(world(ok), { install: { pluginId: null, name: "external-agents", userSettings: null }, managedFiles: [managed.install.userSettings] }));
+    assert.equal(got.job.mode, "write");
+  });
+});
+
 describe("a CLI that prints one JSON result (envelope)", () => {
   const agy = (w, extra) => ({ ...w.opts, product: "antigravity", providersRoot: fixtures, binary: fakeAgy, model: "m1", ...extra });
   const preface = loadProvider("antigravity", fixtures).modes["read-only"].prompt_preface;

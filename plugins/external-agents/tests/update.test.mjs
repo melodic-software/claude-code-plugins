@@ -10,6 +10,7 @@ import { loadProvider, validateProvider } from "../scripts/lib/provider.mjs";
 import { effortChoices, models } from "../scripts/lib/models.mjs";
 import { update, configKeys, versionSource } from "../scripts/lib/update.mjs";
 import { usage } from "../scripts/lib/usage.mjs";
+import { noOperatorSettings } from "./support/world.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures");
@@ -53,7 +54,7 @@ function world(scenario = {}, { local } = {}) {
   if (local) writeFileSync(join(cwd, "docs", "conventions", "external-agents.local.yaml"), local);
   const file = join(root, "scenario.json");
   writeFileSync(file, JSON.stringify({ record: join(root, "calls.jsonl"), version: "codex-cli 0.168.0\n", help: realHelp, answers: { "debug models": { stdout: catalog } }, ...scenario }));
-  return { opts: { product: "codex", cwd, dataDir, binary: fakeCodex, now: () => noon, env: { ...process.env, FAKE_SCENARIO: file } }, dataDir };
+  return { opts: { product: "codex", cwd, dataDir, binary: fakeCodex, now: () => noon, operatorSettings: noOperatorSettings, env: { ...process.env, FAKE_SCENARIO: file } }, dataDir };
 }
 const lines = (got) => got.stdout.split("\n");
 
@@ -255,7 +256,7 @@ function agyWorld(answers = {}) {
   const file = join(root, "scenario.json");
   writeFileSync(file, JSON.stringify({ record: join(root, "calls.jsonl"), answers: { "--help": { stdout: agyHelp }, models: { stdout: agyModels }, ...answers } }));
   const calls = () => readFileSync(join(root, "calls.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l).argv.join(" "));
-  return { opts: { product: "antigravity", cwd, dataDir: join(root, "data"), binary: fakeAgy, now: () => noon, env: { ...process.env, FAKE_SCENARIO: file } }, calls };
+  return { opts: { product: "antigravity", cwd, dataDir: join(root, "data"), binary: fakeAgy, now: () => noon, operatorSettings: noOperatorSettings, env: { ...process.env, FAKE_SCENARIO: file } }, calls };
 }
 
 describe("models", () => {

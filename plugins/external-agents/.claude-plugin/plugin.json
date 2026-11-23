@@ -6,6 +6,36 @@
     "email": "info@melodicsoftware.com"
   },
   "version": "0.6.1",
+  "userConfig": {
+    "antigravity_uses_task_mode": {
+      "type": "string",
+      "title": "Antigravity task mode",
+      "description": "Default and ceiling for agy task runs on this machine, in every repository. read-only (default) keeps them read-only; write lets a --mode write run edit files. agy write mode has no network isolation. A repository's team or personal external-agents.yaml overrides it.",
+      "default": "read-only",
+      "options": ["read-only", "write"]
+    },
+    "antigravity_uses_investigate_mode": {
+      "type": "string",
+      "title": "Antigravity investigate mode",
+      "description": "Default and ceiling for agy investigate runs on this machine, in every repository. read-only (default) or write; agy write mode has no network isolation. A repository's team or personal external-agents.yaml overrides it.",
+      "default": "read-only",
+      "options": ["read-only", "write"]
+    },
+    "codex_uses_task_mode": {
+      "type": "string",
+      "title": "Codex task mode",
+      "description": "Default and ceiling for Codex task runs on this machine, in every repository. write (default) or read-only. A repository's team or personal external-agents.yaml overrides it.",
+      "default": "write",
+      "options": ["read-only", "write"]
+    },
+    "codex_uses_investigate_mode": {
+      "type": "string",
+      "title": "Codex investigate mode",
+      "description": "Default and ceiling for Codex investigate runs on this machine, in every repository. read-only (default) or write. A repository's team or personal external-agents.yaml overrides it.",
+      "default": "read-only",
+      "options": ["read-only", "write"]
+    }
+  },
   "license": "MIT",
   "keywords": [
     "codex",

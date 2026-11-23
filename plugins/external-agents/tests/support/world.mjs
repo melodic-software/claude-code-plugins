@@ -25,6 +25,8 @@ export const said = { type: "item.completed", item: { id: "item_0", type: "agent
 export const completed = { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
 export const clean = events(...opened, said, completed);
 
+export const noOperatorSettings = { install: { pluginId: null, name: null, userSettings: null }, managedFiles: [] };
+
 let count = 0;
 export function world(scenario = {}, { local, team } = {}) {
   const root = join(scratch, `w${(count += 1)}`);
@@ -39,7 +41,7 @@ export function world(scenario = {}, { local, team } = {}) {
   const set = (next) => writeFileSync(join(root, "scenario.json"), JSON.stringify({ record: calls, ...next }));
   set(scenario);
   return {
-    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
+    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, operatorSettings: noOperatorSettings, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
     cwd,
     dataDir,
     set,

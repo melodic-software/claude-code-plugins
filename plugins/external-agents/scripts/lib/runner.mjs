@@ -3,7 +3,7 @@ import { closeSync, existsSync, openSync, readFileSync, rmSync, statSync, writeF
 import { basename, isAbsolute, join, sep, win32 } from "node:path";
 import { resolveBinary, unavailableMessage } from "./binary.mjs";
 import { blockedBy, closeBreaker, openBreaker, readBreaker } from "./breaker.mjs";
-import { binaryNames, conventionHome, loadConfig, pluginRoot } from "./config.mjs";
+import { binaryNames, conventionHome, loadConfig, operatorUserConfig, pluginRoot } from "./config.mjs";
 import { jobFolder, listJobs, newJobId, pruneJobs, readJob, repoKey, writeJob } from "./jobs.mjs";
 import { classify } from "./outcome.mjs";
 import { killTree, pidStartTime, query, shellUnsafe, start } from "./process.mjs";
@@ -87,7 +87,9 @@ export function setup(opts) {
   }
   const projectRoot = git(ctx.cwd, ["rev-parse", "--show-toplevel"])?.trim() || ctx.cwd;
   const bound = conventionHome(projectRoot);
-  const config = loadConfig({ projectRoot, home: bound.home, userConfig: opts.userConfig });
+  const operator = opts.userConfig ? { userConfig: opts.userConfig, errors: [] } : operatorUserConfig(opts.operatorSettings);
+  const config = loadConfig({ projectRoot, home: bound.home, userConfig: operator.userConfig });
+  config.errors.unshift(...operator.errors);
   if (bound.problem) config.errors.push(`convention home: ${bound.problem}; reading ${bound.home}`);
   return { ctx, record, config, settings: config.values[record.product] ?? {}, notices: config.errors.map((e) => `config: ${e}`), announced: [] };
 }

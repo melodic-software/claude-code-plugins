@@ -107,6 +107,12 @@ precedence are in the
 [config-cascade contract](../../docs/contracts/config-cascade/README.md). An unset model, effort or
 profile leaves the CLI's own configuration in charge.
 
+The task and investigate modes can also be set once per machine, for every repository, through the
+plugin options below. The runner reads them from your user settings (or managed settings), below a
+repository's team and personal files, so a repository file still overrides them. Your user
+settings file is found only for an install in the plugin cache; a `--plugin-dir` copy sees managed
+settings only.
+
 ## Job files
 
 Job files, logs, the breaker state and the CLI-facts cache (`cli-facts/<product>/<version>/`, the
@@ -123,3 +129,41 @@ set to a directory whose name starts with `external-agents-`; any other value is
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install external-agents@melodic-software
 ```
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `antigravity_uses_task_mode` | string | `"read-only"` | Default and ceiling for agy task runs on this machine, in every repository. read-only (default) keeps them read-only; write lets a --mode write run edit files. agy write mode has no network isolation. A repository's team or personal external-agents.yaml overrides it. |
+| `antigravity_uses_investigate_mode` | string | `"read-only"` | Default and ceiling for agy investigate runs on this machine, in every repository. read-only (default) or write; agy write mode has no network isolation. A repository's team or personal external-agents.yaml overrides it. |
+| `codex_uses_task_mode` | string | `"write"` | Default and ceiling for Codex task runs on this machine, in every repository. write (default) or read-only. A repository's team or personal external-agents.yaml overrides it. |
+| `codex_uses_investigate_mode` | string | `"read-only"` | Default and ceiling for Codex investigate runs on this machine, in every repository. read-only (default) or write. A repository's team or personal external-agents.yaml overrides it. |
+
+### How to set these
+
+Set the options above for `external-agents@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->

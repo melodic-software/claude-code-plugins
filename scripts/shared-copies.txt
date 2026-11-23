@@ -1037,6 +1037,7 @@ lib/prerequisites.mjs plugins/external-agents/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/external-agents/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/external-agents/lib/prerequisites.ps1
 lib/resolve-convention-home.sh plugins/external-agents/lib/resolve-convention-home.sh
+lib/plugin-options.mjs plugins/external-agents/lib/plugin-options.mjs
 docs/contracts/config-cascade/locations.md plugins/ai-slop/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/attribution/reference/config-locations.md
 docs/contracts/config-cascade/locations.md plugins/bugs/reference/config-locations.md
