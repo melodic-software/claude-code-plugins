@@ -1,14 +1,14 @@
 schema_version: "1.1"
 name: interview-scenario-walk-two-purchase-kinds
-description: "One product sold two ways (a one-off bag and a monthly subscription of the same bag) leaves 'order' and 'refund' unsettled, and the user calls it confusing and asks for scenarios. Why hard: the easy reply defines the terms in prose or asks 'what is an order?', where the walk puts numbered, concrete scenarios inside one question, each with its own recommendation and the term or rule it forces."
-tags: [interview, scenario-walk, domain-language, scaffold]
-expected_outcome: "The round holds a numbered question whose Context carries S1, S2, ... scenarios, each concrete (a named person, an amount, a day or date), stating what it tests and ending with its own recommendation and the term or rule that answer forces, and the user is told to answer per scenario (for example 'S2: a')."
+description: "One product sold two ways (a one-off bag and a monthly subscription of the same bag) leaves 'order' and 'refund' unsettled, and the user calls it confusing and asks for scenarios. Why hard: the easy reply defines the terms in prose or asks 'what is an order?', where the walk puts numbered, concrete scenarios inside one question, each with its own recommendation and the term or rule it forces. The prompt starts past the intake round, so the walk comes in the first decision round, headed by a Scope check: line."
+tags: [interview, scenario-walk, domain-language, scaffold, no-network]
+expected_outcome: "Round 2, headed by a Scope check: line, holds a numbered question whose Context carries S1, S2, ... scenarios, each concrete (a named person, an amount, a day or date), stating what it tests and ending with its own recommendation and the term or rule that answer forces, and the user is told to answer per scenario (for example 'S2: a')."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:interview me We sell the same coffee bag two ways: a one-off purchase and a monthly subscription. I find it confusing what an 'order' is once a subscription renews, and what a refund applies to. Walk me through some scenarios to settle it. I'm here and will answer."
-  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-  max_turns: 20
+  prompt: "Use the interview skill from the planning plugin, in me mode: We sell the same coffee bag two ways: a one-off purchase and a monthly subscription. I find it confusing what an 'order' is once a subscription renews, and what a refund applies to. Walk me through some scenarios to settle it. Round 1 is answered: Q1, the problem is that support cannot tell customers which purchase a refund covers; Q2, the users are our customers and the two support staff who issue refunds. I'm here and will answer; ask me round 2."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent, Write, Edit]
+  max_turns: 30
   timeout_seconds: 900
 graders:
   - name: skill-fired
@@ -19,6 +19,11 @@ graders:
   - name: numbered-scenarios
     type: regex
     pattern: '\bS1\**\s*:[\s\S]*\bS2\**\s*:'
+    arm: both
+  - name: scope-check-line
+    type: regex
+    pattern: '(?:^|\n)[^\n]{0,6}Scope check:'
+    target: last_message
     arm: both
   - name: scenario-walk-shape
     type: llm

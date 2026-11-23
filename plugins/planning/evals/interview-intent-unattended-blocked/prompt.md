@@ -1,6 +1,6 @@
 ---
 description: "Unattended lock where only a triage bot's issue note says more providers are coming: the repeat-or-vary part stays unstated, so the Brief is still written, the intent row is blocked and deferred with arbiter USER-RESERVED, and the run names that blocker"
-tags: [interview, intent, unattended, engineering-defaults]
+tags: [interview, intent, unattended, engineering-defaults, no-network]
 runs: 3
 max_turns: 40
 timeout_seconds: 900

@@ -18,6 +18,17 @@ test("the final judge reads the spec under the chunk verifiers' words", () => {
   }
 });
 
+test("both judges excuse an owner-marked item only through person_checks", () => {
+  for (const rule of [
+    "An issue's `person_checks` lists done-when items of its `body` that the refinement records, or that its owner marks with `Person check:`, as checks a person runs",
+    "An item marked `Person check:` that `person_checks` does not list is judged like any other.",
+    "When an issue's `person_checks` is not empty, return `pass-notes`, never `pass`, with one note per item naming it as a person check and the evidence the pull request body offers for it, or that it offers none.",
+  ]) {
+    assert.ok(chunk.includes(rule), `prompt.md: ${rule}`);
+    assert.ok(spec.includes(rule), `spec-prompt.md: ${rule}`);
+  }
+});
+
 test("a refs pull request fails on no delivered part or a whole-issue claim, never on unnamed remaining work, under either judge", () => {
   assert.ok(chunk.includes("Return `fail`, saying why, when the body names no delivered part or claims to deliver the whole issue"));
   assert.ok(spec.includes("return `fail` when it names no delivered part or claims the whole issue."));

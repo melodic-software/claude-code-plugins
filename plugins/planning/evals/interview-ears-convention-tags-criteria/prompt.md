@@ -1,6 +1,6 @@
 ---
 description: "The repository's convention home sets acceptance_criteria_format to ears: the locked Brief's acceptance criteria carry the bracketed EARS pattern tags, resolved through the plugin's authoring-formats ladder"
-tags: [interview, conventions, ears, acceptance-criteria, scaffold]
+tags: [interview, conventions, ears, acceptance-criteria, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

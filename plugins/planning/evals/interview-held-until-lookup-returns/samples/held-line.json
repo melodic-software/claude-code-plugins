@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Round 3.** Alerting for failed deliveries.\nScope check: 9 of 12 questions registered\nHeld: Q8 (who is alerted) until the PagerDuty Events API lookup returns\n\n❓ Q9: **What does an alert message include?**",
+      "why": "the held question is named on the Held: line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Round 3.** Alerting.\n\n❓ Q8: **Who is alerted when one endpoint keeps failing?**\n\n❓ Q9: **What does an alert message include?**",
+      "why": "no Held: line; both are asked"
+    },
+    {
+      "answer": "**Round 3.**\nHeld: nothing\n\n❓ Q8: **What does an alert include?**",
+      "why": "the Held: line names no alert-routing question"
+    }
+  ]
+}

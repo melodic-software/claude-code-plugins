@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: interview-bare-vague-explore-no-extra
 description: A bare vague exploratory question gets an answer, not scoping questions or an interview
-tags: [interview, bare-prompt, negative, scaffold]
+tags: [interview, bare-prompt, negative, scaffold, no-network]
 expected_outcome: The reply explains what the retry code in src/ does (retries a call up to 3 times with a doubling delay on ConnectionError) without asking the user scoping questions and without starting an interview.
 context:
   scaffold_script: scaffold.sh

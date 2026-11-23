@@ -52,8 +52,8 @@ cases into its `evals/` suite and removes the converted files.
 ## Shared grader matchers
 
 A `regex` or `tool_used` grader is static text in `case.yaml`, so the binary cannot call a helper
-when it grades. Shapes that recur across cases live once in `matchers/fragments.json` instead, and a
-case builds a grader from them in `<case>/matchers.json`:
+when it grades. Shapes that recur across cases live once in the `*.json` files under `matchers/` instead
+(`install_command` in `install-command.json`, the rest in `fragments.json`), and a case builds a grader from them in `<case>/matchers.json`:
 
 ```json
 {"no-token-shell": [{"use": "command_position"}, "(?:curl|wget)\\b",
@@ -67,6 +67,7 @@ fragment's `{{row}}` slot. The fragments cover mechanically exact shapes only:
 |---|---|
 | `command_position` | a Bash command string up to where a command starts (POSIX shells) |
 | `command_position_multishell` | the same, also through PowerShell, `cmd /c`, `python -m`, `$(` |
+| `install_command` | a package or tool install, after `command_position_multishell`; the one list every `no-install` grader builds from |
 | `command_anywhere` | anywhere inside the Bash command string |
 | `token_argument` | the rest of the same simple command, up to a token |
 | `table_header_rule` | a Markdown table's header rule line |
@@ -81,7 +82,8 @@ differs from its build; `--write` rewrites the drifted lines. Its suite, `check-
 runs it over every plugin's evals in CI.
 
 To add a fragment, give it a `summary`, its `text`, a `probe` grader built from it, and `samples`
-with answers that must pass and answers that must fail, near misses included. To build a grader,
+with answers that must pass and answers that must fail, near misses included, in a file under `matchers/`; a name defined in two files is
+an error. To build a grader,
 write its `matchers.json` entry, run `check-matchers.py --write`, and add `samples/<grader>.json`.
 
 ## Upstream sync

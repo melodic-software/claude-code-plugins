@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/planning/surface/round.sh\" next-id --ledger .work/webhook-retries/interview-checklist.md --count 2"
+          }
+        }
+      ],
+      "why": "ids come from the tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/webhook-retries/interview-checklist.md"
+          }
+        }
+      ],
+      "why": "the ledger is read and ids picked by hand"
+    }
+  ]
+}

@@ -17,9 +17,6 @@
 // userConfig, then the plugin.json default. Nothing about rendered-view mediums is read: medium
 // never moves the surface.
 //
-// With the surface unset, one line names the default, the other available surfaces, any
-// installed optional planner, and any optional plugin offer (offers/offer-source.mjs).
-//
 // CLI: node registry.mjs resolve [--surface <userConfig value>] [--argument <word>]
 //                                [--data-dir <plugin data>] [--unattended]
 //      prints the resolution as one JSON line; `list` prints the entries.
@@ -102,13 +99,20 @@ export async function resolveSurface(request = {}) {
   const alternatives = entries.filter(e => e !== entry && !e.onRequest && e.available(context).ok)
   const planners = request.planners ?? []
   const offers = request.offers ?? []
-  const also = [...alternatives.map(e => e.reportName), ...planners.map(p => `${p.name} planner (${p.invoke})`)]
-  const parts = [
-    `surface: ${entry.reportName} (default).`,
-    also.length > 0 && `Also available: ${also.join(', ')}. Ask for one by name to switch.`,
-    ...offers.map(o => `${o.text}.`),
+  const names = alternatives.map(e => `a ${e.offerName ?? e.reportName}`)
+  const either = names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names[0]
+  const unit = request.pacing === 'single' ? 'question' : 'round'
+  const where = `Asking ${entry.where ?? `on the ${entry.reportName}`}, one ${unit} at a time.`
+  const extras = [
+    ...planners.map(p => `Optional: the ${p.name} planner is installed; run ${p.invoke} to use it.`),
+    ...offers.map(o => `Optional: ${o.text}.`),
+  ]
+  const lines = [
+    either ? `${where} ${either[0].toUpperCase()}${either.slice(1)} is also available; say which to switch.` : where,
+    !isUnset(request.ledger) && `Questions are saved to ${request.ledger}.`,
+    ...extras,
   ].filter(Boolean)
-  const line = decidedBy === 'default' && parts.length > 1 ? parts.join(' ') : null
+  const line = decidedBy === 'default' && (alternatives.length > 0 || extras.length > 0) ? lines.join('\n') : null
   const handle = entry.start({ decidedBy, available })
   return {
     surface: entry.id,
@@ -133,7 +137,7 @@ async function main(argv) {
       opts.unattended = true
       continue
     }
-    const key = { '--surface': 'surface', '--argument': 'argument', '--data-dir': 'dataDir' }[rest[i]]
+    const key = { '--surface': 'surface', '--argument': 'argument', '--data-dir': 'dataDir', '--pacing': 'pacing', '--ledger': 'ledger' }[rest[i]]
     if (!key || rest[i + 1] === undefined) throw new Error(`unknown or incomplete option ${rest[i]}`)
     opts[key] = rest[++i]
   }
@@ -143,9 +147,9 @@ async function main(argv) {
     return
   }
   if (cmd !== 'resolve') {
-    throw new Error('usage: registry.mjs resolve|list [--surface v] [--argument w] [--data-dir d] [--unattended]')
+    throw new Error('usage: registry.mjs resolve|list [--surface v] [--argument w] [--pacing p] [--ledger l] [--data-dir d] [--unattended]')
   }
-  const request = { argument: opts.argument, userConfig: { surface: opts.surface } }
+  const request = { argument: opts.argument, userConfig: { surface: opts.surface }, pacing: opts.pacing, ledger: opts.ledger }
   let out = await resolveSurface(request)
   // Planners and offers only ride the default's line, so look them up only when it prints.
   if (out.decidedBy === 'default') {

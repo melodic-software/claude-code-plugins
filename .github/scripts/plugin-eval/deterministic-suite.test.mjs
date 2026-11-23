@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -176,5 +176,152 @@ test("the command prints the split as JSON and refuses a missing eval dir or a b
     assert.equal(spawnSync(process.execPath, [SCRIPT, dir, "evals"], { encoding: "utf8" }).status, 2);
     assert.equal(spawnSync(process.execPath, [SCRIPT, join(dir, "absent"), "evals-deterministic"], { encoding: "utf8" }).status, 2);
     assert.equal(readFileSync(join(dir, "evals/judged/prompt.md"), "utf8"), "Explain.\n");
+  });
+});
+
+function snapshotTree(root) {
+  const entries = {};
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = join(dir, entry.name);
+      const rel = relative(root, full);
+      if (entry.isDirectory()) {
+        entries[`${rel}/`] = null;
+        walk(full);
+      } else {
+        entries[rel] = readFileSync(full);
+      }
+    }
+  };
+  walk(root);
+  return entries;
+}
+
+const SELECTION_SUITE = {
+  ...SUITE,
+  "evals/README.md": "Suite notes.\n",
+  "evals/fixtures/sample.txt": "fixture\n",
+  "evals/group/helper.txt": "group helper\n",
+  "evals/group/other/prompt.md": "Unselected nested.\n",
+  "evals/group/other/graders/g.md": "---\ntype: regex\npattern: ok\n---\n",
+  "evals/renamed-dir/case.yaml":
+    'schema_version: "1"\nname: alias-name\ngraders:\n  - name: says-ok\n    type: regex\n    pattern: ok\n',
+  "evals/renamed-dir/prompt.md": "Say ok.\n",
+};
+
+test("with a case list, only the named cases are copied, matching case.yaml name else dir name, keeping non-case files and nesting", () => {
+  withPlugin(SELECTION_SUITE, (dir) => {
+    const run = spawnSync(
+      process.execPath,
+      [SCRIPT, dir, "evals-deterministic", "--cases", "alias-name nested judged"],
+      { encoding: "utf8" },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    const outJson = JSON.parse(run.stdout);
+    assert.deepEqual(outJson, {
+      evalDir: "evals",
+      kept: ["group/nested", "renamed-dir"],
+      dropped: ["judged"],
+      stripped: {},
+      selected: ["alias-name", "nested", "judged"],
+    });
+    const out = join(dir, "evals-deterministic");
+    assert.ok(existsSync(join(out, "renamed-dir/case.yaml")));
+    assert.ok(existsSync(join(out, "group/nested/graders/used.md")));
+    assert.ok(existsSync(join(out, "README.md")));
+    assert.ok(existsSync(join(out, "fixtures/sample.txt")));
+    assert.ok(existsSync(join(out, "mocks/server.json")));
+    assert.ok(existsSync(join(out, "group/helper.txt")));
+    assert.ok(!existsSync(join(out, "regex-only")));
+    assert.ok(!existsSync(join(out, "group/other")));
+    assert.ok(!existsSync(join(out, "judged")));
+    assert.ok(!existsSync(join(out, "listed")));
+    assert.ok(!existsSync(join(out, "results")));
+  });
+});
+
+test("a case.yaml opening with a --- document marker still yields its name for a case list", () => {
+  const marked = {
+    ...SELECTION_SUITE,
+    "evals/marked-dir/case.yaml":
+      '---\nschema_version: "1"\nname: marked-name\ngraders:\n  - name: says-ok\n    type: regex\n    pattern: ok\n',
+    "evals/marked-dir/prompt.md": "Say ok.\n",
+  };
+  withPlugin(marked, (dir) => {
+    const run = spawnSync(process.execPath, [SCRIPT, dir, "evals-deterministic", "--cases", "marked-name alias-name"], {
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(JSON.parse(run.stdout).selected, ["marked-name", "alias-name"]);
+    assert.ok(existsSync(join(dir, "evals-deterministic/marked-dir/case.yaml")));
+  });
+});
+
+test("a listed case name that matches no case or violates NAME exits 2 and writes nothing", () => {
+  withPlugin(SELECTION_SUITE, (dir) => {
+    const missing = spawnSync(
+      process.execPath,
+      [SCRIPT, dir, "evals-deterministic", "--cases", "alias-name no-such-case"],
+      { encoding: "utf8" },
+    );
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /no-such-case/);
+    assert.ok(!existsSync(join(dir, "evals-deterministic")));
+
+    const badName = spawnSync(
+      process.execPath,
+      [SCRIPT, dir, "evals-deterministic", "--cases", "-bad"],
+      { encoding: "utf8" },
+    );
+    assert.equal(badName.status, 2);
+    assert.ok(!existsSync(join(dir, "evals-deterministic")));
+
+    const noArg = spawnSync(process.execPath, [SCRIPT, dir, "evals-deterministic", "--cases"], { encoding: "utf8" });
+    assert.equal(noArg.status, 2);
+    assert.ok(!existsSync(join(dir, "evals-deterministic")));
+  });
+});
+
+test("an empty or absent case list leaves the output byte-for-byte identical to today", () => {
+  withPlugin({ ...SELECTION_SUITE, ...MIXED }, (dir) => {
+    const without = spawnSync(process.execPath, [SCRIPT, dir, "out-without"], { encoding: "utf8" });
+    const withEmpty = spawnSync(process.execPath, [SCRIPT, dir, "out-empty", "--cases", ""], { encoding: "utf8" });
+    const withSpaces = spawnSync(process.execPath, [SCRIPT, dir, "out-spaces", "--cases", "   "], { encoding: "utf8" });
+    assert.equal(without.status, 0, without.stderr);
+    assert.equal(withEmpty.status, 0, withEmpty.stderr);
+    assert.equal(withSpaces.status, 0, withSpaces.stderr);
+    assert.equal(withEmpty.stdout, without.stdout);
+    assert.equal(withSpaces.stdout, without.stdout);
+    assert.equal("selected" in JSON.parse(without.stdout), false);
+    assert.deepEqual(snapshotTree(join(dir, "out-empty")), snapshotTree(join(dir, "out-without")));
+    assert.deepEqual(snapshotTree(join(dir, "out-spaces")), snapshotTree(join(dir, "out-without")));
+  });
+});
+
+test("keep-judged mode copies the named cases with llm and baseline graders intact", () => {
+  withPlugin({ ...SELECTION_SUITE, ...MIXED }, (dir) => {
+    const run = spawnSync(
+      process.execPath,
+      [SCRIPT, dir, "evals-selected", "--cases", "judged listed mixed nested", "--keep-judged"],
+      { encoding: "utf8" },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(JSON.parse(run.stdout), {
+      evalDir: "evals",
+      kept: ["group/nested", "judged", "listed", "mixed"],
+      dropped: [],
+      stripped: {},
+      selected: ["judged", "listed", "mixed", "nested"],
+    });
+    const out = join(dir, "evals-selected");
+    assert.equal(readFileSync(join(out, "judged/graders/clear.md"), "utf8"), SUITE["evals/judged/graders/clear.md"]);
+    assert.equal(readFileSync(join(out, "listed/case.yaml"), "utf8"), SUITE["evals/listed/case.yaml"]);
+    assert.equal(readFileSync(join(out, "mixed/case.yaml"), "utf8"), MIXED["evals/mixed/case.yaml"]);
+    assert.ok(existsSync(join(out, "mixed/samples/kind.json")));
+    assert.ok(existsSync(join(out, "group/nested/graders/used.md")));
+    assert.ok(existsSync(join(out, "mocks/server.json")));
+    assert.ok(!existsSync(join(out, "regex-only")));
+    assert.ok(!existsSync(join(out, "renamed-dir")));
+    assert.ok(!existsSync(join(out, "results")));
   });
 });

@@ -14,28 +14,21 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { admits } from "../lib/gate-expression.mjs";
+import { ifOf, stepsOf, workflowText } from "../lib/workflow-text.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const text = readFileSync(join(root, ".github/workflows/pr-merge.yml"), "utf8");
-const jobBlock = (id) => {
-  const match = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
-  assert.ok(match, `job ${id}`);
-  return match[1];
-};
-const stepsOf = (block) =>
-  block
-    .split(/\n(?=      - name: )/)
-    .slice(1)
-    .map((b) => ({ name: /^      - name: (.*)$/m.exec(b)[1], block: b }));
-const job = jobBlock("merge");
+const wf = workflowText(text);
+const job = wf.job("merge");
 const steps = stepsOf(job);
 const step = (name, list = steps) => {
   const found = list.find((s) => s.name === name);
   assert.ok(found, `step ${name}`);
-  return found.block;
+  return found.text;
 };
 const runScript = (name, list = steps) => {
   const body = /\n {8}run: \|\n([\s\S]*)$/.exec(step(name, list))[1];
@@ -45,7 +38,7 @@ const runScript = (name, list = steps) => {
 };
 
 test("the re-dispatch for earlier lane merges waits on neither the listing nor the gate", () => {
-  const early = jobBlock("dispatch-post-merge-runs");
+  const early = wf.job("dispatch-post-merge-runs");
   const header = early.slice(0, early.indexOf("\n    steps:\n"));
   assert.doesNotMatch(header, /\n    needs:/);
   const list = stepsOf(early);
@@ -110,7 +103,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
 });
 
 test("the early re-dispatch keeps the trusted mechanics and skips untrusted events", () => {
-  const early = jobBlock("dispatch-post-merge-runs");
+  const early = wf.job("dispatch-post-merge-runs");
   const condition = /(?:^|\n)    if: >-\n([\s\S]*?)\n    [a-z-]+:/.exec(early)[1];
   assert.match(condition, /github\.ref == 'refs\/heads\/main'/);
   assert.match(condition, /\(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
@@ -315,12 +308,7 @@ test("a next page with no cursor holds the job", () => {
 // A step's `if:` as GitHub evaluates it on the schedule, with `steps` and
 // `needs` as given. No `if:` runs it. Takes a step block, since the credential
 // scans share one name.
-const blockRunsOn = (block, context, needs = {}) => {
-  const found = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${block}\n`);
-  if (!found) return true;
-  const script = `return (${found[1].replace(">-\n", "").replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`;
-  return new Function("steps", "needs", "github", "always", "inputs", script)(context, needs, { event_name: "schedule" }, () => true, {});
-};
+const blockRunsOn = (block, context, needs = {}) => admits(ifOf(block, 8), { steps: context, needs, github: { event_name: "schedule" }, inputs: {} });
 const runsOn = (name, context, needs = {}) => blockRunsOn(step(name), context, needs);
 const SCAN = "Scan the upload for credentials";
 const isScanId = (id) => /^scan-upload(-\d+)?$/.test(id);
@@ -341,15 +329,15 @@ const assertScanned = (name, predicate, list = steps) => {
   assert.ok(at > 0, `step ${name}`);
   const scan = list[at - 1];
   assert.equal(scan.name, SCAN, `the step before ${name}`);
-  const id = /\n {8}id: (scan-upload(?:-\d+)?)\n/.exec(scan.block)?.[1];
+  const id = /\n {8}id: (scan-upload(?:-\d+)?)\n/.exec(scan.text)?.[1];
   assert.ok(id, `the scan before ${name} has an id`);
-  assert.ok(scan.block.includes(`\n        if: >-\n          ${predicate}\n`), `the scan before ${name} runs on its condition`);
-  assert.ok(scan.block.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), `the scan before ${name}`);
-  const upload = list[at].block;
+  assert.ok(scan.text.includes(`\n        if: >-\n          ${predicate}\n`), `the scan before ${name} runs on its condition`);
+  assert.match(scan.text, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # v\S+\n {8}with:\n {10}gate-path: \.base\/lib\/publish-gate\.mjs\n/, `the scan before ${name}`);
+  const upload = list[at].text;
   assert.ok(upload.includes(`\n        if: >-\n          (${predicate}) && steps.${id}.outputs.clean == 'true'\n`), `${name} waits on ${id}`);
   assert.ok(pathOf(upload), `${name} has a path`);
-  assert.equal(pathOf(scan.block), pathOf(upload), `the scan before ${name} scans its path`);
-  return scan.block;
+  assert.equal(pathOf(scan.text), pathOf(upload), `the scan before ${name} scans its path`);
+  return scan.text;
 };
 const dispatched = (code) => ({ "dispatch-post-merge-runs": { result: "success", outputs: { "post-merge-code": code, "rate-limited": "" } } });
 
@@ -358,7 +346,7 @@ const dispatched = (code) => ({ "dispatch-post-merge-runs": { result: "success",
 test("no step after the listing acts on a held listing", () => {
   const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1);
   assert.ok(after.length > 20);
-  const running = (candidates, code) => after.filter(({ block }) => blockRunsOn(block, atListing(candidates), dispatched(code))).map((s) => s.name);
+  const running = (candidates, code) => after.filter(({ text }) => blockRunsOn(text, atListing(candidates), dispatched(code))).map((s) => s.name);
   const held = { outcome: "success", outputs: { held: "true" } };
   const always = ["Count the sweep's refusals", SCAN, "Upload the sweep's verdicts", "Log the API budget at job end", "Write the sweep cost", "Revoke the lane token"];
   assert.deepEqual(running(held, "0"), always);
@@ -678,7 +666,7 @@ test("both token-holding jobs read the carried reads from the last trusted run's
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const runCache = "${{ runner.temp }}/babysit-run-cache.json";
   const read = "Read the verdict reads the last run kept";
-  for (const list of [steps, stepsOf(jobBlock("enable-auto-merge"))]) {
+  for (const list of [steps, stepsOf(wf.job("enable-auto-merge"))]) {
     const names = list.map((s) => s.name);
     assert.ok(names.indexOf(read) >= 0 && names.indexOf(read) < names.indexOf("Start the run cache from them"));
     const block = step(read, list);
@@ -691,7 +679,7 @@ test("both token-holding jobs read the carried reads from the last trusted run's
     for (const name of [read, "Start the run cache from them"]) {
       assert.match(step(name, list), /\n {8}continue-on-error: true\n/, name);
     }
-    for (const s of list) assert.doesNotMatch(s.block, /uses: actions\/cache[@/]/, s.name);
+    for (const s of list) assert.doesNotMatch(s.text, /uses: actions\/cache[@/]/, s.name);
   }
   const names = steps.map((s) => s.name);
   const order = [
@@ -724,7 +712,7 @@ test("both token-holding jobs read the carried reads from the last trusted run's
 // reads as the merge job does and uploads them under a name of their own, and
 // only when it kept one, so an empty file never hides an older one.
 test("enable-auto-merge uploads its verifier reads for the next run", () => {
-  const list = stepsOf(jobBlock("enable-auto-merge"));
+  const list = stepsOf(wf.job("enable-auto-merge"));
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const names = list.map((s) => s.name);
   const order = ["Arm and disarm auto-merge", "Keep the verdict reads that never change", "Upload the verdict reads for the next run"].map(
@@ -791,8 +779,8 @@ test("the gate reads the head-ref map the last run uploaded and uploads the next
   assert.ok(upload.includes("name: pr-merge-head-refs\n") && upload.includes(`path: ${mapOut}\n`));
   const scan = assertScanned("Upload them for the next run", "always() && steps.head-refs.outcome == 'success'");
   for (const block of [read, keep, scan, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
-  for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
-    assert.ok(!s.block.includes("head-refs"), s.name);
+  for (const s of steps.filter((s) => s.text.includes("actions/cache/"))) {
+    assert.ok(!s.text.includes("head-refs"), s.name);
   }
 });
 
@@ -803,7 +791,7 @@ test("the gate reads the head-ref map the last run uploaded and uploads the next
 test("every post-merge check reads the lane records, and only the merge job uploads them", () => {
   const file = "${{ runner.temp }}/lane-records.json";
   const out = "${{ runner.temp }}/lane-records/lane-records.json";
-  const early = stepsOf(jobBlock("dispatch-post-merge-runs"));
+  const early = stepsOf(wf.job("dispatch-post-merge-runs"));
   for (const list of [steps, early]) {
     const names = list.map((s) => s.name);
     const read = step("Read the lane records the last run kept", list);
@@ -832,9 +820,9 @@ test("every post-merge check reads the lane records, and only the merge job uplo
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.ok(upload.includes("name: pr-merge-lane-records\n") && upload.includes(`path: ${out}\n`));
   assertScanned("Upload the lane records for the next run", "always() && steps.lane-records.outcome == 'success'");
-  assert.doesNotMatch(jobBlock("dispatch-post-merge-runs"), /name: pr-merge-lane-records|lane-records\.mjs write/);
-  for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
-    assert.ok(!s.block.includes("lane-records"), s.name);
+  assert.doesNotMatch(wf.job("dispatch-post-merge-runs"), /name: pr-merge-lane-records|lane-records\.mjs write/);
+  for (const s of steps.filter((s) => s.text.includes("actions/cache/"))) {
+    assert.ok(!s.text.includes("lane-records"), s.name);
   }
 });
 
@@ -853,7 +841,7 @@ const runEarlyCheck = (code, needsDispatch = false, stops) => {
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     const output = join(dir, "output");
-    const script = runScript("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs")));
+    const script = runScript("Check earlier lane merges", stepsOf(wf.job("dispatch-post-merge-runs")));
     const result = spawnSync("bash", ["-c", script], {
       cwd: dir,
       encoding: "utf8",
@@ -917,7 +905,7 @@ const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3, attempts } = {})
       if (attempts !== undefined) writeFileSync(join(dir, "post-merge-last/attempts.json"), attempts);
     }
     const output = join(dir, "output");
-    const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs")))], {
+    const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges", stepsOf(wf.job("dispatch-post-merge-runs")))], {
       cwd: dir,
       encoding: "utf8",
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
@@ -980,19 +968,19 @@ test("a tick runs the check itself for no report, a refusal, a crash or a check 
 // attempts file is handed to the check at the path the step names, and kept
 // for the next tick whether the check runs or an idle tick reuses the report.
 test("the merge gate answers a carried attempt from the file the merge job's check was handed", () => {
-  const merge = stepsOf(jobBlock("merge"));
+  const merge = stepsOf(wf.job("merge"));
   const file = "BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json\n";
   assert.ok(step("Check earlier lane merges", merge).includes(file));
   assert.ok(step("Run the merge gate on each candidate", merge).includes(file));
 });
 
 test("only dispatch-post-merge-runs writes the demotion recoveries; the merge job's check and gate read its kept file", () => {
-  const dpmr = step("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs")));
+  const dpmr = step("Check earlier lane merges", stepsOf(wf.job("dispatch-post-merge-runs")));
   assert.ok(dpmr.includes("BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/demotion-recoveries.json\n"));
   assert.ok(dpmr.includes("BABYSIT_DEMOTION_RECOVERIES_WRITE_ENABLED: 'true'\n"));
   assert.ok(dpmr.includes('[ ! -f "$last/demotion-recoveries.json" ] || cp "$last/demotion-recoveries.json" "$RUNNER_TEMP/demotion-recoveries.json"'));
   assert.ok(dpmr.includes('[ ! -f "$RUNNER_TEMP/demotion-recoveries.json" ] || cp "$RUNNER_TEMP/demotion-recoveries.json" "$kept/demotion-recoveries.json"'));
-  const merge = stepsOf(jobBlock("merge"));
+  const merge = stepsOf(wf.job("merge"));
   const file = "BABYSIT_DEMOTION_RECOVERIES: ${{ runner.temp }}/post-merge-kept/demotion-recoveries.json\n";
   for (const name of ["Check earlier lane merges", "Run the merge gate on each candidate"]) {
     assert.ok(step(name, merge).includes(file), name);
@@ -1002,7 +990,7 @@ test("only dispatch-post-merge-runs writes the demotion recoveries; the merge jo
 
 test("dispatch-post-merge-runs hands the last run's attempts to the check and keeps them", () => {
   const file = "${{ runner.temp }}/post-merge-attempts.json";
-  assert.ok(step("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs"))).includes(`BABYSIT_POSTMERGE_ATTEMPTS: ${file}\n`));
+  assert.ok(step("Check earlier lane merges", stepsOf(wf.job("dispatch-post-merge-runs"))).includes(`BABYSIT_POSTMERGE_ATTEMPTS: ${file}\n`));
   for (const options of [{}, { settle: 1 }]) {
     const run = runIdleCheck({ last: lastReport(), attempts: "carried", ...options });
     assert.equal(run.ran, options.settle === 1);
@@ -1013,7 +1001,7 @@ test("dispatch-post-merge-runs hands the last run's attempts to the check and ke
 });
 
 test("dispatch-post-merge-runs reads the last run's report before its check, from a trusted run alone", () => {
-  const list = stepsOf(jobBlock("dispatch-post-merge-runs"));
+  const list = stepsOf(wf.job("dispatch-post-merge-runs"));
   const names = list.map((s) => s.name);
   const read = step("Read the post-merge report the last run kept", list);
   assert.equal(names.indexOf("Read the post-merge report the last run kept") + 1, names.indexOf("Check earlier lane merges"));
@@ -1081,11 +1069,11 @@ test("the rate-stop label's time is the latest stop of every stop_files vector",
 // red, naming the pool.
 for (const id of ["merge", "enable-auto-merge"]) {
   test(`${id} sends nothing and ends red when dispatch-post-merge-runs stopped on a rate limit`, () => {
-    const list = stepsOf(jobBlock(id));
+    const list = stepsOf(wf.job(id));
     const first = list[0];
     assert.equal(first.name, "Stop on dispatch-post-merge-runs's rate limit");
-    assert.match(first.block, /\n {8}if: needs\.dispatch-post-merge-runs\.outputs\.rate-limited != ''\n/);
-    assert.match(first.block, /\n {10}STOP: \$\{\{ needs\.dispatch-post-merge-runs\.outputs\.rate-limited \}\}\n/);
+    assert.match(first.text, /\n {8}if: needs\.dispatch-post-merge-runs\.outputs\.rate-limited != ''\n/);
+    assert.match(first.text, /\n {10}STOP: \$\{\{ needs\.dispatch-post-merge-runs\.outputs\.rate-limited \}\}\n/);
     const result = spawnSync("bash", ["-c", runScript(first.name, list)], {
       encoding: "utf8",
       env: { ...process.env, STOP: "the core pool until 2026-10-24T19:00:00Z" },
@@ -1104,99 +1092,15 @@ for (const id of ["merge", "enable-auto-merge"]) {
         if (/^steps\.[^.]+\.(outcome|conclusion)$/.test(path)) return "skipped";
         return "";
       };
-      assert.equal(stepRuns(first.block, context, "success"), true, `${id} ${event}: the stop step runs`);
-      for (const { name, block } of list.slice(1)) {
+      assert.equal(stepRuns(first.text, context, "success"), true, `${id} ${event}: the stop step runs`);
+      for (const { name, text: block } of list.slice(1)) {
         assert.equal(stepRuns(block, context, "failure"), false, `${id} ${event}: ${name} runs after the stop`);
       }
     }
   });
 }
 
-// Whether a step runs: its `if:` (no status function means `success() &&`)
-// over GitHub's expression grammar as these jobs use it, with the job's
-// status so far. Context paths resolve through `context`.
-// https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
-function stepRuns(block, context, status) {
-  const match = /\n {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(block);
-  const text = match ? (match[1] ?? match[2]).replace(/\s+/g, " ").trim().replace(/^\$\{\{(.*)\}\}$/, "$1") : "";
-  const value = text ? evaluate(text, context, status) : true;
-  return /\b(always|success|failure|cancelled)\(\)/.test(text) ? truthy(value) : status === "success" && truthy(value);
-}
-const truthy = (v) => v !== false && v !== "" && v !== null && v !== 0 && v !== undefined;
-function evaluate(text, context, status) {
-  const tokens = text.match(/'(?:[^']|'')*'|==|!=|&&|\|\||[!(),]|[A-Za-z_][\w.-]*|\d+/g);
-  let at = 0;
-  const peek = () => tokens[at];
-  const take = (t) => {
-    if (t !== undefined && tokens[at] !== t) throw new Error(`expected ${t} at ${tokens[at]} in ${text}`);
-    return tokens[at++];
-  };
-  const eq = (a, b) => (typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b || String(a ?? "") === String(b ?? ""));
-  const fns = {
-    always: () => true,
-    success: () => status === "success",
-    failure: () => status === "failure",
-    cancelled: () => false,
-    contains: (a, b) => (Array.isArray(a) ? a.some((x) => eq(x, b)) : String(a).toLowerCase().includes(String(b).toLowerCase())),
-    fromJSON: (s) => JSON.parse(s),
-    format: (f, ...args) => f.replace(/\{(\d+)\}/g, (_, i) => String(args[i] ?? "")),
-    startsWith: (a, b) => String(a).toLowerCase().startsWith(String(b).toLowerCase()),
-  };
-  const primary = () => {
-    const t = take();
-    if (t === "!") return !truthy(primary());
-    if (t === "(") {
-      const v = or();
-      take(")");
-      return v;
-    }
-    if (t.startsWith("'")) return t.slice(1, -1).replace(/''/g, "'");
-    if (/^\d+$/.test(t)) return Number(t);
-    if (t === "true" || t === "false") return t === "true";
-    if (peek() === "(") {
-      take("(");
-      const args = [];
-      while (peek() !== ")") {
-        args.push(or());
-        if (peek() === ",") take(",");
-      }
-      take(")");
-      assert.ok(fns[t], `function ${t}`);
-      return fns[t](...args);
-    }
-    return context(t);
-  };
-  const compare = () => {
-    let v = primary();
-    while (peek() === "==" || peek() === "!=") {
-      const op = take();
-      const r = primary();
-      v = op === "==" ? eq(v, r) : !eq(v, r);
-    }
-    return v;
-  };
-  const and = () => {
-    let v = compare();
-    while (peek() === "&&") {
-      take();
-      const r = compare();
-      v = truthy(v) ? r : v;
-    }
-    return v;
-  };
-  const or = () => {
-    let v = and();
-    while (peek() === "||") {
-      take();
-      const r = and();
-      v = truthy(v) ? v : r;
-    }
-    return v;
-  };
-  const v = or();
-  assert.equal(at, tokens.length, `parsed all of ${text}`);
-  return v;
-}
+const stepRuns = (block, context, status) => admits(ifOf(block, 8), context, { status });
 
 test("the step-condition evaluator fails a later step that runs on empty outputs", () => {
   const context = (path) => (/\.(outcome|conclusion)$/.test(path) ? "skipped" : "");
@@ -1222,7 +1126,7 @@ test("the early check warns when it cannot judge, and stays quiet on a verdict",
 });
 
 test("the early job can read the demotion records its floor depends on", () => {
-  assert.match(jobBlock("dispatch-post-merge-runs"), /\n {6}issues: read /);
+  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}issues: read /);
 });
 
 test("the summary does not call a full run unneeded when only the gate's dispatch is read", () => {
@@ -1518,7 +1422,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
     }
     const rowsScan = steps[steps.findIndex((s) => s.name === "Hand the gate's rows to the check writer") - 1];
     assert.equal(rowsScan.name, SCAN);
-    assert.equal(stepRuns(rowsScan.block, context, "failure"), limited !== "true", `the rows' scan with rate-limited=${limited}`);
+    assert.equal(stepRuns(rowsScan.text, context, "failure"), limited !== "true", `the rows' scan with rate-limited=${limited}`);
   }
   // The refusal count still writes its summary, with no read of the run.
   const dir = tempDir("pr-merge-count-");
@@ -1652,7 +1556,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Keep the refusals the next run may skip"), at("Keep the verdict reads that never change") + 1);
   // The upload's credential scan sits between the record and the upload.
   assert.equal(names[at("Keep the refusals the next run may skip") + 1], SCAN);
-  assert.match(steps[at("Keep the refusals the next run may skip") + 1].block, /\n {8}id: scan-upload-4\n/);
+  assert.match(steps[at("Keep the refusals the next run may skip") + 1].text, /\n {8}id: scan-upload-4\n/);
   assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 2);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
@@ -1710,8 +1614,8 @@ test("each candidate's check run is written by its own job, the only one holding
   assert.match(upload, /\n {10}name: pr-merge-gate-rows\n {10}path: \$\{\{ runner\.temp \}\}\/pr-merge-summary\.json\n/);
   assert.match(job, /\n {6}gate-rows: \$\{\{ steps\.rows\.outcome == 'success' \}\}\n/);
 
-  const writer = jobBlock("report-gate-checks");
-  assert.match(writer, /^ {4}name: Report Gate Checks\n {4}needs: \[merge\]\n/);
+  const writer = wf.job("report-gate-checks");
+  assert.match(writer, /^ {2}report-gate-checks:\n {4}name: Report Gate Checks\n {4}needs: \[merge\]\n/);
   assert.match(writer, /\n {4}if: always\(\) && needs\.merge\.outputs\.gate-rows == 'true'\n/);
   assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {6}pull-requests: read[^\n]*\n {4}[a-z]/);
   // Runs wait in line like the merge job's: never two writers at once, and a
@@ -1722,11 +1626,11 @@ test("each candidate's check run is written by its own job, the only one holding
     writerSteps.map((s) => s.name),
     ["Resolve main's tip", "Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run", "Log the API budget at the end"],
   );
-  assert.match(writerSteps[1].block, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
-  for (const { name, block } of writerSteps.slice(3)) {
+  assert.match(writerSteps[1].text, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  for (const { name, text: block } of writerSteps.slice(3)) {
     assert.match(block, /\n {8}continue-on-error: true\n/, name);
   }
-  const show = writerSteps[4].block;
+  const show = writerSteps[4].text;
   assert.match(show, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   assert.match(show, /\n {10}SUMMARY_PATH: \$\{\{ runner\.temp \}\}\/rows\/pr-merge-summary\.json\n/);
   assert.match(show, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/gate-check\.mjs\n/);
@@ -1736,7 +1640,7 @@ test("each candidate's check run is written by its own job, the only one holding
 // #8399 (option B): a red attempt 1 of a full run the lane dispatched gets its
 // one re-run from the early job, under its own token, and a record the
 // post-merge check requires before it credits that github-actions[bot] attempt.
-const earlySteps = () => stepsOf(jobBlock("dispatch-post-merge-runs"));
+const earlySteps = () => stepsOf(wf.job("dispatch-post-merge-runs"));
 
 // Runs the early job's check against a fake python3 that prints `report`.
 const runEarlyReport = (report) => {
@@ -1992,7 +1896,7 @@ test("a rate-limited first read stops the step red before the re-run, naming the
 });
 
 test("dispatch-post-merge-runs's rate-limited output also carries the cover, re-run, close and alert steps' stops", () => {
-  const header = `${jobBlock("dispatch-post-merge-runs").split("\n    steps:\n")[0]}\n`;
+  const header = `${wf.job("dispatch-post-merge-runs").split("\n    steps:\n")[0]}\n`;
   assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.cover\.outputs\.stop \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.close\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
@@ -2307,7 +2211,7 @@ test("a rate-limited read or send stops red with the stop as the job's output, s
   assert.equal(read.status, 1, read.out);
   assert.deepEqual(read.sends, []);
   assert.match(read.out, /::error title=GitHub rate limit::the record read of run 41 was rate limited/);
-  assert.match(jobBlock("dispatch-post-merge-runs"), /\n {6}rate-limited: \$\{\{ [^\n]*\|\| steps\.alert\.outputs\.stop \}\}\n/);
+  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}rate-limited: \$\{\{ [^\n]*\|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
 // Every merge's run is sent, as dispatch-full-run starts it, whoever merged,
@@ -2393,7 +2297,7 @@ test("a recovery the check proves on an open record sends close-cleared, and a c
     send,
     /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.close-cleared == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n {10}&& steps\.alert\.outputs\.rate-limited != 'true'\n/,
   );
-  assert.match(jobBlock("dispatch-post-merge-runs"), /\n {6}issues: read #/, "the job's token keeps issues: read; the close is close-cleared's");
+  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}issues: read #/, "the job's token keeps issues: read; the close is close-cleared's");
 
   const sent = runCloseSend("ok");
   assert.equal(sent.status, 0, sent.out);
@@ -2467,9 +2371,9 @@ test("a rate-limited cover read stops dispatch-post-merge-runs red, and nothing 
   for (const name of after) assert.equal(stepRuns(step(name, list), (p) => stopped[p] ?? "", "failure"), false, name);
   // The merge and enable-auto-merge jobs stop on that output.
   for (const id of ["merge", "enable-auto-merge"]) {
-    const first = stepsOf(jobBlock(id)).find((s) => s.name === "Stop on dispatch-post-merge-runs's rate limit");
+    const first = stepsOf(wf.job(id)).find((s) => s.name === "Stop on dispatch-post-merge-runs's rate limit");
     assert.ok(first, id);
-    assert.match(first.block, /\n {8}if: needs\.dispatch-post-merge-runs\.outputs\.rate-limited != ''\n/);
+    assert.match(first.text, /\n {8}if: needs\.dispatch-post-merge-runs\.outputs\.rate-limited != ''\n/);
   }
 });
 
@@ -2505,7 +2409,7 @@ test("the kill switch and report-only stop the scheduled job's cover read, dispa
 test("with either kill switch set, the scheduled job starts no full run and sends no alert", () => {
   const list = earlySteps();
   const killAt = list.findIndex((s) => s.name === "Check the kill switch");
-  assert.match(list[killAt].block, /\n {10}value: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}\n {10}repo-value: \$\{\{ vars\.CLAUDE_LANES_REPO_DISABLED \}\}\n/);
+  assert.match(list[killAt].text, /\n {10}value: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}\n {10}repo-value: \$\{\{ vars\.CLAUDE_LANES_REPO_DISABLED \}\}\n/);
   const killSwitch = (org, repo) => {
     const dir = tempDir("pr-merge-kill-");
     try {
@@ -2524,13 +2428,13 @@ test("with either kill switch set, the scheduled job starts no full run and send
     const proceed = killSwitch(org, repo);
     assert.equal(proceed, "false", `CLAUDE_LANES_DISABLED=${org} CLAUDE_LANES_REPO_DISABLED=${repo}`);
     const context = (p) => (p === "steps.kill.outputs.proceed" ? proceed : "");
-    for (const { name, block } of list.slice(killAt + 1)) {
+    for (const { name, text: block } of list.slice(killAt + 1)) {
       if (["Check earlier lane merges", "Read the lane records the last run kept", "Read report-only", ...spending].includes(name)) {
         assert.equal(stepRuns(block, context, "success"), false, `${name} with ${org}/${repo}`);
       }
     }
   }
-  assert.doesNotMatch(jobBlock("dispatch-full-run"), /steps\.(kill|mode)\./, "the push carve-out stays");
+  assert.doesNotMatch(wf.job("dispatch-full-run"), /steps\.(kill|mode)\./, "the push carve-out stays");
 });
 
 // The merge job's check, run with this run's dispatch-post-merge-runs report kept
@@ -2772,20 +2676,20 @@ test("rate_stop_cause names a server error hold only when every stop ending then
 });
 
 test("dispatch-post-merge-runs's check names a server error hold, and hands it on in its rate-limited output", () => {
-  const held = runHeld("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs")), SERVER_STOP);
+  const held = runHeld("Check earlier lane merges", stepsOf(wf.job("dispatch-post-merge-runs")), SERVER_STOP);
   assert.notEqual(held.status, 0, held.stderr);
   assert.ok(held.stdout, held.stderr);
   assert.match(held.stdout, /^::error title=GitHub server error::the post-merge check stopped on a GitHub server error hold \(HTTP 503 with a Retry-After\); no full run is started or re-run$/m);
   assert.doesNotMatch(held.stdout, /rate limit/);
   assert.match(held.output, /^rate-limited=every pool until 2100-01-01T00:00:00Z, held on HTTP 503 with a Retry-After$/m);
-  const limited = runHeld("Check earlier lane merges", stepsOf(jobBlock("dispatch-post-merge-runs")), { stop: `* ${HOLD}\n`, cause: `* ${HOLD} limit\n` });
+  const limited = runHeld("Check earlier lane merges", stepsOf(wf.job("dispatch-post-merge-runs")), { stop: `* ${HOLD}\n`, cause: `* ${HOLD} limit\n` });
   assert.match(limited.stdout, /^::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run$/m);
   assert.match(limited.output, /^rate-limited=every pool until 2100-01-01T00:00:00Z$/m);
 });
 
 for (const id of ["merge", "enable-auto-merge"]) {
   test(`${id} names dispatch-post-merge-runs's server error hold under its own title`, () => {
-    const list = stepsOf(jobBlock(id));
+    const list = stepsOf(wf.job(id));
     const run = (STOP) => spawnSync("bash", ["-c", runScript(list[0].name, list)], { encoding: "utf8", env: { ...process.env, STOP } });
     const held = run("every pool until 2100-01-01T00:00:00Z, held on HTTP 503 with a Retry-After");
     assert.equal(held.status, 1);
@@ -2820,7 +2724,7 @@ test("a gate stopped on a server error hold is named so, and no later candidate 
 // candidate's gate gets it as its own gate starts.
 test("the steps that read main's tip get the one the job resolved, not a REST re-read", () => {
   const passed = (block, id) => assert.ok(block.includes(`\n          MAIN_TIP_SHA: \${{ steps.${id}.outputs.sha }}\n`), block.split("\n")[0]);
-  const post = stepsOf(jobBlock("dispatch-post-merge-runs"));
+  const post = stepsOf(wf.job("dispatch-post-merge-runs"));
   for (const name of ["Check earlier lane merges", "Send a red full run to the demotion alert"]) passed(step(name, post), "tip");
   for (const name of ["Check earlier lane merges", "Record a failed lane merge", "Settle verified lane merges"]) passed(step(name), "tip");
   for (const name of ["Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) passed(step(name), "late-tip");
@@ -2832,14 +2736,14 @@ test("the steps that read main's tip get the one the job resolved, not a REST re
   const gate = runScript("Run the merge gate on each candidate");
   assert.match(gate, /tip=\$\(timeout 60 git -C "\$RUNNER_TEMP" ls-remote "https:\/\/github\.com\/\$GITHUB_REPOSITORY\.git" refs\/heads\/main \|/);
   assert.match(gate, /\n {2}MAIN_TIP_SHA=\$tip "\.base\/\$SCRIPT" /);
-  const arm = stepsOf(jobBlock("enable-auto-merge"));
+  const arm = stepsOf(wf.job("enable-auto-merge"));
   for (const name of ["Check whether a full run covers the newest lane merge", "Keep the last sweep's report only while nothing it read has moved", "Arm and disarm auto-merge"]) passed(step(name, arm), "tip");
 });
 
 // A PR-scoped arm run's Python reads take the default branch from the event
 // (babysit_merge_policy.DEFAULT_BRANCH_ENV) instead of reading repos/<repo>.
 test("enable-auto-merge's gate-reader steps take the default branch from the event", () => {
-  const arm = stepsOf(jobBlock("enable-auto-merge"));
+  const arm = stepsOf(wf.job("enable-auto-merge"));
   for (const name of ["Check whether a full run covers the newest lane merge", "Keep the last sweep's report only while nothing it read has moved", "Arm and disarm auto-merge"]) {
     assert.ok(step(name, arm).includes("\n          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}\n"), name);
   }

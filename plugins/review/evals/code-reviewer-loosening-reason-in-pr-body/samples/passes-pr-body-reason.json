@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria read: none present\nLoosened checks would be marked: fail (default); patterns: 0\n\nFail a change that loosens a check (threshold lowered): passes. jest.config.js:8 lowers branches from 90 to 80; #41 does not name it, but the pull request body's Loosened checks section does, and its reason holds: the generated client's one unreached branch puts coverage at 5 of 6.\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "why": "accepts the section's reason for an ordinary check and raises no finding on it"
+    },
+    {
+      "answer": "Criteria read: none present\n\nNo findings.\n\nCoverage: all changed files reviewed",
+      "why": "no finding at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**CRITICAL**\n- `jest.config.js:8`: Fail a change that loosens a check (threshold lowered): branches 90 to 80. The reason is only in the pull request body, which never counts, and #41 does not name the lowering. Restore the minimum. Confidence: high",
+      "why": "rejects the section under the old rule that the pull request body never gives a reason"
+    },
+    {
+      "answer": "**IMPORTANT**\n- `jest.config.js:8`: the branch coverage minimum is lowered; only the spec can give a reason, so ask #41's author to name it. Confidence: medium",
+      "why": "asks for action and treats the spec as the only text that gives a reason"
+    }
+  ]
+}

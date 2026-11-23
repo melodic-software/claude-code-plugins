@@ -11,6 +11,7 @@ import { test } from "node:test";
 
 import { commentBody, MARKER, main, mergedPulls, parseResult, rangePulls, render, scores, violations } from "./report.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { stepsOf, workflowText } from "../lib/workflow-text.mjs";
 
 const AFTER = "a".repeat(40);
 const BEFORE = "b".repeat(40);
@@ -199,21 +200,18 @@ test("a usage or capacity limit stop passes with a notice, and any other class s
 });
 
 // The two workflows, read as text: each job is the block under its two-space id.
-const workflowText = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
-const jobsOf = (text) =>
-  Object.fromEntries(
-    `\n${text.split("\njobs:\n")[1]}`
-      .split(/\n(?= {2}[a-z][a-z-]*:\n)/)
-      .slice(1)
-      .map((block) => [/^ {2}([a-z-]+):/.exec(block)[1], block]),
-  );
+const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
+const jobsOf = (text) => {
+  const wf = workflowText(text);
+  return Object.fromEntries(wf.ids.map((id) => [id, wf.job(id)]));
+};
 const permissionsOf = (block) => {
   const match = /\n {4}permissions:(?: \{\}\n|\n((?: {6}[a-z-]+: [a-z]+.*\n)+))/.exec(block);
   assert.ok(match, "the job names its permissions");
   return Object.fromEntries([...(match[1] ?? "").matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]]));
 };
-const GATE = workflowText("post-merge-select-mutation-range.yml");
-const LANE = workflowText("post-merge-test-mutation.yml");
+const GATE = read("post-merge-select-mutation-range.yml");
+const LANE = read("post-merge-test-mutation.yml");
 
 test("only a push to main starts the gate, and only the gate's run starts the lane", () => {
   for (const text of [GATE, LANE]) {
@@ -228,9 +226,9 @@ test("only a push to main starts the gate, and only the gate's run starts the la
 const MODEL_JOBS = ["generate", "generate-subscription", "generate-fallback", "triage", "triage-subscription", "triage-fallback"];
 // One step of a job block, by its id or its name.
 const stepOf = (block, key) => {
-  const step = block.split(/\n(?= {6}- name: )/).find((s) => s.includes(`\n        id: ${key}\n`) || s.includes(`- name: ${key}\n`));
+  const step = stepsOf(block).find((s) => s.name === key || s.text.includes(`\n        id: ${key}\n`));
   assert.ok(step, key);
-  return step;
+  return step.text;
 };
 // A literal block (`key: |`) of a step, one entry per line.
 const literal = (step, key) => {

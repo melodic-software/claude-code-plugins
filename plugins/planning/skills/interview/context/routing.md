@@ -2,7 +2,7 @@
 
 Reference detail for the `## Routing by size and fog` section of `SKILL.md`. Read it at entry
 and at every round boundary: it owns the entry gate's thresholds, the round-1 wayfind question,
-the bigger-than-you-thought check, what the handoff to `/planning:wayfind` carries, and the "this
+the problems list, the round header's scope-check line, the bigger-than-you-thought check, what the handoff to `/planning:wayfind` carries, and the "this
 is small, ship it" exit.
 
 ## Entry: diff size and retry cost, not behavior change
@@ -30,10 +30,12 @@ or the data migration should work"), round 1 carries one question recommending
 `/planning:wayfind chart`, which charts those unknowns as a map of decision items. The interview
 stays the entry either way:
 
-- Ask it as a registered round-1 question in the full layout, worded so yes accepts ("Should this
+- Ask it as a registered round-1 question in the whole question layout, worded so yes accepts ("Should this
   effort move to `/planning:wayfind chart` now?"), its Context naming each unknown area in the
   user's words. Round 1's other questions go out in the same message; never hold them for this
-  answer, and never switch on your own.
+  answer, and never switch on your own. In an intake round it goes out instead as the one-line
+  routing suggestion [`lookups.md`](lookups.md) "The intake round" shapes, still registered at
+  ask-time, since an intake round shows no `My recommendation:` block.
 - Accepted: write the ledger as "The handoff to wayfind" below says, and name
   `/planning:wayfind chart` with the ledger path for the user to run.
 - Declined: record the decline as the row's resolution and carry on with the rounds. Raise wayfind
@@ -44,6 +46,36 @@ stays the entry either way:
 
 Unknowns in two areas or fewer, or unknowns the request does not state, are not this trigger: fog
 that surfaces during the rounds is the fog trigger's.
+
+## Problems
+
+The problems the work serves are agreed in round 1: from the intake answers, or from the request
+when it states them. Write each to the ledger's `## Problems` section as
+`- P<n> | <one-line problem> | proposed`, numbered from P1 in the order they were given, restate
+them at the top of the next round, and mark each `agreed` once the user confirms it. Each question
+registered after that carries `problem:: P<n>` for the problem it serves (loop.md "Register tags"),
+and every line the user reads pairs the code with its words (`problem P2 (late invoices)`).
+
+A problem set that will not fit one session goes to `/planning:wayfind chart` only through the
+triggers below, which stay too big AND too foggy: the problem count is evidence for them, never a
+trigger of its own.
+
+## The scope-check line
+
+Every round header, the intake round's included, carries one `Scope check:` line. Once round
+`<N>`'s questions are drafted and before its file is written, take its ids and this line in one
+call:
+`bash "<plugin-root>/surface/round.sh" next-id --ledger <memory_dir>/<topic-slug>/interview-checklist.md --count <n> --round <N> --limit <wayfind_suggest_questions> --rounds-dir <memory_dir>/<topic-slug>`.
+`<n>` is the round's new rows (SKILL.md, the `Q<N>` numbering paragraph). `--limit` takes an
+integer: the `wayfind_suggest_questions` value resolved below, `27` when no layer sets it. The
+first `<n>` output lines are the new ids; the last line is the `Scope check:` line, pasted as
+printed: the questions registered against the limit, this round's new rows included, and what each
+of the last two rounds added and settled. On the page lane the call adds `--dir '<data_dir>'`.
+For a round that adds no row, `round.sh scope-check` with the same `--round`, `--limit` and
+`--rounds-dir` prints the counts alone, to follow `Scope check:`. Those counts are the measured
+half of the question-count pointer and the fog trigger below; the fog trigger still counts the branches the next round would add. With no Bash, count the
+same from the ledger by the rules of `scope-check` in
+[`../../../surface/README.md`](../../../surface/README.md) and write the line yourself.
 
 ## Bigger than you thought? Check at every round boundary
 
