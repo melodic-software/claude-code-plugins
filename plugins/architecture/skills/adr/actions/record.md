@@ -23,6 +23,8 @@ A decision earns a record when **a real alternative was weighed** and at least o
   team added.
 
 No alternative weighed means nothing to record: the record would say "we did the obvious thing".
+A decision still provisional on a prototype that has not run fails the test; it becomes eligible
+once the prototype's verdict confirms it.
 A decision that would surprise a reader without its context is a reason to write the record well,
 not a gate on writing it.
 
