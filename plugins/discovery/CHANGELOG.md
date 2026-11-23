@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.15] - 2026-11-23
+
+### Changed
+
+- Shared `html2md.py` and `suppression-scan.py` synced where this plugin carries them: comments removed, no behavior change.
+
 ## [2.2.14] - 2026-11-23
 
 ### Fixed

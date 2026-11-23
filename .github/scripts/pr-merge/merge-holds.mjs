@@ -432,6 +432,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/intake-triage/triage-rubric.txt", "gate"],
   [".github/scripts/intake-triage/refine-schema.json", "gate"],
   [".github/scripts/plugin-eval/policy-probe-prompt.txt", "gate"],
+  [".github/scripts/pr-unblock/test-scope.mjs", "gate"],
+  [".github/scripts/pr-unblock/declare-test-scope.mjs", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],

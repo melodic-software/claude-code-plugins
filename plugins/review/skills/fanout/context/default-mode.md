@@ -20,6 +20,9 @@ The tier, its size triggers and its promotion rule: [`reference/change-set.md`](
 | **medium** | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
 | **large** | medium set + the project's ownerless review-criteria docs as slice-subagents, each a `brief-reviewer` agent (`leaf-roster.md`) |
 
+Route the leaf reviewer dispatches per the caller contract of `/multi-agent:route` (if enabled);
+otherwise run them here as before.
+
 ## Paved-path brief
 
 Before dispatch, resolve the project's standards index through the "Resolution ladder" section of
