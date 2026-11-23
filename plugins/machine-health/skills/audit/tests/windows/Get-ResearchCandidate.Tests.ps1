@@ -27,8 +27,6 @@ BeforeAll {
     function Get-FixtureItem([string] $Name, [string] $Severity, [string] $Title) {
         [ordered]@{ key = $script:Keys[$Name]; severity = $Severity; muted = $false; title = $Title }
     }
-    # Eight new keys: two ext, two listeners with one title, an INFO and a WARN process, a task
-    # and an app. startup-items also lists S1, which is not new.
     $script:Checks = @(
         [ordered]@{ id = 'browser-extensions'; severity = 'WARN'; detail = @{ items = @(
                     (Get-FixtureItem -Name 'E1' -Severity 'WARN' -Title 'Ext One'), (Get-FixtureItem -Name 'E2' -Severity 'INFO' -Title 'Ext Two')) } }

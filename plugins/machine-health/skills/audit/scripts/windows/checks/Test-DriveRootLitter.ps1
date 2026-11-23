@@ -113,8 +113,6 @@ function Get-RootResidue {
         $isEmpty = $null
         if ($isDir) {
             $isEmpty = try {
-                # First entry only -- a stray directory can be arbitrarily large
-                # and this check never recurses.
                 $first = [System.IO.Directory]::EnumerateFileSystemEntries($e.FullName) |
                     Select-Object -First 1
                 $null -eq $first
@@ -128,9 +126,6 @@ function Get-RootResidue {
                 size_bytes = $isDir ? $null : [long]$e.Length
                 is_empty   = $isEmpty
                 owner      = $owner
-                # Date, not instant: stable across runs (identical output feeds
-                # the catalog's identical_streak accounting) and day granularity
-                # is all "how long has this dropping been here" needs.
                 created    = $e.CreationTimeUtc.ToString('yyyy-MM-dd')
             })
     }

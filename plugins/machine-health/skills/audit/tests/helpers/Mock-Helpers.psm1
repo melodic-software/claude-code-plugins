@@ -272,8 +272,6 @@ function New-MockEnvironmentKey {
 }
 
 function New-MachineHealthTempDir {
-    # Creates a uniquely named scratch directory under the system temp root and
-    # returns its path.
     [CmdletBinding()]
     [OutputType([string])]
     param([string] $Prefix = 'machine-health-test')

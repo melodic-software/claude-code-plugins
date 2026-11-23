@@ -31,7 +31,6 @@ BeforeDiscovery {
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1"
 
-    # A fence indented under a list item indents its lines by the same amount.
     function Get-PowerShellBlock {
         param([string] $Path)
         $text = Get-Content -LiteralPath $Path -Raw

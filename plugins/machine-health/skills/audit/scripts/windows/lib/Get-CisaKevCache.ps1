@@ -121,8 +121,6 @@ function Get-CisaKevCache {
 }
 
 function Invoke-KevFetch {
-    # Returns @{ Data; Error }: the downloaded document on success, the failure message
-    # otherwise, so the caller never mistakes a failed fetch for an empty feed.
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(

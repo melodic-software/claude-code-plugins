@@ -123,7 +123,6 @@ function Invoke-DriversCheck {
         $platformEventCount = $platformEvents.Count
         $ciNewest = $ciEvents | Sort-Object TimeCreated -Descending | Select-Object -First 1
 
-        # Age signal: stays INFO only. Many OEM drivers are old-but-correct.
         $threeYearsAgo = (Get-Date).AddYears(-3)
         $oldSignedCount = 0
         $inventory = foreach ($d in $drivers) {

@@ -54,8 +54,6 @@ function Resolve-ClaudeTempRoot {
     [OutputType([pscustomobject])]
     param()
 
-    # Precedence order is the order of this table; a base whose environment
-    # variable is unset or blank contributes no candidate.
     $bases = @(
         @{ Base = $env:CLAUDE_CODE_TMPDIR; Child = 'claude'; Source = 'CLAUDE_CODE_TMPDIR/claude' }
         @{ Base = $env:TEMP; Child = 'claude'; Source = 'TEMP/claude' }
