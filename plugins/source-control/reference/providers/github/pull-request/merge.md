@@ -166,7 +166,9 @@ echo missing
 
 It prints `allow`, `fail` (a hold), or `missing` while pr-verify has not judged the head. A head
 pr-verify skips (a credit stop, an outage) never gets a pass, so after the 30-minute wait the merge
-goes ahead and reports that no verdict was read. A lanes App PR's FAIL sets no label, so it too
+goes ahead and reports that no verdict was read, except where the guardrails
+`block-unresolved-pr-merge` hook is enabled: it refuses the merge until a pass exists at the head.
+A lanes App PR's FAIL sets no label, so it too
 reads `missing`; the merge queue's own check still requires a pass for a lanes App PR, so the
 queue holds it. On a triangular
 flow, name the base repository in both scripts' first line, as the top of this file says.
